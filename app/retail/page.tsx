@@ -14,13 +14,20 @@ import {
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   BarChart3,
   Building2,
-  CheckCircle2,
   ClipboardList,
+  ChevronDown,
   LocalShipping,
+  MoreHorizontal,
   Package,
   Payments,
   ReceiptLong,
@@ -179,13 +186,7 @@ function SectionCard({
   return (
     <section className="bg-[var(--surface-base)] px-1 py-1">
       <div className="flex items-center justify-between gap-3 border-b border-[var(--edge-subtle)] pb-3">
-        <div>
-          <h3 className="text-xl font-semibold text-[var(--text-strong)]">{title}</h3>
-          <p className="mt-1 text-xs text-[var(--text-muted)]">
-            Date range <span className="font-semibold text-[var(--text-strong)]">Last 12 months</span> ·
-            Compare <span className="font-semibold text-[var(--text-strong)]">Previous period</span>
-          </p>
-        </div>
+        <h3 className="text-xl font-semibold text-[var(--text-strong)]">{title}</h3>
         <div className="text-right">
           <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
             {metricLabel}
@@ -272,47 +273,11 @@ export default function RetailOverviewPage() {
     <RetailShell
       title="Business overview"
       actions={
-        <div className="flex flex-wrap gap-2">
+        <div className="flex items-center gap-2">
           <Button asChild size="sm">
             <Link href="/portal/pos">
               <Payments className="h-4 w-4" />
-              Open POS
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/insights">
-              <BarChart3 className="h-4 w-4" />
-              Detailed insights
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/accounting">
-              <ReceiptLong className="h-4 w-4" />
-              Accounting
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/stock">
-              <Package className="h-4 w-4" />
-              Stock
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/buy">
-              <LocalShipping className="h-4 w-4" />
-              Buy
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/customers">
-              <Users className="h-4 w-4" />
-              Customers
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/setup">
-              <Building2 className="h-4 w-4" />
-              Setup
+              POS
             </Link>
           </Button>
           <Button asChild size="sm" variant="outline">
@@ -321,6 +286,42 @@ export default function RetailOverviewPage() {
               Sell
             </Link>
           </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" className="gap-1">
+                <MoreHorizontal className="h-4 w-4" />
+                <span className="hidden sm:inline">More</span>
+                <ChevronDown className="h-3 w-3" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem asChild>
+                <Link href="/retail/stock" className="flex items-center gap-2">
+                  <Package className="h-4 w-4" /> Stock
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/retail/buy" className="flex items-center gap-2">
+                  <LocalShipping className="h-4 w-4" /> Buy
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/retail/customers" className="flex items-center gap-2">
+                  <Users className="h-4 w-4" /> Customers
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/retail/reports" className="flex items-center gap-2">
+                  <BarChart3 className="h-4 w-4" /> Reports
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/retail/setup" className="flex items-center gap-2">
+                  <Building2 className="h-4 w-4" /> Setup
+                </Link>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -435,10 +436,7 @@ export default function RetailOverviewPage() {
         <aside className="space-y-4">
           <section className="bg-[var(--surface-base)] px-1 py-1">
             <div className="flex items-start justify-between gap-3">
-              <div>
-                <h3 className="text-xl font-semibold text-[var(--text-strong)]">Priorities</h3>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">Owner-level operating focus</p>
-              </div>
+              <h3 className="text-xl font-semibold text-[var(--text-strong)]">Priorities</h3>
               <span className="rounded-full bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold">
                 {(data?.ownerMetrics.highlights?.length ?? 0).toString()}
               </span>
@@ -461,7 +459,6 @@ export default function RetailOverviewPage() {
 
           <section className="bg-[var(--surface-base)] px-1 py-1">
             <h3 className="text-xl font-semibold text-[var(--text-strong)]">Cash and demand mix</h3>
-            <p className="mt-1 text-xs text-[var(--text-muted)]">Where money is coming from</p>
             <div className="mt-3">
               <AdminDonutChart
                 rows={tenderRows}
@@ -491,20 +488,15 @@ export default function RetailOverviewPage() {
                 <div className="mt-1 font-mono text-lg">
                   {(data?.ownerMetrics.kpis.inventoryPressurePct ?? 0).toFixed(1)}%
                 </div>
-                <p className="mt-1 text-xs text-[var(--text-muted)]">
-                  {data?.summary.lowStockCount ?? 0} low-stock items out of{" "}
-                  {data?.summary.activeCatalogCount ?? 0} active SKUs
-                </p>
               </div>
-              <div className="bg-[var(--surface-base)] px-1 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <CheckCircle2 className="h-4 w-4 text-[var(--text-muted)]" />
-                  Profit model source
-                </div>
-                <p className="mt-1 text-sm">
-                  {data?.ownerMetrics.model === "ACCOUNTING_POSTED"
-                    ? "Accounting-posted journals"
-                    : "Engineered estimate from retail operations"}
+            </div>
+          </section>
+        </aside>
+      </div>
+    </RetailShell>
+  );
+}
+ons"}
                 </p>
               </div>
             </div>

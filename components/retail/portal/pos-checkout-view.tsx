@@ -209,6 +209,7 @@ export function PosCheckoutView() {
   const [activeTarget, setActiveTarget] = useState<CheckoutNumericTarget | null>(null);
   const [customerSheetOpen, setCustomerSheetOpen] = useState(false);
   const [adjustmentsOpen, setAdjustmentsOpen] = useState(false);
+  const [mobileCartOpen, setMobileCartOpen] = useState(false);
 
   /* ── Global POS state ────────────────────────── */
   const {
@@ -620,8 +621,8 @@ export function PosCheckoutView() {
         </div>
       </div>
 
-      {/* ── Three-column layout ─────────────────────────── */}
-      <div className="grid min-h-0 flex-1 overflow-hidden xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)_minmax(300px,0.8fr)]">
+      {/* ── Three-column layout (desktop) ─────────────── */}
+      <div className="hidden min-h-0 flex-1 overflow-hidden md:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)_minmax(300px,0.8fr)]">
 
         {/* ┄ Column 1 — Catalog ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
         <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
@@ -1206,6 +1207,175 @@ export function PosCheckoutView() {
           </div>
         </div>
       </div>
+
+      {/* ── Mobile layout (< md) ────────────────────────── */}
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden md:hidden">
+        {/* Mobile catalog — full width, 2-col grid */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--surface-base)]">
+          <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            {catalogItems.length === 0 ? (
+              <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
+                <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-muted)]">
+                  <Search className="h-7 w-7 text-[var(--text-muted)]" />
+                </div>
+                <p className="text-sm font-medium text-[var(--text-muted)]">No items found</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                {catalogItems.map((item) => {
+                  const inCart = cart.find((c) => c.catalogItemId === item.id);
+                  return (
+                    <button
+                      key={item.id}
+                      type="button"
+                      onClick={() => handleAddCatalogItem(item)}
+                      disabled={!currentShift}
+                      className={cn(
+                        "group relative flex flex-col gap-2 rounded-xl border p-2.5 text-left transition-all duration-100 active:scale-[0.97]",
+                        inCart
+                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))]"
+                          : "border-[var(--border-default)] bg-[var(--surface-base)]",
+                      )}
+                    >
+                      {item.imageUrl ? (
+                        <div className="flex h-20 w-full items-center justify-center overflow-hidden rounded-lg bg-[var(--surface-muted)]">
+                          <Image src={item.imageUrl} alt={item.name} width={80} height={80} className="h-full w-full object-cover" unoptimized />
+                        </div>
+                      ) : (
+                        <div className="flex h-20 w-full items-center justify-center rounded-lg bg-[var(--surface-muted)]">
+                          <Package className="h-8 w-8 text-[var(--text-muted)]" />
+                        </div>
+                      )}
+                      <div className="min-w-0">
+                        <div className="line-clamp-2 text-xs font-semibold leading-tight text-[var(--text-strong)]">
+                          {item.name}
+                        </div>
+                        <div className="mt-1 font-mono text-sm font-bold text-[var(--text-strong)]">
+                          {money(item.unitPrice)}
+                        </div>
+                      </div>
+                      {inCart ? (
+                        <div className="absolute -right-1.5 -top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-[var(--action-primary-bg)] px-1 text-[10px] font-black text-white">
+                          {inCart.quantity % 1 === 0 ? inCart.quantity : inCart.quantity.toFixed(1)}
+                        </div>
+                      ) : null}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Mobile cart FAB */}
+      <button
+        type="button"
+        onClick={() => setMobileCartOpen(true)}
+        className="fixed right-4 bottom-4 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--action-primary-bg)] text-white shadow-lg transition-transform active:scale-95 md:hidden"
+      >
+        <Wallet className="h-6 w-6" />
+        {cart.length > 0 ? (
+          <span className="absolute -top-1 -right-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-red-500 px-1 text-[10px] font-bold text-white">
+            {cart.length}
+          </span>
+        ) : null}
+      </button>
+
+      {/* Mobile cart + payment sheet */}
+      <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+        <SheetContent side="bottom" size="lg" className="h-[92dvh] p-0">
+          <div className="flex h-full flex-col">
+            <SheetHeader className="shrink-0 border-b border-[var(--edge-subtle)] px-4 py-3">
+              <SheetTitle className="flex items-center justify-between">
+                <span>Cart</span>
+                {cart.length > 0 ? (
+                  <span className="rounded-full bg-[var(--action-primary-bg)] px-2 py-0.5 text-xs font-bold text-white">
+                    {cart.length}
+                  </span>
+                ) : null}
+              </SheetTitle>
+            </SheetHeader>
+
+            {/* Cart items */}
+            <div className="min-h-0 flex-1 overflow-y-auto">
+              {cart.length === 0 ? (
+                <div className="flex flex-col items-center justify-center gap-2 p-8 text-center">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[var(--surface-muted)]">
+                    <Payments className="h-6 w-6 text-[var(--text-muted)]" />
+                  </div>
+                  <p className="text-sm font-medium text-[var(--text-muted)]">No items yet</p>
+                </div>
+              ) : (
+                <div className="divide-y divide-[var(--edge-subtle)]">
+                  {cart.map((item) => (
+                    <div key={item.catalogItemId} className="flex items-center gap-3 px-4 py-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate text-sm font-semibold text-[var(--text-strong)]">{item.name}</div>
+                        <div className="text-xs text-[var(--text-muted)]">{money(item.unitPrice)} x {item.quantity}</div>
+                      </div>
+                      <div className="font-mono text-sm font-bold">{money(item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0))}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Payment summary */}
+            {cart.length > 0 ? (
+              <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] p-4">
+                <div className="flex items-baseline justify-between">
+                  <span className="text-sm font-semibold text-[var(--text-muted)]">Total</span>
+                  <span className="font-mono text-2xl font-black text-[var(--text-strong)]">{money(total)}</span>
+                </div>
+
+                {/* Tender buttons */}
+                <div className="mt-3 grid grid-cols-2 gap-2">
+                  {TENDER_TYPES.slice(0, 4).map((type) => (
+                    <button
+                      key={type}
+                      type="button"
+                      onClick={() => {
+                        setPayments([{ tenderType: type, amount: String(total.toFixed(2)), reference: "" }]);
+                        setActiveTarget({ type: "tender_amount", index: 0 });
+                      }}
+                      className={cn(
+                        "flex h-14 items-center justify-center gap-2 rounded-xl border font-semibold transition-all active:scale-[0.98]",
+                        payments[0]?.tenderType === type
+                          ? TENDER_TYPE_STYLES[type].selected
+                          : TENDER_TYPE_STYLES[type].idle,
+                      )}
+                    >
+                      <TenderIcon type={type} />
+                      <span className="text-sm">{tenderLabel(type)}</span>
+                    </button>
+                  ))}
+                </div>
+
+                {/* Charge button */}
+                <button
+                  type="button"
+                  onClick={() => { setMobileCartOpen(false); handleCharge(); }}
+                  disabled={charging || total <= 0 || cart.length === 0}
+                  className={cn(
+                    "mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black text-white transition-all duration-150 active:scale-[0.98]",
+                    charging || total <= 0 || cart.length === 0
+                      ? "bg-[var(--text-muted)] opacity-60"
+                      : "bg-[var(--action-primary-bg)] shadow-[0_8px_24px_rgba(0,0,0,0.18)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.22)]",
+                  )}
+                >
+                  {charging ? (
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                  ) : (
+                    <Zap className="h-5 w-5" />
+                  )}
+                  {charging ? "Processing…" : `Charge ${money(total)}`}
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* ════════════════════════════════════════════════════
          DIALOGS & SHEETS

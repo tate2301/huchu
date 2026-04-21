@@ -12,7 +12,6 @@ import type { SearchableOption } from "@/app/gold/types";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
-import { FieldHelp } from "@/components/shared/field-help";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -639,13 +638,7 @@ export default function ScrapMetalBatchesPage() {
                   aria-readonly="true"
                   placeholder={editing ? "Lot number" : reservingBatchNumber ? "Reserving..." : "Auto-generated"}
                 />
-                <FieldHelp
-                  hint={
-                    editing
-                      ? "Lot number stays locked after creation."
-                      : reserveBatchNumberError ?? "Lot number is generated automatically after site selection."
-                  }
-                />
+
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Collection Start</label>
