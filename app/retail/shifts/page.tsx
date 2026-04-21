@@ -13,13 +13,11 @@ import {
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { FieldHelp } from "@/components/shared/field-help";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -282,11 +280,9 @@ export default function RetailShiftsPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Shift signal</p>
             <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Sales, expected cash, and variance by shift</h2>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Open shifts</p>
             <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
               {shiftsQuery.data?.data.filter((shift) => shift.status === "OPEN").length ?? 0}
             </p>
@@ -319,11 +315,9 @@ export default function RetailShiftsPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Shift depth</p>
             <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Sales versus expected cash on the busiest shifts</h3>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Latest variance</p>
             <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
               {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
                 shiftsQuery.data?.data.find((shift) => shift.status === "OPEN")?.variance ?? 0,
@@ -363,14 +357,13 @@ export default function RetailShiftsPage() {
         pagination={{ enabled: true, server: false }}
         searchPlaceholder="Search shifts"
         emptyState={shiftsQuery.isLoading ? "Loading shifts..." : "No shifts yet"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Shift register control</span>}
+
       />
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="sm:max-w-xl">
           <DialogHeader>
             <DialogTitle>Open shift</DialogTitle>
-            <DialogDescription>Bind a cashier to a till and start the day cleanly.</DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -382,7 +375,6 @@ export default function RetailShiftsPage() {
             <div className="space-y-2">
               <label className="block text-sm font-semibold">Shift number</label>
               <Input value={shiftNo} readOnly disabled={isReserving} />
-              <FieldHelp error={reserveError ?? undefined} hint={reserveError ? undefined : "Generated automatically."} />
             </div>
             <SearchableSelect
               label="Site"
@@ -421,7 +413,6 @@ export default function RetailShiftsPage() {
         <DialogContent className="sm:max-w-lg">
           <DialogHeader>
             <DialogTitle>Close shift</DialogTitle>
-            <DialogDescription>{closeTarget?.shiftNo}</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3 text-sm">
