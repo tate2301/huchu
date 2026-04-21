@@ -142,15 +142,20 @@
   --radius-4xl: calc(var(--radius) + 16px);
 }
 
+/* ═══════════════════════════════════════════
+   TIER 1 — PRIMITIVES
+   Foundational values that rarely change.
+   Themes override these to shift personality.
+   ═══════════════════════════════════════════ */
 :root {
   color-scheme: light;
 
-  /* Geometry + sizing */
+  /* ── Geometry ── */
   --radius: 0.625rem;
-  --radius-sm: 0.5rem;
-  --radius-md: 0.625rem;
-  --radius-lg: 0.75rem;
-  --radius-xl: 1rem;
+  --radius-sm: 10px;
+  --radius-md: 12px;
+  --radius-lg: 14px;
+  --radius-xl: 18px;
   --radius-pill: 9999px;
   --radius-full: 9999px;
 
@@ -173,7 +178,7 @@
   --button-radius: 11px;
   --card-radius: 12px;
 
-  /* Typography scale */
+  /* ── Typography ── */
   --font-weight-regular: 400;
   --font-weight-medium: 500;
   --font-weight-semibold: 600;
@@ -230,12 +235,12 @@
   --type-caption-line: 1rem;
   --type-caption-weight: 500;
 
-  /* Motion */
-  --motion-duration-instant: 90ms;
-  --motion-duration-fast: 160ms;
-  --motion-duration-base: 240ms;
-  --motion-duration-normal: 240ms;
-  --motion-duration-slow: 360ms;
+  /* ── Motion ── */
+  --motion-duration-instant: 80ms;
+  --motion-duration-fast: 140ms;
+  --motion-duration-base: 200ms;
+  --motion-duration-normal: 200ms;
+  --motion-duration-slow: 300ms;
 
   --motion-ease-standard: cubic-bezier(0.2, 0.8, 0.2, 1);
   --motion-ease-default: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -246,7 +251,7 @@
   --motion-scale-press: 0.985;
   --motion-lift-y: -2px;
 
-  /* Spacing helpers */
+  /* ── Spacing ── */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -256,7 +261,7 @@
   --space-8: 32px;
   --space-10: 40px;
 
-  /* Baseline neutral + semantic palette */
+  /* ── Neutral palette ── */
   --neutral-0: #ffffff;
   --neutral-25: #fcfcfb;
   --neutral-50: #f8f9f8;
@@ -270,6 +275,7 @@
   --neutral-800: #2f363d;
   --neutral-900: #1b2127;
 
+  /* ── Color ramps ── */
   --primary: #2f6bff;
   --accent: #0f8f86;
   --destructive: #d3434a;
@@ -310,8 +316,16 @@
   --info-300: #9ecdf4;
   --info-500: #2d84c6;
   --info-700: #1f5f90;
+}
 
-  /* Semantic mappings */
+/* ═══════════════════════════════════════════
+   TIER 2 — SEMANTIC TOKENS
+   Abstract roles mapping primitives to meaning.
+   Themes only override when primitives change
+   force a semantic shift.
+   ═══════════════════════════════════════════ */
+:root {
+  /* ── Surfaces ── */
   --surface-app: var(--neutral-50);
   --surface-panel: var(--neutral-0);
   --surface-elevated: var(--neutral-0);
@@ -325,6 +339,7 @@
   --surface-row-highlight: var(--primary-50);
   --surface-overlay: rgb(27 33 39 / 14%);
 
+  /* ── Text ── */
   --text-strong: var(--neutral-900);
   --text-body: var(--neutral-900);
   --text-muted: var(--neutral-600);
@@ -332,6 +347,7 @@
   --text-inverse: var(--neutral-0);
   --text-danger: var(--danger-700);
 
+  /* ── Actions ── */
   --action-primary-bg: var(--primary);
   --action-primary-fg: var(--neutral-0);
   --action-primary-hover: var(--primary-600);
@@ -348,6 +364,7 @@
   --action-disabled-bg: var(--neutral-100);
   --action-disabled-fg: var(--neutral-400);
 
+  /* ── Edges ── */
   --edge-subtle: var(--neutral-100);
   --edge-default: var(--neutral-200);
   --edge-strong: var(--neutral-300);
@@ -358,6 +375,7 @@
   --edge-outline-sharp: inset 0 0 0 1px var(--edge-neutral-rest);
   --edge-outline-sharp-hover: inset 0 0 0 1px var(--edge-neutral-hover);
 
+  /* ── Borders ── */
   --border-default: var(--edge-default);
   --border-soft: var(--edge-subtle);
   --border-subtle: var(--edge-subtle);
@@ -365,6 +383,39 @@
   --input-border: var(--edge-default);
   --input-bg: var(--surface-base);
 
+  /* ── Focus ── */
+  --focus-ring: var(--primary-500);
+  --focus-ring-offset: var(--surface-canvas);
+
+  /* ── Elevation / shadows ── */
+  --elevation-0: none;
+  --elevation-1: inset 0 0 0 1px var(--edge-default);
+  --elevation-2:
+    inset 0 0 0 1px var(--edge-default),
+    0 2px 8px rgba(0, 0, 0, 0.06);
+  --elevation-3:
+    inset 0 0 0 1px var(--edge-default),
+    0 8px 24px rgba(0, 0, 0, 0.10);
+  --elevation-4:
+    inset 0 0 0 1px var(--edge-strong),
+    0 12px 32px rgba(0, 0, 0, 0.14);
+
+  --shadow-none: none;
+  --shadow-card:
+    0 1px 3px rgba(0, 0, 0, 0.04),
+    0 4px 16px rgba(0, 0, 0, 0.04);
+  --shadow-popover:
+    0 12px 28px -8px rgba(0, 0, 0, 0.12),
+    0 4px 8px rgba(0, 0, 0, 0.04);
+}
+
+/* ═══════════════════════════════════════════
+   TIER 3 — COMPONENT TOKENS
+   Specific to component types. Map to Tier 2.
+   Rarely overridden by themes.
+   ═══════════════════════════════════════════ */
+:root {
+  /* ── Surface framing ── */
   --surface-frame-shadow:
     inset 0 0 0 1px var(--edge-default),
     0 1px 2px rgb(16 24 40 / 0.03);
@@ -372,6 +423,7 @@
     inset 0 0 0 1px var(--edge-strong),
     0 4px 12px rgb(16 24 40 / 0.08);
 
+  /* ── Buttons ── */
   --button-shadow-rest: inset 0 0 0 1px var(--edge-default);
   --button-shadow-hover:
     inset 0 0 0 1px var(--edge-strong),
@@ -380,11 +432,11 @@
   --button-ghost-hover-bg: var(--surface-subtle);
   --button-ghost-active-bg: var(--surface-muted);
 
-  --card-shadow-rest:
-    0 1px 2px rgb(16 24 40 / 0.04),
-    0 8px 20px rgb(16 24 40 / 0.04);
+  /* ── Cards ── */
+  --card-shadow-rest: var(--shadow-card);
   --card-divider: var(--edge-subtle);
 
+  /* ── Status ── */
   --status-success-bg: var(--success-50);
   --status-success-border: var(--success-300);
   --status-success-text: var(--success-700);
@@ -407,6 +459,7 @@
   --status-inactive-border: var(--neutral-300);
   --status-inactive-text: var(--neutral-500);
 
+  /* ── Badges ── */
   --badge-shadow: none;
   --badge-neutral-bg: var(--neutral-100);
   --badge-neutral-text: var(--neutral-700);
@@ -421,6 +474,7 @@
   --badge-danger-bg: var(--danger-50);
   --badge-danger-text: var(--danger-700);
 
+  /* ── Tables ── */
   --table-toolbar-bg: rgb(255 255 255 / 86%);
   --table-toolbar-border: var(--edge-subtle);
   --table-header-bg: var(--neutral-25);
@@ -436,43 +490,7 @@
   --datatable-expanded-bg: var(--neutral-25);
   --datatable-empty-bg: var(--neutral-25);
 
-  --focus-ring: var(--primary-500);
-  --focus-ring-offset: var(--surface-canvas);
-
-  --elevation-0: none;
-  --elevation-1: inset 0 0 0 1px var(--edge-default);
-  --elevation-2:
-    inset 0 0 0 1px var(--edge-default),
-    0 2px 6px rgb(16 24 40 / 0.06);
-  --elevation-3:
-    inset 0 0 0 1px var(--edge-default),
-    0 8px 20px rgb(16 24 40 / 0.12);
-  --elevation-4:
-    inset 0 0 0 1px var(--edge-strong),
-    0 12px 28px rgb(16 24 40 / 0.16);
-
-  --shadow-none: none;
-  --shadow-card: var(--card-shadow-rest);
-  --shadow-popover:
-    0 8px 24px rgb(16 24 40 / 0.14),
-    0 2px 6px rgb(16 24 40 / 0.08);
-
-  --background: var(--surface-canvas);
-  --foreground: var(--text-body);
-  --card: var(--surface-base);
-  --card-foreground: var(--text-body);
-  --popover: var(--surface-raised);
-  --popover-foreground: var(--text-body);
-  --primary-foreground: var(--text-inverse);
-  --secondary: var(--action-secondary-bg);
-  --secondary-foreground: var(--action-secondary-fg);
-  --muted: var(--surface-muted);
-  --muted-foreground: var(--text-muted);
-  --accent-foreground: var(--text-inverse);
-  --border: var(--edge-default);
-  --input: var(--edge-default);
-  --ring: var(--focus-ring);
-
+  /* ── Charts ── */
   --chart-1: var(--primary-500);
   --chart-2: var(--accent-500);
   --chart-3: var(--success-500);
@@ -488,6 +506,7 @@
   --chart-pending: var(--neutral-400);
   --chart-inactive: var(--neutral-500);
 
+  /* ── Sidebar ── */
   --sidebar: var(--neutral-25);
   --sidebar-foreground: var(--text-body);
   --sidebar-primary: var(--action-primary-bg);
@@ -504,7 +523,32 @@
   --sidebar-item-active-border: color-mix(in oklab, var(--primary-300) 50%, var(--edge-subtle) 50%);
   --sidebar-ring: var(--focus-ring);
 
-  /* Compatibility aliases used in app code */
+  /* ── Primitive compatibility ── */
+  --background: var(--surface-canvas);
+  --foreground: var(--text-body);
+  --card: var(--surface-base);
+  --card-foreground: var(--text-body);
+  --popover: var(--surface-raised);
+  --popover-foreground: var(--text-body);
+  --primary-foreground: var(--text-inverse);
+  --secondary: var(--action-secondary-bg);
+  --secondary-foreground: var(--action-secondary-fg);
+  --muted: var(--surface-muted);
+  --muted-foreground: var(--text-muted);
+  --accent-foreground: var(--text-inverse);
+  --border: var(--edge-default);
+  --input: var(--edge-default);
+  --ring: var(--focus-ring);
+
+  /* ── App-level tokens ── */
+  --app-canvas-wash: radial-gradient(1200px 520px at 100% -120px, #e8f1ff 0%, transparent 55%);
+}
+
+/* ═══════════════════════════════════════════
+   COMPATIBILITY ALIASES
+   Keep these for existing component code.
+   ═══════════════════════════════════════════ */
+:root {
   --brand-primary: var(--primary-500);
   --warm-paper: var(--surface-subtle);
   --status-chip: var(--status-info-text);
@@ -533,8 +577,6 @@
   --erp-in-review-soft: var(--primary-50);
   --erp-pending-soft: var(--neutral-100);
   --erp-inactive-soft: var(--neutral-100);
-
-  --app-canvas-wash: radial-gradient(1200px 520px at 100% -120px, #e8f1ff 0%, transparent 55%);
 }
 
 body {

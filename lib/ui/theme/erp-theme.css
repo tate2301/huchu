@@ -1,3 +1,11 @@
+/* ═══════════════════════════════════════════
+   ERP THEME — Compatibility Layer
+   These --erp-* variables are consumed
+   directly by frappe-ui-react components.
+   The semantic token overrides for ERP mode
+   are handled by the main token system in
+   globals.css (Tier 2 & 3).
+   ═══════════════════════════════════════════ */
 :where(:root, [data-theme="erp"], .theme-erp) {
   --erp-canvas: #FCFCF4;
   --erp-surface: #FFFFFF;
@@ -22,59 +30,4 @@
   --erp-in-review-soft: #EEF0FF;
   --erp-pending-soft: #F3F3EF;
   --erp-inactive-soft: #F3F3EF;
-}
-
-:where([data-theme="erp"], .theme-erp) {
-  color-scheme: light;
-  --surface-canvas: var(--erp-canvas);
-  --surface-base: var(--erp-surface);
-  --surface-raised: var(--erp-surface);
-  --surface-soft: #F7F7F2;
-  --surface-muted: #F7F7F2;
-  --surface-subtle: #FAFAF6;
-  --surface-overlay: rgb(252 252 244 / 86%);
-  --text-strong: var(--erp-text-primary);
-  --text-body: var(--erp-text-primary);
-  --text-muted: var(--erp-text-muted);
-  --text-subtle: var(--erp-inactive);
-  --action-primary-bg: var(--erp-primary);
-  --action-primary-fg: #FFFFFF;
-  --action-primary-hover: #3F57C8;
-  --action-primary-pressed: #344BB3;
-  --action-secondary-bg: var(--erp-primary-soft);
-  --action-secondary-fg: var(--erp-primary);
-  --action-secondary-hover: var(--erp-primary-soft-hover);
-  --edge-subtle: var(--erp-border);
-  --edge-default: var(--erp-border);
-  --edge-strong: #DADAD3;
-  --status-success-bg: var(--erp-success-soft);
-  --status-success-border: var(--erp-success);
-  --status-success-text: var(--erp-success);
-  --status-warning-bg: var(--erp-warning-soft);
-  --status-warning-border: var(--erp-warning);
-  --status-warning-text: var(--erp-warning);
-  --status-error-bg: var(--erp-danger-soft);
-  --status-error-border: var(--erp-danger);
-  --status-error-text: var(--erp-danger);
-  --status-info-bg: var(--erp-in-review-soft);
-  --status-info-border: var(--erp-in-review);
-  --status-info-text: var(--erp-in-review);
-  --status-progress-bg: var(--erp-in-progress-soft);
-  --status-progress-border: var(--erp-in-progress);
-  --status-progress-text: var(--erp-in-progress);
-  --status-pending-bg: var(--erp-pending-soft);
-  --status-pending-border: var(--erp-pending);
-  --status-pending-text: var(--erp-pending);
-  --status-inactive-bg: var(--erp-inactive-soft);
-  --status-inactive-border: var(--erp-inactive);
-  --status-inactive-text: var(--erp-inactive);
-  --chart-1: var(--erp-primary);
-  --chart-2: var(--erp-success);
-  --chart-3: var(--erp-warning);
-  --chart-4: var(--erp-danger);
-  --chart-5: var(--erp-in-progress);
-  --chart-in-review: var(--erp-in-review);
-  --chart-in-progress: var(--erp-in-progress);
-  --chart-pending: var(--erp-pending);
-  --chart-inactive: var(--erp-inactive);
 }
