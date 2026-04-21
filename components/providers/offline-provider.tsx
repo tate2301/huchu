@@ -1315,10 +1315,18 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     ) {
       lastReconnectHandledRef.current = lastOnlineAt;
       setIsReconnecting(true);
-      void bootstrapSession();
-      void requestBackgroundSync();
-      void checkForUpdates();
-      void syncNow();
+      void (async () => {
+        try {
+          await Promise.allSettled([
+            bootstrapSession(),
+            Promise.resolve(requestBackgroundSync()),
+            checkForUpdates(),
+            syncNow({ force: true }),
+          ]);
+        } finally {
+          setIsReconnecting(false);
+        }
+      })();
     }
   }, [
     bootstrapSession,
@@ -1350,7 +1358,6 @@ export function OfflineProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     const onBeforeInstallPrompt = (event: Event) => {
-      event.preventDefault();
       setInstallPromptEvent(event as BeforeInstallPromptEventLike);
     };
 

@@ -2,12 +2,14 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { signOut } from "next-auth/react";
 import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import {
   BarChart3,
   Clock,
   History,
+  LogOut,
   Package,
   Payments,
   type LucideIcon,
@@ -75,6 +77,12 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const { isPosHost } = usePosPortalState();
   const { data: session } = useSession();
+  const handleSignOut = () => {
+    void signOut({
+      redirect: true,
+      callbackUrl: isPosHost ? "/login" : "/portal/pos/login",
+    });
+  };
 
   // Login page should not be wrapped in the POS frame
   if (
@@ -142,6 +150,17 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
               })}
             </nav>
 
+            <div className="hidden shrink-0 px-3 pb-3 lg:block">
+              <button
+                type="button"
+                onClick={handleSignOut}
+                className="inline-flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[13px] font-medium text-[var(--text-muted)] transition-all duration-100 hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]"
+              >
+                <LogOut className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-70" />
+                <span>Log out</span>
+              </button>
+            </div>
+
           </div>
         </aside>
 
@@ -152,6 +171,14 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
               <header className="shrink-0 border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-2.5 md:px-5">
                 <div className="flex items-center justify-between gap-3">
                   <h1 className="text-base font-semibold text-[var(--text-strong)]">{config.title}</h1>
+                  <button
+                    type="button"
+                    onClick={handleSignOut}
+                    className="inline-flex items-center gap-2 rounded-lg border border-[var(--edge-subtle)] px-3 py-1.5 text-sm font-medium text-[var(--text-muted)] transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-strong)] lg:hidden"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Log out
+                  </button>
                 </div>
                 {config.description ? (
                   <p className="mt-0.5 text-sm text-[var(--text-muted)]">{config.description}</p>

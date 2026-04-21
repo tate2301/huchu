@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, hasRole, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 
 const batchUpdateSchema = z.object({
@@ -37,12 +37,24 @@ export async function PATCH(
 
     const existing = await prisma.scrapMetalBatch.findFirst({
       where: { id, companyId: session.user.companyId },
-      select: { id: true, category: true, collectionEndDate: true, _count: { select: { sales: true } } },
+      select: {
+        id: true,
+        category: true,
+        status: true,
+        collectionEndDate: true,
+        _count: { select: { sales: true } },
+      },
     });
     if (!existing) return errorResponse("Batch not found", 404);
 
     const body = await request.json();
     const validated = batchUpdateSchema.parse(body);
+    if (
+      hasRole(session, ["OPERATOR", "CLERK"]) &&
+      (existing.status === "SOLD" || existing._count.sales > 0)
+    ) {
+      return errorResponse("Sold lots are locked for operators", 403);
+    }
     const nextCategory = validated.category ?? existing.category;
     const resolvedCollectionEndDate =
       validated.collectionEndDate === null
@@ -110,10 +122,17 @@ export async function DELETE(
       where: { id, companyId: session.user.companyId },
       select: {
         id: true,
+        status: true,
         _count: { select: { items: true, sales: true } },
       },
     });
     if (!existing) return errorResponse("Batch not found", 404);
+    if (
+      hasRole(session, ["OPERATOR", "CLERK"]) &&
+      (existing.status === "SOLD" || existing._count.sales > 0)
+    ) {
+      return errorResponse("Sold lots are locked for operators", 403);
+    }
     if (existing._count.items > 0 || existing._count.sales > 0) {
       return errorResponse("Only empty batches can be deleted", 409);
     }

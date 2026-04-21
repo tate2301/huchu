@@ -1,6 +1,6 @@
 import { buildPortalHost } from "@/lib/platform/portal-hosts";
 
-export const POS_PUBLIC_PATHS = ["/", "/login", "/overview", "/held", "/history", "/shift"] as const;
+export const POS_PUBLIC_PATHS = ["/", "/login", "/overview", "/held", "/history", "/reports", "/shift"] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
 
@@ -9,6 +9,7 @@ export type PosPortalNavKey =
   | "checkout"
   | "held"
   | "history"
+  | "reports"
   | "shift"
   | "overview"
   | "customers"
@@ -18,6 +19,7 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   checkout: { publicHref: "/", internalHref: "/portal/pos" },
   held: { publicHref: "/held", internalHref: "/portal/pos/held" },
   history: { publicHref: "/history", internalHref: "/portal/pos/history" },
+  reports: { publicHref: "/reports", internalHref: "/portal/pos/reports" },
   shift: { publicHref: "/shift", internalHref: "/portal/pos/shift" },
   overview: { publicHref: null, internalHref: "/portal/pos/overview" },
   customers: { publicHref: "/customers", internalHref: "/portal/pos/customers" },

@@ -115,6 +115,17 @@ function getEmptyForm(): BatchForm {
   };
 }
 
+function isSoldLotLockedForOperator(batch: Batch, isOperatorExperienceRole: boolean) {
+  return isOperatorExperienceRole && batch.status === "SOLD";
+}
+
+function canRemoveLot(batch: Batch, isOperatorExperienceRole: boolean) {
+  if (batch.status === "SOLD") return false;
+  if (batch._count.items > 0) return false;
+  if (isSoldLotLockedForOperator(batch, isOperatorExperienceRole)) return false;
+  return true;
+}
+
 async function fetchBatches(): Promise<Batch[]> {
   const response = await fetchJson<{ data: Batch[] }>("/api/scrap-metal/batches?limit=200");
   return response.data;
@@ -133,6 +144,7 @@ export default function ScrapMetalBatchesPage() {
   const [selectedPurchaseIds, setSelectedPurchaseIds] = useState<string[]>([]);
   const [form, setForm] = useState<BatchForm>(getEmptyForm);
   const role = (session?.user as { role?: string } | undefined)?.role;
+  const isOperatorExperienceRole = hasRole(role, ["OPERATOR"]);
   const canAccessExtendedLotViews = hasRole(role, ["SUPERADMIN", "MANAGER"]);
   const {
     reservedId: batchNumber,
@@ -356,55 +368,67 @@ export default function ScrapMetalBatchesPage() {
       {
         id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            {row.original.status === "COLLECTING" ? (
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setBatchForItems(row.original);
-                  setSelectedPurchaseIds([]);
-                }}
-              >
-                Add Inbound Tickets
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              onClick={() => {
-                setEditing(row.original);
-                setForm({
-                  siteId: row.original.site.id,
-                  materialId: row.original.material?.id ?? "__none",
-                  category: row.original.material?.category ?? row.original.category,
-                  status: row.original.status,
-                  collectionStartDate: row.original.collectionStartDate.slice(0, 16),
-                  collectionEndDate: row.original.collectionEndDate?.slice(0, 16) ?? "",
-                  notes: row.original.notes ?? "",
-                });
-                setFormOpen(true);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="destructive"
-              onClick={() => setDeleteTarget(row.original)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const soldLotLocked = isSoldLotLockedForOperator(
+            row.original,
+            isOperatorExperienceRole,
+          );
+          const removable = canRemoveLot(row.original, isOperatorExperienceRole);
+
+          return (
+            <div className="flex justify-end gap-2">
+              {row.original.status === "COLLECTING" ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setBatchForItems(row.original);
+                    setSelectedPurchaseIds([]);
+                  }}
+                >
+                  Add Inbound Tickets
+                </Button>
+              ) : null}
+              {!soldLotLocked ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(row.original);
+                    setForm({
+                      siteId: row.original.site.id,
+                      materialId: row.original.material?.id ?? "__none",
+                      category: row.original.material?.category ?? row.original.category,
+                      status: row.original.status,
+                      collectionStartDate: row.original.collectionStartDate.slice(0, 16),
+                      collectionEndDate: row.original.collectionEndDate?.slice(0, 16) ?? "",
+                      notes: row.original.notes ?? "",
+                    });
+                    setFormOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+              ) : null}
+              {removable ? (
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="destructive"
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              ) : null}
+            </div>
+          );
+        },
         size: 180,
       },
     ],
-    [],
+    [isOperatorExperienceRole],
   );
 
   return (
@@ -482,92 +506,114 @@ export default function ScrapMetalBatchesPage() {
             />
           </div>
 
-          <div className="space-y-3 md:hidden">
-            {filteredBatches.map((batch) => (
-              <article
-                key={batch.id}
-                className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="min-w-0">
-                    <div className="font-semibold">{batch.material?.name ?? batch.category}</div>
-                    <div className="font-mono text-xs text-muted-foreground">{batch.batchNumber}</div>
+          <div className="space-y-3 [touch-action:pan-y] md:hidden">
+            {filteredBatches.map((batch) => {
+              const soldLotLocked = isSoldLotLockedForOperator(
+                batch,
+                isOperatorExperienceRole,
+              );
+              const removable = canRemoveLot(batch, isOperatorExperienceRole);
+
+              return (
+                <article
+                  key={batch.id}
+                  className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold">{batch.material?.name ?? batch.category}</div>
+                      <div className="font-mono text-xs text-muted-foreground">{batch.batchNumber}</div>
+                    </div>
+                    <StatusChip
+                      status={
+                        batch.status === "SOLD"
+                          ? "passing"
+                          : batch.status === "READY"
+                            ? "in_review"
+                            : "pending"
+                      }
+                      label={batch.status}
+                    />
                   </div>
-                  <StatusChip
-                    status={
-                      batch.status === "SOLD"
-                        ? "passing"
-                        : batch.status === "READY"
-                          ? "in_review"
-                          : "pending"
-                    }
-                    label={batch.status}
-                  />
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <div>
-                    <div className="text-xs text-muted-foreground">Site</div>
-                    <div className="mt-1 font-semibold">{batch.site.name}</div>
-                    <div className="text-xs text-muted-foreground">{batch.site.code}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Weight</div>
-                    <div className="mt-1 font-semibold">{batch.totalWeight.toFixed(2)} kg</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Window</div>
-                    <div className="mt-1 font-semibold">{batch.collectionStartDate.slice(0, 10)}</div>
-                    <div className="text-xs text-muted-foreground">
-                      {batch.collectionEndDate?.slice(0, 10) ?? "Open"}
+                  <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                    <div>
+                      <div className="text-xs text-muted-foreground">Site</div>
+                      <div className="mt-1 font-semibold">{batch.site.name}</div>
+                      <div className="text-xs text-muted-foreground">{batch.site.code}</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Weight</div>
+                      <div className="mt-1 font-semibold">{batch.totalWeight.toFixed(2)} kg</div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Window</div>
+                      <div className="mt-1 font-semibold">{batch.collectionStartDate.slice(0, 10)}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {batch.collectionEndDate?.slice(0, 10) ?? "Open"}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="text-xs text-muted-foreground">Inbound tickets</div>
+                      <div className="mt-1 font-semibold">{batch._count.items}</div>
                     </div>
                   </div>
-                  <div>
-                    <div className="text-xs text-muted-foreground">Inbound tickets</div>
-                    <div className="mt-1 font-semibold">{batch._count.items}</div>
+                  <div className="mt-4 flex flex-wrap gap-2">
+                    {batch.status === "COLLECTING" ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setBatchForItems(batch);
+                          setSelectedPurchaseIds([]);
+                        }}
+                      >
+                        Add Inbound Tickets
+                      </Button>
+                    ) : null}
+                    {!soldLotLocked ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          setEditing(batch);
+                          setForm({
+                            siteId: batch.site.id,
+                            materialId: batch.material?.id ?? "__none",
+                            category: batch.material?.category ?? batch.category,
+                            status: batch.status,
+                            collectionStartDate: batch.collectionStartDate.slice(0, 16),
+                            collectionEndDate: batch.collectionEndDate?.slice(0, 16) ?? "",
+                            notes: batch.notes ?? "",
+                          });
+                          setFormOpen(true);
+                        }}
+                      >
+                        <Pencil className="h-4 w-4" />
+                        Edit
+                      </Button>
+                    ) : null}
+                    {removable ? (
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="destructive"
+                        onClick={() => setDeleteTarget(batch)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                        Remove
+                      </Button>
+                    ) : null}
                   </div>
-                </div>
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {batch.status === "COLLECTING" ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setBatchForItems(batch);
-                        setSelectedPurchaseIds([]);
-                      }}
-                    >
-                      Add Inbound Tickets
-                    </Button>
+                  {soldLotLocked ? (
+                    <p className="mt-3 text-xs text-muted-foreground">
+                      Sold lots are locked for operators.
+                    </p>
                   ) : null}
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setEditing(batch);
-                      setForm({
-                        siteId: batch.site.id,
-                        materialId: batch.material?.id ?? "__none",
-                        category: batch.material?.category ?? batch.category,
-                        status: batch.status,
-                        collectionStartDate: batch.collectionStartDate.slice(0, 16),
-                        collectionEndDate: batch.collectionEndDate?.slice(0, 16) ?? "",
-                        notes: batch.notes ?? "",
-                      });
-                      setFormOpen(true);
-                    }}
-                  >
-                    <Pencil className="h-4 w-4" />
-                    Edit
-                  </Button>
-                  <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(batch)}>
-                    <Trash2 className="h-4 w-4" />
-                    Remove
-                  </Button>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         </>
       )}
@@ -578,7 +624,7 @@ export default function ScrapMetalBatchesPage() {
             <DialogTitle>{editing ? "Edit Lot" : "New Lot"}</DialogTitle>
           </DialogHeader>
           <form
-            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 sm:max-h-[calc(92vh-8rem)]"
+            className="max-h-[calc(100dvh-10rem)] space-y-4 overflow-y-auto pb-20 [touch-action:pan-y] sm:max-h-[calc(92vh-8rem)]"
             onSubmit={(event) => {
               event.preventDefault();
               saveMutation.mutate(form);
@@ -711,7 +757,7 @@ export default function ScrapMetalBatchesPage() {
             <div className="text-sm text-muted-foreground">
               {availablePurchases.length} matching unassigned inbound tickets
             </div>
-            <div className="max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3 sm:max-h-[420px]">
+            <div className="max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto rounded-xl bg-[var(--surface-muted)] p-3 [touch-action:pan-y] sm:max-h-[420px]">
               {availablePurchases.map((purchase) => {
                 const checked = selectedPurchaseIds.includes(purchase.id);
                 return (

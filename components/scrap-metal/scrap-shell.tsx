@@ -21,7 +21,7 @@ export function ScrapShell({ title, actions, children, className, contentClassNa
       <PageHeading title={title} className="mb-0 shrink-0" />
       <div
         className={cn(
-          "min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-6 md:space-y-6 md:overflow-visible md:pb-0",
+          "min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain pb-6 [touch-action:pan-y] md:space-y-6 md:overflow-visible md:pb-0",
           contentClassName,
         )}
       >

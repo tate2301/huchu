@@ -7,6 +7,10 @@ import { getEffectiveFeaturesForUser } from "@/lib/platform/user-entitlements";
 import { getSubscriptionHealth } from "@/lib/platform/subscription";
 import { buildAuthExpiresAt, resolvePolicyForStrategy } from "@/lib/auth-core/session-policy";
 import type { AuthenticatedSession, PlatformJwtClaims } from "@/lib/auth-core/types";
+import {
+  inferWorkspaceProfileFromEnabledFeatures,
+  normalizeWorkspaceProfileInput,
+} from "@/lib/workspace-products";
 
 function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
   const normalizedStatus = rawStatus?.trim().toUpperCase();
@@ -23,6 +27,34 @@ function isLegacyScrapClerkRole(role: string | undefined, enabledFeatures: strin
   return enabledFeatures.some((feature) =>
     feature.trim().toLowerCase().startsWith("scrap-metal."),
   );
+}
+
+function resolveWorkspaceProfileClaim(args: {
+  claimedWorkspaceProfile: string | undefined;
+  role: string | undefined;
+  enabledFeatures: string[];
+}) {
+  const claimedProfile =
+    normalizeWorkspaceProfileInput(args.claimedWorkspaceProfile) ?? undefined;
+  const inferredProfile =
+    inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures) ?? undefined;
+  const normalizedRole = args.role?.trim().toUpperCase();
+  const preferInferredRetailProfile =
+    inferredProfile === "RETAIL" &&
+    (normalizedRole === "CASHIER" ||
+      normalizedRole === "POS_CASHIER" ||
+      normalizedRole === "SHOP_MANAGER" ||
+      normalizedRole === "STOCK_CLERK");
+
+  if (preferInferredRetailProfile) {
+    return inferredProfile;
+  }
+
+  if (!claimedProfile || claimedProfile === "GENERAL") {
+    return inferredProfile ?? claimedProfile;
+  }
+
+  return claimedProfile;
 }
 
 export function buildInitialTokenClaims(input: {
@@ -66,10 +98,14 @@ export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<Platf
 
   token.companySlug = tenantClaims.companySlug;
   token.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
-  token.workspaceProfile = tenantClaims.workspaceProfile;
   if (isLegacyScrapClerkRole(token.role, enabledFeatures)) {
     token.role = "OPERATOR";
   }
+  token.workspaceProfile = resolveWorkspaceProfileClaim({
+    claimedWorkspaceProfile: tenantClaims.workspaceProfile ?? undefined,
+    role: token.role,
+    enabledFeatures,
+  });
   token.subscriptionHealth = subscriptionHealth.state;
   token.enabledFeatures = enabledFeatures;
   token.allowedHosts = allowedHosts;
