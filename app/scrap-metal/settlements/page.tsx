@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminDualBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -20,6 +19,17 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import {
+  MobileList,
+  MobileListChevron,
+  MobileListContent,
+  MobileListIcon,
+  MobileListItem,
+  MobileListMeta,
+  MobileListMetaText,
+  MobileListSubtitle,
+  MobileListTitle,
+} from "@/components/ui/mobile-list";
 import {
   Select,
   SelectContent,
@@ -495,7 +505,6 @@ export default function ScrapSettlementsPage() {
               <div className="space-y-1">
                 <Badge variant="success">Trend</Badge>
                 <h3 className="text-base font-semibold leading-tight text-[var(--text-strong)]">Settlement trend</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Batch value and average payout by due date</p>
               </div>
               <div className="text-right">
                 <div className="text-[11px] text-[var(--text-muted)]">Settled value</div>
@@ -528,7 +537,6 @@ export default function ScrapSettlementsPage() {
               <div className="space-y-1">
                 <Badge variant="info">Exposure</Badge>
                 <h3 className="text-base font-semibold leading-tight text-[var(--text-strong)]">Delivered vs exposure</h3>
-                <p className="text-[11px] text-[var(--text-muted)]">Top operators by delivered value and open balance</p>
               </div>
               <div className="text-right">
                 <div className="text-[11px] text-[var(--text-muted)]">Net exposure</div>
@@ -571,104 +579,42 @@ export default function ScrapSettlementsPage() {
         {activeView === "balances" ? (
           <div className="space-y-2">
             {balancesQuery.isLoading ? (
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
+              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-[var(--text-muted)]">
                 Loading balances...
               </div>
             ) : null}
             {!balancesQuery.isLoading && balances.length === 0 ? (
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-muted-foreground">
+              <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-8 text-sm text-[var(--text-muted)]">
                 No open balances.
               </div>
             ) : null}
             {!balancesQuery.isLoading && balances.length > 0 ? (
-              <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-subtle)]">
-                {balances.map((balance, index) => {
-                  const deliveredRatio = Math.max(balance.deliveredValue / maxDeliveredValue, 0.04);
-                  const balanceRatio = Math.max(Math.abs(balance.balance) / maxBalanceValue, 0.04);
+              <MobileList>
+                {balances.map((balance) => {
                   const owesUs = balance.balance > 0;
                   const amountLabel = owesUs ? "Owes us" : "We owe";
-
                   return (
-                    <article
+                    <MobileListItem
                       key={balance.id}
-                      className={cn(
-                        "px-4 py-3 sm:px-5",
-                        index > 0 && "shadow-[inset_0_1px_0_0_var(--edge-subtle)]",
-                        "bg-[var(--surface-base)]",
-                      )}
+                      onClick={() => setSelectedBalance(balance)}
                     >
-                      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                        <div className="min-w-0 space-y-1">
-                          <div className="text-[15px] font-semibold leading-tight">{balance.employee.name}</div>
-                          <div className="font-mono text-[11px] text-muted-foreground">
-                            {balance.employee.employeeId}
-                          </div>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant={owesUs ? "warning" : "info"}>{amountLabel}</Badge>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => openAdjustmentModal(balance)}>
-                            Update balance
-                          </Button>
-                          <Button type="button" size="sm" variant="ghost" onClick={() => setSelectedBalance(balance)}>
-                            History
-                          </Button>
-                        </div>
-                      </div>
-
-                      <div className="mt-3.5 grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)]">
-                        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
-                          <div>
-                            <div className="text-[11px] text-muted-foreground">Delivered</div>
-                            <div className="mt-1 font-semibold">{formatMoney(balance.deliveredValue)}</div>
-                            <div className="text-[11px] text-muted-foreground">{balance.deliveredWeight.toFixed(2)} kg</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-muted-foreground">{amountLabel}</div>
-                            <div className="mt-1 font-semibold text-[var(--text-strong)]">
-                              {formatMoney(Math.abs(balance.balance))}
-                            </div>
-                            <div className="text-[11px] text-muted-foreground">{balance.historyCount} entries</div>
-                          </div>
-                          <div>
-                            <div className="text-[11px] text-muted-foreground">Last delivery</div>
-                            <div className="mt-1 font-semibold">{formatDate(balance.lastPurchaseDate)}</div>
-                            <div className="text-[11px] text-muted-foreground">{balance.purchaseCount} purchases</div>
-                          </div>
-                        </div>
-
-                        <div className="space-y-2.5">
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 text-[11px]">
-                              <span className="text-muted-foreground">Delivered value</span>
-                              <span className="font-mono text-foreground">{formatMoney(balance.deliveredValue)}</span>
-                            </div>
-                            <div className="h-2 rounded-full bg-[var(--surface-base)]/80">
-                              <div
-                                className="h-2 rounded-full bg-[var(--status-success-border)]"
-                                style={{ width: `${Math.min(deliveredRatio * 100, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                          <div className="space-y-1.5">
-                            <div className="flex items-center justify-between gap-3 text-[11px]">
-                              <span className="text-[var(--text-muted)]">{amountLabel}</span>
-                              <span className="font-mono text-[var(--text-strong)]">
-                                {formatMoney(Math.abs(balance.balance))}
-                              </span>
-                            </div>
-                            <div className="h-2 rounded-full bg-[var(--surface-base)]/80">
-                              <div
-                                className={owesUs ? "h-2 rounded-full bg-[var(--status-warning-border)]" : "h-2 rounded-full bg-[var(--status-info-border)]"}
-                                style={{ width: `${Math.min(balanceRatio * 100, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    </article>
+                      <MobileListIcon variant="brand">
+                        {balance.employee.name.charAt(0)}
+                      </MobileListIcon>
+                      <MobileListContent>
+                        <MobileListTitle>{balance.employee.name}</MobileListTitle>
+                        <MobileListSubtitle>{balance.employee.employeeId} · {balance.purchaseCount} purchases</MobileListSubtitle>
+                      </MobileListContent>
+                      <MobileListMeta>
+                        <MobileListMetaText className={cn(owesUs ? "text-[var(--color-warning)]" : "text-[var(--color-info)]")}>
+                          {amountLabel} {formatMoney(Math.abs(balance.balance))}
+                        </MobileListMetaText>
+                      </MobileListMeta>
+                      <MobileListChevron />
+                    </MobileListItem>
                   );
                 })}
-              </div>
+              </MobileList>
             ) : null}
           </div>
         ) : (
@@ -685,36 +631,14 @@ export default function ScrapSettlementsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold">{batch.label}</div>
-                    <div className="text-xs text-muted-foreground">{batch.items.length} people</div>
+                    <div className="text-xs text-[var(--text-muted)]">{batch.items.length} people · {formatDate(batch.dueDate)}</div>
                   </div>
                   <Badge variant={getWorkflowBadgeVariant(batch.workflowStatus)}>
                     {formatWorkflowStatus(batch.workflowStatus)}
                   </Badge>
                 </div>
-                <div className="mt-3 grid grid-cols-3 gap-2 text-xs">
-                  <div>
-                    <div className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Calendar className="h-3.5 w-3.5" />
-                      Due
-                    </div>
-                    <div className="mt-1 font-mono">{formatDate(batch.dueDate)}</div>
-                  </div>
-                  <div>
-                    <div className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Wallet className="h-3.5 w-3.5" />
-                      Value
-                    </div>
-                    <div className="mt-1 font-mono">
-                      {formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="inline-flex items-center gap-1 text-muted-foreground">
-                      <Users className="h-3.5 w-3.5" />
-                      People
-                    </div>
-                    <div className="mt-1 font-mono">{batch.items.length}</div>
-                  </div>
+                <div className="mt-2 flex items-center justify-between text-sm">
+                  <span className="font-mono font-semibold">{formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}</span>
                 </div>
               </div>
             )}
@@ -1039,3 +963,4 @@ export default function ScrapSettlementsPage() {
     </ScrapShell>
   );
 }
+                                                                                                                   
