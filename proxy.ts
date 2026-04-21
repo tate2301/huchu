@@ -12,6 +12,7 @@ import {
   getPortalHostDescriptorByPath,
   getPortalInternalPathForPublicPath,
   getPortalPublicPathForInternalPath,
+  getPortalHostPrefixes,
 } from "@/lib/platform/portal-hosts";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
@@ -51,6 +52,24 @@ type PlatformToken = {
   role?: string;
   authExpiresAt?: string;
 };
+
+function getResolvedAllowedHosts(token: PlatformToken | null, rootDomain: string | null): string[] | undefined {
+  if (!token) {
+    return undefined;
+  }
+
+  const allowedHosts = new Set((token.allowedHosts ?? []).map((host) => host.trim().toLowerCase()).filter(Boolean));
+  const companySlug = token.companySlug?.trim().toLowerCase();
+
+  if (rootDomain && companySlug) {
+    allowedHosts.add(`${companySlug}.${rootDomain}`);
+    for (const prefix of getPortalHostPrefixes({ includeAliases: true })) {
+      allowedHosts.add(buildPortalHost(prefix, companySlug, rootDomain));
+    }
+  }
+
+  return allowedHosts.size > 0 ? Array.from(allowedHosts) : undefined;
+}
 
 function redirectToAccessBlocked(request: NextRequestWithAuth) {
   const redirectUrl = request.nextUrl.clone();
@@ -187,7 +206,7 @@ function toExternalAdminPath(pathname: string) {
 }
 
 export default withAuth(
-  function proxy(request) {
+  async function proxy(request) {
     const { pathname } = request.nextUrl;
     const isApiRequest = pathname.startsWith("/api/");
 
@@ -211,6 +230,8 @@ export default withAuth(
     const rawToken = request.nextauth.token as PlatformToken | null;
     const token = rawToken && !isAuthExpired(rawToken.authExpiresAt) ? rawToken : null;
     const normalizedCompanySlug = token?.companySlug?.trim().toLowerCase();
+    const rootDomain = getRootDomain();
+    const resolvedAllowedHosts = getResolvedAllowedHosts(token, rootDomain);
     const portalBasePath = getPortalBasePathForPathname(pathname);
     const portalHomeForRole = getPortalHomeForRole(token?.role);
     const isAdminExternalPath = isPathWithinRoute(pathname, ADMIN_BASE_PATH);
@@ -268,7 +289,7 @@ export default withAuth(
     }
 
     if (!isApiRequest && token && isCashierRole(token.role)) {
-      const posHost = getPosHostForCompany(token.companySlug, getRootDomain());
+      const posHost = getPosHostForCompany(token.companySlug, rootDomain);
       if (posHost && hostContext.hostname !== posHost && !isAdminHost) {
         const redirectUrl = request.nextUrl.clone();
         redirectUrl.hostname = posHost;
@@ -394,7 +415,7 @@ export default withAuth(
         return denyAccess(request, "Tenant is inactive");
       }
       if (tenantHostEnforcementEnabled && hostContext.strictTenantEnforcement) {
-        if (!isAllowedHost(hostHeader, token.allowedHosts)) {
+        if (!isAllowedHost(hostHeader, resolvedAllowedHosts)) {
           return denyAccess(request, "Tenant host mismatch");
         }
       }
@@ -421,7 +442,7 @@ export default withAuth(
       return denyAccess(request, "Missing tenant context");
     }
 
-    if (!isAllowedHost(hostHeader, token.allowedHosts)) {
+    if (!isAllowedHost(hostHeader, resolvedAllowedHosts)) {
       return denyAccess(request, "Tenant host mismatch");
     }
 
