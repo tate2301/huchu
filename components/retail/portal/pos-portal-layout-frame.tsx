@@ -4,7 +4,6 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 import type { ReactNode } from "react";
-import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import {
   BarChart3,
   Clock,
@@ -143,9 +142,6 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
               })}
             </nav>
 
-            <div className="hidden shrink-0 border-t border-[var(--edge-subtle)] px-4 py-3 lg:block">
-              <OfflineStatusIndicator />
-            </div>
           </div>
         </aside>
 
@@ -156,9 +152,6 @@ export function PosPortalLayoutFrame({ children }: { children: ReactNode }) {
               <header className="shrink-0 border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-2.5 md:px-5">
                 <div className="flex items-center justify-between gap-3">
                   <h1 className="text-base font-semibold text-[var(--text-strong)]">{config.title}</h1>
-                  <div className="shrink-0 lg:hidden">
-                    <OfflineStatusIndicator />
-                  </div>
                 </div>
                 {config.description ? (
                   <p className="mt-0.5 text-sm text-[var(--text-muted)]">{config.description}</p>

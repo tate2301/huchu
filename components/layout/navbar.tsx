@@ -24,7 +24,6 @@ import {
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { usePageActions } from "@/components/layout/page-actions";
-import { OfflineStatusIndicator } from "@/components/layout/offline-status-indicator";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
 
@@ -55,7 +54,6 @@ export function Navbar() {
                 {currentTitle}
               </p>
             </div>
-            <OfflineStatusIndicator />
             <MobileNavbarActions actions={actions} />
           </div>
 
@@ -67,7 +65,6 @@ export function Navbar() {
                 <Breadcrumbs />
               </div>
             </div>
-            <OfflineStatusIndicator />
 
             <div className="flex items-center gap-3">
               {showNotificationCenter ? <NotificationCenter /> : null}

@@ -9,7 +9,7 @@
  * Height: 40px, glassmorphism background.
  */
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import { WifiOff, Wifi, X } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -77,6 +77,7 @@ export function OfflineBanner({ className = "" }: OfflineBannerProps) {
   const [dismissed, setDismissed] = useState(false);
   const [showReconnect, setShowReconnect] = useState(false);
   const prefersReduced = useReducedMotion();
+  const previousOfflineRef = useRef(offline.isOffline);
 
   // Track when we transition from offline to online
   useEffect(() => {
@@ -93,11 +94,12 @@ export function OfflineBanner({ className = "" }: OfflineBannerProps) {
     }
   }, [offline.isOffline, showReconnect]);
 
-  // Trigger reconnect celebration
+  // Only celebrate when the device truly comes back online.
   useEffect(() => {
-    if (!offline.isOffline) {
+    if (previousOfflineRef.current && !offline.isOffline) {
       setShowReconnect(true);
     }
+    previousOfflineRef.current = offline.isOffline;
   }, [offline.isOffline]);
 
   const handleDismiss = useCallback(() => {

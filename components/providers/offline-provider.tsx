@@ -1491,17 +1491,15 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     const initialBootstrapPending =
       (lifecycleState === "warming" || bootstrapProgress?.phase === "preparing") &&
       !bootstrapProgress?.lastPreparedAt;
-    const warmupRefreshInFlight =
-      lifecycleState === "warming" && Boolean(bootstrapProgress?.lastPreparedAt);
 
     if (isOffline) return "OFFLINE";
     if (initialBootstrapPending) {
       return "PREPARING";
     }
-    if (lifecycleState === "syncing" || isSyncing || isUpdateApplying || warmupRefreshInFlight) {
+    if (isReconnecting) return "RECONNECTING";
+    if (lifecycleState === "syncing" || isSyncing || isUpdateApplying) {
       return "SYNCING";
     }
-    if (isReconnecting) return "RECONNECTING";
     if (tenantConflict || blockingCount > 0) return "ATTENTION";
     if (updateState === "ready" && !updateDismissed) {
       return "UPDATE_READY";

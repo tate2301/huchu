@@ -19,6 +19,8 @@ export type { SyncPanelProps } from "./sync-panel";
 export { OfflineBanner } from "./offline-banner";
 export type { OfflineBannerProps } from "./offline-banner";
 
+export { OfflineChrome } from "./offline-chrome";
+
 // ---------------------------------------------------------------------------
 // Toast & Notifications
 // ---------------------------------------------------------------------------

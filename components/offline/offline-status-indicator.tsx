@@ -29,6 +29,11 @@ import { SyncPanel } from "./sync-panel";
 // ---------------------------------------------------------------------------
 
 type IndicatorStatus = "ONLINE" | "OFFLINE" | "SYNCING" | "QUEUED" | "ERROR";
+type ExtendedIndicatorStatus =
+  | IndicatorStatus
+  | "PREPARING"
+  | "RECONNECTING"
+  | "UPDATE_READY";
 
 interface StatusConfig {
   icon: React.ReactNode;
@@ -42,7 +47,7 @@ interface StatusConfig {
 }
 
 function getStatusConfig(
-  status: IndicatorStatus,
+  status: ExtendedIndicatorStatus,
   pendingCount: number,
 ): StatusConfig {
   switch (status) {
@@ -79,6 +84,28 @@ function getStatusConfig(
         expandable: false,
         animate: "spin",
       };
+    case "PREPARING":
+      return {
+        icon: <Loader2 size={14} />,
+        label: "SETTING UP...",
+        bgColor: STATUS_COLORS.syncingBg,
+        borderColor: STATUS_COLORS.syncingBorder,
+        textColor: STATUS_COLORS.syncing,
+        role: "status",
+        expandable: false,
+        animate: "spin",
+      };
+    case "RECONNECTING":
+      return {
+        icon: <Loader2 size={14} />,
+        label: "RECONNECTING...",
+        bgColor: STATUS_COLORS.syncingBg,
+        borderColor: STATUS_COLORS.syncingBorder,
+        textColor: STATUS_COLORS.syncing,
+        role: "status",
+        expandable: false,
+        animate: "spin",
+      };
     case "QUEUED":
       return {
         icon: <Layers size={14} />,
@@ -100,6 +127,17 @@ function getStatusConfig(
         role: "alert",
         expandable: true,
         animate: "shake",
+      };
+    case "UPDATE_READY":
+      return {
+        icon: <CloudCheck size={14} />,
+        label: "UPDATE READY",
+        bgColor: STATUS_COLORS.onlineBg,
+        borderColor: STATUS_COLORS.onlineBorder,
+        textColor: STATUS_COLORS.online,
+        role: "status",
+        expandable: false,
+        animate: undefined,
       };
     default:
       return {
@@ -198,14 +236,20 @@ export function OfflineStatusIndicator({
   }, []);
 
   // Determine indicator status from offline context
-  let indicatorStatus: IndicatorStatus = "ONLINE";
-  if (offline.isOffline) {
+  let indicatorStatus: ExtendedIndicatorStatus = "ONLINE";
+  if (offline.status === "PREPARING") {
+    indicatorStatus = "PREPARING";
+  } else if (offline.isOffline) {
     indicatorStatus = "OFFLINE";
-  } else if (offline.isSyncing) {
+  } else if (offline.status === "SYNCING" || offline.isSyncing) {
     indicatorStatus = "SYNCING";
+  } else if (offline.status === "RECONNECTING") {
+    indicatorStatus = "RECONNECTING";
+  } else if (offline.status === "UPDATE_READY") {
+    indicatorStatus = "UPDATE_READY";
   } else if (offline.pendingCount > 0) {
     indicatorStatus = "QUEUED";
-  } else if (offline.status === "ATTENTION" || offline.status === "RECONNECTING") {
+  } else if (offline.status === "ATTENTION") {
     indicatorStatus = "ERROR";
   }
 

@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SessionProvider } from "next-auth/react"
 
+import { OfflineChrome } from "@/components/offline"
 import { OfflineProvider } from "@/components/providers/offline-provider"
 import { Toaster } from "@/components/ui/toaster"
 
@@ -53,7 +54,10 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       refetchWhenOffline={false}
     >
       <QueryClientProvider client={queryClient}>
-        <OfflineProvider>{children}</OfflineProvider>
+        <OfflineProvider>
+          <OfflineChrome />
+          {children}
+        </OfflineProvider>
         <Toaster />
       </QueryClientProvider>
     </SessionProvider>

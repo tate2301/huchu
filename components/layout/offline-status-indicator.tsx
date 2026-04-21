@@ -48,8 +48,11 @@ export function OfflineStatusIndicator() {
     if (status === "PREPARING") {
       return setupRunningLong ? `Setting up ${percent}%` : "Setting up";
     }
-    if (status === "SYNCING" || status === "RECONNECTING") {
-      return "Updating";
+    if (status === "SYNCING") {
+      return "Syncing";
+    }
+    if (status === "RECONNECTING") {
+      return "Reconnecting";
     }
     if (status === "UPDATE_READY") {
       return "Update available";
