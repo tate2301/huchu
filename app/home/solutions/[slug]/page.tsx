@@ -196,11 +196,11 @@ export default async function SolutionDetailPage({ params }: SolutionDetailPageP
       <section className="mt-18 grid gap-10 lg:grid-cols-[0.78fr_1.22fr] lg:items-start">
         <div className="space-y-4">
           <Reveal>
-            <p className={styles.stripeEyebrow}>Pricing hint</p>
+            <p className={styles.stripeEyebrow}>Pricing</p>
           </Reveal>
           <Reveal delay={0.05}>
             <h3 className="max-w-xl text-[clamp(1.9rem,3.3vw,2.9rem)] font-semibold leading-[0.98] tracking-[-0.05em] text-[#0b1945] text-balance">
-              Most {solution.title.toLowerCase()} customers start here.
+              Start free for 14 days. No credit card needed.
             </h3>
           </Reveal>
         </div>
@@ -212,17 +212,22 @@ export default async function SolutionDetailPage({ params }: SolutionDetailPageP
                 {solution.recommendedTier}
               </span>
               <span className="text-sm text-[#31436f]/90">
-                Recommended tier
+                Recommended for {solution.title.toLowerCase()}
               </span>
             </div>
             <p className="mt-3 text-sm leading-7 text-[#31436f]/90">
-              Teams in {solution.title.toLowerCase()} typically begin on the <strong>{solution.recommendedTier}</strong> tier
-              with the following add-ons: {solution.defaultAddOns.map((a) => a.replace(/_/g, " ").replace(/ADDON /, "")).join(", ")}.
-              You can adjust sites and add-ons in the pricing calculator to match your exact footprint.
+              Teams in {solution.title.toLowerCase()} typically begin on the <strong>{solution.recommendedTier}</strong> tier.
+              Add more users, sites, or modules as you grow. Every plan starts with a 14-day free trial.
             </p>
-            <div className="mt-4">
+            <div className="mt-4 flex flex-wrap gap-3">
+              <Button asChild className="rounded-full bg-[#0f1f55] text-white hover:bg-[#1a2d6b]">
+                <Link href="/home/book-demo">
+                  Start Free Trial
+                  <ArrowRight className="size-4" />
+                </Link>
+              </Button>
               <Button asChild variant="outline" className="rounded-full border-[#d6def5] bg-white text-[#0b1945] hover:bg-[#f6f8ff]">
-                <Link href="/home/pricing">Build your estimate</Link>
+                <Link href="/home/pricing">View full pricing</Link>
               </Button>
             </div>
           </div>
