@@ -175,7 +175,7 @@ function toExternalAdminPath(pathname: string) {
 }
 
 export default withAuth(
-  function middleware(request) {
+  function proxy(request) {
     const { pathname } = request.nextUrl;
     const isApiRequest = pathname.startsWith("/api/");
 
