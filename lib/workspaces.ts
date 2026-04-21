@@ -228,9 +228,6 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
           { href: "/retail/purchasing/receipts", label: "Goods Receipts", icon: LocalShipping },
         );
       }
-      if (has("/retail/accounting")) {
-        items.push({ href: "/retail/accounting", label: "Accounting", icon: Scale });
-      }
       if (has("/retail/insights")) {
         items.push({ href: "/retail/reports", label: "Reports", icon: BarChart3 });
       }

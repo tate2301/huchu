@@ -132,10 +132,7 @@ export default function RetailReportsPage() {
     >
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Retail performance</p>
-            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Trend, tender mix, and stock pressure</h2>
-          </div>
+          <h2 className="text-2xl font-semibold text-[var(--text-strong)]">Trend and tender mix</h2>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
             <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Recent tickets</p>
             <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
@@ -168,10 +165,7 @@ export default function RetailReportsPage() {
 
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Contribution</p>
-            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Top items and stock exceptions</h3>
-          </div>
+          <h3 className="text-xl font-semibold text-[var(--text-strong)]">Top items and stock</h3>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
             <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Top item value</p>
             <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
@@ -217,7 +211,7 @@ export default function RetailReportsPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search top items"
             emptyState={isLoading ? "Loading report..." : "No item data yet"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Best-performing items</span>}
+            toolbar={undefined}
           />
         ) : null}
         {activeView === "sales" ? (
@@ -228,7 +222,7 @@ export default function RetailReportsPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search sales detail"
             emptyState={isLoading ? "Loading report..." : "No sales yet"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Recent posted tickets</span>}
+            toolbar={undefined}
           />
         ) : null}
         {activeView === "stock" ? (
@@ -239,10 +233,11 @@ export default function RetailReportsPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search stock exceptions"
             emptyState={isLoading ? "Loading report..." : "No stock exceptions"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Low-stock watchlist</span>}
+            toolbar={undefined}
           />
         ) : null}
       </VerticalDataViews>
     </RetailShell>
   );
 }
+                                                                      
