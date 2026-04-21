@@ -7,6 +7,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AdminDualBarChart, AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
+import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -41,7 +42,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Wallet, Plus, ReceiptLong, Payments, History, Calendar, Users } from "@/lib/icons";
+import { Wallet, Plus, ReceiptLong, Payments, History } from "@/lib/icons";
 import { SplitButton } from "@/components/ui/split-button";
 import {
   DropdownMenuItem,
@@ -321,8 +322,6 @@ export default function ScrapSettlementsPage() {
   const totalNegativeBalance = Math.abs(
     balances.filter((balance) => balance.balance < 0).reduce((sum, balance) => sum + balance.balance, 0),
   );
-  const maxDeliveredValue = Math.max(...balances.map((balance) => balance.deliveredValue), 1);
-  const maxBalanceValue = Math.max(...balances.map((balance) => Math.abs(balance.balance)), 1);
   const totalBatchValue = batches.reduce(
     (sum, batch) => sum + batch.items.reduce((itemSum, item) => itemSum + item.amount, 0),
     0,
@@ -603,7 +602,7 @@ export default function ScrapSettlementsPage() {
                       </MobileListIcon>
                       <MobileListContent>
                         <MobileListTitle>{balance.employee.name}</MobileListTitle>
-                        <MobileListSubtitle>{balance.employee.employeeId} · {balance.purchaseCount} purchases</MobileListSubtitle>
+                        <MobileListSubtitle>{balance.employee.employeeId} Â· {balance.purchaseCount} purchases</MobileListSubtitle>
                       </MobileListContent>
                       <MobileListMeta>
                         <MobileListMetaText className={cn(owesUs ? "text-[var(--color-warning)]" : "text-[var(--color-info)]")}>
@@ -631,7 +630,7 @@ export default function ScrapSettlementsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="font-semibold">{batch.label}</div>
-                    <div className="text-xs text-[var(--text-muted)]">{batch.items.length} people · {formatDate(batch.dueDate)}</div>
+                    <div className="text-xs text-[var(--text-muted)]">{batch.items.length} people Â· {formatDate(batch.dueDate)}</div>
                   </div>
                   <Badge variant={getWorkflowBadgeVariant(batch.workflowStatus)}>
                     {formatWorkflowStatus(batch.workflowStatus)}
@@ -963,4 +962,3 @@ export default function ScrapSettlementsPage() {
     </ScrapShell>
   );
 }
-                                                                                                                   

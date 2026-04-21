@@ -12,7 +12,6 @@ import { RetailShell } from "@/components/retail/retail-shell";
 import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
 import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
 import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
-import { ReportExportButton } from "@/components/retail/reports/report-export-button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
@@ -22,12 +21,12 @@ import {
   Wallet,
   Package,
   Clock,
-  Store,
-  Receipt,
+  Storefront,
+  ReceiptLong,
 } from "@/lib/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 
-/* ── types ────────────────────────────────────────────── */
+/* â”€â”€ types â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 type SaleRow = {
   id: string;
   saleNo: string;
@@ -66,17 +65,9 @@ type StockItem = {
   unit: string;
 };
 
-type CustomerRow = {
-  customerId: string | null;
-  customerName: string;
-  visits: number;
-  totalSpend: number;
-  loyaltyTier: string;
-};
-
 const TABS = [
-  { id: "pos-policy", label: "POS Policy", icon: Receipt },
-  { id: "operations", label: "Operations", icon: Store },
+  { id: "pos-policy", label: "POS Policy", icon: ReceiptLong },
+  { id: "operations", label: "Operations", icon: Storefront },
   { id: "reports", label: "Reports", icon: BarChart3 },
   { id: "stock", label: "Stock Overview", icon: Package },
   { id: "sales", label: "Sales", icon: Wallet },
@@ -95,7 +86,7 @@ function dateLabel(iso: string) {
   return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
-/* ── main page ────────────────────────────────────────── */
+/* â”€â”€ main page â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
 export default function RetailReportsHubPage() {
   const [activeTab, setActiveTab] = useState<string>("operations");
 
@@ -112,17 +103,11 @@ export default function RetailReportsHubPage() {
     queryKey: ["retail-reports-stock"],
     queryFn: () => fetchJson<{ summary: { lowStockCount: number }; lowStock: StockItem[] }>("/api/v2/retail"),
   });
-  const customersQuery = useQuery({
-    queryKey: ["retail-reports-customers"],
-    queryFn: () => fetchJson<{ data: CustomerRow[] }>("/api/v2/retail/customers"),
-  });
+  const sales = useMemo(() => salesQuery.data?.data ?? [], [salesQuery.data?.data]);
+  const shifts = useMemo(() => shiftsQuery.data?.data ?? [], [shiftsQuery.data?.data]);
+  const stockItems = useMemo(() => stockQuery.data?.lowStock ?? [], [stockQuery.data?.lowStock]);
 
-  const sales = salesQuery.data?.data ?? [];
-  const shifts = shiftsQuery.data?.data ?? [];
-  const stockItems = stockQuery.data?.lowStock ?? [];
-  const customers = customersQuery.data?.data ?? [];
-
-  /* ── derived data ───────────────────────────────────── */
+  /* â”€â”€ derived data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const salesTrend = useMemo(() => {
     const buckets = new Map<string, { label: string; sales: number; refunds: number; voids: number; tickets: number }>();
     for (const s of sales) {
@@ -220,16 +205,7 @@ export default function RetailReportsHubPage() {
     [stockItems],
   );
 
-  const customerSpend = useMemo(() =>
-    customers
-      .slice()
-      .sort((a, b) => b.totalSpend - a.totalSpend)
-      .slice(0, 8)
-      .map((c) => ({ id: c.customerId ?? c.customerName, label: c.customerName, primary: c.totalSpend, secondary: c.visits })),
-    [customers],
-  );
-
-  /* ── table columns ──────────────────────────────────── */
+  /* â”€â”€ table columns â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   const saleColumns: ColumnDef<SaleRow>[] = useMemo(() => [
     { id: "saleNo", header: "Transaction", cell: ({ row }) => <div className="font-mono font-semibold">{row.original.saleNo}</div> },
     { id: "type", header: "Type", cell: ({ row }) => row.original.saleType },
@@ -253,7 +229,7 @@ export default function RetailReportsHubPage() {
   const grossSales = salesQuery.data?.summary.grossSales ?? 0;
   const openShifts = shifts.filter((s) => s.status === "OPEN").length;
 
-  /* ── render ─────────────────────────────────────────── */
+  /* â”€â”€ render â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
   return (
     <RetailShell title="Reports" actions={undefined}>
       {/* Tab bar */}
@@ -279,7 +255,7 @@ export default function RetailReportsHubPage() {
         })}
       </div>
 
-      {/* ── OPERATIONS TAB ─────────────────────────────── */}
+      {/* â”€â”€ OPERATIONS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "operations" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />
@@ -318,7 +294,7 @@ export default function RetailReportsHubPage() {
         </div>
       )}
 
-      {/* ── POS POLICY TAB ─────────────────────────────── */}
+      {/* â”€â”€ POS POLICY TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "pos-policy" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />
@@ -347,7 +323,7 @@ export default function RetailReportsHubPage() {
         </div>
       )}
 
-      {/* ── REPORTS TAB ────────────────────────────────── */}
+      {/* â”€â”€ REPORTS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "reports" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />
@@ -374,7 +350,7 @@ export default function RetailReportsHubPage() {
         </div>
       )}
 
-      {/* ── STOCK TAB ──────────────────────────────────── */}
+      {/* â”€â”€ STOCK TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "stock" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />
@@ -400,7 +376,7 @@ export default function RetailReportsHubPage() {
         </div>
       )}
 
-      {/* ── SALES TAB ──────────────────────────────────── */}
+      {/* â”€â”€ SALES TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "sales" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />
@@ -430,7 +406,7 @@ export default function RetailReportsHubPage() {
         </div>
       )}
 
-      {/* ── SHIFTS TAB ─────────────────────────────────── */}
+      {/* â”€â”€ SHIFTS TAB â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       {activeTab === "shifts" && (
         <div className="space-y-5">
           <ReportFilterBar onExport={() => {}} />

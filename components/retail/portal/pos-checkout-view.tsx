@@ -1356,20 +1356,20 @@ export function PosCheckoutView() {
                 <button
                   type="button"
                   onClick={() => { setMobileCartOpen(false); handleCharge(); }}
-                  disabled={charging || total <= 0 || cart.length === 0}
+                  disabled={postSalePending || total <= 0 || cart.length === 0}
                   className={cn(
                     "mt-3 flex h-14 w-full items-center justify-center gap-2 rounded-2xl text-base font-black text-white transition-all duration-150 active:scale-[0.98]",
-                    charging || total <= 0 || cart.length === 0
+                    postSalePending || total <= 0 || cart.length === 0
                       ? "bg-[var(--text-muted)] opacity-60"
                       : "bg-[var(--action-primary-bg)] shadow-[0_8px_24px_rgba(0,0,0,0.18)] hover:shadow-[0_12px_32px_rgba(0,0,0,0.22)]",
                   )}
                 >
-                  {charging ? (
+                  {postSalePending ? (
                     <Loader2 className="h-5 w-5 animate-spin" />
                   ) : (
                     <Zap className="h-5 w-5" />
                   )}
-                  {charging ? "Processing…" : `Charge ${money(total)}`}
+                  {postSalePending ? "Processing…" : `Charge ${money(total)}`}
                 </button>
               </div>
             ) : null}

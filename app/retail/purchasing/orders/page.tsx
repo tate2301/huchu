@@ -25,8 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
-import { CheckCircle2, LocalShipping, Package, Pencil, Plus, ReceiptLong, Trash2 } from "@/lib/icons";
+import { CheckCircle2, LocalShipping, Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type PurchaseOrderLine = {
@@ -95,9 +94,9 @@ export default function PurchaseOrdersPage() {
     queryFn: () => fetchJson<{ data: PurchaseOrder[] }>("/api/v2/retail/purchase-orders"),
   });
   const sitesQuery = useQuery({ queryKey: ["retail-sites"], queryFn: fetchSites });
-  const inventoryQuery = useQuery({ queryKey: ["retail-inventory"], queryFn: fetchInventoryItems });
+  const inventoryQuery = useQuery({ queryKey: ["retail-inventory"], queryFn: () => fetchInventoryItems() });
 
-  const orders = ordersQuery.data?.data ?? [];
+  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
   const draftOrders = orders.filter((o) => o.status === "DRAFT");
   const pendingOrders = orders.filter((o) => o.status === "SENT");
 
@@ -106,12 +105,16 @@ export default function PurchaseOrdersPage() {
     [sitesQuery.data],
   );
   const itemOptions: SearchableOption[] = useMemo(
-    () => (inventoryQuery.data ?? []).map((i: { id: string; itemName: string }) => ({ value: i.id, label: i.itemName })),
+    () =>
+      (inventoryQuery.data?.data ?? []).map((item) => ({
+        value: item.id,
+        label: item.name,
+      })),
     [inventoryQuery.data],
   );
 
   const { reservedId: poNo, isReserving: isReservingPo, error: reservePoError } = useReservedId({
-    entity: "PURCHASE_ORDER", enabled: dialogOpen && !editing,
+    entity: "RETAIL_PURCHASE_ORDER", enabled: dialogOpen && !editing,
   });
 
   const totalLines = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
@@ -259,7 +262,14 @@ export default function PurchaseOrdersPage() {
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Site</label>
-                <SearchableSelect options={siteOptions} value={form.siteId} onSelect={(v) => setForm((c) => ({ ...c, siteId: v }))} searchPlaceholder="Search sites" />
+                <SearchableSelect
+                  label="Site"
+                  options={siteOptions}
+                  value={form.siteId}
+                  placeholder="Select site"
+                  onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
+                  searchPlaceholder="Search sites"
+                />
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Expected date</label>
@@ -282,9 +292,23 @@ export default function PurchaseOrdersPage() {
                   <div key={idx} className="grid grid-cols-[1fr_90px_100px_32px] items-end gap-2">
                     <div>
                       <SearchableSelect
-                        options={itemOptions} value={line.inventoryItemId}
-                        onSelect={(val, opt) => setForm((c) => { const next = [...c.lines]; next[idx] = { ...next[idx], inventoryItemId: val, itemName: opt?.label ?? "" }; return { ...c, lines: next }; })}
-                        searchPlaceholder="Search items" className="w-full"
+                        label="Item"
+                        options={itemOptions}
+                        value={line.inventoryItemId}
+                        placeholder="Select item"
+                        onValueChange={(value) =>
+                          setForm((current) => {
+                            const next = [...current.lines];
+                            const option = itemOptions.find((item) => item.value === value);
+                            next[idx] = {
+                              ...next[idx],
+                              inventoryItemId: value,
+                              itemName: option?.label ?? "",
+                            };
+                            return { ...current, lines: next };
+                          })
+                        }
+                        searchPlaceholder="Search items"
                       />
                     </div>
                     <Input inputMode="decimal" placeholder="Qty" value={line.quantity}

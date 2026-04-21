@@ -26,11 +26,10 @@ import {
   Building2,
   ClipboardList,
   ChevronDown,
+  Grid3x3,
   LocalShipping,
-  MoreHorizontal,
   Package,
   Payments,
-  ReceiptLong,
   TrendingDown,
   TrendingUp,
   Users,
@@ -289,7 +288,7 @@ export default function RetailOverviewPage() {
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button size="sm" variant="outline" className="gap-1">
-                <MoreHorizontal className="h-4 w-4" />
+                <Grid3x3 className="h-4 w-4" />
                 <span className="hidden sm:inline">More</span>
                 <ChevronDown className="h-3 w-3" />
               </Button>
@@ -488,16 +487,6 @@ export default function RetailOverviewPage() {
                 <div className="mt-1 font-mono text-lg">
                   {(data?.ownerMetrics.kpis.inventoryPressurePct ?? 0).toFixed(1)}%
                 </div>
-              </div>
-            </div>
-          </section>
-        </aside>
-      </div>
-    </RetailShell>
-  );
-}
-ons"}
-                </p>
               </div>
             </div>
           </section>
