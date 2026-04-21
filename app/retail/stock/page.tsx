@@ -177,11 +177,9 @@ export default function RetailStockPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Stock signal</p>
             <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Availability, reorder pressure, and gap depth</h2>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Low stock items</p>
             <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
               {data?.summary.lowStockCount ?? 0}
             </p>
@@ -210,11 +208,9 @@ export default function RetailStockPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Gap pressure</p>
             <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest reorder gaps in the current watchlist</h3>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Open orders</p>
             <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
               {money(data?.summary.openOrderValue ?? 0)}
             </p>
@@ -230,7 +226,6 @@ export default function RetailStockPage() {
             emptyLabel="Reorder gaps are loading"
           />
           <div className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
-            <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Goods received</p>
             <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
               {money(data?.summary.goodsReceivedValue ?? 0)}
             </p>

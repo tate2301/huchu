@@ -1,243 +1,464 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import {
-  AdminDistributionChart,
-  AdminDualBarChart,
-  AdminDonutChart,
   AdminTrendChart,
+  AdminDonutChart,
+  AdminDualBarChart,
+  AdminDistributionChart,
 } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
+import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
+import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
+import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
+import { ReportExportButton } from "@/components/retail/reports/report-export-button";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson } from "@/lib/api-client";
-import { ClipboardList, LocalShipping, ReceiptLong } from "@/lib/icons";
+import { cn } from "@/lib/utils";
+import {
+  BarChart3,
+  Wallet,
+  Package,
+  Clock,
+  Store,
+  Receipt,
+} from "@/lib/icons";
+import type { ColumnDef } from "@tanstack/react-table";
 
-type RetailDashboardPayload = {
-  salesTrend: Array<{ id: string; label: string; sales: number; tickets: number }>;
-  tenderMix: Array<{ tenderType: string; amount: number }>;
-  topItems: Array<{ itemName: string; quantity: number; value: number }>;
-  recentSales: Array<{ id: string; saleNo: string; postedAt: string; cashierName: string | null; totalAmount: number; itemCount: number; tenderTypes: string[] }>;
-  lowStock: Array<{ id: string; itemCode: string; name: string; currentStock: number; minStock: number; unit: string }>;
+/* ── types ────────────────────────────────────────────── */
+type SaleRow = {
+  id: string;
+  saleNo: string;
+  saleType: string;
+  status: string;
+  cashierName: string | null;
+  customerName: string | null;
+  postedAt: string;
+  totalAmount: number;
+  itemCount: number;
+  tenderTypes: string[];
 };
 
-export default function RetailReportsPage() {
-  const [activeView, setActiveView] = useState("items");
-  const { data, isLoading } = useQuery({
-    queryKey: ["retail-reports-overview"],
-    queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
+type ShiftRow = {
+  id: string;
+  shiftNo: string;
+  registerName: string;
+  site: { name: string } | null;
+  cashierName: string;
+  openingFloat: number;
+  expectedCash: number;
+  countedCash: number | null;
+  variance: number | null;
+  status: string;
+  openedAt: string;
+  salesValue: number;
+  saleCount: number;
+};
+
+type StockItem = {
+  id: string;
+  itemCode: string;
+  name: string;
+  currentStock: number;
+  minStock: number;
+  unit: string;
+};
+
+type CustomerRow = {
+  customerId: string | null;
+  customerName: string;
+  visits: number;
+  totalSpend: number;
+  loyaltyTier: string;
+};
+
+const TABS = [
+  { id: "pos-policy", label: "POS Policy", icon: Receipt },
+  { id: "operations", label: "Operations", icon: Store },
+  { id: "reports", label: "Reports", icon: BarChart3 },
+  { id: "stock", label: "Stock Overview", icon: Package },
+  { id: "sales", label: "Sales", icon: Wallet },
+  { id: "shifts", label: "Shifts", icon: Clock },
+] as const;
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
+function dateLabel(iso: string) {
+  return new Date(iso).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+/* ── main page ────────────────────────────────────────── */
+export default function RetailReportsHubPage() {
+  const [activeTab, setActiveTab] = useState<string>("operations");
+
+  /* Shared data queries */
+  const salesQuery = useQuery({
+    queryKey: ["retail-reports-sales"],
+    queryFn: () => fetchJson<{ data: SaleRow[]; summary: Record<string, number> }>("/api/v2/retail/pos/sales?limit=200"),
+  });
+  const shiftsQuery = useQuery({
+    queryKey: ["retail-reports-shifts"],
+    queryFn: () => fetchJson<{ data: ShiftRow[] }>("/api/v2/retail/shifts"),
+  });
+  const stockQuery = useQuery({
+    queryKey: ["retail-reports-stock"],
+    queryFn: () => fetchJson<{ summary: { lowStockCount: number }; lowStock: StockItem[] }>("/api/v2/retail"),
+  });
+  const customersQuery = useQuery({
+    queryKey: ["retail-reports-customers"],
+    queryFn: () => fetchJson<{ data: CustomerRow[] }>("/api/v2/retail/customers"),
   });
 
-  const itemColumns = useMemo<ColumnDef<RetailDashboardPayload["topItems"][number]>[]>(
-    () => [
-      { id: "itemName", header: "Item", cell: ({ row }) => row.original.itemName },
-      { id: "quantity", header: "Units", cell: ({ row }) => <NumericCell>{row.original.quantity.toFixed(2)}</NumericCell> },
-      { id: "value", header: "Sales", cell: ({ row }) => <NumericCell>{row.original.value.toFixed(2)}</NumericCell> },
-    ],
-    [],
-  );
-  const salesColumns = useMemo<ColumnDef<RetailDashboardPayload["recentSales"][number]>[]>(
-    () => [
-      { id: "saleNo", header: "Sale #", cell: ({ row }) => <span className="font-mono">{row.original.saleNo}</span> },
-      { id: "postedAt", header: "Date", cell: ({ row }) => <NumericCell align="left">{new Date(row.original.postedAt).toLocaleDateString()}</NumericCell> },
-      { id: "cashierName", header: "Cashier", cell: ({ row }) => row.original.cashierName ?? "-" },
-      { id: "itemCount", header: "Items", cell: ({ row }) => <NumericCell>{row.original.itemCount}</NumericCell> },
-      { id: "totalAmount", header: "Value", cell: ({ row }) => <NumericCell>{row.original.totalAmount.toFixed(2)}</NumericCell> },
-    ],
-    [],
-  );
-  const stockColumns = useMemo<ColumnDef<RetailDashboardPayload["lowStock"][number]>[]>(
-    () => [
-      { id: "name", header: "Item", cell: ({ row }) => row.original.name },
-      { id: "itemCode", header: "Code", cell: ({ row }) => <span className="font-mono">{row.original.itemCode}</span> },
-      { id: "currentStock", header: "On hand", cell: ({ row }) => <NumericCell>{`${row.original.currentStock.toFixed(2)} ${row.original.unit}`}</NumericCell> },
-      { id: "minStock", header: "Min", cell: ({ row }) => <NumericCell>{`${row.original.minStock.toFixed(2)} ${row.original.unit}`}</NumericCell> },
-    ],
-    [],
-  );
+  const sales = salesQuery.data?.data ?? [];
+  const shifts = shiftsQuery.data?.data ?? [];
+  const stockItems = stockQuery.data?.lowStock ?? [];
+  const customers = customersQuery.data?.data ?? [];
 
-  const chartRows = useMemo(
-    () =>
-      (data?.salesTrend ?? []).map((bucket) => ({
-        id: bucket.id,
-        label: bucket.label,
-        sales: bucket.sales,
-        tickets: bucket.tickets,
-      })),
-    [data?.salesTrend],
-  );
+  /* ── derived data ───────────────────────────────────── */
+  const salesTrend = useMemo(() => {
+    const buckets = new Map<string, { label: string; sales: number; refunds: number; voids: number; tickets: number }>();
+    for (const s of sales) {
+      const key = s.postedAt.slice(0, 10);
+      const label = dateLabel(s.postedAt);
+      const cur = buckets.get(key) ?? { label, sales: 0, refunds: 0, voids: 0, tickets: 0 };
+      cur.tickets++;
+      if (s.saleType === "REFUND") cur.refunds += Math.abs(s.totalAmount);
+      else if (s.saleType === "VOID" || s.status === "VOIDED") cur.voids += Math.abs(s.totalAmount);
+      else cur.sales += s.totalAmount;
+      buckets.set(key, cur);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, v]) => ({ id, label: v.label, sales: v.sales, refunds: v.refunds, voids: v.voids, tickets: v.tickets }));
+  }, [sales]);
 
-  const tenderRows = useMemo(
-    () =>
-      (data?.tenderMix ?? []).map((row) => ({
-        id: row.tenderType,
-        label: row.tenderType.replaceAll("_", " "),
-        value: row.amount,
-      })),
-    [data?.tenderMix],
-  );
-
-  const topItemRows = useMemo(
-    () =>
-      (data?.topItems ?? []).slice(0, 8).map((item) => ({
-        id: item.itemName,
-        label: item.itemName,
-        primary: item.value,
-        secondary: item.quantity,
-      })),
-    [data?.topItems],
-  );
-
-  const stockRows = useMemo(
-    () =>
-      (data?.lowStock ?? []).slice(0, 8).map((item) => ({
-        id: item.id,
-        label: item.itemCode,
-        value: Math.max(item.minStock - item.currentStock, 0),
-        tone: item.currentStock < item.minStock ? ("warning" as const) : ("success" as const),
-      })),
-    [data?.lowStock],
-  );
-
-  return (
-    <RetailShell
-      title="Reports"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/sales">
-              <ClipboardList className="h-4 w-4" />
-              Sales Queue
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/purchasing/receipts">
-              <LocalShipping className="h-4 w-4" />
-              Receipts
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/shifts">
-              <ReceiptLong className="h-4 w-4" />
-              Shifts & Cash-up
-            </Link>
-          </Button>
-        </div>
+  const tenderMix = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of sales) {
+      for (const t of s.tenderTypes) {
+        counts.set(t, (counts.get(t) ?? 0) + 1);
       }
-    >
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-[var(--text-strong)]">Trend and tender mix</h2>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Recent tickets</p>
-            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-              {(data?.salesTrend ?? []).reduce((sum, bucket) => sum + bucket.tickets, 0)}
-            </p>
+    }
+    return Array.from(counts.entries()).map(([label, value]) => ({ id: label, label, value }));
+  }, [sales]);
+
+  const typeMix = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of sales) {
+      const key = s.saleType === "SALE" ? "Sales" : s.saleType === "REFUND" ? "Refunds" : "Voids";
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return Array.from(counts.entries()).map(([label, value]) => ({
+      id: label, label, value,
+      tone: label === "Sales" ? ("success" as const) : label === "Refunds" ? ("warning" as const) : ("danger" as const),
+    }));
+  }, [sales]);
+
+  const shiftTrend = useMemo(() => {
+    const buckets = new Map<string, { label: string; sales: number; variance: number; count: number }>();
+    for (const s of shifts) {
+      const key = s.openedAt.slice(0, 10);
+      const label = dateLabel(s.openedAt);
+      const cur = buckets.get(key) ?? { label, sales: 0, variance: 0, count: 0 };
+      cur.sales += s.salesValue;
+      cur.variance += Math.abs(s.variance ?? 0);
+      cur.count++;
+      buckets.set(key, cur);
+    }
+    return Array.from(buckets.entries())
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([id, v]) => ({ id, label: v.label, sales: v.sales, variance: v.variance, count: v.count }));
+  }, [shifts]);
+
+  const shiftStatus = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of shifts) counts.set(s.status, (counts.get(s.status) ?? 0) + 1);
+    return Array.from(counts.entries()).map(([label, value]) => ({
+      id: label, label, value,
+      tone: label === "OPEN" ? ("success" as const) : ("default" as const),
+    }));
+  }, [shifts]);
+
+  const topCashiers = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const s of sales) counts.set(s.cashierName ?? "Unknown", (counts.get(s.cashierName ?? "Unknown") ?? 0) + 1);
+    return Array.from(counts.entries())
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, 8)
+      .map(([label, value]) => ({ id: label, label, value }));
+  }, [sales]);
+
+  const topTickets = useMemo(() =>
+    sales
+      .slice()
+      .sort((a, b) => b.totalAmount - a.totalAmount)
+      .slice(0, 8)
+      .map((s) => ({ id: s.id, label: s.saleNo, primary: s.totalAmount, secondary: s.itemCount })),
+    [sales],
+  );
+
+  const stockHealth = useMemo(() => [
+    { id: "ok", label: "OK", value: stockItems.filter((i) => i.currentStock > i.minStock).length, tone: "success" as const },
+    { id: "low", label: "Low", value: stockItems.filter((i) => i.currentStock > 0 && i.currentStock <= i.minStock).length, tone: "warning" as const },
+    { id: "critical", label: "Critical", value: stockItems.filter((i) => i.currentStock <= 0).length, tone: "danger" as const },
+  ], [stockItems]);
+
+  const stockGap = useMemo(() =>
+    stockItems
+      .slice()
+      .sort((a, b) => (b.minStock - b.currentStock) - (a.minStock - a.currentStock))
+      .slice(0, 8)
+      .map((i) => ({ id: i.id, label: i.name, value: Math.max(i.minStock - i.currentStock, 0), tone: ("warning" as const) })),
+    [stockItems],
+  );
+
+  const customerSpend = useMemo(() =>
+    customers
+      .slice()
+      .sort((a, b) => b.totalSpend - a.totalSpend)
+      .slice(0, 8)
+      .map((c) => ({ id: c.customerId ?? c.customerName, label: c.customerName, primary: c.totalSpend, secondary: c.visits })),
+    [customers],
+  );
+
+  /* ── table columns ──────────────────────────────────── */
+  const saleColumns: ColumnDef<SaleRow>[] = useMemo(() => [
+    { id: "saleNo", header: "Transaction", cell: ({ row }) => <div className="font-mono font-semibold">{row.original.saleNo}</div> },
+    { id: "type", header: "Type", cell: ({ row }) => row.original.saleType },
+    { id: "postedAt", header: "Posted", cell: ({ row }) => dateLabel(row.original.postedAt) },
+    { id: "cashier", header: "Cashier", cell: ({ row }) => row.original.cashierName ?? "-" },
+    { id: "customer", header: "Customer", cell: ({ row }) => row.original.customerName ?? "Walk-in" },
+    { id: "total", header: "Total", cell: ({ row }) => <NumericCell>{money(row.original.totalAmount)}</NumericCell> },
+    { id: "items", header: "Items", cell: ({ row }) => <NumericCell>{row.original.itemCount}</NumericCell> },
+  ], []);
+
+  const shiftColumns: ColumnDef<ShiftRow>[] = useMemo(() => [
+    { id: "shiftNo", header: "Shift", cell: ({ row }) => <div className="font-mono font-semibold">{row.original.shiftNo}</div> },
+    { id: "register", header: "Register", cell: ({ row }) => row.original.registerName },
+    { id: "cashier", header: "Cashier", cell: ({ row }) => row.original.cashierName },
+    { id: "status", header: "Status", cell: ({ row }) => row.original.status },
+    { id: "sales", header: "Sales", cell: ({ row }) => <NumericCell>{money(row.original.salesValue)}</NumericCell> },
+    { id: "variance", header: "Variance", cell: ({ row }) => <NumericCell>{money(Math.abs(row.original.variance ?? 0))}</NumericCell> },
+  ], []);
+
+  const netSales = salesQuery.data?.summary.netSales ?? 0;
+  const grossSales = salesQuery.data?.summary.grossSales ?? 0;
+  const openShifts = shifts.filter((s) => s.status === "OPEN").length;
+
+  /* ── render ─────────────────────────────────────────── */
+  return (
+    <RetailShell title="Reports" actions={undefined}>
+      {/* Tab bar */}
+      <div className="flex gap-1 overflow-x-auto rounded-2xl bg-[var(--surface-muted)] p-1">
+        {TABS.map((tab) => {
+          const Icon = tab.icon;
+          const active = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              className={cn(
+                "flex items-center gap-2 whitespace-nowrap rounded-xl px-4 py-2.5 text-sm font-medium transition-all",
+                active
+                  ? "bg-[var(--surface-base)] text-[var(--text-strong)] shadow-sm"
+                  : "text-[var(--text-muted)] hover:text-[var(--text-strong)]",
+              )}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ── OPERATIONS TAB ─────────────────────────────── */}
+      {activeTab === "operations" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <ReportChartShell title="Net sales" sourceTag={{ label: "Sales" }}>
+              <ReportBigNumber label="Net" value={money(netSales)} />
+            </ReportChartShell>
+            <ReportChartShell title="Gross sales" sourceTag={{ label: "Sales" }}>
+              <ReportBigNumber label="Gross" value={money(grossSales)} dotColor="var(--status-success-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Transactions" sourceTag={{ label: "POS" }}>
+              <ReportBigNumber label="Total tickets" value={sales.length.toString()} dotColor="var(--status-info-border)" />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Sales trend" sourceTag={{ label: "POS" }} legend={[{ label: "Sales", color: "var(--status-success-border)" }, { label: "Refunds", color: "var(--status-warning-border)" }, { label: "Voids", color: "var(--status-danger-border)" }]}>
+              <AdminTrendChart rows={salesTrend} series={[
+                { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+                { key: "refunds", label: "Refunds", kind: "line", tone: "warning", dashed: true },
+                { key: "voids", label: "Voids", kind: "line", tone: "danger", dashed: true },
+              ]} height={280} valueFormatter={money} yTickFormatter={money} />
+            </ReportChartShell>
+            <ReportChartShell title="Transaction mix" sourceTag={{ label: "POS" }}>
+              <AdminDonutChart rows={typeMix} valueLabel="Transactions" valueFormatter={(v) => v.toString()} height={280} />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Tender distribution" sourceTag={{ label: "Payments" }}>
+              <AdminDistributionChart rows={tenderMix} valueLabel="Count" valueFormatter={(v) => v.toString()} height={260} />
+            </ReportChartShell>
+            <ReportChartShell title="Top cashiers" sourceTag={{ label: "Staff" }}>
+              <AdminDistributionChart rows={topCashiers} valueLabel="Txns" valueFormatter={(v) => v.toString()} height={260} />
+            </ReportChartShell>
+          </div>
+          <DataTable data={sales} columns={saleColumns} features={{ sorting: true, globalFilter: true, pagination: true }} pagination={{ enabled: true, server: false }} searchPlaceholder="Search transactions" />
+        </div>
+      )}
+
+      {/* ── POS POLICY TAB ─────────────────────────────── */}
+      {activeTab === "pos-policy" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <ReportChartShell title="Total transactions" sourceTag={{ label: "POS" }}>
+              <ReportBigNumber label="Transactions" value={sales.length.toString()} />
+            </ReportChartShell>
+            <ReportChartShell title="Average ticket" sourceTag={{ label: "POS" }}>
+              <ReportBigNumber label="Avg ticket" value={money(sales.length ? sales.reduce((s, r) => s + r.totalAmount, 0) / sales.length : 0)} dotColor="var(--status-success-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Exceptions" sourceTag={{ label: "POS" }}>
+              <ReportBigNumber label="Voids + Refunds" value={(sales.filter((s) => s.saleType !== "SALE").length).toString()} dotColor="var(--status-danger-border)" />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Daily volume" sourceTag={{ label: "POS" }} legend={[{ label: "Tickets", color: "var(--action-primary-bg)" }]}>
+              <AdminTrendChart rows={salesTrend} series={[
+                { key: "tickets", label: "Tickets", kind: "bar", tone: "default" },
+              ]} height={280} valueFormatter={(v) => v.toString()} />
+            </ReportChartShell>
+            <ReportChartShell title="Type breakdown" sourceTag={{ label: "POS" }}>
+              <AdminDonutChart rows={typeMix} valueLabel="Transactions" valueFormatter={(v) => v.toString()} height={280} />
+            </ReportChartShell>
+          </div>
+          <DataTable data={sales} columns={saleColumns} features={{ sorting: true, globalFilter: true, pagination: true }} pagination={{ enabled: true, server: false }} searchPlaceholder="Search transactions" />
+        </div>
+      )}
+
+      {/* ── REPORTS TAB ────────────────────────────────── */}
+      {activeTab === "reports" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Sales by day" sourceTag={{ label: "Sales" }} legend={[{ label: "Sales", color: "var(--status-success-border)" }, { label: "Refunds", color: "var(--status-warning-border)" }]}>
+              <AdminTrendChart rows={salesTrend} series={[
+                { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+                { key: "refunds", label: "Refunds", kind: "line", tone: "warning", dashed: true },
+              ]} height={300} valueFormatter={money} yTickFormatter={money} />
+            </ReportChartShell>
+            <ReportChartShell title="Transaction value" sourceTag={{ label: "POS" }}>
+              <AdminDonutChart rows={typeMix} valueLabel="Value" valueFormatter={(v) => v.toString()} height={300} />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Largest tickets" sourceTag={{ label: "Sales" }} legend={[{ label: "Amount", color: "var(--action-primary-bg)" }, { label: "Items", color: "var(--status-info-border)" }]}>
+              <AdminDualBarChart rows={topTickets} primaryLabel="Amount" secondaryLabel="Items" height={280} valueFormatter={money} />
+            </ReportChartShell>
+            <ReportChartShell title="Tender mix" sourceTag={{ label: "Payments" }}>
+              <AdminDistributionChart rows={tenderMix} valueLabel="Count" valueFormatter={(v) => v.toString()} height={280} />
+            </ReportChartShell>
+          </div>
+          <DataTable data={sales} columns={saleColumns} features={{ sorting: true, globalFilter: true, pagination: true }} pagination={{ enabled: true, server: false }} searchPlaceholder="Search transactions" />
+        </div>
+      )}
+
+      {/* ── STOCK TAB ──────────────────────────────────── */}
+      {activeTab === "stock" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <ReportChartShell title="Total SKUs" sourceTag={{ label: "Inventory" }}>
+              <ReportBigNumber label="Low-stock SKUs" value={stockItems.length.toString()} dotColor="var(--status-warning-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Stock health" sourceTag={{ label: "Inventory" }}>
+              <ReportBigNumber label="Critical" value={stockItems.filter((i) => i.currentStock <= 0).length.toString()} dotColor="var(--status-danger-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Reorder gap" sourceTag={{ label: "Inventory" }}>
+              <ReportBigNumber label="Items below min" value={stockItems.filter((i) => i.currentStock <= i.minStock).length.toString()} dotColor="var(--status-warning-border)" />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Stock gaps" sourceTag={{ label: "Inventory" }}>
+              <AdminDistributionChart rows={stockGap} valueLabel="Shortfall" valueFormatter={(v) => v.toFixed(0)} height={280} />
+            </ReportChartShell>
+            <ReportChartShell title="Health overview" sourceTag={{ label: "Inventory" }}>
+              <AdminDonutChart rows={stockHealth} valueLabel="SKUs" valueFormatter={(v) => v.toString()} height={280} />
+            </ReportChartShell>
           </div>
         </div>
+      )}
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
-          <AdminTrendChart
-            rows={chartRows}
-            series={[
-              { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
-              { key: "tickets", label: "Tickets", kind: "line", tone: "default", dashed: true },
-            ]}
-            height={300}
-            valueFormatter={(value) => value.toFixed(0)}
-            yTickFormatter={(value) => value.toFixed(0)}
-            emptyLabel="Sales trend is loading"
-          />
-          <AdminDonutChart
-            rows={tenderRows}
-            valueLabel="Tender mix"
-            valueFormatter={(value) => value.toFixed(2)}
-            height={300}
-            emptyLabel="Tender mix is loading"
-          />
-        </div>
-      </section>
-
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <h3 className="text-xl font-semibold text-[var(--text-strong)]">Top items and stock</h3>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Top item value</p>
-            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
-              {data?.topItems?.[0] ? data.topItems[0].value.toFixed(0) : "0"}
-            </p>
+      {/* ── SALES TAB ──────────────────────────────────── */}
+      {activeTab === "sales" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <ReportChartShell title="Gross sales" sourceTag={{ label: "Sales" }}>
+              <ReportBigNumber label="Gross" value={money(grossSales)} />
+            </ReportChartShell>
+            <ReportChartShell title="Net sales" sourceTag={{ label: "Sales" }}>
+              <ReportBigNumber label="Net" value={money(netSales)} dotColor="var(--status-success-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Ticket count" sourceTag={{ label: "POS" }}>
+              <ReportBigNumber label="Tickets" value={sales.length.toString()} dotColor="var(--status-info-border)" />
+            </ReportChartShell>
           </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Sales trend" sourceTag={{ label: "Sales" }} legend={[{ label: "Sales", color: "var(--status-success-border)" }, { label: "Refunds", color: "var(--status-warning-border)" }]}>
+              <AdminTrendChart rows={salesTrend} series={[
+                { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+                { key: "refunds", label: "Refunds", kind: "line", tone: "warning", dashed: true },
+              ]} height={280} valueFormatter={money} yTickFormatter={money} />
+            </ReportChartShell>
+            <ReportChartShell title="Top tickets" sourceTag={{ label: "Sales" }}>
+              <AdminDualBarChart rows={topTickets.slice(0, 6)} primaryLabel="Amount" secondaryLabel="Items" height={280} valueFormatter={money} />
+            </ReportChartShell>
+          </div>
+          <DataTable data={sales} columns={saleColumns} features={{ sorting: true, globalFilter: true, pagination: true }} pagination={{ enabled: true, server: false }} searchPlaceholder="Search sales" />
         </div>
+      )}
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
-          <AdminDualBarChart
-            rows={topItemRows}
-            primaryLabel="Sales"
-            secondaryLabel="Units"
-            height={280}
-            valueFormatter={(value) => value.toFixed(0)}
-            emptyLabel="Top items are loading"
-          />
-          <AdminDistributionChart
-            rows={stockRows}
-            valueLabel="Gap"
-            valueFormatter={(value) => value.toFixed(2)}
-            height={280}
-            emptyLabel="Stock exceptions are loading"
-          />
+      {/* ── SHIFTS TAB ─────────────────────────────────── */}
+      {activeTab === "shifts" && (
+        <div className="space-y-5">
+          <ReportFilterBar onExport={() => {}} />
+          <div className="grid gap-5 xl:grid-cols-3">
+            <ReportChartShell title="Open shifts" sourceTag={{ label: "Shifts" }}>
+              <ReportBigNumber label="Open" value={openShifts.toString()} dotColor={openShifts > 0 ? "var(--status-success-border)" : "var(--text-muted)"} />
+            </ReportChartShell>
+            <ReportChartShell title="Total shifts" sourceTag={{ label: "Shifts" }}>
+              <ReportBigNumber label="Total" value={shifts.length.toString()} dotColor="var(--status-info-border)" />
+            </ReportChartShell>
+            <ReportChartShell title="Shift sales" sourceTag={{ label: "Shifts" }}>
+              <ReportBigNumber label="Total sales" value={money(shifts.reduce((s, sh) => s + sh.salesValue, 0))} dotColor="var(--action-primary-bg)" />
+            </ReportChartShell>
+          </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <ReportChartShell title="Sales by shift" sourceTag={{ label: "Shifts" }} legend={[{ label: "Sales", color: "var(--status-success-border)" }, { label: "Variance", color: "var(--status-warning-border)" }]}>
+              <AdminTrendChart rows={shiftTrend} series={[
+                { key: "sales", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+                { key: "variance", label: "Variance", kind: "line", tone: "warning", dashed: true },
+              ]} height={280} valueFormatter={money} yTickFormatter={money} />
+            </ReportChartShell>
+            <ReportChartShell title="Status" sourceTag={{ label: "Shifts" }}>
+              <AdminDonutChart rows={shiftStatus} valueLabel="Shifts" valueFormatter={(v) => v.toString()} height={280} />
+            </ReportChartShell>
+          </div>
+          <DataTable data={shifts} columns={shiftColumns} features={{ sorting: true, globalFilter: true, pagination: true }} pagination={{ enabled: true, server: false }} searchPlaceholder="Search shifts" />
         </div>
-      </section>
-
-      <VerticalDataViews
-        value={activeView}
-        onValueChange={setActiveView}
-        railLabel="Reports"
-        items={[
-          { id: "items", label: "Top items", count: data?.topItems.length ?? 0 },
-          { id: "sales", label: "Sales detail", count: data?.recentSales.length ?? 0 },
-          { id: "stock", label: "Stock exceptions", count: data?.lowStock.length ?? 0 },
-        ]}
-      >
-        {activeView === "items" ? (
-          <DataTable
-            data={data?.topItems ?? []}
-            columns={itemColumns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search top items"
-            emptyState={isLoading ? "Loading report..." : "No item data yet"}
-            toolbar={undefined}
-          />
-        ) : null}
-        {activeView === "sales" ? (
-          <DataTable
-            data={data?.recentSales ?? []}
-            columns={salesColumns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search sales detail"
-            emptyState={isLoading ? "Loading report..." : "No sales yet"}
-            toolbar={undefined}
-          />
-        ) : null}
-        {activeView === "stock" ? (
-          <DataTable
-            data={data?.lowStock ?? []}
-            columns={stockColumns}
-            features={{ sorting: true, globalFilter: true, pagination: true }}
-            pagination={{ enabled: true, server: false }}
-            searchPlaceholder="Search stock exceptions"
-            emptyState={isLoading ? "Loading report..." : "No stock exceptions"}
-            toolbar={undefined}
-          />
-        ) : null}
-      </VerticalDataViews>
+      )}
     </RetailShell>
   );
 }
-                                                                      

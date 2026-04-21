@@ -288,13 +288,11 @@ export default function RetailSalesPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Sales at a glance</p>
             <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">
               Gross, refunds, voids, and net movement
             </h2>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Net sales</p>
             <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
               {money(salesQuery.data?.summary.netSales ?? 0)}
             </p>
@@ -330,11 +328,9 @@ export default function RetailSalesPage() {
       <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
-            <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Ticket concentration</p>
             <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest tickets in the current view</h3>
           </div>
           <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Gross sales</p>
             <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
               {money(salesQuery.data?.summary.grossSales ?? 0)}
             </p>
@@ -378,7 +374,7 @@ export default function RetailSalesPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search posted sales"
             emptyState={salesQuery.isLoading ? "Loading sales..." : "No posted sales yet"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Posted checkout activity</span>}
+
           />
         ) : null}
 
@@ -390,7 +386,7 @@ export default function RetailSalesPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search refunds"
             emptyState={salesQuery.isLoading ? "Loading refunds..." : "No refunds yet"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Refund and return activity</span>}
+
           />
         ) : null}
 
@@ -402,7 +398,7 @@ export default function RetailSalesPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search exceptions"
             emptyState={salesQuery.isLoading ? "Loading exceptions..." : "No exceptions yet"}
-            toolbar={<span className="text-xs text-[var(--text-muted)]">Voids and overridden checkouts</span>}
+
           />
         ) : null}
       </VerticalDataViews>
