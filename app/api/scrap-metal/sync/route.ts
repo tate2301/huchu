@@ -41,8 +41,8 @@ const syncOperationSchema = z.object({
   ]),
   clientRequestId: z.string(),
   entityType: z.string(),
-  payload: z.record(z.unknown()),
-  localRefs: z.record(z.string()).optional(),
+  payload: z.record(z.string(), z.unknown()),
+  localRefs: z.record(z.string(), z.string()).optional(),
   attachments: z
     .array(
       z.object({
@@ -114,7 +114,6 @@ async function processCreateSeller(
       nationalId,
       address,
       notes,
-      createdById: session.user.id,
     },
     select: { id: true },
   });
@@ -300,7 +299,7 @@ async function processCreateInboundTicket(
 async function processCreateOutboundTicket(
   tx: typeof prisma,
   companyId: string,
-  session: { user: { id: string; name: string; companyId: string } },
+  session: { user: { id: string } },
   payload: Record<string, unknown>,
 ): Promise<{ saleId: string; saleNumber: string }> {
   const siteId = String(payload.siteId ?? "");
@@ -556,6 +555,16 @@ async function processAddTicketToBatch(
     data: {
       batchId: batch.id,
       purchaseId: purchase.id,
+      weight: purchase.weight,
+    },
+  });
+
+  await tx.scrapMetalBatch.update({
+    where: { id: batch.id },
+    data: {
+      totalWeight: {
+        increment: purchase.weight,
+      },
     },
   });
 }
@@ -687,14 +696,14 @@ export async function POST(request: NextRequest) {
             // Try to find and update the associated ticket
             if (ticketId && ticketId.startsWith("SCPUR-")) {
               // Find by purchase number
-              const purchase = await tx.scrapMetalPurchase.findFirst({
-                where: { companyId, purchaseNumber: ticketId },
+              const purchase = await prisma.scrapMetalPurchase.findFirst({
+                where: { companyId: session.user.companyId, purchaseNumber: ticketId },
                 select: { id: true, notes: true },
               });
               if (purchase) {
                 const existingNotes = purchase.notes ?? "";
                 const updatedNotes = `[COMPLIANCE_FLAG: rule=${ruleId} severity=${severity}] ${flagNotes}\n${existingNotes}`;
-                await tx.scrapMetalPurchase.update({
+                await prisma.scrapMetalPurchase.update({
                   where: { id: purchase.id },
                   data: { notes: updatedNotes.slice(0, 1000) },
                 });

@@ -19,6 +19,10 @@ import { isOfflineRetailCustomerId } from "./offline-runtime";
 
 export type { POSSalePayload };
 
+type POSSaleOutboxOperation = Omit<OfflineOutboxOperation, "payload"> & {
+  payload: POSSalePayload;
+};
+
 // ── Constants ───────────────────────────────────────────────────────────────
 
 const RETAIL_POS_OFFLINE_MODULE_ID = "retail-pos";
@@ -137,7 +141,7 @@ export async function createSaleOffline(
   input: OfflineSaleInput
 ): Promise<{
   saleNo: string;
-  operation: OfflineOutboxOperation<POSSalePayload>;
+  operation: POSSaleOutboxOperation;
 }> {
   const saleNo = generateSaleNo();
 
@@ -191,7 +195,7 @@ export async function createSaleOffline(
     syncPriority: 20,
   });
 
-  return { saleNo, operation: operation as OfflineOutboxOperation<POSSalePayload> };
+  return { saleNo, operation: operation as unknown as POSSaleOutboxOperation };
 }
 
 // ── Sale Void ───────────────────────────────────────────────────────────────
@@ -299,16 +303,15 @@ export async function refundSaleOffline(
  */
 export async function getPendingSales(
   tenantKey: OfflineTenantKey
-): Promise<OfflineOutboxOperation<POSSalePayload>[]> {
+): Promise<POSSaleOutboxOperation[]> {
   const operations = await listOfflineOperationsForModule(
     RETAIL_POS_OFFLINE_MODULE_ID,
     tenantKey
   );
 
-  return operations.filter(
-    (op): op is OfflineOutboxOperation<POSSalePayload> =>
-      op.operation === "create-sale" && op.status !== "SYNCED"
-  );
+  return operations
+    .filter((op) => op.operation === "create-sale" && op.status !== "SYNCED")
+    .map((op) => op as unknown as POSSaleOutboxOperation);
 }
 
 /**

@@ -90,7 +90,7 @@ export async function detectConflict(params: {
   }
 
   // Check if server has been modified since client fetched
-  if (entity.serverVersion && entity.serverVersion < serverVersion) {
+  if (operation.serverVersion && operation.serverVersion < serverVersion) {
     const conflictingFields = computeConflictingFields(
       operation.payload,
       entity.payload,

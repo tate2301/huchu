@@ -486,8 +486,8 @@ export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
 
 export const TIERS: TierDefinition[] = [
   {
-    code: "STARTER",
-    name: "Starter",
+    code: "BASIC",
+    name: "Basic",
     description: "Start tracking stock, sales, and daily operations.",
     monthlyPrice: 39,
     includedSites: 1,
@@ -498,8 +498,8 @@ export const TIERS: TierDefinition[] = [
     includedBundles: [],
   },
   {
-    code: "GROWTH",
-    name: "Growth",
+    code: "STANDARD",
+    name: "Standard",
     description: "Run multiple sites with full operations and reporting.",
     monthlyPrice: 99,
     includedSites: 3,
@@ -516,8 +516,8 @@ export const TIERS: TierDefinition[] = [
     includedBundles: [],
   },
   {
-    code: "BUSINESS",
-    name: "Business",
+    code: "ENTERPRISE",
+    name: "Enterprise",
     description: "Full suite with all modules, priority support, and custom branding.",
     monthlyPrice: 199,
     includedSites: 8,
@@ -528,54 +528,18 @@ export const TIERS: TierDefinition[] = [
     includedBundles: [],
   },
 ];
-  {
-    code: "STANDARD",
-    name: "Standard",
-    description: "Expanded operations and compliance controls.",
-    monthlyPrice: 900,
-    includedSites: 3,
-    additionalSiteMonthlyPrice: 140,
-    warningDays: 14,
-    graceDays: 7,
-    includedFeatures: [
-      "hr.incidents",
-      "hr.disciplinary-actions",
-      "hr.compensation-rules",
-      "hr.salaries",
-      "hr.approvals-history",
-      "compliance.overview",
-      "compliance.permits",
-      "compliance.inspections",
-      "compliance.incidents",
-      "reports.audit-trails",
-      "reports.compliance-incidents",
-    ],
-    includedBundles: [],
-  },
-  {
-    code: "ENTERPRISE",
-    name: "Enterprise",
-    description: "Full operating suite with advanced modules.",
-    monthlyPrice: 1800,
-    includedSites: 8,
-    additionalSiteMonthlyPrice: 220,
-    warningDays: 21,
-    graceDays: 14,
-    includedFeatures: [
-      "hr.payroll",
-      "hr.disbursements",
-      "compliance.training-records",
-      "reports.downtime-analytics",
-      "admin.feature-flags-console",
-      "admin.subscription-console",
-      "core.notifications.push",
-    ],
-];
+
+const TIER_CODE_ALIASES: Record<string, TierDefinition["code"]> = {
+  STARTER: "BASIC",
+  GROWTH: "STANDARD",
+  BUSINESS: "ENTERPRISE",
+};
 
 export function getTierDefinition(planCode: string | null | undefined): TierDefinition | null {
   if (!planCode) return null;
   const normalized = planCode.trim().toUpperCase();
-  return TIERS.find((tier) => tier.code === normalized) ?? null;
+  const resolvedCode = TIER_CODE_ALIASES[normalized] ?? normalized;
+  return TIERS.find((tier) => tier.code === resolvedCode) ?? null;
 }
 
 export function getBundleDefinition(code: string | null | undefined): FeatureBundleDefinition | null {

@@ -9,7 +9,7 @@
 import Link from "next/link";
 import type { Metadata } from "next";
 
-import { ArrowRight, Check, Zap, Shield, Building } from "@/lib/icons";
+import { ArrowRight, Building2 as Building, CheckIcon as Check, Shield, Zap } from "@/lib/icons";
 import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
 import { pricingTiers, tierComparisonRows } from "@/components/marketing/marketing-data";
 import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-shell";

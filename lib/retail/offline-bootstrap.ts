@@ -617,9 +617,12 @@ async function bootstrapPhase3(
   // [3c] Sync any pending offline sales (triggered via outbox)
   let syncedPendingSales = 0;
   try {
-    const { syncNow } = await import("@/lib/offline/sync-engine");
-    await syncNow();
-    syncedPendingSales = 1; // At least attempted
+    const { getActiveSyncEngine } = await import("@/lib/offline/sync-engine");
+    const syncEngine = getActiveSyncEngine();
+    if (syncEngine) {
+      await syncEngine.syncIfOnline(true);
+      syncedPendingSales = 1; // At least attempted
+    }
   } catch {
     // Will retry later
   }

@@ -184,7 +184,7 @@ export function SessionIndicator({
 // Session Status Panel (expanded info)
 // ---------------------------------------------------------------------------
 
-interface SessionStatusPanelProps {
+export interface SessionStatusPanelProps {
   expiresAt?: string | null;
   bootstrappedAt?: string | null;
   onExtendSession?: () => void;

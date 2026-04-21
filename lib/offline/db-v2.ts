@@ -490,7 +490,12 @@ export function openOfflineDatabaseV2(): Promise<IDBDatabase> {
           return;
         }
         createStores(db, transaction);
-        runMigrations(db, transaction, event.oldVersion, event.newVersion).catch(
+        runMigrations(
+          db,
+          transaction,
+          event.oldVersion,
+          event.newVersion ?? OFFLINE_DB_VERSION,
+        ).catch(
           console.error,
         );
       };

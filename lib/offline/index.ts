@@ -159,7 +159,6 @@ export type {
 export {
   detectConflict,
   resolveConflict,
-  getUnresolvedConflicts,
   markConflictUserNotified,
   resolveConflictManually,
   useConflictNotifications,

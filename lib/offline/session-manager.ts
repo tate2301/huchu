@@ -38,6 +38,10 @@ const KEY_LENGTH = 256;
 const IV_LENGTH = 12;
 const SALT_LENGTH = 16;
 
+function toArrayBuffer(bytes: ArrayLike<number>): ArrayBuffer {
+  return Uint8Array.from(bytes).buffer as ArrayBuffer;
+}
+
 async function deriveKey(salt: Uint8Array): Promise<CryptoKey> {
   const deviceFingerprint = await getDeviceFingerprint();
   const pepper = "huchu-offline-session-v2";
@@ -45,7 +49,7 @@ async function deriveKey(salt: Uint8Array): Promise<CryptoKey> {
   const encoder = new TextEncoder();
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
-    encoder.encode(deviceFingerprint + pepper),
+    toArrayBuffer(encoder.encode(deviceFingerprint + pepper)),
     "PBKDF2",
     false,
     ["deriveKey"],
@@ -54,7 +58,7 @@ async function deriveKey(salt: Uint8Array): Promise<CryptoKey> {
   return crypto.subtle.deriveKey(
     {
       name: "PBKDF2",
-      salt,
+      salt: toArrayBuffer(salt),
       iterations: 100_000,
       hash: "SHA-256",
     },
@@ -99,9 +103,9 @@ async function encryptToken(plaintext: string): Promise<EncryptedToken> {
 
   const encoder = new TextEncoder();
   const encrypted = await crypto.subtle.encrypt(
-    { name: ALGORITHM, iv },
+    { name: ALGORITHM, iv: toArrayBuffer(iv) },
     key,
-    encoder.encode(plaintext),
+    toArrayBuffer(encoder.encode(plaintext)),
   );
 
   return { encrypted, salt, iv };
@@ -114,7 +118,7 @@ async function decryptToken(
 ): Promise<string> {
   const key = await deriveKey(salt);
   const decrypted = await crypto.subtle.decrypt(
-    { name: ALGORITHM, iv },
+    { name: ALGORITHM, iv: toArrayBuffer(iv) },
     key,
     encrypted,
   );

@@ -10,6 +10,7 @@
 import { useCallback, useMemo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
 import {
+  CloudCheck,
   RefreshCw,
   Play,
   PlusCircle,

@@ -8,7 +8,7 @@
  */
 
 import { OFFLINE_DB_STORES, putOfflineRecord } from "@/lib/offline/db";
-import { emitOfflineBootstrapProgress } from "@/lib/offline/events";
+import { emitOfflineBootstrapChanged } from "@/lib/offline/events";
 import type { OfflineBootstrapProgress } from "@/lib/offline/types";
 
 import { cacheScrapEntitlements, getCachedScrapEntitlements } from "./offline-entitlements";
@@ -175,7 +175,6 @@ function updateProgress(
 async function persistBootstrapState(state: ScrapBootstrapState) {
   await putOfflineRecord(OFFLINE_DB_STORES.bootstrapState, {
     id: BOOTSTRAP_STATE_ID,
-    tenantKey: state.tenantKey,
     ...state,
     updatedAt: new Date().toISOString(),
   });
@@ -680,13 +679,6 @@ export async function resumeScrapBootstrap(
       success: true,
       phaseReached: state.phase,
       durationMs: 0,
-    };
-  }
-
-  // No prior state — full bootstrap
-  return bootstrapScrap(tenantKey, operatorId);
-}
-   durationMs: 0,
     };
   }
 

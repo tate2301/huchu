@@ -1,5 +1,9 @@
 /// <reference lib="webworker" />
 
+export {};
+
+declare const self: ServiceWorkerGlobalScope;
+
 /**
  * Huchu Service Worker — Offline-First Caching & Background Sync
  * ---------------------------------------------------------------------------
@@ -97,7 +101,7 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
     (async () => {
       // Delete caches from previous builds
       const allCacheNames = await caches.keys();
-      const currentCacheNames = Object.values(CACHE_NAMES);
+      const currentCacheNames: string[] = Object.values(CACHE_NAMES);
       const staleCaches = allCacheNames.filter(
         (name) =>
           !currentCacheNames.includes(name) && name.startsWith("huchu-"),
@@ -458,12 +462,15 @@ async function warmShellCache(urls: string[]): Promise<void> {
 
 // ── Type Declarations ──────────────────────────────────────────────────────
 
-declare const self: ServiceWorkerGlobalScope;
-
 declare global {
   interface ServiceWorkerGlobalScope {
     __SW_MANIFEST__: string[];
     __BUILD_ID: string;
+  }
+
+  interface ServiceWorkerGlobalScopeEventMap {
+    sync: SyncEvent;
+    periodicsync: SyncEvent;
   }
 
   interface SyncEvent extends ExtendableEvent {
@@ -472,6 +479,9 @@ declare global {
   }
 
   interface ServiceWorkerRegistration {
+    readonly sync: {
+      register(tag: string): Promise<void>;
+    };
     readonly periodicSync: {
       register(tag: string, options?: { minInterval?: number }): Promise<void>;
     };
