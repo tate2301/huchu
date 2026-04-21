@@ -27,15 +27,15 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <PageActionsProvider>
       <SidebarProvider>
         <AppSidebar />
-        <SidebarInset className="m-2 flex min-h-screen flex-col rounded-xl border bg-surface-base shadow-sm overflow-visible md:overflow-clip">
+        <SidebarInset className="m-2 flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden rounded-xl border bg-surface-base shadow-sm">
           <Navbar />
           <main
             className={
               isCctvRoute
-                ? "min-w-0 flex-1  py-0"
+                ? "min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] py-0"
                 : isScrapRoute
-                  ? "content-shell min-w-0 flex-1 overflow-visible md:overflow-hidden py-4 md:py-6"
-                  : "content-shell min-w-0 flex-1  py-6"
+                  ? "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] py-4 md:py-6"
+                  : "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] py-6"
             }
           >
             <OnboardingProvider>{children}</OnboardingProvider>

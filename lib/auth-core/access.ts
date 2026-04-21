@@ -1,6 +1,7 @@
 import { canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
 import { canAccessRouteForCompany } from "@/lib/platform/gating/enforcer-server";
 import {
+  getAllowedHostsForCompany,
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
   getTenantClaimsForCompany,
@@ -103,14 +104,22 @@ export async function resolveAccessContext(options: ResolveAccessContextOptions)
 
     if (enforceTenantHost) {
       const hostContext = getPlatformHostContext(hostHeader);
-      if (hostContext.strictTenantEnforcement && !isAllowedHost(hostHeader, session.user.allowedHosts)) {
-        return {
-          ok: false,
-          reason: "TENANT_HOST_MISMATCH",
-          status: 403,
-          message: "Tenant host mismatch",
-          path: pathname,
-        };
+      if (hostContext.strictTenantEnforcement) {
+        let allowedHosts = session.user.allowedHosts;
+
+        if (!isAllowedHost(hostHeader, allowedHosts)) {
+          allowedHosts = await getAllowedHostsForCompany(session.user.companyId);
+        }
+
+        if (!isAllowedHost(hostHeader, allowedHosts)) {
+          return {
+            ok: false,
+            reason: "TENANT_HOST_MISMATCH",
+            status: 403,
+            message: "Tenant host mismatch",
+            path: pathname,
+          };
+        }
       }
     }
 
