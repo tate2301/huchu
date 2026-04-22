@@ -397,12 +397,12 @@ export function ClientDetailsPage({ companyId }: { companyId: string }) {
             <CardHeader className="pb-1">
               <CardTitle className="text-lg text-red-700">Danger zone</CardTitle>
               <CardDescription>
-                Permanently clear tenant-scoped workspace data while keeping the company shell and SUPERADMIN access.
+                Permanently clear tenant-scoped module data or wipe the full workspace while keeping the company shell and SUPERADMIN access.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-3">
               <div className="rounded-xl bg-red-50 px-3 py-3 text-sm text-red-700">
-                This is intended for a full workspace reset when you need to start the tenant over from a clean state.
+                Use this when you need to clear specific module data or start the tenant over from a clean state.
               </div>
               {roleLabel === "SUPERADMIN" ? (
                 <WorkspaceResetDialog

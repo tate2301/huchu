@@ -6,6 +6,7 @@ import { AlertTriangle, RefreshCcw } from "lucide-react";
 import { executeOperation } from "@/components/admin-portal/api";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -37,6 +38,7 @@ export function WorkspaceResetDialog({
   const [running, setRunning] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<WorkspaceResetResult | null>(null);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>([]);
   const [previewRequestKey, setPreviewRequestKey] = useState(0);
 
   const loadPreview = useCallback(() => {
@@ -81,6 +83,7 @@ export function WorkspaceResetDialog({
       setReason("");
       setError(null);
       setResult(null);
+      setSelectedGroupIds([]);
       setPreview(null);
       setLoadingPreview(false);
       setPreviewRequestKey(0);
@@ -90,6 +93,62 @@ export function WorkspaceResetDialog({
     return loadPreview();
   }, [loadPreview, open, previewRequestKey]);
 
+  useEffect(() => {
+    if (!preview) {
+      return;
+    }
+
+    const availableGroupIds = new Set(
+      preview.availableGroups
+        .filter((group) => !group.disabled)
+        .map((group) => group.id),
+    );
+    setSelectedGroupIds((current) =>
+      current.filter((groupId) => availableGroupIds.has(groupId)),
+    );
+  }, [preview]);
+
+  const availableGroups = useMemo(
+    () => preview?.availableGroups ?? [],
+    [preview],
+  );
+  const moduleGroups = useMemo(
+    () => availableGroups.filter((group) => group.kind === "module"),
+    [availableGroups],
+  );
+  const foundationGroups = useMemo(
+    () => availableGroups.filter((group) => group.kind === "foundation"),
+    [availableGroups],
+  );
+  const selectableGroupIds = useMemo(
+    () => availableGroups.filter((group) => !group.disabled).map((group) => group.id),
+    [availableGroups],
+  );
+  const selectedGroupIdSet = useMemo(
+    () => new Set(selectedGroupIds),
+    [selectedGroupIds],
+  );
+  const allResettableSelected =
+    selectableGroupIds.length > 0 &&
+    selectableGroupIds.every((groupId) => selectedGroupIdSet.has(groupId));
+  const selectedTables = useMemo(() => {
+    if (!preview) {
+      return [];
+    }
+    return preview.tablesToDelete.filter((table) => selectedGroupIdSet.has(table.groupId));
+  }, [preview, selectedGroupIdSet]);
+  const selectedRowCount = useMemo(
+    () => selectedTables.reduce((sum, table) => sum + table.rowCount, 0),
+    [selectedTables],
+  );
+  const selectedGroupLabels = useMemo(
+    () =>
+      availableGroups
+        .filter((group) => selectedGroupIdSet.has(group.id))
+        .map((group) => group.label),
+    [availableGroups, selectedGroupIdSet],
+  );
+
   const canReset = useMemo(() => {
     if (!preview) {
       return false;
@@ -97,8 +156,26 @@ export function WorkspaceResetDialog({
     if (preview.activeSupportSessionCount > 0) {
       return false;
     }
+    if (selectedGroupIds.length === 0) {
+      return false;
+    }
     return confirmationToken.trim() === preview.confirmationToken;
-  }, [confirmationToken, preview]);
+  }, [confirmationToken, preview, selectedGroupIds.length]);
+
+  const toggleGroup = (groupId: string, checked: boolean) => {
+    setResult(null);
+    setSelectedGroupIds((current) => {
+      if (checked) {
+        return current.includes(groupId) ? current : [...current, groupId];
+      }
+      return current.filter((value) => value !== groupId);
+    });
+  };
+
+  const toggleAllGroups = (checked: boolean) => {
+    setResult(null);
+    setSelectedGroupIds(checked ? selectableGroupIds : []);
+  };
 
   const runReset = async () => {
     if (!preview) {
@@ -114,6 +191,8 @@ export function WorkspaceResetDialog({
         payload: {
           companyId,
           actor: actorEmail,
+          scope: allResettableSelected ? "ALL" : "GROUPS",
+          groupIds: selectedGroupIds,
           confirmationToken,
           reason: reason.trim() || undefined,
         },
@@ -127,7 +206,73 @@ export function WorkspaceResetDialog({
     }
   };
 
-  const topTables = preview?.tablesToDelete.slice(0, 8) ?? [];
+  const topTables = selectedTables.slice(0, 8);
+
+  const renderGroupList = (
+    title: string,
+    emptyState: string,
+    groups: WorkspaceResetPreview["availableGroups"],
+  ) => (
+    <div className="space-y-3">
+      <div>
+        <p className="text-sm font-semibold text-[var(--text-strong)]">{title}</p>
+      </div>
+      {groups.length > 0 ? (
+        <div className="space-y-2">
+          {groups.map((group) => {
+            const checked = selectedGroupIdSet.has(group.id);
+            const disabled = group.disabled || running;
+            return (
+              <label
+                key={group.id}
+                className={`flex items-start gap-3 rounded-2xl border px-3 py-3 ${
+                  checked
+                    ? "border-[var(--action-primary-bg)] bg-[var(--action-secondary-bg)]"
+                    : "border-[var(--border)] bg-[var(--surface-base)]"
+                } ${disabled ? "opacity-70" : ""}`}
+              >
+                <Checkbox
+                  checked={checked}
+                  disabled={disabled}
+                  onCheckedChange={(nextChecked) => toggleGroup(group.id, nextChecked === true)}
+                  className="mt-0.5"
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">
+                        {group.label}
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        {group.description}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline" className="font-mono">
+                        {formatRows(group.rowCount)} rows
+                      </Badge>
+                      <Badge variant="outline" className="font-mono">
+                        {group.tableCount} tables
+                      </Badge>
+                    </div>
+                  </div>
+                  {group.disabled ? (
+                    <p className="mt-2 text-xs text-[var(--text-muted)]">
+                      No deletable rows are currently available for this group.
+                    </p>
+                  ) : null}
+                </div>
+              </label>
+            );
+          })}
+        </div>
+      ) : (
+        <div className="rounded-xl bg-[var(--surface-muted)] px-3 py-4 text-sm text-[var(--text-muted)]">
+          {emptyState}
+        </div>
+      )}
+    </div>
+  );
 
   return (
     <>
@@ -168,7 +313,10 @@ export function WorkspaceResetDialog({
                       Rows to delete
                     </p>
                     <p className="mt-2 font-mono text-2xl text-[var(--text-strong)]">
-                      {formatRows(preview.totalRowsToDelete)}
+                      {formatRows(selectedRowCount)}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      {formatRows(preview.totalRowsAvailable)} available across all reset groups.
                     </p>
                   </div>
                   <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-3">
@@ -176,7 +324,12 @@ export function WorkspaceResetDialog({
                       Tables touched
                     </p>
                     <p className="mt-2 font-mono text-2xl text-[var(--text-strong)]">
-                      {preview.tablesToDelete.length}
+                      {selectedTables.length}
+                    </p>
+                    <p className="mt-1 text-xs text-[var(--text-muted)]">
+                      {selectedGroupIds.length > 0
+                        ? `${selectedGroupIds.length} group(s) selected`
+                        : "Select one or more reset groups."}
                     </p>
                   </div>
                   <div className="rounded-2xl bg-[var(--surface-muted)] px-4 py-3">
@@ -192,6 +345,46 @@ export function WorkspaceResetDialog({
                   </div>
                 </div>
 
+                <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--text-strong)]">
+                        Reset scope
+                      </p>
+                      <p className="mt-1 text-sm text-[var(--text-muted)]">
+                        Choose the module and foundation data groups to clear for this workspace.
+                      </p>
+                    </div>
+                    <label className="flex items-center gap-3 rounded-xl bg-[var(--surface-muted)] px-3 py-2">
+                      <Checkbox
+                        checked={allResettableSelected}
+                        disabled={selectableGroupIds.length === 0 || running}
+                        onCheckedChange={(checked) => toggleAllGroups(checked === true)}
+                      />
+                      <div>
+                        <p className="text-sm font-semibold text-[var(--text-strong)]">
+                          All resettable data
+                        </p>
+                        <p className="text-xs text-[var(--text-muted)]">
+                          Keeps the current full workspace reset behavior.
+                        </p>
+                      </div>
+                    </label>
+                  </div>
+                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                    {renderGroupList(
+                      "Modules",
+                      "No relevant business modules are available for reset.",
+                      moduleGroups,
+                    )}
+                    {renderGroupList(
+                      "Foundation data",
+                      "No shared foundation data is currently available for reset.",
+                      foundationGroups,
+                    )}
+                  </div>
+                </div>
+
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
                   <div className="rounded-2xl border border-[var(--border)] bg-[var(--surface-base)] px-4 py-4">
                     <div className="flex items-center justify-between gap-3">
@@ -200,7 +393,7 @@ export function WorkspaceResetDialog({
                           Deletion preview
                         </p>
                         <p className="mt-1 text-sm text-[var(--text-muted)]">
-                          Top tables that will be cleared for this workspace.
+                          Top tables that will be cleared for the current selection.
                         </p>
                       </div>
                       <Button
@@ -217,6 +410,15 @@ export function WorkspaceResetDialog({
                         Refresh preview
                       </Button>
                     </div>
+                    {selectedGroupLabels.length > 0 ? (
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {selectedGroupLabels.map((label) => (
+                          <Badge key={label} variant="secondary">
+                            {label}
+                          </Badge>
+                        ))}
+                      </div>
+                    ) : null}
                     <div className="mt-4 space-y-2">
                       {topTables.length > 0 ? (
                         <>
@@ -233,15 +435,17 @@ export function WorkspaceResetDialog({
                               </Badge>
                             </div>
                           ))}
-                          {preview.tablesToDelete.length > topTables.length ? (
+                          {selectedTables.length > topTables.length ? (
                             <p className="text-xs text-[var(--text-muted)]">
-                              Showing the largest {topTables.length} tables out of {preview.tablesToDelete.length}.
+                              Showing the largest {topTables.length} tables out of {selectedTables.length}.
                             </p>
                           ) : null}
                         </>
                       ) : (
                         <p className="rounded-xl bg-[var(--surface-muted)] px-3 py-4 text-sm text-[var(--text-muted)]">
-                          No company-scoped rows are scheduled for deletion.
+                          {selectedGroupIds.length > 0
+                            ? "No company-scoped rows are scheduled for deletion for the selected groups."
+                            : "Select one or more reset groups to preview the tables that will be cleared."}
                         </p>
                       )}
                     </div>
@@ -298,7 +502,8 @@ export function WorkspaceResetDialog({
             {result ? (
               <div className="space-y-3 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-4 text-sm text-emerald-900">
                 <p>
-                  Reset complete. Deleted {formatRows(result.totalRowsDeleted)} rows across {result.deletedTables.length} table(s).
+                  Reset complete. Deleted {formatRows(result.totalRowsDeleted)} rows across {result.deletedTables.length} table(s)
+                  {result.selectedGroupLabels.length > 0 ? ` from ${result.selectedGroupLabels.join(", ")}.` : "."}
                 </p>
                 {result.deletedTables.length > 0 ? (
                   <div className="space-y-2">
@@ -332,7 +537,11 @@ export function WorkspaceResetDialog({
               onClick={() => void runReset()}
               disabled={!canReset || running || Boolean(result)}
             >
-              {running ? "Resetting..." : "Delete workspace data"}
+              {running
+                ? "Resetting..."
+                : allResettableSelected
+                  ? "Delete workspace data"
+                  : "Delete selected data"}
             </Button>
           </DialogFooter>
         </DialogContent>

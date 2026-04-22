@@ -67,7 +67,7 @@ import {
   setUserStatus,
 } from "./domain/user-management-service";
 import { searchGlobal } from "./domain/search-service";
-import { getTierDefinition } from "../../lib/platform/feature-catalog";
+import { FEATURE_CATALOG, getTierDefinition } from "../../lib/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateBundleCodes,
@@ -136,6 +136,8 @@ import {
   type AuditEventRecord,
   type WorkspaceResetInput,
   type WorkspaceResetPreview,
+  type WorkspaceResetGroupSummary,
+  type WorkspaceResetScope,
   type WorkspaceResetPreviewInput,
   type WorkspaceResetResult,
   type WorkspaceResetTableStat,
@@ -243,17 +245,41 @@ type ForeignKeyMetadataRow = {
   parent_columns: string[];
 };
 
-type ResetPlan = {
+type WorkspaceResetGroupDefinition = {
+  id: string;
+  label: string;
+  description: string;
+  kind: "module" | "foundation";
+  featureDomains?: string[];
+  workspaceProfiles?: string[];
+};
+
+type WorkspaceResetBasePlan = {
   companyId: string;
   companyName: string;
   companySlug: string;
+  workspaceProfile: string | null;
   confirmationToken: string;
   activeSupportSessionCount: number;
   preservedAdminCount: number;
   activePreservedAdminCount: number;
-  deletionOrder: string[];
+  globalDeletionOrder: string[];
   tablePredicates: Map<string, DeletePredicateBuilder>;
   tableStats: WorkspaceResetTableStat[];
+  availableGroups: WorkspaceResetGroupSummary[];
+  totalRowsAvailable: number;
+};
+
+type WorkspaceResetSelection = {
+  scope: WorkspaceResetScope;
+  selectedGroupIds: string[];
+  selectedGroupLabels: string[];
+};
+
+type ResolvedWorkspaceResetPlan = WorkspaceResetBasePlan & WorkspaceResetSelection & {
+  deletionOrder: string[];
+  filteredTableStats: WorkspaceResetTableStat[];
+  totalRowsToDelete: number;
 };
 
 const WORKSPACE_RESET_PRESERVED_TABLES = new Set([
@@ -286,11 +312,272 @@ const WORKSPACE_RESET_ROOT_PREDICATES: Record<string, DeletePredicateBuilder> = 
   User: (alias) => `${alias}.${quoteIdent("companyId")} = $1 AND ${alias}.${quoteIdent("role")} <> 'SUPERADMIN'`,
 };
 
+const WORKSPACE_RESET_GROUPS: WorkspaceResetGroupDefinition[] = [
+  {
+    id: "operations",
+    label: "Operations",
+    description: "Shift, plant, attendance, and downtime data.",
+    kind: "module",
+    featureDomains: ["operations"],
+  },
+  {
+    id: "scrap-metal",
+    label: "Scrap & Recycling",
+    description: "Scrap intake, yard, balances, lots, and sales data.",
+    kind: "module",
+    featureDomains: ["scrap-metal"],
+    workspaceProfiles: ["SCRAP_METAL"],
+  },
+  {
+    id: "gold",
+    label: "Gold",
+    description: "Gold intake, dispatch, settlement, and payout data.",
+    kind: "module",
+    featureDomains: ["gold"],
+    workspaceProfiles: ["GOLD_MINE"],
+  },
+  {
+    id: "hr",
+    label: "Human Resources",
+    description: "Employee, payroll, compensation, incident, and disciplinary data.",
+    kind: "module",
+    featureDomains: ["hr"],
+  },
+  {
+    id: "stores",
+    label: "Stores & Inventory",
+    description: "Inventory, stock location, and movement data.",
+    kind: "module",
+    featureDomains: ["stores"],
+  },
+  {
+    id: "maintenance",
+    label: "Maintenance",
+    description: "Equipment and work order data.",
+    kind: "module",
+    featureDomains: ["maintenance"],
+  },
+  {
+    id: "accounting",
+    label: "Accounting",
+    description: "Accounting setup, ledgers, invoices, payments, and tax data.",
+    kind: "module",
+    featureDomains: ["accounting"],
+  },
+  {
+    id: "schools",
+    label: "Schools",
+    description: "School operations, boarding, attendance, and fees data.",
+    kind: "module",
+    featureDomains: ["schools"],
+    workspaceProfiles: ["SCHOOLS"],
+  },
+  {
+    id: "car-sales",
+    label: "Auto Sales",
+    description: "Vehicle, lead, deal, and payment data.",
+    kind: "module",
+    featureDomains: ["autos"],
+    workspaceProfiles: ["AUTOS"],
+  },
+  {
+    id: "retail",
+    label: "Retail",
+    description: "POS, catalog, purchasing, stock, and shift data.",
+    kind: "module",
+    featureDomains: ["retail"],
+    workspaceProfiles: ["RETAIL"],
+  },
+  {
+    id: "compliance",
+    label: "Compliance",
+    description: "Permit, inspection, incident, and training data.",
+    kind: "module",
+    featureDomains: ["compliance"],
+  },
+  {
+    id: "cctv",
+    label: "CCTV",
+    description: "NVR, camera, and streaming session data.",
+    kind: "module",
+    featureDomains: ["cctv"],
+  },
+  {
+    id: "people-access",
+    label: "People & Access",
+    description: "Non-superadmin users plus related auth, notification, and access data.",
+    kind: "foundation",
+  },
+  {
+    id: "sites-structure",
+    label: "Sites & Structure",
+    description: "Sites, sections, and tenant-scoped ID sequences.",
+    kind: "foundation",
+  },
+  {
+    id: "documents-notifications",
+    label: "Documents & Notifications",
+    description: "Generated documents, templates, and notification records.",
+    kind: "foundation",
+  },
+  {
+    id: "other-workspace-data",
+    label: "Other Workspace Data",
+    description: "Tenant-scoped records that do not map to a primary module yet.",
+    kind: "foundation",
+  },
+];
+
+const WORKSPACE_RESET_GROUP_BY_ID = new Map(
+  WORKSPACE_RESET_GROUPS.map((group) => [group.id, group]),
+);
+
+const WORKSPACE_RESET_EXACT_GROUPS: Record<string, string> = {
+  ShiftReport: "operations",
+  PlantReport: "operations",
+  Attendance: "operations",
+  DowntimeCode: "operations",
+  Employee: "hr",
+  EmployeeModuleAssignment: "hr",
+  EmployeePayment: "hr",
+  Department: "hr",
+  JobGrade: "hr",
+  ShiftGroup: "hr",
+  ShiftGroupMember: "hr",
+  ShiftGroupSchedule: "hr",
+  CompensationProfile: "hr",
+  CompensationRule: "hr",
+  CompensationTemplate: "hr",
+  PayrollPeriod: "hr",
+  PayrollRun: "hr",
+  PayrollLineItem: "hr",
+  PayrollLineComponent: "hr",
+  DisbursementBatch: "hr",
+  DisbursementItem: "hr",
+  ApprovalAction: "hr",
+  AdjustmentEntry: "hr",
+  HrIncident: "hr",
+  DisciplinaryAction: "hr",
+  StockLocation: "stores",
+  InventoryItem: "stores",
+  StockMovement: "stores",
+  Equipment: "maintenance",
+  WorkOrder: "maintenance",
+  AccountingSettings: "accounting",
+  ChartOfAccount: "accounting",
+  AccountingPeriod: "accounting",
+  JournalEntry: "accounting",
+  AccountingIntegrationEvent: "accounting",
+  PostingRule: "accounting",
+  TaxCode: "accounting",
+  TaxCategory: "accounting",
+  TaxTemplate: "accounting",
+  TaxRule: "accounting",
+  CurrencyDefinition: "accounting",
+  Customer: "accounting",
+  Vendor: "accounting",
+  SalesInvoice: "accounting",
+  SalesQuotation: "accounting",
+  SalesReceipt: "accounting",
+  CreditNote: "accounting",
+  SalesWriteOff: "accounting",
+  PurchaseBill: "accounting",
+  PurchasePayment: "accounting",
+  DebitNote: "accounting",
+  PurchaseWriteOff: "accounting",
+  PaymentLedgerEntry: "accounting",
+  BankAccount: "accounting",
+  TenderAccountMapping: "accounting",
+  BankTransaction: "accounting",
+  BankReconciliation: "accounting",
+  VatReturnSummary: "accounting",
+  VatReturn: "accounting",
+  OpeningBalanceImport: "accounting",
+  PeriodCloseVoucher: "accounting",
+  FixedAsset: "accounting",
+  Budget: "accounting",
+  BudgetLine: "accounting",
+  CostCenter: "accounting",
+  AccountingSeedExecution: "accounting",
+  CurrencyRate: "accounting",
+  FiscalisationProviderConfig: "accounting",
+  FiscalReceipt: "accounting",
+  Permit: "compliance",
+  Inspection: "compliance",
+  Incident: "compliance",
+  TrainingRecord: "compliance",
+  NVR: "cctv",
+  Camera: "cctv",
+  StreamSession: "cctv",
+  User: "people-access",
+  UserFeatureFlag: "people-access",
+  Account: "people-access",
+  Session: "people-access",
+  UserNotificationPreference: "people-access",
+  WebPushSubscription: "people-access",
+  Site: "sites-structure",
+  Section: "sites-structure",
+  IdSequence: "sites-structure",
+  Notification: "documents-notifications",
+  NotificationRecipient: "documents-notifications",
+  DocumentTemplate: "documents-notifications",
+  DocumentTemplateVersion: "documents-notifications",
+  DocumentRenderJob: "documents-notifications",
+  DocumentArtifact: "documents-notifications",
+  IrregularPayoutBatch: "gold",
+};
+
+function normalizeResetFeatureKey(featureKey: string): string {
+  return featureKey.trim().toLowerCase();
+}
+
+function resolveWorkspaceResetGroupId(tableName: string): string {
+  const exactGroup = WORKSPACE_RESET_EXACT_GROUPS[tableName];
+  if (exactGroup) {
+    return exactGroup;
+  }
+
+  if (tableName.startsWith("Scrap")) return "scrap-metal";
+  if (tableName.startsWith("Gold")) return "gold";
+  if (tableName.startsWith("School")) return "schools";
+  if (tableName.startsWith("CarSales")) return "car-sales";
+  if (tableName.startsWith("Retail")) return "retail";
+
+  return "other-workspace-data";
+}
+
+function isWorkspaceResetBusinessGroupVisible(args: {
+  group: WorkspaceResetGroupDefinition;
+  rowCount: number;
+  workspaceProfile: string | null;
+  activeFeatureDomains: Set<string>;
+}) {
+  if (args.rowCount > 0) {
+    return true;
+  }
+
+  const normalizedWorkspaceProfile = String(args.workspaceProfile || "")
+    .trim()
+    .toUpperCase();
+  if (
+    args.group.workspaceProfiles?.some(
+      (workspaceProfile) => workspaceProfile === normalizedWorkspaceProfile,
+    )
+  ) {
+    return true;
+  }
+
+  return (
+    args.group.featureDomains?.some((domain) => args.activeFeatureDomains.has(domain)) ??
+    false
+  );
+}
+
 async function listCompanyScopedTables(
   tx: Prisma.TransactionClient,
 ): Promise<Set<string>> {
   const rows = await tx.$queryRaw<Array<{ table_name: string }>>`
-    SELECT table_name
+    SELECT table_name::text AS table_name
     FROM information_schema.columns
     WHERE table_schema = 'public'
       AND column_name = 'companyId'
@@ -304,11 +591,11 @@ async function listForeignKeyMetadata(
 ): Promise<ForeignKeyMetadataRow[]> {
   return tx.$queryRaw<ForeignKeyMetadataRow[]>`
     SELECT
-      con.conname AS constraint_name,
-      child.relname AS child_table,
-      parent.relname AS parent_table,
-      array_agg(child_attr.attname ORDER BY cols.ord) AS child_columns,
-      array_agg(parent_attr.attname ORDER BY cols.ord) AS parent_columns
+      con.conname::text AS constraint_name,
+      child.relname::text AS child_table,
+      parent.relname::text AS parent_table,
+      array_agg(child_attr.attname::text ORDER BY cols.ord)::text[] AS child_columns,
+      array_agg(parent_attr.attname::text ORDER BY cols.ord)::text[] AS parent_columns
     FROM pg_constraint con
     INNER JOIN pg_class child
       ON child.oid = con.conrelid
@@ -454,19 +741,27 @@ async function countWorkspaceResetRows(
   return Number(rawCount);
 }
 
-async function buildWorkspaceResetPlan(
+async function buildWorkspaceResetBasePlan(
   tx: Prisma.TransactionClient,
   input: WorkspaceResetPreviewInput,
-): Promise<ResetPlan> {
+): Promise<WorkspaceResetBasePlan> {
   const company = await tx.company.findUnique({
     where: { id: input.companyId },
-    select: { id: true, name: true, slug: true },
+    select: { id: true, name: true, slug: true, workspaceProfile: true },
   });
   if (!company) {
     throw new Error(`Organization not found for id: ${input.companyId}`);
   }
 
-  const [activeSupportSessionCount, preservedAdminCount, activePreservedAdminCount, companyScopedTables, foreignKeys] =
+  const [
+    activeSupportSessionCount,
+    preservedAdminCount,
+    activePreservedAdminCount,
+    companyScopedTables,
+    foreignKeys,
+    featureFlags,
+    entitledBySubscription,
+  ] =
     await Promise.all([
       tx.supportSession.count({
         where: {
@@ -489,6 +784,21 @@ async function buildWorkspaceResetPlan(
       }),
       listCompanyScopedTables(tx),
       listForeignKeyMetadata(tx),
+      tx.companyFeatureFlag.findMany({
+        where: {
+          companyId: input.companyId,
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
+        },
+        select: {
+          isEnabled: true,
+          feature: {
+            select: {
+              key: true,
+            },
+          },
+        },
+      }),
+      getSubscriptionEntitledFeatureSet(input.companyId),
     ]);
 
   if (preservedAdminCount === 0) {
@@ -504,11 +814,12 @@ async function buildWorkspaceResetPlan(
   }
 
   const tablePredicates = buildWorkspaceResetPredicates(companyScopedTables, foreignKeys);
-  const deletionOrder = buildWorkspaceResetDeletionOrder(tablePredicates, foreignKeys);
+  const globalDeletionOrder = buildWorkspaceResetDeletionOrder(tablePredicates, foreignKeys);
   const tableStats = (
     await Promise.all(
-      deletionOrder.map(async (tableName) => ({
+      globalDeletionOrder.map(async (tableName) => ({
         table: tableName,
+        groupId: resolveWorkspaceResetGroupId(tableName),
         rowCount: await countWorkspaceResetRows(
           tx,
           tableName,
@@ -519,35 +830,175 @@ async function buildWorkspaceResetPlan(
     )
   ).filter((row) => row.rowCount > 0);
 
+  const flagByFeatureKey = new Map(
+    featureFlags
+      .filter((flag) => Boolean(flag.feature?.key))
+      .map((flag) => [normalizeResetFeatureKey(flag.feature.key), flag.isEnabled]),
+  );
+  const activeFeatureDomains = new Set(
+    FEATURE_CATALOG.flatMap((feature) => {
+      const key = normalizeResetFeatureKey(feature.key);
+      const requested = flagByFeatureKey.has(key)
+        ? flagByFeatureKey.get(key) === true
+        : feature.defaultEnabled;
+      const enabled = feature.isBillable
+        ? entitledBySubscription.has(key) && requested
+        : requested;
+      return enabled ? [feature.domain] : [];
+    }),
+  );
+  const statsByGroup = new Map<string, { rowCount: number; tableCount: number }>();
+  for (const row of tableStats) {
+    const summary = statsByGroup.get(row.groupId) ?? { rowCount: 0, tableCount: 0 };
+    summary.rowCount += row.rowCount;
+    summary.tableCount += 1;
+    statsByGroup.set(row.groupId, summary);
+  }
+  const availableGroups = WORKSPACE_RESET_GROUPS.flatMap((group) => {
+    const summary = statsByGroup.get(group.id) ?? { rowCount: 0, tableCount: 0 };
+    const shouldShow =
+      group.kind === "foundation"
+        ? summary.rowCount > 0
+        : isWorkspaceResetBusinessGroupVisible({
+            group,
+            rowCount: summary.rowCount,
+            workspaceProfile: company.workspaceProfile,
+            activeFeatureDomains,
+          });
+
+    if (!shouldShow) {
+      return [];
+    }
+
+    return [
+      {
+        id: group.id,
+        label: group.label,
+        description: group.description,
+        kind: group.kind,
+        rowCount: summary.rowCount,
+        tableCount: summary.tableCount,
+        disabled: summary.rowCount === 0,
+      },
+    ];
+  });
+
   return {
     companyId: company.id,
     companyName: company.name,
     companySlug: company.slug,
+    workspaceProfile: company.workspaceProfile,
     confirmationToken: `RESET ${company.slug}`,
     activeSupportSessionCount,
     preservedAdminCount,
     activePreservedAdminCount,
-    deletionOrder,
+    globalDeletionOrder,
     tablePredicates,
     tableStats: tableStats.sort((left, right) => right.rowCount - left.rowCount),
+    availableGroups,
+    totalRowsAvailable: tableStats.reduce((sum, row) => sum + row.rowCount, 0),
+  };
+}
+
+function resolveWorkspaceResetSelection(
+  plan: WorkspaceResetBasePlan,
+  input: WorkspaceResetPreviewInput,
+  options: { allowEmpty: boolean },
+): WorkspaceResetSelection {
+  const selectableGroupIds = plan.availableGroups
+    .filter((group) => !group.disabled)
+    .map((group) => group.id);
+
+  if (input.scope === "ALL") {
+    const selectedGroupLabels = selectableGroupIds.map(
+      (groupId) => WORKSPACE_RESET_GROUP_BY_ID.get(groupId)?.label ?? groupId,
+    );
+    if (!options.allowEmpty && selectableGroupIds.length === 0) {
+      throw new Error("No resettable workspace data is available for deletion.");
+    }
+    return {
+      scope: "ALL",
+      selectedGroupIds: selectableGroupIds,
+      selectedGroupLabels,
+    };
+  }
+
+  const requestedGroupIds = [...new Set((input.groupIds ?? []).map((groupId) => groupId.trim()).filter(Boolean))];
+  if (requestedGroupIds.length === 0) {
+    if (!options.allowEmpty) {
+      throw new Error("Select at least one reset group before continuing.");
+    }
+    return {
+      scope: "GROUPS",
+      selectedGroupIds: [],
+      selectedGroupLabels: [],
+    };
+  }
+
+  const availableGroupIds = new Set(plan.availableGroups.map((group) => group.id));
+  const unknownGroupIds = requestedGroupIds.filter((groupId) => !availableGroupIds.has(groupId));
+  if (unknownGroupIds.length > 0) {
+    throw new Error(`Unknown reset group selection: ${unknownGroupIds.join(", ")}.`);
+  }
+
+  const disabledGroupIds = requestedGroupIds.filter((groupId) => {
+    const group = plan.availableGroups.find((item) => item.id === groupId);
+    return group?.disabled;
+  });
+  if (disabledGroupIds.length > 0) {
+    throw new Error(`Reset group has no deletable data: ${disabledGroupIds.join(", ")}.`);
+  }
+
+  return {
+    scope: "GROUPS",
+    selectedGroupIds: requestedGroupIds,
+    selectedGroupLabels: requestedGroupIds.map(
+      (groupId) => WORKSPACE_RESET_GROUP_BY_ID.get(groupId)?.label ?? groupId,
+    ),
+  };
+}
+
+function buildResolvedWorkspaceResetPlan(
+  plan: WorkspaceResetBasePlan,
+  selection: WorkspaceResetSelection,
+): ResolvedWorkspaceResetPlan {
+  const selectedGroups = new Set(selection.selectedGroupIds);
+  const deletionOrder = plan.globalDeletionOrder.filter((tableName) =>
+    selectedGroups.has(resolveWorkspaceResetGroupId(tableName)),
+  );
+  const filteredTableStats = plan.tableStats.filter((table) => selectedGroups.has(table.groupId));
+  const totalRowsToDelete = filteredTableStats.reduce((sum, row) => sum + row.rowCount, 0);
+
+  return {
+    ...plan,
+    ...selection,
+    deletionOrder,
+    filteredTableStats,
+    totalRowsToDelete,
   };
 }
 
 async function previewWorkspaceReset(
   input: WorkspaceResetPreviewInput,
 ): Promise<WorkspaceResetPreview> {
-  const plan = await prisma.$transaction((tx) => buildWorkspaceResetPlan(tx, input));
+  const basePlan = await prisma.$transaction((tx) => buildWorkspaceResetBasePlan(tx, input));
+  const selection = resolveWorkspaceResetSelection(basePlan, input, { allowEmpty: true });
+  const plan = buildResolvedWorkspaceResetPlan(basePlan, selection);
 
   return {
     companyId: plan.companyId,
     companyName: plan.companyName,
     companySlug: plan.companySlug,
+    scope: plan.scope,
+    selectedGroupIds: plan.selectedGroupIds,
+    availableGroups: plan.availableGroups,
     confirmationToken: plan.confirmationToken,
     activeSupportSessionCount: plan.activeSupportSessionCount,
     preservedAdminCount: plan.preservedAdminCount,
     activePreservedAdminCount: plan.activePreservedAdminCount,
     tablesToDelete: plan.tableStats,
-    totalRowsToDelete: plan.tableStats.reduce((sum, row) => sum + row.rowCount, 0),
+    totalRowsAvailable: plan.totalRowsAvailable,
+    totalRowsToDelete: plan.totalRowsToDelete,
     preservedScopes: [...WORKSPACE_RESET_PRESERVED_SCOPES],
   };
 }
@@ -559,13 +1010,21 @@ async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceRese
   let companySlug = "";
   let preservedAdminCount = 0;
   let activePreservedAdminCount = 0;
+  let scope: WorkspaceResetScope = "GROUPS";
+  let selectedGroupIds: string[] = [];
+  let selectedGroupLabels: string[] = [];
 
   await prisma.$transaction(async (tx) => {
-    const plan = await buildWorkspaceResetPlan(tx, input);
+    const basePlan = await buildWorkspaceResetBasePlan(tx, input);
+    const selection = resolveWorkspaceResetSelection(basePlan, input, { allowEmpty: false });
+    const plan = buildResolvedWorkspaceResetPlan(basePlan, selection);
     companyName = plan.companyName;
     companySlug = plan.companySlug;
     preservedAdminCount = plan.preservedAdminCount;
     activePreservedAdminCount = plan.activePreservedAdminCount;
+    scope = plan.scope;
+    selectedGroupIds = plan.selectedGroupIds;
+    selectedGroupLabels = plan.selectedGroupLabels;
 
     if (plan.activeSupportSessionCount > 0) {
       throw new Error(
@@ -589,6 +1048,7 @@ async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceRese
       if (deletedRowCount > 0) {
         results.push({
           table: tableName,
+          groupId: resolveWorkspaceResetGroupId(tableName),
           rowCount: deletedRowCount,
         });
       }
@@ -607,6 +1067,9 @@ async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceRese
       companyId: input.companyId,
       reason: input.reason ?? "Workspace reset from admin portal",
       after: {
+        scope,
+        selectedGroupIds,
+        selectedGroupLabels,
         preservedAdminCount,
         activePreservedAdminCount,
         deletedTables,
@@ -626,6 +1089,9 @@ async function resetWorkspace(input: WorkspaceResetInput): Promise<WorkspaceRese
     companyId: input.companyId,
     companyName,
     companySlug,
+    scope,
+    selectedGroupIds,
+    selectedGroupLabels,
     confirmationToken,
     deletedTables,
     totalRowsDeleted: deletedTables.reduce((sum, row) => sum + row.rowCount, 0),

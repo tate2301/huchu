@@ -276,6 +276,8 @@ export interface OrganizationStatusResult {
 
 export interface WorkspaceResetPreviewInput {
   companyId: string;
+  scope?: WorkspaceResetScope;
+  groupIds?: string[];
 }
 
 export interface WorkspaceResetInput extends WorkspaceResetPreviewInput {
@@ -284,8 +286,23 @@ export interface WorkspaceResetInput extends WorkspaceResetPreviewInput {
   reason?: string;
 }
 
+export type WorkspaceResetScope = "ALL" | "GROUPS";
+
+export type WorkspaceResetGroupKind = "module" | "foundation";
+
+export interface WorkspaceResetGroupSummary {
+  id: string;
+  label: string;
+  description: string;
+  kind: WorkspaceResetGroupKind;
+  rowCount: number;
+  tableCount: number;
+  disabled: boolean;
+}
+
 export interface WorkspaceResetTableStat {
   table: string;
+  groupId: string;
   rowCount: number;
 }
 
@@ -293,11 +310,15 @@ export interface WorkspaceResetPreview {
   companyId: string;
   companyName: string;
   companySlug: string;
+  scope: WorkspaceResetScope;
+  selectedGroupIds: string[];
+  availableGroups: WorkspaceResetGroupSummary[];
   confirmationToken: string;
   activeSupportSessionCount: number;
   preservedAdminCount: number;
   activePreservedAdminCount: number;
   tablesToDelete: WorkspaceResetTableStat[];
+  totalRowsAvailable: number;
   totalRowsToDelete: number;
   preservedScopes: string[];
 }
@@ -306,6 +327,9 @@ export interface WorkspaceResetResult {
   companyId: string;
   companyName: string;
   companySlug: string;
+  scope: WorkspaceResetScope;
+  selectedGroupIds: string[];
+  selectedGroupLabels: string[];
   confirmationToken: string;
   deletedTables: WorkspaceResetTableStat[];
   totalRowsDeleted: number;
