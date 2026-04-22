@@ -8,13 +8,20 @@ import type { LucideIcon } from "@/lib/icons";
 type PosPanelProps = {
   className?: string;
   children: ReactNode;
+  variant?: "section" | "card";
 };
 
-export function PosPanel({ className, children }: PosPanelProps) {
+export function PosPanel({
+  className,
+  children,
+  variant = "section",
+}: PosPanelProps) {
   return (
     <section
       className={cn(
-        "rounded-[1.5rem] border border-[var(--border-default)] bg-[var(--surface-base)] p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] sm:p-5",
+        variant === "card"
+          ? "rounded-[1.5rem] border border-[var(--border-default)] bg-[var(--surface-base)] p-4 shadow-[0_14px_36px_rgba(15,23,42,0.05)] sm:p-5"
+          : "rounded-[1.5rem] border border-[color-mix(in_srgb,var(--border-subtle)_65%,transparent)] bg-[color-mix(in_srgb,var(--surface-base)_84%,transparent)] p-4 shadow-none sm:p-5",
         className,
       )}
     >

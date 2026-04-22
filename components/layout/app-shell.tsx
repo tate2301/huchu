@@ -9,12 +9,23 @@ import { PageActionsProvider } from "@/components/layout/page-actions";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 
-export function AppShell({ children }: { children: React.ReactNode }) {
+export function AppShell({
+  children,
+  hostPortalPath,
+}: {
+  children: React.ReactNode;
+  hostPortalPath?: string | null;
+}) {
   const pathname = usePathname();
   const isAuthRoute = pathname === "/login";
   const isMarketingRoute =
     pathname === "/home" || pathname.startsWith("/home/");
-  const isPortalRoute = pathname.startsWith("/portal/");
+  const isPortalRoute =
+    pathname.startsWith("/portal/") ||
+    hostPortalPath === "/portal/student" ||
+    hostPortalPath === "/portal/parent" ||
+    hostPortalPath === "/portal/teacher" ||
+    hostPortalPath === "/portal/pos";
   const isAdminRoute = pathname.startsWith("/admin");
   const isCctvRoute = pathname.startsWith("/cctv");
   const isScrapRoute = pathname.startsWith("/scrap-metal");

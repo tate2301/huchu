@@ -131,20 +131,29 @@ export {
   generateLocalBatchNumber,
   generateLocalSaleTicketNumber,
   createPurchaseTicketOffline,
+  createSaleTicketOffline,
   createSalesBatchOffline,
   addTicketToBatch,
   getPendingTickets,
   getPendingBatches,
   getAllPendingScrapOperations,
+  listPendingPurchaseTickets,
+  listPendingSaleTickets,
+  rehydrateLocalTicketPhotos,
+  removePendingTicketCache,
   queueTicketAttachments,
 } from "./offline-ticket";
 export type {
   ScrapPurchaseTicket,
+  ScrapSaleTicket,
   ScrapSalesBatch,
   ScrapSalesBatchItem,
   CreatePurchaseTicketInput,
+  CreateSaleTicketInput,
   CreateSalesBatchInput,
   PendingTicketSummary,
+  PendingPurchaseTicketRecord,
+  PendingSaleTicketRecord,
 } from "./offline-ticket";
 
 // ---------------------------------------------------------------------------

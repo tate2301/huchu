@@ -7,8 +7,15 @@
  */
 
 import { enqueueOfflineOperation, listPendingOfflineOperations } from "@/lib/offline/outbox";
-import { OFFLINE_DB_STORES, getOfflineRecord, putOfflineRecord } from "@/lib/offline/db";
-import type { OfflineAttachmentRef } from "@/lib/offline/types";
+import {
+  OFFLINE_DB_STORES,
+  deleteOfflineRecord,
+  getOfflineRecord,
+  listOfflineRecords,
+  putOfflineRecord,
+} from "@/lib/offline/db";
+import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
+import type { OfflineAttachmentRef, OfflineOutboxStatus, PersistedQueryRecord } from "@/lib/offline/types";
 
 import {
   type LocalScrapTicketPhoto,
@@ -27,6 +34,7 @@ import type { ScrapSeller } from "./offline-sellers";
 export interface ScrapPurchaseTicket {
   id: string;
   sellerId: string;
+  sellerName: string;
   materialId?: string;
   category: string;
   weight: number;
@@ -40,6 +48,26 @@ export interface ScrapPurchaseTicket {
   status: "DRAFT" | "POSTED";
   siteId: string;
   employeeId: string;
+  createdAt: string;
+  offlineCreated: boolean;
+}
+
+export interface ScrapSaleTicket {
+  id: string;
+  batchId: string;
+  buyerName: string;
+  buyerContact?: string;
+  recordedWeight: number;
+  soldWeight: number;
+  pricePerKg: number;
+  total: number;
+  currency: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  notes?: string;
+  photos: LocalScrapTicketPhoto[];
+  status: "DRAFT" | "PENDING_APPROVAL";
+  siteId: string;
   createdAt: string;
   offlineCreated: boolean;
 }
@@ -95,6 +123,23 @@ export interface CreateSalesBatchInput {
   status?: "COLLECTING" | "READY";
 }
 
+export interface CreateSaleTicketInput {
+  batchId: string;
+  buyerName: string;
+  buyerContact?: string;
+  recordedWeight: number;
+  soldWeight: number;
+  pricePerKg: number;
+  currency?: string;
+  paymentMethod?: string;
+  paymentReference?: string;
+  notes?: string;
+  photos: LocalScrapTicketPhoto[];
+  status: "DRAFT" | "PENDING_APPROVAL";
+  siteId: string;
+  intent: "hold" | "submit" | "submit_print" | "request_approval";
+}
+
 export interface PendingTicketSummary {
   operationId: string;
   type: "inbound" | "outbound";
@@ -105,12 +150,26 @@ export interface PendingTicketSummary {
   blockedBy?: string;
 }
 
+export interface PendingPurchaseTicketRecord extends ScrapPurchaseTicket {
+  operationId: string;
+  outboxStatus: OfflineOutboxStatus;
+  lastError?: string;
+}
+
+export interface PendingSaleTicketRecord extends ScrapSaleTicket {
+  operationId: string;
+  outboxStatus: OfflineOutboxStatus;
+  lastError?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Constants
 // ---------------------------------------------------------------------------
 
 const TICKET_COUNTER_KEY = "scrap:ticket:counter";
 const BATCH_COUNTER_KEY = "scrap:batch:counter";
+const PENDING_PURCHASE_TICKET_KEY_PREFIX = "scrap:pending:ticket:";
+const PENDING_SALE_TICKET_KEY_PREFIX = "scrap:pending:sale-ticket:";
 
 // ---------------------------------------------------------------------------
 // Ticket numbering (local sequence)
@@ -187,6 +246,7 @@ export async function createPurchaseTicketOffline(
   const ticket: ScrapPurchaseTicket = {
     id: clientRequestId,
     sellerId: input.sellerId,
+    sellerName: input.sellerName,
     materialId: input.materialId,
     category: input.category,
     weight: input.weight,
@@ -247,7 +307,76 @@ export async function createPurchaseTicketOffline(
   });
 
   // Cache the ticket locally for quick recall
-  await cachePendingTicket(ticket);
+  await cachePendingTicket(ticket, tenantKey);
+
+  return {
+    ticket,
+    operationId: operation.operationId,
+  };
+}
+
+/**
+ * Create an outbound sale ticket offline.
+ * Queues the ticket in the outbox for later sync and caches it for local recall.
+ */
+export async function createSaleTicketOffline(
+  tenantKey: string,
+  input: CreateSaleTicketInput,
+): Promise<{ ticket: ScrapSaleTicket; operationId: string }> {
+  const saleNumber = await generateLocalSaleTicketNumber();
+  const clientRequestId = `scrap-sale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const currency = (input.currency ?? "USD").toUpperCase();
+  const total = input.soldWeight * input.pricePerKg;
+
+  const ticket: ScrapSaleTicket = {
+    id: clientRequestId,
+    batchId: input.batchId,
+    buyerName: input.buyerName,
+    buyerContact: input.buyerContact,
+    recordedWeight: input.recordedWeight,
+    soldWeight: input.soldWeight,
+    pricePerKg: input.pricePerKg,
+    total,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    notes: input.notes,
+    photos: input.photos,
+    status: input.status,
+    siteId: input.siteId,
+    createdAt: new Date().toISOString(),
+    offlineCreated: true,
+  };
+
+  const payload: Record<string, unknown> = {
+    saleNumber,
+    saleDate: new Date().toISOString(),
+    siteId: input.siteId,
+    batchId: input.batchId,
+    buyerName: input.buyerName,
+    buyerContact: input.buyerContact,
+    recordedWeight: input.recordedWeight,
+    soldWeight: input.soldWeight,
+    pricePerKg: input.pricePerKg,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    notes: input.notes,
+    status: input.status,
+    totalAmount: total,
+    offlineCreated: true,
+    offlineCreatedAt: new Date().toISOString(),
+    intent: input.intent,
+  };
+
+  const operation = await queueOfflineScrapOutboundTicket({
+    tenantKey,
+    clientRequestId,
+    payload,
+    attachments: input.photos,
+  });
+
+  await cachePendingSaleTicket(ticket, tenantKey);
 
   return {
     ticket,
@@ -312,7 +441,7 @@ export async function createSalesBatchOffline(
   });
 
   // Cache batch locally
-  await cachePendingBatch(batch);
+  await cachePendingBatch(batch, tenantKey);
 
   return {
     batch,
@@ -455,11 +584,14 @@ export async function queueTicketAttachments(
 // Local cache for pending tickets/batches
 // ---------------------------------------------------------------------------
 
-async function cachePendingTicket(ticket: ScrapPurchaseTicket): Promise<void> {
-  const key = `scrap:pending:ticket:${ticket.id}`;
+async function cachePendingTicket(
+  ticket: ScrapPurchaseTicket,
+  tenantKey: string,
+): Promise<void> {
+  const key = `${PENDING_PURCHASE_TICKET_KEY_PREFIX}${ticket.id}`;
   await putOfflineRecord(OFFLINE_DB_STORES.queryCache, {
     id: key,
-    tenantKey: "",
+    tenantKey,
     queryKey: ["scrap-pending-tickets"],
     data: ticket,
     updatedAt: Date.now(),
@@ -468,17 +600,186 @@ async function cachePendingTicket(ticket: ScrapPurchaseTicket): Promise<void> {
   });
 }
 
-async function cachePendingBatch(batch: ScrapSalesBatch): Promise<void> {
+async function cachePendingSaleTicket(
+  ticket: ScrapSaleTicket,
+  tenantKey: string,
+): Promise<void> {
+  const key = `${PENDING_SALE_TICKET_KEY_PREFIX}${ticket.id}`;
+  await putOfflineRecord(OFFLINE_DB_STORES.queryCache, {
+    id: key,
+    tenantKey,
+    queryKey: ["scrap-pending-sale-tickets"],
+    data: ticket,
+    updatedAt: Date.now(),
+    maxAgeMs: 90 * 24 * 60 * 60 * 1000,
+    moduleId: SCRAP_OFFLINE_MODULE_ID,
+  });
+}
+
+async function cachePendingBatch(
+  batch: ScrapSalesBatch,
+  tenantKey: string,
+): Promise<void> {
   const key = `scrap:pending:batch:${batch.id}`;
   await putOfflineRecord(OFFLINE_DB_STORES.queryCache, {
     id: key,
-    tenantKey: "",
+    tenantKey,
     queryKey: ["scrap-pending-batches"],
     data: batch,
     updatedAt: Date.now(),
     maxAgeMs: 90 * 24 * 60 * 60 * 1000, // 90 days
     moduleId: SCRAP_OFFLINE_MODULE_ID,
   });
+}
+
+export async function rehydrateLocalTicketPhotos(
+  tenantKey: string,
+  photos: LocalScrapTicketPhoto[],
+) {
+  return Promise.all(
+    photos.map(async (photo) => {
+      if (!photo.offlineAttachmentId) {
+        return photo;
+      }
+      const attachment = await getOfflineAttachmentRecord(
+        photo.offlineAttachmentId,
+        tenantKey,
+      );
+      if (!attachment) {
+        return photo;
+      }
+      return {
+        ...photo,
+        url: URL.createObjectURL(attachment.blob),
+        pathname: `offline-attachment:${attachment.attachmentId}`,
+        size: attachment.size,
+        contentType:
+          attachment.contentType === "image/png" ||
+          attachment.contentType === "image/webp"
+            ? attachment.contentType
+            : "image/jpeg",
+      } satisfies LocalScrapTicketPhoto;
+    }),
+  );
+}
+
+async function listCachedPendingRecords<T>(
+  prefix: string,
+  tenantKey?: string,
+): Promise<Array<PersistedQueryRecord & { data: T }>> {
+  const records = await listOfflineRecords<PersistedQueryRecord>(
+    OFFLINE_DB_STORES.queryCache,
+  );
+  return records.filter(
+    (record) =>
+      record.id.startsWith(prefix) &&
+      record.moduleId === SCRAP_OFFLINE_MODULE_ID &&
+      (!tenantKey || record.tenantKey === tenantKey),
+  ) as Array<PersistedQueryRecord & { data: T }>;
+}
+
+export async function listPendingPurchaseTickets(
+  tenantKey?: string,
+): Promise<PendingPurchaseTicketRecord[]> {
+  const [records, operations] = await Promise.all([
+    listCachedPendingRecords<ScrapPurchaseTicket>(
+      PENDING_PURCHASE_TICKET_KEY_PREFIX,
+      tenantKey,
+    ),
+    listPendingOfflineOperations({ tenantKey }),
+  ]);
+
+  const operationMap = new Map(
+    operations
+      .filter(
+        (operation) =>
+          operation.moduleId === SCRAP_OFFLINE_MODULE_ID &&
+          operation.operation === "create-inbound-ticket",
+      )
+      .map((operation) => [operation.clientRequestId, operation]),
+  );
+
+  const hydrated = await Promise.all(
+    records.map(async (record) => {
+      const ticket = record.data;
+      const operation = operationMap.get(ticket.id);
+      const photos = await rehydrateLocalTicketPhotos(
+        record.tenantKey,
+        ticket.photos,
+      );
+      return {
+        ...ticket,
+        photos,
+        operationId: operation?.operationId ?? ticket.id,
+        outboxStatus: operation?.status ?? "QUEUED",
+        lastError: operation?.lastError,
+      } satisfies PendingPurchaseTicketRecord;
+    }),
+  );
+
+  return hydrated.sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+export async function listPendingSaleTickets(
+  tenantKey?: string,
+): Promise<PendingSaleTicketRecord[]> {
+  const [records, operations] = await Promise.all([
+    listCachedPendingRecords<ScrapSaleTicket>(
+      PENDING_SALE_TICKET_KEY_PREFIX,
+      tenantKey,
+    ),
+    listPendingOfflineOperations({ tenantKey }),
+  ]);
+
+  const operationMap = new Map(
+    operations
+      .filter(
+        (operation) =>
+          operation.moduleId === SCRAP_OFFLINE_MODULE_ID &&
+          operation.operation === "create-outbound-ticket",
+      )
+      .map((operation) => [operation.clientRequestId, operation]),
+  );
+
+  const hydrated = await Promise.all(
+    records.map(async (record) => {
+      const ticket = record.data;
+      const operation = operationMap.get(ticket.id);
+      const photos = await rehydrateLocalTicketPhotos(
+        record.tenantKey,
+        ticket.photos,
+      );
+      return {
+        ...ticket,
+        photos,
+        operationId: operation?.operationId ?? ticket.id,
+        outboxStatus: operation?.status ?? "QUEUED",
+        lastError: operation?.lastError,
+      } satisfies PendingSaleTicketRecord;
+    }),
+  );
+
+  return hydrated.sort(
+    (left, right) =>
+      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
+}
+
+export async function removePendingTicketCache(
+  type: "purchase" | "sale",
+  clientRequestId: string,
+) {
+  const prefix =
+    type === "purchase"
+      ? PENDING_PURCHASE_TICKET_KEY_PREFIX
+      : PENDING_SALE_TICKET_KEY_PREFIX;
+  await deleteOfflineRecord(
+    OFFLINE_DB_STORES.queryCache,
+    `${prefix}${clientRequestId}`,
+  );
 }
 
 // ---------------------------------------------------------------------------

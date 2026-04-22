@@ -17,17 +17,19 @@ import {
   getBrandingCssVariables,
   getEffectiveBrandingForHost,
 } from "@/lib/platform/branding";
-import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
+import {
+  buildWorkspaceIconHref,
+  buildWorkspaceManifestHref,
+  resolveWorkspaceIdentityForHost,
+} from "@/lib/platform/workspace-identity";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
-  const branding = await getEffectiveBrandingForHost(hostHeader);
-
-  const workspaceName =
-    branding.displayName?.trim() ||
-    branding.companyName?.trim() ||
-    PLATFORM_BRAND_NAME;
+  const identity = await resolveWorkspaceIdentityForHost(hostHeader);
+  const branding = identity.branding;
+  const workspaceName = identity.workspaceName;
   const legalCompanyName = branding.companyName?.trim() || null;
   const workspaceIdentity =
     legalCompanyName && legalCompanyName !== workspaceName
@@ -66,11 +68,19 @@ export async function generateMetadata(): Promise<Metadata> {
       title: defaultTitle,
       description,
     },
-    manifest: "/manifest.webmanifest",
+    manifest: buildWorkspaceManifestHref(identity),
     icons: {
       icon: [
-        { url: "/icon-192.png", sizes: "192x192", type: "image/png" },
-        { url: "/icon-512.png", sizes: "512x512", type: "image/png" },
+        {
+          url: buildWorkspaceIconHref(identity, { size: 192 }),
+          sizes: "192x192",
+          type: "image/svg+xml",
+        },
+        {
+          url: buildWorkspaceIconHref(identity, { size: 512 }),
+          sizes: "512x512",
+          type: "image/svg+xml",
+        },
       ],
       apple: [{ url: "/icon-192.png", sizes: "192x192", type: "image/png" }],
     },
@@ -97,12 +107,14 @@ export default async function RootLayout({
   const requestHeaders = await headers();
   const hostHeader = getHostHeaderFromRequestHeaders(requestHeaders);
   const branding = await getEffectiveBrandingForHost(hostHeader);
+  const hostContext = getPlatformHostContext(hostHeader);
   const brandingVars = getBrandingCssVariables(branding);
 
   return (
     <html lang="en">
       <body
         className="font-sans subpixel-antialiased"
+        data-portal-path={hostContext.portalPath ?? undefined}
         style={
           {
             "--font-ibm-plex-mono":
@@ -115,7 +127,9 @@ export default async function RootLayout({
         <div className="app-root">
           <AppProviders>
             <Suspense fallback={<div className="min-h-screen bg-background" />}>
-              <AppShell>{children}</AppShell>
+              <AppShell hostPortalPath={hostContext.portalPath}>
+                {children}
+              </AppShell>
             </Suspense>
           </AppProviders>
         </div>

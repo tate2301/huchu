@@ -11,6 +11,7 @@ import { fetchJson } from "@/lib/api-client";
 import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
 import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
+import { removePendingTicketCache } from "@/lib/scrap-metal/offline-ticket";
 import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
 import {
   markOfflineOperationBlockingFailure,
@@ -147,6 +148,7 @@ async function syncScrapInboundTicket(
         attachments,
       }),
     });
+    await removePendingTicketCache("purchase", operation.clientRequestId);
     return {
       status: "synced",
       serverEntityId: created.id,
@@ -181,6 +183,7 @@ async function syncScrapOutboundTicket(
         attachments,
       }),
     });
+    await removePendingTicketCache("sale", operation.clientRequestId);
     return {
       status: "synced",
       serverEntityId: created.id,

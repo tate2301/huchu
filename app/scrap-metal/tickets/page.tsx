@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
@@ -10,8 +11,14 @@ import { fetchScrapTicketContext } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { OFFLINE_ENTITIES_CHANGED_EVENT } from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
+import {
+  createPurchaseTicketOffline,
+  createSaleTicketOffline,
+  rehydrateLocalTicketPhotos,
+} from "@/lib/scrap-metal/offline-ticket";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
 import {
+  clearLocalTicketDraft,
   loadLocalTicketDraft,
   saveLocalTicketDraft,
 } from "@/lib/scrap-metal/offline-draft-adapter";
@@ -22,8 +29,6 @@ import {
   isOfflineScrapEntityId,
   listOfflineScrapOperations,
   listOfflineScrapSellers,
-  queueOfflineScrapInboundTicket,
-  queueOfflineScrapOutboundTicket,
   type LocalScrapTicketPhoto,
 } from "@/lib/scrap-metal/offline-runtime";
 import { printTicketWithBridge } from "@/lib/scrap-metal/print-adapter";
@@ -199,8 +204,72 @@ async function uploadPhoto(
   };
 }
 
+function formatAttachmentSize(size: number) {
+  if (size >= 1024 * 1024) return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+  if (size >= 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${size} B`;
+}
+
+function AttachmentPreviewStrip({
+  attachments,
+  onRemove,
+}: {
+  attachments: LocalScrapTicketPhoto[];
+  onRemove: (index: number) => void;
+}) {
+  if (attachments.length === 0) {
+    return (
+      <p className="text-xs text-muted-foreground">No photos attached yet.</p>
+    );
+  }
+
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {attachments.map((attachment, index) => (
+        <div
+          key={`${attachment.pathname ?? attachment.url}-${index}`}
+          className="overflow-hidden rounded-xl border border-[var(--edge-subtle)] bg-background"
+        >
+          <a
+            href={attachment.url}
+            target="_blank"
+            rel="noreferrer"
+            className="block"
+          >
+            <img
+              src={attachment.url}
+              alt={`Ticket photo ${index + 1}`}
+              className="h-36 w-full object-cover"
+            />
+          </a>
+          <div className="flex items-center justify-between gap-3 px-3 py-2 text-xs">
+            <div className="min-w-0">
+              <div className="truncate font-medium text-[var(--text-strong)]">
+                Photo {index + 1}
+              </div>
+              <div className="font-mono text-muted-foreground">
+                {formatAttachmentSize(attachment.size)}
+              </div>
+            </div>
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => onRemove(index)}
+            >
+              Remove
+            </Button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function ScrapMetalTicketWorkbenchPage() {
   const { data: session } = useSession();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const { syncNow, tenantKey } = useOfflineRuntime();
   const sessionUser =
     (session?.user as
@@ -210,6 +279,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const canCreateOutbound = hasRole(role, ["SUPERADMIN", "MANAGER"]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const draftType = searchParams.get("draft");
   const [view, setView] = useState<"inbound" | "outbound">("inbound");
   const [inbound, setInbound] = useState<InboundForm>(emptyInbound);
   const [outbound, setOutbound] = useState<OutboundForm>(emptyOutbound);
@@ -421,6 +491,90 @@ export default function ScrapMetalTicketWorkbenchPage() {
       Boolean(outboundErrors.attachments);
     if (hasMetadataError) setOutboundMetaOpen(true);
   }, [outboundErrors]);
+
+  const loadSavedDraft = useCallback(
+    async (type: "inbound" | "outbound", announce = true) => {
+      if (type === "inbound") {
+        const localDraft = loadLocalTicketDraft<InboundForm>("inbound");
+        if (!localDraft) {
+          if (announce) {
+            toast({
+              title: "No inbound draft found",
+              variant: "destructive",
+            });
+          }
+          return false;
+        }
+        const attachments =
+          tenantKey && localDraft.payload.attachments.length > 0
+            ? await rehydrateLocalTicketPhotos(
+                tenantKey,
+                localDraft.payload.attachments,
+              )
+            : localDraft.payload.attachments;
+        setView("inbound");
+        setInbound({ ...localDraft.payload, attachments });
+      } else {
+        const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
+        if (!localDraft) {
+          if (announce) {
+            toast({
+              title: "No outbound draft found",
+              variant: "destructive",
+            });
+          }
+          return false;
+        }
+        const attachments =
+          tenantKey && localDraft.payload.attachments.length > 0
+            ? await rehydrateLocalTicketPhotos(
+                tenantKey,
+                localDraft.payload.attachments,
+              )
+            : localDraft.payload.attachments;
+        setView("outbound");
+        setOutbound({ ...localDraft.payload, attachments });
+      }
+
+      if (announce) {
+        toast({
+          title:
+            type === "inbound"
+              ? "Inbound draft loaded"
+              : "Outbound draft loaded",
+          variant: "success",
+        });
+      }
+
+      return true;
+    },
+    [tenantKey, toast],
+  );
+
+  useEffect(() => {
+    if (!draftType) return;
+    if (draftType !== "inbound" && draftType !== "outbound") return;
+
+    void loadSavedDraft(draftType, false).then((loaded) => {
+      if (loaded) {
+        toast({
+          title:
+            draftType === "inbound"
+              ? "Inbound draft restored"
+              : "Outbound draft restored",
+          description: "Offline photos were reloaded from local storage.",
+          variant: "success",
+        });
+      } else {
+        toast({
+          title: "Draft unavailable",
+          description: "That local ticket could not be restored.",
+          variant: "destructive",
+        });
+      }
+      router.replace("/scrap-metal/tickets");
+    });
+  }, [draftType, loadSavedDraft, router, toast]);
 
   const refreshOfflineQueueCount = useCallback(async () => {
     if (!tenantKey) {
@@ -636,6 +790,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
     onSuccess: (created, variables) => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-held-inbound-total"] });
+      clearLocalTicketDraft("inbound");
       setInboundErrors({});
       setInbound((prev) => ({
         ...emptyInbound(),
@@ -667,37 +822,63 @@ export default function ScrapMetalTicketWorkbenchPage() {
             (attachment) => attachment.offlineAttachmentId,
           ))
       ) {
-        await queueOfflineScrapInboundTicket({
-          tenantKey,
-          clientRequestId: variables.clientRequestId,
-          payload: buildInboundPayload(variables.intent, inbound, {
-            clientRequestId: variables.clientRequestId,
-            useOfflineDocumentNumber: true,
-          }),
-          attachments: inbound.attachments,
-          sellerTempId: isOfflineScrapEntityId(inbound.sellerId)
-            ? inbound.sellerId
-            : null,
-        });
-        await refreshOfflineQueueCount();
-        if (variables.intent === "hold") {
-          queryClient.setQueryData<{ pagination?: { total?: number } }>(
-            ["scrap-held-inbound-total"],
-            (current) => ({
-              ...current,
-              pagination: {
-                ...current?.pagination,
-                total: (current?.pagination?.total ?? 0) + 1,
-              },
-            }),
-          );
+        try {
+          const selectedSeller =
+            sellers.find((seller) => seller.id === inbound.sellerId) ?? null;
+          await createPurchaseTicketOffline(tenantKey, {
+            sellerId: inbound.sellerId,
+            sellerName: selectedSeller?.fullName ?? "Offline seller",
+            materialId: inbound.materialId || undefined,
+            category: derivedInboundCategory,
+            weight: Number(inbound.weight),
+            pricePerKg: Number(inbound.pricePerKg),
+            currency: inbound.currency,
+            paymentMethod: inbound.paymentMethod || undefined,
+            paymentReference: inbound.paymentReference || undefined,
+            notes: inbound.notes || undefined,
+            photos: inbound.attachments,
+            status: variables.intent === "hold" ? "DRAFT" : "POSTED",
+            siteId: inbound.siteId,
+            employeeId: inbound.employeeId,
+            intent: variables.intent,
+          });
+          await refreshOfflineQueueCount();
+          if (variables.intent === "hold") {
+            queryClient.setQueryData<{ pagination?: { total?: number } }>(
+              ["scrap-held-inbound-total"],
+              (current) => ({
+                ...current,
+                pagination: {
+                  ...current?.pagination,
+                  total: (current?.pagination?.total ?? 0) + 1,
+                },
+              }),
+            );
+          }
+          setInbound((prev) => ({
+            ...emptyInbound(),
+            siteId: prev.siteId,
+            employeeId: defaultBuyerId || prev.employeeId,
+          }));
+          clearLocalTicketDraft("inbound");
+          toast({
+            title:
+              variables.intent === "hold"
+                ? "Inbound ticket saved offline"
+                : "Inbound ticket queued for sync",
+            description:
+              "Photos and ticket details will upload when connectivity returns.",
+            variant: "success",
+          });
+          return;
+        } catch (queueError) {
+          toast({
+            title: "Unable to queue inbound ticket",
+            description: getApiErrorMessage(queueError),
+            variant: "destructive",
+          });
+          return;
         }
-        setInbound((prev) => ({
-          ...emptyInbound(),
-          siteId: prev.siteId,
-          employeeId: defaultBuyerId || prev.employeeId,
-        }));
-        return;
       }
       const complianceMessages = getComplianceMessages(error);
       if (complianceMessages.length > 0) {
@@ -740,6 +921,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
       queryClient.invalidateQueries({
         queryKey: ["scrap-held-outbound-total"],
       });
+      clearLocalTicketDraft("outbound");
       setOutboundErrors({});
       setOutbound(emptyOutbound());
       if (variables.intent === "submit_print") {
@@ -773,14 +955,24 @@ export default function ScrapMetalTicketWorkbenchPage() {
       ) {
         try {
           if (tenantKey) {
-            await queueOfflineScrapOutboundTicket({
-              tenantKey,
-              clientRequestId: variables.clientRequestId,
-              payload: buildOutboundPayload(variables.intent, outbound, {
-                clientRequestId: variables.clientRequestId,
-                useOfflineDocumentNumber: true,
-              }),
-              attachments: outbound.attachments,
+            await createSaleTicketOffline(tenantKey, {
+              batchId: outbound.batchId,
+              buyerName: outbound.buyerName,
+              buyerContact: outbound.buyerContact || undefined,
+              recordedWeight: Number(outbound.recordedWeight),
+              soldWeight: Number(outbound.soldWeight),
+              pricePerKg: Number(outbound.pricePerKg),
+              currency: outbound.currency,
+              paymentMethod: outbound.paymentMethod || undefined,
+              paymentReference: outbound.paymentReference || undefined,
+              notes: outbound.notes || undefined,
+              photos: outbound.attachments,
+              status:
+                variables.intent === "hold" || variables.intent === "request_approval"
+                  ? "DRAFT"
+                  : "PENDING_APPROVAL",
+              siteId: selectedBatch?.site.id ?? "",
+              intent: variables.intent,
             });
             await refreshOfflineQueueCount();
             if (variables.intent === "hold") {
@@ -796,6 +988,16 @@ export default function ScrapMetalTicketWorkbenchPage() {
               );
             }
             setOutbound(emptyOutbound());
+            clearLocalTicketDraft("outbound");
+            toast({
+              title:
+                variables.intent === "hold"
+                  ? "Outbound ticket saved offline"
+                  : "Outbound ticket queued for sync",
+              description:
+                "Photos and ticket details will upload when connectivity returns.",
+              variant: "success",
+            });
             return;
           }
         } catch (queueError) {
@@ -1018,23 +1220,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
   }
 
   function loadCurrentDraftLocally() {
-    if (view === "inbound") {
-      const localDraft = loadLocalTicketDraft<InboundForm>("inbound");
-      if (!localDraft) {
-        toast({ title: "No inbound draft found", variant: "destructive" });
-        return;
-      }
-      setInbound(localDraft.payload);
-      toast({ title: "Inbound draft loaded", variant: "success" });
-      return;
-    }
-    const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
-    if (!localDraft) {
-      toast({ title: "No outbound draft found", variant: "destructive" });
-      return;
-    }
-    setOutbound(localDraft.payload);
-    toast({ title: "Outbound draft loaded", variant: "success" });
+    void loadSavedDraft(view);
   }
 
   function holdCurrentTicket() {
@@ -1093,6 +1279,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
 
   function cancelCurrentTicket() {
     if (view === "inbound") {
+      clearLocalTicketDraft("inbound");
       setInbound((prev) => ({
         ...emptyInbound(),
         siteId: prev.siteId,
@@ -1101,6 +1288,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
       setInboundErrors({});
       return;
     }
+    clearLocalTicketDraft("outbound");
     setOutbound(emptyOutbound());
     setOutboundErrors({});
   }
@@ -1590,9 +1778,17 @@ export default function ScrapMetalTicketWorkbenchPage() {
                             }}
                           />
                         </label>
-                        <p className="text-xs text-muted-foreground">
-                          {inbound.attachments.length} attached
-                        </p>
+                        <AttachmentPreviewStrip
+                          attachments={inbound.attachments}
+                          onRemove={(index) =>
+                            setInbound((prev) => ({
+                              ...prev,
+                              attachments: prev.attachments.filter(
+                                (_, itemIndex) => itemIndex !== index,
+                              ),
+                            }))
+                          }
+                        />
                         <FieldHelp
                           id="inbound-attachments-error"
                           error={inboundErrors.attachments}
@@ -1980,9 +2176,17 @@ export default function ScrapMetalTicketWorkbenchPage() {
                             }}
                           />
                         </label>
-                        <p className="text-xs text-muted-foreground">
-                          {outbound.attachments.length} attached
-                        </p>
+                        <AttachmentPreviewStrip
+                          attachments={outbound.attachments}
+                          onRemove={(index) =>
+                            setOutbound((prev) => ({
+                              ...prev,
+                              attachments: prev.attachments.filter(
+                                (_, itemIndex) => itemIndex !== index,
+                              ),
+                            }))
+                          }
+                        />
                         <FieldHelp
                           id="outbound-attachments-error"
                           error={outboundErrors.attachments}

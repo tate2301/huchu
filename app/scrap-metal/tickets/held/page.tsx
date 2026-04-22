@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Badge } from "@/components/ui/badge";
@@ -14,7 +16,16 @@ import { DataTable } from "@/components/ui/data-table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { OFFLINE_ENTITIES_CHANGED_EVENT } from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
+import {
+  listPendingPurchaseTickets,
+  listPendingSaleTickets,
+  type PendingPurchaseTicketRecord,
+  type PendingSaleTicketRecord,
+} from "@/lib/scrap-metal/offline-ticket";
+import { saveLocalTicketDraft } from "@/lib/scrap-metal/offline-draft-adapter";
+import type { LocalScrapTicketPhoto } from "@/lib/scrap-metal/offline-runtime";
 
 type HeldPurchase = {
   id: string;
@@ -39,9 +50,116 @@ type HeldSale = {
   status: string;
 };
 
+type HeldInboundRow = {
+  id: string;
+  ticketNumber: string;
+  ticketDate: string;
+  sellerName: string;
+  category: string;
+  weight: number;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  source: "server" | "local";
+  queueStatus?: string;
+  lastError?: string;
+  attachments: LocalScrapTicketPhoto[];
+  serverId?: string;
+  localDraft?: {
+    siteId: string;
+    employeeId: string;
+    date: string;
+    sellerId: string;
+    materialId: string;
+    category: string;
+    weight: string;
+    pricePerKg: string;
+    currency: string;
+    paymentMethod: string;
+    paymentReference: string;
+    notes: string;
+    attachments: LocalScrapTicketPhoto[];
+  };
+};
+
+type HeldOutboundRow = {
+  id: string;
+  ticketNumber: string;
+  ticketDate: string;
+  buyerName: string;
+  soldWeight: number;
+  totalAmount: number;
+  currency: string;
+  status: string;
+  source: "server" | "local";
+  queueStatus?: string;
+  lastError?: string;
+  attachments: LocalScrapTicketPhoto[];
+  serverId?: string;
+  localDraft?: {
+    date: string;
+    batchId: string;
+    buyerName: string;
+    buyerContact: string;
+    recordedWeight: string;
+    soldWeight: string;
+    pricePerKg: string;
+    currency: string;
+    paymentMethod: string;
+    paymentReference: string;
+    notes: string;
+    attachments: LocalScrapTicketPhoto[];
+  };
+};
+
+function formatMoney(currency: string, amount: number) {
+  return `${currency} ${amount.toFixed(2)}`;
+}
+
+function formatQueueStatus(status?: string) {
+  if (!status) return "Queued";
+  return status.replace(/_/g, " ").toLowerCase().replace(/^\w/, (char) => char.toUpperCase());
+}
+
+function PhotoPreviewStrip({ attachments }: { attachments: LocalScrapTicketPhoto[] }) {
+  if (attachments.length === 0) {
+    return <p className="text-xs text-muted-foreground">No photos attached.</p>;
+  }
+
+  return (
+    <div className="flex flex-wrap gap-2">
+      {attachments.slice(0, 4).map((attachment, index) => (
+        <a
+          key={`${attachment.pathname ?? attachment.url}-${index}`}
+          href={attachment.url}
+          target="_blank"
+          rel="noreferrer"
+          className="overflow-hidden rounded-lg border border-[var(--edge-subtle)]"
+        >
+          <img
+            src={attachment.url}
+            alt={`Ticket photo ${index + 1}`}
+            className="h-14 w-14 object-cover"
+          />
+        </a>
+      ))}
+      {attachments.length > 4 ? (
+        <div className="flex h-14 w-14 items-center justify-center rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] text-xs font-medium text-muted-foreground">
+          +{attachments.length - 4}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function HeldTicketsPage() {
+  const router = useRouter();
   const { data: session } = useSession();
-  const canManageSales = hasRole((session?.user as { role?: string } | undefined)?.role, ["SUPERADMIN", "MANAGER"]);
+  const { tenantKey } = useOfflineRuntime();
+  const canManageSales = hasRole(
+    (session?.user as { role?: string } | undefined)?.role,
+    ["SUPERADMIN", "MANAGER"],
+  );
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [activeView, setActiveView] = useState("inbound");
@@ -49,7 +167,9 @@ export default function HeldTicketsPage() {
   const heldPurchasesQuery = useQuery({
     queryKey: ["scrap-held-inbound-tickets"],
     queryFn: async () => {
-      const response = await fetchJson<{ data: HeldPurchase[] }>("/api/scrap-metal/purchases?status=DRAFT&limit=300");
+      const response = await fetchJson<{ data: HeldPurchase[] }>(
+        "/api/scrap-metal/purchases?status=DRAFT&limit=300",
+      );
       return response.data;
     },
   });
@@ -57,10 +177,37 @@ export default function HeldTicketsPage() {
   const heldSalesQuery = useQuery({
     queryKey: ["scrap-held-outbound-tickets"],
     queryFn: async () => {
-      const response = await fetchJson<{ data: HeldSale[] }>("/api/scrap-metal/sales?status=DRAFT&limit=300");
+      const response = await fetchJson<{ data: HeldSale[] }>(
+        "/api/scrap-metal/sales?status=DRAFT&limit=300",
+      );
       return response.data;
     },
   });
+
+  const localInboundQuery = useQuery({
+    queryKey: ["scrap-local-held-inbound", tenantKey],
+    queryFn: () => (tenantKey ? listPendingPurchaseTickets(tenantKey) : Promise.resolve([])),
+  });
+
+  const localOutboundQuery = useQuery({
+    queryKey: ["scrap-local-held-outbound", tenantKey],
+    queryFn: () => (tenantKey ? listPendingSaleTickets(tenantKey) : Promise.resolve([])),
+  });
+
+  useEffect(() => {
+    const onEntitiesChanged = () => {
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-held-inbound"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-held-outbound"] });
+    };
+
+    window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, onEntitiesChanged);
+    window.addEventListener("online", onEntitiesChanged);
+
+    return () => {
+      window.removeEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, onEntitiesChanged);
+      window.removeEventListener("online", onEntitiesChanged);
+    };
+  }, [queryClient]);
 
   const finalizeInboundMutation = useMutation({
     mutationFn: (id: string) =>
@@ -103,84 +250,270 @@ export default function HeldTicketsPage() {
     },
   });
 
-  const inboundColumns = useMemo<ColumnDef<HeldPurchase>[]>(
+  const inboundRows = useMemo<HeldInboundRow[]>(() => {
+    const serverRows = (heldPurchasesQuery.data ?? []).map((ticket) => ({
+      id: `server:${ticket.id}`,
+      ticketNumber: ticket.purchaseNumber,
+      ticketDate: ticket.purchaseDate,
+      sellerName: ticket.sellerName || "-",
+      category: ticket.category,
+      weight: ticket.weight,
+      totalAmount: ticket.totalAmount,
+      currency: ticket.currency,
+      status: ticket.status,
+      source: "server" as const,
+      attachments: [],
+      serverId: ticket.id,
+    }));
+
+    const localRows = (localInboundQuery.data ?? []).map((ticket: PendingPurchaseTicketRecord) => ({
+      id: `local:${ticket.id}`,
+      ticketNumber: `Offline ${ticket.id.slice(-6).toUpperCase()}`,
+      ticketDate: ticket.createdAt,
+      sellerName: ticket.sellerName,
+      category: ticket.category,
+      weight: ticket.weight,
+      totalAmount: ticket.total,
+      currency: ticket.currency,
+      status: ticket.status,
+      source: "local" as const,
+      queueStatus: formatQueueStatus(ticket.outboxStatus),
+      lastError: ticket.lastError,
+      attachments: ticket.photos,
+      localDraft: {
+        siteId: ticket.siteId,
+        employeeId: ticket.employeeId,
+        date: ticket.createdAt.slice(0, 16),
+        sellerId: ticket.sellerId,
+        materialId: ticket.materialId ?? "",
+        category: ticket.category,
+        weight: String(ticket.weight),
+        pricePerKg: String(ticket.pricePerKg),
+        currency: ticket.currency,
+        paymentMethod: ticket.paymentMethod ?? "Cash",
+        paymentReference: ticket.paymentReference ?? "",
+        notes: ticket.notes ?? "",
+        attachments: ticket.photos,
+      },
+    }));
+
+    return [...localRows, ...serverRows].sort(
+      (left, right) => new Date(right.ticketDate).getTime() - new Date(left.ticketDate).getTime(),
+    );
+  }, [heldPurchasesQuery.data, localInboundQuery.data]);
+
+  const outboundRows = useMemo<HeldOutboundRow[]>(() => {
+    const serverRows = (heldSalesQuery.data ?? []).map((ticket) => ({
+      id: `server:${ticket.id}`,
+      ticketNumber: ticket.saleNumber,
+      ticketDate: ticket.saleDate,
+      buyerName: ticket.buyerName,
+      soldWeight: ticket.soldWeight,
+      totalAmount: ticket.totalAmount,
+      currency: ticket.currency,
+      status: ticket.status,
+      source: "server" as const,
+      attachments: [],
+      serverId: ticket.id,
+    }));
+
+    const localRows = (localOutboundQuery.data ?? []).map((ticket: PendingSaleTicketRecord) => ({
+      id: `local:${ticket.id}`,
+      ticketNumber: `Offline ${ticket.id.slice(-6).toUpperCase()}`,
+      ticketDate: ticket.createdAt,
+      buyerName: ticket.buyerName,
+      soldWeight: ticket.soldWeight,
+      totalAmount: ticket.total,
+      currency: ticket.currency,
+      status: ticket.status,
+      source: "local" as const,
+      queueStatus: formatQueueStatus(ticket.outboxStatus),
+      lastError: ticket.lastError,
+      attachments: ticket.photos,
+      localDraft: {
+        date: ticket.createdAt.slice(0, 16),
+        batchId: ticket.batchId,
+        buyerName: ticket.buyerName,
+        buyerContact: ticket.buyerContact ?? "",
+        recordedWeight: String(ticket.recordedWeight),
+        soldWeight: String(ticket.soldWeight),
+        pricePerKg: String(ticket.pricePerKg),
+        currency: ticket.currency,
+        paymentMethod: ticket.paymentMethod ?? "Cash",
+        paymentReference: ticket.paymentReference ?? "",
+        notes: ticket.notes ?? "",
+        attachments: ticket.photos,
+      },
+    }));
+
+    return [...localRows, ...serverRows].sort(
+      (left, right) => new Date(right.ticketDate).getTime() - new Date(left.ticketDate).getTime(),
+    );
+  }, [heldSalesQuery.data, localOutboundQuery.data]);
+
+  const openLocalDraft = (type: "inbound" | "outbound", payload: HeldInboundRow["localDraft"] | HeldOutboundRow["localDraft"]) => {
+    if (!payload) return;
+    saveLocalTicketDraft(type, payload);
+    router.push(`/scrap-metal/tickets?draft=${type}`);
+  };
+
+  const inboundColumns = useMemo<ColumnDef<HeldInboundRow>[]>(
     () => [
-      { id: "ticket", header: "Ticket #", accessorKey: "purchaseNumber" },
+      {
+        id: "ticket",
+        header: "Ticket #",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono font-semibold">{row.original.ticketNumber}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge variant={row.original.source === "local" ? "secondary" : "outline"}>
+                {row.original.source === "local" ? "Queued Offline" : "Server Draft"}
+              </Badge>
+              {row.original.queueStatus ? (
+                <span className="text-xs text-muted-foreground">{row.original.queueStatus}</span>
+              ) : null}
+            </div>
+          </div>
+        ),
+      },
       {
         id: "date",
         header: "Date",
-        cell: ({ row }) => new Date(row.original.purchaseDate).toLocaleDateString(),
+        cell: ({ row }) => new Date(row.original.ticketDate).toLocaleString(),
       },
-      { id: "supplier", header: "Supplier", accessorFn: (row) => row.sellerName || "-" },
+      { id: "supplier", header: "Supplier", accessorKey: "sellerName" },
       { id: "material", header: "Material", accessorKey: "category" },
       {
         id: "amount",
         header: "Amount",
-        cell: ({ row }) => `${row.original.currency} ${row.original.totalAmount.toFixed(2)}`,
+        cell: ({ row }) => formatMoney(row.original.currency, row.original.totalAmount),
+      },
+      {
+        id: "photos",
+        header: "Photos",
+        cell: ({ row }) =>
+          row.original.attachments.length > 0 ? (
+            <PhotoPreviewStrip attachments={row.original.attachments} />
+          ) : (
+            <span className="text-xs text-muted-foreground">No photos</span>
+          ),
       },
       {
         id: "actions",
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/scrap-metal/purchases?edit=${row.original.id}`}>Resume</Link>
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => finalizeInboundMutation.mutate(row.original.id)}
-              disabled={finalizeInboundMutation.isPending}
-            >
-              Finalize
-            </Button>
+            {row.original.source === "local" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openLocalDraft("inbound", row.original.localDraft)}
+              >
+                Resume Offline
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/scrap-metal/purchases?edit=${row.original.serverId}`}>Resume</Link>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => row.original.serverId && finalizeInboundMutation.mutate(row.original.serverId)}
+                  disabled={finalizeInboundMutation.isPending}
+                >
+                  Finalize
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [finalizeInboundMutation],
+    [finalizeInboundMutation, router],
   );
 
-  const outboundColumns = useMemo<ColumnDef<HeldSale>[]>(
+  const outboundColumns = useMemo<ColumnDef<HeldOutboundRow>[]>(
     () => [
-      { id: "ticket", header: "Ticket #", accessorKey: "saleNumber" },
+      {
+        id: "ticket",
+        header: "Ticket #",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono font-semibold">{row.original.ticketNumber}</div>
+            <div className="mt-1 flex items-center gap-2">
+              <Badge variant={row.original.source === "local" ? "secondary" : "outline"}>
+                {row.original.source === "local" ? "Queued Offline" : "Server Draft"}
+              </Badge>
+              {row.original.queueStatus ? (
+                <span className="text-xs text-muted-foreground">{row.original.queueStatus}</span>
+              ) : null}
+            </div>
+          </div>
+        ),
+      },
       {
         id: "date",
         header: "Date",
-        cell: ({ row }) => new Date(row.original.saleDate).toLocaleDateString(),
+        cell: ({ row }) => new Date(row.original.ticketDate).toLocaleString(),
       },
       { id: "buyer", header: "Buyer", accessorKey: "buyerName" },
       {
         id: "amount",
         header: "Amount",
-        cell: ({ row }) => `${row.original.currency} ${row.original.totalAmount.toFixed(2)}`,
+        cell: ({ row }) => formatMoney(row.original.currency, row.original.totalAmount),
+      },
+      {
+        id: "photos",
+        header: "Photos",
+        cell: ({ row }) =>
+          row.original.attachments.length > 0 ? (
+            <PhotoPreviewStrip attachments={row.original.attachments} />
+          ) : (
+            <span className="text-xs text-muted-foreground">No photos</span>
+          ),
       },
       {
         id: "actions",
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            <Button size="sm" variant="outline" asChild>
-              <Link href={`/scrap-metal/sales?edit=${row.original.id}`}>Resume</Link>
-            </Button>
-            <Button
-              size="sm"
-              onClick={() => finalizeOutboundMutation.mutate(row.original.id)}
-              disabled={finalizeOutboundMutation.isPending || !canManageSales}
-              title={!canManageSales ? "Manager approval is required to submit outbound tickets." : undefined}
-            >
-              {canManageSales ? "Submit" : "Manager Needed"}
-            </Button>
+            {row.original.source === "local" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => openLocalDraft("outbound", row.original.localDraft)}
+              >
+                Resume Offline
+              </Button>
+            ) : (
+              <>
+                <Button size="sm" variant="outline" asChild>
+                  <Link href={`/scrap-metal/sales?edit=${row.original.serverId}`}>Resume</Link>
+                </Button>
+                <Button
+                  size="sm"
+                  onClick={() => row.original.serverId && finalizeOutboundMutation.mutate(row.original.serverId)}
+                  disabled={finalizeOutboundMutation.isPending || !canManageSales}
+                  title={!canManageSales ? "Manager approval is required to submit outbound tickets." : undefined}
+                >
+                  {canManageSales ? "Submit" : "Manager Needed"}
+                </Button>
+              </>
+            )}
           </div>
         ),
       },
     ],
-    [canManageSales, finalizeOutboundMutation],
+    [canManageSales, finalizeOutboundMutation, router],
   );
 
   const views = [
-    { id: "inbound", label: "Inbound Drafts", count: heldPurchasesQuery.data?.length ?? 0 },
-    { id: "outbound", label: "Outbound Drafts", count: heldSalesQuery.data?.length ?? 0 },
+    { id: "inbound", label: "Inbound Drafts", count: inboundRows.length },
+    { id: "outbound", label: "Outbound Drafts", count: outboundRows.length },
   ];
+
+  const isInboundLoading = heldPurchasesQuery.isLoading || localInboundQuery.isLoading;
+  const isOutboundLoading = heldSalesQuery.isLoading || localOutboundQuery.isLoading;
 
   return (
     <ScrapShell
@@ -203,98 +536,142 @@ export default function HeldTicketsPage() {
     >
       <VerticalDataViews items={views} value={activeView} onValueChange={setActiveView} railLabel="Ticket Type">
         {activeView === "inbound" ? (
-          heldPurchasesQuery.error ? (
+          heldPurchasesQuery.error && inboundRows.length === 0 ? (
             <StatusState variant="error" title="Unable to load held inbound tickets" />
           ) : (
             <>
               <div className="hidden md:block">
                 <DataTable
-                  data={heldPurchasesQuery.data ?? []}
+                  data={inboundRows}
                   columns={inboundColumns}
-                  searchPlaceholder="Search inbound draft ticket"
+                  searchPlaceholder="Search inbound held tickets"
                   pagination={{ enabled: true }}
-                  emptyState={heldPurchasesQuery.isLoading ? "Loading held tickets..." : "No held inbound tickets."}
+                  emptyState={isInboundLoading ? "Loading held tickets..." : "No held inbound tickets."}
                 />
               </div>
               <div className="space-y-3 md:hidden">
-                {(heldPurchasesQuery.data ?? []).map((ticket) => (
+                {inboundRows.map((ticket) => (
                   <article key={ticket.id} className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <div className="font-semibold">{ticket.purchaseNumber}</div>
-                        <div className="text-xs text-muted-foreground">{new Date(ticket.purchaseDate).toLocaleString()}</div>
+                        <div className="font-semibold">{ticket.ticketNumber}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {new Date(ticket.ticketDate).toLocaleString()}
+                        </div>
                       </div>
-                      <Badge variant="outline">{ticket.category}</Badge>
+                      <Badge variant={ticket.source === "local" ? "secondary" : "outline"}>
+                        {ticket.source === "local" ? ticket.queueStatus ?? "Queued" : ticket.category}
+                      </Badge>
                     </div>
                     <div className="mt-3 space-y-1 text-sm">
-                      <div>Supplier: {ticket.sellerName || "-"}</div>
+                      <div>Supplier: {ticket.sellerName}</div>
                       <div>Weight: {ticket.weight.toFixed(2)} kg</div>
-                      <div className="font-mono">{ticket.currency} {ticket.totalAmount.toFixed(2)}</div>
+                      <div className="font-mono">{formatMoney(ticket.currency, ticket.totalAmount)}</div>
+                      {ticket.lastError ? (
+                        <div className="text-xs text-destructive">{ticket.lastError}</div>
+                      ) : null}
+                    </div>
+                    <div className="mt-3">
+                      <PhotoPreviewStrip attachments={ticket.attachments} />
                     </div>
                     <div className="mt-4 grid gap-2">
-                      <Button className="w-full" variant="outline" asChild>
-                        <Link href={`/scrap-metal/purchases?edit=${ticket.id}`}>Resume</Link>
-                      </Button>
-                      <Button
-                        className="w-full"
-                        onClick={() => finalizeInboundMutation.mutate(ticket.id)}
-                        disabled={finalizeInboundMutation.isPending}
-                      >
-                        Finalize
-                      </Button>
+                      {ticket.source === "local" ? (
+                        <Button
+                          className="w-full"
+                          variant="outline"
+                          onClick={() => openLocalDraft("inbound", ticket.localDraft)}
+                        >
+                          Resume Offline
+                        </Button>
+                      ) : (
+                        <>
+                          <Button className="w-full" variant="outline" asChild>
+                            <Link href={`/scrap-metal/purchases?edit=${ticket.serverId}`}>Resume</Link>
+                          </Button>
+                          <Button
+                            className="w-full"
+                            onClick={() => ticket.serverId && finalizeInboundMutation.mutate(ticket.serverId)}
+                            disabled={finalizeInboundMutation.isPending}
+                          >
+                            Finalize
+                          </Button>
+                        </>
+                      )}
                     </div>
                   </article>
                 ))}
-                {!heldPurchasesQuery.isLoading && (heldPurchasesQuery.data ?? []).length === 0 ? (
+                {!isInboundLoading && inboundRows.length === 0 ? (
                   <StatusState variant="empty" title="No held inbound tickets" />
                 ) : null}
               </div>
             </>
           )
-        ) : heldSalesQuery.error ? (
+        ) : heldSalesQuery.error && outboundRows.length === 0 ? (
           <StatusState variant="error" title="Unable to load held outbound tickets" />
         ) : (
           <>
             <div className="hidden md:block">
               <DataTable
-                data={heldSalesQuery.data ?? []}
+                data={outboundRows}
                 columns={outboundColumns}
-                searchPlaceholder="Search outbound draft ticket"
+                searchPlaceholder="Search outbound held tickets"
                 pagination={{ enabled: true }}
-                emptyState={heldSalesQuery.isLoading ? "Loading held tickets..." : "No held outbound tickets."}
+                emptyState={isOutboundLoading ? "Loading held tickets..." : "No held outbound tickets."}
               />
             </div>
             <div className="space-y-3 md:hidden">
-              {(heldSalesQuery.data ?? []).map((ticket) => (
+              {outboundRows.map((ticket) => (
                 <article key={ticket.id} className="rounded-2xl border border-[var(--edge-subtle)] bg-background p-4">
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold">{ticket.saleNumber}</div>
-                      <div className="text-xs text-muted-foreground">{new Date(ticket.saleDate).toLocaleString()}</div>
+                      <div className="font-semibold">{ticket.ticketNumber}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {new Date(ticket.ticketDate).toLocaleString()}
+                      </div>
                     </div>
-                    <Badge variant="outline">Outbound</Badge>
+                    <Badge variant={ticket.source === "local" ? "secondary" : "outline"}>
+                      {ticket.source === "local" ? ticket.queueStatus ?? "Queued" : "Outbound"}
+                    </Badge>
                   </div>
                   <div className="mt-3 space-y-1 text-sm">
                     <div>Buyer: {ticket.buyerName}</div>
                     <div>Accepted: {ticket.soldWeight.toFixed(2)} kg</div>
-                    <div className="font-mono">{ticket.currency} {ticket.totalAmount.toFixed(2)}</div>
+                    <div className="font-mono">{formatMoney(ticket.currency, ticket.totalAmount)}</div>
+                    {ticket.lastError ? (
+                      <div className="text-xs text-destructive">{ticket.lastError}</div>
+                    ) : null}
+                  </div>
+                  <div className="mt-3">
+                    <PhotoPreviewStrip attachments={ticket.attachments} />
                   </div>
                   <div className="mt-4 grid gap-2">
-                    <Button className="w-full" variant="outline" asChild>
-                      <Link href={`/scrap-metal/sales?edit=${ticket.id}`}>Resume</Link>
-                    </Button>
-                    <Button
-                      className="w-full"
-                      onClick={() => finalizeOutboundMutation.mutate(ticket.id)}
-                      disabled={finalizeOutboundMutation.isPending || !canManageSales}
-                      title={!canManageSales ? "Manager approval is required to submit outbound tickets." : undefined}
-                    >
-                      {canManageSales ? "Submit" : "Manager Needed"}
-                    </Button>
+                    {ticket.source === "local" ? (
+                      <Button
+                        className="w-full"
+                        variant="outline"
+                        onClick={() => openLocalDraft("outbound", ticket.localDraft)}
+                      >
+                        Resume Offline
+                      </Button>
+                    ) : (
+                      <>
+                        <Button className="w-full" variant="outline" asChild>
+                          <Link href={`/scrap-metal/sales?edit=${ticket.serverId}`}>Resume</Link>
+                        </Button>
+                        <Button
+                          className="w-full"
+                          onClick={() => ticket.serverId && finalizeOutboundMutation.mutate(ticket.serverId)}
+                          disabled={finalizeOutboundMutation.isPending || !canManageSales}
+                          title={!canManageSales ? "Manager approval is required to submit outbound tickets." : undefined}
+                        >
+                          {canManageSales ? "Submit" : "Manager Needed"}
+                        </Button>
+                      </>
+                    )}
                   </div>
                 </article>
               ))}
-              {!heldSalesQuery.isLoading && (heldSalesQuery.data ?? []).length === 0 ? (
+              {!isOutboundLoading && outboundRows.length === 0 ? (
                 <StatusState variant="empty" title="No held outbound tickets" />
               ) : null}
             </div>
