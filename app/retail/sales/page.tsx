@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
   AdminDistributionChart,
   AdminDonutChart,
@@ -24,6 +25,7 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { BarChart3, Package, Payments, ReceiptLong } from "@/lib/icons";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 
 type SaleRow = {
   id: string;
@@ -88,6 +90,8 @@ function typeLabel(value: string) {
 }
 
 export default function RetailSalesPage() {
+  const { data: session } = useSession();
+  const canOpenPos = canAccessPosPortal(session?.user?.role);
   const [activeView, setActiveView] = useState("posted");
   const [selectedSaleId, setSelectedSaleId] = useState<string | null>(null);
 
@@ -251,12 +255,14 @@ export default function RetailSalesPage() {
       title="Sales"
       actions={
         <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/portal/pos">
-              <Payments className="h-4 w-4" />
-              Open POS
-            </Link>
-          </Button>
+          {canOpenPos ? (
+            <Button asChild size="sm">
+              <Link href="/portal/pos">
+                <Payments className="h-4 w-4" />
+                Open POS
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href="/retail/shifts">
               <ReceiptLong className="h-4 w-4" />

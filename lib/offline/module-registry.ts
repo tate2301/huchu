@@ -1,7 +1,7 @@
 import {
   fetchDisciplinaryActions,
-  fetchEmployees,
   fetchHrIncidents,
+  fetchScrapTicketContext,
   fetchShiftGroups,
   fetchShiftGroupSchedules,
   fetchSites,
@@ -243,14 +243,9 @@ async function syncRetailSale(payload: Record<string, unknown>): Promise<Offline
 
 const scrapTicketingPreloadQueries: OfflinePreloadQuery[] = [
   {
-    key: "scrap-sites",
-    queryKey: ["sites", "scrap-tickets"],
-    fetcher: async () => fetchSites(),
-  },
-  {
-    key: "scrap-employees",
-    queryKey: ["employees", "scrap-tickets"],
-    fetcher: async () => fetchEmployees({ active: true, limit: 500 }),
+    key: "scrap-ticket-context",
+    queryKey: ["scrap-ticket-context"],
+    fetcher: async () => fetchScrapTicketContext(),
   },
   {
     key: "scrap-materials",

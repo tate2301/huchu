@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
   AdminDistributionChart,
   AdminDualBarChart,
@@ -29,6 +30,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { BarChart3, Payments, Plus, ReceiptLong } from "@/lib/icons";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Shift = {
@@ -69,6 +71,8 @@ function emptyForm(siteId = ""): ShiftForm {
 }
 
 export default function RetailShiftsPage() {
+  const { data: session } = useSession();
+  const canOpenPos = canAccessPosPortal(session?.user?.role);
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [openDialog, setOpenDialog] = useState(false);
@@ -256,12 +260,14 @@ export default function RetailShiftsPage() {
             <Plus className="h-4 w-4" />
             Open shift
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/portal/pos">
-              <Payments className="h-4 w-4" />
-              POS
-            </Link>
-          </Button>
+          {canOpenPos ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/portal/pos">
+                <Payments className="h-4 w-4" />
+                POS
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href="/retail/sales">
               <ReceiptLong className="h-4 w-4" />

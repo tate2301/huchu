@@ -26,16 +26,7 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
 };
 
-const POS_PORTAL_ALLOWED_ROLES = new Set([
-  "SUPERADMIN",
-  "MANAGER",
-  "CLERK",
-  "SHOP_MANAGER",
-  "CASHIER",
-  "POS_CASHIER",
-  "STOCK_CLERK",
-  "FINANCE_OFFICER",
-]);
+const POS_PORTAL_ALLOWED_ROLES = new Set(["CASHIER", "POS_CASHIER"]);
 
 export function isCashierRole(role: string | null | undefined): boolean {
   const normalizedRole = role?.trim().toUpperCase();

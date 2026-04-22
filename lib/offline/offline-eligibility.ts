@@ -173,11 +173,10 @@ export const ROLE_PREFETCH_CONFIG: Record<string, PrefetchConfig> = {
   },
   OPERATOR: {
     immediateQueries: [
-      "scrap-sites",
+      "scrap-ticket-context",
       "scrap-materials",
       "scrap-sellers",
       "scrap-prices",
-      "scrap-employees",
       "scrap-batches",
     ],
     immediateRoutes: ["/scrap-metal", "/scrap-metal/tickets"],
@@ -192,7 +191,7 @@ export const ROLE_PREFETCH_CONFIG: Record<string, PrefetchConfig> = {
   },
   CLERK: {
     immediateQueries: [
-      "scrap-sites",
+      "scrap-ticket-context",
       "scrap-materials",
       "scrap-sellers",
       "scrap-batches",

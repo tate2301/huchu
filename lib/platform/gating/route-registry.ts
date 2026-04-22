@@ -240,6 +240,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
 
   { scope: "api", prefix: "/api/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
+  { scope: "api", prefix: "/api/scrap-metal/ticket-context", featureKey: "scrap-metal.home" },
   { scope: "api", prefix: "/api/scrap-metal/batches", featureKey: "scrap-metal.batches" },
   { scope: "api", prefix: "/api/scrap-metal/sales", featureKey: "scrap-metal.sales" },
   { scope: "api", prefix: "/api/scrap-metal/employee-balances", featureKey: "scrap-metal.purchases" },

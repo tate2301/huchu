@@ -5,6 +5,7 @@ import { getNavSectionsForRole } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import type { UserRole } from "@/lib/roles";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
@@ -197,10 +198,10 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
         items.push({ href: "/retail", label: "Overview", icon: Wallet });
       }
       if (has("/retail/sell")) {
-        items.push(
-          { href: "/portal/pos", label: "Open POS", icon: Payments },
-          { href: "/retail/sales", label: "Sales", icon: ClipboardList },
-        );
+        if (canAccessPosPortal(context.role)) {
+          items.push({ href: "/portal/pos", label: "Open POS", icon: Payments });
+        }
+        items.push({ href: "/retail/sales", label: "Sales", icon: ClipboardList });
       }
       if (has("/retail/customers")) {
         items.push({ href: "/retail/customers", label: "Customers", icon: Users });
@@ -481,7 +482,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
     label: "Retail",
     preferredHomeHref: "/retail",
     quickActions: [
-      roleItem("/portal/pos", "Open POS", Payments),
+      roleItem("/portal/pos", "Open POS", Payments, ["CASHIER"]),
       roleItem("/retail/sales", "Sales", ReceiptLong),
       roleItem("/retail/stock/count", "Stock Count", Package),
       roleItem("/retail/purchasing/receipts", "Receive Stock", LocalShipping),

@@ -139,8 +139,10 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
+    "retail.core",
     "retail.pos",
     "retail.catalog",
+    "portal.core",
     "portal.pos",
   ],
   STOCK_CLERK: [
