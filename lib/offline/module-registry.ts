@@ -1,5 +1,6 @@
 import {
   fetchDisciplinaryActions,
+  fetchEmployees,
   fetchHrIncidents,
   fetchScrapTicketContext,
   fetchShiftGroups,
