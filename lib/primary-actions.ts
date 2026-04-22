@@ -104,7 +104,12 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },
     { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Receive Stock" },
     { href: "/retail/customers", icon: Users, label: "Customers" },
-    { href: "/retail/shifts", icon: ReceiptLong, label: "Cash Control" },
+    {
+      href: "/retail/shifts",
+      icon: ReceiptLong,
+      label: "Cash Control",
+      roles: ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"],
+    },
     { href: "/retail/reports", icon: BarChart3, label: "Insights" },
     { href: "/retail/setup", icon: Building2, label: "Setup" },
   ],

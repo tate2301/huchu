@@ -263,12 +263,14 @@ export default function RetailSalesPage() {
               </Link>
             </Button>
           ) : null}
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/shifts">
-              <ReceiptLong className="h-4 w-4" />
-              Shifts & Cash-up
-            </Link>
-          </Button>
+          {!canOpenPos ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/retail/shifts">
+                <ReceiptLong className="h-4 w-4" />
+                Shifts & Cash-up
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href="/retail/catalog">
               <Package className="h-4 w-4" />

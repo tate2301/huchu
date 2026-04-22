@@ -157,7 +157,7 @@ export function PosShiftView() {
 
   const openShiftMutation = useMutation({
     mutationFn: () =>
-      fetchJson("/api/v2/retail/shifts", {
+      fetchJson("/api/v2/retail/pos/shifts", {
         method: "POST",
         body: JSON.stringify({
           shiftNo: shiftNo || undefined,
@@ -182,7 +182,7 @@ export function PosShiftView() {
 
   const closeShiftMutation = useMutation({
     mutationFn: () =>
-      fetchJson(`/api/v2/retail/shifts/${currentShift?.id}/close`, {
+      fetchJson(`/api/v2/retail/pos/shifts/${currentShift?.id}/close`, {
         method: "POST",
         body: JSON.stringify({
           countedCash: Number(countedCash || 0),

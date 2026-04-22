@@ -97,6 +97,7 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/purchasing", featureKey: "retail.purchasing" },
   { scope: "page", prefix: "/retail/merchandising", featureKey: "retail.promotions" },
   { scope: "page", prefix: "/retail/sales", featureKey: "retail.pos" },
+  { scope: "page", prefix: "/retail/cash-control", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/retail/shifts", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail/pos", featureKey: "retail.pos" },

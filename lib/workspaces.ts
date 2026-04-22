@@ -206,7 +206,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       if (has("/retail/customers")) {
         items.push({ href: "/retail/customers", label: "Customers", icon: Users });
       }
-      if (has("/retail/cash-control")) {
+      if (has("/retail/cash-control") && !canAccessPosPortal(context.role)) {
         items.push({ href: "/retail/shifts", label: "Shifts", icon: ReceiptLong });
       }
       if (has("/retail/merchandise")) {

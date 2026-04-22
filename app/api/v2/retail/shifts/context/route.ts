@@ -1,17 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../_helpers";
+import { canManageRetailTransactions, requireRetailSession } from "../../_helpers";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
     return response as NextResponse;
   }
-  if (!canAccessPosPortal(session.user.role)) {
-    return errorResponse("POS access denied", 403);
+  if (!canManageRetailTransactions(session.user.role)) {
+    return errorResponse("Retail shift access denied", 403);
   }
 
   const [sites, registers, setupProfile] = await Promise.all([
@@ -36,10 +35,7 @@ export async function GET(request: NextRequest) {
 
   const registersBySite = registers.reduce<Record<string, typeof registers>>(
     (accumulator, register) => {
-      accumulator[register.siteId] = [
-        ...(accumulator[register.siteId] ?? []),
-        register,
-      ];
+      accumulator[register.siteId] = [...(accumulator[register.siteId] ?? []), register];
       return accumulator;
     },
     {},

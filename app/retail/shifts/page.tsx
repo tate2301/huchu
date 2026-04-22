@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -27,7 +27,6 @@ import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { BarChart3, Payments, Plus, ReceiptLong } from "@/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
@@ -54,17 +53,27 @@ type Shift = {
 
 type ShiftForm = {
   siteId: string;
-  registerName: string;
-  registerCode: string;
+  registerId: string;
   openingFloat: string;
   notes: string;
+};
+
+type ShiftContextSite = {
+  id: string;
+  name: string;
+  code: string;
+  registers: Array<{
+    id: string;
+    name: string;
+    code: string;
+    siteId: string;
+  }>;
 };
 
 function emptyForm(siteId = ""): ShiftForm {
   return {
     siteId,
-    registerName: "",
-    registerCode: "",
+    registerId: "",
     openingFloat: "0",
     notes: "",
   };
@@ -79,12 +88,26 @@ export default function RetailShiftsPage() {
   const [closeTarget, setCloseTarget] = useState<Shift | null>(null);
   const [closeCash, setCloseCash] = useState("");
   const [closeNotes, setCloseNotes] = useState("");
-  const sitesQuery = useQuery({ queryKey: ["retail-shift-sites"], queryFn: fetchSites });
+  const shiftContextQuery = useQuery({
+    queryKey: ["retail-shift-context"],
+    queryFn: () =>
+      fetchJson<{
+        data: {
+          defaultSiteId: string | null;
+          defaultRegisterId: string | null;
+          sites: ShiftContextSite[];
+        };
+      }>("/api/v2/retail/shifts/context"),
+  });
   const shiftsQuery = useQuery({
     queryKey: ["retail-shifts"],
     queryFn: () => fetchJson<{ data: Shift[] }>("/api/v2/retail/shifts"),
   });
   const [form, setForm] = useState<ShiftForm>(() => emptyForm(""));
+  const shiftContext = shiftContextQuery.data?.data;
+  const contextSites = shiftContext?.sites ?? [];
+  const defaultSiteId = shiftContext?.defaultSiteId ?? null;
+  const defaultRegisterId = shiftContext?.defaultRegisterId ?? null;
 
   const {
     reservedId: shiftNo,
@@ -97,9 +120,54 @@ export default function RetailShiftsPage() {
   });
 
   const siteOptions = useMemo<SearchableOption[]>(
-    () => (sitesQuery.data ?? []).map((site) => ({ value: site.id, label: site.name, meta: site.code })),
-    [sitesQuery.data],
+    () => contextSites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
+    [contextSites],
   );
+  const selectedSite = useMemo(
+    () => contextSites.find((site) => site.id === form.siteId) ?? null,
+    [contextSites, form.siteId],
+  );
+  const registerOptions = useMemo<SearchableOption[]>(
+    () =>
+      (selectedSite?.registers ?? []).map((register) => ({
+        value: register.id,
+        label: register.name,
+        meta: register.code,
+      })),
+    [selectedSite],
+  );
+
+  useEffect(() => {
+    if (!openDialog || form.siteId) return;
+
+    const fallbackSiteId =
+      defaultSiteId ??
+      contextSites.find((site) => site.registers.length > 0)?.id ??
+      contextSites[0]?.id ??
+      "";
+
+    if (!fallbackSiteId) return;
+    setForm((current) => ({ ...current, siteId: fallbackSiteId }));
+  }, [contextSites, defaultSiteId, form.siteId, openDialog]);
+
+  useEffect(() => {
+    if (!openDialog || !selectedSite) return;
+    const hasSelectedRegister = selectedSite.registers.some(
+      (register) => register.id === form.registerId,
+    );
+    if (hasSelectedRegister) return;
+
+    const fallbackRegisterId =
+      (selectedSite.id === defaultSiteId &&
+      defaultRegisterId &&
+      selectedSite.registers.some((register) => register.id === defaultRegisterId)
+        ? defaultRegisterId
+        : null) ??
+      selectedSite.registers[0]?.id ??
+      "";
+
+    setForm((current) => ({ ...current, registerId: fallbackRegisterId }));
+  }, [defaultRegisterId, defaultSiteId, form.registerId, openDialog, selectedSite]);
 
   const shiftRows = useMemo(
     () =>
@@ -162,8 +230,7 @@ export default function RetailShiftsPage() {
         body: JSON.stringify({
           shiftNo: shiftNo || undefined,
           siteId: payload.siteId,
-          registerName: payload.registerName,
-          registerCode: payload.registerCode.trim() || undefined,
+          registerId: payload.registerId,
           openingFloat: Number(payload.openingFloat || 0),
           notes: payload.notes.trim() || undefined,
         }),
@@ -173,8 +240,9 @@ export default function RetailShiftsPage() {
       queryClient.invalidateQueries({ queryKey: ["retail-shifts"] });
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
       queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
+      queryClient.invalidateQueries({ queryKey: ["retail-shift-context"] });
       setOpenDialog(false);
-      setForm(emptyForm(sitesQuery.data?.[0]?.id ?? ""));
+      setForm(emptyForm(contextSites[0]?.id ?? ""));
     },
     onError: (error) => {
       toast({
@@ -253,7 +321,7 @@ export default function RetailShiftsPage() {
           <Button
             size="sm"
             onClick={() => {
-              setForm(emptyForm(sitesQuery.data?.[0]?.id ?? ""));
+              setForm(emptyForm(""));
               setOpenDialog(true);
             }}
           >
@@ -387,16 +455,27 @@ export default function RetailShiftsPage() {
               value={form.siteId}
               options={siteOptions}
               placeholder="Select site"
-              onValueChange={(value) => setForm((current) => ({ ...current, siteId: value }))}
+              onValueChange={(value) =>
+                setForm((current) => ({ ...current, siteId: value, registerId: "" }))
+              }
             />
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Register name</label>
-                <Input value={form.registerName} onChange={(event) => setForm((current) => ({ ...current, registerName: event.target.value }))} placeholder="Front till" />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Register code</label>
-                <Input value={form.registerCode} onChange={(event) => setForm((current) => ({ ...current, registerCode: event.target.value }))} placeholder="Auto-created when blank" />
+                <SearchableSelect
+                  label="Register"
+                  value={form.registerId}
+                  options={registerOptions}
+                  placeholder={
+                    !form.siteId
+                      ? "Select site first"
+                      : registerOptions.length > 0
+                        ? "Select register"
+                        : "No registers configured"
+                  }
+                  searchPlaceholder="Search registers"
+                  onValueChange={(value) => setForm((current) => ({ ...current, registerId: value }))}
+                  disabled={!form.siteId || registerOptions.length === 0}
+                />
               </div>
               <div className="space-y-2">
                 <label className="block text-sm font-semibold">Opening float</label>
@@ -409,7 +488,7 @@ export default function RetailShiftsPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpenDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={openMutation.isPending || !form.siteId || !form.registerName}>Open shift</Button>
+              <Button type="submit" disabled={openMutation.isPending || !form.siteId || !form.registerId}>Open shift</Button>
             </DialogFooter>
           </form>
         </DialogContent>
