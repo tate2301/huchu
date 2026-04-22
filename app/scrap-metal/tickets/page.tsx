@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { fetchEmployees, fetchSites } from "@/lib/api";
+import { fetchScrapTicketContext } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { OFFLINE_ENTITIES_CHANGED_EVENT } from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
@@ -207,7 +207,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
       | { id?: string; userId?: string; role?: string; name?: string }
       | undefined) ?? undefined;
   const role = sessionUser?.role;
-  const sessionUserId = sessionUser?.id ?? sessionUser?.userId ?? null;
   const canCreateOutbound = hasRole(role, ["SUPERADMIN", "MANAGER"]);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -232,13 +231,9 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const [inboundMetaOpen, setInboundMetaOpen] = useState(false);
   const [outboundMetaOpen, setOutboundMetaOpen] = useState(false);
 
-  const sitesQuery = useQuery({
-    queryKey: ["sites", "scrap-tickets"],
-    queryFn: fetchSites,
-  });
-  const employeesQuery = useQuery({
-    queryKey: ["employees", "scrap-tickets"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+  const ticketContextQuery = useQuery({
+    queryKey: ["scrap-ticket-context"],
+    queryFn: fetchScrapTicketContext,
   });
   const materialsQuery = useQuery({
     queryKey: ["scrap-materials", "tickets"],
@@ -283,9 +278,13 @@ export default function ScrapMetalTicketWorkbenchPage() {
     () => materialsQuery.data?.data ?? [],
     [materialsQuery.data?.data],
   );
-  const employees = useMemo(
-    () => employeesQuery.data?.data ?? [],
-    [employeesQuery.data?.data],
+  const buyers = useMemo(
+    () => ticketContextQuery.data?.buyers ?? [],
+    [ticketContextQuery.data?.buyers],
+  );
+  const sites = useMemo(
+    () => ticketContextQuery.data?.sites ?? [],
+    [ticketContextQuery.data?.sites],
   );
   const sellers = useMemo(
     () => [
@@ -323,16 +322,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
     selectedInboundMaterial?.category ?? inbound.category;
   const selectedInboundBuyer = useMemo(
     () =>
-      employees.find((employee) => employee.id === inbound.employeeId) ?? null,
-    [employees, inbound.employeeId],
+      buyers.find((buyer) => buyer.id === inbound.employeeId) ?? null,
+    [buyers, inbound.employeeId],
   );
-  const defaultBuyerId = useMemo(() => {
-    if (!sessionUserId) return "";
-    const linkedEmployee = employees.find(
-      (employee) => employee.userId === sessionUserId,
-    );
-    return linkedEmployee?.id ?? "";
-  }, [employees, sessionUserId]);
+  const defaultBuyerId = ticketContextQuery.data?.defaultBuyerId ?? "";
+  const buyerLinkMissing = ticketContextQuery.data?.buyerLinkMissing ?? false;
   const canOverrideBuyer = hasRole(role, ["OPERATOR", "MANAGER", "SUPERADMIN"]);
   const showBuyerOverride = canOverrideBuyer || !defaultBuyerId;
   const inboundRequirementsQuery = useQuery({
@@ -394,10 +388,10 @@ export default function ScrapMetalTicketWorkbenchPage() {
     if (!defaultBuyerId) return;
     const selectedIsValid =
       inbound.employeeId &&
-      employees.some((employee) => employee.id === inbound.employeeId);
+      buyers.some((buyer) => buyer.id === inbound.employeeId);
     if (selectedIsValid) return;
     setInbound((prev) => ({ ...prev, employeeId: defaultBuyerId }));
-  }, [defaultBuyerId, inbound.employeeId, employees]);
+  }, [buyers, defaultBuyerId, inbound.employeeId]);
 
   useEffect(() => {
     if (!selectedInboundMaterial) return;
@@ -1254,6 +1248,12 @@ export default function ScrapMetalTicketWorkbenchPage() {
                 </div>
               ) : null}
 
+              {buyerLinkMissing ? (
+                <div className="rounded-md border border-amber-300/60 bg-amber-50 px-3 py-2 text-amber-900">
+                  Your account is not linked to an active employee profile yet, so buyer could not be auto-selected.
+                </div>
+              ) : null}
+
               <div className="space-y-2">
                 <label className="font-semibold">Buyer</label>
                 {showBuyerOverride ? (
@@ -1274,9 +1274,9 @@ export default function ScrapMetalTicketWorkbenchPage() {
                       <SelectValue placeholder="Select buyer" />
                     </SelectTrigger>
                     <SelectContent>
-                      {employees.map((employee) => (
-                        <SelectItem key={employee.id} value={employee.id}>
-                          {employee.name}
+                      {buyers.map((buyer) => (
+                        <SelectItem key={buyer.id} value={buyer.id}>
+                          {buyer.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -1384,7 +1384,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
                       <SelectValue placeholder="Select site" />
                     </SelectTrigger>
                     <SelectContent>
-                      {(sitesQuery.data ?? []).map((site) => (
+                      {sites.map((site) => (
                         <SelectItem key={site.id} value={site.id}>
                           {site.name} ({site.code})
                         </SelectItem>

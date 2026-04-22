@@ -98,7 +98,7 @@ const PROFILE_PRIMARY_ACTIONS: Record<Exclude<WorkspaceProfileKey, "GENERAL">, N
     { href: "/car-sales/deals", icon: Wallet, label: "Deals" },
   ],
   RETAIL: [
-    { href: "/portal/pos", icon: Payments, label: "Open POS" },
+    { href: "/portal/pos", icon: Payments, label: "Open POS", roles: ["CASHIER"] },
     { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
     { href: "/retail/stock", icon: Package, label: "Stock" },
     { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },

@@ -103,6 +103,26 @@ export type EmployeeSummary = {
   salaryOwed: number;
 };
 
+export type ScrapTicketBuyerOption = {
+  id: string;
+  employeeId: string;
+  userId?: string | null;
+  name: string;
+};
+
+export type ScrapTicketSiteOption = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type ScrapTicketContext = {
+  buyers: ScrapTicketBuyerOption[];
+  sites: ScrapTicketSiteOption[];
+  defaultBuyerId: string | null;
+  buyerLinkMissing: boolean;
+};
+
 export type ShiftGroupRecord = {
   id: string;
   companyId: string;
@@ -1401,6 +1421,10 @@ export async function fetchEmployees(
 ) {
   const query = buildQuery(params);
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
+}
+
+export async function fetchScrapTicketContext() {
+  return fetchJson<ScrapTicketContext>("/api/scrap-metal/ticket-context");
 }
 
 export async function fetchShiftGroups(

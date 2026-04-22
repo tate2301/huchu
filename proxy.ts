@@ -36,8 +36,6 @@ const PORTAL_HOME_BY_ROLE = {
   TEACHER: "/portal/teacher",
   POS_CASHIER: "/portal/pos",
   CASHIER: "/portal/pos",
-  SHOP_MANAGER: "/portal/pos",
-  STOCK_CLERK: "/portal/pos",
 } as const;
 const HR_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
 const SCRAP_LOTS_ONLY_ROLES = new Set(["OPERATOR", "CLERK"]);
@@ -122,9 +120,7 @@ function getPortalHomeForRole(role: string | undefined | null) {
     role === "STUDENT" ||
     role === "TEACHER" ||
     role === "POS_CASHIER" ||
-    role === "CASHIER" ||
-    role === "SHOP_MANAGER" ||
-    role === "STOCK_CLERK"
+    role === "CASHIER"
   ) {
     return PORTAL_HOME_BY_ROLE[role as keyof typeof PORTAL_HOME_BY_ROLE];
   }

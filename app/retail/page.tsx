@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import {
   AdminDonutChart,
   AdminTrendChart,
@@ -35,6 +36,7 @@ import {
   Users,
   Wallet,
 } from "@/lib/icons";
+import { canAccessPosPortal } from "@/lib/retail/pos-host";
 
 type RetailDashboardPayload = {
   summary: {
@@ -199,6 +201,8 @@ function SectionCard({
 }
 
 export default function RetailOverviewPage() {
+  const { data: session } = useSession();
+  const canOpenPos = canAccessPosPortal(session?.user?.role);
   const { data, isLoading, error } = useQuery({
     queryKey: ["retail-dashboard-owner-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
@@ -273,12 +277,14 @@ export default function RetailOverviewPage() {
       title="Business overview"
       actions={
         <div className="flex items-center gap-2">
-          <Button asChild size="sm">
-            <Link href="/portal/pos">
-              <Payments className="h-4 w-4" />
-              POS
-            </Link>
-          </Button>
+          {canOpenPos ? (
+            <Button asChild size="sm">
+              <Link href="/portal/pos">
+                <Payments className="h-4 w-4" />
+                POS
+              </Link>
+            </Button>
+          ) : null}
           <Button asChild size="sm" variant="outline">
             <Link href="/retail/sell">
               <ClipboardList className="h-4 w-4" />
