@@ -1,16 +1,31 @@
-﻿import { NextRequest, NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { normalizeProvidedId } from "@/lib/id-generator";
-import { requireRetailSession, ensureSiteAccess, upsertRetailRegister } from "../../_helpers";
-import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setup-profile";
+import {
+  ensureRetailRegisterAccess,
+  requireRetailSession,
+  ensureSiteAccess,
+  upsertRetailRegister,
+} from "../../_helpers";
+import {
+  getRetailSetupProfile,
+  saveRetailSetupProfile,
+} from "@/lib/retail/setup-profile";
 import { getRetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
 
-const operationSchema = z.object({
-  defaultSiteId: z.string().uuid(),
-  defaultRegisterName: z.string().trim().min(1).max(120),
-  defaultRegisterCode: z.string().trim().max(50).optional().nullable(),
-});
+const operationSchema = z
+  .object({
+    defaultSiteId: z.string().uuid(),
+    defaultRegisterId: z.string().uuid().optional().nullable(),
+    newRegisterName: z.string().trim().max(120).optional().nullable(),
+  })
+  .refine(
+    (value) => Boolean(value.defaultRegisterId || value.newRegisterName?.trim()),
+    {
+      message: "Choose an existing register or provide a new register name",
+      path: ["defaultRegisterId"],
+    },
+  );
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -43,17 +58,29 @@ export async function PUT(request: NextRequest) {
   try {
     const body = await request.json();
     const validated = operationSchema.parse(body);
-    const site = await ensureSiteAccess(session.user.companyId, validated.defaultSiteId);
+    const site = await ensureSiteAccess(
+      session.user.companyId,
+      validated.defaultSiteId,
+    );
     if (!site) {
       return errorResponse("Invalid site", 400);
     }
 
-    const register = await upsertRetailRegister({
-      companyId: session.user.companyId,
-      siteId: site.id,
-      registerName: validated.defaultRegisterName,
-      registerCode: validated.defaultRegisterCode ? normalizeProvidedId(validated.defaultRegisterCode, "RETAIL_REGISTER") : null,
-    });
+    const register = validated.defaultRegisterId
+      ? await ensureRetailRegisterAccess({
+          companyId: session.user.companyId,
+          siteId: site.id,
+          registerId: validated.defaultRegisterId,
+        })
+      : await upsertRetailRegister({
+          companyId: session.user.companyId,
+          siteId: site.id,
+          registerName: validated.newRegisterName?.trim() ?? "",
+        });
+
+    if (!register) {
+      return errorResponse("Invalid register", 400);
+    }
 
     const profile = {
       defaultSiteId: site.id,
@@ -76,4 +103,3 @@ export async function PUT(request: NextRequest) {
     return errorResponse("Failed to save retail operations setup");
   }
 }
-

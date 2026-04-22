@@ -42,6 +42,20 @@ export type CurrentShift = {
   site: { id: string; name: string; code: string } | null;
 };
 
+export type PosRegister = {
+  id: string;
+  name: string;
+  code: string;
+  siteId: string;
+};
+
+export type PosSite = {
+  id: string;
+  name: string;
+  code: string;
+  registers: PosRegister[];
+};
+
 export type PosCatalogItem = {
   id: string;
   name: string;

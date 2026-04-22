@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -79,12 +79,12 @@ function VarianceBar({ variance, expected }: { variance: number; expected: numbe
 export function PosShiftView() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { sites, currentShift } = usePosPortalState();
+  const { sites, currentShift, defaultSiteId, defaultRegisterId } =
+    usePosPortalState();
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
   const [selectedSiteId, setSelectedSiteId] = useState("");
-  const [registerName, setRegisterName] = useState("");
-  const [registerCode, setRegisterCode] = useState("");
+  const [selectedRegisterId, setSelectedRegisterId] = useState("");
   const [openingFloat, setOpeningFloat] = useState("0");
   const [countedCash, setCountedCash] = useState("");
   const [activeNumericTarget, setActiveNumericTarget] = useState<"opening_float" | "counted_cash" | null>(null);
@@ -101,6 +101,59 @@ export function PosShiftView() {
     () => sites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
     [sites],
   );
+  const selectedSite =
+    sites.find((site) => site.id === selectedSiteId) ?? null;
+  const registerOptions = useMemo<SearchableOption[]>(
+    () =>
+      (selectedSite?.registers ?? []).map((register) => ({
+        value: register.id,
+        label: register.name,
+        meta: register.code,
+      })),
+    [selectedSite?.registers],
+  );
+  const selectedRegister =
+    selectedSite?.registers.find((register) => register.id === selectedRegisterId) ??
+    null;
+
+  useEffect(() => {
+    if (!openDialog) return;
+    if (!selectedSiteId) {
+      const fallbackSiteId =
+        defaultSiteId ??
+        sites.find((site) => site.registers.length > 0)?.id ??
+        sites[0]?.id ??
+        "";
+      if (fallbackSiteId) {
+        setSelectedSiteId(fallbackSiteId);
+      }
+    }
+  }, [defaultSiteId, openDialog, selectedSiteId, sites]);
+
+  useEffect(() => {
+    if (!openDialog || !selectedSite) return;
+    const hasSelectedRegister = selectedSite.registers.some(
+      (register) => register.id === selectedRegisterId,
+    );
+    if (hasSelectedRegister) return;
+
+    const fallbackRegisterId =
+      (selectedSite.id === defaultSiteId &&
+      defaultRegisterId &&
+      selectedSite.registers.some((register) => register.id === defaultRegisterId)
+        ? defaultRegisterId
+        : null) ??
+      selectedSite.registers[0]?.id ??
+      "";
+
+    setSelectedRegisterId(fallbackRegisterId);
+  }, [
+    defaultRegisterId,
+    defaultSiteId,
+    openDialog,
+    selectedRegisterId,
+    selectedSite,
+  ]);
 
   const openShiftMutation = useMutation({
     mutationFn: () =>
@@ -109,8 +162,7 @@ export function PosShiftView() {
         body: JSON.stringify({
           shiftNo: shiftNo || undefined,
           siteId: selectedSiteId,
-          registerName,
-          registerCode: registerCode.trim() || undefined,
+          registerId: selectedRegisterId,
           openingFloat: Number(openingFloat || 0),
         }),
       }),
@@ -118,8 +170,7 @@ export function PosShiftView() {
       toast({ title: "Shift opened", variant: "success" });
       setOpenDialog(false);
       setSelectedSiteId("");
-      setRegisterName("");
-      setRegisterCode("");
+      setSelectedRegisterId("");
       setOpeningFloat("0");
       setCloseoutSummary(null);
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
@@ -260,7 +311,7 @@ export function PosShiftView() {
             description={
               currentShift
                 ? "Count the cash drawer, reconcile the variance, and finish your trading period."
-                : "Select a site, name your register, and enter the opening float to begin selling."
+                : "Select a site and register, then enter the opening float to begin selling."
             }
             className="mb-4"
           />
@@ -321,26 +372,30 @@ export function PosShiftView() {
                       placeholder="Select site"
                       onValueChange={setSelectedSiteId}
                     />
-                    <div className="grid gap-3 md:grid-cols-2">
-                      <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-[var(--text-strong)]">Register name</label>
-                        <Input
-                          value={registerName}
-                          onChange={(e) => setRegisterName(e.target.value)}
-                          placeholder="Front till"
-                          className="h-11"
-                        />
-                      </div>
-                      <div className="space-y-1.5">
-                        <label className="block text-sm font-medium text-[var(--text-strong)]">Register code</label>
-                        <Input
-                          value={registerCode}
-                          onChange={(e) => setRegisterCode(e.target.value)}
-                          placeholder="Optional"
-                          className="h-11"
-                        />
-                      </div>
-                    </div>
+                    <SearchableSelect
+                      label="Register"
+                      value={selectedRegisterId}
+                      options={registerOptions}
+                      placeholder={
+                        !selectedSiteId
+                          ? "Select site first"
+                          : registerOptions.length > 0
+                            ? "Select register"
+                            : "No registers configured"
+                      }
+                      searchPlaceholder="Search registers"
+                      onValueChange={setSelectedRegisterId}
+                      disabled={!selectedSiteId || registerOptions.length === 0}
+                    />
+                    <FieldHelp
+                      hint={
+                        !selectedSiteId
+                          ? "Choose the branch first."
+                          : selectedRegister
+                            ? `Shift will open on ${selectedRegister.name}.`
+                            : "Ask a manager or admin to provision a register name for this branch in setup."
+                      }
+                    />
                   </div>
                 </div>
 
@@ -369,7 +424,11 @@ export function PosShiftView() {
             <Button
               type="button"
               onClick={() => openShiftMutation.mutate()}
-              disabled={openShiftMutation.isPending || !selectedSiteId || !registerName}
+              disabled={
+                openShiftMutation.isPending ||
+                !selectedSiteId ||
+                !selectedRegisterId
+              }
             >
               Open shift
             </Button>

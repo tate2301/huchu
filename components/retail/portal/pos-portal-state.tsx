@@ -15,7 +15,6 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchSites } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   type PosSaleQueuePayload,
@@ -38,6 +37,7 @@ import type {
   CurrentShift,
   PaymentRow,
   PosCatalogItem,
+  PosSite,
   Promotion,
 } from "./pos-types";
 import { getPaymentSummary, isManagerRole } from "./pos-utils";
@@ -102,7 +102,9 @@ type PosPortalStateValue = {
   setOverrideReason: (value: string) => void;
   selectedPromotionId: string;
   setSelectedPromotionId: (value: string) => void;
-  sites: Awaited<ReturnType<typeof fetchSites>>;
+  sites: PosSite[];
+  defaultSiteId: string | null;
+  defaultRegisterId: string | null;
   currentShift: CurrentShift | null;
   currentShiftLoading: boolean;
   catalogItems: PosCatalogItem[];
@@ -179,7 +181,17 @@ export function PosPortalProvider({
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
   const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
 
-  const sitesQuery = useQuery({ queryKey: ["pos-sites"], queryFn: fetchSites });
+  const posContextQuery = useQuery({
+    queryKey: ["pos-context"],
+    queryFn: () =>
+      fetchJson<{
+        data: {
+          defaultSiteId: string | null;
+          defaultRegisterId: string | null;
+          sites: PosSite[];
+        };
+      }>("/api/v2/retail/pos/context"),
+  });
   const currentShiftQuery = useQuery({
     queryKey: ["retail-current-shift"],
     queryFn: () =>
@@ -468,7 +480,9 @@ export function PosPortalProvider({
     setOverrideReason,
     selectedPromotionId,
     setSelectedPromotionId,
-    sites: sitesQuery.data ?? [],
+    sites: posContextQuery.data?.data.sites ?? [],
+    defaultSiteId: posContextQuery.data?.data.defaultSiteId ?? null,
+    defaultRegisterId: posContextQuery.data?.data.defaultRegisterId ?? null,
     isPosHost,
     currentShift,
     currentShiftLoading: currentShiftQuery.isLoading,

@@ -4,13 +4,16 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { ensureSiteAccess, requireRetailSession, upsertRetailRegister } from "../_helpers";
+import {
+  ensureRetailRegisterAccess,
+  ensureSiteAccess,
+  requireRetailSession,
+} from "../_helpers";
 
 const openShiftSchema = z.object({
   shiftNo: z.string().min(1).max(50).optional(),
   siteId: z.string().uuid(),
-  registerName: z.string().min(1).max(120),
-  registerCode: z.string().min(1).max(50).optional().nullable(),
+  registerId: z.string().uuid(),
   openingFloat: z.number().min(0).optional(),
   notes: z.string().max(500).optional().nullable(),
 });
@@ -83,12 +86,14 @@ export async function POST(request: NextRequest) {
       return errorResponse("Close the current shift before opening a new one", 409);
     }
 
-    const register = await upsertRetailRegister({
+    const register = await ensureRetailRegisterAccess({
       companyId: session.user.companyId,
       siteId: site.id,
-      registerName: input.registerName,
-      registerCode: input.registerCode,
+      registerId: input.registerId,
     });
+    if (!register) {
+      return errorResponse("Invalid register", 400);
+    }
 
     const providedCode = input.shiftNo
       ? normalizeProvidedId(input.shiftNo, "RETAIL_SHIFT")

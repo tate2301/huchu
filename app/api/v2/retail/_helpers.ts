@@ -59,6 +59,35 @@ export async function ensureSiteAccess(companyId: string, siteId: string) {
   return site;
 }
 
+export async function ensureRetailRegisterAccess(input: {
+  companyId: string;
+  siteId: string;
+  registerId: string;
+}) {
+  const register = await prisma.retailRegister.findUnique({
+    where: { id: input.registerId },
+    select: {
+      id: true,
+      companyId: true,
+      siteId: true,
+      name: true,
+      code: true,
+      isActive: true,
+    },
+  });
+
+  if (
+    !register ||
+    register.companyId !== input.companyId ||
+    register.siteId !== input.siteId ||
+    !register.isActive
+  ) {
+    return null;
+  }
+
+  return register;
+}
+
 export async function ensureLocationAccess(siteId: string, locationId: string) {
   const location = await prisma.stockLocation.findUnique({
     where: { id: locationId },

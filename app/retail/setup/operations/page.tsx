@@ -28,14 +28,14 @@ type OperationsSaveResponse = {
 
 type OperationForm = {
   defaultSiteId: string;
-  defaultRegisterName: string;
-  defaultRegisterCode: string;
+  defaultRegisterId: string;
+  newRegisterName: string;
 };
 
 const EMPTY_FORM: OperationForm = {
   defaultSiteId: "",
-  defaultRegisterName: "",
-  defaultRegisterCode: "",
+  defaultRegisterId: "",
+  newRegisterName: "",
 };
 const OPERATIONS_DRAFT_KEY = "retail.setup.operations.draft.v1";
 
@@ -58,8 +58,8 @@ export default function RetailSetupOperationsPage() {
       const parsed = JSON.parse(raw) as Partial<OperationForm>;
       return {
         defaultSiteId: parsed.defaultSiteId ?? "",
-        defaultRegisterName: parsed.defaultRegisterName ?? "",
-        defaultRegisterCode: parsed.defaultRegisterCode ?? "",
+        defaultRegisterId: parsed.defaultRegisterId ?? "",
+        newRegisterName: parsed.newRegisterName ?? "",
       };
     } catch {
       window.localStorage.removeItem(OPERATIONS_DRAFT_KEY);
@@ -79,9 +79,21 @@ export default function RetailSetupOperationsPage() {
 
     return {
       defaultSiteId,
-      defaultRegisterName:
-        snapshot.setupProfile.defaultRegisterName ?? `${selectedSite?.name ?? snapshot.company?.name ?? "Retail"} POS`,
-      defaultRegisterCode: snapshot.setupProfile.defaultRegisterCode ?? (selectedSite ? `${selectedSite.code}-POS` : ""),
+      defaultRegisterId:
+        selectedSite && snapshot.setupProfile.defaultRegisterId
+          ? snapshot.registers.some(
+              (register) =>
+                register.id === snapshot.setupProfile.defaultRegisterId &&
+                register.siteId === selectedSite.id,
+            )
+            ? snapshot.setupProfile.defaultRegisterId
+            : ""
+          : "",
+      newRegisterName:
+        snapshot.setupProfile.defaultRegisterId || !selectedSite
+          ? ""
+          : snapshot.setupProfile.defaultRegisterName ??
+            `${selectedSite.name} POS`,
     };
   }, [snapshot]);
 
@@ -102,6 +114,13 @@ export default function RetailSetupOperationsPage() {
     () => snapshot?.sites.find((site) => site.id === effectiveDraft.defaultSiteId) ?? null,
     [effectiveDraft.defaultSiteId, snapshot],
   );
+  const selectedSiteRegisters = useMemo(
+    () =>
+      (snapshot?.registers ?? []).filter(
+        (register) => register.siteId === effectiveDraft.defaultSiteId,
+      ),
+    [effectiveDraft.defaultSiteId, snapshot?.registers],
+  );
 
   const siteOptions = useMemo<SearchableOption[]>(
     () =>
@@ -113,6 +132,32 @@ export default function RetailSetupOperationsPage() {
       })),
     [snapshot],
   );
+  const registerOptions = useMemo<SearchableOption[]>(
+    () =>
+      selectedSiteRegisters.map((register) => ({
+        value: register.id,
+        label: register.name,
+        meta: register.code,
+      })),
+    [selectedSiteRegisters],
+  );
+
+  useEffect(() => {
+    if (!draft || !selectedSite) return;
+    if (
+      draft.defaultRegisterId &&
+      !selectedSiteRegisters.some((register) => register.id === draft.defaultRegisterId)
+    ) {
+      setDraft((current) =>
+        current
+          ? {
+              ...current,
+              defaultRegisterId: "",
+            }
+          : current,
+      );
+    }
+  }, [draft, selectedSite, selectedSiteRegisters]);
 
   const saveMutation = useMutation({
     mutationFn: (payload: OperationForm) =>
@@ -120,8 +165,8 @@ export default function RetailSetupOperationsPage() {
         method: "PUT",
         body: JSON.stringify({
           defaultSiteId: payload.defaultSiteId,
-          defaultRegisterName: payload.defaultRegisterName,
-          defaultRegisterCode: payload.defaultRegisterCode || null,
+          defaultRegisterId: payload.defaultRegisterId || null,
+          newRegisterName: payload.newRegisterName || null,
         }),
       }),
     onSuccess: async () => {
@@ -255,6 +300,16 @@ export default function RetailSetupOperationsPage() {
                   toast({ title: "Choose a site first", variant: "destructive" });
                   return;
                 }
+                if (
+                  !effectiveDraft.defaultRegisterId &&
+                  !effectiveDraft.newRegisterName.trim()
+                ) {
+                  toast({
+                    title: "Choose or create a register",
+                    variant: "destructive",
+                  });
+                  return;
+                }
                 saveMutation.mutate(effectiveDraft);
               }}
             >
@@ -265,32 +320,55 @@ export default function RetailSetupOperationsPage() {
                   options={siteOptions}
                   placeholder="Select a branch"
                   searchPlaceholder="Search branches"
-                  onValueChange={(value) => setDraft((current) => ({ ...(current ?? EMPTY_FORM), defaultSiteId: value }))}
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...(current ?? EMPTY_FORM),
+                      defaultSiteId: value,
+                      defaultRegisterId: "",
+                    }))
+                  }
                 />
 
-                <div className="grid gap-4 md:grid-cols-2">
-                  <div className="space-y-2">
-                    <Label>Register name</Label>
-                    <Input
-                      value={effectiveDraft.defaultRegisterName}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...(current ?? EMPTY_FORM), defaultRegisterName: event.target.value }))
-                      }
-                      placeholder="Front till"
-                      className="h-12"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Register code</Label>
-                    <Input
-                      value={effectiveDraft.defaultRegisterCode}
-                      onChange={(event) =>
-                        setDraft((current) => ({ ...(current ?? EMPTY_FORM), defaultRegisterCode: event.target.value }))
-                      }
-                      placeholder="FRONT-01"
-                      className="h-12 font-mono"
-                    />
-                  </div>
+                <SearchableSelect
+                  label="Default register"
+                  value={effectiveDraft.defaultRegisterId || undefined}
+                  options={registerOptions}
+                  placeholder={
+                    !selectedSite
+                      ? "Select a branch first"
+                      : registerOptions.length > 0
+                        ? "Choose an existing register"
+                        : "No registers on this branch yet"
+                  }
+                  searchPlaceholder="Search registers"
+                  onValueChange={(value) =>
+                    setDraft((current) => ({
+                      ...(current ?? EMPTY_FORM),
+                      defaultRegisterId: value,
+                      newRegisterName: "",
+                    }))
+                  }
+                  disabled={!selectedSite || registerOptions.length === 0}
+                />
+
+                <div className="space-y-2">
+                  <Label>New register name</Label>
+                  <Input
+                    value={effectiveDraft.newRegisterName}
+                    onChange={(event) =>
+                      setDraft((current) => ({
+                        ...(current ?? EMPTY_FORM),
+                        newRegisterName: event.target.value,
+                        defaultRegisterId: "",
+                      }))
+                    }
+                    placeholder="Front till"
+                    className="h-12"
+                  />
+                  <p className="text-xs text-[var(--text-muted)]">
+                    Leave this blank if you are choosing one of the existing
+                    registers above.
+                  </p>
                 </div>
 
                 <div className="rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
@@ -299,8 +377,9 @@ export default function RetailSetupOperationsPage() {
                     <div>
                       <p className="font-medium text-[var(--text-strong)]">What this saves</p>
                       <p className="mt-1 text-sm text-[var(--text-muted)]">
-                        The selected site/register pair becomes the default landing point for setup and the register is
-                        provisioned if it does not already exist.
+                        Cashiers will only pick from the registers provisioned
+                        here. Register codes are generated automatically behind
+                        the scenes.
                       </p>
                     </div>
                   </div>
@@ -320,10 +399,12 @@ export default function RetailSetupOperationsPage() {
                     <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-3">
                       <p className="text-xs uppercase tracking-[0.16em] text-[var(--text-muted)]">Terminal label</p>
                       <p className="mt-1 font-mono text-base font-semibold text-[var(--text-strong)]">
-                        {effectiveDraft.defaultRegisterName || "Front till"}
-                      </p>
-                      <p className="text-xs text-[var(--text-muted)]">
-                        {effectiveDraft.defaultRegisterCode || "AUTO-CODE"}
+                        {selectedSiteRegisters.find(
+                          (register) =>
+                            register.id === effectiveDraft.defaultRegisterId,
+                        )?.name ||
+                          effectiveDraft.newRegisterName ||
+                          "Choose or create a register"}
                       </p>
                     </div>
                   </div>
@@ -337,9 +418,17 @@ export default function RetailSetupOperationsPage() {
                       : "No branch selected yet"}
                   </p>
                   <div className="mt-3 flex flex-wrap gap-2">
-                    <Button type="submit" disabled={saveMutation.isPending || !effectiveDraft.defaultSiteId}>
+                    <Button
+                      type="submit"
+                      disabled={
+                        saveMutation.isPending ||
+                        !effectiveDraft.defaultSiteId ||
+                        (!effectiveDraft.defaultRegisterId &&
+                          !effectiveDraft.newRegisterName.trim())
+                      }
+                    >
                       <Plus className="h-4 w-4" />
-                      Provision register
+                      Save register setup
                     </Button>
                     <Button asChild variant="outline">
                       <Link href="/retail/setup/branding">Check branding</Link>
@@ -376,7 +465,11 @@ export default function RetailSetupOperationsPage() {
                         <p className="font-medium text-[var(--text-strong)]">{register.name}</p>
                         <p className="text-sm text-[var(--text-muted)]">{register.site?.name ?? "Unknown branch"}</p>
                       </div>
-                      <span className="font-mono text-xs text-[var(--text-muted)]">{register.code}</span>
+                      {snapshot?.setupProfile.defaultRegisterId === register.id ? (
+                        <span className="rounded-full border border-[var(--edge-subtle)] px-2 py-1 text-[10px] uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                          Default
+                        </span>
+                      ) : null}
                     </div>
                   </div>
                 ))
