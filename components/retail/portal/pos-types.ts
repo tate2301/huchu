@@ -59,6 +59,7 @@ export type PosSite = {
 export type PosCatalogItem = {
   id: string;
   name: string;
+  category?: string | null;
   unitPrice: number;
   compareAtPrice: number | null;
   taxPercent: number;

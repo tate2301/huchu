@@ -29,10 +29,14 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   ArrowRight,
   ArrowRightLeft,
+  Badge,
   CheckCircle2,
+  Checkroom,
   Clock,
   Coins,
+  Grid3x3,
   History,
+  Home,
   Loader2,
   Minus,
   Package,
@@ -43,7 +47,9 @@ import {
   RefreshCcw,
   Save,
   Search,
+  ShoppingBag,
   Sparkles,
+  Storefront,
   User,
   Users,
   Wallet,
@@ -52,7 +58,6 @@ import {
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
-import { PosInlineValidationBanner } from "./pos-inline-validation-banner";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
 import { PosEmptyState, PosStatusPill } from "./pos-primitives";
@@ -101,6 +106,57 @@ function TenderIcon({ type, className }: { type: TenderType; className?: string 
     case "TRANSFER": return <ArrowRightLeft className={cls} />;
     case "VOUCHER": return <Zap className={cls} />;
   }
+}
+
+function getDefaultNumericTarget(
+  activeTarget: CheckoutNumericTarget | null,
+  cartLength: number,
+): CheckoutNumericTarget | null {
+  if (activeTarget) return activeTarget;
+  if (cartLength > 0) {
+    return { type: "tender_amount", index: 0 };
+  }
+  return null;
+}
+
+function getCategoryIcon(category: string | null | undefined) {
+  const normalized = (category ?? "").toLowerCase();
+  if (
+    normalized.includes("cloth") ||
+    normalized.includes("wear") ||
+    normalized.includes("fashion") ||
+    normalized.includes("apparel")
+  ) {
+    return Checkroom;
+  }
+  if (
+    normalized.includes("home") ||
+    normalized.includes("house") ||
+    normalized.includes("furniture")
+  ) {
+    return Home;
+  }
+  if (
+    normalized.includes("shop") ||
+    normalized.includes("store") ||
+    normalized.includes("general")
+  ) {
+    return Storefront;
+  }
+  if (
+    normalized.includes("beauty") ||
+    normalized.includes("care") ||
+    normalized.includes("cosmetic")
+  ) {
+    return Sparkles;
+  }
+  if (normalized.includes("bag") || normalized.includes("travel")) {
+    return ShoppingBag;
+  }
+  if (normalized.includes("accessor") || normalized.includes("gift")) {
+    return Badge;
+  }
+  return Package;
 }
 
 /* ─── Compact numeric field (inline editor) ──────────────────────── */
@@ -181,11 +237,11 @@ function TenderButton({
       type="button"
       onClick={onClick}
       className={cn(
-        "flex flex-col items-center justify-center gap-1.5 rounded-xl border py-3 text-[11px] font-bold uppercase tracking-wide transition-all duration-100 active:scale-[0.95]",
+        "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-100 active:scale-[0.95]",
         selected ? styles.selected : styles.idle,
       )}
     >
-      <TenderIcon type={type} className="h-5 w-5" />
+      <TenderIcon type={type} className="h-4 w-4" />
       {tenderLabel(type)}
     </button>
   );
@@ -214,6 +270,7 @@ export function PosCheckoutView() {
   /* ── Global POS state ────────────────────────── */
   const {
     search, setSearch,
+    categories, selectedCategory, setSelectedCategory,
     cart,
     customerName, setCustomerName,
     selectedCustomerId, selectCustomer,
@@ -252,6 +309,10 @@ export function PosCheckoutView() {
 
   const selectedPromotion =
     promotions.find((p) => p.id === selectedPromotionId) ?? null;
+  const categoryChips = useMemo(
+    () => ["All", ...categories],
+    [categories],
+  );
 
   /* ── Focus helper ────────────────────────────── */
 
@@ -338,10 +399,46 @@ export function PosCheckoutView() {
           setActiveTarget(null);
         }
       }
+
+      if (/^[0-9.]$/.test(e.key)) {
+        e.preventDefault();
+        if (!activeTarget && cart.length > 0) {
+          setActiveTarget({ type: "tender_amount", index: 0 });
+        }
+        paymentUserEditedRef.current = true;
+        setPayments((current) => {
+          const next = [...current];
+          const targetIndex = 0;
+          const base = next[targetIndex] ?? { tenderType: "CASH" as TenderType, amount: "", reference: "" };
+          next[targetIndex] = {
+            ...base,
+            amount: applyPosKeypadAction(base.amount ?? "", { type: "digit", value: e.key }),
+          };
+          return next;
+        });
+      }
+
+      if (e.key === "Backspace" || e.key === "Delete") {
+        e.preventDefault();
+        if (!activeTarget && cart.length > 0) {
+          setActiveTarget({ type: "tender_amount", index: 0 });
+        }
+        paymentUserEditedRef.current = true;
+        setPayments((current) => {
+          const next = [...current];
+          const targetIndex = 0;
+          const base = next[targetIndex] ?? { tenderType: "CASH" as TenderType, amount: "", reference: "" };
+          next[targetIndex] = {
+            ...base,
+            amount: applyPosKeypadAction(base.amount ?? "", { type: "backspace" }),
+          };
+          return next;
+        });
+      }
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [search, selectedLineId, setSearch]);
+  }, [activeTarget, cart.length, search, selectedLineId, setPayments, setSearch]);
 
   const blockers = useMemo(() => {
     const next = [...checkoutBaseBlockers];
@@ -398,18 +495,17 @@ export function PosCheckoutView() {
     if (Number.isFinite(parsed) && parsed >= 0) updateItemDiscount(target.lineId, parsed);
   };
 
-  const handleKeypadAction = (action: PosKeypadAction) => {
-    if (!activeTarget) return;
-    applyToTarget(activeTarget, action);
-  };
+  function handleKeypadAction(action: PosKeypadAction) {
+    const nextTarget = getDefaultNumericTarget(activeTarget, cart.length);
+    if (!nextTarget) return;
+    if (!activeTarget) {
+      setActiveTarget(nextTarget);
+    }
+    applyToTarget(nextTarget, action);
+  }
 
   const handleCharge = () => {
-    if (blockers.length) {
-      toast({ title: "Fix checkout blockers", description: blockers[0], variant: "default" });
-      const firstTenderIndex = payments.findIndex((p) => Number(p.amount || "0") <= 0);
-      if (firstTenderIndex >= 0) setActiveTarget({ type: "tender_amount", index: firstTenderIndex });
-      return;
-    }
+    if (blockers.length) return;
     postSale();
   };
 
@@ -429,13 +525,14 @@ export function PosCheckoutView() {
   }, [total]);
 
   const activeTargetLabel = (() => {
-    if (!activeTarget) return "Select a field";
-    if (activeTarget.type === "order_discount") return "Order discount";
-    if (activeTarget.type === "redeem_points") return "Loyalty points";
-    if (activeTarget.type === "tender_amount")
-      return `${tenderLabel(payments[activeTarget.index]?.tenderType ?? "CASH")} amount`;
-    if (activeTarget.type === "line_qty") return "Qty";
-    if (activeTarget.type === "line_price") return "Price";
+    const numericTarget = getDefaultNumericTarget(activeTarget, cart.length);
+    if (!numericTarget) return "Ready";
+    if (numericTarget.type === "order_discount") return "Order discount";
+    if (numericTarget.type === "redeem_points") return "Loyalty points";
+    if (numericTarget.type === "tender_amount")
+      return `${tenderLabel(payments[numericTarget.index]?.tenderType ?? "CASH")} amount`;
+    if (numericTarget.type === "line_qty") return "Qty";
+    if (numericTarget.type === "line_price") return "Price";
     return "Line discount";
   })();
 
@@ -519,7 +616,8 @@ export function PosCheckoutView() {
     setPayments((current) => [...current, { tenderType: "CARD", amount: "", reference: "" }]);
   };
 
-  const TENDER_TYPES: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"];
+  const TENDER_TYPES: TenderType[] = ["CASH", "CARD", "MOBILE_MONEY", "VOUCHER"];
+  const canCharge = cart.length > 0 && blockers.length === 0 && !postSalePending;
 
   /* ═══════════════════════════════════════════════════
      RENDER
@@ -622,10 +720,34 @@ export function PosCheckoutView() {
       </div>
 
       {/* ── Three-column layout (desktop) ─────────────── */}
-      <div className="hidden min-h-0 flex-1 overflow-hidden md:grid xl:grid-cols-[minmax(0,1.15fr)_minmax(260px,0.85fr)_minmax(300px,0.8fr)]">
+      <div className="hidden min-h-0 flex-1 overflow-hidden md:grid xl:grid-cols-[minmax(0,1.42fr)_minmax(360px,0.9fr)]">
 
         {/* ┄ Column 1 — Catalog ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
         <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
+          <div className="flex shrink-0 flex-wrap gap-2 border-b border-[var(--edge-subtle)] px-3 py-2">
+            {categoryChips.map((category) => {
+              const isAll = category === "All";
+              const active = isAll ? !selectedCategory : selectedCategory === category;
+              const CategoryIcon = isAll ? Grid3x3 : getCategoryIcon(category);
+              return (
+                <button
+                  key={category}
+                  type="button"
+                  onClick={() => setSelectedCategory(isAll ? null : category)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors",
+                    active
+                      ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
+                      : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-muted)] hover:border-[var(--action-primary-bg)] hover:text-[var(--text-strong)]",
+                  )}
+                >
+                  <CategoryIcon className="h-3.5 w-3.5" />
+                  {category}
+                </button>
+              );
+            })}
+          </div>
+
           {/* Promo pills */}
           {promotions.length > 0 ? (
             <div className="flex shrink-0 gap-1.5 overflow-x-auto border-b border-[var(--edge-subtle)] px-3 py-2">
@@ -683,20 +805,23 @@ export function PosCheckoutView() {
               <div className="flex min-h-[10rem] flex-col items-center justify-center gap-2 text-center">
                 <Package className="h-8 w-8 text-[var(--text-muted)]" />
                 <p className="text-sm font-medium text-[var(--text-muted)]">
-                  {search ? "No items match" : "Search to find items"}
+                  {search ? "No items match this category" : "Search or pick a category"}
                 </p>
-                {search && (
+                {(search || selectedCategory) && (
                   <button
                     type="button"
-                    onClick={() => setSearch("")}
+                    onClick={() => {
+                      setSearch("");
+                      setSelectedCategory(null);
+                    }}
                     className="text-xs text-[var(--action-primary-bg)] underline-offset-2 hover:underline"
                   >
-                    Clear search
+                    Clear filters
                   </button>
                 )}
               </div>
             ) : (
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4 2xl:grid-cols-5">
                 {catalogItems.map((item) => {
                   const inCart = cart.find((c) => c.catalogItemId === item.id);
                   return (
@@ -706,15 +831,15 @@ export function PosCheckoutView() {
                       onClick={() => handleAddCatalogItem(item)}
                       disabled={!currentShift}
                       className={cn(
-                        "group relative flex items-start gap-3 rounded-2xl border bg-[var(--surface-base)] p-3.5 text-left transition-all duration-100 active:scale-[0.97]",
+                        "group relative flex min-h-[14.5rem] flex-col overflow-hidden rounded-2xl border bg-[var(--surface-base)] text-left transition-all duration-100 active:scale-[0.97]",
                         inCart
-                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--action-primary-bg)_30%,transparent),0_4px_16px_rgba(0,0,0,0.06)]"
-                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_40%,var(--border-default))] hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]",
+                          ? "border-[color-mix(in_srgb,var(--action-primary-bg)_50%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] shadow-[0_0_0_1.5px_color-mix(in_srgb,var(--action-primary-bg)_30%,transparent),0_10px_20px_rgba(0,0,0,0.06)]"
+                          : "border-[var(--border-default)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_40%,var(--border-default))] hover:shadow-[0_10px_20px_rgba(0,0,0,0.08)]",
                       )}
                     >
                       {/* Image / placeholder */}
                       <div className={cn(
-                        "flex h-[3.75rem] w-[3.75rem] shrink-0 items-center justify-center overflow-hidden rounded-xl transition-colors",
+                        "flex h-28 w-full shrink-0 items-center justify-center overflow-hidden rounded-b-none rounded-t-[0.95rem] transition-colors",
                         inCart
                           ? "bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-muted))]"
                           : "bg-[var(--surface-muted)]",
@@ -727,9 +852,16 @@ export function PosCheckoutView() {
                       </div>
 
                       {/* Info + price stacked */}
-                      <div className="min-w-0 flex-1 pt-0.5">
+                      <div className="min-w-0 flex-1 p-3 pt-2.5">
                         <div className="line-clamp-2 text-[13px] font-semibold leading-[1.3] text-[var(--text-strong)]">
                           {item.name}
+                        </div>
+                        <div className="mt-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
+                          {(() => {
+                            const CategoryIcon = getCategoryIcon(item.category);
+                            return <CategoryIcon className="h-3.5 w-3.5" />;
+                          })()}
+                          <span className="truncate">{item.category || "General"}</span>
                         </div>
                         <div className="mt-2 flex items-end justify-between gap-1">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -779,7 +911,7 @@ export function PosCheckoutView() {
         </div>
 
         {/* ┄ Column 2 — Cart ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
-        <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
+        <div className="hidden min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
           {/* Cart header */}
           <div className="flex shrink-0 items-center justify-between gap-2 border-b border-[var(--edge-subtle)] px-3 py-2">
             <div className="flex items-center gap-2">
@@ -972,7 +1104,7 @@ export function PosCheckoutView() {
         </div>
 
         {/* ┄ Column 3 — Payment ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-[var(--surface-base)]">
+        <div className="flex min-h-0 flex-col overflow-hidden bg-[var(--surface-base)] xl:col-start-2">
 
           {/* Amount due header */}
           <div className={cn(
@@ -1047,6 +1179,159 @@ export function PosCheckoutView() {
           {/* Scrollable payment section */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="space-y-3 px-3 pt-2 pb-3">
+              <div className="flex items-center justify-between rounded-[1.1rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2">
+                <button
+                  type="button"
+                  onClick={() => setCustomerSheetOpen(true)}
+                  className="inline-flex min-w-0 items-center gap-2 text-left"
+                >
+                  <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_12%,white)] text-[var(--action-primary-bg)]">
+                    <User className="h-4 w-4" />
+                  </div>
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-[var(--text-strong)]">
+                      {selectedCustomer?.name ?? "Walk-in customer"}
+                    </div>
+                    <div className="truncate text-[11px] text-[var(--text-muted)]">
+                      {selectedCustomer?.phone || selectedCustomer?.email || "Tap to attach customer"}
+                    </div>
+                  </div>
+                </button>
+                {cart.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      clearCart();
+                    }}
+                    className="rounded-full px-2 py-1 text-[11px] font-semibold text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
+                  >
+                    Clear
+                  </button>
+                ) : null}
+              </div>
+
+              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)]">
+                <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2.5">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm font-semibold text-[var(--text-strong)]">Sale items</span>
+                    <span className="rounded-full bg-[var(--surface-base)] px-2 py-0.5 text-[10px] font-bold text-[var(--text-muted)]">
+                      {cart.length}
+                    </span>
+                  </div>
+                  <div className="text-[11px] text-[var(--text-muted)]">{money(subtotal)}</div>
+                </div>
+                <div className="max-h-[15rem] overflow-y-auto">
+                  {cart.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
+                      <Payments className="h-7 w-7 text-[var(--text-muted)]" />
+                      <p className="text-sm font-medium text-[var(--text-muted)]">No items yet</p>
+                      <p className="text-xs text-[var(--text-muted)]">Search or scan to add</p>
+                    </div>
+                  ) : (
+                    <div className="divide-y divide-[var(--border-subtle)]">
+                      {cart.map((item) => {
+                        const lineTotal = item.quantity * item.unitPrice - (item.lineDiscountAmount ?? 0);
+                        const isSelected = selectedLineId === item.catalogItemId;
+                        return (
+                          <div
+                            key={`compact-${item.catalogItemId}`}
+                            className={cn(
+                              "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2.5",
+                              isSelected ? "bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,white)]" : "bg-transparent",
+                            )}
+                          >
+                            <button
+                              type="button"
+                              className="min-w-0 text-left"
+                              onClick={() => {
+                                setSelectedLineId(item.catalogItemId);
+                                setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
+                              }}
+                            >
+                              <div className="truncate text-[13px] font-semibold text-[var(--text-strong)]">
+                                {item.name}
+                              </div>
+                              <div className="mt-0.5 flex items-center gap-2 text-[10px] text-[var(--text-muted)]">
+                                <span className="font-mono">{money(item.unitPrice)}</span>
+                                {item.lineDiscountAmount ? (
+                                  <span className="rounded-full bg-emerald-50 px-1.5 py-0.5 font-mono text-emerald-700">
+                                    −{money(item.lineDiscountAmount)}
+                                  </span>
+                                ) : null}
+                              </div>
+                            </button>
+
+                            <div className="flex items-center gap-1 rounded-full border border-[var(--border-default)] bg-[var(--surface-base)] px-1 py-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const next = item.quantity - 1;
+                                  if (next <= 0) {
+                                    removeFromCart(item.catalogItemId);
+                                    if (selectedLineId === item.catalogItemId) {
+                                      setSelectedLineId(null);
+                                      setActiveTarget(null);
+                                    }
+                                    return;
+                                  }
+                                  updateQty(item.catalogItemId, next);
+                                }}
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
+                              >
+                                <Minus className="h-3.5 w-3.5" />
+                              </button>
+                              <span className="min-w-[2rem] text-center font-mono text-[13px] font-bold text-[var(--text-strong)]">
+                                {item.quantity % 1 === 0 ? item.quantity : item.quantity.toFixed(1)}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
+                                className="flex h-7 w-7 items-center justify-center rounded-full text-[var(--text-muted)] transition-colors hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,white)] hover:text-[var(--action-primary-bg)]"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+
+                            <div className="flex items-center gap-1">
+                              <div className="min-w-[4.3rem] text-right font-mono text-[13px] font-black text-[var(--text-strong)]">
+                                {money(lineTotal)}
+                              </div>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  removeFromCart(item.catalogItemId);
+                                  if (selectedLineId === item.catalogItemId) {
+                                    setSelectedLineId(null);
+                                    setActiveTarget(null);
+                                  }
+                                }}
+                                className="rounded-full p-1 text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-600"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="space-y-1 border-t border-[var(--border-subtle)] px-3 py-2.5 text-xs">
+                  {discountAmount > 0 ? (
+                    <div className="flex items-center justify-between text-emerald-700">
+                      <span>Discount{selectedPromotion ? ` (${selectedPromotion.name})` : ""}</span>
+                      <span className="font-mono">−{money(discountAmount)}</span>
+                    </div>
+                  ) : null}
+                  {taxAmount > 0 ? (
+                    <div className="flex items-center justify-between text-[var(--text-muted)]">
+                      <span>Tax</span>
+                      <span className="font-mono">{money(taxAmount)}</span>
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+
               {payments.map((payment, index) => {
                 const isActiveTender = activeTarget?.type === "tender_amount" && activeTarget.index === index;
                 const needsRef = requiresReference(payment.tenderType, requiredReferenceTenders);
@@ -1072,7 +1357,7 @@ export function PosCheckoutView() {
                     )}
 
                     {/* Tender type grid */}
-                    <div className="grid grid-cols-3 gap-1.5">
+                    <div className="grid grid-cols-4 gap-1.5">
                       {TENDER_TYPES.map((type) => (
                         <TenderButton
                           key={type}
@@ -1145,7 +1430,8 @@ export function PosCheckoutView() {
               </div>
 
               {/* Quick-cash presets */}
-              {keypadPresets.length > 0 && activeTarget?.type === "tender_amount" ? (
+              {keypadPresets.length > 0 &&
+              getDefaultNumericTarget(activeTarget, cart.length)?.type === "tender_amount" ? (
                 <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
                   {keypadPresets.map((p) => (
                     <button
@@ -1165,37 +1451,27 @@ export function PosCheckoutView() {
           </div>
 
           {/* Validation + Charge button — fixed at bottom */}
-          <div className="shrink-0 space-y-2 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-3">
-            <PosInlineValidationBanner messages={blockers} />
+          <div className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-3">
 
             <button
               type="button"
               onClick={handleCharge}
-              disabled={postSalePending || cart.length === 0}
+              disabled={!canCharge}
               className={cn(
                 "relative flex h-[3.75rem] w-full items-center justify-center gap-2.5 overflow-hidden rounded-2xl text-[15px] font-black text-white transition-all duration-150 active:scale-[0.98]",
-                cart.length === 0
-                  ? "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)]"
-                  : blockers.length > 0
-                    ? "bg-amber-400 shadow-[0_6px_20px_rgba(245,158,11,0.4)] hover:bg-amber-500"
-                    : postSalePending
-                      ? "cursor-wait bg-emerald-600 opacity-80"
-                      : "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_6px_24px_rgba(16,185,129,0.45)] hover:shadow-[0_8px_28px_rgba(16,185,129,0.5)]",
+                canCharge
+                  ? "bg-gradient-to-br from-emerald-500 to-emerald-600 shadow-[0_6px_24px_rgba(16,185,129,0.45)] hover:shadow-[0_8px_28px_rgba(16,185,129,0.5)]"
+                  : "cursor-not-allowed bg-[var(--surface-muted)] text-[var(--text-muted)] shadow-none",
               )}
             >
               {/* Subtle shine overlay */}
-              {cart.length > 0 && !postSalePending && blockers.length === 0 && (
+              {canCharge && !postSalePending && (
                 <div className="pointer-events-none absolute inset-0 rounded-2xl bg-gradient-to-t from-transparent to-white/[0.08]" />
               )}
               {postSalePending ? (
                 <>
                   <Loader2 className="h-5 w-5 animate-spin" />
                   Processing…
-                </>
-              ) : blockers.length > 0 ? (
-                <>
-                  <Sparkles className="h-5 w-5" />
-                  Fix {blockers.length} issue{blockers.length > 1 ? "s" : ""}
                 </>
               ) : (
                 <>
@@ -1213,6 +1489,30 @@ export function PosCheckoutView() {
         {/* Mobile catalog — full width, 2-col grid */}
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-[var(--surface-base)]">
           <div className="min-h-0 flex-1 overflow-y-auto p-3">
+            <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+              {categoryChips.map((category) => {
+                const isAll = category === "All";
+                const active = isAll ? !selectedCategory : selectedCategory === category;
+                const CategoryIcon = isAll ? Grid3x3 : getCategoryIcon(category);
+                return (
+                  <button
+                    key={`mobile-${category}`}
+                    type="button"
+                    onClick={() => setSelectedCategory(isAll ? null : category)}
+                    className={cn(
+                      "inline-flex shrink-0 items-center gap-1.5 rounded-full border px-3 py-1.5 text-[11px] font-semibold transition-colors",
+                      active
+                        ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
+                        : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-muted)]",
+                    )}
+                  >
+                    <CategoryIcon className="h-3.5 w-3.5" />
+                    {category}
+                  </button>
+                );
+              })}
+            </div>
+
             {catalogItems.length === 0 ? (
               <div className="flex h-full flex-col items-center justify-center gap-3 p-6 text-center">
                 <div className="flex h-14 w-14 items-center justify-center rounded-full bg-[var(--surface-muted)]">
@@ -1221,7 +1521,7 @@ export function PosCheckoutView() {
                 <p className="text-sm font-medium text-[var(--text-muted)]">No items found</p>
               </div>
             ) : (
-              <div className="grid grid-cols-2 gap-2">
+              <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
                 {catalogItems.map((item) => {
                   const inCart = cart.find((c) => c.catalogItemId === item.id);
                   return (

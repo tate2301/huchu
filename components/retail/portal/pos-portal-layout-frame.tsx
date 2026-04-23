@@ -5,6 +5,12 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import {
   BarChart3,
   Clock,
   History,
@@ -110,78 +116,82 @@ export function PosPortalLayoutFrame({
   return (
     <div className="min-h-screen bg-[color-mix(in_srgb,var(--surface-canvas)_88%,white)] text-[15px] text-[var(--text-strong)]">
       <div className="relative flex h-[100dvh] overflow-hidden bg-[linear-gradient(180deg,color-mix(in_srgb,var(--surface-canvas)_90%,white)_0%,var(--surface-base)_100%)] lg:flex-row">
-        <aside className="shrink-0 border-b border-[var(--edge-subtle)] bg-[color-mix(in_srgb,var(--sidebar)_90%,white)] lg:flex lg:w-[14rem] lg:border-b-0 lg:border-r">
+        <aside className="shrink-0 border-b border-[var(--edge-subtle)] bg-[color-mix(in_srgb,var(--sidebar)_94%,white)] lg:flex lg:w-[5.5rem] lg:border-b-0 lg:border-r">
           <div className="flex h-full w-full flex-col">
-            <div className="hidden shrink-0 border-b border-[var(--edge-subtle)] px-4 py-4 lg:block">
-              <div className="flex items-center gap-3">
+            <div className="hidden shrink-0 border-b border-[var(--edge-subtle)] px-3 py-4 lg:block">
+              <div className="flex flex-col items-center gap-3">
                 <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[1.15rem] bg-[var(--action-primary-bg)] text-sm font-black text-white shadow-[0_12px_24px_rgba(15,23,42,0.14)]">
                   {workspaceInitial}
                 </div>
-                <div className="min-w-0">
-                  <div className="truncate text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                    POS Workspace
-                  </div>
-                  <div className="truncate text-[15px] font-semibold text-[var(--text-strong)]">
-                    {workspaceName}
-                  </div>
-                </div>
-              </div>
-              <div className="mt-4 flex items-center gap-2.5 rounded-[1rem] border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5">
-                <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_12%,var(--surface-base))] text-[var(--action-primary-bg)]">
-                  <span className="text-[13px] font-black leading-none">
-                    {operatorInitial}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <div className="truncate text-[13px] font-bold text-[var(--text-strong)]">
-                    {session?.user?.name || "Operator"}
-                  </div>
-                  <div className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--text-muted)]">
-                    Cashier
-                  </div>
-                </div>
+                <TooltipProvider delayDuration={120}>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex h-9 w-9 cursor-default items-center justify-center rounded-full border border-[var(--edge-subtle)] bg-[var(--surface-base)] text-[var(--action-primary-bg)]">
+                        <span className="text-[13px] font-black leading-none">
+                          {operatorInitial}
+                        </span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="right">
+                      {session?.user?.name || "Operator"} · {workspaceName}
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </div>
             </div>
 
-            <nav className="flex gap-1 overflow-x-auto px-3 pb-2 pt-2 lg:flex-1 lg:flex-col lg:gap-1 lg:overflow-y-auto lg:overflow-x-visible lg:px-3 lg:pb-3 lg:pt-4">
-              {renderedLinks.map((item) => {
-                const isActive = pathname === item.href;
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                      "group inline-flex min-h-10 shrink-0 items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-[13px] font-medium transition-all duration-100 lg:flex lg:w-full",
-                      isActive
-                        ? "bg-[var(--surface-base)] font-semibold text-[var(--text-strong)] shadow-[0_8px_18px_rgba(15,23,42,0.08),inset_0_0_0_1px_var(--edge-default)]"
-                        : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]",
-                    )}
-                  >
-                    <item.icon
-                      className={cn(
-                        "h-[1.05rem] w-[1.05rem] shrink-0 transition-colors",
-                        isActive ? "text-[var(--action-primary-bg)]" : "opacity-70",
-                      )}
-                    />
-                    <span className="whitespace-nowrap">{item.label}</span>
-                    {isActive ? (
-                      <span className="ml-auto h-1.5 w-1.5 rounded-full bg-[var(--action-primary-bg)]" />
-                    ) : null}
-                  </Link>
-                );
-              })}
-            </nav>
+            <TooltipProvider delayDuration={120}>
+              <nav className="flex gap-1 overflow-x-auto px-3 pb-2 pt-2 lg:flex-1 lg:flex-col lg:gap-2 lg:overflow-y-auto lg:overflow-x-visible lg:px-3 lg:pb-3 lg:pt-4">
+                {renderedLinks.map((item) => {
+                  const isActive = pathname === item.href;
+                  return (
+                    <Tooltip key={item.href}>
+                      <TooltipTrigger asChild>
+                        <Link
+                          href={item.href}
+                          aria-label={item.label}
+                          className={cn(
+                            "group inline-flex min-h-10 shrink-0 items-center justify-center rounded-2xl px-2.5 py-2.5 text-[13px] font-medium transition-all duration-100 lg:flex lg:w-full",
+                            isActive
+                              ? "bg-[var(--surface-base)] text-[var(--text-strong)] shadow-[0_8px_18px_rgba(15,23,42,0.08),inset_0_0_0_1px_var(--edge-default)]"
+                              : "text-[var(--text-muted)] hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]",
+                          )}
+                        >
+                          <span className="relative flex h-9 w-9 items-center justify-center rounded-[1rem]">
+                            <item.icon
+                              className={cn(
+                                "h-[1.1rem] w-[1.1rem] shrink-0 transition-colors",
+                                isActive ? "text-[var(--action-primary-bg)]" : "opacity-80",
+                              )}
+                            />
+                            {isActive ? (
+                              <span className="absolute right-0 top-0 h-2 w-2 rounded-full bg-[var(--action-primary-bg)]" />
+                            ) : null}
+                          </span>
+                        </Link>
+                      </TooltipTrigger>
+                      <TooltipContent side="right">{item.label}</TooltipContent>
+                    </Tooltip>
+                  );
+                })}
+              </nav>
 
-            <div className="hidden shrink-0 border-t border-[var(--edge-subtle)] px-3 py-3 lg:block">
-              <button
-                type="button"
-                onClick={handleSignOut}
-                className="inline-flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2.5 text-left text-[13px] font-medium text-[var(--text-muted)] transition-all duration-100 hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]"
-              >
-                <LogOut className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-70" />
-                <span>Log out</span>
-              </button>
-            </div>
+              <div className="hidden shrink-0 border-t border-[var(--edge-subtle)] px-3 py-3 lg:block">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label="Log out"
+                      onClick={handleSignOut}
+                      className="inline-flex w-full items-center justify-center rounded-2xl px-2.5 py-2.5 text-left text-[13px] font-medium text-[var(--text-muted)] transition-all duration-100 hover:bg-[color-mix(in_srgb,var(--surface-base)_60%,transparent)] hover:text-[var(--text-strong)]"
+                    >
+                      <LogOut className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right">Log out</TooltipContent>
+                </Tooltip>
+              </div>
+            </TooltipProvider>
           </div>
         </aside>
 

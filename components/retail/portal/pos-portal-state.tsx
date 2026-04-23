@@ -26,6 +26,10 @@ import {
   searchOfflineRetailCustomers,
 } from "@/lib/retail/offline-runtime";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import {
+  getCachedCategories,
+  searchCatalog as searchOfflineCatalog,
+} from "@/lib/retail/offline-catalog";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   removeOfflineOperation,
@@ -79,6 +83,9 @@ type PosQueuedSale = OfflineOutboxOperation<PosSaleQueuePayload>;
 type PosPortalStateValue = {
   search: string;
   setSearch: (value: string) => void;
+  categories: string[];
+  selectedCategory: string | null;
+  setSelectedCategory: (value: string | null) => void;
   cart: CartItem[];
   customerName: string;
   setCustomerName: (value: string) => void;
@@ -162,6 +169,7 @@ export function PosPortalProvider({
   const queryClient = useQueryClient();
   const { syncNow, tenantKey } = useOfflineRuntime();
   const [search, setSearch] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [cart, setCart] = useState<CartItem[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
@@ -202,12 +210,49 @@ export function PosPortalProvider({
   const hasSeenOpenShiftRef = useRef(false);
 
   const catalogQuery = useQuery({
-    queryKey: ["retail-pos-catalog", siteId, search],
-    queryFn: () =>
-      fetchJson<{ data: PosCatalogItem[] }>(
-        `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}&search=${encodeURIComponent(search)}`,
-      ),
+    queryKey: ["retail-pos-catalog", siteId, search, selectedCategory],
+    queryFn: async () => {
+      try {
+        const params = new URLSearchParams({
+          siteId,
+          search,
+        });
+        if (selectedCategory) {
+          params.set("category", selectedCategory);
+        }
+        return await fetchJson<{ data: PosCatalogItem[] }>(
+          `/api/v2/retail/pos/catalog?${params.toString()}`,
+        );
+      } catch (error) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          const data = await searchOfflineCatalog(search, {
+            siteId,
+            category: selectedCategory ?? undefined,
+            inStockOnly: true,
+          });
+          return { data };
+        }
+        throw error;
+      }
+    },
     enabled: Boolean(siteId),
+  });
+  const categoriesQuery = useQuery({
+    queryKey: ["retail-pos-catalog-categories", siteId],
+    queryFn: async () => {
+      try {
+        return await fetchJson<{ data: string[] }>(
+          `/api/v2/retail/pos/catalog/categories?siteId=${encodeURIComponent(siteId)}`,
+        );
+      } catch (error) {
+        if (typeof navigator !== "undefined" && !navigator.onLine) {
+          return { data: await getCachedCategories() };
+        }
+        throw error;
+      }
+    },
+    enabled: Boolean(siteId),
+    staleTime: 60_000,
   });
   const promotionsQuery = useQuery({
     queryKey: ["retail-pos-promotions"],
@@ -378,6 +423,17 @@ export function PosPortalProvider({
   }, [customerName, tenantKey]);
 
   useEffect(() => {
+    const availableCategories = categoriesQuery.data?.data ?? [];
+    if (
+      selectedCategory &&
+      availableCategories.length > 0 &&
+      !availableCategories.includes(selectedCategory)
+    ) {
+      setSelectedCategory(null);
+    }
+  }, [categoriesQuery.data?.data, selectedCategory]);
+
+  useEffect(() => {
     if (currentShift?.id) {
       hasSeenOpenShiftRef.current = true;
       return;
@@ -442,6 +498,9 @@ export function PosPortalProvider({
   const value: PosPortalStateValue = {
     search,
     setSearch,
+    categories: categoriesQuery.data?.data ?? [],
+    selectedCategory,
+    setSelectedCategory,
     cart,
     customerName,
     setCustomerName: (value) => {

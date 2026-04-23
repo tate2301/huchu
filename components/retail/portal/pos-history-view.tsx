@@ -705,7 +705,6 @@ export function PosHistoryView() {
                             <SelectItem value="CASH">Cash</SelectItem>
                             <SelectItem value="CARD">Card</SelectItem>
                             <SelectItem value="MOBILE_MONEY">Mobile money</SelectItem>
-                            <SelectItem value="TRANSFER">Transfer</SelectItem>
                             <SelectItem value="VOUCHER">Voucher</SelectItem>
                           </SelectContent>
                         </Select>
