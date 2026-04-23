@@ -379,6 +379,14 @@ export async function GET(request: NextRequest) {
     accumulator[key] = (accumulator[key] ?? 0) + value;
     return accumulator;
   }, {});
+  const saleCostByMonth = allSales
+    .filter((sale) => sale.status === "POSTED")
+    .reduce<Record<string, number>>((accumulator, sale) => {
+    const key = monthKey(sale.postedAt ?? sale.createdAt);
+    const value = sum(sale.lines.map((line) => Math.abs(line.costTotal ?? 0)));
+    accumulator[key] = (accumulator[key] ?? 0) + value;
+    return accumulator;
+  }, {});
 
   const postingRuleBuckets = buildPostingRuleAccountBuckets(
     postingRules.map((rule) => ({
@@ -498,7 +506,11 @@ export async function GET(request: NextRequest) {
       netRevenue * 0.08,
       salesBucket.discounts + salesBucket.refund * 0.2 + salesBucket.void * 0.15,
     );
-    const cogs = journalBucket?.cogs ?? receiptCostByMonth[key] ?? netRevenue * 0.55;
+    const cogs =
+      journalBucket?.cogs ??
+      saleCostByMonth[key] ??
+      receiptCostByMonth[key] ??
+      netRevenue * 0.55;
     const operatingExpense = journalBucket?.operatingExpense ?? estimatedOpex;
     const depreciationAmortization = journalBucket?.depreciationAmortization ?? netRevenue * 0.015;
     const interest = journalBucket?.interest ?? netRevenue * 0.01;
@@ -535,7 +547,11 @@ export async function GET(request: NextRequest) {
     const salesBucket = monthlySalesMap[key] ?? { sale: 0, refund: 0, void: 0, tickets: 0, discounts: 0 };
     const netRevenue = salesBucket.sale - salesBucket.refund - salesBucket.void;
     const journalBucket = journalByMonth[key];
-    const cogs = journalBucket?.cogs ?? receiptCostByMonth[key] ?? netRevenue * 0.55;
+    const cogs =
+      journalBucket?.cogs ??
+      saleCostByMonth[key] ??
+      receiptCostByMonth[key] ??
+      netRevenue * 0.55;
     const operatingExpense =
       journalBucket?.operatingExpense ??
       Math.max(

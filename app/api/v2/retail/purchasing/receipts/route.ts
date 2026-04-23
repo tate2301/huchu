@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
@@ -9,6 +8,7 @@ import {
   ensureInventoryItemAccess,
   ensureLocationAccess,
   ensureSiteAccess,
+  postRetailJournal,
   recordRetailInventoryMovement,
   requireRetailSession,
 } from "../../_helpers";
@@ -25,6 +25,7 @@ const receiptSchema = z.object({
   purchaseOrderId: z.string().uuid().optional().nullable(),
   siteId: z.string().uuid(),
   supplierName: z.string().min(1).max(200),
+  periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(receiptLineSchema).min(1),
 });
@@ -207,38 +208,37 @@ export async function POST(request: NextRequest) {
         }
 
         const receiptValue = receipt.lines.reduce((total, line) => total + line.lineTotal, 0);
-        if (receiptValue > 0) {
-          try {
-            await createJournalEntryFromSource({
-              companyId: session.user.companyId,
-              sourceType: "RETAIL_GOODS_RECEIPT",
-              sourceId: receipt.id,
-              sourceSubtype: "RECEIPT",
-              siteId: receipt.siteId,
-              entryDate: receipt.postedAt ?? new Date(),
-              description: `Retail goods receipt ${receipt.receiptNo}`,
-              createdById: session.user.id,
-              amount: receiptValue,
-              netAmount: receiptValue,
-              taxAmount: 0,
-              grossAmount: receiptValue,
-              inventory: {
-                lines: receipt.lines.map((line) => ({
-                  inventoryItemId: line.inventoryItemId,
-                  itemName: line.itemName,
-                  quantity: line.quantity,
-                  unitCost: line.unitCost,
-                  totalCost: line.lineTotal,
-                })),
-                totalCost: receiptValue,
-              },
-            });
-          } catch (error) {
-            console.error("[Accounting] Retail goods receipt posting failed:", error);
-          }
-        }
+        const accounting =
+          receiptValue > 0
+            ? await postRetailJournal({
+                companyId: session.user.companyId,
+                sourceType: "RETAIL_GOODS_RECEIPT",
+                sourceId: receipt.id,
+                sourceSubtype: "RECEIPT",
+                siteId: receipt.siteId,
+                entryDate: receipt.postedAt ?? new Date(),
+                description: `Retail goods receipt ${receipt.receiptNo}`,
+                createdById: session.user.id,
+                actorRole: session.user.role,
+                periodOverrideReason: input.periodOverrideReason ?? null,
+                amount: receiptValue,
+                netAmount: receiptValue,
+                taxAmount: 0,
+                grossAmount: receiptValue,
+                inventory: {
+                  lines: receipt.lines.map((line) => ({
+                    inventoryItemId: line.inventoryItemId,
+                    itemName: line.itemName,
+                    quantity: line.quantity,
+                    unitCost: line.unitCost,
+                    totalCost: line.lineTotal,
+                  })),
+                  totalCost: receiptValue,
+                },
+              })
+            : { accountingStatus: "POSTED", accountingError: null };
 
-        return successResponse(receipt, 201);
+        return successResponse({ ...receipt, ...accounting }, 201);
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&

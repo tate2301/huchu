@@ -46,6 +46,129 @@ export function getCashNetFromPayments(
     .reduce((total, payment) => total + payment.amount, 0) - changeAmount;
 }
 
+export type RetailAccountingStatus = "POSTED" | "PENDING" | "FAILED";
+
+export type RetailAccountingResult = {
+  accountingStatus: RetailAccountingStatus;
+  accountingError: string | null;
+  accountingCode?: string | null;
+  journalEntryId?: string | null;
+};
+
+function round(value: number) {
+  return Number(value.toFixed(2));
+}
+
+const RETAIL_PENDING_POSTING_CODES = new Set([
+  "PERIOD_LOCKED",
+  "PERIOD_OVERRIDE_FORBIDDEN",
+  "PERIOD_OVERRIDE_REASON_REQUIRED",
+]);
+
+export function normalizeRetailPostingPayments(input: {
+  payments: Array<{
+    tenderType: string;
+    amount: number;
+    reference?: string | null;
+    currency?: string | null;
+  }>;
+  changeAmount?: number;
+}) {
+  const changeAmount = Math.max(round(input.changeAmount ?? 0), 0);
+  const normalized = input.payments.map((payment) => ({
+    tenderType: payment.tenderType,
+    amount: round(Math.abs(payment.amount)),
+    reference: payment.reference ?? null,
+    currency: payment.currency ?? null,
+  }));
+
+  if (changeAmount <= 0) {
+    return normalized.filter((payment) => payment.amount > 0);
+  }
+
+  let remainingChange = changeAmount;
+  return normalized
+    .flatMap((payment) => {
+      if (payment.tenderType !== "CASH") {
+        return [payment];
+      }
+      const offset = Math.min(payment.amount, remainingChange);
+      remainingChange = round(remainingChange - offset);
+      const amount = round(payment.amount - offset);
+      return amount > 0 ? [{ ...payment, amount }] : [];
+    })
+    .filter((payment) => payment.amount > 0);
+}
+
+export async function postRetailJournal(input: Parameters<typeof createJournalEntryFromSource>[0]) {
+  const result = await createJournalEntryFromSource(input);
+  if (result.entryId || result.skipped) {
+    return {
+      accountingStatus: "POSTED",
+      accountingError: null,
+      accountingCode: null,
+      journalEntryId: result.entryId ?? null,
+    } satisfies RetailAccountingResult;
+  }
+
+  return {
+    accountingStatus: RETAIL_PENDING_POSTING_CODES.has(result.code ?? "") ? "PENDING" : "FAILED",
+    accountingError: result.error ?? "Accounting posting failed",
+    accountingCode: result.code ?? null,
+    journalEntryId: null,
+  } satisfies RetailAccountingResult;
+}
+
+export async function getAccountingStatusForSource(input: {
+  companyId: string;
+  sourceType: string;
+  sourceId: string | null | undefined;
+}) {
+  if (!input.sourceId) {
+    return {
+      accountingStatus: "PENDING",
+      accountingError: null,
+      accountingCode: null,
+      journalEntryId: null,
+    } satisfies RetailAccountingResult;
+  }
+
+  const event = await prisma.accountingIntegrationEvent.findFirst({
+    where: {
+      companyId: input.companyId,
+      sourceType: input.sourceType as never,
+      sourceId: input.sourceId,
+    },
+    orderBy: [{ updatedAt: "desc" }, { createdAt: "desc" }],
+    select: {
+      status: true,
+      lastError: true,
+      journalEntryId: true,
+    },
+  });
+
+  if (!event) {
+    return {
+      accountingStatus: "PENDING",
+      accountingError: null,
+      accountingCode: null,
+      journalEntryId: null,
+    } satisfies RetailAccountingResult;
+  }
+
+  return {
+    accountingStatus:
+      event.status === "POSTED"
+        ? "POSTED"
+        : event.status === "FAILED"
+          ? "FAILED"
+          : "PENDING",
+    accountingError: event.lastError ?? null,
+    accountingCode: null,
+    journalEntryId: event.journalEntryId ?? null,
+  } satisfies RetailAccountingResult;
+}
+
 export async function ensureSiteAccess(companyId: string, siteId: string) {
   const site = await prisma.site.findUnique({
     where: { id: siteId },
@@ -179,7 +302,6 @@ export async function recordRetailInventoryMovement(input: {
   sourceId: string;
   entryDate?: Date;
   tx?: Prisma.TransactionClient;
-  postAccounting?: boolean;
 }) {
   const db = input.tx ?? prisma;
   const item = await db.inventoryItem.findUnique({
@@ -246,28 +368,6 @@ export async function recordRetailInventoryMovement(input: {
     return created;
   };
   const movement = input.tx ? await writeMovement(input.tx) : await prisma.$transaction(writeMovement);
-
-  const unitCost = input.unitCost ?? item.unitCost ?? 0;
-  const amount = Math.abs(absoluteQuantity * unitCost);
-  const shouldPostAccounting = input.postAccounting ?? !input.tx;
-  if (amount > 0 && shouldPostAccounting) {
-    try {
-      await createJournalEntryFromSource({
-        companyId: input.companyId,
-        sourceType: input.sourceType,
-        sourceId: input.sourceId,
-        entryDate: createdAt,
-        description: `Retail ${input.movementType.toLowerCase()} - ${item.name}`,
-        createdById: input.userId,
-        amount,
-        netAmount: amount,
-        taxAmount: 0,
-        grossAmount: amount,
-      });
-    } catch (error) {
-      console.error("[Accounting] Retail stock movement auto-post failed:", error);
-    }
-  }
 
   return movement;
 }

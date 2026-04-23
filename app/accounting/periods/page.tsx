@@ -29,6 +29,7 @@ import {
 import { useToast } from "@/components/ui/use-toast";
 import {
   closeAccountingPeriod,
+  reopenAccountingPeriod,
   type AccountingPeriodRecord,
   fetchAccountingPeriods,
   fetchAccountingSummary,
@@ -145,9 +146,12 @@ export default function AccountingPeriodsPage() {
       header: "Status",
       accessorKey: "status",
       cell: ({ row }) => (
-        <Badge variant={row.original.status === "OPEN" ? "secondary" : "outline"}>
-          {row.original.status}
-        </Badge>
+        <div className="flex items-center gap-2">
+          <Badge variant={row.original.status === "OPEN" ? "secondary" : "outline"}>
+            {row.original.status}
+          </Badge>
+          {row.original.reopenedAt ? <Badge variant="outline">Reopened</Badge> : null}
+        </div>
       ),
       size: 120,
       minSize: 120,
@@ -161,7 +165,19 @@ export default function AccountingPeriodsPage() {
             <Button size="sm" onClick={() => closeMutation.mutate(row.original.id)}>
               Close with Voucher
             </Button>
-          ) : null}
+          ) : (
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                const reason = window.prompt("Why are you reopening this accounting period?");
+                if (!reason?.trim()) return;
+                reopenMutation.mutate({ id: row.original.id, reason: reason.trim() });
+              }}
+            >
+              Reopen Period
+            </Button>
+          )}
         </div>
       ),
       size: 108,
@@ -218,6 +234,29 @@ export default function AccountingPeriodsPage() {
     onError: (err) => {
       toast({
         title: "Unable to close period",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+  const reopenMutation = useMutation({
+    mutationFn: async (payload: { id: string; reason: string }) =>
+      reopenAccountingPeriod({
+        periodId: payload.id,
+        reason: payload.reason,
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Period reopened",
+        description: "The period was reopened and the previous close voucher was reversed.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "periods"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to reopen period",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
