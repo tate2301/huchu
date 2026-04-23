@@ -2482,6 +2482,9 @@ export type AccountingPeriodRecord = {
   endDate: string;
   status: "OPEN" | "CLOSED";
   closedAt?: string | null;
+  reopenedAt?: string | null;
+  reopenedById?: string | null;
+  reopenReason?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -3928,6 +3931,17 @@ export async function closeAccountingPeriod(input: {
   notes?: string;
 }) {
   return fetchJson("/api/accounting/closing/period-close", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function reopenAccountingPeriod(input: {
+  periodId: string;
+  reason: string;
+  reopenedAt?: string;
+}) {
+  return fetchJson("/api/accounting/closing/period-reopen", {
     method: "POST",
     body: JSON.stringify(input),
   });

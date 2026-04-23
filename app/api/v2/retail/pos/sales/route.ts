@@ -2,10 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { retryPendingAccountingEvents } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -20,11 +17,10 @@ import {
   canManageRetailTransactions,
   ensureSiteAccess,
   getPosSupportedPromotionTypes,
-  getCashNetFromPayments,
   isPosSupportedPromotionType,
-  recordRetailInventoryMovement,
   requireRetailSession,
 } from "../../_helpers";
+import { createRetailSaleTransaction } from "../../_services";
 
 const saleLineSchema = z.object({
   catalogItemId: z.string().uuid(),
@@ -63,6 +59,7 @@ const saleSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
   discountAmount: z.number().min(0).optional(),
   overrideReason: z.string().max(240).optional().nullable(),
+  periodOverrideReason: z.string().max(500).optional().nullable(),
   managerOverride: managerOverrideSchema.optional(),
   promotionId: z.string().uuid().optional().nullable(),
   items: z.array(saleLineSchema).min(1),
@@ -102,82 +99,6 @@ function normalizeEmail(input: string | null | undefined) {
   if (!input) return null;
   const trimmed = input.trim().toLowerCase();
   return trimmed || null;
-}
-
-async function ensureRetailSaleJournalPosted(input: {
-  companyId: string;
-  saleId: string;
-  saleNo: string;
-  saleType?: "SALE" | "REFUND" | "VOID";
-  siteId: string;
-  registerCode?: string | null;
-  postedAt: Date;
-  createdById: string;
-  totalAmount: number;
-  subtotal: number;
-  discountAmount: number;
-  taxAmount: number;
-  payments: Array<{
-    tenderType: string;
-    amount: number;
-    reference?: string | null;
-    currency?: string | null;
-  }>;
-  inventoryLines: Array<{
-    inventoryItemId: string;
-    itemName: string;
-    quantity: number;
-    unitCost: number;
-  }>;
-}) {
-  const sourceType =
-    input.saleType === "REFUND"
-      ? "RETAIL_REFUND"
-      : input.saleType === "VOID"
-        ? "RETAIL_VOID"
-        : "RETAIL_SALE";
-
-  const result = await createJournalEntryFromSource({
-    companyId: input.companyId,
-    sourceType,
-    sourceId: input.saleId,
-    sourceSubtype: input.saleType ?? "SALE",
-    siteId: input.siteId,
-    registerCode: input.registerCode ?? null,
-    entryDate: input.postedAt,
-    description: `Retail sale ${input.saleNo}`,
-    createdById: input.createdById,
-    amount: Math.abs(input.totalAmount),
-    netAmount: Math.abs(input.subtotal - input.discountAmount),
-    taxAmount: Math.abs(input.taxAmount),
-    grossAmount: Math.abs(input.totalAmount),
-    payments: input.payments.map((payment) => ({
-      tenderType: payment.tenderType,
-      amount: Math.abs(payment.amount),
-      reference: payment.reference,
-      currency: payment.currency ?? null,
-    })),
-    inventory: {
-      lines: input.inventoryLines.map((line) => ({
-        inventoryItemId: line.inventoryItemId,
-        itemName: line.itemName,
-        quantity: Math.abs(line.quantity),
-        unitCost: Math.abs(line.unitCost),
-        totalCost: Math.abs(line.quantity) * Math.abs(line.unitCost),
-      })),
-      totalCost: input.inventoryLines.reduce(
-        (total, line) => total + Math.abs(line.quantity) * Math.abs(line.unitCost),
-        0,
-      ),
-    },
-  });
-
-  if (!result.entryId && !result.skipped) {
-    await retryPendingAccountingEvents({
-      companyId: input.companyId,
-      limit: 25,
-    });
-  }
 }
 
 function mapSales(
@@ -602,12 +523,6 @@ export async function POST(request: NextRequest) {
         .filter((payment) => payment.tenderType !== "CASH")
         .reduce((total, payment) => total + payment.amount, 0),
     );
-    const cashTotal = round(
-      normalizedPayments
-        .filter((payment) => payment.tenderType === "CASH")
-        .reduce((total, payment) => total + payment.amount, 0),
-    );
-
     if (nonCashTotal > totalAmount) {
       return errorResponse("Non-cash tenders cannot exceed the sale total", 400);
     }
@@ -615,10 +530,6 @@ export async function POST(request: NextRequest) {
     if (tenderedAmount < totalAmount) {
       return errorResponse("Tendered amount is below the sale total", 400);
     }
-
-    const cashDue = round(Math.max(totalAmount - nonCashTotal, 0));
-    const changeAmount = round(Math.max(cashTotal - cashDue, 0));
-    const netCash = getCashNetFromPayments(normalizedPayments, changeAmount);
     const customerPhone = normalizePhone(input.customerPhone);
     const customerEmail = normalizeEmail(input.customerEmail);
     const requestedCustomerName = input.customerName?.trim() || null;
@@ -731,265 +642,96 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const providedCode = input.saleNo
-      ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
-      : null;
     const loyaltyNote =
       requestedRedeemPoints > 0 ? `LOYALTY_REDEEM:${requestedRedeemPoints}` : null;
     const normalizedNotes = [input.notes?.trim() || null, loyaltyNote]
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
-    for (let attempt = 0; attempt < 5; attempt += 1) {
-      const saleNo =
-        providedCode ??
-        (await reserveIdentifier(prisma, {
-          companyId: session.user.companyId,
-          entity: "RETAIL_SALE",
-          siteId: site.id,
-        }));
+    const { sale, accounting } = await createRetailSaleTransaction({
+      actor: {
+        companyId: session.user.companyId,
+        userId: session.user.id,
+        userRole: session.user.role,
+        userName: session.user.name,
+        userEmail: session.user.email,
+      },
+      saleNo: input.saleNo ?? null,
+      shiftId: shift.id,
+      siteId: site.id,
+      customerName: resolvedCustomerName,
+      subtotal,
+      discountAmount: totalDiscount,
+      taxAmount,
+      totalAmount,
+      payments: normalizedPayments,
+      lines: normalizedLines.map((line) => ({
+        inventoryItemId: line.inventoryItem.id,
+        inventoryUnit: line.inventoryItem.unit,
+        catalogItemId: line.catalogItem.id,
+        itemName: line.catalogItem.name,
+        quantity: line.quantity,
+        unitPrice: line.unitPrice,
+        discountAmount: line.discountAmount,
+        taxAmount: line.taxAmount,
+        lineTotal: line.lineTotal,
+        costUnit: line.inventoryItem.unitCost ?? 0,
+        costTotal: round(line.quantity * (line.inventoryItem.unitCost ?? 0)),
+      })),
+      promotionCode: promotion?.promoCode ?? null,
+      overrideReason: overrideReason ?? null,
+      notes: normalizedNotes || null,
+      periodOverrideReason: input.periodOverrideReason ?? null,
+    });
 
-      try {
-        const sale = await prisma.$transaction(async (tx) => {
-          const created = await tx.retailSale.create({
-            data: {
-              companyId: session.user.companyId,
-              saleNo,
-              shiftId: shift.id,
-              siteId: site.id,
-              cashierId: session.user.id,
-              cashierName: session.user.name || session.user.email || "Cashier",
-              customerName: resolvedCustomerName,
-              subtotal,
-              discountAmount: totalDiscount,
-              taxAmount,
-              totalAmount,
-              tenderedAmount,
-              changeAmount,
-              promotionCode: promotion?.promoCode ?? null,
-              overrideReason: overrideReason ?? null,
-              status: "POSTED",
-              notes: normalizedNotes || null,
-              postedAt: new Date(),
-              tenderSummary: normalizedPayments,
-              lines: {
-                create: normalizedLines.map((line) => ({
-                  inventoryItemId: line.inventoryItem.id,
-                  catalogItemId: line.catalogItem.id,
-                  itemName: line.catalogItem.name,
-                  quantity: line.quantity,
-                  unitPrice: line.unitPrice,
-                  discountAmount: line.discountAmount,
-                  taxAmount: line.taxAmount,
-                  lineTotal: line.lineTotal,
-                })),
-              },
-              payments: {
-                create: normalizedPayments.map((payment) => ({
-                  tenderType: payment.tenderType,
-                  amount: payment.amount,
-                  reference: payment.reference,
-                })),
-              },
-            },
-            include: { lines: true, payments: true },
-          });
-
-          for (const line of normalizedLines) {
-            await recordRetailInventoryMovement({
-              companyId: session.user.companyId,
-              userId: session.user.id,
-              itemId: line.inventoryItem.id,
-              movementType: "ISSUE",
-              quantity: line.quantity,
-              unit: line.inventoryItem.unit,
-              unitCost: line.inventoryItem.unitCost ?? 0,
-              notes: `Retail sale ${created.saleNo}`,
-              sourceType: "RETAIL_SALE",
-              sourceId: `${created.id}:${line.inventoryItem.id}`,
-              entryDate: created.postedAt ?? new Date(),
-              tx,
-              postAccounting: false,
-            });
-          }
-
-          if (netCash !== 0) {
-            const updatedShift = await tx.retailShift.updateMany({
-              where: {
-                id: shift.id,
-                companyId: session.user.companyId,
-                status: "OPEN",
-              },
-              data: {
-                expectedCash: {
-                  increment: netCash,
-                },
-              },
-            });
-            if (updatedShift.count !== 1) {
-              throw new Error("Shift is no longer open.");
-            }
-          }
-
-          return created;
-        });
-
-        try {
-          await ensureRetailSaleJournalPosted({
+    const customerNetSpend =
+      resolvedCustomerName && resolvedCustomerName !== "Walk-in"
+        ? await getCustomerLoyaltyBalance({
             companyId: session.user.companyId,
-            saleId: sale.id,
-            saleNo: sale.saleNo,
-            saleType: "SALE",
-            siteId: sale.siteId,
-            registerCode: shift.registerCode,
-            postedAt: sale.postedAt ?? new Date(),
-            createdById: session.user.id,
-            totalAmount,
-            subtotal,
-            discountAmount: totalDiscount,
-            taxAmount,
-            payments: normalizedPayments,
-            inventoryLines: normalizedLines.map((line) => ({
-              inventoryItemId: line.inventoryItem.id,
-              itemName: line.catalogItem.name,
-              quantity: line.quantity,
-              unitCost: line.inventoryItem.unitCost ?? 0,
-            })),
-          });
-        } catch (error) {
-          console.error("[Accounting] Retail sale posting failed:", error);
-        }
+            customerName: resolvedCustomerName,
+          })
+        : null;
+    const loyaltyPointsEarned =
+      resolvedCustomerName && sale.totalAmount > 0 ? Math.floor(sale.totalAmount) : 0;
+    const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
+    const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 
-        const customerNetSpend =
-          resolvedCustomerName && resolvedCustomerName !== "Walk-in"
-            ? await getCustomerLoyaltyBalance({
-                companyId: session.user.companyId,
-                customerName: resolvedCustomerName,
-              })
-            : null;
-        const loyaltyPointsEarned =
-          resolvedCustomerName && sale.totalAmount > 0 ? Math.floor(sale.totalAmount) : 0;
-        const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
-        const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
-
-        return successResponse({
-          id: sale.id,
-          saleNo: sale.saleNo,
-          saleType: sale.saleType,
-          status: sale.status,
-          postedAt: sale.postedAt ?? sale.createdAt,
-          shiftId: sale.shiftId,
-          siteId: sale.siteId,
-          cashierId: sale.cashierId,
-          cashierName: sale.cashierName,
-          customerName: sale.customerName,
-          subtotal: sale.subtotal,
-          discountAmount: sale.discountAmount,
-          taxAmount: sale.taxAmount,
-          totalAmount: sale.totalAmount,
-          tenderedAmount: sale.tenderedAmount,
-          changeAmount: sale.changeAmount,
-          payments: sale.payments,
-          lines: sale.lines,
-          promotionCode: sale.promotionCode,
-          overrideReason: sale.overrideReason,
-          notes: sale.notes,
-          customerPhone: capturedCustomer?.phone ?? customerPhone,
-          customerEmail: capturedCustomer?.email ?? customerEmail,
-          loyalty:
-            resolvedCustomerName && resolvedCustomerName !== "Walk-in"
-              ? {
-                  pointsEarned: loyaltyPointsEarned,
-                  pointsRedeemed: loyaltyPointsRedeemed,
-                  pointsBalance: loyaltyPointsBalance,
-                  tier: getLoyaltyTier(loyaltyPointsBalance),
-                }
-              : null,
-        }, 201);
-      } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002" &&
-          Array.isArray(error.meta?.target) &&
-          error.meta.target.includes("companyId") &&
-          error.meta.target.includes("saleNo")
-        ) {
-          if (providedCode) {
-            const existing = await prisma.retailSale.findFirst({
-              where: {
-                companyId: session.user.companyId,
-                saleNo: providedCode,
-              },
-              include: { lines: true, payments: true },
-            });
-            if (existing) {
-              const existingInventoryItems = await prisma.inventoryItem.findMany({
-                where: {
-                  id: { in: existing.lines.map((line) => line.inventoryItemId) },
-                },
-                select: { id: true, unitCost: true },
-              });
-              const existingUnitCostByItemId = new Map(
-                existingInventoryItems.map((item) => [item.id, item.unitCost ?? 0]),
-              );
-              try {
-                await ensureRetailSaleJournalPosted({
-                  companyId: session.user.companyId,
-                  saleId: existing.id,
-                  saleNo: existing.saleNo,
-                  saleType: "SALE",
-                  siteId: existing.siteId,
-                  registerCode: shift.registerCode,
-                  postedAt: existing.postedAt ?? existing.createdAt,
-                  createdById: session.user.id,
-                  totalAmount: existing.totalAmount,
-                  subtotal: existing.subtotal,
-                  discountAmount: existing.discountAmount,
-                  taxAmount: existing.taxAmount,
-                  payments: existing.payments,
-                  inventoryLines: existing.lines.map((line) => ({
-                    inventoryItemId: line.inventoryItemId,
-                    itemName: line.itemName,
-                    quantity: line.quantity,
-                    unitCost: existingUnitCostByItemId.get(line.inventoryItemId) ?? 0,
-                  })),
-                });
-              } catch (error) {
-                console.error("[Accounting] Retail sale replay posting failed:", error);
-              }
-              return successResponse({
-                id: existing.id,
-                saleNo: existing.saleNo,
-                saleType: existing.saleType,
-                status: existing.status,
-                postedAt: existing.postedAt ?? existing.createdAt,
-                shiftId: existing.shiftId,
-                siteId: existing.siteId,
-                cashierId: existing.cashierId,
-                cashierName: existing.cashierName,
-                customerName: existing.customerName,
-                subtotal: existing.subtotal,
-                discountAmount: existing.discountAmount,
-                taxAmount: existing.taxAmount,
-                totalAmount: existing.totalAmount,
-                tenderedAmount: existing.tenderedAmount,
-                changeAmount: existing.changeAmount,
-                payments: existing.payments,
-                lines: existing.lines,
-                promotionCode: existing.promotionCode,
-                overrideReason: existing.overrideReason,
-                notes: existing.notes,
-              });
+    return successResponse({
+      id: sale.id,
+      saleNo: sale.saleNo,
+      saleType: sale.saleType,
+      status: sale.status,
+      postedAt: sale.postedAt ?? sale.createdAt,
+      shiftId: sale.shiftId,
+      siteId: sale.siteId,
+      cashierId: sale.cashierId,
+      cashierName: sale.cashierName,
+      customerName: sale.customerName,
+      subtotal: sale.subtotal,
+      discountAmount: sale.discountAmount,
+      taxAmount: sale.taxAmount,
+      totalAmount: sale.totalAmount,
+      tenderedAmount: sale.tenderedAmount,
+      changeAmount: sale.changeAmount,
+      payments: sale.payments,
+      lines: sale.lines,
+      promotionCode: sale.promotionCode,
+      overrideReason: sale.overrideReason,
+      notes: sale.notes,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
+      customerPhone: capturedCustomer?.phone ?? customerPhone,
+      customerEmail: capturedCustomer?.email ?? customerEmail,
+      loyalty:
+        resolvedCustomerName && resolvedCustomerName !== "Walk-in"
+          ? {
+              pointsEarned: loyaltyPointsEarned,
+              pointsRedeemed: loyaltyPointsRedeemed,
+              pointsBalance: loyaltyPointsBalance,
+              tier: getLoyaltyTier(loyaltyPointsBalance),
             }
-            return errorResponse("Sale number already exists", 409);
-          }
-          continue;
-        }
-        throw error;
-      }
-    }
-
-    return errorResponse("Unable to generate sale number", 409);
+          : null,
+    }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);

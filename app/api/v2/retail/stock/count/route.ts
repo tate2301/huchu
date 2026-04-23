@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
   ensureInventoryItemAccess,
   ensureSiteAccess,
+  postRetailJournal,
   recordRetailInventoryMovement,
   requireRetailSession,
 } from "../../_helpers";
@@ -13,6 +13,7 @@ const stockCountSchema = z.object({
   siteId: z.string().uuid(),
   itemId: z.string().uuid(),
   countedStock: z.number().min(0),
+  periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
 });
 
@@ -52,43 +53,41 @@ export async function POST(request: NextRequest) {
       notes: input.notes?.trim() || `Retail stock count adjustment for ${item.name}`,
       sourceType: "RETAIL_STOCK_ADJUSTMENT",
       sourceId: `stock-adjustment:${item.id}:${Date.now()}`,
-      postAccounting: false,
     });
 
     const adjustmentValue = Math.abs(variance) * Math.abs(item.unitCost ?? 0);
-    if (adjustmentValue > 0) {
-      try {
-        await createJournalEntryFromSource({
-          companyId: session.user.companyId,
-          sourceType: "RETAIL_STOCK_ADJUSTMENT",
-          sourceId: movement.id,
-          sourceSubtype: variance < 0 ? "LOSS" : "GAIN",
-          siteId: site.id,
-          entryDate: new Date(),
-          description: `Retail stock adjustment ${movement.referenceId}`,
-          createdById: session.user.id,
-          amount: adjustmentValue,
-          netAmount: adjustmentValue,
-          taxAmount: 0,
-          grossAmount: adjustmentValue,
-          invertDirection: variance < 0,
-          inventory: {
-            lines: [
-              {
-                inventoryItemId: item.id,
-                itemName: item.name,
-                quantity: Math.abs(variance),
-                unitCost: Math.abs(item.unitCost ?? 0),
-                totalCost: adjustmentValue,
-              },
-            ],
-            totalCost: adjustmentValue,
-          },
-        });
-      } catch (error) {
-        console.error("[Accounting] Retail stock adjustment posting failed:", error);
-      }
-    }
+    const accounting =
+      adjustmentValue > 0
+        ? await postRetailJournal({
+            companyId: session.user.companyId,
+            sourceType: "RETAIL_STOCK_ADJUSTMENT",
+            sourceId: movement.id,
+            sourceSubtype: variance < 0 ? "LOSS" : "GAIN",
+            siteId: site.id,
+            entryDate: new Date(),
+            description: `Retail stock adjustment ${movement.referenceId}`,
+            createdById: session.user.id,
+            actorRole: session.user.role,
+            periodOverrideReason: input.periodOverrideReason ?? null,
+            amount: adjustmentValue,
+            netAmount: adjustmentValue,
+            taxAmount: 0,
+            grossAmount: adjustmentValue,
+            invertDirection: variance < 0,
+            inventory: {
+              lines: [
+                {
+                  inventoryItemId: item.id,
+                  itemName: item.name,
+                  quantity: Math.abs(variance),
+                  unitCost: Math.abs(item.unitCost ?? 0),
+                  totalCost: adjustmentValue,
+                },
+              ],
+              totalCost: adjustmentValue,
+            },
+          })
+        : { accountingStatus: "POSTED", accountingError: null };
 
     return successResponse(
       {
@@ -98,6 +97,8 @@ export async function POST(request: NextRequest) {
         previousStock: item.currentStock,
         countedStock: input.countedStock,
         variance,
+        accountingStatus: accounting.accountingStatus,
+        accountingError: accounting.accountingError,
       },
       201,
     );

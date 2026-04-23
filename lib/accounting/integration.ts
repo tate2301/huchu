@@ -322,12 +322,20 @@ export async function backfillRetailAccounting(input: {
           reference: payment.reference,
         })),
         inventory: {
-          lines: sale.lines.map((line) => ({
-            inventoryItemId: line.inventoryItemId,
-            itemName: line.itemName,
-            quantity: Math.abs(line.quantity),
-            unitCost: unitCostByItemId.get(line.inventoryItemId) ?? 0,
-          })),
+          lines: sale.lines.map((line) => {
+            const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
+            const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
+            const totalCost = Math.abs(
+              line.costTotal || Math.abs(line.quantity) * unitCost,
+            );
+            return {
+              inventoryItemId: line.inventoryItemId,
+              itemName: line.itemName,
+              quantity: Math.abs(line.quantity),
+              unitCost,
+              totalCost,
+            };
+          }),
         },
         payload: buildRetailPostingPayload({
           siteId: sale.siteId,
@@ -339,14 +347,26 @@ export async function backfillRetailAccounting(input: {
             reference: payment.reference,
           })),
           inventory: {
-            lines: sale.lines.map((line) => ({
-              inventoryItemId: line.inventoryItemId,
-              itemName: line.itemName,
-              quantity: Math.abs(line.quantity),
-              unitCost: unitCostByItemId.get(line.inventoryItemId) ?? 0,
-            })),
+            lines: sale.lines.map((line) => {
+              const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
+              const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
+              const totalCost = Math.abs(
+                line.costTotal || Math.abs(line.quantity) * unitCost,
+              );
+              return {
+                inventoryItemId: line.inventoryItemId,
+                itemName: line.itemName,
+                quantity: Math.abs(line.quantity),
+                unitCost,
+                totalCost,
+              };
+            }),
             totalCost: sale.lines.reduce(
-              (total, line) => total + Math.abs(line.quantity) * (unitCostByItemId.get(line.inventoryItemId) ?? 0),
+              (total, line) => {
+                const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
+                const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
+                return total + Math.abs(line.costTotal || Math.abs(line.quantity) * unitCost);
+              },
               0,
             ),
           },

@@ -63,7 +63,6 @@ export async function POST(request: NextRequest) {
       toLocationId: destination.id,
       sourceType: "RETAIL_STOCK_TRANSFER",
       sourceId: `stock-transfer:${item.id}:${Date.now()}`,
-      postAccounting: false,
     });
 
     await captureAccountingEvent({

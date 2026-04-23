@@ -18,37 +18,20 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { Prisma } from "@prisma/client";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import {
-  canManageRetailTransactions,
-  ensureSiteAccess,
-  getPosSupportedPromotionTypes,
-  isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
+import {
+  closeRetailShiftTransaction,
+  createRetailSaleTransaction,
+  openRetailShiftTransaction,
+  refundRetailSaleTransaction,
+  voidRetailSaleTransaction,
+} from "../../_services";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
-
-const syncPaymentSchema = z.object({
-  tenderType: z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"]),
-  amount: z.number().positive(),
-  reference: z.string().max(120).optional().nullable(),
-});
-
-const syncSaleItemSchema = z.object({
-  catalogItemId: z.string().uuid(),
-  sku: z.string(),
-  name: z.string(),
-  quantity: z.number().positive(),
-  unitPrice: z.number().min(0),
-  originalUnitPrice: z.number().min(0),
-  discountAmount: z.number().min(0).optional(),
-  taxRate: z.number().min(0),
-  taxAmount: z.number().min(0),
-  lineTotal: z.number().min(0),
-});
 
 const syncOperationSchema = z.object({
   clientOperationId: z.string().min(1),
@@ -81,6 +64,8 @@ interface SyncOperationResult {
   serverId?: string | null;
   saleNo?: string | null;
   error?: string | null;
+  accountingStatus?: "POSTED" | "PENDING" | "FAILED" | null;
+  accountingError?: string | null;
   conflicts?: Array<{ field: string; serverValue: unknown; clientValue: unknown }>;
 }
 
@@ -99,6 +84,36 @@ interface SyncContext {
   results: Map<string, SyncOperationResult>;
 }
 
+function round(value: number) {
+  return Number(value.toFixed(2));
+}
+
+async function resolveReplayShiftId(
+  ctx: SyncContext,
+  shiftId: string | null | undefined,
+) {
+  if (shiftId) {
+    return ctx.resolvedIds.get(shiftId) ?? shiftId;
+  }
+
+  const currentShift = await prisma.retailShift.findFirst({
+    where: {
+      companyId: ctx.companyId,
+      cashierId: ctx.userId,
+      status: "OPEN",
+    },
+    orderBy: [{ openedAt: "desc" }],
+    select: { id: true },
+  });
+
+  return currentShift?.id ?? null;
+}
+
+function resolveReferencedId(ctx: SyncContext, value: string | null | undefined) {
+  if (!value) return null;
+  return ctx.resolvedIds.get(value) ?? value;
+}
+
 // ── Operation Processors ────────────────────────────────────────────────────
 
 async function processOpenShift(
@@ -115,12 +130,6 @@ async function processOpenShift(
   };
 
   try {
-    const site = await ensureSiteAccess(ctx.companyId, payload.siteId);
-    if (!site) {
-      return { clientOperationId: op.clientOperationId, status: "failed", error: "Invalid site" };
-    }
-
-    // Check for existing open shift for this cashier
     const existingShift = await prisma.retailShift.findFirst({
       where: {
         companyId: ctx.companyId,
@@ -130,8 +139,8 @@ async function processOpenShift(
     });
 
     if (existingShift) {
-      // Return existing shift as the resolved entity (server wins)
       ctx.resolvedIds.set(payload.tempShiftId, existingShift.id);
+      ctx.resolvedIds.set(op.clientOperationId, existingShift.id);
       return {
         clientOperationId: op.clientOperationId,
         status: "conflict",
@@ -140,36 +149,31 @@ async function processOpenShift(
       };
     }
 
-    // Create new shift
-    const shiftNo = await reserveIdentifier(prisma, {
-      companyId: ctx.companyId,
-      entity: "RETAIL_SHIFT",
-      siteId: site.id,
-    });
-
-    const shift = await prisma.retailShift.create({
-      data: {
+    const { shift, accounting } = await openRetailShiftTransaction({
+      actor: {
         companyId: ctx.companyId,
-        shiftNo,
-        siteId: site.id,
-        cashierId: ctx.userId,
-        cashierName: ctx.session.user.name || ctx.session.user.email || "Cashier",
-        registerName: payload.registerName ?? "POS Register",
-        registerCode: payload.registerName?.toUpperCase().replace(/\s/g, "_") ?? "POS",
-        openingFloat: payload.openingCash,
-        expectedCash: payload.openingCash,
-        status: "OPEN",
-        openedAt: new Date(payload.openedAt),
+        userId: ctx.userId,
+        userRole: ctx.session.user.role,
+        userName: ctx.session.user.name,
+        userEmail: ctx.session.user.email,
       },
+      siteId: payload.siteId,
+      registerName: payload.registerName ?? "POS Register",
+      registerCode: payload.registerName?.toUpperCase().replace(/\s/g, "_") ?? "POS",
+      openingFloat: payload.openingCash,
+      openedAt: new Date(payload.openedAt),
     });
 
     ctx.resolvedIds.set(payload.tempShiftId, shift.id);
+    ctx.resolvedIds.set(op.clientOperationId, shift.id);
 
     return {
       clientOperationId: op.clientOperationId,
       status: "synced",
       serverId: shift.id,
       saleNo: shift.shiftNo,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to open shift";
@@ -189,37 +193,32 @@ async function processCloseShift(
   };
 
   try {
-    // Resolve shiftId if it's a tempId
-    const resolvedShiftId = ctx.resolvedIds.get(payload.shiftId) ?? payload.shiftId;
-
-    const shift = await prisma.retailShift.findFirst({
-      where: {
-        id: resolvedShiftId,
-        companyId: ctx.companyId,
-        cashierId: ctx.userId,
-        status: "OPEN",
-      },
-    });
-
-    if (!shift) {
+    const resolvedShiftId = await resolveReplayShiftId(ctx, payload.shiftId);
+    if (!resolvedShiftId) {
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
     }
 
-    const updated = await prisma.retailShift.update({
-      where: { id: shift.id },
-      data: {
-        status: "CLOSED",
-        countedCash: payload.closingCash,
-        variance: Number((payload.closingCash - shift.expectedCash).toFixed(2)),
-        notes: payload.closingNotes ?? null,
-        closedAt: new Date(payload.closedAt),
+    const { shift, accounting } = await closeRetailShiftTransaction({
+      actor: {
+        companyId: ctx.companyId,
+        userId: ctx.userId,
+        userRole: ctx.session.user.role,
+        userName: ctx.session.user.name,
+        userEmail: ctx.session.user.email,
       },
+      shiftId: resolvedShiftId,
+      countedCash: payload.closingCash,
+      notes: payload.closingNotes ?? null,
+      closedAt: new Date(payload.closedAt),
+      allowManagerClose: false,
     });
 
     return {
       clientOperationId: op.clientOperationId,
       status: "synced",
-      serverId: updated.id,
+      serverId: shift.id,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to close shift";
@@ -259,6 +258,7 @@ async function processCreateCustomer(
     if (existing) {
       // Server wins — return existing customer
       ctx.resolvedIds.set(payload.tempId, existing.id);
+      ctx.resolvedIds.set(op.clientOperationId, existing.id);
       return {
         clientOperationId: op.clientOperationId,
         status: "conflict",
@@ -279,6 +279,7 @@ async function processCreateCustomer(
     });
 
     ctx.resolvedIds.set(payload.tempId, customer.id);
+    ctx.resolvedIds.set(op.clientOperationId, customer.id);
 
     return {
       clientOperationId: op.clientOperationId,
@@ -329,50 +330,19 @@ async function processCreateSale(
     overrideReason?: string;
     promotionId?: string;
     offlineCreatedAt?: string;
+    offlineCreated?: boolean;
+    deviceId?: string;
   };
 
   try {
-    // Resolve shiftId and customerId
-    const resolvedShiftId = ctx.resolvedIds.get(payload.shiftId) ?? payload.shiftId;
+    const resolvedShiftId = resolveReferencedId(ctx, payload.shiftId);
+    if (!resolvedShiftId) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
+    }
     const resolvedCustomerId = payload.customerId
       ? (ctx.resolvedIds.get(payload.customerId) ?? payload.customerId)
       : undefined;
 
-    // Validate shift
-    const shift = await prisma.retailShift.findFirst({
-      where: {
-        id: resolvedShiftId,
-        companyId: ctx.companyId,
-        status: "OPEN",
-      },
-    });
-
-    if (!shift) {
-      return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
-    }
-
-    // Validate site
-    const site = await ensureSiteAccess(ctx.companyId, payload.siteId);
-    if (!site) {
-      return { clientOperationId: op.clientOperationId, status: "failed", error: "Invalid site" };
-    }
-
-    // Check for duplicate saleNo
-    const existingSale = await prisma.retailSale.findFirst({
-      where: { companyId: ctx.companyId, saleNo: payload.saleNo },
-    });
-
-    if (existingSale) {
-      return {
-        clientOperationId: op.clientOperationId,
-        status: "conflict",
-        serverId: existingSale.id,
-        saleNo: existingSale.saleNo,
-        error: "Sale with this number already exists",
-      };
-    }
-
-    // Validate catalog items
     const catalogItemIds = payload.items.map((i) => i.catalogItemId);
     const catalogItems = await prisma.retailCatalogItem.findMany({
       where: {
@@ -394,15 +364,18 @@ async function processCreateSale(
     const inventoryMap = new Map(inventoryItems.map((i) => [i.id, i]));
     const catalogMap = new Map(catalogItems.map((c) => [c.id, c]));
 
-    // Build sale lines
     const saleLines = payload.items.map((item) => {
       const catalogItem = catalogMap.get(item.catalogItemId);
       const inventoryItem = catalogItem
         ? inventoryMap.get(catalogItem.inventoryItemId)
         : null;
+      if (!catalogItem || !inventoryItem) {
+        throw new Error(`Inventory mapping missing for ${item.name}`);
+      }
 
       return {
-        inventoryItemId: inventoryItem?.id ?? item.catalogItemId,
+        inventoryItemId: inventoryItem.id,
+        inventoryUnit: inventoryItem.unit,
         catalogItemId: item.catalogItemId,
         itemName: item.name,
         quantity: item.quantity,
@@ -410,28 +383,11 @@ async function processCreateSale(
         discountAmount: item.discountAmount ?? 0,
         taxAmount: item.taxAmount,
         lineTotal: item.lineTotal,
+        costUnit: inventoryItem.unitCost ?? 0,
+        costTotal: round(item.quantity * (inventoryItem.unitCost ?? 0)),
       };
     });
 
-    // Calculate payment totals
-    const normalizedPayments = payload.payments.map((p) => ({
-      tenderType: p.tenderType,
-      amount: Number(p.amount.toFixed(2)),
-      reference: p.reference?.trim() || null,
-    }));
-
-    const tenderedAmount = normalizedPayments.reduce((sum, p) => sum + p.amount, 0);
-    const cashTotal = normalizedPayments
-      .filter((p) => p.tenderType === "CASH")
-      .reduce((sum, p) => sum + p.amount, 0);
-    const nonCashTotal = normalizedPayments
-      .filter((p) => p.tenderType !== "CASH")
-      .reduce((sum, p) => sum + p.amount, 0);
-    const cashDue = Math.max(payload.grandTotal - nonCashTotal, 0);
-    const changeAmount = Math.max(cashTotal - cashDue, 0);
-    const netCash = cashTotal - changeAmount;
-
-    // Resolve customer
     let customerName: string | null = null;
     if (resolvedCustomerId) {
       const customer = await prisma.customer.findFirst({
@@ -443,94 +399,44 @@ async function processCreateSale(
       customerName = payload.customerName ?? null;
     }
 
-    // Create the sale
-    const providedCode = payload.saleNo
-      ? normalizeProvidedId(payload.saleNo, "RETAIL_SALE")
-      : null;
-
-    let finalSaleNo = providedCode;
-    if (!finalSaleNo) {
-      finalSaleNo = await reserveIdentifier(prisma, {
+    const { sale, accounting } = await createRetailSaleTransaction({
+      actor: {
         companyId: ctx.companyId,
-        entity: "RETAIL_SALE",
-        siteId: site.id,
-      });
-    }
-
-    // Check for duplicate again (race condition)
-    const dupCheck = await prisma.retailSale.findFirst({
-      where: { companyId: ctx.companyId, saleNo: finalSaleNo },
+        userId: ctx.userId,
+        userRole: ctx.session.user.role,
+        userName: ctx.session.user.name,
+        userEmail: ctx.session.user.email,
+      },
+      saleNo: payload.saleNo,
+      shiftId: resolvedShiftId,
+      siteId: payload.siteId,
+      customerName,
+      subtotal: payload.subtotal,
+      discountAmount: payload.discountAmount,
+      taxAmount: payload.taxTotal,
+      totalAmount: payload.grandTotal,
+      payments: payload.payments,
+      lines: saleLines,
+      overrideReason: payload.overrideReason ?? null,
+      notes: payload.offlineCreated
+        ? `Offline replay from device ${ctx.deviceId ?? payload.deviceId ?? "unknown"}`
+        : null,
+      postedAt: new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now()),
     });
-    if (dupCheck) {
-      finalSaleNo = await reserveIdentifier(prisma, {
-        companyId: ctx.companyId,
-        entity: "RETAIL_SALE",
-        siteId: site.id,
-      });
-    }
 
-    const sale = await prisma.$transaction(async (tx) => {
-      const created = await tx.retailSale.create({
-        data: {
-          companyId: ctx.companyId,
-          saleNo: finalSaleNo!,
-          shiftId: shift.id,
-          siteId: site.id,
-          cashierId: ctx.userId,
-          cashierName: ctx.session.user.name || ctx.session.user.email || "Cashier",
-          customerName,
-          subtotal: payload.subtotal,
-          discountAmount: payload.discountAmount,
-          taxAmount: payload.taxTotal,
-          totalAmount: payload.grandTotal,
-          tenderedAmount: tenderedAmount,
-          changeAmount: changeAmount,
-          overrideReason: payload.overrideReason ?? null,
-          status: "POSTED",
-          postedAt: new Date(payload.offlineCreatedAt ?? Date.now()),
-          tenderSummary: normalizedPayments,
-          lines: {
-            create: saleLines,
-          },
-          payments: {
-            create: normalizedPayments,
-          },
-        },
-        include: { lines: true, payments: true },
-      });
-
-      // Update inventory
-      for (const line of saleLines) {
-        await tx.inventoryItem.updateMany({
-          where: { id: line.inventoryItemId },
-          data: {
-            currentStock: { decrement: line.quantity },
-          },
-        });
-      }
-
-      // Update shift expected cash
-      if (netCash !== 0) {
-        await tx.retailShift.updateMany({
-          where: { id: shift.id, companyId: ctx.companyId },
-          data: { expectedCash: { increment: netCash } },
-        });
-      }
-
-      return created;
-    });
+    ctx.resolvedIds.set(op.clientOperationId, sale.id);
+    ctx.resolvedIds.set(payload.saleNo, sale.id);
 
     return {
       clientOperationId: op.clientOperationId,
       status: "synced",
       serverId: sale.id,
       saleNo: sale.saleNo,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
     };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to create sale";
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return { clientOperationId: op.clientOperationId, status: "conflict", error: "Sale already exists" };
-    }
     return { clientOperationId: op.clientOperationId, status: "failed", error: message };
   }
 }
@@ -543,80 +449,46 @@ async function processVoidSale(
     saleId: string;
     reason: string;
     voidedAt: string;
+    shiftId?: string;
+    notes?: string;
+    periodOverrideReason?: string;
   };
 
   try {
-    const sale = await prisma.retailSale.findFirst({
-      where: {
-        id: payload.saleId,
-        companyId: ctx.companyId,
-        status: "POSTED",
-      },
-      include: { lines: true, payments: true },
-    });
-
-    if (!sale) {
+    const resolvedSaleId = resolveReferencedId(ctx, payload.saleId);
+    if (!resolvedSaleId) {
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Sale not found" };
     }
 
-    await prisma.$transaction(async (tx) => {
-      // Create void sale record
-      await tx.retailSale.create({
-        data: {
-          companyId: ctx.companyId,
-          saleNo: `${sale.saleNo}-VOID`,
-          shiftId: sale.shiftId,
-          siteId: sale.siteId,
-          cashierId: ctx.userId,
-          cashierName: ctx.session.user.name || ctx.session.user.email || "Cashier",
-          customerName: sale.customerName,
-          totalAmount: -sale.totalAmount,
-          subtotal: -sale.subtotal,
-          discountAmount: sale.discountAmount,
-          taxAmount: -sale.taxAmount,
-          status: "POSTED",
-          saleType: "VOID",
-          sourceSaleId: sale.id,
-          voidReason: payload.reason,
-          postedAt: new Date(payload.voidedAt),
-          lines: {
-            create: sale.lines.map((line) => ({
-              inventoryItemId: line.inventoryItemId,
-              catalogItemId: line.catalogItemId,
-              itemName: line.itemName,
-              quantity: -line.quantity,
-              unitPrice: line.unitPrice,
-              discountAmount: line.discountAmount,
-              taxAmount: -line.taxAmount,
-              lineTotal: -line.lineTotal,
-            })),
-          },
-          payments: {
-            create: sale.payments.map((p) => ({
-              tenderType: p.tenderType,
-              amount: -p.amount,
-              reference: p.reference,
-            })),
-          },
-        },
-      });
+    const resolvedShiftId = await resolveReplayShiftId(ctx, payload.shiftId);
+    if (!resolvedShiftId) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
+    }
 
-      // Mark original sale as voided
-      await tx.retailSale.update({
-        where: { id: sale.id },
-        data: { status: "VOIDED", voidReason: payload.reason },
-      });
-
-      // Restore inventory
-      for (const line of sale.lines) {
-        await tx.inventoryItem.updateMany({
-          where: { id: line.inventoryItemId },
-          data: { currentStock: { increment: line.quantity } },
-        });
-      }
+    const { sale, accounting } = await voidRetailSaleTransaction({
+      actor: {
+        companyId: ctx.companyId,
+        userId: ctx.userId,
+        userRole: ctx.session.user.role,
+        userName: ctx.session.user.name,
+        userEmail: ctx.session.user.email,
+      },
+      saleId: resolvedSaleId,
+      shiftId: resolvedShiftId,
+      reason: payload.reason,
+      notes: payload.notes ?? null,
+      periodOverrideReason: payload.periodOverrideReason ?? null,
+      postedAt: new Date(payload.voidedAt),
     });
 
-    return { clientOperationId: op.clientOperationId, status: "synced", serverId: sale.id };
+    return {
+      clientOperationId: op.clientOperationId,
+      status: "synced",
+      serverId: sale.id,
+      saleNo: sale.saleNo,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to void sale";
     return { clientOperationId: op.clientOperationId, status: "failed", error: message };
@@ -629,6 +501,7 @@ async function processRefundSale(
 ): Promise<SyncOperationResult> {
   const payload = op.payload as {
     saleId: string;
+    shiftId?: string;
     items: Array<{
       catalogItemId: string;
       name: string;
@@ -639,67 +512,89 @@ async function processRefundSale(
     reason: string;
     refundTotal: number;
     originalSaleNo?: string;
+    payments?: Array<{
+      tenderType: "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
+      amount: number;
+      reference?: string;
+    }>;
+    notes?: string;
+    refundedAt?: string;
+    periodOverrideReason?: string;
   };
 
   try {
-    const sale = await prisma.retailSale.findFirst({
-      where: {
-        id: payload.saleId,
-        companyId: ctx.companyId,
-        status: "POSTED",
-      },
-    });
-
-    if (!sale) {
+    const resolvedSaleId = resolveReferencedId(ctx, payload.saleId);
+    if (!resolvedSaleId) {
       return { clientOperationId: op.clientOperationId, status: "failed", error: "Original sale not found" };
     }
 
-    const refundNo = await reserveIdentifier(prisma, {
-      companyId: ctx.companyId,
-      entity: "RETAIL_SALE",
-      siteId: sale.siteId,
-    });
-
-    const refund = await prisma.retailSale.create({
-      data: {
+    const sourceSale = await prisma.retailSale.findFirst({
+      where: {
+        id: resolvedSaleId,
         companyId: ctx.companyId,
-        saleNo: refundNo,
-        shiftId: sale.shiftId,
-        siteId: sale.siteId,
-        cashierId: ctx.userId,
-        cashierName: ctx.session.user.name || ctx.session.user.email || "Cashier",
-        customerName: sale.customerName,
-        totalAmount: -Math.abs(payload.refundTotal),
-        subtotal: -Math.abs(payload.refundTotal),
-        taxAmount: 0,
         status: "POSTED",
-        saleType: "REFUND",
-        sourceSaleId: sale.id,
-        notes: payload.reason,
-        postedAt: new Date(),
-        lines: {
-          create: payload.items.map((item) => ({
-            inventoryItemId: item.catalogItemId,
-            catalogItemId: item.catalogItemId,
-            itemName: item.name,
-            quantity: -item.quantity,
-            unitPrice: item.unitPrice,
-            discountAmount: 0,
-            taxAmount: 0,
-            lineTotal: -item.refundAmount,
-          })),
-        },
-        payments: {
-          create: [{
-            tenderType: "CASH",
-            amount: Math.abs(payload.refundTotal),
-            reference: `Refund for ${payload.originalSaleNo ?? sale.saleNo}`,
-          }],
-        },
       },
+      include: { lines: true },
+    });
+    if (!sourceSale) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: "Original sale not found" };
+    }
+
+    const resolvedShiftId = await resolveReplayShiftId(ctx, payload.shiftId);
+    if (!resolvedShiftId) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: "Open shift not found" };
+    }
+
+    const requestedLines = payload.items.map((item) => {
+      const sourceLine = sourceSale.lines.find(
+        (line) =>
+          line.catalogItemId === item.catalogItemId ||
+          line.itemName.toLowerCase() === item.name.toLowerCase(),
+      );
+      if (!sourceLine) {
+        throw new Error(`Refund line not found for ${item.name}`);
+      }
+      return {
+        saleLineId: sourceLine.id,
+        quantity: item.quantity,
+      };
     });
 
-    return { clientOperationId: op.clientOperationId, status: "synced", serverId: refund.id };
+    const { sale, accounting } = await refundRetailSaleTransaction({
+      actor: {
+        companyId: ctx.companyId,
+        userId: ctx.userId,
+        userRole: ctx.session.user.role,
+        userName: ctx.session.user.name,
+        userEmail: ctx.session.user.email,
+      },
+      saleId: resolvedSaleId,
+      shiftId: resolvedShiftId,
+      reason: payload.reason,
+      lines: requestedLines,
+      payments:
+        payload.payments && payload.payments.length > 0
+          ? payload.payments
+          : [
+              {
+                tenderType: "CASH",
+                amount: Math.abs(payload.refundTotal),
+                reference: `Refund for ${payload.originalSaleNo ?? sourceSale.saleNo}`,
+              },
+            ],
+      notes: payload.notes ?? payload.reason,
+      periodOverrideReason: payload.periodOverrideReason ?? null,
+      postedAt: payload.refundedAt ? new Date(payload.refundedAt) : undefined,
+    });
+
+    return {
+      clientOperationId: op.clientOperationId,
+      status: "synced",
+      serverId: sale.id,
+      saleNo: sale.saleNo,
+      accountingStatus: accounting.accountingStatus,
+      accountingError: accounting.accountingError,
+    };
   } catch (error) {
     const message = error instanceof Error ? error.message : "Failed to process refund";
     return { clientOperationId: op.clientOperationId, status: "failed", error: message };
@@ -826,9 +721,10 @@ function topologicalSort(
     if (!inDegree.has(op.clientOperationId)) {
       inDegree.set(op.clientOperationId, 0);
     }
-    for (const dep of op.dependsOn) {
-      inDegree.set(op.clientOperationId, (inDegree.get(op.clientOperationId) ?? 0) + 1);
-    }
+    inDegree.set(
+      op.clientOperationId,
+      (inDegree.get(op.clientOperationId) ?? 0) + op.dependsOn.length,
+    );
   }
 
   // Kahn's algorithm

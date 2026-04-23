@@ -366,3 +366,128 @@ export async function closePeriodWithVoucher(input: {
     return { voucher, entry };
   });
 }
+
+export async function reopenPeriodWithVoucher(input: {
+  companyId: string;
+  periodId: string;
+  reopenedById: string;
+  reason: string;
+  reopenedAt?: Date;
+}) {
+  const reason = input.reason.trim();
+  if (!reason) {
+    throw new Error("Reopen reason is required.");
+  }
+
+  const period = await prisma.accountingPeriod.findUnique({
+    where: { id: input.periodId },
+    select: {
+      id: true,
+      companyId: true,
+      status: true,
+      startDate: true,
+      endDate: true,
+    },
+  });
+  if (!period || period.companyId !== input.companyId) {
+    throw new Error("Accounting period not found.");
+  }
+  if (period.status !== "CLOSED") {
+    throw new Error("Only closed periods can be reopened.");
+  }
+
+  const voucher = await prisma.periodCloseVoucher.findFirst({
+    where: {
+      companyId: input.companyId,
+      periodId: input.periodId,
+    },
+    include: {
+      period: {
+        select: {
+          startDate: true,
+        },
+      },
+    },
+  });
+
+  return prisma.$transaction(async (tx) => {
+    let reversalEntryId: string | null = null;
+
+    if (voucher?.journalEntryId && !voucher.reversedAt) {
+      const closingEntry = await tx.journalEntry.findUnique({
+        where: { id: voucher.journalEntryId },
+        include: { lines: true },
+      });
+      if (!closingEntry) {
+        throw new Error("Period close voucher journal entry not found.");
+      }
+
+      const reversalEntryNumber = await getNextEntryNumber(input.companyId);
+      const reversalDate = input.reopenedAt ?? new Date();
+      const reversalEntry = await tx.journalEntry.create({
+        data: {
+          companyId: input.companyId,
+          entryNumber: reversalEntryNumber,
+          entryDate: reversalDate,
+          description: `Reopen period ${voucher.period.startDate.toISOString().slice(0, 10)}: reverse close voucher`,
+          status: "POSTED",
+          periodId: input.periodId,
+          sourceType: "MANUAL",
+          sourceId: `period-reopen:${voucher.id}`,
+          createdById: input.reopenedById,
+          postedById: input.reopenedById,
+          postedAt: reversalDate,
+          lines: {
+            create: closingEntry.lines.map((line) => ({
+              accountId: line.accountId,
+              debit: toMoney(line.credit),
+              credit: toMoney(line.debit),
+              memo: line.memo ? `Reopen reversal: ${line.memo}` : "Reopen reversal",
+              costCenterId: line.costCenterId ?? undefined,
+            })),
+          },
+        },
+        select: { id: true },
+      });
+
+      reversalEntryId = reversalEntry.id;
+
+      await tx.journalEntry.update({
+        where: { id: closingEntry.id },
+        data: {
+          reversedById: input.reopenedById,
+          reversedAt: reversalDate,
+        },
+      });
+
+      await tx.periodCloseVoucher.update({
+        where: { id: voucher.id },
+        data: {
+          reversedAt: reversalDate,
+          reversedById: input.reopenedById,
+          reversedReason: reason,
+          reversedJournalEntryId: reversalEntry.id,
+        },
+      });
+    }
+
+    const reopenedAt = input.reopenedAt ?? new Date();
+    const reopenedPeriod = await tx.accountingPeriod.update({
+      where: { id: input.periodId },
+      data: {
+        status: "OPEN",
+        reopenedAt,
+        reopenedById: input.reopenedById,
+        reopenReason: reason,
+        closedAt: null,
+        closedById: null,
+      },
+    });
+
+    return {
+      period: reopenedPeriod,
+      reversalEntryId,
+      voucherReversed: Boolean(voucher?.journalEntryId && !voucher.reversedAt),
+    };
+  });
+}
