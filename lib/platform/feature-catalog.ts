@@ -397,8 +397,8 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     code: "ADDON_SCHOOLS_SUITE",
     name: "Schools Suite",
     description: "Student lifecycle, academics, boarding, fees, and school role portals.",
-    monthlyPrice: 79,
-    additionalSiteMonthlyPrice: 15,
+    monthlyPrice: 149,
+    additionalSiteMonthlyPrice: 35,
     features: [
       "schools.core",
       "schools.admissions",
