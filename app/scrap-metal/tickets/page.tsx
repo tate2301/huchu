@@ -9,12 +9,19 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { fetchScrapTicketContext } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { OFFLINE_ENTITIES_CHANGED_EVENT } from "@/lib/offline/events";
+import {
+  OFFLINE_ENTITIES_CHANGED_EVENT,
+  OFFLINE_OUTBOX_CHANGED_EVENT,
+} from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
 import {
   createPurchaseTicketOffline,
   createSaleTicketOffline,
+  getPendingPurchaseTicket,
+  getPendingSaleTicket,
   rehydrateLocalTicketPhotos,
+  updatePurchaseTicketOffline,
+  updateSaleTicketOffline,
 } from "@/lib/scrap-metal/offline-ticket";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
 import {
@@ -64,7 +71,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { ChevronDown } from "@/lib/icons";
-import { Cash, CheckCircle, CheckCircleSolid } from "@medusajs/icons";
+import { CheckCircleSolid } from "@medusajs/icons";
 import { Separator } from "@/components/ui/separator";
 
 type Material = { id: string; code: string; name: string; category: string };
@@ -280,6 +287,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const draftType = searchParams.get("draft");
+  const queuedType = searchParams.get("queuedType");
+  const queuedTicketId = searchParams.get("queuedTicketId");
   const [view, setView] = useState<"inbound" | "outbound">("inbound");
   const [inbound, setInbound] = useState<InboundForm>(emptyInbound);
   const [outbound, setOutbound] = useState<OutboundForm>(emptyOutbound);
@@ -297,9 +306,16 @@ export default function ScrapMetalTicketWorkbenchPage() {
   });
   const [offlineQueueCount, setOfflineQueueCount] = useState(0);
   const [syncingOfflineQueue, setSyncingOfflineQueue] = useState(false);
+  const [savingQueuedTicket, setSavingQueuedTicket] = useState(false);
   const [offlineSellers, setOfflineSellers] = useState<Seller[]>([]);
   const [inboundMetaOpen, setInboundMetaOpen] = useState(false);
   const [outboundMetaOpen, setOutboundMetaOpen] = useState(false);
+  const [activeOfflineTicket, setActiveOfflineTicket] = useState<{
+    type: "inbound" | "outbound";
+    clientRequestId: string;
+    ticketNumber: string;
+    siteId: string;
+  } | null>(null);
 
   const ticketContextQuery = useQuery({
     queryKey: ["scrap-ticket-context"],
@@ -329,21 +345,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
     queryFn: () =>
       fetchJson<{ data: Batch[] }>("/api/scrap-metal/batches?limit=500"),
   });
-  const heldInboundQuery = useQuery({
-    queryKey: ["scrap-held-inbound-total"],
-    queryFn: () =>
-      fetchJson<{ pagination?: { total?: number } }>(
-        "/api/scrap-metal/purchases?status=DRAFT&limit=1",
-      ),
-  });
-  const heldOutboundQuery = useQuery({
-    queryKey: ["scrap-held-outbound-total"],
-    queryFn: () =>
-      fetchJson<{ pagination?: { total?: number } }>(
-        "/api/scrap-metal/sales?status=DRAFT&limit=1",
-      ),
-  });
-
   const materials = useMemo(
     () => materialsQuery.data?.data ?? [],
     [materialsQuery.data?.data],
@@ -422,8 +423,6 @@ export default function ScrapMetalTicketWorkbenchPage() {
       ),
     enabled: Boolean(selectedBatch?.category),
   });
-  const heldInbound = heldInboundQuery.data?.pagination?.total ?? 0;
-  const heldOutbound = heldOutboundQuery.data?.pagination?.total ?? 0;
   const inboundRequirements = inboundRequirementsQuery.data;
   const outboundRequirements = outboundRequirementsQuery.data;
   const applyPriceSuggestion = useCallback(
@@ -513,6 +512,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
               )
             : localDraft.payload.attachments;
         setView("inbound");
+        setActiveOfflineTicket(null);
+        setInboundErrors({});
         setInbound({ ...localDraft.payload, attachments });
       } else {
         const localDraft = loadLocalTicketDraft<OutboundForm>("outbound");
@@ -533,6 +534,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
               )
             : localDraft.payload.attachments;
         setView("outbound");
+        setActiveOfflineTicket(null);
+        setOutboundErrors({});
         setOutbound({ ...localDraft.payload, attachments });
       }
 
@@ -576,6 +579,94 @@ export default function ScrapMetalTicketWorkbenchPage() {
     });
   }, [draftType, loadSavedDraft, router, toast]);
 
+  useEffect(() => {
+    if (!tenantKey || !queuedType || !queuedTicketId) return;
+    if (queuedType !== "inbound" && queuedType !== "outbound") return;
+
+    const loadQueuedTicket = async () => {
+      if (queuedType === "inbound") {
+        const ticket = await getPendingPurchaseTicket(tenantKey, queuedTicketId);
+        if (!ticket) {
+          toast({
+            title: "Queued inbound ticket unavailable",
+            variant: "destructive",
+          });
+          router.replace("/scrap-metal/tickets");
+          return;
+        }
+
+        setView("inbound");
+        setActiveOfflineTicket({
+          type: "inbound",
+          clientRequestId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          siteId: ticket.siteId,
+        });
+        setInboundErrors({});
+        setInbound({
+          siteId: ticket.siteId,
+          employeeId: ticket.employeeId,
+          date: ticket.ticketDate.slice(0, 16),
+          sellerId: ticket.sellerId,
+          materialId: ticket.materialId ?? "",
+          category: ticket.category,
+          weight: String(ticket.weight),
+          pricePerKg: String(ticket.pricePerKg),
+          currency: ticket.currency,
+          paymentMethod: ticket.paymentMethod ?? "Cash",
+          paymentReference: ticket.paymentReference ?? "",
+          notes: ticket.notes ?? "",
+          attachments: ticket.photos,
+        });
+        toast({
+          title: "Queued inbound ticket loaded",
+          variant: "success",
+        });
+      } else {
+        const ticket = await getPendingSaleTicket(tenantKey, queuedTicketId);
+        if (!ticket) {
+          toast({
+            title: "Queued outbound ticket unavailable",
+            variant: "destructive",
+          });
+          router.replace("/scrap-metal/tickets");
+          return;
+        }
+
+        setView("outbound");
+        setActiveOfflineTicket({
+          type: "outbound",
+          clientRequestId: ticket.id,
+          ticketNumber: ticket.ticketNumber,
+          siteId: ticket.siteId,
+        });
+        setOutboundErrors({});
+        setOutbound({
+          date: ticket.ticketDate.slice(0, 16),
+          batchId: ticket.batchId,
+          buyerName: ticket.buyerName,
+          buyerContact: ticket.buyerContact ?? "",
+          recordedWeight: String(ticket.recordedWeight),
+          soldWeight: String(ticket.soldWeight),
+          pricePerKg: String(ticket.pricePerKg),
+          currency: ticket.currency,
+          paymentMethod: ticket.paymentMethod ?? "Cash",
+          paymentReference: ticket.paymentReference ?? "",
+          notes: ticket.notes ?? "",
+          attachments: ticket.photos,
+        });
+        toast({
+          title: "Queued outbound ticket loaded",
+          variant: "success",
+        });
+      }
+
+      router.replace("/scrap-metal/tickets");
+    };
+
+    void loadQueuedTicket();
+  }, [queuedTicketId, queuedType, router, tenantKey, toast]);
+
   const refreshOfflineQueueCount = useCallback(async () => {
     if (!tenantKey) {
       setOfflineQueueCount(0);
@@ -596,11 +687,18 @@ export default function ScrapMetalTicketWorkbenchPage() {
       void refreshOfflineQueueCount();
     };
     window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, onEntitiesChanged);
+    window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, onEntitiesChanged);
     return () =>
-      window.removeEventListener(
-        OFFLINE_ENTITIES_CHANGED_EVENT,
-        onEntitiesChanged,
-      );
+      {
+        window.removeEventListener(
+          OFFLINE_ENTITIES_CHANGED_EVENT,
+          onEntitiesChanged,
+        );
+        window.removeEventListener(
+          OFFLINE_OUTBOX_CHANGED_EVENT,
+          onEntitiesChanged,
+        );
+      };
   }, [refreshOfflineQueueCount]);
 
   useEffect(() => {
@@ -734,6 +832,139 @@ export default function ScrapMetalTicketWorkbenchPage() {
     }
   }
 
+  function resetInboundEditor() {
+    setActiveOfflineTicket((current) =>
+      current?.type === "inbound" ? null : current,
+    );
+    clearLocalTicketDraft("inbound");
+    setInboundErrors({});
+    setInbound((prev) => ({
+      ...emptyInbound(),
+      siteId: prev.siteId,
+      employeeId: defaultBuyerId || prev.employeeId,
+    }));
+  }
+
+  function resetOutboundEditor() {
+    setActiveOfflineTicket((current) =>
+      current?.type === "outbound" ? null : current,
+    );
+    clearLocalTicketDraft("outbound");
+    setOutboundErrors({});
+    setOutbound(emptyOutbound());
+  }
+
+  async function saveQueuedInboundTicket(intent: InboundIntent) {
+    if (!tenantKey || activeOfflineTicket?.type !== "inbound") return;
+
+    const selectedSeller =
+      sellers.find((seller) => seller.id === inbound.sellerId) ?? null;
+
+    setSavingQueuedTicket(true);
+    try {
+      await updatePurchaseTicketOffline(tenantKey, activeOfflineTicket.clientRequestId, {
+        clientRequestId: activeOfflineTicket.clientRequestId,
+        ticketNumber: activeOfflineTicket.ticketNumber,
+        ticketDate: toIsoStringOrNow(inbound.date),
+        sellerId: inbound.sellerId,
+        sellerName: selectedSeller?.fullName ?? "Offline seller",
+        materialId: inbound.materialId || undefined,
+        category: derivedInboundCategory,
+        weight: Number(inbound.weight),
+        pricePerKg: Number(inbound.pricePerKg),
+        currency: inbound.currency,
+        paymentMethod: inbound.paymentMethod || undefined,
+        paymentReference: inbound.paymentReference || undefined,
+        notes: inbound.notes || undefined,
+        photos: inbound.attachments,
+        status: intent === "hold" ? "DRAFT" : "POSTED",
+        siteId: inbound.siteId,
+        employeeId: inbound.employeeId,
+        intent,
+      });
+      await refreshOfflineQueueCount();
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-held-inbound"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-purchases"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-home-local-held-inbound"] });
+      resetInboundEditor();
+      toast({
+        title:
+          intent === "hold"
+            ? "Queued inbound ticket updated"
+            : "Queued inbound ticket finalized offline",
+        description:
+          intent === "finalize_print"
+            ? "The queue entry was updated. PDF export will be available after sync."
+            : undefined,
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to update queued inbound ticket",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingQueuedTicket(false);
+    }
+  }
+
+  async function saveQueuedOutboundTicket(intent: OutboundIntent) {
+    if (!tenantKey || activeOfflineTicket?.type !== "outbound") return;
+
+    setSavingQueuedTicket(true);
+    try {
+      await updateSaleTicketOffline(tenantKey, activeOfflineTicket.clientRequestId, {
+        clientRequestId: activeOfflineTicket.clientRequestId,
+        ticketNumber: activeOfflineTicket.ticketNumber,
+        ticketDate: toIsoStringOrNow(outbound.date),
+        batchId: outbound.batchId,
+        buyerName: outbound.buyerName,
+        buyerContact: outbound.buyerContact || undefined,
+        recordedWeight: Number(outbound.recordedWeight),
+        soldWeight: Number(outbound.soldWeight),
+        pricePerKg: Number(outbound.pricePerKg),
+        currency: outbound.currency,
+        paymentMethod: outbound.paymentMethod || undefined,
+        paymentReference: outbound.paymentReference || undefined,
+        notes: outbound.notes || undefined,
+        photos: outbound.attachments,
+        status:
+          intent === "hold" || intent === "request_approval"
+            ? "DRAFT"
+            : "PENDING_APPROVAL",
+        siteId: selectedBatch?.site.id ?? activeOfflineTicket.siteId,
+        intent,
+      });
+      await refreshOfflineQueueCount();
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-held-outbound"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-sales"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-home-local-held-outbound"] });
+      resetOutboundEditor();
+      toast({
+        title:
+          intent === "hold"
+            ? "Queued outbound ticket updated"
+            : intent === "request_approval"
+              ? "Queued approval request updated"
+              : "Queued outbound ticket updated",
+        description:
+          intent === "submit_print"
+            ? "The queue entry was updated. PDF export will be available after sync."
+            : undefined,
+        variant: "success",
+      });
+    } catch (error) {
+      toast({
+        title: "Unable to update queued outbound ticket",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    } finally {
+      setSavingQueuedTicket(false);
+    }
+  }
+
   const createSellerMutation = useMutation({
     mutationFn: (payload: {
       fullName: string;
@@ -790,13 +1021,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
     onSuccess: (created, variables) => {
       queryClient.invalidateQueries({ queryKey: ["scrap-metal-purchases"] });
       queryClient.invalidateQueries({ queryKey: ["scrap-held-inbound-total"] });
-      clearLocalTicketDraft("inbound");
-      setInboundErrors({});
-      setInbound((prev) => ({
-        ...emptyInbound(),
-        siteId: prev.siteId,
-        employeeId: defaultBuyerId || prev.employeeId,
-      }));
+      resetInboundEditor();
       if (variables.intent === "finalize_print") {
         printTicketWithBridge({
           ticketType: "purchase",
@@ -826,6 +1051,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
           const selectedSeller =
             sellers.find((seller) => seller.id === inbound.sellerId) ?? null;
           await createPurchaseTicketOffline(tenantKey, {
+            clientRequestId: variables.clientRequestId,
+            ticketDate: toIsoStringOrNow(inbound.date),
             sellerId: inbound.sellerId,
             sellerName: selectedSeller?.fullName ?? "Offline seller",
             materialId: inbound.materialId || undefined,
@@ -843,6 +1070,9 @@ export default function ScrapMetalTicketWorkbenchPage() {
             intent: variables.intent,
           });
           await refreshOfflineQueueCount();
+          queryClient.invalidateQueries({ queryKey: ["scrap-local-purchases"] });
+          queryClient.invalidateQueries({ queryKey: ["scrap-home-local-held-inbound"] });
+          queryClient.invalidateQueries({ queryKey: ["scrap-local-held-inbound"] });
           if (variables.intent === "hold") {
             queryClient.setQueryData<{ pagination?: { total?: number } }>(
               ["scrap-held-inbound-total"],
@@ -921,9 +1151,7 @@ export default function ScrapMetalTicketWorkbenchPage() {
       queryClient.invalidateQueries({
         queryKey: ["scrap-held-outbound-total"],
       });
-      clearLocalTicketDraft("outbound");
-      setOutboundErrors({});
-      setOutbound(emptyOutbound());
+      resetOutboundEditor();
       if (variables.intent === "submit_print") {
         printTicketWithBridge({
           ticketType: "sale",
@@ -956,6 +1184,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
         try {
           if (tenantKey) {
             await createSaleTicketOffline(tenantKey, {
+              clientRequestId: variables.clientRequestId,
+              ticketDate: toIsoStringOrNow(outbound.date),
               batchId: outbound.batchId,
               buyerName: outbound.buyerName,
               buyerContact: outbound.buyerContact || undefined,
@@ -975,6 +1205,9 @@ export default function ScrapMetalTicketWorkbenchPage() {
               intent: variables.intent,
             });
             await refreshOfflineQueueCount();
+            queryClient.invalidateQueries({ queryKey: ["scrap-local-sales"] });
+            queryClient.invalidateQueries({ queryKey: ["scrap-home-local-held-outbound"] });
+            queryClient.invalidateQueries({ queryKey: ["scrap-local-held-outbound"] });
             if (variables.intent === "hold") {
               queryClient.setQueryData<{ pagination?: { total?: number } }>(
                 ["scrap-held-outbound-total"],
@@ -1161,7 +1394,8 @@ export default function ScrapMetalTicketWorkbenchPage() {
   const busy =
     inboundMutation.isPending ||
     outboundMutation.isPending ||
-    createSellerMutation.isPending;
+    createSellerMutation.isPending ||
+    savingQueuedTicket;
   const inboundTotal = useMemo(() => {
     const weight = Number(inbound.weight);
     const price = Number(inbound.pricePerKg);
@@ -1226,71 +1460,89 @@ export default function ScrapMetalTicketWorkbenchPage() {
   function holdCurrentTicket() {
     if (view === "inbound") {
       if (validateInbound()) {
-        inboundMutation.mutate({
-          intent: "hold",
-          clientRequestId: makeScrapTicketRequestId(),
-        });
+        if (activeOfflineTicket?.type === "inbound") {
+          void saveQueuedInboundTicket("hold");
+        } else {
+          inboundMutation.mutate({
+            intent: "hold",
+            clientRequestId: makeScrapTicketRequestId(),
+          });
+        }
       }
       return;
     }
     if (validateOutbound()) {
-      outboundMutation.mutate({
-        intent: "hold",
-        clientRequestId: makeScrapTicketRequestId(),
-      });
+      if (activeOfflineTicket?.type === "outbound") {
+        void saveQueuedOutboundTicket("hold");
+      } else {
+        outboundMutation.mutate({
+          intent: "hold",
+          clientRequestId: makeScrapTicketRequestId(),
+        });
+      }
     }
   }
 
   function finalizeCurrentTicket() {
     if (view === "inbound") {
       if (validateInbound()) {
-        inboundMutation.mutate({
-          intent: "finalize",
-          clientRequestId: makeScrapTicketRequestId(),
-        });
+        if (activeOfflineTicket?.type === "inbound") {
+          void saveQueuedInboundTicket("finalize");
+        } else {
+          inboundMutation.mutate({
+            intent: "finalize",
+            clientRequestId: makeScrapTicketRequestId(),
+          });
+        }
       }
       return;
     }
     if (validateOutbound()) {
-      outboundMutation.mutate({
-        intent: canCreateOutbound ? "submit" : "request_approval",
-        clientRequestId: makeScrapTicketRequestId(),
-      });
+      const intent = canCreateOutbound ? "submit" : "request_approval";
+      if (activeOfflineTicket?.type === "outbound") {
+        void saveQueuedOutboundTicket(intent);
+      } else {
+        outboundMutation.mutate({
+          intent,
+          clientRequestId: makeScrapTicketRequestId(),
+        });
+      }
     }
   }
 
   function finalizeAndExportCurrentTicket() {
     if (view === "inbound") {
       if (validateInbound()) {
-        inboundMutation.mutate({
-          intent: "finalize_print",
-          clientRequestId: makeScrapTicketRequestId(),
-        });
+        if (activeOfflineTicket?.type === "inbound") {
+          void saveQueuedInboundTicket("finalize_print");
+        } else {
+          inboundMutation.mutate({
+            intent: "finalize_print",
+            clientRequestId: makeScrapTicketRequestId(),
+          });
+        }
       }
       return;
     }
     if (validateOutbound()) {
-      outboundMutation.mutate({
-        intent: canCreateOutbound ? "submit_print" : "request_approval",
-        clientRequestId: makeScrapTicketRequestId(),
-      });
+      const intent = canCreateOutbound ? "submit_print" : "request_approval";
+      if (activeOfflineTicket?.type === "outbound") {
+        void saveQueuedOutboundTicket(intent);
+      } else {
+        outboundMutation.mutate({
+          intent,
+          clientRequestId: makeScrapTicketRequestId(),
+        });
+      }
     }
   }
 
   function cancelCurrentTicket() {
     if (view === "inbound") {
-      clearLocalTicketDraft("inbound");
-      setInbound((prev) => ({
-        ...emptyInbound(),
-        siteId: prev.siteId,
-        employeeId: defaultBuyerId || prev.employeeId,
-      }));
-      setInboundErrors({});
+      resetInboundEditor();
       return;
     }
-    clearLocalTicketDraft("outbound");
-    setOutbound(emptyOutbound());
-    setOutboundErrors({});
+    resetOutboundEditor();
   }
 
   useEffect(() => {
@@ -1310,36 +1562,53 @@ export default function ScrapMetalTicketWorkbenchPage() {
       if (key === "h") {
         if (view === "inbound") {
           if (validateInbound()) {
-            inboundMutation.mutate({
-              intent: "hold",
-              clientRequestId: makeScrapTicketRequestId(),
-            });
+            if (activeOfflineTicket?.type === "inbound") {
+              void saveQueuedInboundTicket("hold");
+            } else {
+              inboundMutation.mutate({
+                intent: "hold",
+                clientRequestId: makeScrapTicketRequestId(),
+              });
+            }
           }
           return;
         }
         if (validateOutbound()) {
-          outboundMutation.mutate({
-            intent: "hold",
-            clientRequestId: makeScrapTicketRequestId(),
-          });
+          if (activeOfflineTicket?.type === "outbound") {
+            void saveQueuedOutboundTicket("hold");
+          } else {
+            outboundMutation.mutate({
+              intent: "hold",
+              clientRequestId: makeScrapTicketRequestId(),
+            });
+          }
         }
         return;
       }
 
       if (view === "inbound") {
         if (validateInbound()) {
-          inboundMutation.mutate({
-            intent: "finalize",
-            clientRequestId: makeScrapTicketRequestId(),
-          });
+          if (activeOfflineTicket?.type === "inbound") {
+            void saveQueuedInboundTicket("finalize");
+          } else {
+            inboundMutation.mutate({
+              intent: "finalize",
+              clientRequestId: makeScrapTicketRequestId(),
+            });
+          }
         }
         return;
       }
       if (validateOutbound()) {
-        outboundMutation.mutate({
-          intent: canCreateOutbound ? "submit" : "request_approval",
-          clientRequestId: makeScrapTicketRequestId(),
-        });
+        const intent = canCreateOutbound ? "submit" : "request_approval";
+        if (activeOfflineTicket?.type === "outbound") {
+          void saveQueuedOutboundTicket(intent);
+        } else {
+          outboundMutation.mutate({
+            intent,
+            clientRequestId: makeScrapTicketRequestId(),
+          });
+        }
       }
     }
 
@@ -1426,9 +1695,18 @@ export default function ScrapMetalTicketWorkbenchPage() {
       >
         {view === "inbound" ? (
           <div className="max-w-3xl mx-auto">
-            <h2 className="text-xl font-semibold mb-6">
-              Create Inbound Ticket
-            </h2>
+            <div className="mb-6 flex flex-wrap items-center gap-3">
+              <h2 className="text-xl font-semibold">
+                {activeOfflineTicket?.type === "inbound"
+                  ? "Update Queued Inbound Ticket"
+                  : "Create Inbound Ticket"}
+              </h2>
+              {activeOfflineTicket?.type === "inbound" ? (
+                <Badge variant="secondary">
+                  {activeOfflineTicket.ticketNumber}
+                </Badge>
+              ) : null}
+            </div>
             <div className="space-y-12 pb-28 md:pb-3">
               {inboundErrors.form ? (
                 <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
@@ -1847,7 +2125,11 @@ export default function ScrapMetalTicketWorkbenchPage() {
         ) : (
           <Card>
             <CardHeader>
-              <CardTitle>New Outbound Ticket</CardTitle>
+              <CardTitle>
+                {activeOfflineTicket?.type === "outbound"
+                  ? "Update Queued Outbound Ticket"
+                  : "New Outbound Ticket"}
+              </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4 pb-28 md:pb-3">
               {outboundErrors.form ? (

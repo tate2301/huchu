@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -16,7 +16,10 @@ import { DataTable } from "@/components/ui/data-table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { OFFLINE_ENTITIES_CHANGED_EVENT } from "@/lib/offline/events";
+import {
+  OFFLINE_ENTITIES_CHANGED_EVENT,
+  OFFLINE_OUTBOX_CHANGED_EVENT,
+} from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
 import {
   listPendingPurchaseTickets,
@@ -24,7 +27,6 @@ import {
   type PendingPurchaseTicketRecord,
   type PendingSaleTicketRecord,
 } from "@/lib/scrap-metal/offline-ticket";
-import { saveLocalTicketDraft } from "@/lib/scrap-metal/offline-draft-adapter";
 import type { LocalScrapTicketPhoto } from "@/lib/scrap-metal/offline-runtime";
 
 type HeldPurchase = {
@@ -65,21 +67,7 @@ type HeldInboundRow = {
   lastError?: string;
   attachments: LocalScrapTicketPhoto[];
   serverId?: string;
-  localDraft?: {
-    siteId: string;
-    employeeId: string;
-    date: string;
-    sellerId: string;
-    materialId: string;
-    category: string;
-    weight: string;
-    pricePerKg: string;
-    currency: string;
-    paymentMethod: string;
-    paymentReference: string;
-    notes: string;
-    attachments: LocalScrapTicketPhoto[];
-  };
+  localTicketId?: string;
 };
 
 type HeldOutboundRow = {
@@ -96,20 +84,7 @@ type HeldOutboundRow = {
   lastError?: string;
   attachments: LocalScrapTicketPhoto[];
   serverId?: string;
-  localDraft?: {
-    date: string;
-    batchId: string;
-    buyerName: string;
-    buyerContact: string;
-    recordedWeight: string;
-    soldWeight: string;
-    pricePerKg: string;
-    currency: string;
-    paymentMethod: string;
-    paymentReference: string;
-    notes: string;
-    attachments: LocalScrapTicketPhoto[];
-  };
+  localTicketId?: string;
 };
 
 function formatMoney(currency: string, amount: number) {
@@ -201,10 +176,12 @@ export default function HeldTicketsPage() {
     };
 
     window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, onEntitiesChanged);
+    window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, onEntitiesChanged);
     window.addEventListener("online", onEntitiesChanged);
 
     return () => {
       window.removeEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, onEntitiesChanged);
+      window.removeEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, onEntitiesChanged);
       window.removeEventListener("online", onEntitiesChanged);
     };
   }, [queryClient]);
@@ -266,10 +243,12 @@ export default function HeldTicketsPage() {
       serverId: ticket.id,
     }));
 
-    const localRows = (localInboundQuery.data ?? []).map((ticket: PendingPurchaseTicketRecord) => ({
+    const localRows = (localInboundQuery.data ?? [])
+      .filter((ticket: PendingPurchaseTicketRecord) => ticket.status === "DRAFT")
+      .map((ticket: PendingPurchaseTicketRecord) => ({
       id: `local:${ticket.id}`,
-      ticketNumber: `Offline ${ticket.id.slice(-6).toUpperCase()}`,
-      ticketDate: ticket.createdAt,
+      ticketNumber: ticket.ticketNumber,
+      ticketDate: ticket.ticketDate,
       sellerName: ticket.sellerName,
       category: ticket.category,
       weight: ticket.weight,
@@ -280,21 +259,7 @@ export default function HeldTicketsPage() {
       queueStatus: formatQueueStatus(ticket.outboxStatus),
       lastError: ticket.lastError,
       attachments: ticket.photos,
-      localDraft: {
-        siteId: ticket.siteId,
-        employeeId: ticket.employeeId,
-        date: ticket.createdAt.slice(0, 16),
-        sellerId: ticket.sellerId,
-        materialId: ticket.materialId ?? "",
-        category: ticket.category,
-        weight: String(ticket.weight),
-        pricePerKg: String(ticket.pricePerKg),
-        currency: ticket.currency,
-        paymentMethod: ticket.paymentMethod ?? "Cash",
-        paymentReference: ticket.paymentReference ?? "",
-        notes: ticket.notes ?? "",
-        attachments: ticket.photos,
-      },
+      localTicketId: ticket.id,
     }));
 
     return [...localRows, ...serverRows].sort(
@@ -317,10 +282,12 @@ export default function HeldTicketsPage() {
       serverId: ticket.id,
     }));
 
-    const localRows = (localOutboundQuery.data ?? []).map((ticket: PendingSaleTicketRecord) => ({
+    const localRows = (localOutboundQuery.data ?? [])
+      .filter((ticket: PendingSaleTicketRecord) => ticket.status === "DRAFT")
+      .map((ticket: PendingSaleTicketRecord) => ({
       id: `local:${ticket.id}`,
-      ticketNumber: `Offline ${ticket.id.slice(-6).toUpperCase()}`,
-      ticketDate: ticket.createdAt,
+      ticketNumber: ticket.ticketNumber,
+      ticketDate: ticket.ticketDate,
       buyerName: ticket.buyerName,
       soldWeight: ticket.soldWeight,
       totalAmount: ticket.total,
@@ -330,20 +297,7 @@ export default function HeldTicketsPage() {
       queueStatus: formatQueueStatus(ticket.outboxStatus),
       lastError: ticket.lastError,
       attachments: ticket.photos,
-      localDraft: {
-        date: ticket.createdAt.slice(0, 16),
-        batchId: ticket.batchId,
-        buyerName: ticket.buyerName,
-        buyerContact: ticket.buyerContact ?? "",
-        recordedWeight: String(ticket.recordedWeight),
-        soldWeight: String(ticket.soldWeight),
-        pricePerKg: String(ticket.pricePerKg),
-        currency: ticket.currency,
-        paymentMethod: ticket.paymentMethod ?? "Cash",
-        paymentReference: ticket.paymentReference ?? "",
-        notes: ticket.notes ?? "",
-        attachments: ticket.photos,
-      },
+      localTicketId: ticket.id,
     }));
 
     return [...localRows, ...serverRows].sort(
@@ -351,11 +305,15 @@ export default function HeldTicketsPage() {
     );
   }, [heldSalesQuery.data, localOutboundQuery.data]);
 
-  const openLocalDraft = (type: "inbound" | "outbound", payload: HeldInboundRow["localDraft"] | HeldOutboundRow["localDraft"]) => {
-    if (!payload) return;
-    saveLocalTicketDraft(type, payload);
-    router.push(`/scrap-metal/tickets?draft=${type}`);
-  };
+  const openQueuedTicket = useCallback((
+    type: "inbound" | "outbound",
+    clientRequestId?: string,
+  ) => {
+    if (!clientRequestId) return;
+    router.push(
+      `/scrap-metal/tickets?queuedType=${type}&queuedTicketId=${encodeURIComponent(clientRequestId)}`,
+    );
+  }, [router]);
 
   const inboundColumns = useMemo<ColumnDef<HeldInboundRow>[]>(
     () => [
@@ -404,13 +362,13 @@ export default function HeldTicketsPage() {
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
             {row.original.source === "local" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openLocalDraft("inbound", row.original.localDraft)}
-              >
-                Resume Offline
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openQueuedTicket("inbound", row.original.localTicketId)}
+                >
+                  Resume Offline
+                </Button>
             ) : (
               <>
                 <Button size="sm" variant="outline" asChild>
@@ -429,7 +387,7 @@ export default function HeldTicketsPage() {
         ),
       },
     ],
-    [finalizeInboundMutation, router],
+    [finalizeInboundMutation, openQueuedTicket],
   );
 
   const outboundColumns = useMemo<ColumnDef<HeldOutboundRow>[]>(
@@ -478,13 +436,13 @@ export default function HeldTicketsPage() {
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
             {row.original.source === "local" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => openLocalDraft("outbound", row.original.localDraft)}
-              >
-                Resume Offline
-              </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => openQueuedTicket("outbound", row.original.localTicketId)}
+                >
+                  Resume Offline
+                </Button>
             ) : (
               <>
                 <Button size="sm" variant="outline" asChild>
@@ -504,7 +462,7 @@ export default function HeldTicketsPage() {
         ),
       },
     ],
-    [canManageSales, finalizeOutboundMutation, router],
+    [canManageSales, finalizeOutboundMutation, openQueuedTicket],
   );
 
   const views = [
@@ -579,7 +537,7 @@ export default function HeldTicketsPage() {
                         <Button
                           className="w-full"
                           variant="outline"
-                          onClick={() => openLocalDraft("inbound", ticket.localDraft)}
+                          onClick={() => openQueuedTicket("inbound", ticket.localTicketId)}
                         >
                           Resume Offline
                         </Button>
@@ -649,7 +607,7 @@ export default function HeldTicketsPage() {
                       <Button
                         className="w-full"
                         variant="outline"
-                        onClick={() => openLocalDraft("outbound", ticket.localDraft)}
+                        onClick={() => openQueuedTicket("outbound", ticket.localTicketId)}
                       >
                         Resume Offline
                       </Button>

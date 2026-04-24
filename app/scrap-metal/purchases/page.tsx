@@ -8,12 +8,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { fetchEmployees, fetchSites } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  OFFLINE_ENTITIES_CHANGED_EVENT,
+  OFFLINE_OUTBOX_CHANGED_EVENT,
+} from "@/lib/offline/events";
+import {
   ScrapMobileCard,
   ScrapMobileCardActions,
-  ScrapMobileCardHeader,
   ScrapMobileMetricStrip,
 } from "@/components/scrap-metal/mobile-list-card";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
@@ -42,9 +46,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { SplitButton } from "@/components/ui/split-button";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
-import { Calendar, Pencil, Plus, Scale, Trash2, User, UserCheck, Wallet } from "@/lib/icons";
+import { Calendar, Pencil, Plus, Scale, Trash2, User, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
+import {
+  formatTicketTime,
+  groupMobileRowsByDate,
+} from "@/lib/scrap-metal/mobile-ticket-date-groups";
+import {
+  listPendingPurchaseTickets,
+  type PendingPurchaseTicketRecord,
+} from "@/lib/scrap-metal/offline-ticket";
 import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
 
 type Purchase = {
@@ -80,6 +92,13 @@ type Purchase = {
     name: string;
     code: string;
   };
+};
+
+type PurchaseRow = Purchase & {
+  source: "server" | "local";
+  localTicketId?: string;
+  queueStatus?: string;
+  lastError?: string;
 };
 
 type MaterialOption = {
@@ -251,6 +270,7 @@ export default function ScrapMetalPurchasesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const { tenantKey } = useOfflineRuntime();
   const [formOpen, setFormOpen] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Purchase | null>(null);
   const [editing, setEditing] = useState<Purchase | null>(null);
@@ -299,12 +319,16 @@ export default function ScrapMetalPurchasesPage() {
     queryKey: ["scrap-prices", "purchase-form"],
     queryFn: () => fetchJson<{ data: PriceRecord[] }>("/api/scrap-metal/pricing?limit=500"),
   });
+  const localPurchasesQuery = useQuery({
+    queryKey: ["scrap-local-purchases", tenantKey],
+    queryFn: () => (tenantKey ? listPendingPurchaseTickets(tenantKey) : Promise.resolve([])),
+  });
 
   const materials = useMemo(() => materialsQuery.data?.data ?? [], [materialsQuery.data?.data]);
   const sellerProfiles = useMemo(() => sellerProfilesQuery.data?.data ?? [], [sellerProfilesQuery.data?.data]);
   const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
   const employees = useMemo(() => employeesQuery.data?.data ?? [], [employeesQuery.data?.data]);
-  const purchases = useMemo(() => purchasesQuery.data ?? [], [purchasesQuery.data]);
+  const serverPurchases = useMemo(() => purchasesQuery.data ?? [], [purchasesQuery.data]);
   const deepLinkEditId = searchParams.get("edit");
   const siteOptions = useMemo<SearchableOption[]>(
     () =>
@@ -356,6 +380,87 @@ export default function ScrapMetalPurchasesPage() {
     () => findSuggestedPrice(form, pricesQuery.data?.data ?? []),
     [form, pricesQuery.data?.data],
   );
+  const isPurchasesLoading = purchasesQuery.isLoading || localPurchasesQuery.isLoading;
+  const purchases = useMemo<PurchaseRow[]>(() => {
+    const serverRows = serverPurchases.map((purchase) => ({
+      ...purchase,
+      source: "server" as const,
+    }));
+    const localRows = (localPurchasesQuery.data ?? []).map((ticket: PendingPurchaseTicketRecord) => {
+      const employee = employees.find((entry) => entry.id === ticket.employeeId);
+      const site = sites.find((entry) => entry.id === ticket.siteId);
+      const material = ticket.materialId
+        ? materials.find((entry) => entry.id === ticket.materialId) ?? null
+        : null;
+      const sellerProfile = sellerProfiles.find((entry) => entry.id === ticket.sellerId) ?? null;
+      return {
+        id: `local:${ticket.id}`,
+        purchaseNumber: ticket.ticketNumber,
+        purchaseDate: ticket.ticketDate,
+        category: ticket.category,
+        weight: ticket.weight,
+        pricePerKg: ticket.pricePerKg,
+        totalAmount: ticket.total,
+        currency: ticket.currency,
+        status: ticket.status,
+        paymentMethod: ticket.paymentMethod ?? null,
+        paymentReference: ticket.paymentReference ?? null,
+        sellerName: ticket.sellerName,
+        sellerPhone: sellerProfile?.phone ?? "",
+        notes: ticket.notes ?? null,
+        attachments: ticket.photos,
+        sellerProfile: sellerProfile
+          ? {
+              id: sellerProfile.id,
+              fullName: sellerProfile.fullName,
+              phone: sellerProfile.phone,
+              nationalId: sellerProfile.nationalId,
+            }
+          : null,
+        material,
+        employee: {
+          id: employee?.id ?? ticket.employeeId,
+          name: employee?.name ?? "Offline buyer",
+          employeeId: employee?.employeeId ?? "OFFLINE",
+        },
+        site: {
+          id: site?.id ?? ticket.siteId,
+          name: site?.name ?? "Offline site",
+          code: site?.code ?? "OFF",
+        },
+        source: "local" as const,
+        localTicketId: ticket.id,
+        queueStatus: ticket.outboxStatus.replace(/_/g, " ").toLowerCase().replace(/^\w/, (char) => char.toUpperCase()),
+        lastError: ticket.lastError,
+      } satisfies PurchaseRow;
+    });
+
+    return [...localRows, ...serverRows].sort(
+      (left, right) => new Date(right.purchaseDate).getTime() - new Date(left.purchaseDate).getTime(),
+    );
+  }, [
+    employees,
+    localPurchasesQuery.data,
+    materials,
+    sellerProfiles,
+    serverPurchases,
+    sites,
+  ]);
+
+  useEffect(() => {
+    const refreshLocalRows = () => {
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-purchases"] });
+    };
+
+    window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalRows);
+    window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalRows);
+    window.addEventListener("online", refreshLocalRows);
+    return () => {
+      window.removeEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalRows);
+      window.removeEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalRows);
+      window.removeEventListener("online", refreshLocalRows);
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     if (!formOpen || editing) return;
@@ -375,7 +480,7 @@ export default function ScrapMetalPurchasesPage() {
     if (!deepLinkEditId) return;
     if (purchasesQuery.isLoading) return;
 
-    const purchase = purchases.find((row) => row.id === deepLinkEditId);
+    const purchase = serverPurchases.find((row) => row.id === deepLinkEditId);
     if (!purchase) {
       toast({
         title: "Ticket not found",
@@ -407,7 +512,7 @@ export default function ScrapMetalPurchasesPage() {
     setSubmitIntent("finalize");
     setFormOpen(true);
     router.replace("/scrap-metal/purchases");
-  }, [deepLinkEditId, purchases, purchasesQuery.isLoading, router, toast]);
+  }, [deepLinkEditId, purchasesQuery.isLoading, router, serverPurchases, toast]);
 
   const saveMutation = useMutation({
     mutationFn: async (input: { payload: PurchaseForm; intent: "hold" | "finalize" | "finalize_print" }) => {
@@ -503,12 +608,24 @@ export default function ScrapMetalPurchasesPage() {
     },
   });
 
-  const columns = useMemo<ColumnDef<Purchase>[]>(
+  const columns = useMemo<ColumnDef<PurchaseRow>[]>(
     () => [
       {
         id: "purchaseNumber",
         header: "Ticket #",
-        cell: ({ row }) => <span className="font-mono font-semibold">{row.original.purchaseNumber}</span>,
+        cell: ({ row }) => (
+          <div>
+            <div className="font-mono font-semibold">{row.original.purchaseNumber}</div>
+            {row.original.source === "local" ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <Badge variant="secondary">Queued Offline</Badge>
+                <span className="text-xs text-muted-foreground">
+                  {row.original.queueStatus ?? "Queued"}
+                </span>
+              </div>
+            ) : null}
+          </div>
+        ),
         size: 120,
       },
       {
@@ -553,6 +670,9 @@ export default function ScrapMetalPurchasesPage() {
             <div className="text-xs text-muted-foreground">
               {row.original.sellerProfile?.nationalId ?? row.original.sellerPhone ?? "No profile"}
             </div>
+            {row.original.lastError ? (
+              <div className="text-xs text-destructive">{row.original.lastError}</div>
+            ) : null}
           </div>
         ),
         size: 150,
@@ -586,7 +706,14 @@ export default function ScrapMetalPurchasesPage() {
       {
         id: "paymentStatus",
         header: "Supplier Payment Status",
-        cell: ({ row }) => (row.original.status === "POSTED" ? "Finalized" : "Held / Draft"),
+        cell: ({ row }) =>
+          row.original.source === "local"
+            ? row.original.status === "POSTED"
+              ? "Queued finalization"
+              : "Queued draft"
+            : row.original.status === "POSTED"
+              ? "Finalized"
+              : "Held / Draft",
         size: 150,
       },
       {
@@ -600,49 +727,67 @@ export default function ScrapMetalPurchasesPage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              onClick={() => {
-                setEditing(row.original);
-                setPriceTouched(true);
-                setForm({
-                  purchaseDate: row.original.purchaseDate.slice(0, 16),
-                  siteId: row.original.site.id,
-                  employeeId: row.original.employee.id,
-                  sellerProfileId: row.original.sellerProfile?.id ?? "__none",
-                  materialId: row.original.material?.id ?? "__none",
-                  category: row.original.material?.category ?? row.original.category,
-                  weight: String(row.original.weight),
-                  pricePerKg: String(row.original.pricePerKg),
-                  currency: row.original.currency,
-                  paymentMethod: row.original.paymentMethod ?? "",
-                  paymentReference: row.original.paymentReference ?? "",
-                  overrideReason: "",
-                  notes: row.original.notes ?? "",
-                  attachments: row.original.attachments ?? [],
-                });
-                setSubmitIntent("finalize");
-                setFormOpen(true);
-              }}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="destructive"
-              onClick={() => setDeleteTarget(row.original)}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+            {row.original.source === "local" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  row.original.localTicketId &&
+                  router.push(
+                    `/scrap-metal/tickets?queuedType=inbound&queuedTicketId=${encodeURIComponent(row.original.localTicketId)}`,
+                  )
+                }
+              >
+                Resume Offline
+              </Button>
+            ) : (
+              <>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="outline"
+                  onClick={() => {
+                    setEditing(row.original);
+                    setPriceTouched(true);
+                    setForm({
+                      purchaseDate: row.original.purchaseDate.slice(0, 16),
+                      siteId: row.original.site.id,
+                      employeeId: row.original.employee.id,
+                      sellerProfileId: row.original.sellerProfile?.id ?? "__none",
+                      materialId: row.original.material?.id ?? "__none",
+                      category: row.original.material?.category ?? row.original.category,
+                      weight: String(row.original.weight),
+                      pricePerKg: String(row.original.pricePerKg),
+                      currency: row.original.currency,
+                      paymentMethod: row.original.paymentMethod ?? "",
+                      paymentReference: row.original.paymentReference ?? "",
+                      overrideReason: "",
+                      notes: row.original.notes ?? "",
+                      attachments: row.original.attachments ?? [],
+                    });
+                    setSubmitIntent("finalize");
+                    setFormOpen(true);
+                  }}
+                >
+                  <Pencil className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="destructive"
+                  onClick={() => setDeleteTarget(row.original)}
+                >
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              </>
+            )}
           </div>
         ),
         size: 96,
       },
     ],
-    [],
+    [router],
   );
 
   return (
@@ -679,7 +824,7 @@ export default function ScrapMetalPurchasesPage() {
         </SplitButton>
       }
     >
-      {purchasesQuery.error ? (
+      {purchasesQuery.error && purchases.length === 0 ? (
         <StatusState
           variant="error"
           title="Unable to load inbound tickets"
@@ -698,59 +843,137 @@ export default function ScrapMetalPurchasesPage() {
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
-          emptyState={purchasesQuery.isLoading ? "Loading inbound tickets..." : "No inbound tickets yet"}
-          mobileCardRenderer={({ row: purchase }) => (
-            <ScrapMobileCard>
-              <ScrapMobileCardHeader
-                title={purchase.material?.name ?? purchase.category}
-                subtitle={purchase.purchaseNumber}
-                aside={<Badge variant="outline">{purchase.site.code}</Badge>}
-              />
-              <ScrapMobileMetricStrip
-                items={[
-                  { icon: Calendar, value: new Date(purchase.purchaseDate).toLocaleDateString(), srLabel: "Date" },
-                  { icon: User, value: purchase.employee.name, srLabel: "Buyer" },
-                  { icon: UserCheck, value: purchase.sellerName || "-", srLabel: "Supplier" },
-                  { icon: Scale, value: `${purchase.weight.toFixed(2)} kg`, srLabel: "Weight" },
-                  { icon: Wallet, value: `${purchase.currency} ${purchase.totalAmount.toFixed(2)}`, srLabel: "Total" },
-                ]}
-              />
-              <ScrapMobileCardActions>
-                <Button
-                  type="button"
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(purchase);
-                    setPriceTouched(true);
-                    setForm({
-                      purchaseDate: purchase.purchaseDate.slice(0, 16),
-                      siteId: purchase.site.id,
-                      employeeId: purchase.employee.id,
-                      sellerProfileId: purchase.sellerProfile?.id ?? "__none",
-                      materialId: purchase.material?.id ?? "__none",
-                      category: purchase.material?.category ?? purchase.category,
-                      weight: String(purchase.weight),
-                      pricePerKg: String(purchase.pricePerKg),
-                      currency: purchase.currency,
-                      paymentMethod: purchase.paymentMethod ?? "",
-                      paymentReference: purchase.paymentReference ?? "",
-                      overrideReason: "",
-                      notes: purchase.notes ?? "",
-                      attachments: purchase.attachments ?? [],
-                    });
-                    setSubmitIntent("finalize");
-                    setFormOpen(true);
-                  }}
-                >
-                  Edit
-                </Button>
-                <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(purchase)}>
-                  Remove
-                </Button>
-              </ScrapMobileCardActions>
-            </ScrapMobileCard>
-          )}
+          emptyState={
+            isPurchasesLoading && purchases.length === 0
+              ? "Loading inbound tickets..."
+              : "No inbound tickets yet"
+          }
+          mobileListRenderer={({ rows }) => {
+            const groups = groupMobileRowsByDate(
+              rows.map((entry) => entry.row),
+              (purchase) => purchase.purchaseDate,
+            );
+
+            return (
+              <div className="space-y-4">
+                {groups.map((group) => (
+                  <section key={group.key} className="space-y-2">
+                    <div className="px-1 text-sm font-semibold text-[var(--text-strong)]">
+                      {group.label}
+                    </div>
+                    <div className="space-y-2">
+                      {group.items.map((purchase) => (
+                        <div
+                          key={purchase.id}
+                          className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
+                        >
+                          <ScrapMobileCard>
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="min-w-0">
+                                <div className="truncate text-base font-semibold text-foreground">
+                                  {purchase.sellerName || "Unknown supplier"}
+                                </div>
+                                <div className="truncate font-mono text-[11px] text-muted-foreground">
+                                  {purchase.purchaseNumber}
+                                </div>
+                              </div>
+                              <div className="shrink-0 text-right">
+                                <div className="font-mono text-xs font-semibold text-foreground">
+                                  {formatTicketTime(purchase.purchaseDate)}
+                                </div>
+                                <div className="mt-1">
+                                  <Badge variant={purchase.source === "local" ? "secondary" : "outline"}>
+                                    {purchase.source === "local"
+                                      ? purchase.queueStatus ?? "Queued"
+                                      : purchase.site.code}
+                                  </Badge>
+                                </div>
+                              </div>
+                            </div>
+                            <div className="text-xs font-medium text-muted-foreground">
+                              {purchase.material?.name ?? purchase.category}
+                            </div>
+                            <ScrapMobileMetricStrip
+                              items={[
+                                { icon: Calendar, value: purchase.site.code, srLabel: "Site" },
+                                { icon: User, value: purchase.employee.name, srLabel: "Buyer" },
+                                { icon: Scale, value: `${purchase.weight.toFixed(2)} kg`, srLabel: "Weight" },
+                                {
+                                  icon: Wallet,
+                                  value: `${purchase.currency} ${purchase.totalAmount.toFixed(2)}`,
+                                  srLabel: "Total",
+                                },
+                              ]}
+                            />
+                            {purchase.lastError ? (
+                              <div className="text-xs text-destructive">{purchase.lastError}</div>
+                            ) : null}
+                            <ScrapMobileCardActions>
+                              {purchase.source === "local" ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() =>
+                                    purchase.localTicketId &&
+                                    router.push(
+                                      `/scrap-metal/tickets?queuedType=inbound&queuedTicketId=${encodeURIComponent(purchase.localTicketId)}`,
+                                    )
+                                  }
+                                >
+                                  Resume Offline
+                                </Button>
+                              ) : (
+                                <>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => {
+                                      setEditing(purchase);
+                                      setPriceTouched(true);
+                                      setForm({
+                                        purchaseDate: purchase.purchaseDate.slice(0, 16),
+                                        siteId: purchase.site.id,
+                                        employeeId: purchase.employee.id,
+                                        sellerProfileId: purchase.sellerProfile?.id ?? "__none",
+                                        materialId: purchase.material?.id ?? "__none",
+                                        category: purchase.material?.category ?? purchase.category,
+                                        weight: String(purchase.weight),
+                                        pricePerKg: String(purchase.pricePerKg),
+                                        currency: purchase.currency,
+                                        paymentMethod: purchase.paymentMethod ?? "",
+                                        paymentReference: purchase.paymentReference ?? "",
+                                        overrideReason: "",
+                                        notes: purchase.notes ?? "",
+                                        attachments: purchase.attachments ?? [],
+                                      });
+                                      setSubmitIntent("finalize");
+                                      setFormOpen(true);
+                                    }}
+                                  >
+                                    Edit
+                                  </Button>
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="destructive"
+                                    onClick={() => setDeleteTarget(purchase)}
+                                  >
+                                    Remove
+                                  </Button>
+                                </>
+                              )}
+                            </ScrapMobileCardActions>
+                          </ScrapMobileCard>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                ))}
+              </div>
+            );
+          }}
         />
       )}
 
