@@ -6,7 +6,12 @@
  * attachment store for photo handling.
  */
 
-import { enqueueOfflineOperation, listPendingOfflineOperations } from "@/lib/offline/outbox";
+import {
+  enqueueOfflineOperation,
+  findOfflineOperationForLocalEntity,
+  listPendingOfflineOperations,
+  updateOfflineOperation,
+} from "@/lib/offline/outbox";
 import {
   OFFLINE_DB_STORES,
   deleteOfflineRecord,
@@ -14,8 +19,16 @@ import {
   listOfflineRecords,
   putOfflineRecord,
 } from "@/lib/offline/db";
-import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
-import type { OfflineAttachmentRef, OfflineOutboxStatus, PersistedQueryRecord } from "@/lib/offline/types";
+import {
+  deleteOfflineAttachmentRecord,
+  getOfflineAttachmentRecord,
+} from "@/lib/offline/attachment-store";
+import type {
+  OfflineAttachmentRef,
+  OfflineOutboxOperation,
+  OfflineOutboxStatus,
+  PersistedQueryRecord,
+} from "@/lib/offline/types";
 
 import {
   type LocalScrapTicketPhoto,
@@ -25,7 +38,6 @@ import {
   queueOfflineScrapOutboundTicket,
 } from "./offline-runtime";
 import { addRecentSeller } from "./offline-sellers";
-import type { ScrapSeller } from "./offline-sellers";
 
 // ---------------------------------------------------------------------------
 // Types
@@ -33,6 +45,8 @@ import type { ScrapSeller } from "./offline-sellers";
 
 export interface ScrapPurchaseTicket {
   id: string;
+  ticketNumber: string;
+  ticketDate: string;
   sellerId: string;
   sellerName: string;
   materialId?: string;
@@ -54,6 +68,8 @@ export interface ScrapPurchaseTicket {
 
 export interface ScrapSaleTicket {
   id: string;
+  ticketNumber: string;
+  ticketDate: string;
   batchId: string;
   buyerName: string;
   buyerContact?: string;
@@ -96,6 +112,9 @@ export interface ScrapSalesBatch {
 }
 
 export interface CreatePurchaseTicketInput {
+  clientRequestId?: string;
+  ticketNumber?: string;
+  ticketDate?: string;
   sellerId: string;
   sellerName: string;
   materialId?: string;
@@ -124,6 +143,9 @@ export interface CreateSalesBatchInput {
 }
 
 export interface CreateSaleTicketInput {
+  clientRequestId?: string;
+  ticketNumber?: string;
+  ticketDate?: string;
   batchId: string;
   buyerName: string;
   buyerContact?: string;
@@ -235,8 +257,12 @@ export async function createPurchaseTicketOffline(
   tenantKey: string,
   input: CreatePurchaseTicketInput,
 ): Promise<{ ticket: ScrapPurchaseTicket; operationId: string }> {
-  const purchaseNumber = await generateLocalPurchaseTicketNumber();
-  const clientRequestId = `scrap-purchase-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const purchaseNumber =
+    input.ticketNumber ?? (await generateLocalPurchaseTicketNumber());
+  const ticketDate = input.ticketDate ?? new Date().toISOString();
+  const clientRequestId =
+    input.clientRequestId ??
+    `scrap-purchase-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const isNewSeller = isOfflineScrapEntityId(input.sellerId);
 
   // Calculate total
@@ -245,6 +271,8 @@ export async function createPurchaseTicketOffline(
 
   const ticket: ScrapPurchaseTicket = {
     id: clientRequestId,
+    ticketNumber: purchaseNumber,
+    ticketDate,
     sellerId: input.sellerId,
     sellerName: input.sellerName,
     materialId: input.materialId,
@@ -267,7 +295,7 @@ export async function createPurchaseTicketOffline(
   // Build payload for outbox
   const payload: Record<string, unknown> = {
     purchaseNumber,
-    purchaseDate: new Date().toISOString(),
+    purchaseDate: ticketDate,
     siteId: input.siteId,
     employeeId: input.employeeId,
     sellerProfileId: input.sellerId, // May be tempId — dependency resolver handles this
@@ -323,13 +351,19 @@ export async function createSaleTicketOffline(
   tenantKey: string,
   input: CreateSaleTicketInput,
 ): Promise<{ ticket: ScrapSaleTicket; operationId: string }> {
-  const saleNumber = await generateLocalSaleTicketNumber();
-  const clientRequestId = `scrap-sale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  const saleNumber =
+    input.ticketNumber ?? (await generateLocalSaleTicketNumber());
+  const ticketDate = input.ticketDate ?? new Date().toISOString();
+  const clientRequestId =
+    input.clientRequestId ??
+    `scrap-sale-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
   const currency = (input.currency ?? "USD").toUpperCase();
   const total = input.soldWeight * input.pricePerKg;
 
   const ticket: ScrapSaleTicket = {
     id: clientRequestId,
+    ticketNumber: saleNumber,
+    ticketDate,
     batchId: input.batchId,
     buyerName: input.buyerName,
     buyerContact: input.buyerContact,
@@ -350,7 +384,7 @@ export async function createSaleTicketOffline(
 
   const payload: Record<string, unknown> = {
     saleNumber,
-    saleDate: new Date().toISOString(),
+    saleDate: ticketDate,
     siteId: input.siteId,
     batchId: input.batchId,
     buyerName: input.buyerName,
@@ -580,6 +614,65 @@ export async function queueTicketAttachments(
   };
 }
 
+async function splitTicketAttachmentState(
+  tenantKey: string,
+  attachments: LocalScrapTicketPhoto[],
+) {
+  const remoteAttachments = [];
+  const offlineRefs: OfflineAttachmentRef[] = [];
+
+  for (const attachment of attachments) {
+    if (attachment.offlineAttachmentId) {
+      offlineRefs.push({
+        tenantKey,
+        attachmentId: attachment.offlineAttachmentId,
+        context: attachment.context,
+        fileName:
+          attachment.pathname?.replace("offline-attachment:", "") ||
+          attachment.offlineAttachmentId,
+        contentType: attachment.contentType,
+        size: attachment.size,
+      });
+      continue;
+    }
+
+    remoteAttachments.push({
+      url: attachment.url,
+      pathname: attachment.pathname,
+      contentType: attachment.contentType,
+      size: attachment.size,
+      context: attachment.context,
+      uploadedAt: attachment.uploadedAt,
+    });
+  }
+
+  return {
+    remoteAttachments,
+    offlineRefs,
+  };
+}
+
+async function deleteRemovedOfflineAttachments(
+  previous: LocalScrapTicketPhoto[],
+  next: LocalScrapTicketPhoto[],
+) {
+  const nextIds = new Set(
+    next
+      .map((attachment) => attachment.offlineAttachmentId)
+      .filter((attachmentId): attachmentId is string => Boolean(attachmentId)),
+  );
+
+  await Promise.all(
+    previous
+      .map((attachment) => attachment.offlineAttachmentId)
+      .filter(
+        (attachmentId): attachmentId is string =>
+          Boolean(attachmentId) && !nextIds.has(attachmentId),
+      )
+      .map((attachmentId) => deleteOfflineAttachmentRecord(attachmentId)),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Local cache for pending tickets/batches
 // ---------------------------------------------------------------------------
@@ -663,6 +756,41 @@ export async function rehydrateLocalTicketPhotos(
   );
 }
 
+type PendingPurchaseRecord = PersistedQueryRecord & { data: ScrapPurchaseTicket };
+type PendingSaleRecord = PersistedQueryRecord & { data: ScrapSaleTicket };
+
+function sortPurchaseTickets(left: { ticketDate: string }, right: { ticketDate: string }) {
+  return new Date(right.ticketDate).getTime() - new Date(left.ticketDate).getTime();
+}
+
+async function hydratePendingPurchaseRecord(
+  record: PendingPurchaseRecord,
+  operation?: OfflineOutboxOperation | null,
+) {
+  const photos = await rehydrateLocalTicketPhotos(record.tenantKey, record.data.photos);
+  return {
+    ...record.data,
+    photos,
+    operationId: operation?.operationId ?? record.data.id,
+    outboxStatus: operation?.status ?? "QUEUED",
+    lastError: operation?.lastError,
+  } satisfies PendingPurchaseTicketRecord;
+}
+
+async function hydratePendingSaleRecord(
+  record: PendingSaleRecord,
+  operation?: OfflineOutboxOperation | null,
+) {
+  const photos = await rehydrateLocalTicketPhotos(record.tenantKey, record.data.photos);
+  return {
+    ...record.data,
+    photos,
+    operationId: operation?.operationId ?? record.data.id,
+    outboxStatus: operation?.status ?? "QUEUED",
+    lastError: operation?.lastError,
+  } satisfies PendingSaleTicketRecord;
+}
+
 async function listCachedPendingRecords<T>(
   prefix: string,
   tenantKey?: string,
@@ -703,24 +831,14 @@ export async function listPendingPurchaseTickets(
     records.map(async (record) => {
       const ticket = record.data;
       const operation = operationMap.get(ticket.id);
-      const photos = await rehydrateLocalTicketPhotos(
-        record.tenantKey,
-        ticket.photos,
+      return hydratePendingPurchaseRecord(
+        record as PendingPurchaseRecord,
+        operation,
       );
-      return {
-        ...ticket,
-        photos,
-        operationId: operation?.operationId ?? ticket.id,
-        outboxStatus: operation?.status ?? "QUEUED",
-        lastError: operation?.lastError,
-      } satisfies PendingPurchaseTicketRecord;
     }),
   );
 
-  return hydrated.sort(
-    (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
-  );
+  return hydrated.sort(sortPurchaseTickets);
 }
 
 export async function listPendingSaleTickets(
@@ -748,24 +866,252 @@ export async function listPendingSaleTickets(
     records.map(async (record) => {
       const ticket = record.data;
       const operation = operationMap.get(ticket.id);
-      const photos = await rehydrateLocalTicketPhotos(
-        record.tenantKey,
-        ticket.photos,
-      );
-      return {
-        ...ticket,
-        photos,
-        operationId: operation?.operationId ?? ticket.id,
-        outboxStatus: operation?.status ?? "QUEUED",
-        lastError: operation?.lastError,
-      } satisfies PendingSaleTicketRecord;
+      return hydratePendingSaleRecord(record as PendingSaleRecord, operation);
     }),
   );
 
   return hydrated.sort(
     (left, right) =>
-      new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+      new Date(right.ticketDate).getTime() - new Date(left.ticketDate).getTime(),
   );
+}
+
+export async function getPendingPurchaseTicket(
+  tenantKey: string,
+  clientRequestId: string,
+) {
+  const [record, operations] = await Promise.all([
+    getOfflineRecord<PendingPurchaseRecord>(
+      OFFLINE_DB_STORES.queryCache,
+      `${PENDING_PURCHASE_TICKET_KEY_PREFIX}${clientRequestId}`,
+    ),
+    listPendingOfflineOperations({ tenantKey }),
+  ]);
+
+  if (!record || record.tenantKey !== tenantKey) return null;
+
+  const operation =
+    operations.find(
+      (candidate) =>
+        candidate.moduleId === SCRAP_OFFLINE_MODULE_ID &&
+        candidate.operation === "create-inbound-ticket" &&
+        candidate.clientRequestId === clientRequestId,
+    ) ?? null;
+
+  return hydratePendingPurchaseRecord(record, operation);
+}
+
+export async function getPendingSaleTicket(
+  tenantKey: string,
+  clientRequestId: string,
+) {
+  const [record, operations] = await Promise.all([
+    getOfflineRecord<PendingSaleRecord>(
+      OFFLINE_DB_STORES.queryCache,
+      `${PENDING_SALE_TICKET_KEY_PREFIX}${clientRequestId}`,
+    ),
+    listPendingOfflineOperations({ tenantKey }),
+  ]);
+
+  if (!record || record.tenantKey !== tenantKey) return null;
+
+  const operation =
+    operations.find(
+      (candidate) =>
+        candidate.moduleId === SCRAP_OFFLINE_MODULE_ID &&
+        candidate.operation === "create-outbound-ticket" &&
+        candidate.clientRequestId === clientRequestId,
+    ) ?? null;
+
+  return hydratePendingSaleRecord(record, operation);
+}
+
+export async function updatePurchaseTicketOffline(
+  tenantKey: string,
+  clientRequestId: string,
+  input: CreatePurchaseTicketInput,
+): Promise<{ ticket: ScrapPurchaseTicket; operationId: string }> {
+  const existing = await getPendingPurchaseTicket(tenantKey, clientRequestId);
+  if (!existing) {
+    throw new Error("Offline inbound ticket not found.");
+  }
+
+  const ticketNumber = input.ticketNumber ?? existing.ticketNumber;
+  const ticketDate = input.ticketDate ?? existing.ticketDate;
+  const total = input.weight * input.pricePerKg;
+  const currency = (input.currency ?? "USD").toUpperCase();
+  const isNewSeller = isOfflineScrapEntityId(input.sellerId);
+
+  const ticket: ScrapPurchaseTicket = {
+    ...existing,
+    ticketNumber,
+    ticketDate,
+    sellerId: input.sellerId,
+    sellerName: input.sellerName,
+    materialId: input.materialId,
+    category: input.category,
+    weight: input.weight,
+    pricePerKg: input.pricePerKg,
+    total,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    notes: input.notes,
+    photos: input.photos,
+    status: input.status,
+    siteId: input.siteId,
+    employeeId: input.employeeId,
+  };
+
+  const payload: Record<string, unknown> = {
+    purchaseNumber: ticketNumber,
+    purchaseDate: ticketDate,
+    siteId: input.siteId,
+    employeeId: input.employeeId,
+    sellerProfileId: input.sellerId,
+    materialId: input.materialId,
+    category: input.category,
+    weight: input.weight,
+    pricePerKg: input.pricePerKg,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    sellerName: input.sellerName,
+    notes: input.notes,
+    status: input.status,
+    totalAmount: total,
+    offlineCreated: true,
+    offlineCreatedAt: existing.createdAt,
+    intent: input.intent,
+  };
+
+  const sellerCreateOperation =
+    isNewSeller
+      ? await findOfflineOperationForLocalEntity(
+          SCRAP_OFFLINE_MODULE_ID,
+          tenantKey,
+          input.sellerId,
+          "create-seller",
+        )
+      : null;
+  const attachmentState = await splitTicketAttachmentState(tenantKey, input.photos);
+
+  const updatedOperation = await updateOfflineOperation(
+    existing.operationId,
+    (current) => ({
+      ...current,
+      clientRequestId,
+      dependsOn: sellerCreateOperation ? [sellerCreateOperation.operationId] : [],
+      payload: {
+        ...payload,
+        attachments: attachmentState.remoteAttachments,
+      },
+      localRefs: isNewSeller ? { sellerProfileId: input.sellerId } : undefined,
+      attachments: attachmentState.offlineRefs,
+      status: "QUEUED",
+      retryCount: 0,
+      lastError: undefined,
+      nextRetryAt: undefined,
+    }),
+  );
+
+  if (!updatedOperation) {
+    throw new Error("Offline inbound ticket queue entry is missing.");
+  }
+
+  await deleteRemovedOfflineAttachments(existing.photos, input.photos);
+  await cachePendingTicket(ticket, tenantKey);
+
+  return {
+    ticket,
+    operationId: updatedOperation.operationId,
+  };
+}
+
+export async function updateSaleTicketOffline(
+  tenantKey: string,
+  clientRequestId: string,
+  input: CreateSaleTicketInput,
+): Promise<{ ticket: ScrapSaleTicket; operationId: string }> {
+  const existing = await getPendingSaleTicket(tenantKey, clientRequestId);
+  if (!existing) {
+    throw new Error("Offline outbound ticket not found.");
+  }
+
+  const ticketNumber = input.ticketNumber ?? existing.ticketNumber;
+  const ticketDate = input.ticketDate ?? existing.ticketDate;
+  const currency = (input.currency ?? "USD").toUpperCase();
+  const total = input.soldWeight * input.pricePerKg;
+  const ticket: ScrapSaleTicket = {
+    ...existing,
+    ticketNumber,
+    ticketDate,
+    batchId: input.batchId,
+    buyerName: input.buyerName,
+    buyerContact: input.buyerContact,
+    recordedWeight: input.recordedWeight,
+    soldWeight: input.soldWeight,
+    pricePerKg: input.pricePerKg,
+    total,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    notes: input.notes,
+    photos: input.photos,
+    status: input.status,
+    siteId: input.siteId,
+  };
+
+  const payload: Record<string, unknown> = {
+    saleNumber: ticketNumber,
+    saleDate: ticketDate,
+    siteId: input.siteId,
+    batchId: input.batchId,
+    buyerName: input.buyerName,
+    buyerContact: input.buyerContact,
+    recordedWeight: input.recordedWeight,
+    soldWeight: input.soldWeight,
+    pricePerKg: input.pricePerKg,
+    currency,
+    paymentMethod: input.paymentMethod,
+    paymentReference: input.paymentReference,
+    notes: input.notes,
+    status: input.status,
+    totalAmount: total,
+    offlineCreated: true,
+    offlineCreatedAt: existing.createdAt,
+    intent: input.intent,
+  };
+
+  const attachmentState = await splitTicketAttachmentState(tenantKey, input.photos);
+  const updatedOperation = await updateOfflineOperation(
+    existing.operationId,
+    (current) => ({
+      ...current,
+      clientRequestId,
+      payload: {
+        ...payload,
+        attachments: attachmentState.remoteAttachments,
+      },
+      attachments: attachmentState.offlineRefs,
+      status: "QUEUED",
+      retryCount: 0,
+      lastError: undefined,
+      nextRetryAt: undefined,
+    }),
+  );
+
+  if (!updatedOperation) {
+    throw new Error("Offline outbound ticket queue entry is missing.");
+  }
+
+  await deleteRemovedOfflineAttachments(existing.photos, input.photos);
+  await cachePendingSaleTicket(ticket, tenantKey);
+
+  return {
+    ticket,
+    operationId: updatedOperation.operationId,
+  };
 }
 
 export async function removePendingTicketCache(

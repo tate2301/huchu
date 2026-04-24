@@ -183,6 +183,9 @@ export type DataTableProps<TData, TValue> = {
   expansion?: DataTableExpansionConfig<TData>;
   exportConfig?: DataTableExportConfig;
   mobileCardRenderer?: (context: { row: TData; rowIndex: number }) => React.ReactNode;
+  mobileListRenderer?: (context: {
+    rows: Array<{ row: TData; rowIndex: number }>;
+  }) => React.ReactNode;
   mobileCardListClassName?: string;
 };
 
@@ -448,6 +451,7 @@ export function DataTable<TData, TValue>({
   expansion,
   exportConfig,
   mobileCardRenderer,
+  mobileListRenderer,
   mobileCardListClassName,
 }: DataTableProps<TData, TValue>) {
   const sortingEnabled = features?.sorting ?? true;
@@ -1199,17 +1203,26 @@ export function DataTable<TData, TValue>({
         </p>
       ) : null}
 
-      {mobileCardRenderer ? (
+      {mobileCardRenderer || mobileListRenderer ? (
         <div className={cn("space-y-2 md:hidden", mobileCardListClassName)}>
           {renderedRows.length > 0 ? (
-            renderedRows.map((row, rowIndex) => (
-              <div
-                key={row.id}
-                className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
-              >
-                {mobileCardRenderer({ row: row.original, rowIndex })}
-              </div>
-            ))
+            mobileListRenderer ? (
+              mobileListRenderer({
+                rows: renderedRows.map((row, rowIndex) => ({
+                  row: row.original,
+                  rowIndex,
+                })),
+              })
+            ) : (
+              renderedRows.map((row, rowIndex) => (
+                <div
+                  key={row.id}
+                  className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
+                >
+                  {mobileCardRenderer?.({ row: row.original, rowIndex })}
+                </div>
+              ))
+            )
           ) : (
             <div className="rounded-xl border border-dashed border-[var(--edge-subtle)] bg-[var(--datatable-empty-bg)] px-4 py-8 text-center text-sm text-muted-foreground">
               {emptyState ?? noResultsText}

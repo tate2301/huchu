@@ -9,10 +9,10 @@ import { useSession } from "next-auth/react";
 
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import {
   ScrapMobileCard,
   ScrapMobileCardActions,
-  ScrapMobileCardHeader,
   ScrapMobileMetricStrip,
 } from "@/components/scrap-metal/mobile-list-card";
 import { SaleCalculator } from "@/components/scrap-metal/sale-calculator";
@@ -43,10 +43,22 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  OFFLINE_ENTITIES_CHANGED_EVENT,
+  OFFLINE_OUTBOX_CHANGED_EVENT,
+} from "@/lib/offline/events";
 import { Package, Pencil, Plus, Scale, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { hasRole } from "@/lib/roles";
 import type { ScrapTicketPhoto } from "@/lib/scrap-metal/attachments";
+import {
+  formatTicketTime,
+  groupMobileRowsByDate,
+} from "@/lib/scrap-metal/mobile-ticket-date-groups";
+import {
+  listPendingSaleTickets,
+  type PendingSaleTicketRecord,
+} from "@/lib/scrap-metal/offline-ticket";
 import { exportTicketPdf } from "@/lib/scrap-metal/print-adapter";
 
 type Sale = {
@@ -83,6 +95,13 @@ type Sale = {
     name: string;
     code: string;
   };
+};
+
+type SaleRow = Sale & {
+  source: "server" | "local";
+  localTicketId?: string;
+  queueStatus?: string;
+  lastError?: string;
 };
 
 type BatchOption = {
@@ -187,6 +206,7 @@ export default function ScrapMetalSalesPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  const { tenantKey } = useOfflineRuntime();
   const [selectedSale, setSelectedSale] = useState<Sale | null>(null);
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [cancelReason, setCancelReason] = useState("");
@@ -212,9 +232,17 @@ export default function ScrapMetalSalesPage() {
     queryKey: ["scrap-ready-batches"],
     queryFn: () => fetchJson<{ data: BatchOption[] }>("/api/scrap-metal/batches?limit=500"),
   });
+  const localSalesQuery = useQuery({
+    queryKey: ["scrap-local-sales", tenantKey],
+    queryFn: () => (tenantKey ? listPendingSaleTickets(tenantKey) : Promise.resolve([])),
+  });
 
   const batches = (batchOptionsQuery.data?.data ?? []).filter((batch) =>
     ["COLLECTING", "READY"].includes(batch.status),
+  );
+  const batchCatalog = useMemo(
+    () => batchOptionsQuery.data?.data ?? [],
+    [batchOptionsQuery.data?.data],
   );
   const batchOptions = useMemo<SearchableOption[]>(
     () =>
@@ -237,12 +265,69 @@ export default function ScrapMetalSalesPage() {
     siteId: selectedBatch?.site.id,
   });
 
+  const sales = useMemo<SaleRow[]>(() => {
+    const serverRows = (salesQuery.data ?? []).map((sale) => ({
+      ...sale,
+      source: "server" as const,
+    }));
+    const localRows = (localSalesQuery.data ?? []).map((ticket: PendingSaleTicketRecord) => {
+      const batch = batchCatalog.find((entry) => entry.id === ticket.batchId);
+      const material = batch?.material ?? null;
+      return {
+        id: `local:${ticket.id}`,
+        saleNumber: ticket.ticketNumber,
+        saleDate: ticket.ticketDate,
+        buyerName: ticket.buyerName,
+        buyerContact: ticket.buyerContact ?? null,
+        recordedWeight: ticket.recordedWeight,
+        soldWeight: ticket.soldWeight,
+        weightDiscrepancy: ticket.soldWeight - ticket.recordedWeight,
+        pricePerKg: ticket.pricePerKg,
+        totalAmount: ticket.total,
+        currency: ticket.currency,
+        status: ticket.status,
+        paymentMethod: ticket.paymentMethod ?? null,
+        paymentReference: ticket.paymentReference ?? null,
+        notes: ticket.notes ?? null,
+        attachments: ticket.photos,
+        batch: {
+          id: batch?.id ?? ticket.batchId,
+          batchNumber: batch?.batchNumber ?? "Offline lot",
+          category: batch?.category ?? "Unknown",
+          totalWeight: batch?.totalWeight ?? ticket.recordedWeight,
+        },
+        material: material
+          ? {
+              id: material.id,
+              code: material.code,
+              name: material.name,
+              category: material.category,
+            }
+          : null,
+        site: {
+          id: batch?.site.id ?? "",
+          name: batch?.site.name ?? "Offline site",
+          code: batch?.site.code ?? "OFF",
+        },
+        source: "local" as const,
+        localTicketId: ticket.id,
+        queueStatus: ticket.outboxStatus.replace(/_/g, " ").toLowerCase().replace(/^\w/, (char) => char.toUpperCase()),
+        lastError: ticket.lastError,
+      } satisfies SaleRow;
+    });
+
+    return [...localRows, ...serverRows].sort(
+      (left, right) => new Date(right.saleDate).getTime() - new Date(left.saleDate).getTime(),
+    );
+  }, [batchCatalog, localSalesQuery.data, salesQuery.data]);
+
   const filteredSales = useMemo(() => {
-    const records = salesQuery.data ?? [];
+    const records = sales;
     if (statusFilter === "all") return records;
     return records.filter((sale) => sale.status === statusFilter);
-  }, [salesQuery.data, statusFilter]);
+  }, [sales, statusFilter]);
   const deepLinkEditId = searchParams.get("edit");
+  const isSalesLoading = salesQuery.isLoading || localSalesQuery.isLoading;
 
   useEffect(() => {
     if (!formOpen || editing) return;
@@ -293,6 +378,21 @@ export default function ScrapMetalSalesPage() {
     setFormOpen(true);
     router.replace("/scrap-metal/sales");
   }, [deepLinkEditId, router, salesQuery.data, salesQuery.isLoading, toast]);
+
+  useEffect(() => {
+    const refreshLocalRows = () => {
+      queryClient.invalidateQueries({ queryKey: ["scrap-local-sales"] });
+    };
+
+    window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalRows);
+    window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalRows);
+    window.addEventListener("online", refreshLocalRows);
+    return () => {
+      window.removeEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalRows);
+      window.removeEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalRows);
+      window.removeEventListener("online", refreshLocalRows);
+    };
+  }, [queryClient]);
 
   const saveMutation = useMutation({
     mutationFn: async (input: { payload: SaleForm; intent: "hold" | "submit" | "submit_print" | "request_approval" }) => {
@@ -462,13 +562,23 @@ export default function ScrapMetalSalesPage() {
     },
   });
 
-  const columns = useMemo<ColumnDef<Sale>[]>(
+  const columns = useMemo<ColumnDef<SaleRow>[]>(
     () => [
       {
         id: "saleNumber",
         header: "Ticket #",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">{row.original.saleNumber}</span>
+          <div>
+            <div className="font-mono font-semibold">{row.original.saleNumber}</div>
+            {row.original.source === "local" ? (
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                <StatusChip status="pending" label="Queued Offline" />
+                <span className="text-xs text-muted-foreground">
+                  {row.original.queueStatus ?? "Queued"}
+                </span>
+              </div>
+            ) : null}
+          </div>
         ),
         size: 120,
       },
@@ -511,6 +621,14 @@ export default function ScrapMetalSalesPage() {
         id: "buyerName",
         header: "Buyer",
         accessorKey: "buyerName",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.buyerName}</div>
+            {row.original.lastError ? (
+              <div className="text-xs text-destructive">{row.original.lastError}</div>
+            ) : null}
+          </div>
+        ),
         size: 180,
       },
       {
@@ -554,7 +672,13 @@ export default function ScrapMetalSalesPage() {
                       ? "inactive"
                       : "pending"
             }
-            label={row.original.status.replace(/_/g, " ")}
+            label={
+              row.original.source === "local"
+                ? row.original.status === "PENDING_APPROVAL"
+                  ? "Queued Submit"
+                  : "Queued Draft"
+                : row.original.status.replace(/_/g, " ")
+            }
           />
         ),
         size: 120,
@@ -564,56 +688,74 @@ export default function ScrapMetalSalesPage() {
         header: "",
         cell: ({ row }) => (
           <div className="flex justify-end gap-2">
-            {["DRAFT", "PENDING_APPROVAL"].includes(row.original.status) ? (
-              <>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="outline"
-                  onClick={() => {
-                    setEditing(row.original);
-                    setForm({
-                      saleDate: row.original.saleDate.slice(0, 16),
-                      batchId: row.original.batch.id,
-                      buyerName: row.original.buyerName,
-                      buyerContact: row.original.buyerContact ?? "",
-                      recordedWeight: String(row.original.recordedWeight),
-                      soldWeight: String(row.original.soldWeight),
-                      pricePerKg: String(row.original.pricePerKg),
-                      currency: row.original.currency,
-                      paymentMethod: row.original.paymentMethod ?? "",
-                      paymentReference: row.original.paymentReference ?? "",
-                      overrideReason: "",
-                      notes: row.original.notes ?? "",
-                      attachments: row.original.attachments ?? [],
-                    });
-                    setSubmitIntent("submit");
-                    setFormOpen(true);
-                  }}
-                >
-                  <Pencil className="h-4 w-4" />
-                </Button>
-                <Button
-                  type="button"
-                  size="icon-sm"
-                  variant="destructive"
-                  onClick={() => setDeleteTarget(row.original)}
-                >
-                  <Trash2 className="h-4 w-4" />
-                </Button>
-              </>
-            ) : null}
-            {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
-              <Button size="sm" variant="outline" onClick={() => setSelectedSale(row.original)}>
-                {row.original.status === "APPROVED" ? "Close" : "Review"}
+            {row.original.source === "local" ? (
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  row.original.localTicketId &&
+                  router.push(
+                    `/scrap-metal/tickets?queuedType=outbound&queuedTicketId=${encodeURIComponent(row.original.localTicketId)}`,
+                  )
+                }
+              >
+                Resume Offline
               </Button>
-            ) : null}
+            ) : (
+              <>
+                {["DRAFT", "PENDING_APPROVAL"].includes(row.original.status) ? (
+                  <>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="outline"
+                      onClick={() => {
+                        setEditing(row.original);
+                        setForm({
+                          saleDate: row.original.saleDate.slice(0, 16),
+                          batchId: row.original.batch.id,
+                          buyerName: row.original.buyerName,
+                          buyerContact: row.original.buyerContact ?? "",
+                          recordedWeight: String(row.original.recordedWeight),
+                          soldWeight: String(row.original.soldWeight),
+                          pricePerKg: String(row.original.pricePerKg),
+                          currency: row.original.currency,
+                          paymentMethod: row.original.paymentMethod ?? "",
+                          paymentReference: row.original.paymentReference ?? "",
+                          overrideReason: "",
+                          notes: row.original.notes ?? "",
+                          attachments: row.original.attachments ?? [],
+                        });
+                        setSubmitIntent("submit");
+                        setFormOpen(true);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      type="button"
+                      size="icon-sm"
+                      variant="destructive"
+                      onClick={() => setDeleteTarget(row.original)}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  </>
+                ) : null}
+                {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(row.original.status) ? (
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSale(row.original)}>
+                    {row.original.status === "APPROVED" ? "Close" : "Review"}
+                  </Button>
+                ) : null}
+              </>
+            )}
           </div>
         ),
         size: 180,
       },
     ],
-    [canManageSales],
+    [canManageSales, router],
   );
 
   return (
@@ -652,7 +794,7 @@ export default function ScrapMetalSalesPage() {
         </SplitButton>
       }
     >
-      {salesQuery.error ? (
+      {salesQuery.error && sales.length === 0 ? (
         <StatusState
           variant="error"
           title="Unable to load sales"
@@ -685,7 +827,7 @@ export default function ScrapMetalSalesPage() {
               </Select>
             </div>
             <div className="text-left text-sm text-muted-foreground sm:text-right">
-              <div>{filteredSales.length} of {(salesQuery.data ?? []).length} outbound tickets</div>
+              <div>{filteredSales.length} of {sales.length} outbound tickets</div>
             </div>
           </div>
 
@@ -697,70 +839,160 @@ export default function ScrapMetalSalesPage() {
             tableClassName="text-sm"
             pagination={{ enabled: true }}
             emptyState={
-              salesQuery.isLoading
+              isSalesLoading
                 ? "Loading outbound tickets..."
                 : statusFilter === "all"
                   ? "No outbound tickets recorded yet"
                   : `No outbound tickets with status "${statusFilter.replace(/_/g, " ")}"`
             }
-            mobileCardRenderer={({ row: sale }) => (
-              <ScrapMobileCard>
-                <ScrapMobileCardHeader
-                  title={sale.buyerName}
-                  subtitle={sale.saleNumber}
-                  aside={<StatusChip status={sale.status} />}
-                />
-                <ScrapMobileMetricStrip
-                  items={[
-                    { icon: Package, value: sale.batch.batchNumber, srLabel: "Lot" },
-                    { icon: Package, value: sale.site.code, srLabel: "Site" },
-                    { icon: Scale, value: `${sale.soldWeight.toFixed(2)} kg`, srLabel: "Sold weight" },
-                    { icon: Wallet, value: `${sale.currency} ${sale.totalAmount.toFixed(2)}`, srLabel: "Total" },
-                  ]}
-                />
-                <ScrapMobileCardActions>
-                  {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setEditing(sale);
-                        setForm({
-                          saleDate: sale.saleDate.slice(0, 16),
-                          batchId: sale.batch.id,
-                          buyerName: sale.buyerName,
-                          buyerContact: sale.buyerContact ?? "",
-                          recordedWeight: String(sale.recordedWeight),
-                          soldWeight: String(sale.soldWeight),
-                          pricePerKg: String(sale.pricePerKg),
-                          currency: sale.currency,
-                          paymentMethod: sale.paymentMethod ?? "",
-                          paymentReference: sale.paymentReference ?? "",
-                          overrideReason: "",
-                          notes: sale.notes ?? "",
-                          attachments: sale.attachments ?? [],
-                        });
-                        setSubmitIntent("submit");
-                        setFormOpen(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  ) : null}
-                  {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(sale.status) ? (
-                    <Button size="sm" variant="outline" onClick={() => setSelectedSale(sale)}>
-                      {sale.status === "APPROVED" ? "Close" : "Review"}
-                    </Button>
-                  ) : null}
-                  {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
-                    <Button type="button" size="sm" variant="destructive" onClick={() => setDeleteTarget(sale)}>
-                      Remove
-                    </Button>
-                  ) : null}
-                </ScrapMobileCardActions>
-              </ScrapMobileCard>
-            )}
+            mobileListRenderer={({ rows }) => {
+              const groups = groupMobileRowsByDate(
+                rows.map((entry) => entry.row),
+                (sale) => sale.saleDate,
+              );
+
+              return (
+                <div className="space-y-4">
+                  {groups.map((group) => (
+                    <section key={group.key} className="space-y-2">
+                      <div className="px-1 text-sm font-semibold text-[var(--text-strong)]">
+                        {group.label}
+                      </div>
+                      <div className="space-y-2">
+                        {group.items.map((sale) => (
+                          <div
+                            key={sale.id}
+                            className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-2.5 shadow-[var(--surface-frame-shadow)]"
+                          >
+                            <ScrapMobileCard>
+                              <div className="flex items-start justify-between gap-3">
+                                <div className="min-w-0">
+                                  <div className="truncate text-base font-semibold text-foreground">
+                                    {sale.buyerName}
+                                  </div>
+                                  <div className="truncate font-mono text-[11px] text-muted-foreground">
+                                    {sale.saleNumber}
+                                  </div>
+                                </div>
+                                <div className="shrink-0 text-right">
+                                  <div className="font-mono text-xs font-semibold text-foreground">
+                                    {formatTicketTime(sale.saleDate)}
+                                  </div>
+                                  <div className="mt-1">
+                                    <StatusChip
+                                      status={
+                                        sale.source === "local"
+                                          ? "pending"
+                                          : sale.status === "COMPLETED"
+                                            ? "passing"
+                                            : sale.status === "APPROVED"
+                                              ? "in_review"
+                                              : sale.status === "PENDING_APPROVAL"
+                                                ? "pending"
+                                                : sale.status === "CANCELLED"
+                                                  ? "inactive"
+                                                  : "pending"
+                                      }
+                                      label={
+                                        sale.source === "local"
+                                          ? sale.queueStatus ?? "Queued"
+                                          : sale.status.replace(/_/g, " ")
+                                      }
+                                    />
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="text-xs font-medium text-muted-foreground">
+                                {sale.material?.name ?? sale.batch.category}
+                              </div>
+                              <ScrapMobileMetricStrip
+                                items={[
+                                  { icon: Package, value: sale.batch.batchNumber, srLabel: "Lot" },
+                                  { icon: Package, value: sale.site.code, srLabel: "Site" },
+                                  { icon: Scale, value: `${sale.soldWeight.toFixed(2)} kg`, srLabel: "Sold weight" },
+                                  {
+                                    icon: Wallet,
+                                    value: `${sale.currency} ${sale.totalAmount.toFixed(2)}`,
+                                    srLabel: "Total",
+                                  },
+                                ]}
+                              />
+                              {sale.lastError ? (
+                                <div className="text-xs text-destructive">{sale.lastError}</div>
+                              ) : null}
+                              <ScrapMobileCardActions>
+                                {sale.source === "local" ? (
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() =>
+                                      sale.localTicketId &&
+                                      router.push(
+                                        `/scrap-metal/tickets?queuedType=outbound&queuedTicketId=${encodeURIComponent(sale.localTicketId)}`,
+                                      )
+                                    }
+                                  >
+                                    Resume Offline
+                                  </Button>
+                                ) : (
+                                  <>
+                                    {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        onClick={() => {
+                                          setEditing(sale);
+                                          setForm({
+                                            saleDate: sale.saleDate.slice(0, 16),
+                                            batchId: sale.batch.id,
+                                            buyerName: sale.buyerName,
+                                            buyerContact: sale.buyerContact ?? "",
+                                            recordedWeight: String(sale.recordedWeight),
+                                            soldWeight: String(sale.soldWeight),
+                                            pricePerKg: String(sale.pricePerKg),
+                                            currency: sale.currency,
+                                            paymentMethod: sale.paymentMethod ?? "",
+                                            paymentReference: sale.paymentReference ?? "",
+                                            overrideReason: "",
+                                            notes: sale.notes ?? "",
+                                            attachments: sale.attachments ?? [],
+                                          });
+                                          setSubmitIntent("submit");
+                                          setFormOpen(true);
+                                        }}
+                                      >
+                                        Edit
+                                      </Button>
+                                    ) : null}
+                                    {canManageSales && ["PENDING_APPROVAL", "APPROVED"].includes(sale.status) ? (
+                                      <Button size="sm" variant="outline" onClick={() => setSelectedSale(sale)}>
+                                        {sale.status === "APPROVED" ? "Close" : "Review"}
+                                      </Button>
+                                    ) : null}
+                                    {["DRAFT", "PENDING_APPROVAL"].includes(sale.status) ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="destructive"
+                                        onClick={() => setDeleteTarget(sale)}
+                                      >
+                                        Remove
+                                      </Button>
+                                    ) : null}
+                                  </>
+                                )}
+                              </ScrapMobileCardActions>
+                            </ScrapMobileCard>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                </div>
+              );
+            }}
           />
         </>
       )}

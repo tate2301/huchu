@@ -1,17 +1,26 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { AdminTrendChart, type AdminChartSeries } from "@/components/charts/admin-headless-charts";
+import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { ScrapShell } from "@/components/scrap-metal/scrap-shell";
 import { StatusState } from "@/components/shared/status-state";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { fetchJson } from "@/lib/api-client";
+import {
+  OFFLINE_ENTITIES_CHANGED_EVENT,
+  OFFLINE_OUTBOX_CHANGED_EVENT,
+} from "@/lib/offline/events";
 import { hasRole } from "@/lib/roles";
+import {
+  listPendingPurchaseTickets,
+  listPendingSaleTickets,
+} from "@/lib/scrap-metal/offline-ticket";
 
 type DashboardPayload = {
   summary: {
@@ -70,6 +79,7 @@ function formatKg(value: number) {
 
 export default function ScrapMetalPage() {
   const { data: session } = useSession();
+  const { tenantKey } = useOfflineRuntime();
   const role = (session?.user as { role?: string } | undefined)?.role;
   const canManage = hasRole(role, ["SUPERADMIN", "MANAGER"]);
 
@@ -77,9 +87,27 @@ export default function ScrapMetalPage() {
     queryKey: ["scrap-home-daily-snapshot"],
     queryFn: () => fetchJson<DashboardPayload>("/api/scrap-metal/dashboard"),
   });
+  const localHeldInboundQuery = useQuery({
+    queryKey: ["scrap-home-local-held-inbound", tenantKey],
+    queryFn: () => (tenantKey ? listPendingPurchaseTickets(tenantKey) : Promise.resolve([])),
+  });
+  const localHeldOutboundQuery = useQuery({
+    queryKey: ["scrap-home-local-held-outbound", tenantKey],
+    queryFn: () => (tenantKey ? listPendingSaleTickets(tenantKey) : Promise.resolve([])),
+  });
 
   const summary = query.data?.summary;
-  const heldTotal = (summary?.heldInboundTicketsCount ?? 0) + (summary?.heldOutboundTicketsCount ?? 0);
+  const localHeldInboundCount = (localHeldInboundQuery.data ?? []).filter(
+    (ticket) => ticket.status === "DRAFT",
+  ).length;
+  const localHeldOutboundCount = (localHeldOutboundQuery.data ?? []).filter(
+    (ticket) => ticket.status === "DRAFT",
+  ).length;
+  const heldTotal =
+    (summary?.heldInboundTicketsCount ?? 0) +
+    (summary?.heldOutboundTicketsCount ?? 0) +
+    localHeldInboundCount +
+    localHeldOutboundCount;
   const varianceRows = useMemo(
     () =>
       (query.data?.reconciliation.varianceByWeek ?? []).map((row) => ({
@@ -97,6 +125,22 @@ export default function ScrapMetalPage() {
       })),
     [query.data?.supplierPerformance],
   );
+
+  useEffect(() => {
+    const refreshLocalHeld = () => {
+      localHeldInboundQuery.refetch();
+      localHeldOutboundQuery.refetch();
+    };
+
+    window.addEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalHeld);
+    window.addEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalHeld);
+    window.addEventListener("online", refreshLocalHeld);
+    return () => {
+      window.removeEventListener(OFFLINE_OUTBOX_CHANGED_EVENT, refreshLocalHeld);
+      window.removeEventListener(OFFLINE_ENTITIES_CHANGED_EVENT, refreshLocalHeld);
+      window.removeEventListener("online", refreshLocalHeld);
+    };
+  }, [localHeldInboundQuery, localHeldOutboundQuery]);
 
   if (query.error) {
     return (
