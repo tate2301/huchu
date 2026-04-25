@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { RefreshCcw, Search } from "lucide-react";
+import { RefreshCcw, Search } from "@/lib/icons";
 import { fetchIdentityHub } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";

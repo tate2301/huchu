@@ -10,7 +10,7 @@ import {
   RefreshCcw,
   ShieldCheck,
   TriangleAlert,
-} from "lucide-react";
+} from "@/lib/icons";
 import { fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { WorkspaceOverview } from "@/components/admin-portal/types";

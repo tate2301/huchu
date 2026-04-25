@@ -1,4 +1,3 @@
-import "material-symbols";
 import "@rtcamp/frappe-ui-react/theme";
 import { Analytics } from "@vercel/analytics/next";
 import { Suspense } from "react";

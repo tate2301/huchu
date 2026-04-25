@@ -11,7 +11,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { WifiOff, Wifi, X } from "lucide-react";
+import { WifiOff, Wifi, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";

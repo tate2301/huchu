@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCcw, TriangleAlert } from "lucide-react";
+import { RefreshCcw, TriangleAlert } from "@/lib/icons";
 import { executeOperation, fetchCommercialCenter, fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import {
   AdminDonutChart,

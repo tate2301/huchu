@@ -1,7 +1,6 @@
 import Link from "next/link";
 
-import { ArrowRight } from "@/lib/icons";
-import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
+import { ArrowRight, ChevronDown } from "@/lib/icons";
 import { MarketingSubpageShell } from "@/components/marketing/marketing-subpage-shell";
 import { Reveal } from "@/components/marketing/motion";
 import { Button } from "@/components/ui/button";
@@ -74,7 +73,7 @@ export default function FAQPage() {
   return (
     <MarketingSubpageShell
       eyebrow="FAQ"
-      title="Questions? We've got answers."
+      title="Questions? We&apos;ve got answers."
       description="If you don't see your question here, WhatsApp us. We reply within 2 hours."
       pills={["14-day trial", "No credit card", "Cancel anytime"]}
       panelTitle="Quick answers"
@@ -85,7 +84,7 @@ export default function FAQPage() {
       ]}
     >
       <div className="space-y-16">
-        {faqCategories.map((category, categoryIndex) => (
+        {faqCategories.map((category) => (
           <section key={category.title}>
             <Reveal>
               <h2 className="mb-6 text-2xl font-semibold tracking-[-0.03em] text-[#0b1945]">{category.title}</h2>
@@ -97,9 +96,7 @@ export default function FAQPage() {
                     <summary className="flex items-center justify-between text-base font-semibold text-[#0b1945]">
                       {faq.q}
                       <span className="ml-4 text-[#7383a9] transition-transform group-open:rotate-180">
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
-                          <path d="M4 6L8 10L12 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
-                        </svg>
+                        <ChevronDown className="size-4" />
                       </span>
                     </summary>
                     <p className="mt-3 text-sm leading-7 text-[#31436f]/84">{faq.a}</p>
@@ -116,7 +113,7 @@ export default function FAQPage() {
           <div className="space-y-4">
             <p className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/62">Still have questions?</p>
             <h3 className="max-w-2xl text-[clamp(2rem,3.7vw,3.25rem)] font-semibold leading-[1.02] tracking-[-0.045em] text-balance">
-              We're one message away.
+              We&apos;re one message away.
             </h3>
             <p className="max-w-2xl text-sm leading-7 text-white/74">
               WhatsApp us: +263 78 493 9111<br />

@@ -79,7 +79,7 @@ const DropdownMenuItem = React.forwardRef<
     ref={ref}
     data-slot="dropdown-menu-item"
     className={cn(
-      "relative flex min-h-10 cursor-default select-none items-center gap-2 rounded-[var(--button-radius)] border border-transparent px-3 py-2 text-sm outline-none transition-colors focus:bg-[var(--surface-subtle)] focus:text-foreground [&_.material-symbols-rounded]:shrink-0",
+      "relative flex min-h-10 cursor-default select-none items-center gap-2 rounded-[var(--button-radius)] border border-transparent px-3 py-2 text-sm outline-none transition-colors focus:bg-[var(--surface-subtle)] focus:text-foreground",
       "data-[disabled]:pointer-events-none data-[disabled]:opacity-50",
       inset && "pl-8",
       className,

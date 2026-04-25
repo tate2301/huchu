@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { Loader2 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /* ── Scroll Container Types ──────────────────────────────────────────────── */
@@ -110,40 +111,25 @@ const PullToRefreshHint = React.forwardRef<
     pulling?: boolean;
     threshold?: number;
   }
->(({ className, pulling = false, threshold = 64, ...props }, ref) => (
-  <div
-    ref={ref}
-    data-slot="pull-to-refresh-hint"
-    className={cn(
-      "flex items-center justify-center py-3 text-[13px] text-[var(--text-muted)] transition-opacity duration-200",
-      pulling ? "opacity-100" : "opacity-0",
-      className
-    )}
-    {...props}
-  >
-    <svg
-      className="mr-2 h-4 w-4 animate-spin"
-      xmlns="http://www.w3.org/2000/svg"
-      fill="none"
-      viewBox="0 0 24 24"
+>(({ className, pulling = false, threshold = 64, ...props }, ref) => {
+  void threshold;
+
+  return (
+    <div
+      ref={ref}
+      data-slot="pull-to-refresh-hint"
+      className={cn(
+        "flex items-center justify-center py-3 text-[13px] text-[var(--text-muted)] transition-opacity duration-200",
+        pulling ? "opacity-100" : "opacity-0",
+        className
+      )}
+      {...props}
     >
-      <circle
-        className="opacity-25"
-        cx="12"
-        cy="12"
-        r="10"
-        stroke="currentColor"
-        strokeWidth="4"
-      />
-      <path
-        className="opacity-75"
-        fill="currentColor"
-        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-      />
-    </svg>
-    Pull to refresh
-  </div>
-));
+      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+      Pull to refresh
+    </div>
+  );
+});
 PullToRefreshHint.displayName = "PullToRefreshHint";
 
 /* ── Exports ─────────────────────────────────────────────────────────────── */

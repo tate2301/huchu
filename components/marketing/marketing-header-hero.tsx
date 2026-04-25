@@ -1,8 +1,8 @@
 import Link from "next/link";
 
-import { ArrowRight } from "@/lib/icons";
+import { ArrowRight, CheckCircle } from "@/lib/icons";
 import { PLATFORM_BRAND_INITIAL, PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@/lib/platform/brand";
-import { marketingNavItems, proofStats, productSteps } from "@/components/marketing/marketing-data";
+import { marketingNavItems, productSteps } from "@/components/marketing/marketing-data";
 import { Button } from "@/components/ui/button";
 import { Reveal } from "@/components/marketing/motion";
 import styles from "@/components/marketing/marketing-site.module.css";
@@ -72,15 +72,15 @@ export function MarketingHeaderHero() {
           <Reveal delay={0.35}>
             <div className="mt-6 flex flex-wrap gap-x-5 gap-y-2 text-sm text-white/58">
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <CheckCircle className="size-4 text-[#4ade80]" />
                 Works offline
               </span>
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <CheckCircle className="size-4 text-[#4ade80]" />
                 Set up in 5 minutes
               </span>
               <span className="flex items-center gap-1.5">
-                <svg className="size-4 text-[#4ade80]" viewBox="0 0 20 20" fill="currentColor"><path fillRule="evenodd" d="M16.704 4.153a.75.75 0 01.143 1.052l-8 10.5a.75.75 0 01-1.127.075l-4.5-4.5a.75.75 0 011.06-1.06l3.894 3.893 7.48-9.817a.75.75 0 011.05-.143z" clipRule="evenodd" /></svg>
+                <CheckCircle className="size-4 text-[#4ade80]" />
                 Cancel anytime
               </span>
             </div>

@@ -11,7 +11,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Layers } from "lucide-react";
+import { Layers } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
 import { queueBadgeVariants, queueNumberVariants } from "./animations";

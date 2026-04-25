@@ -13,7 +13,7 @@
 
 import { useCallback, useMemo } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Server, User, Check, X, AlertTriangle, GitCompare } from "lucide-react";
+import { Server, User, Check, X, AlertTriangle, GitCompare } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { SPRING } from "@/lib/animation/tokens";
 import { fadeScaleVariants, staggerContainerVariants, staggerItemVariants } from "./animations";

@@ -34,7 +34,7 @@ const TabsTrigger = React.forwardRef<
     asChild={asChild}
     data-slot="tabs-trigger"
     className={cn(
-      "inline-flex h-7 items-center justify-center whitespace-nowrap rounded-[10px] border border-transparent px-3 text-sm font-medium transition-[background-color,color,border-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-default)] [&_.material-symbols-rounded]:shrink-0",
+      "inline-flex h-7 items-center justify-center whitespace-nowrap rounded-[10px] border border-transparent px-3 text-sm font-medium transition-[background-color,color,border-color,box-shadow] duration-[var(--motion-duration-fast)] ease-[var(--motion-ease-default)]",
       "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/20 focus-visible:ring-offset-0",
       "disabled:pointer-events-none disabled:opacity-50",
       "data-[state=active]:border-[var(--border-default)] data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-[var(--button-shadow-rest)]",

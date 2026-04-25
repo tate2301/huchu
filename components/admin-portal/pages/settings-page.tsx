@@ -1,6 +1,6 @@
 "use client";
 
-import { BellRing, Palette, ShieldAlert } from "lucide-react";
+import { BellRing, Palette, ShieldAlert } from "@/lib/icons";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { LifeBuoy, ShieldAlert, Sparkles } from "lucide-react";
+import { LifeBuoy, ShieldAlert, Sparkles } from "@/lib/icons";
 import {
   fetchCommercialCenter,
   fetchMetrics,

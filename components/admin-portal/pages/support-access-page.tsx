@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "lucide-react";
+import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "@/lib/icons";
 import { fetchSupportAccessHub } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import {

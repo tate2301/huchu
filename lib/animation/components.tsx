@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { motion, useReducedMotion, AnimatePresence, type HTMLMotionProps, type PanInfo, useMotionValue, useTransform, animate } from "framer-motion";
+import { Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { SPRING, DURATION, STAGGER } from "./tokens";
 
@@ -133,9 +134,13 @@ export function AnimatedButton({
             transition={SPRING.syncSuccess}
             className="absolute inset-0 flex items-center justify-center"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <motion.path d="M5 13l4 4L19 7" initial={{ pathLength: 0 }} animate={{ pathLength: 1 }} transition={{ duration: 0.3, ease: "easeOut" }} />
-            </svg>
+            <motion.span
+              initial={{ scale: 0.75, opacity: 0 }}
+              animate={{ scale: 1, opacity: 1 }}
+              transition={{ duration: 0.3, ease: "easeOut" }}
+            >
+              <Check className="h-5 w-5" weight="bold" />
+            </motion.span>
           </motion.div>
         ) : null}
       </AnimatePresence>
@@ -327,7 +332,7 @@ export function StaggerReveal({
   delayChildren = 0.05,
 }: StaggerRevealProps) {
   const prefersReduced = useReducedMotion();
-  const offset = getDirectionOffset(direction, distance);
+  void getDirectionOffset(direction, distance);
 
   const containerVariants = {
     hidden: { opacity: 0 },
@@ -337,16 +342,6 @@ export function StaggerReveal({
         staggerChildren: staggerDelay,
         delayChildren,
       },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, ...offset },
-    visible: {
-      opacity: 1,
-      x: 0,
-      y: 0,
-      transition: SPRING.default,
     },
   };
 
@@ -621,22 +616,14 @@ export function AnimatedToggle({ checked, onChange, disabled = false, className 
         transition={prefersReduced ? { duration: 0 } : SPRING.bouncy}
       >
         {/* Check mark inside knob */}
-        <motion.svg
-          className="absolute inset-0 w-full h-full p-1.5"
-          viewBox="0 0 24 24"
+        <motion.span
+          className="absolute inset-0 flex items-center justify-center p-1.5"
           initial={false}
           animate={{ opacity: checked ? 1 : 0, scale: checked ? 1 : 0.5 }}
           transition={{ duration: 0.15 }}
         >
-          <path
-            d="M5 13l4 4L19 7"
-            fill="none"
-            stroke="var(--interactive-primary,#007AFF)"
-            strokeWidth={3}
-            strokeLinecap="round"
-            strokeLinejoin="round"
-          />
-        </motion.svg>
+          <Check className="h-full w-full text-[var(--interactive-primary,#007AFF)]" weight="bold" />
+        </motion.span>
       </motion.div>
     </motion.button>
   );

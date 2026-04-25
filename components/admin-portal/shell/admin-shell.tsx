@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, Menu, X } from "lucide-react";
+import { ChevronRight, Menu, X } from "@/lib/icons";
 import { AdminCommandBar } from "./admin-command-bar";
 import { AdminOperatorContext } from "./admin-operator-context";
 import { AdminSidebar } from "./admin-sidebar";

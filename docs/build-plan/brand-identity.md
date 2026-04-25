@@ -46,7 +46,7 @@ Rules:
 3. Table text must stay compact but legible.
 
 ## Iconography
-1. Use a single icon family (`lucide-react`) for consistency.
+1. Use a single icon family (`@phosphor-icons/react`, filled weight) for consistency.
 2. Icons must support meaning, not replace labels.
 3. Standard icon sizes:
 - 16px inline

@@ -22,7 +22,7 @@ import {
   RefreshCw,
   ExternalLink,
   ArrowRight,
-} from "lucide-react";
+} from "@/lib/icons";
 import { Scale, FileCheck, TableRows } from "@/lib/icons";
 
 function ReadinessIcon({ passed, size = "sm" }: { passed: boolean; size?: "sm" | "md" }) {

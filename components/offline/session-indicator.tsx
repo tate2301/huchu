@@ -12,7 +12,7 @@
 
 import { useMemo, useCallback } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Clock, AlertTriangle, Shield, RefreshCw } from "lucide-react";
+import { Clock, AlertTriangle, Shield, RefreshCw } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
