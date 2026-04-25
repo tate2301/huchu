@@ -1,308 +1,384 @@
 import * as React from "react";
-import {
-  AcademicCap as MedusaAcademicCapRaw,
-  ArrowRightOnRectangle as MedusaArrowRightOnRectangleRaw,
-  BookOpen as MedusaBookOpenRaw,
-  Buildings as MedusaBuildingsRaw,
-  BuildingStorefront as MedusaBuildingStorefrontRaw,
-  Cash as MedusaCashRaw,
-  ChevronDown as MedusaChevronDownRaw,
-  ChevronRight as MedusaChevronRightRaw,
-  ChartBar as MedusaChartBarRaw,
-  CirclePlus as MedusaCirclePlusRaw,
-  CircleSliders as MedusaCircleSlidersRaw,
-  CircleStack as MedusaCircleStackRaw,
-  CogSixTooth as MedusaCogSixToothRaw,
-  Directions as MedusaDirectionsRaw,
-  GridList as MedusaGridListRaw,
-  HandTruck as MedusaHandTruckRaw,
-  House as MedusaHouseRaw,
-  IdBadge as MedusaIdBadgeRaw,
-  Lifebuoy as MedusaLifebuoyRaw,
-} from "@medusajs/icons";
+import * as Phosphor from "@phosphor-icons/react/ssr";
 
 import { cn } from "@/lib/utils";
 
+type PhosphorIconProps = React.ComponentProps<typeof Phosphor.Question>;
+type PhosphorIconComponent = React.ComponentType<PhosphorIconProps>;
+
 export type MaterialIconProps = Omit<
-  React.HTMLAttributes<HTMLSpanElement>,
-  "children"
+  PhosphorIconProps,
+  "children" | "ref" | "weight"
 > & {
-  size?: number | string;
+  weight?: PhosphorIconProps["weight"];
   strokeWidth?: number | string;
   absoluteStrokeWidth?: boolean;
 };
 
 export type LucideIcon = React.ComponentType<MaterialIconProps>;
 
-function createMaterialIcon(symbol: string, displayName: string): LucideIcon {
-  const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
-    <span
-      {...props}
-      className={cn(
-        "material-symbols-rounded inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none text-current",
-        className,
-      )}
-      style={{
-        color: "currentColor",
-        ...(size !== undefined ? { fontSize: size } : null),
-        ...style,
-      }}
-    >
-      {symbol}
-    </span>
-  );
+const iconRegistry = Phosphor as unknown as Record<string, PhosphorIconComponent>;
+
+function getIconComponent(iconName: string) {
+  return iconRegistry[iconName] ?? Phosphor.Question;
+}
+
+function createPhosphorIcon(iconName: string, displayName: string): LucideIcon {
+  const IconComponent = getIconComponent(iconName);
+
+  const Icon = ({
+    className,
+    size,
+    style,
+    weight,
+    strokeWidth,
+    absoluteStrokeWidth,
+    ...props
+  }: MaterialIconProps) => {
+    void strokeWidth;
+    void absoluteStrokeWidth;
+
+    return (
+      <IconComponent
+        {...props}
+        aria-hidden={props["aria-label"] ? undefined : true}
+        className={cn(
+          "inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none text-current",
+          className,
+        )}
+        focusable="false"
+        size={size}
+        style={{
+          color: "currentColor",
+          ...style,
+        }}
+        weight={weight ?? "fill"}
+      />
+    );
+  };
 
   Icon.displayName = displayName;
   return Icon;
 }
 
-function createMedusaIcon(
-  IconComponent: React.ElementType,
-  displayName: string,
-): LucideIcon {
-  const Icon = ({ className, size, style, ...props }: MaterialIconProps) => (
-    <IconComponent
-      {...(props as unknown as React.SVGAttributes<SVGSVGElement>)}
-      aria-hidden={props["aria-label"] ? undefined : true}
-      className={cn(
-        "inline-flex h-[1em] w-[1em] shrink-0 select-none items-center justify-center align-middle leading-none text-current",
-        className,
-      )}
-      focusable="false"
-      style={{
-        color: "currentColor",
-        ...(size !== undefined ? { width: size, height: size } : null),
-        ...style,
-      }}
-    />
-  );
-
-  Icon.displayName = displayName;
-  return Icon;
-}
-
-export const MedusaAcademicCapIcon = createMedusaIcon(
-  MedusaAcademicCapRaw,
+export const MedusaAcademicCapIcon = createPhosphorIcon(
+  "GraduationCap",
   "MedusaAcademicCapIcon",
 );
-export const MedusaArrowRightOnRectangleIcon = createMedusaIcon(
-  MedusaArrowRightOnRectangleRaw,
+export const MedusaArrowRightOnRectangleIcon = createPhosphorIcon(
+  "SignOut",
   "MedusaArrowRightOnRectangleIcon",
 );
-export const MedusaBookOpenIcon = createMedusaIcon(
-  MedusaBookOpenRaw,
+export const MedusaBookOpenIcon = createPhosphorIcon(
+  "BookOpen",
   "MedusaBookOpenIcon",
 );
-export const MedusaBuildingsIcon = createMedusaIcon(
-  MedusaBuildingsRaw,
+export const MedusaBuildingsIcon = createPhosphorIcon(
+  "Buildings",
   "MedusaBuildingsIcon",
 );
-export const MedusaBuildingStorefrontIcon = createMedusaIcon(
-  MedusaBuildingStorefrontRaw,
+export const MedusaBuildingStorefrontIcon = createPhosphorIcon(
+  "Storefront",
   "MedusaBuildingStorefrontIcon",
 );
-export const MedusaCashIcon = createMedusaIcon(MedusaCashRaw, "MedusaCashIcon");
-export const MedusaChevronDownIcon = createMedusaIcon(
-  MedusaChevronDownRaw,
+export const MedusaCashIcon = createPhosphorIcon("Money", "MedusaCashIcon");
+export const MedusaChevronDownIcon = createPhosphorIcon(
+  "CaretDown",
   "MedusaChevronDownIcon",
 );
-export const MedusaChevronRightIcon = createMedusaIcon(
-  MedusaChevronRightRaw,
+export const MedusaChevronRightIcon = createPhosphorIcon(
+  "CaretRight",
   "MedusaChevronRightIcon",
 );
-export const MedusaChartBarIcon = createMedusaIcon(
-  MedusaChartBarRaw,
+export const MedusaChartBarIcon = createPhosphorIcon(
+  "ChartBar",
   "MedusaChartBarIcon",
 );
-export const MedusaCirclePlusIcon = createMedusaIcon(
-  MedusaCirclePlusRaw,
+export const MedusaCirclePlusIcon = createPhosphorIcon(
+  "PlusCircle",
   "MedusaCirclePlusIcon",
 );
-export const MedusaCircleSlidersIcon = createMedusaIcon(
-  MedusaCircleSlidersRaw,
+export const MedusaCircleSlidersIcon = createPhosphorIcon(
+  "Sliders",
   "MedusaCircleSlidersIcon",
 );
-export const MedusaCircleStackIcon = createMedusaIcon(
-  MedusaCircleStackRaw,
+export const MedusaCircleStackIcon = createPhosphorIcon(
+  "Stack",
   "MedusaCircleStackIcon",
 );
-export const MedusaCogSixToothIcon = createMedusaIcon(
-  MedusaCogSixToothRaw,
+export const MedusaCogSixToothIcon = createPhosphorIcon(
+  "GearSix",
   "MedusaCogSixToothIcon",
 );
-export const MedusaDirectionsIcon = createMedusaIcon(
-  MedusaDirectionsRaw,
+export const MedusaDirectionsIcon = createPhosphorIcon(
+  "MapTrifold",
   "MedusaDirectionsIcon",
 );
-export const MedusaGridListIcon = createMedusaIcon(
-  MedusaGridListRaw,
+export const MedusaGridListIcon = createPhosphorIcon(
+  "SquaresFour",
   "MedusaGridListIcon",
 );
-export const MedusaHandTruckIcon = createMedusaIcon(
-  MedusaHandTruckRaw,
+export const MedusaHandTruckIcon = createPhosphorIcon(
+  "Truck",
   "MedusaHandTruckIcon",
 );
-export const MedusaHouseIcon = createMedusaIcon(
-  MedusaHouseRaw,
-  "MedusaHouseIcon",
-);
-export const MedusaIdBadgeIcon = createMedusaIcon(
-  MedusaIdBadgeRaw,
+export const MedusaHouseIcon = createPhosphorIcon("House", "MedusaHouseIcon");
+export const MedusaIdBadgeIcon = createPhosphorIcon(
+  "IdentificationBadge",
   "MedusaIdBadgeIcon",
 );
-export const MedusaLifebuoyIcon = createMedusaIcon(
-  MedusaLifebuoyRaw,
+export const MedusaLifebuoyIcon = createPhosphorIcon(
+  "Lifebuoy",
   "MedusaLifebuoyIcon",
 );
 
-export const ArrowUploadProgress = createMaterialIcon(
-  "arrow_upload",
+export const ArrowUploadProgress = createPhosphorIcon(
+  "UploadSimple",
   "ArrowUploadProgress",
 );
-export const AlertCircle = createMaterialIcon("error", "AlertCircle");
-export const AlertTriangle = createMaterialIcon("warning", "AlertTriangle");
-export const ArrowRight = createMaterialIcon("arrow_forward", "ArrowRight");
-export const ArrowRightLeft = createMaterialIcon("sync_alt", "ArrowRightLeft");
-export const ArrowRightUp = createMaterialIcon("call_made", "ArrowRightLeft");
-export const ArrowDownward = createMaterialIcon(
-  "arrow_downward",
-  "ArrowDownward",
+export const AlertCircle = createPhosphorIcon("WarningCircle", "AlertCircle");
+export const AlertTriangle = createPhosphorIcon("Warning", "AlertTriangle");
+export const ArrowRight = createPhosphorIcon("ArrowRight", "ArrowRight");
+export const ArrowRightLeft = createPhosphorIcon(
+  "ArrowsLeftRight",
+  "ArrowRightLeft",
 );
-export const ArrowUpward = createMaterialIcon("arrow_upward", "ArrowUpward");
-export const BarChart3 = createMaterialIcon("bar_chart", "BarChart3");
-export const Bell = createMaterialIcon("notifications", "Bell");
-export const Building2 = createMaterialIcon("domain", "Building2");
-export const Calendar = createMaterialIcon("calendar_month", "Calendar");
-export const Camera = createMaterialIcon("videocam", "Camera");
-export const Nvr = createMaterialIcon("router", "Nvr");
-export const ChartLine = createMaterialIcon("monitoring", "ChartLine");
-export const CheckCircle = createMaterialIcon("check_circle", "CheckCircle");
-export const CheckCircle2 = createMaterialIcon("task_alt", "CheckCircle2");
-export const CheckIcon = createMaterialIcon("check", "CheckIcon");
-export const Checklist = createMaterialIcon("checklist", "Checklist");
-export const ChevronDown = createMaterialIcon("expand_more", "ChevronDown");
-export const ChevronDownIcon = createMaterialIcon(
-  "expand_more",
+export const ArrowRightUp = createPhosphorIcon("ArrowUpRight", "ArrowRightUp");
+export const ArrowDownward = createPhosphorIcon("ArrowDown", "ArrowDownward");
+export const ArrowUpward = createPhosphorIcon("ArrowUp", "ArrowUpward");
+export const BarChart3 = createPhosphorIcon("ChartBar", "BarChart3");
+export const Bell = createPhosphorIcon("Bell", "Bell");
+export const BellRing = createPhosphorIcon("BellRinging", "BellRing");
+export const Building2 = createPhosphorIcon("BuildingOffice", "Building2");
+export const Calendar = createPhosphorIcon("CalendarBlank", "Calendar");
+export const CalendarIcon = createPhosphorIcon(
+  "CalendarBlank",
+  "CalendarIcon",
+);
+export const Camera = createPhosphorIcon("VideoCamera", "Camera");
+export const Nvr = createPhosphorIcon("HardDrives", "Nvr");
+export const ChartLine = createPhosphorIcon("ChartLineUp", "ChartLine");
+export const Check = createPhosphorIcon("Check", "Check");
+export const CheckCircle = createPhosphorIcon("CheckCircle", "CheckCircle");
+export const CheckCircle2 = createPhosphorIcon("CheckCircle", "CheckCircle2");
+export const CheckCircleSolid = createPhosphorIcon(
+  "CheckCircle",
+  "CheckCircleSolid",
+);
+export const CheckIcon = createPhosphorIcon("Check", "CheckIcon");
+export const Checklist = createPhosphorIcon("Checks", "Checklist");
+export const ChevronDown = createPhosphorIcon("CaretDown", "ChevronDown");
+export const ChevronDownIcon = createPhosphorIcon(
+  "CaretDown",
   "ChevronDownIcon",
 );
-export const ChevronRight = createMaterialIcon("chevron_right", "ChevronRight");
-export const ChevronUpIcon = createMaterialIcon("expand_less", "ChevronUpIcon");
-export const Circle = createMaterialIcon("circle", "Circle");
-export const ClipboardList = createMaterialIcon("assignment", "ClipboardList");
-export const Clock = createMaterialIcon("schedule", "Clock");
-export const CloudSync = createMaterialIcon("cloud_sync", "CloudSync");
-export const CloudAlert = createMaterialIcon("cloud_off", "CloudAlert");
-export const Coins = createMaterialIcon("monetization_on", "Coins");
-export const DeployedCodeUpdate = createMaterialIcon(
-  "deployed_code",
+export const ChevronLeftIcon = createPhosphorIcon(
+  "CaretLeft",
+  "ChevronLeftIcon",
+);
+export const ChevronRight = createPhosphorIcon("CaretRight", "ChevronRight");
+export const ChevronRightIcon = createPhosphorIcon(
+  "CaretRight",
+  "ChevronRightIcon",
+);
+export const ChevronUpIcon = createPhosphorIcon("CaretUp", "ChevronUpIcon");
+export const Circle = createPhosphorIcon("Circle", "Circle");
+export const CircleDottedLine = createPhosphorIcon(
+  "CircleDashed",
+  "CircleDottedLine",
+);
+export const CircleHalfDottedClock = createPhosphorIcon(
+  "HourglassMedium",
+  "CircleHalfDottedClock",
+);
+export const CircleIcon = createPhosphorIcon("Circle", "CircleIcon");
+export const CircleThreeQuartersSolid = createPhosphorIcon(
+  "SpinnerGap",
+  "CircleThreeQuartersSolid",
+);
+export const CircleUserRound = createPhosphorIcon(
+  "UserCircle",
+  "CircleUserRound",
+);
+export const ClipboardList = createPhosphorIcon(
+  "ClipboardText",
+  "ClipboardList",
+);
+export const Clock = createPhosphorIcon("Clock", "Clock");
+export const Clock3 = createPhosphorIcon("Clock", "Clock3");
+export const CloudAlert = createPhosphorIcon("CloudSlash", "CloudAlert");
+export const CloudArrowDown = createPhosphorIcon(
+  "CloudArrowDown",
+  "CloudArrowDown",
+);
+export const CloudCheck = createPhosphorIcon("CloudCheck", "CloudCheck");
+export const CloudOff = createPhosphorIcon("CloudSlash", "CloudOff");
+export const CloudSync = createPhosphorIcon("CloudArrowUp", "CloudSync");
+export const Coins = createPhosphorIcon("Coins", "Coins");
+export const CommandIcon = createPhosphorIcon("Command", "CommandIcon");
+export const CornerDownLeft = createPhosphorIcon(
+  "ArrowElbowDownLeft",
+  "CornerDownLeft",
+);
+export const Delete = createPhosphorIcon("Backspace", "Delete");
+export const DeployedCodeUpdate = createPhosphorIcon(
+  "CloudArrowDown",
   "DeployedCodeUpdate",
 );
-export const Dashboard = createMaterialIcon("dashboard", "Dashboard");
-export const Dataset = createMaterialIcon("dataset", "Dataset");
-export const DirectionsCar = createMaterialIcon(
-  "directions_car",
-  "DirectionsCar",
+export const Dashboard = createPhosphorIcon("Gauge", "Dashboard");
+export const Dataset = createPhosphorIcon("Database", "Dataset");
+export const DirectionsCar = createPhosphorIcon("Car", "DirectionsCar");
+export const DotsThree = createPhosphorIcon("DotsThree", "DotsThree");
+export const Download = createPhosphorIcon("DownloadSimple", "Download");
+export const EditSquare = createPhosphorIcon("NotePencil", "EditSquare");
+export const EventNote = createPhosphorIcon("Note", "EventNote");
+export const Eye = createPhosphorIcon("Eye", "Eye");
+export const ExternalLink = createPhosphorIcon(
+  "ArrowSquareOut",
+  "ExternalLink",
 );
-export const Download = createMaterialIcon("download", "Download");
-export const EventNote = createMaterialIcon("event_note", "EventNote");
-export const Factory = createMaterialIcon("factory", "Factory");
-export const FileCheck = createMaterialIcon("task", "FileCheck");
-export const FileText = createMaterialIcon("description", "FileText");
-export const Fullscreen = createMaterialIcon("fullscreen", "Fullscreen");
-export const FullscreenExit = createMaterialIcon(
-  "fullscreen_exit",
+export const ExclamationCircleSolid = createPhosphorIcon(
+  "WarningCircle",
+  "ExclamationCircleSolid",
+);
+export const Factory = createPhosphorIcon("Factory", "Factory");
+export const FileCheck = createPhosphorIcon(
+  "CheckSquareOffset",
+  "FileCheck",
+);
+export const FileText = createPhosphorIcon("FileText", "FileText");
+export const Fullscreen = createPhosphorIcon("CornersOut", "Fullscreen");
+export const FullscreenExit = createPhosphorIcon(
+  "CornersIn",
   "FullscreenExit",
 );
-export const Fuel = createMaterialIcon("local_gas_station", "Fuel");
-export const Gem = createMaterialIcon("diamond", "Gem");
-export const Grid3x3 = createMaterialIcon("grid_view", "Grid3x3");
-export const HelpCircle = createMaterialIcon("help", "HelpCircle");
-export const History = createMaterialIcon("history", "History");
-export const Home = createMaterialIcon("home", "Home");
-export const Loader2 = createMaterialIcon("progress_activity", "Loader2");
-export const LocalShipping = createMaterialIcon(
-  "local_shipping",
-  "LocalShipping",
+export const Fuel = createPhosphorIcon("GasPump", "Fuel");
+export const Gem = createPhosphorIcon("Diamond", "Gem");
+export const GitCompare = createPhosphorIcon("GitDiff", "GitCompare");
+export const Globe = createPhosphorIcon("Globe", "Globe");
+export const Grid3x3 = createPhosphorIcon("GridFour", "Grid3x3");
+export const HelpCircle = createPhosphorIcon("Question", "HelpCircle");
+export const History = createPhosphorIcon(
+  "ClockCounterClockwise",
+  "History",
 );
-export const LogOut = createMaterialIcon("logout", "LogOut");
-export const ManageAccounts = createMaterialIcon(
-  "manage_accounts",
-  "ManageAccounts",
+export const Home = createPhosphorIcon("House", "Home");
+export const Info = createPhosphorIcon("Info", "Info");
+export const Layers = createPhosphorIcon("StackSimple", "Layers");
+export const LifeBuoy = createPhosphorIcon("Lifebuoy", "LifeBuoy");
+export const Loader2 = createPhosphorIcon("SpinnerGap", "Loader2");
+export const LocalShipping = createPhosphorIcon("Truck", "LocalShipping");
+export const LogOut = createPhosphorIcon("SignOut", "LogOut");
+export const MailCheck = createPhosphorIcon(
+  "EnvelopeSimpleOpen",
+  "MailCheck",
 );
-export const Mic = createMaterialIcon("mic", "Mic");
-export const Minimize2 = createMaterialIcon("close_fullscreen", "Minimize2");
-export const Minus = createMaterialIcon("remove", "Minus");
-export const NoteAdd = createMaterialIcon("note_add", "NoteAdd");
-export const Package = createMaterialIcon("inventory_2", "Package");
-export const PackageCheck = createMaterialIcon("inventory", "PackageCheck");
-export const Palette = createMaterialIcon("palette", "Palette");
-export const PanelLeft = createMaterialIcon("left_panel_open", "PanelLeft");
-export const Payments = createMaterialIcon("payments", "Payments");
-export const Pencil = createMaterialIcon("edit", "Pencil");
-export const Plus = createMaterialIcon("add", "Plus");
-export const Play = createMaterialIcon("play_arrow", "Play");
-export const QrCode = createMaterialIcon("qr_code", "QrCode");
-export const Radio = createMaterialIcon("radio", "Radio");
-export const ReceiptLong = createMaterialIcon("receipt_long", "ReceiptLong");
-export const Recycle = createMaterialIcon("recycling", "Recycle");
-export const ReportProblem = createMaterialIcon(
-  "report_problem",
+export const ManageAccounts = createPhosphorIcon("UserGear", "ManageAccounts");
+export const Maximize2 = createPhosphorIcon("ArrowsOut", "Maximize2");
+export const Menu = createPhosphorIcon("List", "Menu");
+export const Mic = createPhosphorIcon("Microphone", "Mic");
+export const Minimize2 = createPhosphorIcon("CornersIn", "Minimize2");
+export const Minus = createPhosphorIcon("Minus", "Minus");
+export const MinusIcon = createPhosphorIcon("Minus", "MinusIcon");
+export const MoreHorizontal = createPhosphorIcon(
+  "DotsThreeOutline",
+  "MoreHorizontal",
+);
+export const NoteAdd = createPhosphorIcon("NotePencil", "NoteAdd");
+export const Package = createPhosphorIcon("Package", "Package");
+export const PackageCheck = createPhosphorIcon("Package", "PackageCheck");
+export const Palette = createPhosphorIcon("Palette", "Palette");
+export const PanelLeft = createPhosphorIcon("SidebarSimple", "PanelLeft");
+export const Payments = createPhosphorIcon("CurrencyDollar", "Payments");
+export const Pencil = createPhosphorIcon("PencilSimple", "Pencil");
+export const Play = createPhosphorIcon("Play", "Play");
+export const Plus = createPhosphorIcon("Plus", "Plus");
+export const PlusCircle = createPhosphorIcon("PlusCircle", "PlusCircle");
+export const QrCode = createPhosphorIcon("QrCode", "QrCode");
+export const Radio = createPhosphorIcon("Radio", "Radio");
+export const ReceiptLong = createPhosphorIcon("Receipt", "ReceiptLong");
+export const Recycle = createPhosphorIcon("Recycle", "Recycle");
+export const RefreshCcw = createPhosphorIcon(
+  "ArrowsClockwise",
+  "RefreshCcw",
+);
+export const RefreshCw = createPhosphorIcon(
+  "ArrowsClockwise",
+  "RefreshCw",
+);
+export const RotateCcw = createPhosphorIcon("ArrowsClockwise", "RotateCcw");
+export const Replay = createPhosphorIcon("ArrowsClockwise", "Replay");
+export const ReportProblem = createPhosphorIcon(
+  "WarningOctagon",
   "ReportProblem",
 );
-export const RefreshCcw = createMaterialIcon("refresh", "Refresh");
-export const SignalWifiOff = createMaterialIcon(
-  "signal_wifi_off",
-  "SignalWifiOff",
+export const Rule = createPhosphorIcon("Scales", "Rule");
+export const Save = createPhosphorIcon("FloppyDisk", "Save");
+export const Scale = createPhosphorIcon("Scales", "Scale");
+export const Search = createPhosphorIcon("MagnifyingGlass", "Search");
+export const SearchX = createPhosphorIcon(
+  "MagnifyingGlassMinus",
+  "SearchX",
 );
+export const Send = createPhosphorIcon("PaperPlaneTilt", "Send");
+export const Server = createPhosphorIcon("HardDrives", "Server");
+export const Settings2 = createPhosphorIcon("GearSix", "Settings2");
+export const Shield = createPhosphorIcon("Shield", "Shield");
+export const ShieldAlert = createPhosphorIcon(
+  "ShieldWarning",
+  "ShieldAlert",
+);
+export const ShieldCheck = createPhosphorIcon("ShieldCheck", "ShieldCheck");
+export const SignalWifiOff = createPhosphorIcon("WifiSlash", "SignalWifiOff");
+export const SidebarLeft = createPhosphorIcon("SidebarSimple", "SidebarLeft");
+export const Sparkles = createPhosphorIcon("Sparkle", "Sparkles");
+export const Spinner = createPhosphorIcon("SpinnerGap", "Spinner");
+export const Square = createPhosphorIcon("Stop", "Square");
+export const Storefront = createPhosphorIcon("Storefront", "Storefront");
+export const TableRows = createPhosphorIcon("Rows", "TableRows");
+export const ToggleLeft = createPhosphorIcon("ToggleLeft", "ToggleLeft");
+export const ToggleRight = createPhosphorIcon("ToggleRight", "ToggleRight");
+export const Trash2 = createPhosphorIcon("Trash", "Trash2");
+export const TrendingDown = createPhosphorIcon("TrendDown", "TrendingDown");
+export const TrendingUp = createPhosphorIcon("TrendUp", "TrendingUp");
+export const TriangleAlert = createPhosphorIcon(
+  "Warning",
+  "TriangleAlert",
+);
+export const User = createPhosphorIcon("User", "User");
+export const UserCheck = createPhosphorIcon("UserCheck", "UserCheck");
+export const UserPlus = createPhosphorIcon("UserPlus", "UserPlus");
+export const UserRound = createPhosphorIcon("UserCircle", "UserRound");
+export const UserX = createPhosphorIcon("UserMinus", "UserX");
+export const Users = createPhosphorIcon("UsersThree", "Users");
+export const Video = createPhosphorIcon("VideoCamera", "Video");
+export const Volume2 = createPhosphorIcon("SpeakerHigh", "Volume2");
+export const VolumeOff = createPhosphorIcon("SpeakerSlash", "VolumeOff");
+export const Wallet = createPhosphorIcon("Wallet", "Wallet");
+export const Wifi = createPhosphorIcon("WifiHigh", "Wifi");
+export const WifiOff = createPhosphorIcon("WifiSlash", "WifiOff");
+export const Wrench = createPhosphorIcon("Wrench", "Wrench");
+export const X = createPhosphorIcon("X", "X");
+export const XCircle = createPhosphorIcon("XCircle", "XCircle");
+export const XIcon = createPhosphorIcon("X", "XIcon");
+export const Zap = createPhosphorIcon("Lightning", "Zap");
 
-export const Save = createMaterialIcon("save", "Save");
-export const Scale = createMaterialIcon("balance", "Scale");
-export const Search = createMaterialIcon("search", "Search");
-export const SearchX = createMaterialIcon("search_off", "SearchX");
-export const Send = createMaterialIcon("send", "Send");
-export const Server = createMaterialIcon("dns", "Server");
-export const Settings2 = createMaterialIcon("settings", "Settings2");
-export const Shield = createMaterialIcon("shield", "Shield");
-export const ShieldAlert = createMaterialIcon("gpp_bad", "ShieldAlert");
-export const ShieldCheck = createMaterialIcon("verified_user", "ShieldCheck");
-export const Storefront = createMaterialIcon("storefront", "Storefront");
-export const Sparkles = createMaterialIcon("auto_awesome", "Sparkles");
-export const TableRows = createMaterialIcon("table_rows", "TableRows");
-export const Trash2 = createMaterialIcon("delete", "Trash2");
-export const TrendingDown = createMaterialIcon("trending_down", "TrendingDown");
-export const TrendingUp = createMaterialIcon("trending_up", "TrendingUp");
-export const User = createMaterialIcon("person", "User");
-export const UserCheck = createMaterialIcon("how_to_reg", "UserCheck");
-export const UserPlus = createMaterialIcon("person_add", "UserPlus");
-export const UserRound = createMaterialIcon("account_circle", "UserRound");
-export const UserX = createMaterialIcon("person_off", "UserX");
-export const Users = createMaterialIcon("groups", "Users");
-export const Video = createMaterialIcon("videocam", "Video");
-export const Volume2 = createMaterialIcon("volume_up", "Volume2");
-export const VolumeOff = createMaterialIcon("volume_off", "VolumeOff");
-export const Wallet = createMaterialIcon("account_balance_wallet", "Wallet");
-export const Wrench = createMaterialIcon("build", "Wrench");
-export const X = createMaterialIcon("close", "X");
-export const XCircle = createMaterialIcon("cancel", "XCircle");
-export const Zap = createMaterialIcon("bolt", "Zap");
-export const Square = createMaterialIcon("stop", "Square");
-export const EditSquare = createMaterialIcon("edit_square", "EditSquare");
-export const Maximize2 = createMaterialIcon("open_in_full", "Maximize2");
-
-// Additional marketing icons
-export const Badge = createMaterialIcon("badge", "Badge");
-export const Policy = createMaterialIcon("policy", "Policy");
-export const Warehouse = createMaterialIcon("warehouse", "Warehouse");
-export const ShoppingBag = createMaterialIcon("shopping_bag", "ShoppingBag");
-export const Manufacturing = createMaterialIcon("manufacturing", "Manufacturing");
-export const Gavel = createMaterialIcon("gavel", "Gavel");
-export const Checkroom = createMaterialIcon("checkroom", "Checkroom");
-export const Work = createMaterialIcon("work", "Work");
-export const AccountTree = createMaterialIcon("account_tree", "AccountTree");
-export const Lock = createMaterialIcon("lock", "Lock");
-export const Replay = createMaterialIcon("replay", "Replay");
-export const Rule = createMaterialIcon("rule", "Rule");
-export const Assessment = createMaterialIcon("assessment", "Assessment");
-export const Calculate = createMaterialIcon("calculate", "Calculate");
-export const Layers = createMaterialIcon("layers", "Layers");
-export const DomainAdd = createMaterialIcon("domain_add", "DomainAdd");
+export const Badge = createPhosphorIcon("IdentificationBadge", "Badge");
+export const Policy = createPhosphorIcon("ShieldCheck", "Policy");
+export const Warehouse = createPhosphorIcon("Warehouse", "Warehouse");
+export const ShoppingBag = createPhosphorIcon("BagSimple", "ShoppingBag");
+export const Manufacturing = createPhosphorIcon(
+  "Factory",
+  "Manufacturing",
+);
+export const Gavel = createPhosphorIcon("Gavel", "Gavel");
+export const Checkroom = createPhosphorIcon("ShirtFolded", "Checkroom");
+export const Work = createPhosphorIcon("Briefcase", "Work");
+export const AccountTree = createPhosphorIcon("TreeStructure", "AccountTree");
+export const Lock = createPhosphorIcon("Lock", "Lock");
+export const Assessment = createPhosphorIcon(
+  "ChartBarHorizontal",
+  "Assessment",
+);
+export const Calculate = createPhosphorIcon("Calculator", "Calculate");
+export const DomainAdd = createPhosphorIcon("Buildings", "DomainAdd");

@@ -656,20 +656,21 @@ async function deleteRemovedOfflineAttachments(
   previous: LocalScrapTicketPhoto[],
   next: LocalScrapTicketPhoto[],
 ) {
-  const nextIds = new Set(
+  const nextIds = new Set<string>(
     next
       .map((attachment) => attachment.offlineAttachmentId)
       .filter((attachmentId): attachmentId is string => Boolean(attachmentId)),
   );
 
+  const removedIds: string[] = previous
+    .map((attachment) => attachment.offlineAttachmentId)
+    .filter((attachmentId): attachmentId is string => Boolean(attachmentId))
+    .filter((attachmentId) => !nextIds.has(attachmentId));
+
   await Promise.all(
-    previous
-      .map((attachment) => attachment.offlineAttachmentId)
-      .filter(
-        (attachmentId): attachmentId is string =>
-          Boolean(attachmentId) && !nextIds.has(attachmentId),
-      )
-      .map((attachmentId) => deleteOfflineAttachmentRecord(attachmentId)),
+    removedIds.map((attachmentId) =>
+      deleteOfflineAttachmentRecord(attachmentId),
+    ),
   );
 }
 

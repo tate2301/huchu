@@ -13,7 +13,7 @@ import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { Spinner } from "@medusajs/icons";
+import { Spinner } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 function formatTimestamp(value: string | null) {

@@ -10,7 +10,7 @@ import {
   Search,
   Shield,
   Sparkles,
-} from "lucide-react";
+} from "@/lib/icons";
 import { searchAdminPortal } from "@/components/admin-portal/api";
 import type { AdminSearchResult } from "@/components/admin-portal/types";
 import { Badge } from "@/components/ui/badge";

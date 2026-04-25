@@ -17,7 +17,7 @@ import {
   Layers,
   AlertTriangle,
   ChevronDown,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";

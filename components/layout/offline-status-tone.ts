@@ -4,7 +4,7 @@ import {
   CircleHalfDottedClock,
   CircleThreeQuartersSolid,
   ExclamationCircleSolid,
-} from "@medusajs/icons";
+} from "@/lib/icons";
 import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
 import { DeployedCodeUpdate, SignalWifiOff } from "@/lib/icons";

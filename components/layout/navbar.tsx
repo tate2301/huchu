@@ -25,6 +25,7 @@ import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { usePageActions } from "@/components/layout/page-actions";
 import { NotificationCenter } from "@/components/notifications/notification-center";
+import { MoreHorizontal } from "@/lib/icons";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
 
 export function Navbar() {
@@ -103,9 +104,7 @@ function MobileNavbarActions({ actions }: { actions: ReactNode }) {
             size="icon-sm"
             aria-label="More actions"
           >
-            <span className="material-symbols-rounded text-base">
-              more_horiz
-            </span>
+            <MoreHorizontal className="size-4" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="min-w-[14rem]">

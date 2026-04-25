@@ -5,7 +5,7 @@ import { type CSSProperties } from "react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { Clock, CloudArrowDown, Spinner } from "@medusajs/icons";
+import { Clock, CloudArrowDown, Spinner } from "@/lib/icons";
 
 export function OfflineRuntimeBanner() {
   const {

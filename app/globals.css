@@ -1,38 +1,9 @@
-@import "material-symbols";
 @import "tailwindcss";
 @import "tw-animate-css";
 
 @source "../node_modules/@rtcamp/frappe-ui-react/dist";
 
-/* ── Material Symbols ─────────────────────────────────────────────────────── */
-
-.material-symbols-rounded {
-  font-variation-settings:
-    "FILL" 1,
-    "wght" 400,
-    "GRAD" 0,
-    "opsz" 24;
-  font-size: 1em;
-  line-height: 1;
-  vertical-align: -0.11em;
-}
-
-.material-symbols-rounded.h-3.w-3,
-.material-symbols-rounded.size-3 { font-size: var(--icon-size-xs); }
-
-.material-symbols-rounded.h-4.w-4,
-.material-symbols-rounded.size-4 { font-size: var(--icon-size-sm); }
-
-.material-symbols-rounded.h-5.w-5,
-.material-symbols-rounded.size-5 { font-size: var(--icon-size-md); }
-
-.material-symbols-rounded.h-6.w-6,
-.material-symbols-rounded.size-6 { font-size: var(--icon-size-lg); }
-
-.material-symbols-rounded.h-8.w-8,
-.material-symbols-rounded.size-8 { font-size: var(--icon-size-xl); }
-
-/* ── Custom Font: SS Huchu ──────────────────────────────────────────────── */
+/* Custom Font: SS Huchu ──────────────────────────────────────────────── */
 
 @font-face {
   font-family: "SS Huchu";

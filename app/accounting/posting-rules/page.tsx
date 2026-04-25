@@ -60,7 +60,7 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-} from "lucide-react";
+} from "@/lib/icons";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 

@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { AlertTriangle, RefreshCcw } from "lucide-react";
+import { AlertTriangle, RefreshCcw } from "@/lib/icons";
 
 import { executeOperation } from "@/components/admin-portal/api";
 import { Badge } from "@/components/ui/badge";

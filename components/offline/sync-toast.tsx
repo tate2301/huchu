@@ -20,7 +20,7 @@ import {
   AlertTriangle,
   X,
   Loader2,
-} from "lucide-react";
+} from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { SPRING } from "@/lib/animation/tokens";
 import { toastVariants, toastProgressVariants } from "./animations";

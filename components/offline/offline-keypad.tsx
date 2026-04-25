@@ -14,7 +14,7 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Delete, CornerDownLeft } from "lucide-react";
+import { Delete, CornerDownLeft } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { SPRING } from "@/lib/animation/tokens";
 

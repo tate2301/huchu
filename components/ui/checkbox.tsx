@@ -3,6 +3,7 @@
 import * as React from "react";
 import * as CheckboxPrimitive from "@radix-ui/react-checkbox";
 
+import { Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 const Checkbox = React.forwardRef<
@@ -18,16 +19,7 @@ const Checkbox = React.forwardRef<
     {...props}
   >
     <CheckboxPrimitive.Indicator className={cn("flex items-center justify-center text-current")}>
-      <svg
-        className="h-3 w-3"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="2"
-        viewBox="0 0 16 16"
-        xmlns="http://www.w3.org/2000/svg"
-      >
-        <polyline points="3 8 6.5 11.5 13 4.5" />
-      </svg>
+      <Check className="h-3 w-3" weight="bold" />
     </CheckboxPrimitive.Indicator>
   </CheckboxPrimitive.Root>
 ));
