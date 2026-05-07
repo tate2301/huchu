@@ -14,6 +14,7 @@ import {
   ensureApproverRole,
   generateDisbursementCode,
 } from "@/lib/hr-payroll"
+import { createRouteLogger } from "@/lib/observability/route-logger"
 
 const batchSchema = z.object({
   payrollRunId: z.string().uuid(),
@@ -101,6 +102,12 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const logger = createRouteLogger({
+    route: "/api/disbursements/batches",
+    request,
+  })
+  logger.info("start")
+
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
@@ -112,6 +119,12 @@ export async function POST(request: NextRequest) {
 
     const body = await request.json()
     const validated = batchSchema.parse(body)
+    logger.info("create_disbursement_batch_requested", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: validated.payrollRunId,
+      method: validated.method ?? "CASH",
+    })
 
     const run = await prisma.payrollRun.findUnique({
       where: { id: validated.payrollRunId },
@@ -149,6 +162,14 @@ export async function POST(request: NextRequest) {
       select: { id: true, code: true, status: true },
     })
     if (existingBatch) {
+      logger.info("create_disbursement_batch_conflict", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: run.id,
+        disbursementBatchId: existingBatch.id,
+        existingStatus: existingBatch.status,
+        statusCode: 409,
+      })
       return errorResponse(
         `Run already has disbursement batch ${existingBatch.code} (${existingBatch.status})`,
         409,
@@ -168,6 +189,14 @@ export async function POST(request: NextRequest) {
     const totalAmount = disbursementItems.reduce((sum, item) => sum + item.amount, 0)
     const itemCount = disbursementItems.length
     if (itemCount === 0 || totalAmount <= 0) {
+      logger.info("create_disbursement_batch_empty", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: run.id,
+        itemCount,
+        totalAmount,
+        statusCode: 400,
+      })
       return errorResponse("Selected run has no disbursable items", 400)
     }
 
@@ -250,15 +279,29 @@ export async function POST(request: NextRequest) {
         status: isIrregularRun ? "IGNORED" : "PENDING",
       })
     } catch (error) {
-      console.error("[Accounting] Disbursement batch capture failed:", error)
+      logger.error("disbursement_batch_capture_failed", error, {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: batch.payrollRun.id,
+        disbursementBatchId: batch.id,
+      })
     }
 
+    logger.info("create_disbursement_batch_success", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: batch.payrollRun.id,
+      disbursementBatchId: batch.id,
+      itemCount: batch.items.length,
+      totalAmount: batch.totalAmount,
+      statusCode: 201,
+    })
     return successResponse(batch, 201)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
     }
-    console.error("[API] POST /api/disbursements/batches error:", error)
+    logger.error("create_disbursement_batch_failed", error)
     return errorResponse("Failed to create disbursement batch")
   }
 }

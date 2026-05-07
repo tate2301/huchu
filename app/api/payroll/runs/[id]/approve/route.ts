@@ -7,16 +7,28 @@ import {
   ensureApproverRole,
   isTwoStepActionAllowed,
 } from "@/lib/hr-payroll"
+import { createRouteLogger } from "@/lib/observability/route-logger"
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const logger = createRouteLogger({
+    route: "/api/payroll/runs/[id]/approve",
+    request,
+  })
+  logger.info("start")
+
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
     const { id } = await params
+    logger.info("approve_run_requested", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: id,
+    })
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to approve payroll runs", 403)
@@ -53,6 +65,13 @@ export async function POST(
       },
     })
     if (pendingAdjustments > 0) {
+      logger.info("approve_run_pending_adjustments", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: id,
+        pendingAdjustments,
+        statusCode: 409,
+      })
       return errorResponse("Resolve pending adjustments before approving run", 409)
     }
 
@@ -110,12 +129,27 @@ export async function POST(
         })
       }
     } catch (error) {
-      console.error("[Accounting] Payroll auto-post failed:", error)
+      logger.error("payroll_auto_post_failed", error, {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: updated.id,
+        domain: updated.domain,
+      })
     }
 
+    logger.info("approve_run_success", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: updated.id,
+      periodId: updated.period.id,
+      domain: updated.domain,
+      fromStatus: "SUBMITTED",
+      toStatus: "APPROVED",
+      statusCode: 200,
+    })
     return successResponse(updated)
   } catch (error) {
-    console.error("[API] POST /api/payroll/runs/[id]/approve error:", error)
+    logger.error("approve_run_failed", error)
     return errorResponse("Failed to approve payroll run")
   }
 }

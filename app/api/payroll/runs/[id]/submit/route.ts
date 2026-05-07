@@ -2,16 +2,28 @@ import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
+import { createRouteLogger } from "@/lib/observability/route-logger"
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const logger = createRouteLogger({
+    route: "/api/payroll/runs/[id]/submit",
+    request,
+  })
+  logger.info("start")
+
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
     const { id } = await params
+    logger.info("submit_run_requested", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: id,
+    })
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to submit payroll runs", 403)
@@ -38,9 +50,22 @@ export async function POST(
       }),
     ])
     if (lineCount === 0) {
+      logger.info("submit_run_empty", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: id,
+        statusCode: 400,
+      })
       return errorResponse("Cannot submit payroll run without line items", 400)
     }
     if (pendingAdjustments > 0) {
+      logger.info("submit_run_pending_adjustments", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: id,
+        pendingAdjustments,
+        statusCode: 409,
+      })
       return errorResponse("Submit or resolve all pending adjustments before submitting run", 409)
     }
 
@@ -84,9 +109,19 @@ export async function POST(
       return run
     })
 
+    logger.info("submit_run_success", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: id,
+      periodId: updated.period.id,
+      fromStatus: "DRAFT",
+      toStatus: "SUBMITTED",
+      lineCount,
+      statusCode: 200,
+    })
     return successResponse(updated)
   } catch (error) {
-    console.error("[API] POST /api/payroll/runs/[id]/submit error:", error)
+    logger.error("submit_run_failed", error)
     return errorResponse("Failed to submit payroll run")
   }
 }

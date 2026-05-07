@@ -7,6 +7,7 @@ import {
   createApprovalAction,
   ensureApproverRole,
 } from "@/lib/hr-payroll"
+import { createRouteLogger } from "@/lib/observability/route-logger"
 import { prisma } from "@/lib/prisma"
 
 const generateRunSchema = z.object({
@@ -428,6 +429,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const logger = createRouteLogger({
+    route: "/api/payroll/periods/[id]/generate-run",
+    request,
+  })
+  logger.info("start")
+
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
@@ -439,6 +446,13 @@ export async function POST(
     const { id } = await params
     const body = await request.json()
     const validated = generateRunSchema.parse(body)
+    logger.info("generate_run_requested", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      periodId: id,
+      overwriteDraft: validated.overwriteDraft ?? false,
+      requestedRunNumber: validated.runNumber,
+    })
 
     const period = await prisma.payrollPeriod.findUnique({
       where: { id },
@@ -467,6 +481,13 @@ export async function POST(
 
     const draftRun = period.runs.find((run) => run.status === "DRAFT")
     if (draftRun && !validated.overwriteDraft) {
+      logger.info("generate_run_conflict", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        periodId: id,
+        draftRunId: draftRun.id,
+        statusCode: 409,
+      })
       return errorResponse(
         "Draft payroll run already exists for this period. Pass overwriteDraft=true to regenerate.",
         409,
@@ -487,6 +508,14 @@ export async function POST(
         goldSettlementMode: period.company.goldSettlementMode,
       })
       if (!irregularDraft) {
+        logger.info("generate_run_no_source_records", {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          periodId: id,
+          domain: period.domain,
+          payoutSource: period.payoutSource ?? "GOLD",
+          statusCode: 409,
+        })
         return errorResponse(
           `No approved ${(period.payoutSource ?? "GOLD").toLowerCase()} payout records found for this period. Approve source records before generating a run.`,
           409,
@@ -502,6 +531,14 @@ export async function POST(
         appliesToContractorsOnly: period.appliesToContractorsOnly,
       })
       if (runDraft.lineItems.length === 0) {
+        logger.info("generate_run_no_eligible_employees", {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          periodId: id,
+          domain: period.domain,
+          warningCount: runDraft.warnings.length,
+          statusCode: 409,
+        })
         return errorResponse("No eligible salary employees found for this period", 409, {
           warnings: runDraft.warnings,
         })
@@ -585,6 +622,18 @@ export async function POST(
       return created
     })
 
+    logger.info("generate_run_success", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      periodId: id,
+      payrollRunId: createdRun.id,
+      domain: createdRun.domain,
+      runNumber: createdRun.runNumber,
+      lineItemCount: createdRun.lineItems.length,
+      warningCount: runDraft.warnings.length,
+      statusCode: 201,
+    })
+
     return successResponse(
       {
         ...createdRun,
@@ -596,7 +645,7 @@ export async function POST(
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
     }
-    console.error("[API] POST /api/payroll/periods/[id]/generate-run error:", error)
+    logger.error("generate_run_failed", error)
     return errorResponse("Failed to generate payroll run")
   }
 }

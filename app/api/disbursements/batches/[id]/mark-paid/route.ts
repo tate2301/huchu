@@ -10,6 +10,7 @@ import {
   derivePaidStatus,
   ensureApproverRole,
 } from "@/lib/hr-payroll"
+import { createRouteLogger } from "@/lib/observability/route-logger"
 
 const markPaidSchema = z.object({
   items: z
@@ -33,6 +34,12 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const logger = createRouteLogger({
+    route: "/api/disbursements/batches/[id]/mark-paid",
+    request,
+  })
+  logger.info("start")
+
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
@@ -40,6 +47,12 @@ export async function POST(
     const { id } = await params
     const body = await request.json()
     const validated = markPaidSchema.parse(body)
+    logger.info("mark_disbursement_paid_requested", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      disbursementBatchId: id,
+      itemCount: validated.items.length,
+    })
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to record disbursements", 403)
@@ -77,6 +90,13 @@ export async function POST(
       },
     })
     if (pendingAdjustments > 0) {
+      logger.info("mark_disbursement_paid_pending_adjustments", {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        disbursementBatchId: id,
+        pendingAdjustments,
+        statusCode: 409,
+      })
       return errorResponse("Resolve pending adjustments before recording payments", 409)
     }
 
@@ -377,15 +397,30 @@ export async function POST(
         })
       }
     } catch (error) {
-      console.error("[Accounting] Disbursement auto-post failed:", error)
+      logger.error("disbursement_auto_post_failed", error, {
+        companyId: session.user.companyId,
+        actorId: session.user.id,
+        payrollRunId: updatedBatch.payrollRun.id,
+        disbursementBatchId: updatedBatch.id,
+        batchStatus: updatedBatch.status,
+      })
     }
 
+    logger.info("mark_disbursement_paid_success", {
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      payrollRunId: updatedBatch.payrollRun.id,
+      disbursementBatchId: updatedBatch.id,
+      itemCount: updatedBatch.items.length,
+      batchStatus: updatedBatch.status,
+      statusCode: 200,
+    })
     return successResponse(updatedBatch)
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
     }
-    console.error("[API] POST /api/disbursements/batches/[id]/mark-paid error:", error)
+    logger.error("mark_disbursement_paid_failed", error)
     return errorResponse("Failed to record disbursement payments")
   }
 }
