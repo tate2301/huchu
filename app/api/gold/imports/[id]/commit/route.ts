@@ -70,6 +70,11 @@ export async function POST(
 
     for (const entry of productionEntries) {
       const shiftName = `LEDGER-${entry.lineNo}`
+      // Soft-validation: collect warnings, decide flag-vs-fail at the end.
+      const rowWarnings: string[] = []
+      if (entry.errorMessage && entry.status === "ANOMALY") {
+        rowWarnings.push(entry.errorMessage)
+      }
       try {
         await prisma.$transaction(async (tx) => {
           const group = await tx.shiftGroup.findUnique({
@@ -82,8 +87,35 @@ export async function POST(
               },
             },
           })
-          if (!group || !group.leader.isActive) {
-            throw new Error("Mapped shift group is missing or leader inactive")
+          // Defensive: if the group is missing or the leader is inactive, we
+          // can't credibly create a witnessed allocation. Save the row with
+          // ANOMALY + a tracked exception and move on, rather than blowing
+          // up the whole import.
+          if (!group) {
+            rowWarnings.push("Mapped shift group not found")
+            await tx.goldLedgerEntry.update({
+              where: { id: entry.id },
+              data: {
+                status: "ANOMALY",
+                errorMessage: rowWarnings.join(" · "),
+              },
+            })
+            await tx.goldException.create({
+              data: {
+                companyId,
+                siteId,
+                category: "NAME_UNMAPPED",
+                severity: "WARNING",
+                entityType: "GoldLedgerEntry",
+                entityId: entry.id,
+                description: `Ledger line ${entry.lineNo}: shift group ${entry.mappedShiftGroupId} not found`,
+                createdById: userId,
+              },
+            })
+            return
+          }
+          if (!group.leader.isActive) {
+            rowWarnings.push(`Group leader ${group.leader.name} is inactive`)
           }
 
           const presentEmployeeIds = new Set<string>([group.leader.id])
@@ -91,7 +123,7 @@ export async function POST(
             if (m.employee.isActive) presentEmployeeIds.add(m.employee.id)
           }
           if (presentEmployeeIds.size === 0) {
-            throw new Error("No active members in shift group")
+            rowWarnings.push("No active members in shift group")
           }
 
           // Create ShiftReport
@@ -133,14 +165,25 @@ export async function POST(
             ? JSON.parse(entry.expensesJson)
             : []
           const expenseTotal = expenses.reduce((s, e) => s + e.weight, 0)
-          const netWeight = +(totalWeight - expenseTotal).toFixed(4)
-          if (netWeight <= 0) {
-            throw new Error("Net weight must be positive after expenses")
+          const rawNetWeight = +(totalWeight - expenseTotal).toFixed(4)
+          let netWeight = rawNetWeight
+          if (rawNetWeight <= 0) {
+            rowWarnings.push(
+              `Expenses (${expenseTotal.toFixed(2)} g) ≥ gross (${totalWeight.toFixed(2)} g) — clamped net to 0.001 g`,
+            )
+            netWeight = 0.001
           }
 
           const boys = entry.boysGrams ?? netWeight / 2
-          const mdara = entry.mdaraGrams ?? netWeight - boys
-          // Slight rounding tolerance
+          const mdaraRaw = entry.mdaraGrams ?? netWeight - boys
+          // Don't allow negative company share — clamp to 0 with a warning.
+          const mdara = mdaraRaw < 0 ? 0 : mdaraRaw
+          if (mdaraRaw < 0) {
+            rowWarnings.push(
+              `Boys (${boys}) > net (${netWeight}) — Mdara share clamped to 0`,
+            )
+          }
+          // Override mode whenever Boys ≠ exactly half of net (small tolerance).
           const splitMode =
             Math.abs(boys - netWeight / 2) < 0.001 ? "DEFAULT_50_50" : "OVERRIDE_WORKER_WEIGHT"
 
@@ -200,6 +243,13 @@ export async function POST(
             include: { expenses: true, workerShares: true },
           })
 
+          // Witness rule: a pour needs at least two people present.
+          if (presentList.length < 2) {
+            rowWarnings.push(
+              `Only ${presentList.length} present employee — no auto-pour for this row`,
+            )
+          }
+
           // Auto-pour if witnesses available
           let createdPourId: string | null = null
           if (presentList.length >= 2) {
@@ -243,21 +293,19 @@ export async function POST(
             })
           }
 
-          // Preserve anomaly flag if the parser noted a warning on this row
-          // (e.g., Tot Exp mismatch). The allocation IS saved — we just keep
-          // the row flagged ANOMALY with its original errorMessage so the
-          // manager can review later.
-          const hadParserWarning =
-            entry.status === "ANOMALY" && !!entry.errorMessage
+          // If we collected any warnings (parser-level or this-pass-level),
+          // the row is saved but flagged ANOMALY. Otherwise CREATED.
+          const isFlagged = rowWarnings.length > 0
+          const flaggedMessage = rowWarnings.join(" · ")
           await tx.goldLedgerEntry.update({
             where: { id: entry.id },
             data: {
               goldShiftAllocationId: allocation.id,
-              status: hadParserWarning ? "ANOMALY" : "CREATED",
-              // Keep the original parser warning visible.
+              status: isFlagged ? "ANOMALY" : "CREATED",
+              errorMessage: isFlagged ? flaggedMessage : null,
             },
           })
-          if (hadParserWarning) {
+          if (isFlagged) {
             await tx.goldException.create({
               data: {
                 companyId,
@@ -266,11 +314,11 @@ export async function POST(
                 severity: "WARNING",
                 entityType: "GoldShiftAllocation",
                 entityId: allocation.id,
-                description: `Ledger line ${entry.lineNo} saved with parser warning: ${entry.errorMessage}`,
+                description: `Ledger line ${entry.lineNo} saved with warnings: ${flaggedMessage}`,
                 metadata: JSON.stringify({
                   ledgerImportId: importRecord.id,
                   ledgerEntryId: entry.id,
-                  parserWarning: entry.errorMessage,
+                  warnings: rowWarnings,
                 }),
                 createdById: userId,
               },
@@ -344,33 +392,25 @@ export async function POST(
             }
           }
 
-          if (presentList.length < 2) {
-            await tx.goldException.create({
-              data: {
-                companyId,
-                siteId,
-                category: "WITNESS_MISSING",
-                severity: "WARNING",
-                entityType: "GoldShiftAllocation",
-                entityId: allocation.id,
-                description: `No auto-pour for line ${entry.lineNo}: only ${presentList.length} present employee.`,
-                createdById: userId,
-              },
-            })
-          }
         })
-        // Anomaly-saved rows count toward rowsCreated (we did create the
-        // allocation) AND toward rowsAnomaly (so the wizard surfaces them
-        // as "saved with warning"). The two are deliberately overlapping.
-        const wasAnomaly =
-          entry.status === "ANOMALY" && !!entry.errorMessage
-        rowsCreated += 1
-        if (wasAnomaly) rowsAnomaly += 1
+        // Tally: rowWarnings non-empty means the row was saved-with-flag
+        // (counts toward rowsAnomaly). Empty means clean save. The two
+        // counters never overlap on a single row.
+        if (rowWarnings.length > 0) rowsAnomaly += 1
+        else rowsCreated += 1
       } catch (rowError) {
-        const message = rowError instanceof Error ? rowError.message : String(rowError)
+        // Real DB-level failure (Prisma error, FK violation, unique
+        // conflict). Log the full stack so the operator can see it in the
+        // server logs; surface a concise message on the row itself.
+        const message =
+          rowError instanceof Error ? rowError.message : String(rowError)
+        console.error(
+          `[Import] Production row ${entry.lineNo} failed:`,
+          rowError,
+        )
         await prisma.goldLedgerEntry.update({
           where: { id: entry.id },
-          data: { status: "FAILED", errorMessage: message },
+          data: { status: "FAILED", errorMessage: message.slice(0, 500) },
         })
         rowsFailed += 1
       }
@@ -442,10 +482,15 @@ export async function POST(
           rowsCreated += 1
         }
       } catch (rowError) {
-        const message = rowError instanceof Error ? rowError.message : String(rowError)
+        const message =
+          rowError instanceof Error ? rowError.message : String(rowError)
+        console.error(
+          `[Import] Sale row ${entry.lineNo} failed:`,
+          rowError,
+        )
         await prisma.goldLedgerEntry.update({
           where: { id: entry.id },
-          data: { status: "FAILED", errorMessage: message },
+          data: { status: "FAILED", errorMessage: message.slice(0, 500) },
         })
         rowsFailed += 1
       }
