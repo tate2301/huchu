@@ -504,7 +504,7 @@ export async function getExecutiveDashboardAggregations({
     }),
     prisma.goldDispatch.count({
       where: {
-        buyerReceipt: { is: null },
+        buyerReceipts: { none: {} },
         goldPour: {
           site: siteScope,
           receipts: { none: {} },

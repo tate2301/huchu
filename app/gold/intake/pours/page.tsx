@@ -48,7 +48,12 @@ export default function GoldIntakePoursPage() {
   });
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ["employees", "gold-intake-modal"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+    queryFn: () =>
+      fetchEmployees({
+        active: true,
+        position: ["MANAGER", "CLERK"],
+        limit: 500,
+      }),
     enabled: createOpen,
   });
   const { data: sitesData, isLoading: sitesLoading } = useQuery({

@@ -169,7 +169,20 @@ export async function GET(request: NextRequest) {
     }
 
     if (active !== null) where.isActive = active === "true"
-    if (position) where.position = position
+    if (position) {
+      const requested = position
+        .split(",")
+        .map((value) => value.trim())
+        .filter((value) => value.length > 0)
+      const allowed = requested.filter((value): value is (typeof EMPLOYEE_POSITION_VALUES)[number] =>
+        (EMPLOYEE_POSITION_VALUES as readonly string[]).includes(value),
+      )
+      if (allowed.length === 1) {
+        where.position = allowed[0]
+      } else if (allowed.length > 1) {
+        where.position = { in: allowed }
+      }
+    }
     if (departmentId) where.departmentId = departmentId
     if (gradeId) where.gradeId = gradeId
     if (search) {

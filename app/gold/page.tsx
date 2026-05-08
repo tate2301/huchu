@@ -1,62 +1,145 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { PageIntro } from "@/components/shared/page-intro";
-import { StatusState } from "@/components/shared/status-state";
+import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { SplitButton } from "@/components/ui/split-button";
-import { StatusChip } from "@/components/ui/status-chip";
-import { useToast } from "@/components/ui/use-toast";
-import {
-  fetchAttendance,
-  fetchGoldDispatches,
-  fetchGoldPours,
-  fetchGoldReceipts,
-  fetchGoldShiftAllocations,
-  fetchShiftReports,
-} from "@/lib/api";
+import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown } from "@/lib/icons";
 import { goldRoutes } from "@/app/gold/routes";
-import { ShiftAllocationModal } from "@/app/gold/components/shift-allocation-modal";
-import type { AttendanceShiftSummary } from "@/app/gold/types";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
-type GoldChainRow = {
-  id: string;
-  pourBarId: string;
-  site: string;
-  date: string;
-  grossWeight: number;
-  expenseGold: number;
-  workerSplit: number;
-  companySplit: number;
-  companyTotal: number;
-  expenseBreakdown: string;
-  valueUsd: number;
-  status: "passing" | "in_review" | "pending";
+type GoldSummary = {
+  generatedAt: string;
+  weekStart: string;
+  kpis: {
+    cashThisWeekUsd: number;
+    cashPriorWeekUsd: number;
+    producedThisWeekGrams: number;
+    producedPriorWeekGrams: number;
+    awaitingSaleGrams: number;
+    awaitingSaleUsd: number;
+    owedToWorkersUsd: number;
+    spotUsdPerGram: number | null;
+  };
+  dailyProductionSeries: Array<{ date: string; grams: number; usd: number }>;
+  productionBySite: Array<{ id: string; name: string; code: string; grams: number }>;
+  recentSales: Array<{
+    id: string;
+    receiptNumber: string;
+    receiptDate: string;
+    paidUsd: number;
+    paymentMethod: string;
+    batchCode: string;
+    siteName: string;
+  }>;
+  topEarners: Array<{
+    employeeId: string;
+    name: string;
+    code: string | null;
+    valueUsd: number;
+    weightGrams: number;
+  }>;
 };
 
+const usd = (n: number) =>
+  `$${n.toLocaleString("en-US", { maximumFractionDigits: 0 })}`;
+const usd2 = (n: number) =>
+  `$${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+const grams = (n: number) =>
+  `${n.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} g`;
+
+function pctDelta(current: number, prior: number) {
+  if (!prior) return current > 0 ? 100 : 0;
+  return ((current - prior) / prior) * 100;
+}
+
+function ProductionTrend({
+  data,
+}: {
+  data: Array<{ date: string; grams: number }>;
+}) {
+  const W = 800;
+  const H = 160;
+  const padding = 8;
+  const max = Math.max(1, ...data.map((d) => d.grams));
+  const stepX = data.length > 1 ? (W - padding * 2) / (data.length - 1) : 0;
+  const points = data.map((d, i) => {
+    const x = padding + i * stepX;
+    const y = H - padding - (d.grams / max) * (H - padding * 2);
+    return { x, y };
+  });
+  const path = points.length
+    ? points.map((p, i) => `${i === 0 ? "M" : "L"}${p.x.toFixed(2)},${p.y.toFixed(2)}`).join(" ")
+    : "";
+  const areaPath = points.length
+    ? `${path} L${points[points.length - 1].x.toFixed(2)},${H - padding} L${padding},${H - padding} Z`
+    : "";
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-40" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="gold-trend" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="rgb(202 138 4)" stopOpacity="0.35" />
+          <stop offset="100%" stopColor="rgb(202 138 4)" stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {areaPath ? <path d={areaPath} fill="url(#gold-trend)" /> : null}
+      {path ? (
+        <path
+          d={path}
+          fill="none"
+          stroke="rgb(202 138 4)"
+          strokeWidth={2}
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+      ) : null}
+    </svg>
+  );
+}
+
+function SiteBreakdown({
+  data,
+}: {
+  data: Array<{ id: string; name: string; code: string; grams: number }>;
+}) {
+  const total = data.reduce((sum, row) => sum + row.grams, 0);
+  if (!total) {
+    return (
+      <p className="text-sm text-muted-foreground">No production logged in the last 30 days.</p>
+    );
+  }
+  return (
+    <div className="space-y-3">
+      {data.map((row) => {
+        const pct = (row.grams / total) * 100;
+        return (
+          <div key={row.id} className="space-y-1">
+            <div className="flex items-baseline justify-between text-sm">
+              <span className="font-semibold truncate">{row.name}</span>
+              <span className="text-muted-foreground">
+                {grams(row.grams)} · {pct.toFixed(0)}%
+              </span>
+            </div>
+            <div className="h-2 rounded-full bg-muted overflow-hidden">
+              <div
+                className="h-full rounded-full bg-amber-500"
+                style={{ width: `${pct.toFixed(2)}%` }}
+              />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 export default function GoldPage() {
-  const { toast } = useToast();
-  const queryClient = useQueryClient();
-  const [shiftModalOpen, setShiftModalOpen] = useState(false);
   const { data: session } = useSession();
   const enabledFeatures = useMemo(
     () =>
@@ -64,540 +147,227 @@ export default function GoldPage() {
         ?.enabledFeatures,
     [session],
   );
-  const canRecordBatch = useMemo(
-    () =>
-      canViewHrefWithEnabledFeatures(goldRoutes.intake.pours, enabledFeatures),
-    [enabledFeatures],
+  const canRecordBatch = canViewHrefWithEnabledFeatures(
+    goldRoutes.intake.pours,
+    enabledFeatures,
   );
-  const canRecordPurchase = useMemo(
-    () =>
-      canViewHrefWithEnabledFeatures(
-        goldRoutes.intake.purchases,
-        enabledFeatures,
-      ),
-    [enabledFeatures],
+  const canRecordDispatch = canViewHrefWithEnabledFeatures(
+    goldRoutes.transit.dispatches,
+    enabledFeatures,
   );
-  const canRecordDispatch = useMemo(
-    () =>
-      canViewHrefWithEnabledFeatures(
-        goldRoutes.transit.dispatches,
-        enabledFeatures,
-      ),
-    [enabledFeatures],
+  const canRecordSale = canViewHrefWithEnabledFeatures(
+    goldRoutes.settlement.receipts,
+    enabledFeatures,
   );
-  const canRecordSale = useMemo(
-    () =>
-      canViewHrefWithEnabledFeatures(
-        goldRoutes.settlement.receipts,
-        enabledFeatures,
-      ),
-    [enabledFeatures],
-  );
-  const canRecordShiftOutput = useMemo(
-    () =>
-      canViewHrefWithEnabledFeatures(
-        goldRoutes.settlement.payouts,
-        enabledFeatures,
-      ),
-    [enabledFeatures],
-  );
-  const secondaryActions = useMemo(() => {
-    const actions: Array<{ label: string; href: string }> = [];
-    if (canRecordBatch) {
-      actions.push({ label: "Record Batch", href: goldRoutes.intake.create });
-    }
-    if (canRecordPurchase) {
-      actions.push({
-        label: "Record Purchase",
-        href: goldRoutes.intake.createPurchase,
-      });
-    }
-    if (canRecordDispatch) {
-      actions.push({
-        label: "Record Dispatch",
-        href: goldRoutes.transit.create,
-      });
-    }
-    if (canRecordSale) {
-      actions.push({
-        label: "Record Sale",
-        href: goldRoutes.settlement.create,
-      });
-    }
-    return actions;
-  }, [canRecordBatch, canRecordDispatch, canRecordPurchase, canRecordSale]);
 
-  const attendanceStart = useMemo(() => {
-    const start = new Date();
-    start.setDate(start.getDate() - 30);
-    return start.toISOString().slice(0, 10);
-  }, []);
-  const normalizeShiftLabel = (value: string) =>
-    value.trim().replace(/\s+/g, " ").toUpperCase();
-
-  const {
-    data: poursData,
-    isLoading: poursLoading,
-    error: poursError,
-  } = useQuery({
-    queryKey: ["gold-pours", "command"],
-    queryFn: () => fetchGoldPours({ limit: 300 }),
-  });
-  const {
-    data: dispatchesData,
-    isLoading: dispatchesLoading,
-    error: dispatchesError,
-  } = useQuery({
-    queryKey: ["gold-dispatches", "command"],
-    queryFn: () => fetchGoldDispatches({ limit: 300 }),
-  });
-  const {
-    data: receiptsData,
-    isLoading: receiptsLoading,
-    error: receiptsError,
-  } = useQuery({
-    queryKey: ["gold-receipts", "command"],
-    queryFn: () => fetchGoldReceipts({ limit: 300 }),
-  });
-  const { data: attendanceData, isLoading: attendanceLoading } = useQuery({
-    queryKey: ["attendance", "gold", attendanceStart],
-    queryFn: () => fetchAttendance({ startDate: attendanceStart, limit: 500 }),
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["gold-summary"],
+    queryFn: () => fetchJson<GoldSummary>("/api/gold/summary"),
   });
 
-  const { data: shiftReportsData, isLoading: shiftReportsLoading } = useQuery({
-    queryKey: ["shift-reports", "gold", attendanceStart],
-    queryFn: () =>
-      fetchShiftReports({ startDate: attendanceStart, limit: 200 }),
-  });
-
-  const { data: shiftAllocationsData, isLoading: shiftAllocationsLoading } =
-    useQuery({
-      queryKey: ["gold-shift-allocations", attendanceStart],
-      queryFn: () =>
-        fetchGoldShiftAllocations({ startDate: attendanceStart, limit: 500 }),
-    });
-
-  const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatches = useMemo(
-    () => dispatchesData?.data ?? [],
-    [dispatchesData],
-  );
-  const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
-  const attendanceRecords = useMemo(
-    () => attendanceData?.data ?? [],
-    [attendanceData],
-  );
-  const shiftReports = useMemo(
-    () => shiftReportsData?.data ?? [],
-    [shiftReportsData],
-  );
-  const shiftAllocations = useMemo(
-    () => shiftAllocationsData?.data ?? [],
-    [shiftAllocationsData],
-  );
-
-  const dispatchByPourId = useMemo(() => {
-    const map = new Map<string, (typeof dispatches)[number]>();
-    dispatches.forEach((dispatch) => {
-      map.set(dispatch.goldPourId, dispatch);
-    });
-    return map;
-  }, [dispatches]);
-
-  const receiptByPourId = useMemo(() => {
-    const map = new Map<string, (typeof receipts)[number]>();
-    receipts.forEach((receipt) => {
-      if (receipt.goldPour.id) map.set(receipt.goldPour.id, receipt);
-    });
-    return map;
-  }, [receipts]);
-
-  const recordedAllocationKeys = useMemo(() => {
-    const keys = new Set<string>();
-    shiftAllocations.forEach((allocation) => {
-      const date = new Date(allocation.date).toISOString().slice(0, 10);
-      const key = `${date}|${normalizeShiftLabel(allocation.shift)}|${allocation.siteId}`;
-      keys.add(key);
-    });
-    return keys;
-  }, [shiftAllocations]);
-
-  const pendingSettlementDispatches = useMemo(
-    () =>
-      dispatches.filter(
-        (dispatch) => !receiptByPourId.has(dispatch.goldPourId),
-      ),
-    [dispatches, receiptByPourId],
-  );
-
-  const commandError = poursError || dispatchesError || receiptsError;
-  const commandLoading = poursLoading || dispatchesLoading || receiptsLoading;
-
-  const recentChain = useMemo<GoldChainRow[]>(() => {
-    return pours
-      .slice()
-      .sort((a, b) => b.pourDate.localeCompare(a.pourDate))
-      .slice(0, 50)
-      .map((pour) => {
-        const dispatch = dispatchByPourId.get(pour.id);
-        const receipt = receiptByPourId.get(pour.id);
-        const status = receipt ? "passing" : dispatch ? "in_review" : "pending";
-        return {
-          id: pour.id,
-          pourBarId: pour.pourBarId,
-          site: pour.site.code,
-          date: pour.pourDate,
-          grossWeight: pour.grossWeight,
-          expenseGold: pour.expenseWeightTotal ?? 0,
-          workerSplit: pour.workerSplitWeight ?? 0,
-          companySplit: pour.companySplitWeight ?? 0,
-          companyTotal:
-            pour.companyTotalWeight ??
-            (pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0),
-          expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
-          valueUsd: pour.valueUsd ?? 0,
-          status,
-        };
-      });
-  }, [dispatchByPourId, pours, receiptByPourId]);
-
-  const attendanceShifts = useMemo(() => {
-    const grouped = new Map<string, AttendanceShiftSummary>();
-    attendanceRecords.forEach((record) => {
-      const date = new Date(record.date).toISOString().slice(0, 10);
-      const normalizedShift = normalizeShiftLabel(record.shift);
-      const key = `${date}|${normalizedShift}|${record.site.id}`;
-      const existing =
-        grouped.get(key) ??
-        ({
-          key,
-          date,
-          shift: normalizedShift,
-          siteId: record.site.id,
-          siteName: record.site.name,
-          siteCode: record.site.code,
-          presentCount: 0,
-          lateCount: 0,
-          absentCount: 0,
-          totalCrew: 0,
-          presentEmployees: [],
-        } satisfies AttendanceShiftSummary);
-
-      existing.totalCrew += 1;
-      if (record.status === "ABSENT") {
-        existing.absentCount += 1;
-      } else {
-        existing.presentCount += 1;
-        if (record.status === "LATE") {
-          existing.lateCount += 1;
-        }
-        existing.presentEmployees.push({
-          id: record.employee.id,
-          name: record.employee.name,
-          employeeId: record.employee.employeeId,
-        });
-      }
-      grouped.set(key, existing);
-    });
-
-    return Array.from(grouped.values())
-      .filter((shift) => shift.presentCount > 0)
-      .filter((shift) => !recordedAllocationKeys.has(shift.key))
-      .sort((a, b) => b.date.localeCompare(a.date));
-  }, [attendanceRecords, recordedAllocationKeys]);
-
-  const shiftReportsByKey = useMemo(() => {
-    const map = new Map<
-      string,
-      { id: string; status: string; crewCount: number }
-    >();
-    shiftReports.forEach((report) => {
-      const date = new Date(report.date).toISOString().slice(0, 10);
-      const key = `${date}|${normalizeShiftLabel(report.shift)}|${report.siteId}`;
-      map.set(key, {
-        id: report.id,
-        status: report.status,
-        crewCount: report.crewCount,
-      });
-    });
-    return map;
-  }, [shiftReports]);
-
-  const createShiftAllocationMutation = useMutation({
-    mutationFn: async (payload: {
-      date: string;
-      shift: string;
-      siteId: string;
-      totalWeight: number;
-      expenses: Array<{ type: string; weight: number }>;
-      splitMode?: "DEFAULT_50_50" | "OVERRIDE_WORKER_WEIGHT";
-      workerShareOverrideWeight?: number;
-      splitOverrideReason?: string;
-      payCycleWeeks: number;
-    }) =>
-      fetchJson<{
-        id: string;
-        createdBatchCode?: string | null;
-        payoutRecordsCreated?: number;
-        warnings?: string[];
-      }>("/api/gold/shift-allocations", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (allocation) => {
-      queryClient.invalidateQueries({ queryKey: ["gold-shift-allocations"] });
-      queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
-      queryClient.invalidateQueries({ queryKey: ["employee-payments"] });
-      const warningText =
-        allocation.warnings && allocation.warnings.length > 0
-          ? ` ${allocation.warnings[0]}`
-          : "";
-      const payoutText =
-        allocation.payoutRecordsCreated && allocation.payoutRecordsCreated > 0
-          ? ` ${allocation.payoutRecordsCreated} worker payout records were created.`
-          : "";
-      toast({
-        title: "Shift output recorded",
-        description: allocation.createdBatchCode
-          ? `Batch ${allocation.createdBatchCode} was created automatically.${payoutText}${warningText}`
-          : `Shift allocation saved.${payoutText}${warningText}`,
-        variant: "success",
-      });
-      setShiftModalOpen(false);
-    },
-  });
-
-  const columns = useMemo<ColumnDef<GoldChainRow>[]>(
-    () => [
-      {
-        id: "pourBarId",
-        header: "Batch ID",
-        cell: ({ row }) => (
-          <span className="font-mono font-semibold">
-            {row.original.pourBarId}
-          </span>
-        ),
-        size: 112,
-        minSize: 112,
-        maxSize: 112,
-      },
-      {
-        id: "site",
-        header: "Site",
-        accessorKey: "site",
-        size: 280,
-        minSize: 220,
-        maxSize: 420,
-      },
-      {
-        id: "date",
-        header: "Date",
-        cell: ({ row }) => (
-          <NumericCell align="left">
-            {new Date(row.original.date).toLocaleString()}
-          </NumericCell>
-        ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128,
-      },
-      {
-        id: "grossWeight",
-        header: "Gross Weight (Recorded)",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.grossWeight.toFixed(2)} g</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "expenseGold",
-        header: "Expense Gold",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "workerSplit",
-        header: "Worker Split",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "companySplit",
-        header: "Company Split",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "companyTotal",
-        header: "Company Total",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "expenseBreakdown",
-        header: "Expense Breakdown",
-        accessorKey: "expenseBreakdown",
-        size: 220,
-        minSize: 200,
-        maxSize: 320,
-      },
-      {
-        id: "valueUsd",
-        header: "Value (USD)",
-        cell: ({ row }) => (
-          <NumericCell>${row.original.valueUsd.toFixed(2)}</NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => (
-          <StatusChip
-            status={row.original.status}
-            label={
-              row.original.status === "passing"
-                ? "Complete"
-                : row.original.status === "in_review"
-                  ? "Dispatched"
-                  : "Waiting for dispatch"
-            }
-          />
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
-      },
-    ],
-    [],
-  );
+  const kpis = data?.kpis;
+  const cashDelta = kpis ? pctDelta(kpis.cashThisWeekUsd, kpis.cashPriorWeekUsd) : 0;
+  const producedDelta = kpis ? pctDelta(kpis.producedThisWeekGrams, kpis.producedPriorWeekGrams) : 0;
 
   return (
     <GoldShell
       activeTab="home"
+      title="Overview"
       actions={
         <div className="flex flex-wrap gap-2">
-          {canRecordShiftOutput ? (
-            secondaryActions.length > 0 ? (
-              <SplitButton
-                size="sm"
-                onClick={() => setShiftModalOpen(true)}
-                triggerAriaLabel="More gold actions"
-                menuContent={secondaryActions.map((action) => (
-                  <DropdownMenuItem key={action.href} asChild>
-                    <Link href={action.href}>{action.label}</Link>
-                  </DropdownMenuItem>
-                ))}
-              >
-                Record Shift Output
-              </SplitButton>
-            ) : (
-              <Button size="sm" onClick={() => setShiftModalOpen(true)}>
-                Record Shift Output
-              </Button>
-            )
-          ) : secondaryActions.length > 0 ? (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button size="sm" variant="outline">
-                  Actions
-                  <ChevronDown className="ml-1 size-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                {secondaryActions.map((action) => (
-                  <DropdownMenuItem key={action.href} asChild>
-                    <Link href={action.href}>{action.label}</Link>
-                  </DropdownMenuItem>
-                ))}
-              </DropdownMenuContent>
-            </DropdownMenu>
+          <Button asChild size="sm">
+            <Link href="/shift-report">Record Shift Output</Link>
+          </Button>
+          {canRecordBatch ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.intake.create}>Record Batch</Link>
+            </Button>
+          ) : null}
+          {canRecordDispatch ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.transit.create}>Record Dispatch</Link>
+            </Button>
+          ) : null}
+          {canRecordSale ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href={goldRoutes.settlement.create}>Record Sale</Link>
+            </Button>
           ) : null}
         </div>
       }
     >
-      {pendingSettlementDispatches.length > 0 ? (
-        <Alert variant="destructive">
-          <AlertTitle>Needs Attention</AlertTitle>
-          <AlertDescription>
-            {pendingSettlementDispatches.length} dispatch
-            {pendingSettlementDispatches.length === 1 ? "" : "es"} are waiting
-            for sale records. Go to Sales to finish them.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      <div className="space-y-6">
+        {error ? (
+          <Alert variant="destructive">
+            <AlertTitle>Could not load overview</AlertTitle>
+            <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+          </Alert>
+        ) : null}
 
-      <section className="space-y-3">
-        <header className="space-y-1">
-          <h2 className="text-base text-foreground font-bold tracking-tight">
-            Chain Activity
-          </h2>
-        </header>
-        {commandError ? (
-          <StatusState
-            variant="error"
-            title="Unable to load chain data"
-          />
-        ) : (
-          <DataTable
-            data={recentChain}
-            columns={columns}
-            searchPlaceholder="Search by batch ID, site, or status"
-            searchSubmitLabel="Search"
-            tableClassName="text-sm"
-            pagination={{ enabled: true }}
-            toolbar={
-              <div className="flex flex-wrap items-center gap-2">
-                <Badge variant="secondary">Batches: {pours.length}</Badge>
-                <Badge variant="secondary">
-                  Dispatches: {dispatches.length}
-                </Badge>
-                <Badge variant="secondary">Sales: {receipts.length}</Badge>
+        <section>
+          <header className="mb-3">
+            <h2 className="text-xl font-bold tracking-tight">This week at a glance</h2>
+            <p className="text-sm text-muted-foreground">
+              {kpis?.spotUsdPerGram
+                ? `Today's gold price: ${usd2(kpis.spotUsdPerGram)} per gram`
+                : "Set a gold price to see live valuations."}
+            </p>
+          </header>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <FrappeStatCard
+              label="Cash received this week"
+              value={kpis?.cashThisWeekUsd ?? 0}
+              valueLabel={kpis ? usd(kpis.cashThisWeekUsd) : undefined}
+              detail={kpis ? `Last week: ${usd(kpis.cashPriorWeekUsd)}` : undefined}
+              delta={kpis ? cashDelta : undefined}
+              tone="success"
+              loading={isLoading}
+            />
+            <FrappeStatCard
+              label="Owed to workers"
+              value={kpis?.owedToWorkersUsd ?? 0}
+              valueLabel={kpis ? usd(kpis.owedToWorkersUsd) : undefined}
+              detail="Approved shifts not yet paid"
+              negativeIsBetter
+              tone={kpis && kpis.owedToWorkersUsd > 0 ? "warning" : "neutral"}
+              loading={isLoading}
+            />
+            <FrappeStatCard
+              label="Awaiting sale"
+              value={kpis?.awaitingSaleUsd ?? 0}
+              valueLabel={kpis ? usd(kpis.awaitingSaleUsd) : undefined}
+              detail={kpis ? `${grams(kpis.awaitingSaleGrams)} in storage / transit` : undefined}
+              tone="neutral"
+              loading={isLoading}
+            />
+            <FrappeStatCard
+              label="Gold produced this week"
+              value={kpis?.producedThisWeekGrams ?? 0}
+              valueLabel={kpis ? grams(kpis.producedThisWeekGrams) : undefined}
+              detail={kpis ? `Last week: ${grams(kpis.producedPriorWeekGrams)}` : undefined}
+              delta={kpis ? producedDelta : undefined}
+              tone="neutral"
+              loading={isLoading}
+            />
+          </div>
+        </section>
+
+        <section className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+          <div className="lg:col-span-2 rounded-lg border bg-card p-4">
+            <header className="mb-3 flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">Last 30 days production</h3>
+                <p className="text-xs text-muted-foreground">Grams of gold per day</p>
               </div>
-            }
-            emptyState={
-              commandLoading
-                ? "Loading chain activity..."
-                : "No gold activity yet."
-            }
-          />
-        )}
-      </section>
+              <span className="text-xs text-muted-foreground">
+                {data?.dailyProductionSeries.length
+                  ? `${grams(
+                      data.dailyProductionSeries.reduce((sum, d) => sum + d.grams, 0),
+                    )} total`
+                  : null}
+              </span>
+            </header>
+            {isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <ProductionTrend data={data?.dailyProductionSeries ?? []} />
+            )}
+          </div>
+          <div className="rounded-lg border bg-card p-4">
+            <header className="mb-3">
+              <h3 className="font-semibold">By site (last 30 days)</h3>
+              <p className="text-xs text-muted-foreground">Where the gold came from</p>
+            </header>
+            {isLoading ? (
+              <Skeleton className="h-40 w-full" />
+            ) : (
+              <SiteBreakdown data={data?.productionBySite ?? []} />
+            )}
+          </div>
+        </section>
 
-      <ShiftAllocationModal
-        open={shiftModalOpen}
-        onOpenChange={setShiftModalOpen}
-        attendanceShifts={attendanceShifts}
-        attendanceLoading={attendanceLoading}
-        allocationsLoading={shiftAllocationsLoading}
-        shiftReportsByKey={shiftReportsByKey}
-        shiftReportsLoading={shiftReportsLoading}
-        isSubmitting={createShiftAllocationMutation.isPending}
-        submitError={createShiftAllocationMutation.error}
-        onCreateAllocation={(payload) =>
-          createShiftAllocationMutation.mutate(payload)
-        }
-      />
+        <section className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="rounded-lg border bg-card">
+            <header className="px-4 py-3 border-b flex items-center justify-between">
+              <div>
+                <h3 className="font-semibold">Recent sales</h3>
+                <p className="text-xs text-muted-foreground">Latest 5 buyer payments</p>
+              </div>
+              <Button asChild size="sm" variant="ghost">
+                <Link href={goldRoutes.settlement.receipts}>See all</Link>
+              </Button>
+            </header>
+            {isLoading ? (
+              <div className="p-4">
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : data?.recentSales.length ? (
+              <ul className="divide-y">
+                {data.recentSales.map((sale) => (
+                  <li
+                    key={sale.id}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-mono text-sm font-semibold truncate">
+                        {sale.batchCode}
+                      </p>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {sale.siteName} · {sale.paymentMethod.replace(/_/g, " ").toLowerCase()}
+                      </p>
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{usd2(sale.paidUsd)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {new Date(sale.receiptDate).toLocaleDateString()}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-4 text-sm text-muted-foreground">No sales yet.</p>
+            )}
+          </div>
+
+          <div className="rounded-lg border bg-card">
+            <header className="px-4 py-3 border-b">
+              <h3 className="font-semibold">Top earners (last 30 days)</h3>
+              <p className="text-xs text-muted-foreground">Workers with the highest share</p>
+            </header>
+            {isLoading ? (
+              <div className="p-4">
+                <Skeleton className="h-24 w-full" />
+              </div>
+            ) : data?.topEarners.length ? (
+              <ul className="divide-y">
+                {data.topEarners.map((earner) => (
+                  <li
+                    key={earner.employeeId}
+                    className="flex items-center justify-between gap-3 px-4 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <p className="font-semibold truncate">{earner.name}</p>
+                      {earner.code ? (
+                        <p className="text-xs text-muted-foreground">{earner.code}</p>
+                      ) : null}
+                    </div>
+                    <div className="text-right">
+                      <p className="font-semibold">{usd2(earner.valueUsd)}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {grams(earner.weightGrams)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="p-4 text-sm text-muted-foreground">No worker shares yet.</p>
+            )}
+          </div>
+        </section>
+      </div>
+
     </GoldShell>
   );
 }

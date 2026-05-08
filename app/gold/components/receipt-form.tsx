@@ -1,29 +1,72 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
-import { Send, Shield } from "@/lib/icons";
+import { Send, ChevronDown } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { useReservedId } from "@/hooks/use-reserved-id";
+
+type AvailableBatch = {
+  id: string;
+  pourDate: string;
+  pourBarId: string;
+  grossWeight: number;
+  valueUsd?: number | null;
+  site: { name: string };
+};
+
+type AvailableDispatch = {
+  id: string;
+  dispatchDate: string;
+  courier: string;
+  goldPourId: string;
+  goldPour: { pourBarId: string; grossWeight: number; site: { name: string } };
+  batches?: Array<{
+    goldPourId: string;
+    goldPour: {
+      id: string;
+      pourBarId: string;
+      grossWeight: number;
+      valueUsd?: number | null;
+      site: { name: string };
+    };
+  }>;
+};
+
+type LineItem = {
+  goldPourId: string;
+  pourBarId: string;
+  grossWeight: number;
+  assayResult: string;
+  paidAmount: string;
+  selected: boolean;
+};
+
+const DEFAULT_PAYMENT_METHODS: SearchableOption[] = [
+  { value: "CASH", label: "Cash" },
+  { value: "BANK_TRANSFER", label: "Bank Transfer" },
+  { value: "MOBILE_MONEY", label: "Mobile Money" },
+  { value: "CRYPTO", label: "Cryptocurrency" },
+  { value: "CHECK", label: "Check" },
+];
 
 export function ReceiptForm({
   cancelHref,
   batchCreateHref,
   availableBatches,
   availableDispatches,
+  soldPourIds,
   mode = "page",
   onSuccess,
   onCancel,
@@ -31,21 +74,9 @@ export function ReceiptForm({
 }: {
   cancelHref?: string;
   batchCreateHref?: string;
-  availableBatches: Array<{
-    id: string;
-    pourDate: string;
-    pourBarId: string;
-    grossWeight: number;
-    valueUsd?: number | null;
-    site: { name: string };
-  }>;
-  availableDispatches: Array<{
-    id: string;
-    dispatchDate: string;
-    courier: string;
-    goldPourId: string;
-    goldPour: { pourBarId: string; grossWeight: number; site: { name: string } };
-  }>;
+  availableBatches: AvailableBatch[];
+  availableDispatches: AvailableDispatch[];
+  soldPourIds?: Set<string>;
   mode?: "page" | "modal";
   onSuccess?: () => void;
   onCancel?: () => void;
@@ -55,24 +86,24 @@ export function ReceiptForm({
   const queryClient = useQueryClient();
   const router = useRouter();
   const shouldRedirect = redirectOnSuccess ?? mode === "page";
+  const [quickEntry, setQuickEntry] = useState(false);
+  const [moreOpen, setMoreOpen] = useState(false);
+  const [paymentMethods, setPaymentMethods] = useState<SearchableOption[]>(DEFAULT_PAYMENT_METHODS);
+
   const [formData, setFormData] = useState({
     goldPourId: "",
     goldDispatchId: "",
     receiptDate: new Date().toISOString().slice(0, 16),
     assayResult: "",
     paidAmount: "",
-    paymentMethod: "BANK_TRANSFER",
+    paymentMethod: "CASH",
     paymentChannel: "",
     paymentReference: "",
     notes: "",
   });
-  const [paymentMethods, setPaymentMethods] = useState<SearchableOption[]>([
-    { value: "BANK_TRANSFER", label: "Bank Transfer" },
-    { value: "CASH", label: "Cash" },
-    { value: "MOBILE_MONEY", label: "Mobile Money" },
-    { value: "CRYPTO", label: "Cryptocurrency" },
-    { value: "CHECK", label: "Check" },
-  ]);
+
+  const [lineItems, setLineItems] = useState<LineItem[]>([]);
+
   const {
     reservedId: reservedReceiptNumber,
     isReserving: reservingReceiptNumber,
@@ -82,20 +113,49 @@ export function ReceiptForm({
     enabled: true,
   });
 
-  const handleSelectChange =
-    (field: keyof typeof formData) => (value: string) => {
-      setFormData((prev) => {
-        if (field === "goldPourId") {
-          const nextDispatch =
-            prev.goldDispatchId &&
-            dispatchById.get(prev.goldDispatchId)?.goldPourId === value
-              ? prev.goldDispatchId
-              : ""
-          return { ...prev, goldPourId: value, goldDispatchId: nextDispatch }
-        }
-        return { ...prev, [field]: value }
-      });
-    };
+  const dispatchById = useMemo(
+    () => new Map(availableDispatches.map((dispatch) => [dispatch.id, dispatch])),
+    [availableDispatches],
+  );
+
+  const selectedDispatch = formData.goldDispatchId
+    ? dispatchById.get(formData.goldDispatchId)
+    : null;
+
+  const dispatchHasMultipleBatches = Boolean(
+    selectedDispatch?.batches && selectedDispatch.batches.length > 1,
+  );
+  const isBatchMode = dispatchHasMultipleBatches;
+
+  // When dispatch changes, derive line items from its batches.
+  useEffect(() => {
+    if (!selectedDispatch) {
+      setLineItems([]);
+      return;
+    }
+    const dispatchBatches = selectedDispatch.batches?.length
+      ? selectedDispatch.batches.map((batch) => ({
+          goldPourId: batch.goldPourId,
+          pourBarId: batch.goldPour.pourBarId,
+          grossWeight: batch.goldPour.grossWeight,
+        }))
+      : [
+          {
+            goldPourId: selectedDispatch.goldPourId,
+            pourBarId: selectedDispatch.goldPour.pourBarId,
+            grossWeight: selectedDispatch.goldPour.grossWeight,
+          },
+        ];
+
+    setLineItems(
+      dispatchBatches.map((batch) => ({
+        ...batch,
+        assayResult: "",
+        paidAmount: "",
+        selected: !soldPourIds?.has(batch.goldPourId),
+      })),
+    );
+  }, [selectedDispatch, soldPourIds]);
 
   const batchOptions = useMemo(
     () =>
@@ -108,50 +168,29 @@ export function ReceiptForm({
     [availableBatches],
   );
 
-  const dispatchById = new Map(availableDispatches.map((dispatch) => [dispatch.id, dispatch]));
-  const filteredDispatches = useMemo(
+  const dispatchOptions = useMemo(
     () =>
-      formData.goldPourId
-        ? availableDispatches.filter((dispatch) => dispatch.goldPourId === formData.goldPourId)
-        : availableDispatches,
-    [availableDispatches, formData.goldPourId],
+      availableDispatches.map((dispatch) => {
+        const batchCount = dispatch.batches?.length ?? 1;
+        const batchLabel =
+          batchCount > 1
+            ? `${batchCount} batches`
+            : dispatch.goldPour.pourBarId;
+        return {
+          value: dispatch.id,
+          label: batchLabel,
+          description: `${dispatch.courier} • ${new Date(dispatch.dispatchDate).toLocaleDateString()}`,
+          meta: dispatch.goldPour.site.name,
+        };
+      }),
+    [availableDispatches],
   );
 
-  const createReceiptMutation = useMutation({
-    mutationFn: async (payload: {
-      receiptNumber: string;
-      goldPourId: string;
-      goldDispatchId?: string;
-      receiptDate: string;
-      assayResult?: number;
-      paidAmount: number;
-      paymentMethod: string;
-      paymentChannel?: string;
-      paymentReference?: string;
-      notes?: string;
-    }) =>
-      fetchJson<{ id: string; createdAt?: string }>("/api/gold/receipts", {
-        method: "POST",
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: (receipt, payload) => {
-      toast({
-        title: "Sale recorded",
-        description: "Sale record saved successfully.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
-      onSuccess?.();
-      if (shouldRedirect) {
-        const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
-          createdId: receipt.id,
-          createdAt: receipt.createdAt ?? payload.receiptDate,
-          source: "gold-receipt",
-        });
-        router.push(destination);
-      }
-    },
-  });
+  const updateLineItem = (index: number, patch: Partial<LineItem>) => {
+    setLineItems((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, ...patch } : item)),
+    );
+  };
 
   const handleAddPaymentMethod = (query: string) => {
     const label = query.trim();
@@ -163,26 +202,131 @@ export function ReceiptForm({
     setFormData((prev) => ({ ...prev, paymentMethod: value }));
   };
 
+  const createReceiptMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson<{ id: string; createdAt?: string }>("/api/gold/receipts", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: handleSuccess,
+  });
+
+  const createBatchReceiptMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson<{ count: number; ids: string[] }>("/api/gold/receipts/batch", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: (result) => {
+      toast({
+        title: `Recorded ${result.count} sale${result.count === 1 ? "" : "s"}`,
+        description: "Batch sale records saved successfully.",
+        variant: "success",
+      });
+      queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
+      queryClient.invalidateQueries({ queryKey: ["gold-dispatches"] });
+      onSuccess?.();
+      if (quickEntry && mode === "modal") {
+        setFormData((prev) => ({
+          ...prev,
+          goldPourId: "",
+          goldDispatchId: "",
+          assayResult: "",
+          paidAmount: "",
+          paymentReference: "",
+          notes: "",
+        }));
+        setLineItems([]);
+        return;
+      }
+      if (shouldRedirect) {
+        router.push(goldRoutes.settlement.receipts);
+      }
+    },
+  });
+
+  function handleSuccess(receipt: { id: string; createdAt?: string }) {
+    toast({
+      title: "Sale recorded",
+      description: "Sale record saved successfully.",
+      variant: "success",
+    });
+    queryClient.invalidateQueries({ queryKey: ["gold-receipts"] });
+    onSuccess?.();
+    if (quickEntry && mode === "modal") {
+      setFormData((prev) => ({
+        ...prev,
+        goldPourId: "",
+        goldDispatchId: "",
+        assayResult: "",
+        paidAmount: "",
+        paymentReference: "",
+        notes: "",
+      }));
+      setLineItems([]);
+      return;
+    }
+    if (shouldRedirect) {
+      const destination = buildSavedRecordRedirect(goldRoutes.settlement.receipts, {
+        createdId: receipt.id,
+        createdAt: receipt.createdAt,
+        source: "gold-receipt",
+      });
+      router.push(destination);
+    }
+  }
+
+  const isSubmitting =
+    createReceiptMutation.isPending || createBatchReceiptMutation.isPending;
+  const submissionError =
+    createReceiptMutation.error ?? createBatchReceiptMutation.error;
+
+  const selectedLineItems = lineItems.filter((item) => item.selected);
+  const batchModeReady =
+    isBatchMode &&
+    selectedLineItems.length > 0 &&
+    selectedLineItems.every((item) => {
+      const paid = Number(item.paidAmount);
+      return !!item.paidAmount && !Number.isNaN(paid) && paid >= 0;
+    });
+
   const paidAmountValue = Number(formData.paidAmount);
-  const assayResultValue = formData.assayResult
-    ? Number(formData.assayResult)
-    : undefined;
-  const canSubmit =
+  const singleModeReady =
+    !isBatchMode &&
     !!reservedReceiptNumber &&
     !!formData.goldPourId &&
     !!formData.receiptDate &&
-    !!formData.assayResult &&
     !Number.isNaN(paidAmountValue) &&
     paidAmountValue >= 0 &&
     !!formData.paymentMethod;
+
+  const canSubmit = isBatchMode ? batchModeReady : singleModeReady;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!canSubmit) {
       toast({
         title: "Missing details",
-        description: "Fill all required receipt fields before saving.",
+        description: isBatchMode
+          ? "Enter paid amount for each selected batch."
+          : "Fill all required receipt fields before saving.",
         variant: "destructive",
+      });
+      return;
+    }
+    if (isBatchMode) {
+      createBatchReceiptMutation.mutate({
+        goldDispatchId: formData.goldDispatchId,
+        receiptDate: formData.receiptDate,
+        paymentMethod: formData.paymentMethod,
+        paymentChannel: formData.paymentChannel?.trim() || undefined,
+        paymentReference: formData.paymentReference?.trim() || undefined,
+        notes: formData.notes?.trim() || undefined,
+        items: selectedLineItems.map((item) => ({
+          goldPourId: item.goldPourId,
+          assayResult: item.assayResult ? Number(item.assayResult) : undefined,
+          paidAmount: Number(item.paidAmount),
+        })),
       });
       return;
     }
@@ -201,7 +345,7 @@ export function ReceiptForm({
       goldPourId: formData.goldPourId,
       goldDispatchId: formData.goldDispatchId || undefined,
       receiptDate: formData.receiptDate,
-      assayResult: assayResultValue,
+      assayResult: formData.assayResult ? Number(formData.assayResult) : undefined,
       paidAmount: paidAmountValue,
       paymentMethod: formData.paymentMethod,
       paymentChannel: formData.paymentChannel?.trim() || undefined,
@@ -212,15 +356,12 @@ export function ReceiptForm({
 
   return (
     <FormShell
-      title="Sale Record"
+      variant={mode === "modal" ? "bare" : "page"}
+      title={mode === "modal" ? undefined : "Record Sale"}
       onSubmit={handleSubmit}
-      formClassName="space-y-6"
-      requiredHint="Fields marked * are required. Submitting redirects to sales history with this record highlighted."
-      errors={
-        createReceiptMutation.error
-          ? [getApiErrorMessage(createReceiptMutation.error)]
-          : undefined
-      }
+      formClassName="space-y-5"
+      requiredHint="Pick the dispatch (or batch), enter the cash paid. Channel and notes are optional."
+      errors={submissionError ? [getApiErrorMessage(submissionError)] : undefined}
       errorTitle="Unable to record sale"
       actions={
         <>
@@ -241,32 +382,59 @@ export function ReceiptForm({
           <Button
             type="submit"
             size="lg"
-            disabled={!canSubmit || createReceiptMutation.isPending || reservingReceiptNumber}
+            disabled={!canSubmit || isSubmitting || (!isBatchMode && reservingReceiptNumber)}
             className="flex-1 sm:flex-none"
           >
             <Send className="mr-2 h-5 w-5" />
-            {createReceiptMutation.isPending ? "Recording..." : "Save Sale"}
+            {isSubmitting
+              ? "Recording..."
+              : isBatchMode
+                ? `Save ${selectedLineItems.length} Sale${selectedLineItems.length === 1 ? "" : "s"}`
+                : "Save Sale"}
           </Button>
         </>
       }
     >
-      <Alert className="border-green-200 bg-green-50 text-green-950">
-        <Shield className="h-4 w-4 text-green-600" />
-        <AlertTitle>Sale Details</AlertTitle>
-        <AlertDescription>
-          Record buyer test results and payment details.
-        </AlertDescription>
-      </Alert>
+      <p className="text-sm text-muted-foreground">
+        Pick a dispatch (multi-batch shipments record sales for all batches at once) or sell directly from a batch.
+      </p>
+
+      <div className="flex items-center justify-between gap-3 rounded-md border bg-muted/40 px-3 py-2">
+        <div className="flex items-center gap-2">
+          <Checkbox
+            id="receipt-quick-entry"
+            checked={quickEntry}
+            onCheckedChange={(checked) => setQuickEntry(checked === true)}
+          />
+          <label htmlFor="receipt-quick-entry" className="text-sm font-medium cursor-pointer">
+            Backfill mode: keep date & payment method after save
+          </label>
+        </div>
+        <span className="text-xs text-muted-foreground">
+          For ledger backfill: stay on the form, swap dispatch/batch and re-enter amounts.
+        </span>
+      </div>
 
       <div className="space-y-4">
-          {availableBatches.length === 0 ? (
-            <Alert>
-              <AlertTitle>No batches awaiting sale</AlertTitle>
-              <AlertDescription>
-                Record a batch, or complete pending sales before adding a new one.
-              </AlertDescription>
-            </Alert>
-          ) : null}
+        <div>
+          <label className="block text-sm font-semibold mb-2">Dispatch</label>
+          <SearchableSelect
+            value={formData.goldDispatchId || undefined}
+            options={[{ value: "", label: "No dispatch (direct from batch)" }, ...dispatchOptions]}
+            placeholder={availableDispatches.length === 0 ? "No active dispatches" : "Select dispatch"}
+            searchPlaceholder="Search dispatches..."
+            onValueChange={(value) =>
+              setFormData((prev) => ({
+                ...prev,
+                goldDispatchId: value === "" ? "" : value,
+                goldPourId: "",
+              }))
+            }
+          />
+          <p className="mt-1 text-xs text-muted-foreground">Pick a multi-batch dispatch to enter all batch sales at once.</p>
+        </div>
+
+        {!isBatchMode ? (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold mb-2">Receipt Number</label>
@@ -276,12 +444,6 @@ export function ReceiptForm({
                 aria-readonly="true"
                 placeholder={reservingReceiptNumber ? "Reserving..." : "Auto-generated"}
               />
-              <FieldHelp
-                hint={
-                  reserveReceiptNumberError ??
-                  "Receipt number is auto-generated and cannot be edited."
-                }
-              />
             </div>
 
             <SearchableSelect
@@ -290,48 +452,18 @@ export function ReceiptForm({
               options={batchOptions}
               placeholder={availableBatches.length === 0 ? "No batches awaiting sale" : "Select batch"}
               searchPlaceholder="Search batches..."
-              onValueChange={handleSelectChange("goldPourId")}
+              onValueChange={(value) =>
+                setFormData((prev) => ({ ...prev, goldPourId: value }))
+              }
               onAddOption={() =>
                 router.push(batchCreateHref ?? goldRoutes.intake.create)
               }
               addLabel="Record batch"
             />
           </div>
+        ) : null}
 
-          <div>
-            <label className="block text-sm font-semibold mb-2">Dispatch (Optional)</label>
-            <Select
-              value={formData.goldDispatchId || "none"}
-              onValueChange={(value) =>
-                setFormData((prev) => ({ ...prev, goldDispatchId: value === "none" ? "" : value }))
-              }
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="No dispatch" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">No dispatch (direct sale from batch)</SelectItem>
-                {filteredDispatches.map((dispatch) => (
-                  <SelectItem key={dispatch.id} value={dispatch.id}>
-                    {dispatch.goldPour.pourBarId} | {dispatch.courier} | {dispatch.goldPour.site.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <FieldHelp
-              hint={
-                formData.goldPourId
-                  ? "Link a dispatch only if this sale came through transit."
-                  : "Select a batch first to narrow dispatch options."
-              }
-            />
-            {formData.goldPourId && filteredDispatches.length === 0 ? (
-              <p className="mt-1 text-xs text-muted-foreground">
-                No dispatch records for this batch yet. You can still save this as a direct sale.
-              </p>
-            ) : null}
-          </div>
-
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
             <label className="block text-sm font-semibold mb-2">Sale Date *</label>
             <Input
@@ -341,56 +473,130 @@ export function ReceiptForm({
               required
             />
           </div>
+          <SearchableSelect
+            label="Payment Method *"
+            value={formData.paymentMethod}
+            options={paymentMethods}
+            placeholder="Select method"
+            searchPlaceholder="Search methods..."
+            onValueChange={(value) =>
+              setFormData((prev) => ({ ...prev, paymentMethod: value }))
+            }
+            onAddOption={handleAddPaymentMethod}
+            addLabel="Add payment method"
+          />
+        </div>
 
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold mb-3">Buyer Test Results</h4>
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                Final tested gold (grams) *
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.assayResult}
-                onChange={(e) => setFormData({ ...formData, assayResult: e.target.value })}
-                placeholder="e.g., 42.35"
-                required
-              />
-              <FieldHelp hint="Enter the buyer-confirmed tested gold weight." />
+        {isBatchMode ? (
+          <div className="border-t pt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-semibold">
+                Batch Receipts ({selectedLineItems.length} of {lineItems.length} selected)
+              </h4>
+              <button
+                type="button"
+                onClick={() =>
+                  setLineItems((prev) => prev.map((item) => ({ ...item, selected: true })))
+                }
+                className="text-xs text-primary hover:underline"
+              >
+                Select all
+              </button>
             </div>
+            <div className="rounded-md border divide-y">
+              {lineItems.map((item, index) => {
+                const alreadySold = soldPourIds?.has(item.goldPourId);
+                return (
+                  <div
+                    key={item.goldPourId}
+                    className={`grid grid-cols-[auto_1fr_140px_140px] gap-3 items-center px-3 py-2 ${item.selected ? "bg-primary/5" : ""}`}
+                  >
+                    <Checkbox
+                      checked={item.selected}
+                      disabled={alreadySold}
+                      onCheckedChange={(checked) =>
+                        updateLineItem(index, { selected: checked === true })
+                      }
+                    />
+                    <div className="min-w-0">
+                      <div className="font-mono font-semibold truncate">
+                        {item.pourBarId}
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        {item.grossWeight.toFixed(3)} g
+                        {alreadySold ? " • already sold" : ""}
+                      </div>
+                    </div>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Tested g"
+                      value={item.assayResult}
+                      onChange={(e) =>
+                        updateLineItem(index, { assayResult: e.target.value })
+                      }
+                      disabled={!item.selected}
+                    />
+                    <Input
+                      type="number"
+                      step="0.01"
+                      placeholder="Paid (USD)"
+                      value={item.paidAmount}
+                      onChange={(e) =>
+                        updateLineItem(index, { paidAmount: e.target.value })
+                      }
+                      disabled={!item.selected}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <p className="text-xs text-muted-foreground">
+              Paid amount per batch is required. Tested gold goes under <strong>More details</strong>.
+            </p>
           </div>
+        ) : (
+          <div>
+            <label className="block text-sm font-semibold mb-2">
+              Paid amount (USD) *
+            </label>
+            <Input
+              autoFocus
+              type="number"
+              step="0.01"
+              value={formData.paidAmount}
+              onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
+              placeholder="0.00"
+              required
+            />
+          </div>
+        )}
 
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold mb-3">Payment Details</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <details
+          className="group rounded-md border bg-card transition-all"
+          open={moreOpen}
+          onToggle={(e) => setMoreOpen((e.target as HTMLDetailsElement).open)}
+        >
+          <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold">
+            <span>More details</span>
+            <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+          </summary>
+          <div className="space-y-4 px-4 pb-4 pt-1">
+            {!isBatchMode ? (
               <div>
                 <label className="block text-sm font-semibold mb-2">
-                  Paid amount (USD) *
+                  Final tested gold (grams)
                 </label>
                 <Input
                   type="number"
                   step="0.01"
-                  value={formData.paidAmount}
-                  onChange={(e) => setFormData({ ...formData, paidAmount: e.target.value })}
-                  placeholder="0.00"
-                  required
+                  value={formData.assayResult}
+                  onChange={(e) => setFormData({ ...formData, assayResult: e.target.value })}
+                  placeholder="e.g., 42.35"
                 />
-                <FieldHelp hint="Recorded cash value used for settlement and accounting." />
               </div>
-
-              <SearchableSelect
-                label="Payment Method *"
-                value={formData.paymentMethod}
-                options={paymentMethods}
-                placeholder="Select method"
-                searchPlaceholder="Search methods..."
-                onValueChange={handleSelectChange("paymentMethod")}
-                onAddOption={handleAddPaymentMethod}
-                addLabel="Add payment method"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+            ) : null}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-semibold mb-2">Payment Channel</label>
                 <Input
@@ -401,35 +607,28 @@ export function ReceiptForm({
                   placeholder="e.g., Standard Bank, EcoCash"
                 />
               </div>
-
               <div>
-                <label className="block text-sm font-semibold mb-2">
-                  Payment Reference
-                </label>
+                <label className="block text-sm font-semibold mb-2">Payment Reference</label>
                 <Input
                   value={formData.paymentReference}
                   onChange={(e) =>
-                    setFormData({
-                      ...formData,
-                      paymentReference: e.target.value,
-                    })
+                    setFormData({ ...formData, paymentReference: e.target.value })
                   }
                   placeholder="Transaction ID or reference"
                 />
               </div>
             </div>
+            <div>
+              <label className="block text-sm font-semibold mb-2">Notes</label>
+              <Textarea
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                rows={2}
+                placeholder="Anything to flag..."
+              />
+            </div>
           </div>
-
-          <div>
-            <label className="block text-sm font-semibold mb-2">Notes</label>
-            <Textarea
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              rows={2}
-              placeholder="Additional payment notes..."
-            />
-            <FieldHelp hint="Optional notes for discrepancies, buyer comments, or exceptions." />
-          </div>
+        </details>
       </div>
     </FormShell>
   );

@@ -28,7 +28,7 @@ export function SearchableSelect({
   addLabel = "Add new item",
   disabled,
 }: {
-  label: string;
+  label?: string;
   value?: string;
   options: SearchableOption[];
   placeholder: string;
@@ -56,7 +56,7 @@ export function SearchableSelect({
 
   return (
     <div className="space-y-2">
-      <label className="block text-sm font-semibold">{label}</label>
+      {label ? <label className="block text-sm font-semibold">{label}</label> : null}
       <Popover
         open={open}
         onOpenChange={(next) => {

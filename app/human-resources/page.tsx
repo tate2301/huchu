@@ -545,24 +545,22 @@ export default function HumanResourcesPage() {
           exportValue: (row: EmployeeSummary) => `${row.name} (${row.employeeId})`,
         },
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-3">
             <Image
               src={row.original.passportPhotoUrl}
               alt={row.original.name}
-              width={32}
-              height={32}
+              width={40}
+              height={40}
               quality={60}
-              sizes="32px"
-              className="h-8 w-8 rounded-md object-cover shadow-[var(--edge-outline-sharp)]"
+              sizes="40px"
+              className="h-10 w-10 shrink-0 rounded-full object-cover shadow-[var(--edge-outline-sharp)]"
             />
-            <div>
-              <div className="font-semibold">{row.original.name}</div>
-              <div className="font-mono text-xs text-muted-foreground">
-                ID: {row.original.employeeId}
+            <div className="min-w-0">
+              <div className="font-semibold truncate">{row.original.name}</div>
+              <div className="font-mono text-xs text-muted-foreground truncate">
+                {row.original.employeeId}
+                {row.original.jobTitle ? ` · ${row.original.jobTitle}` : ""}
               </div>
-              {row.original.jobTitle ? (
-                <div className="text-xs text-muted-foreground">{row.original.jobTitle}</div>
-              ) : null}
             </div>
           </div>
         ),
@@ -638,8 +636,7 @@ export default function HumanResourcesPage() {
               employmentTypes.find((type) => type.value === row.employmentType)?.label ??
               row.employmentType;
             const hireDate = row.hireDate ? String(row.hireDate).slice(0, 10) : "-";
-            const currency = row.defaultCurrency ?? "USD";
-            return `${employment} | Hire: ${hireDate} | Currency: ${currency}`;
+            return `${employment} | Hire: ${hireDate}`;
           },
         },
         cell: ({ row }) => (
@@ -650,9 +647,6 @@ export default function HumanResourcesPage() {
             </div>
             <div className="text-xs text-muted-foreground">
               Hire: {row.original.hireDate ? String(row.original.hireDate).slice(0, 10) : "-"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Currency: {row.original.defaultCurrency ?? "USD"}
             </div>
           </div>
         ),

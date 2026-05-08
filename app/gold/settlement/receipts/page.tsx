@@ -107,7 +107,12 @@ export default function GoldSettlementReceiptsPage() {
   );
   const availableDispatches = useMemo(
     () =>
-      dispatches.filter((dispatch) => !soldPourIds.has(dispatch.goldPourId)),
+      dispatches.filter((dispatch) => {
+        const batchIds = dispatch.batches?.length
+          ? dispatch.batches.map((batch) => batch.goldPourId)
+          : [dispatch.goldPourId];
+        return batchIds.some((id) => !soldPourIds.has(id));
+      }),
     [dispatches, soldPourIds],
   );
 
@@ -267,6 +272,7 @@ export default function GoldSettlementReceiptsPage() {
               onCancel={handleCloseCreate}
               availableBatches={availableBatches}
               availableDispatches={availableDispatches}
+              soldPourIds={soldPourIds}
               batchCreateHref={goldRoutes.intake.create}
             />
           </div>

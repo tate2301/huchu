@@ -71,7 +71,12 @@ export default function GoldTransitDispatchesPage() {
   });
   const { data: employeesData, isLoading: employeesLoading } = useQuery({
     queryKey: ["employees", "gold-transit-modal"],
-    queryFn: () => fetchEmployees({ active: true, limit: 500 }),
+    queryFn: () =>
+      fetchEmployees({
+        active: true,
+        position: ["MANAGER", "CLERK"],
+        limit: 500,
+      }),
     enabled: createOpen,
   });
 
@@ -92,23 +97,21 @@ export default function GoldTransitDispatchesPage() {
   );
   const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
   const pours = useMemo(() => poursData?.data ?? [], [poursData]);
-  const dispatchCountByPourId = useMemo(() => {
-    const map = new Map<string, number>();
+  const dispatchedPourIds = useMemo(() => {
+    const ids = new Set<string>();
     rows.forEach((dispatch) => {
-      const current = map.get(dispatch.goldPourId) ?? 0;
-      map.set(dispatch.goldPourId, current + 1);
+      if (dispatch.goldPourId) ids.add(dispatch.goldPourId);
+      dispatch.batches?.forEach((batch) => ids.add(batch.goldPourId));
     });
-    return map;
+    return ids;
   }, [rows]);
   const availablePours = useMemo(
     () =>
       pours
-        .map((pour) => ({
-          ...pour,
-          dispatchCount: dispatchCountByPourId.get(pour.id) ?? 0,
-        }))
+        .filter((pour) => !dispatchedPourIds.has(pour.id))
+        .map((pour) => ({ ...pour, dispatchCount: 0 }))
         .sort((left, right) => right.pourDate.localeCompare(left.pourDate)),
-    [dispatchCountByPourId, pours],
+    [dispatchedPourIds, pours],
   );
 
   const columns = useMemo<ColumnDef<GoldDispatchRow>[]>(
@@ -127,17 +130,45 @@ export default function GoldTransitDispatchesPage() {
       },
       {
         id: "batch",
-        header: "Batch",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-mono font-semibold">
-              {row.original.goldPour.pourBarId}
+        header: "Batch(es)",
+        cell: ({ row }) => {
+          const batches = row.original.batches ?? [];
+          const totalWeight =
+            batches.length > 0
+              ? batches.reduce(
+                  (sum, batch) => sum + (batch.goldPour?.grossWeight ?? 0),
+                  0,
+                )
+              : row.original.goldPour.grossWeight;
+          if (batches.length > 1) {
+            return (
+              <div>
+                <div className="font-mono font-semibold">
+                  {batches.length} batches
+                </div>
+                <div className="text-xs text-muted-foreground truncate">
+                  {batches
+                    .map((batch) => batch.goldPour?.pourBarId)
+                    .filter(Boolean)
+                    .join(", ")}
+                </div>
+                <div className="text-xs text-muted-foreground">
+                  {totalWeight.toFixed(3)} g total
+                </div>
+              </div>
+            );
+          }
+          return (
+            <div>
+              <div className="font-mono font-semibold">
+                {row.original.goldPour.pourBarId}
+              </div>
+              <div className="text-xs text-muted-foreground">
+                {row.original.goldPour.grossWeight.toFixed(3)} g
+              </div>
             </div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.goldPour.grossWeight.toFixed(3)} g
-            </div>
-          </div>
-        ),
+          );
+        },
         size: 280,
         minSize: 220,
         maxSize: 420,
@@ -179,17 +210,29 @@ export default function GoldTransitDispatchesPage() {
         id: "status",
         header: "Status",
         cell: ({ row }) => {
-          const settled = soldPourIds.has(row.original.goldPourId);
+          const batches = row.original.batches ?? [];
+          const allBatchIds = batches.length > 0
+            ? batches.map((batch) => batch.goldPourId)
+            : [row.original.goldPourId];
+          const settledCount = allBatchIds.filter((id) => soldPourIds.has(id)).length;
+          const allSettled = settledCount === allBatchIds.length;
+          const partial = settledCount > 0 && !allSettled;
           return (
             <StatusChip
-              status={settled ? "passing" : "pending"}
-              label={settled ? "Settled" : "Awaiting sale"}
+              status={allSettled ? "passing" : partial ? "warning" : "pending"}
+              label={
+                allSettled
+                  ? "Settled"
+                  : partial
+                    ? `${settledCount}/${allBatchIds.length} sold`
+                    : "Awaiting sale"
+              }
             />
           );
         },
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
+        size: 140,
+        minSize: 140,
+        maxSize: 140,
       },
     ],
     [soldPourIds],
