@@ -48,6 +48,11 @@ export async function POST(
     let rowsSkipped = 0
     let rowsAnomaly = 0
     let rowsFailed = 0
+    let allocationsCreated = 0
+    let poursCreated = 0
+    let salesCreated = 0
+    let totalSaleGrams = 0
+    let totalDeficitGrams = 0
 
     // Production rows (have grams + mapping)
     const productionEntries = importRecord.entries.filter(
@@ -114,7 +119,6 @@ export async function POST(
               employeeId,
               status: "PRESENT",
               notes: `Imported from ledger line ${entry.lineNo}`,
-              createdById: userId,
             })),
             skipDuplicates: true,
           })
@@ -136,23 +140,22 @@ export async function POST(
           const splitMode =
             Math.abs(boys - netWeight / 2) < 0.001 ? "DEFAULT_50_50" : "OVERRIDE_WORKER_WEIGHT"
 
-          // Valuation snapshot
+          // Valuation snapshot — soft-fail if no gold price is configured
+          // (the user can post-import set a price; events still capture weights).
           const valuation = await snapshotGoldUsdValue({
             companyId,
             businessDate: entry.parsedDate!,
             grams: 1,
           })
-          if (!valuation) {
-            throw new Error("No gold price configured for this date")
-          }
-          const goldPrice = valuation.goldPriceUsdPerGram
-          const totalWeightValueUsd = +(totalWeight * goldPrice).toFixed(2)
-          const netWeightValueUsd = +(netWeight * goldPrice).toFixed(2)
-          const workerShareValueUsd = +(boys * goldPrice).toFixed(2)
-          const companyShareValueUsd = +(mdara * goldPrice).toFixed(2)
+          const goldPrice = valuation?.goldPriceUsdPerGram ?? 0
+          const valuationDate = valuation?.valuationDate ?? null
+          const totalWeightValueUsd = goldPrice ? +(totalWeight * goldPrice).toFixed(2) : null
+          const netWeightValueUsd = goldPrice ? +(netWeight * goldPrice).toFixed(2) : null
+          const workerShareValueUsd = goldPrice ? +(boys * goldPrice).toFixed(2) : null
+          const companyShareValueUsd = goldPrice ? +(mdara * goldPrice).toFixed(2) : null
           const presentList = Array.from(presentEmployeeIds)
           const perWorkerWeight = +(boys / presentList.length).toFixed(4)
-          const perWorkerValueUsd = +(perWorkerWeight * goldPrice).toFixed(2)
+          const perWorkerValueUsd = goldPrice ? +(perWorkerWeight * goldPrice).toFixed(2) : null
 
           const allocation = await tx.goldShiftAllocation.create({
             data: {
@@ -171,8 +174,8 @@ export async function POST(
               workerShareWeight: boys,
               companyShareWeight: mdara,
               perWorkerWeight,
-              goldPriceUsdPerGram: goldPrice,
-              valuationDate: valuation.valuationDate,
+              goldPriceUsdPerGram: goldPrice || null,
+              valuationDate,
               totalWeightValueUsd,
               netWeightValueUsd,
               workerShareValueUsd,
@@ -206,8 +209,8 @@ export async function POST(
                 pourBarId,
                 pourDate: entry.parsedDate!,
                 grossWeight: totalWeight,
-                goldPriceUsdPerGram: goldPrice,
-                valuationDate: valuation.valuationDate,
+                goldPriceUsdPerGram: goldPrice || null,
+                valuationDate,
                 valueUsd: totalWeightValueUsd,
                 witness1Id: presentList[0],
                 witness2Id: presentList[1],
@@ -226,7 +229,7 @@ export async function POST(
               eventDate: entry.parsedDate!,
               direction: "IN",
               grams: totalWeight,
-              goldPriceUsdPerGram: goldPrice,
+              goldPriceUsdPerGram: goldPrice || null,
               valueUsd: totalWeightValueUsd,
               sourceType: "POUR",
               sourceId: pour.id,
@@ -244,6 +247,8 @@ export async function POST(
               errorMessage: null,
             },
           })
+          allocationsCreated += 1
+          if (createdPourId) poursCreated += 1
 
           // Accounting events (Mdara, Boys, per-expense)
           const sharedPayload = {
@@ -255,7 +260,7 @@ export async function POST(
             ledgerImportId: importRecord.id,
             ledgerLineNo: entry.lineNo,
           }
-          if (mdara > 0) {
+          if (mdara > 0 && goldPrice) {
             await captureAccountingEvent({
               companyId,
               sourceDomain: "gold",
@@ -264,7 +269,7 @@ export async function POST(
               sourceId: allocation.id,
               entryDate: allocation.date,
               description: `Mdara share — allocation ${allocation.id} (line ${entry.lineNo})`,
-              amount: companyShareValueUsd,
+              amount: companyShareValueUsd ?? 0,
               netAmount: companyShareValueUsd,
               grossAmount: companyShareValueUsd,
               payload: { ...sharedPayload, shareWeight: mdara, shareValueUsd: companyShareValueUsd },
@@ -272,7 +277,7 @@ export async function POST(
               status: "PENDING",
             })
           }
-          if (boys > 0) {
+          if (boys > 0 && goldPrice) {
             await captureAccountingEvent({
               companyId,
               sourceDomain: "gold",
@@ -281,7 +286,7 @@ export async function POST(
               sourceId: allocation.id,
               entryDate: allocation.date,
               description: `Boys share — allocation ${allocation.id} (line ${entry.lineNo})`,
-              amount: workerShareValueUsd,
+              amount: workerShareValueUsd ?? 0,
               netAmount: workerShareValueUsd,
               grossAmount: workerShareValueUsd,
               payload: { ...sharedPayload, shareWeight: boys, shareValueUsd: workerShareValueUsd },
@@ -289,23 +294,25 @@ export async function POST(
               status: "PENDING",
             })
           }
-          for (const expense of allocation.expenses) {
-            const expenseValueUsd = +(expense.weight * goldPrice).toFixed(2)
-            await captureAccountingEvent({
-              companyId,
-              sourceDomain: "gold",
-              sourceAction: "shift-expense",
-              sourceType: "GOLD_SHIFT_EXPENSE",
-              sourceId: expense.id,
-              entryDate: allocation.date,
-              description: `${expense.type} — allocation ${allocation.id} (line ${entry.lineNo})`,
-              amount: expenseValueUsd,
-              netAmount: expenseValueUsd,
-              grossAmount: expenseValueUsd,
-              payload: { ...sharedPayload, expenseId: expense.id, expenseType: expense.type, weight: expense.weight, valueUsd: expenseValueUsd },
-              createdById: userId,
-              status: "PENDING",
-            })
+          if (goldPrice) {
+            for (const expense of allocation.expenses) {
+              const expenseValueUsd = +(expense.weight * goldPrice).toFixed(2)
+              await captureAccountingEvent({
+                companyId,
+                sourceDomain: "gold",
+                sourceAction: "shift-expense",
+                sourceType: "GOLD_SHIFT_EXPENSE",
+                sourceId: expense.id,
+                entryDate: allocation.date,
+                description: `${expense.type} — allocation ${allocation.id} (line ${entry.lineNo})`,
+                amount: expenseValueUsd,
+                netAmount: expenseValueUsd,
+                grossAmount: expenseValueUsd,
+                payload: { ...sharedPayload, expenseId: expense.id, expenseType: expense.type, weight: expense.weight, valueUsd: expenseValueUsd },
+                createdById: userId,
+                status: "PENDING",
+              })
+            }
           }
 
           if (presentList.length < 2) {
@@ -381,8 +388,14 @@ export async function POST(
           })
           return r
         })
-        if (result.isAnomaly) rowsAnomaly += 1
-        else rowsCreated += 1
+        salesCreated += result.receiptIds.length
+        totalSaleGrams += result.consumedGrams
+        if (result.isAnomaly) {
+          totalDeficitGrams += result.remainingGrams
+          rowsAnomaly += 1
+        } else {
+          rowsCreated += 1
+        }
       } catch (rowError) {
         const message = rowError instanceof Error ? rowError.message : String(rowError)
         await prisma.goldLedgerEntry.update({
@@ -408,7 +421,20 @@ export async function POST(
       },
     })
 
-    return successResponse(updated)
+    return successResponse({
+      ...updated,
+      summary: {
+        rowsCreated,
+        rowsSkipped,
+        rowsAnomaly,
+        rowsFailed,
+        allocationsCreated,
+        poursCreated,
+        salesCreated,
+        totalSaleGrams: +totalSaleGrams.toFixed(3),
+        totalDeficitGrams: +totalDeficitGrams.toFixed(3),
+      },
+    })
   } catch (error) {
     console.error("[API] POST /api/gold/imports/[id]/commit error:", error)
     return errorResponse("Failed to commit import")
