@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ChevronRight } from "@/lib/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -124,15 +125,17 @@ export default function GoldTransitDispatchesPage() {
           <NumericCell align="left">
             <Link
               href={`/gold/transit/dispatches/${row.original.id}`}
-              className="hover:underline"
+              className="inline-flex items-center gap-1 text-primary hover:underline"
+              title="View dispatch details"
             >
               {new Date(row.original.dispatchDate).toLocaleString()}
+              <ChevronRight className="h-3 w-3 opacity-60" />
             </Link>
           </NumericCell>
         ),
-        size: 128,
-        minSize: 128,
-        maxSize: 128,
+        size: 180,
+        minSize: 180,
+        maxSize: 200,
       },
       {
         id: "batch",

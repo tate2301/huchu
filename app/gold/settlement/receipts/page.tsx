@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ChevronRight } from "@/lib/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -136,14 +137,16 @@ export default function GoldSettlementReceiptsPage() {
         cell: ({ row }) => (
           <Link
             href={`/gold/settlement/receipts/${row.original.id}`}
-            className="font-mono font-semibold hover:underline"
+            className="inline-flex items-center gap-1 font-mono font-semibold text-primary hover:underline"
+            title="View sale details"
           >
             {row.original.receiptNumber}
+            <ChevronRight className="h-3 w-3 opacity-60" />
           </Link>
         ),
-        size: 112,
-        minSize: 112,
-        maxSize: 112,
+        size: 130,
+        minSize: 130,
+        maxSize: 160,
       },
       {
         id: "batch",

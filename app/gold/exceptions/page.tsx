@@ -138,7 +138,8 @@ export default function GoldExceptionsPage() {
           pourDate: pour.pourDate,
           grossWeight: pour.grossWeight,
           valueUsd: pour.valueUsd ?? 0,
-        })),
+        }))
+        .sort((a, b) => b.pourDate.localeCompare(a.pourDate)),
     [dispatchByPourId, pours],
   );
 
@@ -152,20 +153,23 @@ export default function GoldExceptionsPage() {
           courier: dispatch.courier,
           destination: dispatch.destination,
           dispatchDate: dispatch.dispatchDate,
-        })),
+        }))
+        .sort((a, b) => b.dispatchDate.localeCompare(a.dispatchDate)),
     [dispatches, soldPourIds],
   );
 
   const correctionRows = useMemo<CorrectionRow[]>(
     () =>
-      corrections.map((correction) => ({
-        id: correction.id,
-        createdAt: correction.createdAt,
-        entityType: correction.entityType,
-        reference: correction.pour.pourBarId,
-        reason: correction.reason,
-        createdBy: correction.createdBy.name,
-      })),
+      corrections
+        .map((correction) => ({
+          id: correction.id,
+          createdAt: correction.createdAt,
+          entityType: correction.entityType,
+          reference: correction.pour.pourBarId,
+          reason: correction.reason,
+          createdBy: correction.createdBy.name,
+        }))
+        .sort((a, b) => b.createdAt.localeCompare(a.createdAt)),
     [corrections],
   );
 

@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { ChevronRight } from "@/lib/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
@@ -93,14 +94,16 @@ export default function GoldIntakePoursPage() {
         cell: ({ row }) => (
           <Link
             href={`/gold/intake/pours/${row.original.id}`}
-            className="font-mono font-semibold hover:underline"
+            className="inline-flex items-center gap-1 font-mono font-semibold text-primary hover:underline"
+            title="View batch details"
           >
             {row.original.pourBarId}
+            <ChevronRight className="h-3 w-3 opacity-60" />
           </Link>
         ),
-        size: 112,
-        minSize: 112,
-        maxSize: 112,
+        size: 130,
+        minSize: 130,
+        maxSize: 160,
       },
       {
         id: "site",

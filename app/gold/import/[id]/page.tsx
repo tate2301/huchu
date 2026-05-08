@@ -48,6 +48,19 @@ type ImportDetail = {
   uploadedBy: { id: string; name: string } | null;
   site: { id: string; name: string; code: string } | null;
   entries: LedgerEntry[];
+  summary?: CommitSummary;
+};
+
+type CommitSummary = {
+  rowsCreated: number;
+  rowsSkipped: number;
+  rowsAnomaly: number;
+  rowsFailed: number;
+  allocationsCreated: number;
+  poursCreated: number;
+  salesCreated: number;
+  totalSaleGrams: number;
+  totalDeficitGrams: number;
 };
 
 const grams = (n: number | null | undefined) =>
@@ -58,8 +71,7 @@ export default function GoldImportDetailPage() {
   const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [pendingMappings, setPendingMappings] = useState<Record<string, string>>({});
-  const [pendingSiteId, setPendingSiteId] = useState<string | undefined>();
+  const [commitResult, setCommitResult] = useState<CommitSummary | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["gold-import", id],
@@ -68,10 +80,10 @@ export default function GoldImportDetailPage() {
   });
 
   const { data: groupsData } = useQuery({
-    queryKey: ["shift-groups", "import", data?.siteId ?? pendingSiteId],
+    queryKey: ["shift-groups", "import", data?.siteId],
     queryFn: () =>
-      fetchShiftGroups({ active: true, limit: 200, siteId: data?.siteId ?? pendingSiteId }),
-    enabled: !!(data?.siteId ?? pendingSiteId),
+      fetchShiftGroups({ active: true, limit: 200, siteId: data?.siteId ?? undefined }),
+    enabled: !!data?.siteId,
   });
 
   const { data: sitesData } = useQuery({
@@ -97,20 +109,32 @@ export default function GoldImportDetailPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
-      toast({ title: "Saved", variant: "success" });
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not save",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
     },
   });
 
   const commitMutation = useMutation({
     mutationFn: async () =>
-      fetchJson<ImportDetail>(`/api/gold/imports/${id}/commit`, { method: "POST" }),
-    onSuccess: () => {
+      fetchJson<ImportDetail & { summary?: CommitSummary }>(
+        `/api/gold/imports/${id}/commit`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
       queryClient.invalidateQueries({ queryKey: ["gold-imports"] });
       queryClient.invalidateQueries({ queryKey: ["gold-summary"] });
+      if (result.summary) setCommitResult(result.summary);
       toast({
-        title: "Committed",
-        description: "Allocations and sales created.",
+        title: result.summary
+          ? `${result.summary.allocationsCreated} allocations · ${result.summary.salesCreated} sales`
+          : "Committed",
+        description: "Ledger imported.",
         variant: "success",
       });
     },
@@ -135,34 +159,25 @@ export default function GoldImportDetailPage() {
   }
 
   const isLocked = data.status === "COMMITTED";
-  const allMapped = distinctNames.every((name) => {
-    const fromState = pendingMappings[name];
-    if (fromState) return true;
-    if (data.mappingsJson) {
-      const m = JSON.parse(data.mappingsJson) as Record<string, string>;
-      if (m[name]) return true;
-    }
-    return false;
-  });
-  const siteIsSet = !!(data.siteId || pendingSiteId);
-  const canCommit = !isLocked && allMapped && siteIsSet;
-
-  const saveMappings = () => {
-    if (Object.keys(pendingMappings).length === 0 && !pendingSiteId) {
-      toast({ title: "Nothing to save", variant: "destructive" });
-      return;
-    }
-    patchMutation.mutate({
-      siteId: pendingSiteId,
-      mappings: Object.keys(pendingMappings).length > 0 ? pendingMappings : undefined,
-    });
-    setPendingMappings({});
-    setPendingSiteId(undefined);
-  };
-
   const existingMappings: Record<string, string> = data.mappingsJson
     ? JSON.parse(data.mappingsJson)
     : {};
+  const allMapped =
+    distinctNames.length > 0 && distinctNames.every((name) => !!existingMappings[name]);
+  const siteIsSet = !!data.siteId;
+  const canCommit = !isLocked && allMapped && siteIsSet;
+  const mappedCount = distinctNames.filter((n) => !!existingMappings[n]).length;
+
+  const setSiteAndSave = (newSiteId: string) => {
+    if (!newSiteId || newSiteId === data.siteId) return;
+    patchMutation.mutate({ siteId: newSiteId });
+  };
+
+  const setMappingAndSave = (name: string, shiftGroupId: string) => {
+    if (!shiftGroupId) return;
+    if (existingMappings[name] === shiftGroupId) return;
+    patchMutation.mutate({ mappings: { [name]: shiftGroupId } });
+  };
 
   return (
     <GoldShell
@@ -209,6 +224,34 @@ export default function GoldImportDetailPage() {
           </span>
         </div>
 
+        {/* Step indicator */}
+        <ol className="flex flex-wrap gap-2 text-xs">
+          <li
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+              siteIsSet ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-amber-500 bg-amber-50 text-amber-700"
+            }`}
+          >
+            <span className="font-bold">1</span>
+            <span>Site {siteIsSet ? "✓" : "needed"}</span>
+          </li>
+          <li
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+              allMapped ? "border-emerald-500 bg-emerald-50 text-emerald-700" : "border-amber-500 bg-amber-50 text-amber-700"
+            }`}
+          >
+            <span className="font-bold">2</span>
+            <span>Mappings ({mappedCount}/{distinctNames.length})</span>
+          </li>
+          <li
+            className={`flex items-center gap-2 rounded-full border px-3 py-1.5 ${
+              isLocked ? "border-emerald-500 bg-emerald-50 text-emerald-700" : canCommit ? "border-blue-500 bg-blue-50 text-blue-700" : "border-muted text-muted-foreground"
+            }`}
+          >
+            <span className="font-bold">3</span>
+            <span>{isLocked ? "Committed" : canCommit ? "Ready to commit" : "Commit"}</span>
+          </li>
+        </ol>
+
         {commitMutation.error ? (
           <Alert variant="destructive">
             <AlertTitle>Commit failed</AlertTitle>
@@ -216,74 +259,125 @@ export default function GoldImportDetailPage() {
           </Alert>
         ) : null}
 
+        {(commitResult ?? data.summary) ? (
+          (() => {
+            const summary = commitResult ?? data.summary!;
+            return (
+              <section className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+                <header className="flex items-center justify-between gap-3 mb-3">
+                  <h2 className="font-semibold text-emerald-900">Commit results</h2>
+                  <StatusChip status="passing" label="Done" />
+                </header>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+                  <div>
+                    <p className="text-xs text-emerald-800">Allocations</p>
+                    <p className="text-lg font-semibold">{summary.allocationsCreated}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-emerald-800">Auto-pours</p>
+                    <p className="text-lg font-semibold">{summary.poursCreated}</p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-emerald-800">Sales (FIFO)</p>
+                    <p className="text-lg font-semibold">
+                      {summary.salesCreated}
+                      <span className="ml-1 text-xs font-normal text-muted-foreground">
+                        ({summary.totalSaleGrams.toFixed(2)} g)
+                      </span>
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-xs text-emerald-800">Inventory deficit</p>
+                    <p className={`text-lg font-semibold ${summary.totalDeficitGrams > 0 ? "text-rose-700" : ""}`}>
+                      {summary.totalDeficitGrams.toFixed(2)} g
+                    </p>
+                  </div>
+                </div>
+                <p className="mt-3 text-xs text-emerald-800">
+                  {summary.rowsAnomaly > 0
+                    ? `${summary.rowsAnomaly} rows flagged as anomalies — see the table below.`
+                    : "All rows clean."}
+                  {summary.rowsFailed > 0
+                    ? ` ${summary.rowsFailed} rows failed and need attention.`
+                    : ""}
+                </p>
+              </section>
+            );
+          })()
+        ) : null}
+
         {!isLocked ? (
           <section className="rounded-lg border bg-card p-5 space-y-4">
             <header>
               <h2 className="font-semibold">1 · Pick site</h2>
               <p className="text-sm text-muted-foreground">
-                Every row in this ledger belongs to one mine site.
+                Every row in this ledger belongs to one mine site. Saved instantly.
               </p>
             </header>
             <SearchableSelect
-              value={pendingSiteId ?? data.siteId ?? undefined}
+              value={data.siteId ?? undefined}
               options={sites.map((s) => ({ value: s.id, label: s.name, meta: s.code }))}
               placeholder="Pick site"
               searchPlaceholder="Search sites..."
-              onValueChange={(v) => setPendingSiteId(v || undefined)}
+              onValueChange={(v) => v && setSiteAndSave(v)}
             />
           </section>
         ) : null}
 
         {!isLocked ? (
           <section className="rounded-lg border bg-card p-5 space-y-4">
-            <header className="flex items-center justify-between gap-3">
-              <div>
-                <h2 className="font-semibold">2 · Map shift leaders</h2>
-                <p className="text-sm text-muted-foreground">
-                  Each name maps to a shift group. Group members will be marked
-                  PRESENT for every shift in this ledger.
-                </p>
-              </div>
-              <Button
-                size="sm"
-                disabled={
-                  patchMutation.isPending ||
-                  (Object.keys(pendingMappings).length === 0 && !pendingSiteId)
-                }
-                onClick={saveMappings}
-              >
-                Save mappings
-              </Button>
+            <header>
+              <h2 className="font-semibold">
+                2 · Map shift leaders ({mappedCount}/{distinctNames.length})
+              </h2>
+              <p className="text-sm text-muted-foreground">
+                {data.siteId
+                  ? "Each name maps to a shift group. Members of that group will be marked PRESENT for every shift this leader logged. Saved instantly."
+                  : "Pick a site first to load shift groups."}
+              </p>
             </header>
 
-            <ul className="divide-y">
-              {distinctNames.map((name) => {
-                const current = pendingMappings[name] ?? existingMappings[name] ?? "";
-                return (
-                  <li
-                    key={name}
-                    className="grid grid-cols-1 sm:grid-cols-[200px_1fr] gap-3 py-3 items-center"
-                  >
-                    <span className="font-mono font-semibold">{name}</span>
-                    <SearchableSelect
-                      value={current || undefined}
-                      options={groups.map((g) => ({
-                        value: g.id,
-                        label: g.name,
-                        meta: g.leader?.name,
-                      }))}
-                      placeholder={
-                        groups.length === 0 ? "Set site first to load groups" : "Pick a shift group"
-                      }
-                      searchPlaceholder="Search groups..."
-                      onValueChange={(v) =>
-                        setPendingMappings((prev) => ({ ...prev, [name]: v }))
-                      }
-                    />
-                  </li>
-                );
-              })}
-            </ul>
+            {distinctNames.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No leader names parsed.</p>
+            ) : (
+              <ul className="divide-y">
+                {distinctNames.map((name) => {
+                  const current = existingMappings[name] ?? "";
+                  const isMapped = !!current;
+                  return (
+                    <li
+                      key={name}
+                      className={`grid grid-cols-1 sm:grid-cols-[220px_1fr_24px] gap-3 py-3 items-center ${isMapped ? "" : "bg-amber-50/30 -mx-5 px-5"}`}
+                    >
+                      <span className="font-mono font-semibold">{name}</span>
+                      <SearchableSelect
+                        value={current || undefined}
+                        options={groups.map((g) => ({
+                          value: g.id,
+                          label: g.name,
+                          meta: g.leader?.name,
+                        }))}
+                        placeholder={
+                          groups.length === 0
+                            ? data.siteId
+                              ? "No shift groups for this site"
+                              : "Pick a site first"
+                            : "Pick a shift group"
+                        }
+                        searchPlaceholder="Search groups..."
+                        disabled={!data.siteId || groups.length === 0}
+                        onValueChange={(v) => setMappingAndSave(name, v)}
+                      />
+                      {isMapped ? (
+                        <span className="text-emerald-600 text-lg">✓</span>
+                      ) : (
+                        <span className="text-amber-500 text-lg">!</span>
+                      )}
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </section>
         ) : null}
 
