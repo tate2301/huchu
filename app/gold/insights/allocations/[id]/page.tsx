@@ -2,12 +2,21 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type AllocationDetail = {
@@ -103,10 +112,34 @@ const statusToTone: Record<string, Parameters<typeof StatusChip>[0]["status"]> =
 
 export default function AllocationDetailPage() {
   const { id } = useParams<{ id: string }>();
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const canEditAttendance = role === "MANAGER" || role === "SUPERADMIN";
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
   const { data, isLoading, error } = useQuery({
     queryKey: ["gold-allocation", id],
     queryFn: () => fetchJson<AllocationDetail>(`/api/gold/shift-allocations/${id}`),
     enabled: !!id,
+  });
+
+  const attendanceMutation = useMutation({
+    mutationFn: async (payload: { attendanceId: string; status: string }) =>
+      fetchJson(`/api/attendance/${payload.attendanceId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: payload.status }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gold-allocation", id] });
+      toast({ title: "Attendance updated", variant: "success" });
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not update attendance",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
   });
 
   if (isLoading) {
@@ -196,7 +229,14 @@ export default function AllocationDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title={`Attendance (${data.attendance.length})`}>
+          <DetailSection
+            title={`Attendance (${data.attendance.length})`}
+            description={
+              canEditAttendance
+                ? "Managers can correct PRESENT / ABSENT / LATE inline. Worker shares recompute on next allocation update."
+                : undefined
+            }
+          >
             {data.attendance.length === 0 ? (
               <p className="text-sm text-muted-foreground">No attendance recorded.</p>
             ) : (
@@ -214,10 +254,32 @@ export default function AllocationDetailPage() {
                         {a.employee.employeeId} · {a.employee.position}
                       </p>
                     </div>
-                    <StatusChip
-                      status={a.status === "PRESENT" ? "passing" : a.status === "LATE" ? "warning" : "danger"}
-                      label={a.status}
-                    />
+                    {canEditAttendance ? (
+                      <Select
+                        value={a.status}
+                        disabled={attendanceMutation.isPending}
+                        onValueChange={(value) =>
+                          attendanceMutation.mutate({
+                            attendanceId: a.id,
+                            status: value,
+                          })
+                        }
+                      >
+                        <SelectTrigger className="w-32">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="PRESENT">Present</SelectItem>
+                          <SelectItem value="LATE">Late</SelectItem>
+                          <SelectItem value="ABSENT">Absent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <StatusChip
+                        status={a.status === "PRESENT" ? "passing" : a.status === "LATE" ? "warning" : "danger"}
+                        label={a.status}
+                      />
+                    )}
                   </li>
                 ))}
               </ul>
