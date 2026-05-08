@@ -710,40 +710,36 @@ function buildModuleSections(
   }
 
   if (moduleId === "accounting") {
-    const buildAccountingSection = (
-      id: string,
-      title: string,
-      hrefs: readonly string[],
-    ): WorkspaceNavSection | null => {
-      const items: NavItem[] = [];
-      const moduleItems = visibleModules.get("accounting") ?? [];
+    const moduleItems = visibleModules.get("accounting") ?? [];
+    // Single consolidated section. Sub-tabs/grouping live inside the
+    // /accounting shell — the global sidebar just lists the entry points.
+    // Overview is intentionally first.
+    const orderedHrefs = [
+      ...ACCOUNTING_OPERATIONS_SECTIONS.overview,
+      ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
+      ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
+      ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
+      ...ACCOUNTING_OPERATIONS_SECTIONS.banking,
+      ...ACCOUNTING_OPERATIONS_SECTIONS.master,
+    ];
 
-      for (const href of hrefs) {
-        if (excludedHrefs?.has(href)) continue;
-        const item = moduleItems.find((i) => i.href === href);
-        if (item) {
-          items.push(item);
-        }
-      }
+    const items: NavItem[] = [];
+    for (const href of orderedHrefs) {
+      if (excludedHrefs?.has(href)) continue;
+      const item = moduleItems.find((i) => i.href === href);
+      if (item) items.push(item);
+    }
 
-      if (items.length === 0) return null;
-
-      return {
-        id: `accounting-${id}`,
-        title,
-        items,
-        workspaceGroup,
-      };
-    };
+    if (items.length === 0) return [];
 
     return [
-      buildAccountingSection("overview", "Overview", ACCOUNTING_OPERATIONS_SECTIONS.overview),
-      buildAccountingSection("receivables", "Receivables", ACCOUNTING_OPERATIONS_SECTIONS.receivables),
-      buildAccountingSection("payables", "Payables", ACCOUNTING_OPERATIONS_SECTIONS.payables),
-      buildAccountingSection("reporting", "Financial Reporting", ACCOUNTING_OPERATIONS_SECTIONS.reporting),
-      buildAccountingSection("banking", "Payments & Banking", ACCOUNTING_OPERATIONS_SECTIONS.banking),
-      buildAccountingSection("master", "Accounting Master", ACCOUNTING_OPERATIONS_SECTIONS.master),
-    ].filter((section): section is WorkspaceNavSection => section !== null);
+      {
+        id: "accounting-master",
+        title: "Accounting Master",
+        items,
+        workspaceGroup,
+      },
+    ];
   }
 
   const section = buildModuleSection(moduleId, visibleModules, workspaceGroup, excludedHrefs);

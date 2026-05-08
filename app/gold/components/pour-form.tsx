@@ -1,9 +1,8 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -12,9 +11,35 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
-import { Send, Shield } from "@/lib/icons";
+import { Send, Shield, ChevronDown } from "@/lib/icons";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import { useReservedId } from "@/hooks/use-reserved-id";
+
+type PourFormValues = {
+  pourDate: string;
+  siteId: string;
+  grossWeight: string;
+  estimatedPurity: string;
+  witness1Id: string;
+  witness2Id: string;
+  storageLocation: string;
+  additionalExpensesWeight: string;
+  additionalExpensesNote: string;
+  notes: string;
+};
+
+const DEFAULT_VALUES: PourFormValues = {
+  pourDate: "",
+  siteId: "",
+  grossWeight: "",
+  estimatedPurity: "",
+  witness1Id: "",
+  witness2Id: "",
+  storageLocation: "Vault",
+  additionalExpensesWeight: "",
+  additionalExpensesNote: "",
+  notes: "",
+};
 
 export function PourForm({
   cancelHref,
@@ -45,28 +70,39 @@ export function PourForm({
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const router = useRouter();
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<PourFormValues>(() => ({
+    ...DEFAULT_VALUES,
     pourDate: new Date().toISOString().slice(0, 16),
-    siteId: "",
-    grossWeight: "",
-    estimatedPurity: "",
-    witness1Id: "",
-    witness2Id: "",
-    storageLocation: "",
-    notes: "",
-  });
+  }));
+  const [moreOpen, setMoreOpen] = useState(false);
   const {
     reservedId: reservedPourBarId,
     isReserving: reservingPourBarId,
     error: reservePourBarIdError,
-  } = useReservedId({
-    entity: "GOLD_POUR",
-    enabled: true,
-  });
+  } = useReservedId({ entity: "GOLD_POUR", enabled: true });
   const shouldRedirect = redirectOnSuccess ?? mode === "page";
 
+  // Auto-open the disclosure if any optional field has been filled.
+  useEffect(() => {
+    if (
+      !moreOpen &&
+      (formData.estimatedPurity ||
+        formData.additionalExpensesWeight ||
+        formData.additionalExpensesNote ||
+        formData.notes)
+    ) {
+      setMoreOpen(true);
+    }
+  }, [
+    formData.estimatedPurity,
+    formData.additionalExpensesWeight,
+    formData.additionalExpensesNote,
+    formData.notes,
+    moreOpen,
+  ]);
+
   const handleSelectChange =
-    (field: keyof typeof formData) => (value: string) => {
+    (field: keyof PourFormValues) => (value: string) => {
       setFormData((prev) => ({ ...prev, [field]: value }));
     };
 
@@ -90,6 +126,13 @@ export function PourForm({
     [employees],
   );
 
+  // Auto-pick site if there is exactly one. Removes a click for single-site mines.
+  useEffect(() => {
+    if (!formData.siteId && sites.length === 1) {
+      setFormData((prev) => ({ ...prev, siteId: sites[0].id }));
+    }
+  }, [sites, formData.siteId]);
+
   const createPourMutation = useMutation({
     mutationFn: async (payload: {
       pourBarId: string;
@@ -100,6 +143,8 @@ export function PourForm({
       witness1Id: string;
       witness2Id: string;
       storageLocation: string;
+      additionalExpensesWeight?: number;
+      additionalExpensesNote?: string;
       notes?: string;
     }) =>
       fetchJson<{ id: string; createdAt?: string }>("/api/gold/pours", {
@@ -108,8 +153,8 @@ export function PourForm({
       }),
     onSuccess: (pour, payload) => {
       toast({
-        title: "Batch recorded",
-        description: "Batch saved and ready for dispatch.",
+        title: "Batch saved",
+        description: "Ready for dispatch.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["gold-pours"] });
@@ -129,6 +174,10 @@ export function PourForm({
   const estimatedPurityValue = formData.estimatedPurity
     ? Number(formData.estimatedPurity)
     : undefined;
+  const additionalExpensesWeightValue = formData.additionalExpensesWeight
+    ? Number(formData.additionalExpensesWeight)
+    : undefined;
+
   const canSubmit =
     !!reservedPourBarId &&
     !!formData.pourDate &&
@@ -144,7 +193,7 @@ export function PourForm({
     if (!canSubmit) {
       toast({
         title: "Missing details",
-        description: "Fill all required pour details before saving.",
+        description: "Fill site, weight, and both witnesses to save.",
         variant: "destructive",
       });
       return;
@@ -152,7 +201,7 @@ export function PourForm({
     if (formData.witness1Id === formData.witness2Id) {
       toast({
         title: "Witnesses must differ",
-        description: "Select two different employees for witness validation.",
+        description: "Select two different employees.",
         variant: "destructive",
       });
       return;
@@ -161,8 +210,7 @@ export function PourForm({
       toast({
         title: "Unable to reserve batch ID",
         description:
-          reservePourBarIdError ??
-          "Please wait for batch ID reservation to complete.",
+          reservePourBarIdError ?? "Please wait for batch ID reservation.",
         variant: "destructive",
       });
       return;
@@ -175,23 +223,27 @@ export function PourForm({
       estimatedPurity: estimatedPurityValue,
       witness1Id: formData.witness1Id,
       witness2Id: formData.witness2Id,
-      storageLocation: formData.storageLocation.trim(),
+      storageLocation: formData.storageLocation.trim() || "Vault",
+      additionalExpensesWeight: additionalExpensesWeightValue,
+      additionalExpensesNote:
+        formData.additionalExpensesNote?.trim() || undefined,
       notes: formData.notes?.trim() || undefined,
     });
   };
 
   return (
     <FormShell
-      title="Batch Details"
+      variant={mode === "modal" ? "bare" : "page"}
+      title={mode === "modal" ? undefined : "Record Batch"}
       onSubmit={handleSubmit}
-      formClassName="space-y-6"
-      requiredHint="Fields marked * are required. Submitting redirects to the batches list with this record highlighted."
+      formClassName="space-y-5"
+      requiredHint="Fields marked * are required."
       errors={
         createPourMutation.error
           ? [getApiErrorMessage(createPourMutation.error)]
           : undefined
       }
-      errorTitle="Unable to record batch"
+      errorTitle="Could not save batch"
       actions={
         <>
           <Button
@@ -206,86 +258,108 @@ export function PourForm({
             }}
             className="flex-1 sm:flex-none"
           >
-            {mode === "modal" ? "Cancel" : "Back to Batches"}
+            {mode === "modal" ? "Cancel" : "Back"}
           </Button>
           <Button
             type="submit"
             size="lg"
-            disabled={!canSubmit || createPourMutation.isPending || reservingPourBarId}
+            disabled={
+              !canSubmit || createPourMutation.isPending || reservingPourBarId
+            }
             className="flex-1 sm:flex-none"
           >
             <Send className="mr-2 h-5 w-5" />
-            {createPourMutation.isPending ? "Recording..." : "Save Batch"}
+            {createPourMutation.isPending ? "Saving..." : "Save Batch"}
           </Button>
         </>
       }
     >
-      <div className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Batch ID</label>
-              <Input
-                value={reservedPourBarId}
-                readOnly
-                aria-readonly="true"
-                placeholder={reservingPourBarId ? "Reserving..." : "Auto-generated"}
-              />
-              <FieldHelp
-                hint={
-                  reservePourBarIdError ??
-                  "Batch ID is auto-generated and cannot be edited."
-                }
-              />
-            </div>
+      <p className="text-sm text-muted-foreground">
+        Batch ID is auto-generated. Fill the basics — purity, storage and notes
+        live under <strong>More details</strong>.
+      </p>
 
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                Batch Date/Time *
-              </label>
-              <Input
-                type="datetime-local"
-                value={formData.pourDate}
-                onChange={(e) =>
-                  setFormData({ ...formData, pourDate: e.target.value })
-                }
-                required
-              />
-            </div>
-          </div>
-
-          <SearchableSelect
-            label="Site *"
-            value={formData.siteId || undefined}
-            options={siteOptions}
-            placeholder={sitesLoading ? "Loading sites..." : "Select site"}
-            searchPlaceholder="Search sites..."
-            onValueChange={handleSelectChange("siteId")}
-            onAddOption={() => {
-              toast({
-                title: "Add new site",
-                description: "Sites are managed in admin settings.",
-              });
-            }}
-            addLabel="Request new site"
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <SearchableSelect
+          label="Site *"
+          value={formData.siteId || undefined}
+          options={siteOptions}
+          placeholder={sitesLoading ? "Loading sites..." : "Pick a site"}
+          searchPlaceholder="Search sites..."
+          onValueChange={handleSelectChange("siteId")}
+        />
+        <div>
+          <label className="block text-sm font-semibold mb-2">
+            Gross Weight (g) *
+          </label>
+          <Input
+            autoFocus
+            type="number"
+            step="0.01"
+            inputMode="decimal"
+            value={formData.grossWeight}
+            onChange={(e) =>
+              setFormData({ ...formData, grossWeight: e.target.value })
+            }
+            placeholder="e.g. 12.50"
+            required
           />
+        </div>
+      </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">
-                Gross Weight (grams) *
-              </label>
-              <Input
-                type="number"
-                step="0.01"
-                value={formData.grossWeight}
-                onChange={(e) =>
-                  setFormData({ ...formData, grossWeight: e.target.value })
-                }
-                required
-              />
-              <FieldHelp hint="Capture the measured gross bar weight in grams." />
-            </div>
+      <div className="rounded-md border bg-muted/30 px-4 py-3">
+        <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
+          <Shield className="h-4 w-4 text-yellow-600" />
+          Two-Person Witness *
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SearchableSelect
+            label="Witness 1"
+            value={formData.witness1Id || undefined}
+            options={employeeOptions}
+            placeholder={
+              employeesLoading ? "Loading..." : "Pick a clerk or manager"
+            }
+            searchPlaceholder="Search..."
+            onValueChange={handleSelectChange("witness1Id")}
+          />
+          <SearchableSelect
+            label="Witness 2"
+            value={formData.witness2Id || undefined}
+            options={employeeOptions}
+            placeholder={
+              employeesLoading ? "Loading..." : "Pick a clerk or manager"
+            }
+            searchPlaceholder="Search..."
+            onValueChange={handleSelectChange("witness2Id")}
+          />
+        </div>
+      </div>
 
+      <div>
+        <label className="block text-sm font-semibold mb-2">
+          Pour Date / Time
+        </label>
+        <Input
+          type="datetime-local"
+          value={formData.pourDate}
+          onChange={(e) =>
+            setFormData({ ...formData, pourDate: e.target.value })
+          }
+        />
+      </div>
+
+      <details
+        className="group rounded-md border bg-card transition-all"
+        open={moreOpen}
+        onToggle={(e) => setMoreOpen((e.target as HTMLDetailsElement).open)}
+      >
+        <summary className="flex cursor-pointer select-none items-center justify-between gap-2 px-4 py-3 text-sm font-semibold">
+          <span>More details</span>
+          <ChevronDown className="h-4 w-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="space-y-4 px-4 pb-4 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm font-semibold mb-2">
                 Estimated Purity (%)
@@ -300,61 +374,60 @@ export function PourForm({
                 }
                 placeholder="Optional"
               />
-              <FieldHelp hint="Optional estimated purity from internal checks." />
             </div>
-          </div>
-
-          <div className="border-t pt-4">
-            <h4 className="text-sm font-semibold mb-3 flex items-center gap-2">
-              <Shield className="h-4 w-4 text-yellow-600" />
-              2-Person Witness Rule
-            </h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <SearchableSelect
-                label="Witness 1 *"
-                value={formData.witness1Id || undefined}
-                options={employeeOptions}
-                placeholder={
-                  employeesLoading ? "Loading employees..." : "Select employee"
+            <div>
+              <label className="block text-sm font-semibold mb-2">
+                Storage Location
+              </label>
+              <Input
+                value={formData.storageLocation}
+                onChange={(e) =>
+                  setFormData({ ...formData, storageLocation: e.target.value })
                 }
-                searchPlaceholder="Search employees..."
-                onValueChange={handleSelectChange("witness1Id")}
-                onAddOption={() => {
-                  router.push("/human-resources");
-                }}
-                addLabel="Add employee"
-              />
-
-              <SearchableSelect
-                label="Witness 2 *"
-                value={formData.witness2Id || undefined}
-                options={employeeOptions}
-                placeholder={
-                  employeesLoading ? "Loading employees..." : "Select employee"
-                }
-                searchPlaceholder="Search employees..."
-                onValueChange={handleSelectChange("witness2Id")}
-                onAddOption={() => {
-                  router.push("/human-resources");
-                }}
-                addLabel="Add employee"
+                placeholder="e.g. Vault, Safe 1"
               />
             </div>
           </div>
 
-          <div>
-            <label className="block text-sm font-semibold mb-2">
-              Storage Location *
-            </label>
-            <Input
-              value={formData.storageLocation}
-              onChange={(e) =>
-                setFormData({ ...formData, storageLocation: e.target.value })
-              }
-              placeholder="e.g., Safe 1, Vault A"
-              required
-            />
-            <FieldHelp hint="Specify exact secure storage location for custody tracking." />
+          <div className="rounded-md border bg-muted/20 px-3 py-3">
+            <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+              Additional Expenses
+            </h5>
+            <div className="grid grid-cols-1 sm:grid-cols-[160px_1fr] gap-3">
+              <div>
+                <label className="block text-xs font-medium mb-1.5">
+                  Weight (g)
+                </label>
+                <Input
+                  type="number"
+                  step="0.001"
+                  inputMode="decimal"
+                  value={formData.additionalExpensesWeight}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      additionalExpensesWeight: e.target.value,
+                    })
+                  }
+                  placeholder="0.000"
+                />
+              </div>
+              <div>
+                <label className="block text-xs font-medium mb-1.5">
+                  Note
+                </label>
+                <Input
+                  value={formData.additionalExpensesNote}
+                  onChange={(e) =>
+                    setFormData({
+                      ...formData,
+                      additionalExpensesNote: e.target.value,
+                    })
+                  }
+                  placeholder="e.g. fuel & food deduction"
+                />
+              </div>
+            </div>
           </div>
 
           <div>
@@ -365,11 +438,11 @@ export function PourForm({
                 setFormData({ ...formData, notes: e.target.value })
               }
               rows={2}
-              placeholder="Additional observations..."
+              placeholder="Anything unusual about this batch..."
             />
-            <FieldHelp hint="Optional notes for unusual conditions or context." />
           </div>
-      </div>
+        </div>
+      </details>
     </FormShell>
   );
 }

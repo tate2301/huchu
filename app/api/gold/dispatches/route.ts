@@ -11,21 +11,87 @@ import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
-const goldDispatchSchema = z.object({
-  goldPourId: z.string().uuid(),
-  dispatchDate: z
-    .string()
-    .datetime()
-    .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
-  courier: z.string().min(1).max(200),
-  vehicle: z.string().max(100).optional(),
-  destination: z.string().min(1).max(200),
-  sealNumbers: z.string().min(1).max(200),
-  handedOverById: z.string().uuid(),
-  receivedBy: z.string().max(200).optional(),
-  overrideReason: z.string().max(500).optional(),
-  notes: z.string().max(1000).optional(),
-})
+const goldDispatchSchema = z
+  .object({
+    // Backward-compat: accept either single goldPourId or list goldPourIds.
+    goldPourId: z.string().uuid().optional(),
+    goldPourIds: z.array(z.string().uuid()).min(1).max(50).optional(),
+    dispatchDate: z
+      .string()
+      .datetime()
+      .or(z.string().regex(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/)),
+    courier: z.string().min(1).max(200),
+    vehicle: z.string().max(100).optional(),
+    destination: z.string().min(1).max(200),
+    sealNumbers: z.string().min(1).max(200),
+    handedOverById: z.string().uuid(),
+    receivedBy: z.string().max(200).optional(),
+    overrideReason: z.string().max(500).optional(),
+    notes: z.string().max(1000).optional(),
+  })
+  .refine((value) => Boolean(value.goldPourId || (value.goldPourIds && value.goldPourIds.length > 0)), {
+    message: "At least one batch is required",
+    path: ["goldPourIds"],
+  })
+
+const dispatchInclude = {
+  goldPour: {
+    select: {
+      id: true,
+      pourBarId: true,
+      pourDate: true,
+      grossWeight: true,
+      goldPriceUsdPerGram: true,
+      valueUsd: true,
+      site: { select: { name: true, code: true } },
+    },
+  },
+  handedOverBy: { select: { name: true } },
+  batches: {
+    orderBy: { sortOrder: "asc" as const },
+    include: {
+      goldPour: {
+        select: {
+          id: true,
+          pourBarId: true,
+          pourDate: true,
+          grossWeight: true,
+          goldPriceUsdPerGram: true,
+          valueUsd: true,
+          site: { select: { name: true, code: true } },
+        },
+      },
+    },
+  },
+} as const
+
+function normalizeDispatch<
+  T extends {
+    goldPour: { id: string; pourBarId: string }
+    batches: Array<{ goldPour: { id: string; pourBarId: string } }>
+  },
+>(dispatch: T) {
+  return {
+    ...dispatch,
+    batchId: dispatch.goldPour.id,
+    batchCode: dispatch.goldPour.pourBarId,
+    goldPour: {
+      ...dispatch.goldPour,
+      batchId: dispatch.goldPour.id,
+      batchCode: dispatch.goldPour.pourBarId,
+    },
+    batches: dispatch.batches.map((batch) => ({
+      ...batch,
+      batchId: batch.goldPour.id,
+      batchCode: batch.goldPour.pourBarId,
+      goldPour: {
+        ...batch.goldPour,
+        batchId: batch.goldPour.id,
+        batchCode: batch.goldPour.pourBarId,
+      },
+    })),
+  }
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -46,25 +112,17 @@ export async function GET(request: NextRequest) {
       const goldPourWhere = (where.goldPour as Record<string, unknown> | undefined) ?? {}
       where.goldPour = { ...goldPourWhere, siteId }
     }
-    if (goldPourId) where.goldPourId = goldPourId
+    if (goldPourId) {
+      where.OR = [
+        { goldPourId },
+        { batches: { some: { goldPourId } } },
+      ]
+    }
 
     const [dispatches, total] = await Promise.all([
       prisma.goldDispatch.findMany({
         where,
-        include: {
-          goldPour: {
-            select: {
-              id: true,
-              pourBarId: true,
-              pourDate: true,
-              grossWeight: true,
-              goldPriceUsdPerGram: true,
-              valueUsd: true,
-              site: { select: { name: true, code: true } },
-            },
-          },
-          handedOverBy: { select: { name: true } },
-        },
+        include: dispatchInclude,
         orderBy: { dispatchDate: "desc" },
         skip,
         take: limit,
@@ -72,16 +130,7 @@ export async function GET(request: NextRequest) {
       prisma.goldDispatch.count({ where }),
     ])
 
-    const normalizedDispatches = dispatches.map((dispatch) => ({
-      ...dispatch,
-      batchId: dispatch.goldPour.id,
-      batchCode: dispatch.goldPour.pourBarId,
-      goldPour: {
-        ...dispatch.goldPour,
-        batchId: dispatch.goldPour.id,
-        batchCode: dispatch.goldPour.pourBarId,
-      },
-    }))
+    const normalizedDispatches = dispatches.map(normalizeDispatch)
 
     return successResponse(
       paginationResponse(normalizedDispatches, total, page, limit),
@@ -101,32 +150,57 @@ export async function POST(request: NextRequest) {
     const body = await request.json()
     const validated = goldDispatchSchema.parse(body)
 
-    const goldPour = await prisma.goldPour.findUnique({
-      where: { id: validated.goldPourId },
+    const requestedIds = validated.goldPourIds && validated.goldPourIds.length > 0
+      ? validated.goldPourIds
+      : validated.goldPourId
+        ? [validated.goldPourId]
+        : []
+    const goldPourIds = Array.from(new Set(requestedIds))
+
+    if (goldPourIds.length === 0) {
+      return errorResponse("At least one batch is required", 400)
+    }
+
+    const goldPours = await prisma.goldPour.findMany({
+      where: { id: { in: goldPourIds } },
       include: { site: { select: { companyId: true, isActive: true } } },
     })
 
-    if (!goldPour || goldPour.site.companyId !== session.user.companyId) {
-      return errorResponse("Invalid gold pour", 403)
+    if (goldPours.length !== goldPourIds.length) {
+      return errorResponse("One or more batches were not found", 404)
     }
 
-    if (!goldPour.site.isActive) {
-      return errorResponse("Site is not active", 400)
+    for (const pour of goldPours) {
+      if (pour.site.companyId !== session.user.companyId) {
+        return errorResponse("Invalid gold pour", 403)
+      }
+      if (!pour.site.isActive) {
+        return errorResponse(`Site for batch ${pour.pourBarId} is not active`, 400)
+      }
     }
 
-    const existingDispatchCount = await prisma.goldDispatch.count({
-      where: { goldPourId: validated.goldPourId },
+    const existingDispatchesForBatches = await prisma.goldDispatchBatch.findMany({
+      where: { goldPourId: { in: goldPourIds } },
+      select: { goldPourId: true },
     })
+    const legacyDispatches = await prisma.goldDispatch.findMany({
+      where: { goldPourId: { in: goldPourIds } },
+      select: { goldPourId: true },
+    })
+    const alreadyDispatchedIds = new Set<string>([
+      ...existingDispatchesForBatches.map((entry) => entry.goldPourId),
+      ...legacyDispatches.map((entry) => entry.goldPourId),
+    ])
 
-    const requiresOverride = existingDispatchCount > 0
+    const requiresOverride = alreadyDispatchedIds.size > 0
     if (requiresOverride && !validated.overrideReason?.trim()) {
+      const conflictingCodes = goldPours
+        .filter((pour) => alreadyDispatchedIds.has(pour.id))
+        .map((pour) => pour.pourBarId)
       return errorResponse(
-        "This batch already has a dispatch. Add an override reason to continue.",
+        `These batches already have a dispatch: ${conflictingCodes.join(", ")}. Add an override reason to continue.`,
         409,
-        {
-          requiresOverride: true,
-          existingDispatchCount,
-        },
+        { requiresOverride: true, conflictingPourBarIds: conflictingCodes },
       )
     }
 
@@ -134,7 +208,6 @@ export async function POST(request: NextRequest) {
       where: { id: validated.handedOverById },
       select: { companyId: true, isActive: true },
     })
-
     if (!handedOverBy || handedOverBy.companyId !== session.user.companyId || !handedOverBy.isActive) {
       return errorResponse("Invalid handover user", 400)
     }
@@ -144,44 +217,52 @@ export async function POST(request: NextRequest) {
       notesSegments.push(`Override reason: ${validated.overrideReason.trim()}`)
     }
     const mergedNotes = notesSegments.filter(Boolean).join("\n\n")
+
+    const totalGrossWeight = goldPours.reduce((sum, pour) => sum + pour.grossWeight, 0)
     const valuation = await snapshotGoldUsdValue({
       companyId: session.user.companyId,
       businessDate: validated.dispatchDate,
-      grams: goldPour.grossWeight,
+      grams: totalGrossWeight,
     })
     if (!valuation) {
       return errorResponse("No gold price configured. Add a gold price before recording dispatches.", 409)
     }
 
-    const dispatchRecord = await prisma.goldDispatch.create({
-      data: {
-        goldPourId: validated.goldPourId,
-        dispatchDate: new Date(validated.dispatchDate),
-        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
-        valuationDate: valuation.valuationDate,
-        valueUsd: valuation.valueUsd,
-        courier: validated.courier,
-        vehicle: validated.vehicle,
-        destination: validated.destination,
-        sealNumbers: validated.sealNumbers,
-        handedOverById: validated.handedOverById,
-        receivedBy: validated.receivedBy,
-        notes: mergedNotes || undefined,
-      },
-      include: {
-        goldPour: {
-          select: {
-            id: true,
-            pourBarId: true,
-            pourDate: true,
-            grossWeight: true,
-            goldPriceUsdPerGram: true,
-            valueUsd: true,
-            site: { select: { name: true, code: true } },
-          },
+    const orderedPours = goldPourIds
+      .map((id) => goldPours.find((pour) => pour.id === id))
+      .filter((pour): pour is (typeof goldPours)[number] => Boolean(pour))
+    const primaryPourId = orderedPours[0].id
+
+    const dispatchRecord = await prisma.$transaction(async (tx) => {
+      const created = await tx.goldDispatch.create({
+        data: {
+          goldPourId: primaryPourId,
+          dispatchDate: new Date(validated.dispatchDate),
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valuationDate: valuation.valuationDate,
+          valueUsd: valuation.valueUsd,
+          courier: validated.courier,
+          vehicle: validated.vehicle,
+          destination: validated.destination,
+          sealNumbers: validated.sealNumbers,
+          handedOverById: validated.handedOverById,
+          receivedBy: validated.receivedBy,
+          notes: mergedNotes || undefined,
         },
-        handedOverBy: { select: { name: true } },
-      },
+      })
+
+      await tx.goldDispatchBatch.createMany({
+        data: orderedPours.map((pour, index) => ({
+          dispatchId: created.id,
+          goldPourId: pour.id,
+          sortOrder: index,
+        })),
+      })
+
+      return tx.goldDispatch.findUniqueOrThrow({
+        where: { id: created.id },
+        include: dispatchInclude,
+      })
     })
 
     try {
@@ -192,11 +273,11 @@ export async function POST(request: NextRequest) {
         sourceType: "GOLD_DISPATCH",
         sourceId: dispatchRecord.id,
         entryDate: dispatchRecord.dispatchDate,
-        description: `Gold dispatch ${dispatchRecord.id} for batch ${dispatchRecord.goldPour.pourBarId}`,
-        amount: dispatchRecord.valueUsd ?? dispatchRecord.goldPour.grossWeight,
+        description: `Gold dispatch ${dispatchRecord.id} for ${orderedPours.length} batch(es)`,
+        amount: dispatchRecord.valueUsd ?? totalGrossWeight,
         payload: {
-          goldPourId: dispatchRecord.goldPourId,
-          grossWeight: dispatchRecord.goldPour.grossWeight,
+          goldPourIds,
+          totalGrossWeight,
           valueUsd: dispatchRecord.valueUsd,
           goldPriceUsdPerGram: dispatchRecord.goldPriceUsdPerGram,
           valuationDate: dispatchRecord.valuationDate,
@@ -213,17 +294,10 @@ export async function POST(request: NextRequest) {
 
     return successResponse(
       {
-        ...dispatchRecord,
-        batchId: dispatchRecord.goldPour.id,
-        batchCode: dispatchRecord.goldPour.pourBarId,
-        goldPour: {
-          ...dispatchRecord.goldPour,
-          batchId: dispatchRecord.goldPour.id,
-          batchCode: dispatchRecord.goldPour.pourBarId,
-        },
+        ...normalizeDispatch(dispatchRecord),
         warnings: requiresOverride
           ? [
-              `This batch already had ${existingDispatchCount} dispatch record(s). Override reason was recorded.`,
+              `${alreadyDispatchedIds.size} batch(es) already had a dispatch record. Override reason was recorded.`,
             ]
           : [],
       },

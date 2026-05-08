@@ -800,6 +800,25 @@ export type GoldPour = {
   witness2?: { name: string } | null;
 };
 
+export type GoldDispatchBatchEntry = {
+  id: string;
+  goldPourId: string;
+  sortOrder: number;
+  batchId?: string;
+  batchCode?: string;
+  goldPour: {
+    id: string;
+    batchId?: string;
+    batchCode?: string;
+    pourBarId: string;
+    pourDate: string;
+    grossWeight: number;
+    goldPriceUsdPerGram?: number | null;
+    valueUsd?: number | null;
+    site: { name: string; code: string };
+  };
+};
+
 export type GoldDispatch = {
   id: string;
   batchId?: string;
@@ -828,6 +847,7 @@ export type GoldDispatch = {
     valueUsd?: number | null;
     site: { name: string; code: string };
   };
+  batches?: GoldDispatchBatchEntry[];
 };
 
 export type BuyerReceipt = {
@@ -1415,11 +1435,14 @@ export async function fetchEmployees(
     search?: string;
     departmentId?: string;
     gradeId?: string;
+    position?: EmployeePositionValue | EmployeePositionValue[];
     page?: number;
     limit?: number;
   } = {},
 ) {
-  const query = buildQuery(params);
+  const { position, ...rest } = params;
+  const positionParam = Array.isArray(position) ? position.join(",") : position;
+  const query = buildQuery({ ...rest, position: positionParam });
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
 }
 

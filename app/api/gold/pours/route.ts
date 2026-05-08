@@ -15,6 +15,8 @@ const goldPourSchema = z.object({
   witness2Id: z.string().uuid(),
   storageLocation: z.string().min(1).max(200),
   estimatedPurity: z.number().min(0).max(100).optional(),
+  additionalExpensesWeight: z.number().min(0).max(10000).optional(),
+  additionalExpensesNote: z.string().max(500).optional(),
   notes: z.string().max(1000).optional(),
 });
 
@@ -194,6 +196,8 @@ export async function POST(request: NextRequest) {
         witness2Id: validated.witness2Id,
         storageLocation: validated.storageLocation,
         estimatedPurity: validated.estimatedPurity,
+        additionalExpensesWeight: validated.additionalExpensesWeight,
+        additionalExpensesNote: validated.additionalExpensesNote,
         notes: validated.notes,
         createdById: session.user.id,
       },

@@ -2049,6 +2049,8 @@ model GoldPour {
   witness1Id      String
   witness2Id      String
   storageLocation String
+  additionalExpensesWeight Float?
+  additionalExpensesNote   String?
   notes           String?
   goldPriceUsdPerGram Float?
   valuationDate       DateTime?
@@ -2064,9 +2066,10 @@ model GoldPour {
   witness2   Employee       @relation("Witness2", fields: [witness2Id], references: [id])
   createdBy  User?          @relation("GoldPourRecordedBy", fields: [createdById], references: [id])
   goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
-  purchase   GoldPurchase?
-  dispatches GoldDispatch[]
-  receipts   BuyerReceipt[]
+  purchase        GoldPurchase?
+  dispatches      GoldDispatch[]
+  dispatchBatches GoldDispatchBatch[]
+  receipts        BuyerReceipt[]
 
   @@index([siteId])
   @@index([pourDate])
@@ -2144,16 +2147,32 @@ model GoldDispatch {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  goldPour     GoldPour      @relation(fields: [goldPourId], references: [id])
-  handedOverBy Employee      @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
-  buyerReceipt BuyerReceipt?
+  goldPour     GoldPour             @relation(fields: [goldPourId], references: [id])
+  handedOverBy Employee             @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
+  buyerReceipts BuyerReceipt[]
+  batches      GoldDispatchBatch[]
 
+  @@index([goldPourId])
+}
+
+model GoldDispatchBatch {
+  id         String   @id @default(uuid())
+  dispatchId String
+  goldPourId String
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  dispatch GoldDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  goldPour GoldPour     @relation(fields: [goldPourId], references: [id])
+
+  @@unique([dispatchId, goldPourId])
+  @@index([dispatchId])
   @@index([goldPourId])
 }
 
 model BuyerReceipt {
   id               String   @id @default(uuid())
-  goldDispatchId   String?  @unique
+  goldDispatchId   String?
   goldPourId       String?
   receiptNumber    String
   receiptDate      DateTime
@@ -2173,6 +2192,7 @@ model BuyerReceipt {
   goldDispatch GoldDispatch? @relation(fields: [goldDispatchId], references: [id])
   goldPour     GoldPour?     @relation(fields: [goldPourId], references: [id])
 
+  @@unique([goldDispatchId, goldPourId])
   @@index([goldPourId])
   @@index([receiptDate])
 }
