@@ -28,6 +28,11 @@ export const ACCOUNTING_SOURCE_TYPE_OPTIONS: Array<{ value: AccountingSourceType
   { value: "RETAIL_STOCK_ADJUSTMENT", label: "Retail Stock Adjustment" },
   { value: "RETAIL_STOCK_TRANSFER", label: "Retail Stock Transfer" },
   { value: "RETAIL_SHIFT_VARIANCE", label: "Retail Shift Variance" },
+  { value: "GOLD_SHIFT_ALLOCATION_COMPANY", label: "Gold Shift — Company Share (Mdara)" },
+  { value: "GOLD_SHIFT_ALLOCATION_WORKER", label: "Gold Shift — Worker Share (Boys)" },
+  { value: "GOLD_SHIFT_EXPENSE", label: "Gold Shift Expense" },
+  { value: "GOLD_PAYOUT", label: "Gold Worker Payout" },
+  { value: "GOLD_INVENTORY_ADJUSTMENT", label: "Gold Inventory Adjustment" },
 ];
 
 export const RETAIL_REQUIRED_SOURCE_TYPES: AccountingSourceType[] = [

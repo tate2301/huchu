@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
@@ -90,9 +91,12 @@ export default function GoldIntakePoursPage() {
         id: "pourBarId",
         header: "Batch ID",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">
+          <Link
+            href={`/gold/intake/pours/${row.original.id}`}
+            className="font-mono font-semibold hover:underline"
+          >
             {row.original.pourBarId}
-          </span>
+          </Link>
         ),
         size: 112,
         minSize: 112,

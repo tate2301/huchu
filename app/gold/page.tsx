@@ -26,6 +26,8 @@ type GoldSummary = {
     awaitingSaleUsd: number;
     owedToWorkersUsd: number;
     spotUsdPerGram: number | null;
+    onHandGrams: number;
+    onHandUsd: number | null;
   };
   dailyProductionSeries: Array<{ date: string; grams: number; usd: number }>;
   productionBySite: Array<{ id: string; name: string; code: string; grams: number }>;
@@ -193,6 +195,9 @@ export default function GoldPage() {
               <Link href={goldRoutes.settlement.create}>Record Sale</Link>
             </Button>
           ) : null}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/gold/import">Import Ledger</Link>
+          </Button>
         </div>
       }
     >
@@ -213,7 +218,19 @@ export default function GoldPage() {
                 : "Set a gold price to see live valuations."}
             </p>
           </header>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <FrappeStatCard
+              label="Gold on hand"
+              value={kpis?.onHandGrams ?? 0}
+              valueLabel={kpis ? grams(kpis.onHandGrams) : undefined}
+              detail={
+                kpis?.onHandUsd != null
+                  ? `~ ${usd(kpis.onHandUsd)} at today's price`
+                  : "Set a gold price to see USD value"
+              }
+              tone="neutral"
+              loading={isLoading}
+            />
             <FrappeStatCard
               label="Cash received this week"
               value={kpis?.cashThisWeekUsd ?? 0}

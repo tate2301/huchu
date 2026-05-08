@@ -175,8 +175,13 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
 ];
 
 const GOLD_CHART_OF_ACCOUNTS: DefaultAccount[] = [
+  { code: "1250", name: "Gold Inventory", type: "ASSET", category: "Inventory", systemManaged: true },
   { code: "1300", name: "Gold In Transit", type: "ASSET", category: "Inventory", systemManaged: true },
+  { code: "2230", name: "Gold Wages Payable", type: "LIABILITY", category: "Payables", systemManaged: true },
   { code: "4100", name: "Gold Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
+  { code: "4110", name: "Gold Production Income", type: "INCOME", category: "Revenue", systemManaged: true },
+  { code: "5310", name: "Gold Mining Expenses", type: "EXPENSE", category: "Mining", systemManaged: true },
+  { code: "5320", name: "Gold Inventory Adjustments", type: "EXPENSE", category: "Mining", systemManaged: true },
 ];
 
 export const DEFAULT_CHART_OF_ACCOUNTS = BASE_CHART_OF_ACCOUNTS;
@@ -431,6 +436,51 @@ const GOLD_POSTING_RULES: DefaultPostingRule[] = [
     lines: [
       { accountCode: "1300", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
       { accountCode: "1200", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Gold Shift — Company Share (Mdara)",
+    sourceType: "GOLD_SHIFT_ALLOCATION_COMPANY",
+    description: "Owner/company portion of shift output. DR Gold Inventory, CR Production Income.",
+    lines: [
+      { accountCode: "1250", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "4110", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Gold Shift — Worker Share (Boys)",
+    sourceType: "GOLD_SHIFT_ALLOCATION_WORKER",
+    description: "Worker/crew portion of shift output. Held in inventory until paid out — DR Gold Inventory, CR Gold Wages Payable.",
+    lines: [
+      { accountCode: "1250", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "2230", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Gold Shift Expense",
+    sourceType: "GOLD_SHIFT_EXPENSE",
+    description: "Diesel/Shoots/LCD-style mining inputs. DR Mining Direct Costs, CR Gold Inventory.",
+    lines: [
+      { accountCode: "5310", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "1250", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Gold Worker Payout",
+    sourceType: "GOLD_PAYOUT",
+    description: "Settlement of worker share. DR Gold Wages Payable, CR Cash.",
+    lines: [
+      { accountCode: "2230", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "1010", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
+    ],
+  },
+  {
+    name: "Gold Inventory Adjustment",
+    sourceType: "GOLD_INVENTORY_ADJUSTMENT",
+    description: "Manual on-hand corrections (loss, write-off, theft).",
+    lines: [
+      { accountCode: "5320", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "1250", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
     ],
   },
 ];

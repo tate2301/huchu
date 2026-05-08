@@ -6,6 +6,7 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { getLatestGoldPriceSnapshot } from "@/lib/gold/valuation"
+import { getOnHandGrams } from "@/lib/gold/inventory"
 
 function startOfWeekUtc(date: Date): Date {
   const d = new Date(date)
@@ -196,6 +197,10 @@ export async function GET(request: NextRequest) {
     const latestPrice = await getLatestGoldPriceSnapshot(companyId)
     const spotUsdPerGram = latestPrice?.goldPriceUsdPerGram ?? null
 
+    const onHandGrams = await getOnHandGrams({ companyId })
+    const onHandUsd =
+      spotUsdPerGram != null ? +(onHandGrams * spotUsdPerGram).toFixed(2) : null
+
     const awaitingSaleGrams = undispatchedAndUnsoldPours.reduce(
       (sum, pour) => sum + pour.grossWeight,
       0,
@@ -291,6 +296,8 @@ export async function GET(request: NextRequest) {
         awaitingSaleUsd,
         owedToWorkersUsd,
         spotUsdPerGram,
+        onHandGrams,
+        onHandUsd,
       },
       dailyProductionSeries,
       productionBySite,

@@ -7,6 +7,7 @@ import {
   validateSession,
 } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { recordInventoryEvent } from "@/lib/gold/inventory"
 import {
   AUTO_BATCH_NOTE_PREFIX,
   AUTO_PAYOUT_NOTE_PREFIX,
@@ -405,6 +406,23 @@ export async function POST(request: NextRequest) {
         })
         createdBatchId = batch.id
         createdBatchCode = batch.pourBarId
+
+        // The pour represents on-prem gold. Mirror the pour-route behaviour
+        // here since the auto-pour bypasses the API.
+        await recordInventoryEvent(tx, {
+          companyId: session.user.companyId,
+          siteId: validated.siteId,
+          eventDate: start,
+          direction: "IN",
+          grams: validated.totalWeight,
+          goldPriceUsdPerGram,
+          valueUsd: totalWeightValueUsd,
+          sourceType: "POUR",
+          sourceId: batch.id,
+          notes: `Auto pour ${batch.pourBarId} from allocation ${allocation.id}`,
+          createdById: session.user.id,
+          skipValuation: true,
+        })
       }
 
       return {
@@ -415,35 +433,96 @@ export async function POST(request: NextRequest) {
       }
     })
 
+    // Mdara (company share), Boys (worker share), and per-expense events.
+    // PENDING status so default posting rules can pick them up.
     try {
-      await captureAccountingEvent({
-        companyId: session.user.companyId,
-        sourceDomain: "gold",
-        sourceAction: "shift-allocation-created",
-        sourceId: result.allocation.id,
-        entryDate: result.allocation.date,
-        description: `Gold shift allocation ${result.allocation.id} created`,
-        amount: result.allocation.netWeight,
-        netAmount: result.allocation.netWeightValueUsd ?? undefined,
-        payload: {
-          siteId: result.allocation.siteId,
-          shift: result.allocation.shift,
-          workerShareWeight: result.allocation.workerShareWeight,
-          workerShareValueUsd: result.allocation.workerShareValueUsd,
-          companyShareWeight: result.allocation.companyShareWeight,
-          companyShareValueUsd: result.allocation.companyShareValueUsd,
-          goldPriceUsdPerGram: result.allocation.goldPriceUsdPerGram,
-          valuationDate: result.allocation.valuationDate,
-          splitMode: result.allocation.splitMode,
-          workerShareOverrideWeight: result.allocation.workerShareOverrideWeight,
-          payoutRecordsCreated: result.payoutRecordsCreated,
-          createdBatchId: result.createdBatchId,
-        },
-        createdById: session.user.id,
-        status: "IGNORED",
-      })
+      const allocation = result.allocation
+      const sharedPayload = {
+        allocationId: allocation.id,
+        siteId: allocation.siteId,
+        shift: allocation.shift,
+        date: allocation.date,
+        goldPriceUsdPerGram: allocation.goldPriceUsdPerGram,
+        valuationDate: allocation.valuationDate,
+      }
+
+      // Mdara
+      if (allocation.companyShareWeight > 0) {
+        await captureAccountingEvent({
+          companyId: session.user.companyId,
+          sourceDomain: "gold",
+          sourceAction: "shift-allocation-company-share",
+          sourceType: "GOLD_SHIFT_ALLOCATION_COMPANY",
+          sourceId: allocation.id,
+          entryDate: allocation.date,
+          description: `Gold company share (Mdara) — allocation ${allocation.id}`,
+          amount: allocation.companyShareValueUsd ?? allocation.companyShareWeight,
+          netAmount: allocation.companyShareValueUsd ?? undefined,
+          grossAmount: allocation.companyShareValueUsd ?? undefined,
+          payload: {
+            ...sharedPayload,
+            shareWeight: allocation.companyShareWeight,
+            shareValueUsd: allocation.companyShareValueUsd,
+          },
+          createdById: session.user.id,
+          status: "PENDING",
+        })
+      }
+
+      // Boys
+      if (allocation.workerShareWeight > 0) {
+        await captureAccountingEvent({
+          companyId: session.user.companyId,
+          sourceDomain: "gold",
+          sourceAction: "shift-allocation-worker-share",
+          sourceType: "GOLD_SHIFT_ALLOCATION_WORKER",
+          sourceId: allocation.id,
+          entryDate: allocation.date,
+          description: `Gold worker share (Boys) — allocation ${allocation.id}`,
+          amount: allocation.workerShareValueUsd ?? allocation.workerShareWeight,
+          netAmount: allocation.workerShareValueUsd ?? undefined,
+          grossAmount: allocation.workerShareValueUsd ?? undefined,
+          payload: {
+            ...sharedPayload,
+            shareWeight: allocation.workerShareWeight,
+            shareValueUsd: allocation.workerShareValueUsd,
+            payoutRecordsCreated: result.payoutRecordsCreated,
+          },
+          createdById: session.user.id,
+          status: "PENDING",
+        })
+      }
+
+      // Per-expense
+      const goldPrice = allocation.goldPriceUsdPerGram ?? 0
+      for (const expense of allocation.expenses) {
+        const expenseValueUsd = goldPrice
+          ? Math.round(expense.weight * goldPrice * 100) / 100
+          : null
+        await captureAccountingEvent({
+          companyId: session.user.companyId,
+          sourceDomain: "gold",
+          sourceAction: "shift-expense",
+          sourceType: "GOLD_SHIFT_EXPENSE",
+          sourceId: expense.id,
+          entryDate: allocation.date,
+          description: `Gold shift expense (${expense.type}) — allocation ${allocation.id}`,
+          amount: expenseValueUsd ?? expense.weight,
+          netAmount: expenseValueUsd ?? undefined,
+          grossAmount: expenseValueUsd ?? undefined,
+          payload: {
+            ...sharedPayload,
+            expenseId: expense.id,
+            expenseType: expense.type,
+            weight: expense.weight,
+            valueUsd: expenseValueUsd,
+          },
+          createdById: session.user.id,
+          status: "PENDING",
+        })
+      }
     } catch (error) {
-      console.error("[Accounting] Gold shift allocation capture failed:", error)
+      console.error("[Accounting] Gold shift allocation 3-way capture failed:", error)
     }
 
     return successResponse(

@@ -134,9 +134,12 @@ export default function GoldSettlementReceiptsPage() {
         id: "receiptNumber",
         header: "Sale No.",
         cell: ({ row }) => (
-          <span className="font-mono font-semibold">
+          <Link
+            href={`/gold/settlement/receipts/${row.original.id}`}
+            className="font-mono font-semibold hover:underline"
+          >
             {row.original.receiptNumber}
-          </span>
+          </Link>
         ),
         size: 112,
         minSize: 112,

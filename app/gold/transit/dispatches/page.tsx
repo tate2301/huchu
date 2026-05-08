@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
@@ -121,7 +122,12 @@ export default function GoldTransitDispatchesPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.dispatchDate).toLocaleString()}
+            <Link
+              href={`/gold/transit/dispatches/${row.original.id}`}
+              className="hover:underline"
+            >
+              {new Date(row.original.dispatchDate).toLocaleString()}
+            </Link>
           </NumericCell>
         ),
         size: 128,

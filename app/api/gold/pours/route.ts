@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
+import { recordInventoryEvent } from "@/lib/gold/inventory";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -208,6 +209,23 @@ export async function POST(request: NextRequest) {
         createdBy: { select: { id: true, name: true } },
       },
     });
+
+    try {
+      await recordInventoryEvent(prisma, {
+        companyId: session.user.companyId,
+        siteId: pour.siteId,
+        eventDate: pour.pourDate,
+        direction: "IN",
+        grams: pour.grossWeight,
+        sourceType: "POUR",
+        sourceId: pour.id,
+        notes: `Pour ${pour.pourBarId}`,
+        createdById: session.user.id,
+        skipValuation: true,
+      });
+    } catch (error) {
+      console.error("[Inventory] pour event failed:", error);
+    }
 
     try {
       await captureAccountingEvent({

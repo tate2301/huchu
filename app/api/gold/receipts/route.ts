@@ -7,6 +7,7 @@ import {
   paginationResponse,
 } from "@/lib/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
+import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
@@ -279,6 +280,7 @@ export async function POST(request: NextRequest) {
       select: {
         id: true,
         grossWeight: true,
+        siteId: true,
         site: { select: { companyId: true } },
       },
     })
@@ -344,6 +346,23 @@ export async function POST(request: NextRequest) {
       },
       include: receiptInclude,
     })
+
+    try {
+      await recordInventoryEvent(prisma, {
+        companyId: session.user.companyId,
+        siteId: goldPour.siteId,
+        eventDate: receipt.receiptDate,
+        direction: "OUT",
+        grams: goldPour.grossWeight,
+        sourceType: "RECEIPT",
+        sourceId: receipt.id,
+        notes: `Sale ${receipt.receiptNumber}`,
+        createdById: session.user.id,
+        skipValuation: true,
+      })
+    } catch (error) {
+      console.error("[Inventory] receipt OUT event failed:", error)
+    }
 
     try {
       await createJournalEntryFromSource({
