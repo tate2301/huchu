@@ -9,6 +9,7 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
+import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { EmployeeWizard } from "@/components/human-resources/employee-wizard"
 import { HrShell } from "@/components/human-resources/hr-shell"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -545,17 +546,13 @@ export default function HumanResourcesPage() {
           exportValue: (row: EmployeeSummary) => `${row.name} (${row.employeeId})`,
         },
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <Image
-              src={row.original.passportPhotoUrl}
-              alt={row.original.name}
-              width={40}
-              height={40}
-              quality={60}
-              sizes="40px"
-              className="h-10 w-10 shrink-0 rounded-full object-cover shadow-[var(--edge-outline-sharp)]"
+          <div className="flex flex-row items-center gap-3 min-w-0">
+            <EmployeeAvatar
+              name={row.original.name}
+              photoUrl={row.original.passportPhotoUrl}
+              size="lg"
             />
-            <div className="min-w-0">
+            <div className="min-w-0 flex-1">
               <div className="font-semibold truncate">{row.original.name}</div>
               <div className="font-mono text-xs text-muted-foreground truncate">
                 {row.original.employeeId}
