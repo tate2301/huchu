@@ -153,6 +153,9 @@ model Company {
   scrapMetalBatches   ScrapMetalBatch[]
   scrapMetalSales     ScrapMetalSale[]
   scrapTicketComplianceRules ScrapTicketComplianceRule[]
+  goldInventoryEvents GoldInventoryEvent[]
+  goldExceptions      GoldException[]
+  goldLedgerImports   GoldLedgerImport[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -712,6 +715,9 @@ model Site {
   streamSessions       StreamSession[]
   postingRules         PostingRule[]         @relation("PostingRuleSite")
   tenderAccountMappings TenderAccountMapping[]
+  goldInventoryEvents  GoldInventoryEvent[]
+  goldExceptions       GoldException[]
+  goldLedgerImports    GoldLedgerImport[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -858,6 +864,11 @@ model User {
   employeeProfile               Employee?            @relation("EmployeeUser")
   accounts                      Account[] // For NextAuth
   sessions                      Session[] // For NextAuth
+  createdGoldInventoryEvents    GoldInventoryEvent[] @relation("GoldInventoryEventCreatedBy")
+  acknowledgedGoldExceptions    GoldException[]      @relation("GoldExceptionAck")
+  resolvedGoldExceptions        GoldException[]      @relation("GoldExceptionResolved")
+  createdGoldExceptions         GoldException[]      @relation("GoldExceptionCreatedBy")
+  uploadedGoldLedgerImports     GoldLedgerImport[]   @relation("GoldLedgerImportUploadedBy")
 
   @@index([companyId])
   @@index([email])
@@ -1921,6 +1932,7 @@ model ShiftGroup {
   schedules  ShiftGroupSchedule[]
   attendance Attendance[]
   reports    ShiftReport[]
+  goldLedgerEntries GoldLedgerEntry[] @relation("GoldLedgerEntryShiftGroup")
 
   @@unique([companyId, name])
   @@index([companyId, siteId, isActive])
@@ -2267,6 +2279,162 @@ model GoldShiftWorkerShare {
   @@unique([allocationId, employeeId])
   @@index([allocationId])
   @@index([employeeId])
+}
+
+enum GoldInventoryDirection {
+  IN
+  OUT
+}
+
+enum GoldInventorySourceType {
+  POUR
+  RECEIPT
+  ADJUSTMENT
+  SHIFT_ALLOCATION
+}
+
+model GoldInventoryEvent {
+  id          String   @id @default(uuid())
+  companyId   String
+  siteId      String
+  eventDate   DateTime
+  direction   GoldInventoryDirection
+  grams       Float
+  goldPriceUsdPerGram Float?
+  valueUsd    Float?
+  sourceType  GoldInventorySourceType
+  sourceId    String?
+  notes       String?
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site      Site     @relation(fields: [siteId], references: [id])
+  createdBy User?    @relation("GoldInventoryEventCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, siteId, eventDate])
+  @@index([sourceType, sourceId])
+}
+
+enum GoldExceptionCategory {
+  INVENTORY_DEFICIT
+  NAME_UNMAPPED
+  EXPENSE_MISMATCH
+  BALANCE_DRIFT
+  WITNESS_MISSING
+  IMPORT_FAILURE
+}
+
+enum GoldExceptionSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum GoldExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model GoldException {
+  id              String   @id @default(uuid())
+  companyId       String
+  siteId          String?
+  category        GoldExceptionCategory
+  severity        GoldExceptionSeverity @default(WARNING)
+  status          GoldExceptionStatus   @default(OPEN)
+  entityType      String?
+  entityId        String?
+  description     String
+  metadata        String? // JSON
+  acknowledgedById String?
+  acknowledgedAt  DateTime?
+  resolvedById    String?
+  resolvedAt      DateTime?
+  createdById     String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company        Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site           Site?    @relation(fields: [siteId], references: [id])
+  acknowledgedBy User?    @relation("GoldExceptionAck", fields: [acknowledgedById], references: [id])
+  resolvedBy     User?    @relation("GoldExceptionResolved", fields: [resolvedById], references: [id])
+  createdBy      User?    @relation("GoldExceptionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, status])
+  @@index([category])
+  @@index([entityType, entityId])
+}
+
+enum GoldLedgerImportStatus {
+  DRAFT
+  MAPPING
+  PREVIEW
+  COMMITTED
+  FAILED
+  ROLLED_BACK
+}
+
+enum GoldLedgerEntryStatus {
+  PENDING
+  CREATED
+  SKIPPED
+  ANOMALY
+  FAILED
+}
+
+model GoldLedgerImport {
+  id           String   @id @default(uuid())
+  companyId    String
+  siteId       String?
+  uploadedById String
+  fileName     String
+  rowsTotal    Int      @default(0)
+  rowsCreated  Int      @default(0)
+  rowsSkipped  Int      @default(0)
+  rowsAnomaly  Int      @default(0)
+  rowsFailed   Int      @default(0)
+  status       GoldLedgerImportStatus @default(DRAFT)
+  mappingsJson String? // JSON: { "Mutemeri": "shift-group-uuid", ... }
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  committedAt  DateTime?
+
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?    @relation(fields: [siteId], references: [id])
+  uploadedBy User     @relation("GoldLedgerImportUploadedBy", fields: [uploadedById], references: [id])
+  entries    GoldLedgerEntry[]
+
+  @@index([companyId, createdAt])
+}
+
+model GoldLedgerEntry {
+  id                    String   @id @default(uuid())
+  importId              String
+  lineNo                Int
+  rawJson               String   // JSON of original CSV row
+  parsedDate            DateTime?
+  parsedName            String?
+  mappedShiftGroupId    String?
+  gramsTotal            Float?
+  expensesJson          String?  // JSON: [{type, weight}, ...]
+  boysGrams             Float?
+  mdaraGrams            Float?
+  balGrams              Float?   // negative => sale
+  status                GoldLedgerEntryStatus @default(PENDING)
+  goldShiftAllocationId String?
+  buyerReceiptId        String?
+  errorMessage          String?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  import       GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  shiftGroup   ShiftGroup?      @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
+
+  @@unique([importId, lineNo])
+  @@index([importId, status])
 }
 
 // ============================================
@@ -3038,6 +3206,11 @@ enum AccountingSourceType {
   RETAIL_STOCK_ADJUSTMENT
   RETAIL_STOCK_TRANSFER
   RETAIL_SHIFT_VARIANCE
+  GOLD_SHIFT_ALLOCATION_COMPANY
+  GOLD_SHIFT_ALLOCATION_WORKER
+  GOLD_SHIFT_EXPENSE
+  GOLD_PAYOUT
+  GOLD_INVENTORY_ADJUSTMENT
 }
 
 enum PostingRuleScopeType {

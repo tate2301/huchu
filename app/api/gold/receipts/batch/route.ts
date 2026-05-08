@@ -5,6 +5,7 @@ import {
   errorResponse,
 } from "@/lib/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
+import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { reserveIdentifier } from "@/lib/id-generator"
@@ -48,7 +49,13 @@ export async function POST(request: NextRequest) {
 
     const pours = await prisma.goldPour.findMany({
       where: { id: { in: pourIds } },
-      select: { id: true, grossWeight: true, pourBarId: true, site: { select: { companyId: true } } },
+      select: {
+        id: true,
+        grossWeight: true,
+        pourBarId: true,
+        siteId: true,
+        site: { select: { companyId: true } },
+      },
     })
     if (pours.length !== pourIds.length) {
       return errorResponse("One or more batches were not found", 404)
@@ -147,8 +154,29 @@ export async function POST(request: NextRequest) {
 
     for (const result of created.results) {
       try {
-        const receipt = await prisma.buyerReceipt.findUnique({ where: { id: result.id } })
+        const receipt = await prisma.buyerReceipt.findUnique({
+          where: { id: result.id },
+          include: { goldPour: { select: { siteId: true, grossWeight: true } } },
+        })
         if (!receipt) continue
+        if (receipt.goldPour) {
+          try {
+            await recordInventoryEvent(prisma, {
+              companyId: session.user.companyId,
+              siteId: receipt.goldPour.siteId,
+              eventDate: receipt.receiptDate,
+              direction: "OUT",
+              grams: receipt.goldPour.grossWeight,
+              sourceType: "RECEIPT",
+              sourceId: receipt.id,
+              notes: `Sale ${receipt.receiptNumber}`,
+              createdById: session.user.id,
+              skipValuation: true,
+            })
+          } catch (invErr) {
+            console.error("[Inventory] batch receipt OUT failed:", invErr)
+          }
+        }
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
           sourceType: "GOLD_RECEIPT",
