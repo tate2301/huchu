@@ -125,12 +125,53 @@ export function ReceiptForm({
   const dispatchHasMultipleBatches = Boolean(
     selectedDispatch?.batches && selectedDispatch.batches.length > 1,
   );
-  const isBatchMode = dispatchHasMultipleBatches;
+  // Backfill mode without a chosen dispatch: pick batches across the whole pool.
+  const crossDispatchBackfill =
+    quickEntry && !formData.goldDispatchId && availableBatches.length > 0;
+  const isBatchMode = dispatchHasMultipleBatches || crossDispatchBackfill;
 
-  // When dispatch changes, derive line items from its batches.
+  // Look up valueUsd for any pour we may want to autofill.
+  const batchValueByPourId = useMemo(() => {
+    const map = new Map<string, { grossWeight: number; valueUsd: number | null; pourBarId: string; siteName: string }>();
+    for (const batch of availableBatches) {
+      map.set(batch.id, {
+        grossWeight: batch.grossWeight,
+        valueUsd: batch.valueUsd ?? null,
+        pourBarId: batch.pourBarId,
+        siteName: batch.site.name,
+      });
+    }
+    for (const dispatch of availableDispatches) {
+      // Primary batch
+      const primaryId = dispatch.goldPourId;
+      if (!map.has(primaryId)) {
+        map.set(primaryId, {
+          grossWeight: dispatch.goldPour.grossWeight,
+          valueUsd: null,
+          pourBarId: dispatch.goldPour.pourBarId,
+          siteName: dispatch.goldPour.site.name,
+        });
+      }
+      for (const batch of dispatch.batches ?? []) {
+        if (!map.has(batch.goldPourId)) {
+          map.set(batch.goldPourId, {
+            grossWeight: batch.goldPour.grossWeight,
+            valueUsd: batch.goldPour.valueUsd ?? null,
+            pourBarId: batch.goldPour.pourBarId,
+            siteName: batch.goldPour.site.name,
+          });
+        }
+      }
+    }
+    return map;
+  }, [availableBatches, availableDispatches]);
+
+  // When dispatch changes, derive line items from its batches and autofill paid
+  // amounts from the valuation snapshot.
   useEffect(() => {
     if (!selectedDispatch) {
-      setLineItems([]);
+      // Don't blow away lineItems if we're in cross-dispatch backfill — handled below.
+      if (!crossDispatchBackfill) setLineItems([]);
       return;
     }
     const dispatchBatches = selectedDispatch.batches?.length
@@ -138,24 +179,54 @@ export function ReceiptForm({
           goldPourId: batch.goldPourId,
           pourBarId: batch.goldPour.pourBarId,
           grossWeight: batch.goldPour.grossWeight,
+          valueUsd: batch.goldPour.valueUsd ?? null,
         }))
       : [
           {
             goldPourId: selectedDispatch.goldPourId,
             pourBarId: selectedDispatch.goldPour.pourBarId,
             grossWeight: selectedDispatch.goldPour.grossWeight,
+            valueUsd: null as number | null,
           },
         ];
 
     setLineItems(
       dispatchBatches.map((batch) => ({
-        ...batch,
+        goldPourId: batch.goldPourId,
+        pourBarId: batch.pourBarId,
+        grossWeight: batch.grossWeight,
         assayResult: "",
-        paidAmount: "",
+        paidAmount: batch.valueUsd != null ? batch.valueUsd.toFixed(2) : "",
         selected: !soldPourIds?.has(batch.goldPourId),
       })),
     );
-  }, [selectedDispatch, soldPourIds]);
+  }, [selectedDispatch, soldPourIds, crossDispatchBackfill]);
+
+  // Cross-dispatch backfill: load all unsold batches as line items.
+  useEffect(() => {
+    if (!crossDispatchBackfill) return;
+    setLineItems(
+      availableBatches.slice(0, 50).map((batch) => ({
+        goldPourId: batch.id,
+        pourBarId: batch.pourBarId,
+        grossWeight: batch.grossWeight,
+        assayResult: "",
+        paidAmount: batch.valueUsd != null ? batch.valueUsd.toFixed(2) : "",
+        selected: false,
+      })),
+    );
+  }, [crossDispatchBackfill, availableBatches]);
+
+  // Single-mode: when a batch is picked, autofill paidAmount from its valuation.
+  useEffect(() => {
+    if (isBatchMode || !formData.goldPourId) return;
+    const batch = batchValueByPourId.get(formData.goldPourId);
+    if (!batch) return;
+    if (formData.paidAmount) return; // don't clobber user input
+    if (batch.valueUsd != null) {
+      setFormData((prev) => ({ ...prev, paidAmount: batch.valueUsd!.toFixed(2) }));
+    }
+  }, [formData.goldPourId, isBatchMode, batchValueByPourId, formData.paidAmount]);
 
   const batchOptions = useMemo(
     () =>
@@ -316,7 +387,8 @@ export function ReceiptForm({
     }
     if (isBatchMode) {
       createBatchReceiptMutation.mutate({
-        goldDispatchId: formData.goldDispatchId,
+        // Cross-dispatch backfill: don't lock items to one dispatch.
+        goldDispatchId: formData.goldDispatchId || undefined,
         receiptDate: formData.receiptDate,
         paymentMethod: formData.paymentMethod,
         paymentChannel: formData.paymentChannel?.trim() || undefined,
@@ -423,15 +495,26 @@ export function ReceiptForm({
             options={[{ value: "", label: "No dispatch (direct from batch)" }, ...dispatchOptions]}
             placeholder={availableDispatches.length === 0 ? "No active dispatches" : "Select dispatch"}
             searchPlaceholder="Search dispatches..."
-            onValueChange={(value) =>
+            onValueChange={(value) => {
+              if (value === "") {
+                setFormData((prev) => ({ ...prev, goldDispatchId: "", goldPourId: "" }));
+                return;
+              }
+              const dispatch = dispatchById.get(value);
               setFormData((prev) => ({
                 ...prev,
-                goldDispatchId: value === "" ? "" : value,
-                goldPourId: "",
-              }))
-            }
+                goldDispatchId: value,
+                // Auto-select primary batch so single-batch dispatches don't need a second click.
+                goldPourId: dispatch?.goldPourId ?? "",
+                // Reset paidAmount so the autofill effect can kick in fresh.
+                paidAmount: "",
+              }));
+            }}
           />
-          <p className="mt-1 text-xs text-muted-foreground">Pick a multi-batch dispatch to enter all batch sales at once.</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Pick a dispatch to auto-fill its batches and amounts. Leave blank in
+            backfill mode to record sales across many dispatches in one go.
+          </p>
         </div>
 
         {!isBatchMode ? (
@@ -491,7 +574,8 @@ export function ReceiptForm({
           <div className="border-t pt-4 space-y-3">
             <div className="flex items-center justify-between">
               <h4 className="text-sm font-semibold">
-                Batch Receipts ({selectedLineItems.length} of {lineItems.length} selected)
+                {crossDispatchBackfill ? "Backfill receipts" : "Batch Receipts"}{" "}
+                ({selectedLineItems.length} of {lineItems.length} selected)
               </h4>
               <button
                 type="button"
@@ -503,6 +587,12 @@ export function ReceiptForm({
                 Select all
               </button>
             </div>
+            {crossDispatchBackfill ? (
+              <p className="text-xs text-muted-foreground">
+                Pick any unsold batches — across dispatches or direct sales — and record their
+                receipts in one go. Amounts are pre-filled from each batch's USD valuation.
+              </p>
+            ) : null}
             <div className="rounded-md border divide-y">
               {lineItems.map((item, index) => {
                 const alreadySold = soldPourIds?.has(item.goldPourId);
