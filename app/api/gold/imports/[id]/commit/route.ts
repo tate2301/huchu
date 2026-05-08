@@ -54,14 +54,18 @@ export async function POST(
     let totalSaleGrams = 0
     let totalDeficitGrams = 0
 
-    // Production rows (have grams + mapping)
+    // Production rows: process anything not yet anchored to an allocation.
+    // PENDING (fresh), ANOMALY (parser warnings — still saveable, just flagged),
+    // FAILED (previous-attempt remnants from a bug we've since fixed).
+    // Once a row has goldShiftAllocationId it's done — we don't re-create.
     const productionEntries = importRecord.entries.filter(
       (e) =>
         e.gramsTotal != null &&
         e.gramsTotal > 0 &&
         e.mappedShiftGroupId &&
         e.parsedDate &&
-        (e.status === "PENDING" || e.status === "ANOMALY"),
+        !e.goldShiftAllocationId &&
+        (e.status === "PENDING" || e.status === "ANOMALY" || e.status === "FAILED"),
     )
 
     for (const entry of productionEntries) {
@@ -239,14 +243,39 @@ export async function POST(
             })
           }
 
+          // Preserve anomaly flag if the parser noted a warning on this row
+          // (e.g., Tot Exp mismatch). The allocation IS saved — we just keep
+          // the row flagged ANOMALY with its original errorMessage so the
+          // manager can review later.
+          const hadParserWarning =
+            entry.status === "ANOMALY" && !!entry.errorMessage
           await tx.goldLedgerEntry.update({
             where: { id: entry.id },
             data: {
               goldShiftAllocationId: allocation.id,
-              status: "CREATED",
-              errorMessage: null,
+              status: hadParserWarning ? "ANOMALY" : "CREATED",
+              // Keep the original parser warning visible.
             },
           })
+          if (hadParserWarning) {
+            await tx.goldException.create({
+              data: {
+                companyId,
+                siteId,
+                category: "EXPENSE_MISMATCH",
+                severity: "WARNING",
+                entityType: "GoldShiftAllocation",
+                entityId: allocation.id,
+                description: `Ledger line ${entry.lineNo} saved with parser warning: ${entry.errorMessage}`,
+                metadata: JSON.stringify({
+                  ledgerImportId: importRecord.id,
+                  ledgerEntryId: entry.id,
+                  parserWarning: entry.errorMessage,
+                }),
+                createdById: userId,
+              },
+            })
+          }
           allocationsCreated += 1
           if (createdPourId) poursCreated += 1
 
@@ -330,7 +359,13 @@ export async function POST(
             })
           }
         })
+        // Anomaly-saved rows count toward rowsCreated (we did create the
+        // allocation) AND toward rowsAnomaly (so the wizard surfaces them
+        // as "saved with warning"). The two are deliberately overlapping.
+        const wasAnomaly =
+          entry.status === "ANOMALY" && !!entry.errorMessage
         rowsCreated += 1
+        if (wasAnomaly) rowsAnomaly += 1
       } catch (rowError) {
         const message = rowError instanceof Error ? rowError.message : String(rowError)
         await prisma.goldLedgerEntry.update({
@@ -376,14 +411,24 @@ export async function POST(
               },
             })
           }
+          // Don't clobber an ANOMALY flag that the production pass put on
+          // this same row (e.g., parser warning on a row that's both
+          // production + sale). Promote PENDING/FAILED to CREATED only if
+          // FIFO fully covered the sale.
+          const currentEntry = await tx.goldLedgerEntry.findUnique({
+            where: { id: entry.id },
+            select: { status: true, errorMessage: true },
+          })
+          const stayAnomaly =
+            r.isAnomaly || currentEntry?.status === "ANOMALY"
           await tx.goldLedgerEntry.update({
             where: { id: entry.id },
             data: {
-              status: r.isAnomaly ? "ANOMALY" : "CREATED",
+              status: stayAnomaly ? "ANOMALY" : "CREATED",
               buyerReceiptId: r.receiptIds[0] ?? null,
               errorMessage: r.isAnomaly
                 ? `Inventory deficit ${r.remainingGrams.toFixed(3)} g`
-                : null,
+                : currentEntry?.errorMessage ?? null,
             },
           })
           return r
