@@ -92,7 +92,72 @@ export async function POST(
           // ANOMALY + a tracked exception and move on, rather than blowing
           // up the whole import.
           if (!group) {
-            rowWarnings.push("Mapped shift group not found")
+            // Fallback: missing shift group means we can't create a
+            // ShiftReport (FK requires it) and so we can't create the
+            // allocation. But the gold output really did happen — save a
+            // bare GoldPour using fallback witnesses (any 2 active
+            // employees) so the row still produces a record.
+            rowWarnings.push(
+              "Mapped shift group not found — saved as bare pour without allocation",
+            )
+            const fallbackWitnesses = await tx.employee.findMany({
+              where: { companyId, isActive: true },
+              select: { id: true },
+              take: 2,
+            })
+            let fallbackPourId: string | null = null
+            if (
+              fallbackWitnesses.length >= 2 &&
+              entry.gramsTotal &&
+              entry.gramsTotal > 0
+            ) {
+              const pourBarId = await reserveIdentifier(tx, {
+                companyId,
+                entity: "GOLD_POUR",
+              })
+              const valuation = await snapshotGoldUsdValue({
+                companyId,
+                businessDate: entry.parsedDate!,
+                grams: entry.gramsTotal,
+              })
+              const pour = await tx.goldPour.create({
+                data: {
+                  siteId,
+                  pourBarId,
+                  pourDate: entry.parsedDate!,
+                  grossWeight: entry.gramsTotal,
+                  goldPriceUsdPerGram: valuation?.goldPriceUsdPerGram ?? null,
+                  valuationDate: valuation?.valuationDate ?? null,
+                  valueUsd: valuation?.valueUsd ?? null,
+                  witness1Id: fallbackWitnesses[0].id,
+                  witness2Id: fallbackWitnesses[1].id,
+                  storageLocation: "Vault (unverified)",
+                  notes: `Imported from ledger line ${entry.lineNo} — shift group ${entry.mappedShiftGroupId} not found. Witnesses are fallback employees; please reconcile.`,
+                  createdById: userId,
+                },
+                select: { id: true, pourBarId: true },
+              })
+              fallbackPourId = pour.id
+              await recordInventoryEvent(tx, {
+                companyId,
+                siteId,
+                eventDate: entry.parsedDate!,
+                direction: "IN",
+                grams: entry.gramsTotal,
+                goldPriceUsdPerGram: valuation?.goldPriceUsdPerGram ?? null,
+                valueUsd: valuation?.valueUsd ?? null,
+                sourceType: "POUR",
+                sourceId: pour.id,
+                notes: `Bare pour ${pour.pourBarId} (no allocation) line ${entry.lineNo}`,
+                createdById: userId,
+                skipValuation: true,
+              })
+              poursCreated += 1
+            } else if (fallbackWitnesses.length < 2) {
+              rowWarnings.push(
+                "Could not save bare pour — fewer than 2 active employees in the company",
+              )
+            }
             await tx.goldLedgerEntry.update({
               where: { id: entry.id },
               data: {
@@ -106,9 +171,9 @@ export async function POST(
                 siteId,
                 category: "NAME_UNMAPPED",
                 severity: "WARNING",
-                entityType: "GoldLedgerEntry",
-                entityId: entry.id,
-                description: `Ledger line ${entry.lineNo}: shift group ${entry.mappedShiftGroupId} not found`,
+                entityType: fallbackPourId ? "GoldPour" : "GoldLedgerEntry",
+                entityId: fallbackPourId ?? entry.id,
+                description: `Ledger line ${entry.lineNo}: shift group ${entry.mappedShiftGroupId} not found${fallbackPourId ? "; saved as bare pour" : ""}`,
                 createdById: userId,
               },
             })
