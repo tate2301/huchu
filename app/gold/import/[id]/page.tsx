@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GoldShell } from "@/components/gold/gold-shell";
@@ -14,7 +14,8 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
 import { goldRoutes } from "@/app/gold/routes";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
-import { ChevronLeftIcon } from "@/lib/icons";
+import { ChevronLeftIcon, AlertCircle } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 
 type LedgerEntry = {
   id: string;
@@ -32,10 +33,218 @@ type LedgerEntry = {
   goldPourId: string | null;
   buyerReceiptId: string | null;
   errorMessage: string | null;
+  parserWarning: string | null;
   shiftGroup: { id: string; name: string } | null;
 };
 
 type ExpenseBreakdown = Array<{ type: string; weight: number }>;
+
+const KNOWN_EXPENSE_TYPES = ["Diesel", "Shoots", "LCD"] as const;
+
+const STATUS_ROW_TINT: Record<LedgerEntry["status"], string> = {
+  CREATED: "bg-emerald-50/50 border-l-2 border-l-emerald-400",
+  ANOMALY: "bg-amber-50/60 border-l-2 border-l-amber-400",
+  FAILED: "bg-rose-50/60 border-l-2 border-l-rose-400",
+  PENDING: "border-l-2 border-l-transparent",
+  SKIPPED: "bg-muted/30 border-l-2 border-l-muted-foreground/20",
+};
+
+const STATUS_TONE: Record<
+  LedgerEntry["status"],
+  Parameters<typeof StatusChip>[0]["status"]
+> = {
+  CREATED: "passing",
+  ANOMALY: "warning",
+  FAILED: "danger",
+  PENDING: "pending",
+  SKIPPED: "pending",
+};
+
+function expenseWeightFor(type: string, list: ExpenseBreakdown): number | null {
+  const match = list.find(
+    (e) => e.type.toLowerCase() === type.toLowerCase(),
+  );
+  return match ? match.weight : null;
+}
+
+/**
+ * Replace (or add) a single expense type's weight in the breakdown,
+ * preserving the order of the others. Setting weight to null/0 removes
+ * the row.
+ */
+function upsertExpense(
+  list: ExpenseBreakdown,
+  type: string,
+  weight: number | null,
+): ExpenseBreakdown {
+  const lower = type.toLowerCase();
+  const without = list.filter((e) => e.type.toLowerCase() !== lower);
+  if (weight == null || weight <= 0) return without;
+  // Try to keep the canonical name if the type was already there.
+  const existing = list.find((e) => e.type.toLowerCase() === lower);
+  return [...without, { type: existing?.type ?? type, weight }];
+}
+
+type EditableNumberProps = {
+  value: number | null | undefined;
+  onSave: (next: number | null) => void;
+  step?: number;
+  align?: "left" | "right";
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  format?: (n: number) => string;
+};
+
+function EditableNumber({
+  value,
+  onSave,
+  step = 0.01,
+  align = "right",
+  placeholder = "—",
+  disabled,
+  className,
+  format = (n) => n.toFixed(3),
+}: EditableNumberProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value != null ? String(value) : "");
+
+  useEffect(() => {
+    if (!editing) setDraft(value != null ? String(value) : "");
+  }, [value, editing]);
+
+  if (disabled || value === undefined) {
+    return (
+      <span
+        className={cn(
+          "font-mono",
+          align === "right" ? "text-right" : "text-left",
+          className,
+        )}
+      >
+        {value != null ? format(value) : placeholder}
+      </span>
+    );
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(value != null ? String(value) : "");
+          setEditing(true);
+        }}
+        className={cn(
+          "font-mono cursor-text rounded px-1 py-0.5 transition-colors hover:bg-muted/60 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring",
+          align === "right" ? "ml-auto block text-right" : "block text-left",
+          value == null && "text-muted-foreground italic",
+          className,
+        )}
+        title="Click to edit"
+      >
+        {value != null ? format(value) : placeholder}
+      </button>
+    );
+  }
+
+  const commit = () => {
+    const trimmed = draft.trim();
+    let next: number | null = null;
+    if (trimmed !== "") {
+      const parsed = Number(trimmed);
+      if (Number.isFinite(parsed)) next = parsed;
+    }
+    if (next !== (value ?? null)) onSave(next);
+    setEditing(false);
+  };
+
+  return (
+    <input
+      autoFocus
+      type="number"
+      step={step}
+      inputMode="decimal"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          (e.target as HTMLInputElement).blur();
+        } else if (e.key === "Escape") {
+          setDraft(value != null ? String(value) : "");
+          setEditing(false);
+        }
+      }}
+      className={cn(
+        "w-20 rounded border border-primary/40 bg-background px-1 py-0.5 text-xs font-mono outline-none ring-2 ring-primary/20 focus:ring-primary/30",
+        align === "right" ? "text-right" : "text-left",
+      )}
+    />
+  );
+}
+
+type EditableDateProps = {
+  value: string | null | undefined;
+  onSave: (iso: string | null) => void;
+  disabled?: boolean;
+};
+
+function EditableDate({ value, onSave, disabled }: EditableDateProps) {
+  const display = value ? new Date(value).toLocaleDateString() : "—";
+  const isoDate = value ? new Date(value).toISOString().slice(0, 10) : "";
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(isoDate);
+
+  useEffect(() => {
+    if (!editing) setDraft(isoDate);
+  }, [isoDate, editing]);
+
+  if (disabled) {
+    return <span className="whitespace-nowrap">{display}</span>;
+  }
+
+  if (!editing) {
+    return (
+      <button
+        type="button"
+        onClick={() => {
+          setDraft(isoDate);
+          setEditing(true);
+        }}
+        className="cursor-text rounded px-1 py-0.5 transition-colors hover:bg-muted/60 whitespace-nowrap"
+        title="Click to edit"
+      >
+        {display}
+      </button>
+    );
+  }
+
+  const commit = () => {
+    if (draft && draft !== isoDate) onSave(draft);
+    else if (!draft && value) onSave(null);
+    setEditing(false);
+  };
+
+  return (
+    <input
+      autoFocus
+      type="date"
+      value={draft}
+      onChange={(e) => setDraft(e.target.value)}
+      onBlur={commit}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+        if (e.key === "Escape") {
+          setDraft(isoDate);
+          setEditing(false);
+        }
+      }}
+      className="rounded border border-primary/40 bg-background px-1 py-0.5 text-xs outline-none ring-2 ring-primary/20"
+    />
+  );
+}
 
 function parseExpenses(json: string | null): ExpenseBreakdown {
   if (!json) return [];
@@ -230,6 +439,46 @@ export default function GoldImportDetailPage() {
     flushTimer.current = setTimeout(() => {
       patchMutation.mutate({ mappings: nextMappings });
     }, 350);
+  };
+
+  // Per-entry inline edit. Refuses for entries that already produced
+  // records (server enforces too).
+  const entryMutation = useMutation({
+    mutationFn: async (input: {
+      entryId: string;
+      patch: {
+        parsedDate?: string | null;
+        gramsTotal?: number | null;
+        expenses?: ExpenseBreakdown;
+        boysGrams?: number | null;
+        mdaraGrams?: number | null;
+        balGrams?: number | null;
+      };
+    }) =>
+      fetchJson<unknown>(
+        `/api/gold/imports/${id}/entries/${input.entryId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(input.patch),
+        },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not save change",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const updateEntry = (
+    entryId: string,
+    patch: Parameters<typeof entryMutation.mutate>[0]["patch"],
+  ) => {
+    entryMutation.mutate({ entryId, patch });
   };
 
   return (
@@ -442,10 +691,14 @@ export default function GoldImportDetailPage() {
                 {isLocked ? "Allocations & expenses" : "3 · Preview rows"}
               </h2>
               <p className="text-xs text-muted-foreground">
-                {data.entries.length} rows. Expense breakdown is per-row
-                (Diesel/Shoots/LCD). Company total = Mdara + total expenses.
-                Negative Bal = sale out. Click a row's batch link to open the
-                full chain detail.
+                {data.entries.length} rows ·{" "}
+                <span className="text-emerald-700">CREATED</span>{" "}
+                <span className="text-amber-700">ANOMALY</span>{" "}
+                <span className="text-rose-700">FAILED</span>{" "}
+                <span className="text-muted-foreground">PENDING</span>.{" "}
+                {isLocked
+                  ? "Already committed — reset the import to edit."
+                  : "Click any number to edit before commit. Anomaly rows save with a flag and are reconciled later."}
               </p>
             </div>
             <Button asChild size="sm" variant="outline">
@@ -456,18 +709,23 @@ export default function GoldImportDetailPage() {
             <table className="min-w-full text-xs">
               <thead className="bg-muted/40">
                 <tr className="text-left">
-                  <th className="px-3 py-2">#</th>
-                  <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Leader / Group</th>
-                  <th className="px-3 py-2 text-right">Gross</th>
-                  <th className="px-3 py-2 text-right">Total exp.</th>
-                  <th className="px-3 py-2">Expense breakdown</th>
-                  <th className="px-3 py-2 text-right">Boys</th>
-                  <th className="px-3 py-2 text-right">Mdara</th>
-                  <th className="px-3 py-2 text-right">Co. total</th>
-                  <th className="px-3 py-2 text-right">Bal</th>
-                  <th className="px-3 py-2">Batch</th>
-                  <th className="px-3 py-2">Status</th>
+                  <th className="px-2 py-2 w-10">#</th>
+                  <th className="px-2 py-2">Date</th>
+                  <th className="px-2 py-2">Leader / Group</th>
+                  <th className="px-2 py-2 text-right">Gross</th>
+                  {KNOWN_EXPENSE_TYPES.map((t) => (
+                    <th key={t} className="px-2 py-2 text-right">
+                      {t}
+                    </th>
+                  ))}
+                  <th className="px-2 py-2 text-right">Other</th>
+                  <th className="px-2 py-2 text-right">Σ exp</th>
+                  <th className="px-2 py-2 text-right">Boys</th>
+                  <th className="px-2 py-2 text-right">Mdara</th>
+                  <th className="px-2 py-2 text-right">Co. total</th>
+                  <th className="px-2 py-2 text-right">Bal</th>
+                  <th className="px-2 py-2">Batch</th>
+                  <th className="px-2 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
@@ -477,12 +735,16 @@ export default function GoldImportDetailPage() {
                     (sum, exp) => sum + exp.weight,
                     0,
                   );
-                  const expenseBreakdown =
-                    expenses.length === 0
-                      ? "—"
-                      : expenses
-                          .map((exp) => `${exp.type} ${exp.weight.toFixed(2)}`)
-                          .join(" · ");
+                  const otherExpenses = expenses.filter(
+                    (exp) =>
+                      !KNOWN_EXPENSE_TYPES.some(
+                        (t) => t.toLowerCase() === exp.type.toLowerCase(),
+                      ),
+                  );
+                  const otherTotal = otherExpenses.reduce(
+                    (s, x) => s + x.weight,
+                    0,
+                  );
                   const companyTotal =
                     e.mdaraGrams != null
                       ? +(e.mdaraGrams + expenseTotal).toFixed(3)
@@ -498,95 +760,209 @@ export default function GoldImportDetailPage() {
                     (mappedGroupId
                       ? groups.find((g) => g.id === mappedGroupId)?.name
                       : null);
-                  const tone =
-                    e.status === "CREATED"
-                      ? "passing"
+                  const rowLocked = !!(
+                    e.goldShiftAllocationId ||
+                    e.goldPourId ||
+                    e.buyerReceiptId ||
+                    isLocked
+                  );
+                  const flagMessage = e.errorMessage ?? null;
+                  const flagSeverity: "warning" | "danger" | null =
+                    e.status === "FAILED"
+                      ? "danger"
                       : e.status === "ANOMALY"
                         ? "warning"
-                        : e.status === "FAILED"
-                          ? "danger"
-                          : "pending";
+                        : null;
+                  const colCount = 15;
+                  const setExpense = (type: string) => (next: number | null) => {
+                    const nextExpenses = upsertExpense(expenses, type, next);
+                    updateEntry(e.id, { expenses: nextExpenses });
+                  };
                   return (
-                    <tr key={e.id} className="border-t align-top">
-                      <td className="px-3 py-1.5">{e.lineNo}</td>
-                      <td className="px-3 py-1.5 whitespace-nowrap">
-                        {e.parsedDate
-                          ? new Date(e.parsedDate).toLocaleDateString()
-                          : "—"}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <div className="font-mono font-semibold">
-                          {e.parsedName ?? "—"}
-                        </div>
-                        {groupName ? (
-                          <div className="text-[10px] text-muted-foreground">
-                            {groupName}
-                          </div>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-medium">
-                        {grams(e.gramsTotal)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {expenseTotal > 0 ? grams(expenseTotal) : "—"}
-                      </td>
-                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
-                        {expenseBreakdown}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {grams(e.boysGrams)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right">
-                        {grams(e.mdaraGrams)}
-                      </td>
-                      <td className="px-3 py-1.5 text-right font-medium">
-                        {grams(companyTotal)}
-                      </td>
-                      <td
-                        className={`px-3 py-1.5 text-right ${
-                          e.balGrams != null && e.balGrams < 0
-                            ? "text-rose-600 font-semibold"
-                            : ""
-                        }`}
-                      >
-                        {grams(e.balGrams)}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        {e.goldShiftAllocationId ? (
-                          <Link
-                            href={`/gold/insights/allocations/${e.goldShiftAllocationId}`}
-                            className="text-primary hover:underline"
-                          >
-                            allocation →
-                          </Link>
-                        ) : e.goldPourId ? (
-                          <Link
-                            href={`/gold/intake/pours/${e.goldPourId}`}
-                            className="text-primary hover:underline"
-                          >
-                            bare pour →
-                          </Link>
-                        ) : (
-                          <span className="text-muted-foreground">—</span>
+                    <Fragment key={e.id}>
+                      <tr
+                        className={cn(
+                          "border-t align-top",
+                          STATUS_ROW_TINT[e.status],
                         )}
-                        {e.buyerReceiptId ? (
-                          <Link
-                            href={`/gold/settlement/receipts/${e.buyerReceiptId}`}
-                            className="ml-2 text-primary hover:underline"
-                          >
-                            sale →
-                          </Link>
-                        ) : null}
-                      </td>
-                      <td className="px-3 py-1.5">
-                        <StatusChip status={tone} label={e.status} />
-                        {e.errorMessage ? (
-                          <p className="mt-0.5 text-[10px] text-muted-foreground max-w-[240px]">
-                            {e.errorMessage}
-                          </p>
-                        ) : null}
-                      </td>
-                    </tr>
+                      >
+                        <td className="px-2 py-1.5 text-muted-foreground">
+                          {e.lineNo}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <EditableDate
+                            value={e.parsedDate}
+                            onSave={(iso) =>
+                              updateEntry(e.id, { parsedDate: iso })
+                            }
+                            disabled={rowLocked}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <div className="font-mono font-semibold">
+                            {e.parsedName ?? "—"}
+                          </div>
+                          {groupName ? (
+                            <div className="text-[10px] text-muted-foreground">
+                              {groupName}
+                            </div>
+                          ) : (
+                            <div className="text-[10px] text-amber-700">
+                              not mapped
+                            </div>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-medium">
+                          <EditableNumber
+                            value={e.gramsTotal}
+                            onSave={(n) =>
+                              updateEntry(e.id, { gramsTotal: n })
+                            }
+                            disabled={rowLocked}
+                          />
+                        </td>
+                        {KNOWN_EXPENSE_TYPES.map((t) => (
+                          <td key={t} className="px-2 py-1.5 text-right">
+                            <EditableNumber
+                              value={expenseWeightFor(t, expenses)}
+                              onSave={setExpense(t)}
+                              disabled={rowLocked}
+                            />
+                          </td>
+                        ))}
+                        <td
+                          className="px-2 py-1.5 text-right text-muted-foreground"
+                          title={
+                            otherExpenses.length === 0
+                              ? "No other expense types"
+                              : otherExpenses
+                                  .map(
+                                    (x) => `${x.type}: ${x.weight.toFixed(2)} g`,
+                                  )
+                                  .join(" · ")
+                          }
+                        >
+                          {otherTotal > 0 ? (
+                            <span>
+                              {otherTotal.toFixed(2)}
+                              <span className="ml-1 text-[10px]">
+                                ({otherExpenses.length})
+                              </span>
+                            </span>
+                          ) : (
+                            "—"
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-medium">
+                          {expenseTotal > 0 ? grams(expenseTotal) : "—"}
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-blue-700">
+                          <EditableNumber
+                            value={e.boysGrams}
+                            onSave={(n) =>
+                              updateEntry(e.id, { boysGrams: n })
+                            }
+                            disabled={rowLocked}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-right text-emerald-700">
+                          <EditableNumber
+                            value={e.mdaraGrams}
+                            onSave={(n) =>
+                              updateEntry(e.id, { mdaraGrams: n })
+                            }
+                            disabled={rowLocked}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5 text-right font-medium">
+                          {grams(companyTotal)}
+                        </td>
+                        <td
+                          className={cn(
+                            "px-2 py-1.5 text-right",
+                            e.balGrams != null &&
+                              e.balGrams < 0 &&
+                              "font-semibold text-rose-700",
+                          )}
+                        >
+                          <EditableNumber
+                            value={e.balGrams}
+                            onSave={(n) => updateEntry(e.id, { balGrams: n })}
+                            disabled={rowLocked}
+                          />
+                        </td>
+                        <td className="px-2 py-1.5">
+                          {e.goldShiftAllocationId ? (
+                            <Link
+                              href={`/gold/insights/allocations/${e.goldShiftAllocationId}`}
+                              className="text-primary hover:underline"
+                            >
+                              allocation →
+                            </Link>
+                          ) : e.goldPourId ? (
+                            <Link
+                              href={`/gold/intake/pours/${e.goldPourId}`}
+                              className="text-primary hover:underline"
+                            >
+                              bare pour →
+                            </Link>
+                          ) : (
+                            <span className="text-muted-foreground">—</span>
+                          )}
+                          {e.buyerReceiptId ? (
+                            <Link
+                              href={`/gold/settlement/receipts/${e.buyerReceiptId}`}
+                              className="ml-2 text-primary hover:underline"
+                            >
+                              sale →
+                            </Link>
+                          ) : null}
+                        </td>
+                        <td className="px-2 py-1.5">
+                          <StatusChip
+                            status={STATUS_TONE[e.status]}
+                            label={e.status}
+                          />
+                        </td>
+                      </tr>
+                      {flagMessage ? (
+                        <tr
+                          className={cn(
+                            "border-t",
+                            flagSeverity === "danger"
+                              ? "bg-rose-50/60"
+                              : "bg-amber-50/60",
+                          )}
+                        >
+                          <td colSpan={colCount} className="px-2 py-1.5">
+                            <div
+                              className={cn(
+                                "flex items-start gap-2 text-[11px]",
+                                flagSeverity === "danger"
+                                  ? "text-rose-800"
+                                  : "text-amber-800",
+                              )}
+                            >
+                              <AlertCircle className="h-3.5 w-3.5 mt-0.5 shrink-0" />
+                              <div>
+                                <span className="font-semibold">
+                                  {flagSeverity === "danger"
+                                    ? "Failed:"
+                                    : "Anomaly:"}
+                                </span>{" "}
+                                {flagMessage}
+                                {e.parserWarning &&
+                                e.parserWarning !== flagMessage ? (
+                                  <span className="ml-2 italic opacity-80">
+                                    (parser: {e.parserWarning})
+                                  </span>
+                                ) : null}
+                              </div>
+                            </div>
+                          </td>
+                        </tr>
+                      ) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -594,13 +970,26 @@ export default function GoldImportDetailPage() {
                 {(() => {
                   const totals = data.entries.reduce(
                     (acc, e) => {
-                      const exp = parseExpenses(e.expensesJson).reduce(
-                        (s, x) => s + x.weight,
-                        0,
-                      );
+                      const expList = parseExpenses(e.expensesJson);
+                      const exp = expList.reduce((s, x) => s + x.weight, 0);
+                      const perType: Record<string, number> = { ...acc.perType };
+                      for (const t of KNOWN_EXPENSE_TYPES) {
+                        const w = expenseWeightFor(t, expList) ?? 0;
+                        perType[t] = (perType[t] ?? 0) + w;
+                      }
+                      const otherTotal = expList
+                        .filter(
+                          (x) =>
+                            !KNOWN_EXPENSE_TYPES.some(
+                              (t) =>
+                                t.toLowerCase() === x.type.toLowerCase(),
+                            ),
+                        )
+                        .reduce((s, x) => s + x.weight, 0);
                       return {
                         gross: acc.gross + (e.gramsTotal ?? 0),
                         expense: acc.expense + exp,
+                        other: acc.other + otherTotal,
                         boys: acc.boys + (e.boysGrams ?? 0),
                         mdara: acc.mdara + (e.mdaraGrams ?? 0),
                         bal:
@@ -608,35 +997,53 @@ export default function GoldImportDetailPage() {
                           (e.balGrams != null && e.balGrams < 0
                             ? e.balGrams
                             : 0),
+                        perType,
                       };
                     },
-                    { gross: 0, expense: 0, boys: 0, mdara: 0, bal: 0 },
+                    {
+                      gross: 0,
+                      expense: 0,
+                      other: 0,
+                      boys: 0,
+                      mdara: 0,
+                      bal: 0,
+                      perType: {} as Record<string, number>,
+                    },
                   );
                   return (
                     <tr className="border-t">
-                      <td className="px-3 py-2" colSpan={3}>
+                      <td className="px-2 py-2" colSpan={3}>
                         Totals ({data.entries.length} rows)
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-2 py-2 text-right">
                         {grams(totals.gross)}
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      {KNOWN_EXPENSE_TYPES.map((t) => (
+                        <td key={t} className="px-2 py-2 text-right">
+                          {totals.perType[t]
+                            ? grams(totals.perType[t])
+                            : "—"}
+                        </td>
+                      ))}
+                      <td className="px-2 py-2 text-right">
+                        {totals.other > 0 ? grams(totals.other) : "—"}
+                      </td>
+                      <td className="px-2 py-2 text-right">
                         {grams(totals.expense)}
                       </td>
-                      <td className="px-3 py-2" />
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-2 py-2 text-right text-blue-700">
                         {grams(totals.boys)}
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-2 py-2 text-right text-emerald-700">
                         {grams(totals.mdara)}
                       </td>
-                      <td className="px-3 py-2 text-right">
+                      <td className="px-2 py-2 text-right">
                         {grams(totals.mdara + totals.expense)}
                       </td>
-                      <td className="px-3 py-2 text-right text-rose-700">
+                      <td className="px-2 py-2 text-right text-rose-700">
                         {totals.bal === 0 ? "—" : grams(totals.bal)}
                       </td>
-                      <td className="px-3 py-2" colSpan={2} />
+                      <td className="px-2 py-2" colSpan={2} />
                     </tr>
                   );
                 })()}
