@@ -1,0 +1,33 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/agent-charter-check.js",
+            "async": true,
+            "statusMessage": "Checking charter boundaries..."
+          },
+          {
+            "type": "command",
+            "command": "node scripts/agent-paired-test-check.js",
+            "async": true,
+            "statusMessage": "Checking for paired test..."
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node scripts/agent-stop-summary.js"
+          }
+        ]
+      }
+    ]
+  }
+}

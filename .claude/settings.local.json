@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npx tsc *)",
+      "Bash(pg_isready -h localhost -p 5432)",
+      "Bash(grep -i \"block\\\\|code\\\\|\\\\`\\\\`\\\\`\")",
+      "Bash(awk '/GoldInventoryEvent.*append|append.*GoldInventoryEvent|DB.level.*trigger|trigger.*DB.level|Postgres trigger/{found=1} found{print NR\": \"$0; if\\(/```/ && count++>0\\){exit}}' /mnt/c/Users/Atipamara/work/huchu/docs/gold-module-review-2026-05-09.md)",
+      "Bash(awk NR>=555 && NR<=600 *)",
+      "Bash(awk NR>=1470 && NR<=1510 *)",
+      "Bash(NODE_OPTIONS=\"--max-old-space-size=4096\" npx tsc --noEmit)",
+      "Bash(echo \"TSC_EXIT:$?\")",
+      "Bash(npx eslint *)",
+      "Bash(echo \"ESLINT_EXIT:$?\")",
+      "Bash(npx prisma *)",
+      "Bash(node *)",
+      "Bash(git -C /mnt/c/Users/Atipamara/work/huchu stash)",
+      "Bash(echo \"EXIT:$?\")",
+      "Bash(git -C /mnt/c/Users/Atipamara/work/huchu stash pop)",
+      "Bash(git *)",
+      "Bash(DATABASE_URL=\"postgresql://huchu:huchu_dev@localhost:5432/huchu_test\" npx prisma *)",
+      "Bash(npx vitest *)",
+      "Bash(pnpm install *)"
+    ]
+  }
+}
