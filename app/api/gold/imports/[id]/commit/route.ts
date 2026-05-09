@@ -575,16 +575,32 @@ export async function POST(
             include: { expenses: true, workerShares: true },
           })
 
-          // Witness rule: a pour needs at least two people present.
-          if (presentList.length < 2) {
-            rowWarnings.push(
-              `Only ${presentList.length} present employee — no auto-pour for this row`,
-            )
+          // Auto-pour. The witness rule needs two people. Prefer present
+          // employees; if the group only had one (e.g. groups whose only
+          // active member is the leader), fall back to ANY active employee
+          // in the company so the batch still lands. This matches the
+          // manual shift-output endpoint's behaviour and is why imports
+          // were previously creating allocations without their batches.
+          let witness1: string | null = presentList[0] ?? null
+          let witness2: string | null = presentList[1] ?? null
+          if (witness1 && !witness2) {
+            const fallback = await tx.employee.findFirst({
+              where: {
+                companyId,
+                isActive: true,
+                id: { not: witness1 },
+              },
+              select: { id: true },
+            })
+            if (fallback) {
+              witness2 = fallback.id
+              rowWarnings.push(
+                "Only the leader was present — used a fallback witness for the auto-pour",
+              )
+            }
           }
-
-          // Auto-pour if witnesses available
           let createdPourId: string | null = null
-          if (presentList.length >= 2) {
+          if (witness1 && witness2) {
             const pourBarId = await reserveIdentifier(tx, {
               companyId,
               entity: "GOLD_POUR",
@@ -598,8 +614,8 @@ export async function POST(
                 goldPriceUsdPerGram: goldPrice || null,
                 valuationDate,
                 valueUsd: totalWeightValueUsd,
-                witness1Id: presentList[0],
-                witness2Id: presentList[1],
+                witness1Id: witness1,
+                witness2Id: witness2,
                 storageLocation: "Vault",
                 notes: `Auto pour from imported allocation (line ${entry.lineNo})`,
                 createdById: userId,
@@ -623,6 +639,10 @@ export async function POST(
               createdById: userId,
               skipValuation: true,
             })
+          } else {
+            rowWarnings.push(
+              "No active employees available as witnesses — allocation saved without auto-pour",
+            )
           }
 
           // If we collected any warnings (parser-level or this-pass-level),

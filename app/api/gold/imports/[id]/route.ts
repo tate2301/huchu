@@ -107,3 +107,50 @@ export async function PATCH(
     return errorResponse("Failed to update import")
   }
 }
+
+/**
+ * Delete an import. Allowed only when nothing's been produced yet —
+ * uncommitted imports (DRAFT / MAPPING / PREVIEW / ROLLED_BACK). For
+ * COMMITTED or FAILED imports, use the rollback endpoint first to
+ * remove artifacts, then delete.
+ *
+ * Cascade on the schema removes child entries.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request)
+    if (sessionResult instanceof NextResponse) return sessionResult
+    const { session } = sessionResult
+    const { id } = await params
+
+    const importRecord = await prisma.goldLedgerImport.findUnique({
+      where: { id },
+      select: { id: true, companyId: true, status: true },
+    })
+    if (!importRecord || importRecord.companyId !== session.user.companyId) {
+      return errorResponse("Import not found", 404)
+    }
+
+    if (
+      importRecord.status === "COMMITTED" ||
+      importRecord.status === "FAILED"
+    ) {
+      return errorResponse(
+        "Roll back the import first — it still has produced records.",
+        409,
+      )
+    }
+
+    // GoldLedgerEntry has Cascade onDelete from the schema, so deleting
+    // the parent removes all entries.
+    await prisma.goldLedgerImport.delete({ where: { id } })
+
+    return successResponse({ deleted: true, id })
+  } catch (error) {
+    console.error("[API] DELETE /api/gold/imports/[id] error:", error)
+    return errorResponse("Failed to delete import")
+  }
+}

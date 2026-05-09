@@ -513,13 +513,13 @@ export default function NewShiftOutputPage() {
                 </dd>
               </div>
               <div className="flex justify-between text-blue-700">
-                <dt>Boys (worker share)</dt>
+                <dt>Workers share</dt>
                 <dd className="font-mono font-semibold">
                   {workerShare.toFixed(2)} g
                 </dd>
               </div>
               <div className="flex justify-between text-emerald-700">
-                <dt>Mdara (company share)</dt>
+                <dt>Company share</dt>
                 <dd className="font-mono font-semibold">
                   {companyShare.toFixed(2)} g
                 </dd>

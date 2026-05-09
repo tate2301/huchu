@@ -157,8 +157,8 @@ export default function ReceiptDetailPage() {
                   <p className="font-medium">From shift allocation</p>
                   <p className="text-xs text-muted-foreground">
                     {data.goldPour.goldShiftAllocation.shift} ·{" "}
-                    {new Date(data.goldPour.goldShiftAllocation.date).toLocaleDateString()} · Mdara{" "}
-                    {grams(data.goldPour.goldShiftAllocation.companyShareWeight)} · Boys{" "}
+                    {new Date(data.goldPour.goldShiftAllocation.date).toLocaleDateString()} · Company{" "}
+                    {grams(data.goldPour.goldShiftAllocation.companyShareWeight)} · Workers{" "}
                     {grams(data.goldPour.goldShiftAllocation.workerShareWeight)}
                   </p>
                   <Link
