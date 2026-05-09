@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { recordInventoryEvent, recordReversalEvent } from "@/lib/gold/inventory"
 import { linkFifoSale } from "@/lib/gold/fifo-link"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { reserveIdentifier } from "@/lib/id-generator"
@@ -100,15 +100,28 @@ export async function POST(
 
         // Order: child rows first, parents last (no cascade configured on
         // these FKs).
-        await tx.goldInventoryEvent.deleteMany({
-          where: {
-            OR: [
-              { sourceType: "POUR", sourceId: { in: allPourIds } },
-              { sourceType: "RECEIPT", sourceId: { in: allReceiptIds } },
-              { sourceType: "SHIFT_ALLOCATION", sourceId: { in: priorAllocationIds } },
-            ],
-          },
-        })
+        // Append-only: inserting REVERSAL events instead of deleting (see §4.4 C-4)
+        {
+          const eventsToReverse = await tx.goldInventoryEvent.findMany({
+            where: {
+              OR: [
+                { sourceType: "POUR", sourceId: { in: allPourIds } },
+                { sourceType: "RECEIPT", sourceId: { in: allReceiptIds } },
+                { sourceType: "SHIFT_ALLOCATION", sourceId: { in: priorAllocationIds } },
+              ],
+            },
+            select: { id: true, companyId: true, siteId: true },
+          })
+          for (const evt of eventsToReverse) {
+            await recordReversalEvent(tx, {
+              companyId: evt.companyId,
+              siteId: evt.siteId,
+              originalEventId: evt.id,
+              createdById: userId,
+              notes: `Reversal: import ${id} recommitted`,
+            })
+          }
+        }
 
         const accountingSourceIds = [
           ...priorAllocationIds,

@@ -1,9 +1,16 @@
-import type { Prisma, PrismaClient } from "@prisma/client";
+import type { GoldInventoryEvent, Prisma, PrismaClient } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 
 type Db = PrismaClient | Prisma.TransactionClient;
+
+export class OversoldError extends Error {
+  constructor(public readonly deficitGrams: number) {
+    super(`Gold inventory deficit: ${deficitGrams.toFixed(4)} g`);
+    this.name = 'OversoldError';
+  }
+}
 
 export type RecordInventoryEventInput = {
   companyId: string;
@@ -11,7 +18,7 @@ export type RecordInventoryEventInput = {
   eventDate: Date | string;
   direction: "IN" | "OUT";
   grams: number;
-  sourceType: "POUR" | "RECEIPT" | "ADJUSTMENT" | "SHIFT_ALLOCATION";
+  sourceType: "POUR" | "RECEIPT" | "ADJUSTMENT" | "SHIFT_ALLOCATION" | "REVERSAL" | "DISPATCH" | "PURCHASE";
   sourceId?: string | null;
   notes?: string | null;
   createdById?: string | null;
@@ -52,7 +59,8 @@ export async function recordInventoryEvent(
       grams: input.grams,
       goldPriceUsdPerGram,
       valueUsd,
-      sourceType: input.sourceType,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sourceType: input.sourceType as any,
       sourceId: input.sourceId ?? null,
       notes: input.notes ?? null,
       createdById: input.createdById ?? null,
@@ -71,6 +79,10 @@ export type OnHandQuery = {
  *
  * Sums IN events minus OUT events from {@link GoldInventoryEvent}, optionally
  * scoped to a single site or to a point in time.
+ *
+ * Throws {@link OversoldError} if the balance is more than 0.0001 g negative
+ * (real deficit, not Float drift). Returns the raw balance — including small
+ * negative values within the ±0.0001 tolerance — so callers see real data.
  */
 export async function getOnHandGrams(
   query: OnHandQuery,
@@ -98,7 +110,11 @@ export async function getOnHandGrams(
     if (row.direction === "IN") inGrams += row._sum.grams ?? 0;
     else if (row.direction === "OUT") outGrams += row._sum.grams ?? 0;
   }
-  return Math.max(0, +(inGrams - outGrams).toFixed(4));
+  const balance = +(inGrams - outGrams).toFixed(4);
+  if (balance < -0.0001) {
+    throw new OversoldError(Math.abs(balance));
+  }
+  return balance;
 }
 
 export async function getOnHandBySite(
@@ -135,4 +151,65 @@ export async function projectBalanceAfterOut(
 ): Promise<number> {
   const current = await getOnHandGrams(query, db);
   return +(current - query.grams).toFixed(4);
+}
+
+/**
+ * Inserts a compensating (reversal) inventory event for a prior event.
+ *
+ * The original event must belong to the given companyId + siteId. The
+ * compensating event carries the opposite direction and the same absolute
+ * grams, with sourceType "REVERSAL" and sourceId pointing back at the
+ * original event.
+ *
+ * Append-only: never deletes GoldInventoryEvent rows (see §4.4 C-4).
+ */
+export async function recordReversalEvent(
+  db: PrismaClient | Prisma.TransactionClient,
+  args: {
+    companyId: string;
+    siteId: string;
+    originalEventId: string;
+    createdById?: string | null;
+    notes?: string | null;
+  },
+): Promise<GoldInventoryEvent> {
+  const original = await db.goldInventoryEvent.findUnique({
+    where: { id: args.originalEventId },
+  });
+
+  if (!original) {
+    throw new Error(
+      `recordReversalEvent: original event not found (id=${args.originalEventId})`,
+    );
+  }
+  if (
+    original.companyId !== args.companyId ||
+    original.siteId !== args.siteId
+  ) {
+    throw new Error(
+      `recordReversalEvent: event ${args.originalEventId} does not belong to companyId=${args.companyId} siteId=${args.siteId}`,
+    );
+  }
+
+  const oppositeDirection: "IN" | "OUT" =
+    original.direction === "IN" ? "OUT" : "IN";
+
+  return db.goldInventoryEvent.create({
+    data: {
+      companyId: original.companyId,
+      siteId: original.siteId,
+      eventDate: original.eventDate,
+      direction: oppositeDirection,
+      grams: original.grams,
+      goldPriceUsdPerGram: original.goldPriceUsdPerGram,
+      valueUsd: original.valueUsd,
+      // Cast required until schema teammate lands the REVERSAL enum member
+      // in GoldInventorySourceType.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      sourceType: "REVERSAL" as any,
+      sourceId: args.originalEventId,
+      notes: args.notes ?? null,
+      createdById: args.createdById ?? null,
+    },
+  });
 }

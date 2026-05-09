@@ -1,6 +1,5 @@
-import type { Prisma, PrismaClient } from "@prisma/client"
-
-type Db = PrismaClient | Prisma.TransactionClient
+import type { Prisma } from "@prisma/client"
+import { recordReversalEvent } from "@/lib/gold/inventory"
 
 type LedgerEntry = {
   id: string
@@ -11,9 +10,9 @@ type LedgerEntry = {
 }
 
 /**
- * Wipes everything an import produced — allocations, auto/bare pours,
- * receipts, inventory events, accounting events, exceptions, attendance
- * for those shifts, and the shift reports. Used by:
+ * Reverses everything an import produced — allocations, auto/bare pours,
+ * receipts, inventory events (via REVERSAL events), accounting events,
+ * exceptions, attendance for those shifts, and the shift reports. Used by:
  *   - POST /api/gold/imports/[id]/commit (recommit cleanup)
  *   - POST /api/gold/imports/[id]/rollback (back out a committed import)
  *   - POST /api/gold/imports/[id]/reset-failed (only failed rows)
@@ -29,6 +28,8 @@ export async function purgeImportArtifacts(
     entries?: LedgerEntry[]
     /** Default: read all entries from DB. */
     fetchAllEntries?: boolean
+    /** Forwarded to REVERSAL inventory events as createdById. */
+    createdById?: string | null
   },
 ): Promise<{
   removedAllocations: number
@@ -114,18 +115,31 @@ export async function purgeImportArtifacts(
   const shiftReportIds = allocationRows.map((a) => a.shiftReportId)
 
   // Order: child rows first, parents last.
-  await tx.goldInventoryEvent.deleteMany({
-    where: {
-      OR: [
-        { sourceType: "POUR", sourceId: { in: allPourIds } },
-        { sourceType: "RECEIPT", sourceId: { in: allReceiptIds } },
-        {
-          sourceType: "SHIFT_ALLOCATION",
-          sourceId: { in: priorAllocationIds },
-        },
-      ],
-    },
-  })
+  // Append-only: inserting REVERSAL events instead of deleting (see §4.4 C-4)
+  {
+    const eventsToReverse = await tx.goldInventoryEvent.findMany({
+      where: {
+        OR: [
+          { sourceType: "POUR", sourceId: { in: allPourIds } },
+          { sourceType: "RECEIPT", sourceId: { in: allReceiptIds } },
+          {
+            sourceType: "SHIFT_ALLOCATION",
+            sourceId: { in: priorAllocationIds },
+          },
+        ],
+      },
+      select: { id: true, companyId: true, siteId: true },
+    })
+    for (const evt of eventsToReverse) {
+      await recordReversalEvent(tx, {
+        companyId: evt.companyId,
+        siteId: evt.siteId,
+        originalEventId: evt.id,
+        createdById: input.createdById ?? null,
+        notes: `Reversal: import ${input.importId} purged`,
+      })
+    }
+  }
 
   const accountingSourceIds = [
     ...priorAllocationIds,
@@ -245,3 +259,4 @@ export async function resetEntriesAfterPurge(
     })
   }
 }
+
