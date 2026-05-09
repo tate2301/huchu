@@ -4,6 +4,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { Gem, ArrowRightLeft, Scale, FileCheck, Building2, Coins } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -140,7 +141,7 @@ export default function PourDetailPage() {
       }
       primary={
         <>
-          <DetailSection title="Batch facts">
+          <DetailSection title="Batch facts" icon={Gem} tone="primary">
             <FactGrid
               items={[
                 { label: "Gross weight", value: grams(data.grossWeight) },
@@ -194,7 +195,12 @@ export default function PourDetailPage() {
             </DetailSection>
           ) : null}
 
-          <DetailSection title="Dispatch trail">
+          <DetailSection
+            title="Dispatch trail"
+            icon={ArrowRightLeft}
+            tone={isDispatched ? "warning" : "neutral"}
+            count={data.dispatches.length}
+          >
             {data.dispatches.length === 0 ? (
               <p className="text-sm text-muted-foreground">Not dispatched yet.</p>
             ) : (
@@ -215,7 +221,12 @@ export default function PourDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title="Sales">
+          <DetailSection
+            title="Sales"
+            icon={Scale}
+            tone={isSold ? "success" : "neutral"}
+            count={data.receipts.length}
+          >
             {data.receipts.length === 0 ? (
               <p className="text-sm text-muted-foreground">Not sold yet.</p>
             ) : (
@@ -240,7 +251,7 @@ export default function PourDetailPage() {
       }
       side={
         <>
-          <DetailSection title="Inventory events">
+          <DetailSection title="Inventory events" icon={Coins}>
             {data.inventoryEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">No events.</p>
             ) : (
@@ -257,7 +268,7 @@ export default function PourDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title="Accounting events">
+          <DetailSection title="Accounting events" icon={FileCheck}>
             {data.accountingEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">None yet.</p>
             ) : (

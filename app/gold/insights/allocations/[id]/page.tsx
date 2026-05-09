@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { Coins, Users, Gem, FileCheck, Wallet, Scale, Building2 } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
@@ -188,7 +189,7 @@ export default function AllocationDetailPage() {
       }
       primary={
         <>
-          <DetailSection title="Splits">
+          <DetailSection title="Splits" icon={Coins} tone="primary">
             <FactGrid
               items={[
                 { label: "Total (gross)", value: grams(data.totalWeight) },
@@ -214,7 +215,7 @@ export default function AllocationDetailPage() {
             ) : null}
           </DetailSection>
 
-          <DetailSection title={`Expenses (${data.expenses.length})`}>
+          <DetailSection title="Expenses" icon={Scale} count={data.expenses.length}>
             {data.expenses.length === 0 ? (
               <p className="text-sm text-muted-foreground">No expenses recorded.</p>
             ) : (
@@ -230,7 +231,9 @@ export default function AllocationDetailPage() {
           </DetailSection>
 
           <DetailSection
-            title={`Attendance (${data.attendance.length})`}
+            title="Attendance"
+            icon={Users}
+            count={data.attendance.length}
             description={
               canEditAttendance
                 ? "Managers can correct PRESENT / ABSENT / LATE inline. Worker shares recompute on next allocation update."
@@ -286,7 +289,7 @@ export default function AllocationDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title={`Worker shares (${data.workerShares.length})`}>
+          <DetailSection title="Worker shares" icon={Wallet} count={data.workerShares.length} tone="primary">
             {data.workerShares.length === 0 ? (
               <p className="text-sm text-muted-foreground">No shares allocated.</p>
             ) : (
@@ -308,7 +311,7 @@ export default function AllocationDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title={`Auto-created batches (${data.pours.length})`}>
+          <DetailSection title="Auto-created batches" icon={Gem} count={data.pours.length} tone={data.pours.length > 0 ? "success" : "warning"}>
             {data.pours.length === 0 ? (
               <p className="text-sm text-muted-foreground">No batch created (witnesses missing).</p>
             ) : (
@@ -336,7 +339,7 @@ export default function AllocationDetailPage() {
       }
       side={
         <>
-          <DetailSection title="Approval chain">
+          <DetailSection title="Approval chain" icon={FileCheck}>
             <ul className="space-y-3 text-sm">
               <li>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Created</p>
@@ -360,7 +363,7 @@ export default function AllocationDetailPage() {
             </ul>
           </DetailSection>
 
-          <DetailSection title={`Payouts queue (${data.employeePayments.length})`}>
+          <DetailSection title="Payouts queue" icon={Wallet} count={data.employeePayments.length}>
             {data.employeePayments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No payments scheduled.</p>
             ) : (
@@ -375,7 +378,7 @@ export default function AllocationDetailPage() {
             )}
           </DetailSection>
 
-          <DetailSection title={`Accounting events (${data.accountingEvents.length})`}>
+          <DetailSection title="Accounting events" icon={Building2} count={data.accountingEvents.length}>
             {data.accountingEvents.length === 0 ? (
               <p className="text-sm text-muted-foreground">None yet.</p>
             ) : (

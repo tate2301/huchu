@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { Scale, Gem, ArrowRightLeft, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -114,7 +115,7 @@ export default function ReceiptDetailPage() {
       subtitle={`Sold ${new Date(data.receiptDate).toLocaleString()} · ${data.paymentMethod.replace(/_/g, " ").toLowerCase()}`}
       primary={
         <>
-          <DetailSection title="Sale details">
+          <DetailSection title="Sale details" icon={Scale} tone="success">
             <FactGrid
               items={[
                 { label: "Receipt #", value: data.receiptNumber },
@@ -135,6 +136,8 @@ export default function ReceiptDetailPage() {
           {pour ? (
             <DetailSection
               title="Linked batch"
+              icon={Gem}
+              tone="primary"
               actions={
                 <Link href={`/gold/intake/pours/${pour.id}`} className="text-xs text-primary hover:underline">
                   Open batch →
@@ -172,6 +175,8 @@ export default function ReceiptDetailPage() {
           {data.goldDispatch ? (
             <DetailSection
               title="Dispatch"
+              icon={ArrowRightLeft}
+              tone="warning"
               actions={
                 <Link href={`/gold/transit/dispatches/${data.goldDispatch.id}`} className="text-xs text-primary hover:underline">
                   Open dispatch →
@@ -192,7 +197,7 @@ export default function ReceiptDetailPage() {
         </>
       }
       side={
-        <DetailSection title="Accounting events">
+        <DetailSection title="Accounting events" icon={FileCheck} count={data.accountingEvents.length}>
           {data.accountingEvents.length === 0 ? (
             <p className="text-sm text-muted-foreground">None yet.</p>
           ) : (

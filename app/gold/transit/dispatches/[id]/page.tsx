@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { ArrowRightLeft, PackageCheck, Scale, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -116,7 +117,7 @@ export default function DispatchDetailPage() {
       subtitle={`${new Date(data.dispatchDate).toLocaleString()} · ${data.courier} → ${data.destination}`}
       primary={
         <>
-          <DetailSection title="Trip details">
+          <DetailSection title="Trip details" icon={ArrowRightLeft} tone="primary">
             <FactGrid
               items={[
                 { label: "Courier", value: data.courier },
@@ -135,7 +136,9 @@ export default function DispatchDetailPage() {
           </DetailSection>
 
           <DetailSection
-            title={`Batches in trip (${allBatches.length})`}
+            icon={PackageCheck}
+            count={allBatches.length}
+            title={`Batches in trip`}
             description="Each batch travelled together; receipts may be recorded individually."
           >
             <ul className="divide-y">
@@ -159,7 +162,12 @@ export default function DispatchDetailPage() {
             </ul>
           </DetailSection>
 
-          <DetailSection title={`Receipts (${data.buyerReceipts.length})`}>
+          <DetailSection
+            title="Receipts"
+            icon={Scale}
+            count={data.buyerReceipts.length}
+            tone={data.buyerReceipts.length > 0 ? "success" : "neutral"}
+          >
             {data.buyerReceipts.length === 0 ? (
               <p className="text-sm text-muted-foreground">No sales recorded for this dispatch yet.</p>
             ) : (
@@ -183,7 +191,7 @@ export default function DispatchDetailPage() {
         </>
       }
       side={
-        <DetailSection title="Accounting events">
+        <DetailSection title="Accounting events" icon={FileCheck} count={data.accountingEvents.length}>
           {data.accountingEvents.length === 0 ? (
             <p className="text-sm text-muted-foreground">None yet.</p>
           ) : (
