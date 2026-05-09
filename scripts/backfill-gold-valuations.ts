@@ -53,11 +53,15 @@ function resolveSnapshot(prices: PriceRow[], businessDate: Date): PriceRow | nul
 }
 
 async function backfillCompany(companyId: string, dryRun: boolean): Promise<BackfillSummary> {
-  const prices = await prisma.goldPrice.findMany({
+  const rawPrices = await prisma.goldPrice.findMany({
     where: { companyId },
     orderBy: [{ effectiveDate: "asc" }, { createdAt: "asc" }],
     select: { effectiveDate: true, priceUsdPerGram: true },
   });
+  const prices: PriceRow[] = rawPrices.map((p) => ({
+    effectiveDate: p.effectiveDate,
+    priceUsdPerGram: Number(p.priceUsdPerGram),
+  }));
 
   const summary: BackfillSummary = {
     companyId,

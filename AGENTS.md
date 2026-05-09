@@ -50,3 +50,54 @@
 ## Security & Configuration Tips
 - Secrets belong in `.env` only; never commit credentials.
 - For database and production setup, follow `DATABASE_SETUP.md` and `PRODUCTION_DEPLOYMENT.md`.
+
+---
+
+## Gold Agent Team
+
+### Agent roster
+
+| Agent | Charter (owns) | Forbidden from |
+|---|---|---|
+| `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files |
+| `gold-data-foundation` | `prisma/schema.prisma`, `migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source |
+| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `prisma/schema.prisma`, UI files |
+| `gold-import-workflow` | `app/api/gold/imports/**`, `lib/gold/import-*`, worker | UI, other Gold APIs |
+| `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `prisma/` |
+| `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files |
+| `gold-reviewer` | Reads diffs, runs gates, approves/blocks — no code | All source files |
+
+### Workflow per ticket
+
+1. **Lead** verifies Definition-of-Ready (test prereqs named, schema deps clear, reviewer assigned).
+2. **Lead** spawns the specialist in a worktree (`isolation: "worktree"`) with a precise prompt: file paths, API contracts, DoD from the epic, reviewer name.
+3. **Specialist** works. Charter hook warns on out-of-zone edits. Paired-test hook warns on source-without-test.
+4. **Specialist** messages lead when done with a summary.
+5. **Lead** invokes `gold-reviewer` against the diff.
+6. **Reviewer** runs `tsc --noEmit`, lint, target tests, checks DoD checklist. Blocks or approves.
+7. **Human** merges.
+
+### Definition-of-Ready (DoR)
+
+A ticket cannot start until:
+- The relevant test in Epic 5a/5b is identified (if none exists, that test ticket goes first)
+- Schema prerequisites are on `main`
+- Cross-epic dependencies are noted as Jira "blocked by" links
+- A reviewer is named who is not the implementer
+
+### Definition-of-Done (DoD)
+
+A ticket is done when:
+- `npx tsc --noEmit` passes
+- `npx eslint <changed files>` produces zero new errors
+- Target tests pass
+- If a P0 migration: migration witness test ships in the same commit
+- `gold-reviewer` has approved
+
+### Forbidden patterns
+
+- Source change without a paired test (for P0 migrations — no exceptions)
+- Schema change without a migration witness test
+- Merging on red CI
+- "I'll add the test in a follow-up"
+- Any agent editing files outside its charter without explicit lead approval

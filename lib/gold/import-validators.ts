@@ -273,7 +273,8 @@ export async function runImportDryRun(
     });
     let onHandGrams = 0;
     for (const row of onHandSnapshot) {
-      const v = row._sum.grams ?? 0;
+      // Post Epic-6 Float→Decimal: _sum.grams may be a Prisma.Decimal.
+      const v = row._sum.grams == null ? 0 : Number(row._sum.grams);
       onHandGrams += row.direction === "IN" ? v : -v;
     }
 

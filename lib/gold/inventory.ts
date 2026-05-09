@@ -104,11 +104,15 @@ export async function getOnHandGrams(
     _sum: { grams: true },
   });
 
+  // Post Epic-6 Float→Decimal: row._sum.grams may be a Prisma.Decimal.
+  // Coerce to number for the JS arithmetic. Aggregates of 0.001 g rows
+  // are bounded enough that toNumber() is safe (Decimal precision < 17 digits).
   let inGrams = 0;
   let outGrams = 0;
   for (const row of aggregates) {
-    if (row.direction === "IN") inGrams += row._sum.grams ?? 0;
-    else if (row.direction === "OUT") outGrams += row._sum.grams ?? 0;
+    const grams = row._sum.grams == null ? 0 : Number(row._sum.grams);
+    if (row.direction === "IN") inGrams += grams;
+    else if (row.direction === "OUT") outGrams += grams;
   }
   const balance = +(inGrams - outGrams).toFixed(4);
   if (balance < -0.0001) {
@@ -130,8 +134,9 @@ export async function getOnHandBySite(
   const tally = new Map<string, { in: number; out: number }>();
   for (const row of aggregates) {
     const entry = tally.get(row.siteId) ?? { in: 0, out: 0 };
-    if (row.direction === "IN") entry.in += row._sum.grams ?? 0;
-    else entry.out += row._sum.grams ?? 0;
+    const grams = row._sum.grams == null ? 0 : Number(row._sum.grams);
+    if (row.direction === "IN") entry.in += grams;
+    else entry.out += grams;
     tally.set(row.siteId, entry);
   }
 

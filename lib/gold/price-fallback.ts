@@ -21,7 +21,8 @@ export async function resolveGoldPriceUsdPerGram(
   });
   if (configured) {
     return {
-      priceUsdPerGram: configured.priceUsdPerGram,
+      // Post Epic-6: priceUsdPerGram is Decimal; coerce to number for callers.
+      priceUsdPerGram: Number(configured.priceUsdPerGram),
       source: "CONFIGURED",
       valuationDate: configured.effectiveDate,
     };

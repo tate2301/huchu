@@ -32,7 +32,8 @@ export async function getLatestGoldPriceSnapshot(
   return {
     priceId: latest.id,
     valuationDate: latest.effectiveDate,
-    goldPriceUsdPerGram: latest.priceUsdPerGram,
+    // Post Epic-6: priceUsdPerGram is Decimal; coerce for downstream consumers.
+    goldPriceUsdPerGram: Number(latest.priceUsdPerGram),
   };
 }
 
@@ -58,7 +59,7 @@ export async function getEffectiveGoldPriceSnapshot(input: {
     return {
       priceId: effective.id,
       valuationDate: effective.effectiveDate,
-      goldPriceUsdPerGram: effective.priceUsdPerGram,
+      goldPriceUsdPerGram: Number(effective.priceUsdPerGram),
     };
   }
 
