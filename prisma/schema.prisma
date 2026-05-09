@@ -155,6 +155,13 @@ model Company {
   goldInventoryEvents           GoldInventoryEvent[]
   goldExceptions                GoldException[]
   goldLedgerImports             GoldLedgerImport[]
+  goldPours                     GoldPour[]           @relation("GoldPourCompany")
+  goldShiftAllocations          GoldShiftAllocation[] @relation("GoldShiftAllocationCompany")
+  goldDispatches                GoldDispatch[]        @relation("GoldDispatchCompany")
+  buyerReceipts                 BuyerReceipt[]        @relation("BuyerReceiptCompany")
+  goldLedgerEntries             GoldLedgerEntry[]     @relation("GoldLedgerEntryCompany")
+  goldDispatchBatches           GoldDispatchBatch[]   @relation("GoldDispatchBatchCompany")
+  buyerReceiptBatches           BuyerReceiptBatch[]   @relation("BuyerReceiptBatchCompany")
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -2037,7 +2044,7 @@ model GoldPrice {
   id              String   @id @default(uuid())
   companyId       String
   effectiveDate   DateTime
-  priceUsdPerGram Float
+  priceUsdPerGram Decimal  @db.Decimal(12, 4)
   note            String?
   createdById     String
   createdAt       DateTime @default(now())
@@ -2065,11 +2072,13 @@ model GoldExpenseType {
 }
 
 model GoldPour {
-  id                       String        @id @default(uuid())
-  pourBarId                String        @unique
+  id                       String           @id @default(uuid())
+  // Global unique kept for backward-compat. Phase D (drop this) is a domain-backend ticket.
+  pourBarId                String           @unique
   pourDate                 DateTime
   siteId                   String
-  sourceType               GoldLotSource @default(PRODUCTION)
+  companyId                String?
+  sourceType               GoldLotSource    @default(PRODUCTION)
   createdById              String?
   goldShiftAllocationId    String?
   grossWeight              Float
@@ -2091,6 +2100,7 @@ model GoldPour {
   corrections String? // JSON log of corrections
 
   site                Site                 @relation(fields: [siteId], references: [id])
+  company             Company?             @relation("GoldPourCompany", fields: [companyId], references: [id])
   witness1            Employee             @relation("Witness1", fields: [witness1Id], references: [id])
   witness2            Employee             @relation("Witness2", fields: [witness2Id], references: [id])
   createdBy           User?                @relation("GoldPourRecordedBy", fields: [createdById], references: [id])
@@ -2101,10 +2111,12 @@ model GoldPour {
   receipts            BuyerReceipt[]
   receiptBatches      BuyerReceiptBatch[]
 
+  @@unique([companyId, pourBarId])
   @@index([siteId])
   @@index([pourDate])
   @@index([createdById])
   @@index([goldShiftAllocationId])
+  @@index([companyId, pourDate(sort: Desc)])
 }
 
 enum GoldLotSource {
@@ -2162,6 +2174,7 @@ model GoldPurchase {
 model GoldDispatch {
   id                  String    @id @default(uuid())
   goldPourId          String
+  companyId           String?
   dispatchDate        DateTime
   courier             String
   vehicle             String?
@@ -2179,27 +2192,32 @@ model GoldDispatch {
   updatedAt DateTime @updatedAt
 
   goldPour          GoldPour               @relation(fields: [goldPourId], references: [id])
+  company           Company?               @relation("GoldDispatchCompany", fields: [companyId], references: [id])
   handedOverBy      Employee               @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
   buyerReceipts     BuyerReceipt[]
   batches           GoldDispatchBatch[]
   receiptDispatches BuyerReceiptDispatch[]
 
   @@index([goldPourId])
+  @@index([companyId, dispatchDate])
 }
 
 model GoldDispatchBatch {
   id         String   @id @default(uuid())
   dispatchId String
   goldPourId String
+  companyId  String?
   sortOrder  Int      @default(0)
   createdAt  DateTime @default(now())
 
   dispatch GoldDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
   goldPour GoldPour     @relation(fields: [goldPourId], references: [id])
+  company  Company?     @relation("GoldDispatchBatchCompany", fields: [companyId], references: [id])
 
   @@unique([dispatchId, goldPourId])
   @@index([dispatchId])
   @@index([goldPourId])
+  @@index([companyId])
 }
 
 model BuyerReceipt {
@@ -2208,6 +2226,7 @@ model BuyerReceipt {
   goldDispatchId      String?
   // legacy single-FK, prefer the join tables (batches / dispatches)
   goldPourId          String?
+  companyId           String?
   receiptNumber       String
   receiptDate         DateTime
   assayResult         Float? // actual purity
@@ -2226,6 +2245,7 @@ model BuyerReceipt {
 
   goldDispatch GoldDispatch? @relation(fields: [goldDispatchId], references: [id])
   goldPour     GoldPour?     @relation(fields: [goldPourId], references: [id])
+  company      Company?      @relation("BuyerReceiptCompany", fields: [companyId], references: [id])
 
   // Aggregate join: a single BuyerReceipt may cover N pours and N dispatches.
   // The legacy single FKs above remain populated for backward compatibility
@@ -2234,9 +2254,11 @@ model BuyerReceipt {
   batches    BuyerReceiptBatch[]
   dispatches BuyerReceiptDispatch[]
 
+  @@unique([companyId, receiptNumber])
   @@index([goldPourId])
   @@index([goldDispatchId])
   @@index([receiptDate])
+  @@index([companyId, receiptDate(sort: Desc)])
 }
 
 /// Join row: BuyerReceipt covers a portion of a GoldPour. Multiple rows per
@@ -2246,6 +2268,7 @@ model BuyerReceiptBatch {
   id                  String   @id @default(uuid())
   buyerReceiptId      String
   goldPourId          String
+  companyId           String?
   grams               Float
   valueUsd            Float?
   goldPriceUsdPerGram Float?
@@ -2255,10 +2278,12 @@ model BuyerReceiptBatch {
 
   buyerReceipt BuyerReceipt @relation(fields: [buyerReceiptId], references: [id], onDelete: Cascade)
   goldPour     GoldPour     @relation(fields: [goldPourId], references: [id])
+  company      Company?     @relation("BuyerReceiptBatchCompany", fields: [companyId], references: [id])
 
   @@unique([buyerReceiptId, goldPourId])
   @@index([buyerReceiptId])
   @@index([goldPourId])
+  @@index([companyId])
 }
 
 /// Join row: BuyerReceipt covers one or more GoldDispatch trips. A receipt
@@ -2282,6 +2307,7 @@ model GoldShiftAllocation {
   date                      DateTime
   shift                     String
   siteId                    String
+  companyId                 String?
   shiftGroupId              String?
   shiftReportId             String             @unique
   totalWeight               Float
@@ -2311,6 +2337,7 @@ model GoldShiftAllocation {
   updatedAt                 DateTime           @updatedAt
 
   site             Site                   @relation(fields: [siteId], references: [id])
+  company          Company?               @relation("GoldShiftAllocationCompany", fields: [companyId], references: [id])
   shiftGroup       ShiftGroup?            @relation("GoldShiftAllocationsByGroup", fields: [shiftGroupId], references: [id])
   shiftReport      ShiftReport            @relation(fields: [shiftReportId], references: [id])
   createdBy        User                   @relation("GoldShiftAllocationCreatedBy", fields: [createdById], references: [id])
@@ -2324,6 +2351,7 @@ model GoldShiftAllocation {
   @@unique([siteId, date, shift, shiftGroupId])
   @@index([siteId, date])
   @@index([workflowStatus])
+  @@index([companyId, workflowStatus, date])
 }
 
 model GoldShiftExpense {
@@ -2398,7 +2426,7 @@ model GoldInventoryEvent {
   siteId              String
   eventDate           DateTime
   direction           GoldInventoryDirection
-  grams               Float
+  grams               Decimal                 @db.Decimal(12, 4)
   goldPriceUsdPerGram Float?
   goldPriceSource     GoldPriceSource?
   valueUsd            Float?
@@ -2513,6 +2541,7 @@ model GoldLedgerImport {
 model GoldLedgerEntry {
   id                    String                @id @default(uuid())
   importId              String
+  companyId             String?
   lineNo                Int
   rawJson               String // JSON of original CSV row
   parsedDate            DateTime?
@@ -2535,10 +2564,12 @@ model GoldLedgerEntry {
   updatedAt             DateTime              @updatedAt
 
   import     GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  company    Company?         @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
   shiftGroup ShiftGroup?      @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
 
   @@unique([importId, lineNo])
   @@index([importId, status])
+  @@index([companyId, status])
 }
 
 // ============================================
