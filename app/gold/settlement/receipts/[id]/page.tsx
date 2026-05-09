@@ -51,6 +51,31 @@ type ReceiptDetail = {
       site: { id: string; name: string; code: string };
     };
   } | null;
+  // Aggregate join: a single receipt may cover N pours and N dispatches.
+  batches: Array<{
+    id: string;
+    grams: number;
+    valueUsd: number | null;
+    goldPriceUsdPerGram: number | null;
+    notes: string | null;
+    goldPour: {
+      id: string;
+      pourBarId: string;
+      grossWeight: number;
+      pourDate: string;
+      site: { id: string; name: string; code: string };
+    };
+  }>;
+  dispatches: Array<{
+    id: string;
+    goldDispatch: {
+      id: string;
+      dispatchDate: string;
+      courier: string;
+      destination: string;
+      sealNumbers: string;
+    };
+  }>;
   accountingEvents: Array<{
     id: string;
     sourceAction: string;
@@ -105,6 +130,10 @@ export default function ReceiptDetailPage() {
   }
 
   const pour = data.goldPour ?? data.goldDispatch?.goldPour ?? null;
+  const batches = data.batches ?? [];
+  const dispatches = data.dispatches ?? [];
+  const totalBatchGrams = batches.reduce((sum, b) => sum + b.grams, 0);
+  const totalBatchUsd = batches.reduce((sum, b) => sum + (b.valueUsd ?? 0), 0);
 
   return (
     <DetailShell
@@ -133,7 +162,67 @@ export default function ReceiptDetailPage() {
             ) : null}
           </DetailSection>
 
-          {pour ? (
+          {batches.length > 0 ? (
+            <DetailSection
+              title={`Batches covered (${batches.length})`}
+              icon={Gem}
+              tone="primary"
+              count={batches.length}
+            >
+              <div className="mb-3 flex items-center gap-4 text-xs text-muted-foreground">
+                <span>
+                  Total: <span className="font-semibold text-foreground">{grams(totalBatchGrams)}</span>
+                </span>
+                <span>
+                  Value: <span className="font-semibold text-foreground">{usd(totalBatchUsd || null)}</span>
+                </span>
+              </div>
+              <ul className="divide-y rounded-md border">
+                {batches.map((b) => (
+                  <li
+                    key={b.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/gold/intake/pours/${b.goldPour.id}`}
+                        className="font-mono font-semibold hover:underline"
+                      >
+                        {b.goldPour.pourBarId}
+                      </Link>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {b.goldPour.site.name} ({b.goldPour.site.code}) ·
+                        Pour {new Date(b.goldPour.pourDate).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      <span className="font-medium">{grams(b.grams)}</span>
+                      <span className="text-muted-foreground">{usd(b.valueUsd)}</span>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+              {data.goldPour?.goldShiftAllocation ? (
+                <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
+                  <p className="font-medium">First batch&apos;s shift allocation</p>
+                  <p className="text-xs text-muted-foreground">
+                    {data.goldPour.goldShiftAllocation.shift} ·{" "}
+                    {new Date(data.goldPour.goldShiftAllocation.date).toLocaleDateString()} · Company{" "}
+                    {grams(data.goldPour.goldShiftAllocation.companyShareWeight)} · Workers{" "}
+                    {grams(data.goldPour.goldShiftAllocation.workerShareWeight)}
+                  </p>
+                  <Link
+                    href={`/gold/insights/allocations/${data.goldPour.goldShiftAllocation.id}`}
+                    className="text-xs text-primary hover:underline"
+                  >
+                    Open allocation →
+                  </Link>
+                </div>
+              ) : null}
+            </DetailSection>
+          ) : pour ? (
+            // Legacy fallback: receipts that pre-date the join tables and
+            // haven't been backfilled.
             <DetailSection
               title="Linked batch"
               icon={Gem}
@@ -152,27 +241,42 @@ export default function ReceiptDetailPage() {
                   { label: "Spot value at pour", value: usd(pour.valueUsd) },
                 ]}
               />
-              {data.goldPour?.goldShiftAllocation ? (
-                <div className="mt-3 rounded-md border bg-muted/30 p-3 text-sm">
-                  <p className="font-medium">From shift allocation</p>
-                  <p className="text-xs text-muted-foreground">
-                    {data.goldPour.goldShiftAllocation.shift} ·{" "}
-                    {new Date(data.goldPour.goldShiftAllocation.date).toLocaleDateString()} · Company{" "}
-                    {grams(data.goldPour.goldShiftAllocation.companyShareWeight)} · Workers{" "}
-                    {grams(data.goldPour.goldShiftAllocation.workerShareWeight)}
-                  </p>
-                  <Link
-                    href={`/gold/insights/allocations/${data.goldPour.goldShiftAllocation.id}`}
-                    className="text-xs text-primary hover:underline"
-                  >
-                    Open allocation →
-                  </Link>
-                </div>
-              ) : null}
             </DetailSection>
           ) : null}
 
-          {data.goldDispatch ? (
+          {dispatches.length > 0 ? (
+            <DetailSection
+              title={`Dispatches covered (${dispatches.length})`}
+              icon={ArrowRightLeft}
+              tone="warning"
+              count={dispatches.length}
+            >
+              <ul className="divide-y rounded-md border">
+                {dispatches.map((d) => (
+                  <li
+                    key={d.id}
+                    className="flex flex-wrap items-center justify-between gap-3 px-3 py-2 text-sm"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/gold/transit/dispatches/${d.goldDispatch.id}`}
+                        className="font-mono font-semibold hover:underline"
+                      >
+                        {d.goldDispatch.id.slice(0, 8)}
+                      </Link>
+                      <span className="ml-2 text-xs text-muted-foreground">
+                        {d.goldDispatch.courier} → {d.goldDispatch.destination}
+                      </span>
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      Seals {d.goldDispatch.sealNumbers} ·{" "}
+                      {new Date(d.goldDispatch.dispatchDate).toLocaleDateString()}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </DetailSection>
+          ) : data.goldDispatch ? (
             <DetailSection
               title="Dispatch"
               icon={ArrowRightLeft}
