@@ -1931,7 +1931,8 @@ model ShiftGroup {
   schedules         ShiftGroupSchedule[]
   attendance        Attendance[]
   reports           ShiftReport[]
-  goldLedgerEntries GoldLedgerEntry[]    @relation("GoldLedgerEntryShiftGroup")
+  goldLedgerEntries    GoldLedgerEntry[]       @relation("GoldLedgerEntryShiftGroup")
+  goldShiftAllocations GoldShiftAllocation[]   @relation("GoldShiftAllocationsByGroup")
 
   @@unique([companyId, name])
   @@index([companyId, siteId, isActive])
@@ -2261,6 +2262,7 @@ model GoldShiftAllocation {
   date                      DateTime
   shift                     String
   siteId                    String
+  shiftGroupId              String?
   shiftReportId             String             @unique
   totalWeight               Float
   netWeight                 Float
@@ -2288,6 +2290,7 @@ model GoldShiftAllocation {
   updatedAt                 DateTime           @updatedAt
 
   site             Site                   @relation(fields: [siteId], references: [id])
+  shiftGroup       ShiftGroup?            @relation("GoldShiftAllocationsByGroup", fields: [shiftGroupId], references: [id])
   shiftReport      ShiftReport            @relation(fields: [shiftReportId], references: [id])
   createdBy        User                   @relation("GoldShiftAllocationCreatedBy", fields: [createdById], references: [id])
   submittedBy      User?                  @relation("GoldShiftAllocationSubmittedBy", fields: [submittedById], references: [id])
@@ -2297,7 +2300,7 @@ model GoldShiftAllocation {
   pours            GoldPour[]
   employeePayments EmployeePayment[]
 
-  @@unique([siteId, date, shift])
+  @@unique([siteId, date, shift, shiftGroupId])
   @@index([siteId, date])
   @@index([workflowStatus])
 }
