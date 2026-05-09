@@ -97,6 +97,42 @@ const receiptInclude = {
       },
     },
   },
+  batches: {
+    select: {
+      id: true,
+      grams: true,
+      valueUsd: true,
+      goldPriceUsdPerGram: true,
+      notes: true,
+      createdAt: true,
+      goldPour: {
+        select: {
+          id: true,
+          pourBarId: true,
+          grossWeight: true,
+          pourDate: true,
+          site: { select: { id: true, name: true, code: true } },
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  },
+  dispatches: {
+    select: {
+      id: true,
+      createdAt: true,
+      goldDispatch: {
+        select: {
+          id: true,
+          dispatchDate: true,
+          courier: true,
+          destination: true,
+          sealNumbers: true,
+        },
+      },
+    },
+    orderBy: { createdAt: "asc" },
+  },
 } as const
 
 type BatchReference = {
@@ -300,8 +336,11 @@ export async function POST(request: NextRequest) {
     const existingBatchReceipt = await prisma.buyerReceipt.findFirst({
       where: {
         OR: [
+          // Legacy single-FK matches
           { goldPourId: resolvedGoldPourId },
           { goldDispatch: { is: { goldPourId: resolvedGoldPourId } } },
+          // New aggregate join — covers fifo-link receipts that span N pours
+          { batches: { some: { goldPourId: resolvedGoldPourId } } },
         ],
       },
       select: { id: true },
@@ -337,24 +376,52 @@ export async function POST(request: NextRequest) {
       return errorResponse("No gold price configured. Add a gold price before recording sales.", 409)
     }
 
-    const receipt = await prisma.buyerReceipt.create({
-      data: {
-        goldDispatchId: validated.goldDispatchId,
-        goldPourId: resolvedGoldPourId,
-        receiptNumber,
-        receiptDate: new Date(validated.receiptDate),
-        assayResult: validated.assayResult,
-        paidAmount: validated.paidAmount,
-        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
-        valuationDate: valuation.valuationDate,
-        paidValueUsd: validated.paidAmount,
-        paymentMethod: validated.paymentMethod,
-        paymentChannel: validated.paymentChannel,
-        paymentReference: validated.paymentReference,
-        notes: validated.notes,
-      },
-      include: receiptInclude,
+    const receipt = await prisma.$transaction(async (tx) => {
+      const created = await tx.buyerReceipt.create({
+        data: {
+          goldDispatchId: validated.goldDispatchId,
+          goldPourId: resolvedGoldPourId,
+          receiptNumber,
+          receiptDate: new Date(validated.receiptDate),
+          assayResult: validated.assayResult,
+          paidAmount: validated.paidAmount,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valuationDate: valuation.valuationDate,
+          paidValueUsd: validated.paidAmount,
+          paymentMethod: validated.paymentMethod,
+          paymentChannel: validated.paymentChannel,
+          paymentReference: validated.paymentReference,
+          notes: validated.notes,
+        },
+      })
+      // Aggregate join: a single-pour sale becomes a 1-row BuyerReceiptBatch.
+      // Future calls can submit N pours; we'll layer a multi-batch endpoint
+      // when the UI surface lands.
+      await tx.buyerReceiptBatch.create({
+        data: {
+          buyerReceiptId: created.id,
+          goldPourId: resolvedGoldPourId,
+          grams: goldPour.grossWeight,
+          valueUsd: validated.paidAmount,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+        },
+      })
+      if (validated.goldDispatchId) {
+        await tx.buyerReceiptDispatch.create({
+          data: {
+            buyerReceiptId: created.id,
+            goldDispatchId: validated.goldDispatchId,
+          },
+        })
+      }
+      return tx.buyerReceipt.findUnique({
+        where: { id: created.id },
+        include: receiptInclude,
+      })
     })
+    if (!receipt) {
+      return errorResponse("Failed to create receipt", 500)
+    }
 
     try {
       await recordInventoryEvent(prisma, {

@@ -917,7 +917,7 @@ export async function POST(
             where: { id: entry.id },
             data: {
               status: stayAnomaly ? "ANOMALY" : "CREATED",
-              buyerReceiptId: r.receiptIds[0] ?? null,
+              buyerReceiptId: r.receiptId,
               errorMessage: r.isAnomaly
                 ? `Inventory deficit ${r.remainingGrams.toFixed(3)} g`
                 : currentEntry?.errorMessage ?? null,
@@ -925,7 +925,8 @@ export async function POST(
           })
           return r
         })
-        salesCreated += result.receiptIds.length
+        // One ledger row → one aggregate receipt covering N batches.
+        if (result.receiptId) salesCreated += 1
         totalSaleGrams += result.consumedGrams
         if (result.isAnomaly) {
           totalDeficitGrams += result.remainingGrams

@@ -51,6 +51,45 @@ export async function GET(
             },
           },
         },
+        // Aggregate join: every BuyerReceipt may cover N batches and N
+        // dispatches. The legacy single-FK fields above remain populated
+        // for backward-compat.
+        batches: {
+          select: {
+            id: true,
+            grams: true,
+            valueUsd: true,
+            goldPriceUsdPerGram: true,
+            notes: true,
+            createdAt: true,
+            goldPour: {
+              select: {
+                id: true,
+                pourBarId: true,
+                grossWeight: true,
+                pourDate: true,
+                site: { select: { id: true, name: true, code: true } },
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
+        dispatches: {
+          select: {
+            id: true,
+            createdAt: true,
+            goldDispatch: {
+              select: {
+                id: true,
+                dispatchDate: true,
+                courier: true,
+                destination: true,
+                sealNumbers: true,
+              },
+            },
+          },
+          orderBy: { createdAt: "asc" },
+        },
       },
     })
 

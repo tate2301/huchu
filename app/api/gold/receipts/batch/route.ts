@@ -13,6 +13,8 @@ import { z } from "zod"
 
 const batchReceiptSchema = z.object({
   goldDispatchId: z.string().uuid().optional(),
+  // Optional: callers may attach the same payment to multiple dispatches.
+  goldDispatchIds: z.array(z.string().uuid()).max(50).optional(),
   receiptDate: z
     .string()
     .datetime()
@@ -65,22 +67,46 @@ export async function POST(request: NextRequest) {
         return errorResponse("Invalid batch", 403)
       }
     }
+    // All items must come from the same site (one receipt = one site).
+    const siteIds = new Set(pours.map((p) => p.siteId))
+    if (siteIds.size > 1) {
+      return errorResponse(
+        "All batches in one receipt must belong to the same site",
+        400,
+      )
+    }
+    const headerSiteId = pours[0].siteId
 
-    if (validated.goldDispatchId) {
-      const dispatch = await prisma.goldDispatch.findUnique({
-        where: { id: validated.goldDispatchId },
+    // Resolve dispatch IDs (legacy goldDispatchId + new goldDispatchIds).
+    const dispatchIds = Array.from(
+      new Set(
+        [
+          ...(validated.goldDispatchId ? [validated.goldDispatchId] : []),
+          ...(validated.goldDispatchIds ?? []),
+        ],
+      ),
+    )
+
+    if (dispatchIds.length > 0) {
+      const dispatches = await prisma.goldDispatch.findMany({
+        where: { id: { in: dispatchIds } },
         include: {
           goldPour: { select: { site: { select: { companyId: true } } } },
           batches: { select: { goldPourId: true } },
         },
       })
-      if (!dispatch || dispatch.goldPour.site.companyId !== session.user.companyId) {
+      if (dispatches.length !== dispatchIds.length) {
         return errorResponse("Invalid dispatch", 403)
       }
-      const dispatchPourIds = new Set<string>([
-        dispatch.goldPourId,
-        ...dispatch.batches.map((b) => b.goldPourId),
-      ])
+      const dispatchPourIds = new Set<string>()
+      for (const dispatch of dispatches) {
+        if (dispatch.goldPour.site.companyId !== session.user.companyId) {
+          return errorResponse("Invalid dispatch", 403)
+        }
+        dispatchPourIds.add(dispatch.goldPourId)
+        for (const b of dispatch.batches) dispatchPourIds.add(b.goldPourId)
+      }
+      // Every selected pour must be inside one of the chosen dispatches.
       for (const pourId of pourIds) {
         if (!dispatchPourIds.has(pourId)) {
           return errorResponse("Batch is not part of the selected dispatch", 400)
@@ -88,19 +114,28 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // Conflict guard: any pour that's already on another receipt blocks
+    // this submission. We check all of: legacy goldPourId, dispatch
+    // primary pour, and the new BuyerReceiptBatch join.
     const existingReceipts = await prisma.buyerReceipt.findMany({
       where: {
         OR: [
           { goldPourId: { in: pourIds } },
           { goldDispatch: { is: { goldPourId: { in: pourIds } } } },
+          { batches: { some: { goldPourId: { in: pourIds } } } },
         ],
       },
-      select: { goldPourId: true, goldDispatch: { select: { goldPourId: true } } },
+      select: {
+        goldPourId: true,
+        goldDispatch: { select: { goldPourId: true } },
+        batches: { select: { goldPourId: true } },
+      },
     })
     const alreadyReceiptedIds = new Set<string>()
     for (const receipt of existingReceipts) {
       if (receipt.goldPourId) alreadyReceiptedIds.add(receipt.goldPourId)
       if (receipt.goldDispatch?.goldPourId) alreadyReceiptedIds.add(receipt.goldDispatch.goldPourId)
+      for (const b of receipt.batches) alreadyReceiptedIds.add(b.goldPourId)
     }
     const conflicts = pours.filter((pour) => alreadyReceiptedIds.has(pour.id))
     if (conflicts.length > 0) {
@@ -112,90 +147,129 @@ export async function POST(request: NextRequest) {
 
     const pourLookup = new Map(pours.map((pour) => [pour.id, pour]))
 
+    // Sanity: a single price snapshot for the whole receipt — every batch
+    // closes at the same business-date USD/g rate (gold prices are always
+    // USD per the team).
+    const headerValuation = await snapshotGoldUsdValue({
+      companyId: session.user.companyId,
+      businessDate: validated.receiptDate,
+      grams: pours.reduce((sum, p) => sum + p.grossWeight, 0),
+    })
+    if (!headerValuation) {
+      return errorResponse(
+        "No gold price configured. Add a gold price before recording sales.",
+        409,
+      )
+    }
+
+    const totalPaid = validated.items.reduce((sum, i) => sum + i.paidAmount, 0)
+
     const created = await prisma.$transaction(async (tx) => {
-      const results: Array<{ id: string }> = []
-      let totalPaid = 0
+      const receiptNumber = await reserveIdentifier(tx, {
+        companyId: session.user.companyId,
+        entity: "GOLD_RECEIPT",
+      })
+      // Aggregate header receipt. The legacy goldDispatchId/goldPourId
+      // fields are populated with the FIRST item / dispatch for backward
+      // compatibility — every batch (and every dispatch) is mirrored in
+      // the join tables.
+      const receipt = await tx.buyerReceipt.create({
+        data: {
+          goldDispatchId: dispatchIds[0] ?? null,
+          goldPourId: validated.items[0].goldPourId,
+          receiptNumber,
+          receiptDate: new Date(validated.receiptDate),
+          paidAmount: totalPaid,
+          paidValueUsd: totalPaid,
+          goldPriceUsdPerGram: headerValuation.goldPriceUsdPerGram,
+          valuationDate: headerValuation.valuationDate,
+          paymentMethod: validated.paymentMethod,
+          paymentChannel: validated.paymentChannel,
+          paymentReference: validated.paymentReference,
+          notes: validated.notes,
+        },
+      })
+
       for (const item of validated.items) {
         const pour = pourLookup.get(item.goldPourId)!
-        const valuation = await snapshotGoldUsdValue({
-          companyId: session.user.companyId,
-          businessDate: validated.receiptDate,
-          grams: pour.grossWeight,
-        })
-        if (!valuation) {
-          throw new Error("No gold price configured. Add a gold price before recording sales.")
-        }
-        const receiptNumber = await reserveIdentifier(tx, {
-          companyId: session.user.companyId,
-          entity: "GOLD_RECEIPT",
-        })
-        const receipt = await tx.buyerReceipt.create({
+        await tx.buyerReceiptBatch.create({
           data: {
-            goldDispatchId: validated.goldDispatchId,
+            buyerReceiptId: receipt.id,
             goldPourId: item.goldPourId,
-            receiptNumber,
-            receiptDate: new Date(validated.receiptDate),
-            assayResult: item.assayResult,
-            paidAmount: item.paidAmount,
-            goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
-            valuationDate: valuation.valuationDate,
-            paidValueUsd: item.paidAmount,
-            paymentMethod: validated.paymentMethod,
-            paymentChannel: validated.paymentChannel,
-            paymentReference: validated.paymentReference,
-            notes: validated.notes,
+            grams: pour.grossWeight,
+            valueUsd: item.paidAmount,
+            goldPriceUsdPerGram: headerValuation.goldPriceUsdPerGram,
+            notes:
+              item.assayResult != null
+                ? `assayResult=${item.assayResult}`
+                : null,
           },
         })
-        results.push({ id: receipt.id })
-        totalPaid += item.paidAmount
       }
-      return { results, totalPaid }
+      for (const dispatchId of dispatchIds) {
+        await tx.buyerReceiptDispatch.create({
+          data: {
+            buyerReceiptId: receipt.id,
+            goldDispatchId: dispatchId,
+          },
+        })
+      }
+
+      return { receipt, totalPaid }
     })
 
-    for (const result of created.results) {
+    // OUT events are recorded per pour so receipt → event traceability
+    // matches the FIFO sale path.
+    for (const item of validated.items) {
+      const pour = pourLookup.get(item.goldPourId)!
       try {
-        const receipt = await prisma.buyerReceipt.findUnique({
-          where: { id: result.id },
-          include: { goldPour: { select: { siteId: true, grossWeight: true } } },
-        })
-        if (!receipt) continue
-        if (receipt.goldPour) {
-          try {
-            await recordInventoryEvent(prisma, {
-              companyId: session.user.companyId,
-              siteId: receipt.goldPour.siteId,
-              eventDate: receipt.receiptDate,
-              direction: "OUT",
-              grams: receipt.goldPour.grossWeight,
-              sourceType: "RECEIPT",
-              sourceId: receipt.id,
-              notes: `Sale ${receipt.receiptNumber}`,
-              createdById: session.user.id,
-              skipValuation: true,
-            })
-          } catch (invErr) {
-            console.error("[Inventory] batch receipt OUT failed:", invErr)
-          }
-        }
-        await createJournalEntryFromSource({
+        await recordInventoryEvent(prisma, {
           companyId: session.user.companyId,
-          sourceType: "GOLD_RECEIPT",
-          sourceId: receipt.id,
-          entryDate: receipt.receiptDate,
-          description: `Gold receipt ${receipt.receiptNumber}`,
+          siteId: headerSiteId,
+          eventDate: created.receipt.receiptDate,
+          direction: "OUT",
+          grams: pour.grossWeight,
+          sourceType: "RECEIPT",
+          sourceId: created.receipt.id,
+          notes: `Sale ${created.receipt.receiptNumber} (pour ${pour.pourBarId})`,
           createdById: session.user.id,
-          amount: receipt.paidValueUsd ?? receipt.paidAmount,
-          netAmount: receipt.paidValueUsd ?? receipt.paidAmount,
-          taxAmount: 0,
-          grossAmount: receipt.paidValueUsd ?? receipt.paidAmount,
+          goldPriceUsdPerGram: headerValuation.goldPriceUsdPerGram,
+          valueUsd: item.paidAmount,
+          skipValuation: true,
         })
-      } catch (error) {
-        console.error("[Accounting] Gold batch receipt auto-post failed:", error)
+      } catch (invErr) {
+        console.error("[Inventory] batch receipt OUT failed:", invErr)
       }
     }
 
+    try {
+      await createJournalEntryFromSource({
+        companyId: session.user.companyId,
+        sourceType: "GOLD_RECEIPT",
+        sourceId: created.receipt.id,
+        entryDate: created.receipt.receiptDate,
+        description: `Gold receipt ${created.receipt.receiptNumber}`,
+        createdById: session.user.id,
+        amount: created.totalPaid,
+        netAmount: created.totalPaid,
+        taxAmount: 0,
+        grossAmount: created.totalPaid,
+      })
+    } catch (error) {
+      console.error("[Accounting] Gold batch receipt auto-post failed:", error)
+    }
+
     return successResponse(
-      { count: created.results.length, ids: created.results.map((r) => r.id), totalPaid: created.totalPaid },
+      {
+        count: 1,
+        receiptId: created.receipt.id,
+        // Back-compat with the prior shape: `ids` was the list of created
+        // receipts. Now there's only one, but the field stays so any
+        // existing callers don't break.
+        ids: [created.receipt.id],
+        batchCount: validated.items.length,
+        totalPaid: created.totalPaid,
+      },
       201,
     )
   } catch (error) {
