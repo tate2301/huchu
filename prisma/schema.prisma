@@ -2425,6 +2425,7 @@ model GoldLedgerEntry {
   balGrams              Float?   // negative => sale
   status                GoldLedgerEntryStatus @default(PENDING)
   goldShiftAllocationId String?
+  goldPourId            String? // bare-pour fallback OR set after auto-pour for cleanup tracking
   buyerReceiptId        String?
   errorMessage          String?
   createdAt             DateTime @default(now())

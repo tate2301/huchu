@@ -26,9 +26,6 @@ export async function POST(
     if (!importRecord || importRecord.companyId !== companyId) {
       return errorResponse("Import not found", 404)
     }
-    if (importRecord.status === "COMMITTED") {
-      return errorResponse("Already committed", 409)
-    }
     if (!importRecord.siteId) {
       return errorResponse("Pick a site before committing", 400)
     }
@@ -42,6 +39,160 @@ export async function POST(
     })
     if (!site || site.companyId !== companyId || !site.isActive) {
       return errorResponse("Invalid site", 403)
+    }
+
+    // Cleanup phase: re-running a commit replaces every record produced by
+    // earlier runs of THIS import. Idempotent: deletes allocations, pours
+    // (auto + bare), receipts, inventory events, accounting events,
+    // exceptions, and attendance for those shifts; resets every entry to
+    // PENDING with cleared FKs so the main passes start from scratch.
+    const priorAllocationIds = importRecord.entries
+      .filter((e) => !!e.goldShiftAllocationId)
+      .map((e) => e.goldShiftAllocationId!)
+    const priorPourIdsFromEntries = importRecord.entries
+      .filter((e) => !!e.goldPourId)
+      .map((e) => e.goldPourId!)
+    const priorReceiptIds = importRecord.entries
+      .filter((e) => !!e.buyerReceiptId)
+      .map((e) => e.buyerReceiptId!)
+    const allEntryIds = importRecord.entries.map((e) => e.id)
+
+    if (
+      priorAllocationIds.length > 0 ||
+      priorPourIdsFromEntries.length > 0 ||
+      priorReceiptIds.length > 0
+    ) {
+      await prisma.$transaction(async (tx) => {
+        // Pull allocation-linked pours.
+        const allocationPours = await tx.goldPour.findMany({
+          where: { goldShiftAllocationId: { in: priorAllocationIds } },
+          select: { id: true },
+        })
+        const allPourIds = Array.from(
+          new Set([...priorPourIdsFromEntries, ...allocationPours.map((p) => p.id)]),
+        )
+
+        // Pull every receipt that touches our pours (FIFO sales might link
+        // to pours not directly referenced by an entry).
+        const relatedReceipts = await tx.buyerReceipt.findMany({
+          where: { goldPourId: { in: allPourIds } },
+          select: { id: true },
+        })
+        const allReceiptIds = Array.from(
+          new Set([...priorReceiptIds, ...relatedReceipts.map((r) => r.id)]),
+        )
+
+        // Pull expense IDs (their accounting events use the expense ID as
+        // sourceId).
+        const allocationExpenses = await tx.goldShiftExpense.findMany({
+          where: { allocationId: { in: priorAllocationIds } },
+          select: { id: true },
+        })
+        const expenseIds = allocationExpenses.map((e) => e.id)
+
+        // Pull allocation rows so we can find their shift reports + shift
+        // names (needed to clean up Attendance for those shifts).
+        const allocationRows = await tx.goldShiftAllocation.findMany({
+          where: { id: { in: priorAllocationIds } },
+          select: { id: true, shiftReportId: true, siteId: true, date: true, shift: true },
+        })
+        const shiftReportIds = allocationRows.map((a) => a.shiftReportId)
+
+        // Order: child rows first, parents last (no cascade configured on
+        // these FKs).
+        await tx.goldInventoryEvent.deleteMany({
+          where: {
+            OR: [
+              { sourceType: "POUR", sourceId: { in: allPourIds } },
+              { sourceType: "RECEIPT", sourceId: { in: allReceiptIds } },
+              { sourceType: "SHIFT_ALLOCATION", sourceId: { in: priorAllocationIds } },
+            ],
+          },
+        })
+
+        const accountingSourceIds = [
+          ...priorAllocationIds,
+          ...allPourIds,
+          ...allReceiptIds,
+          ...expenseIds,
+        ]
+        if (accountingSourceIds.length > 0) {
+          await tx.accountingIntegrationEvent.deleteMany({
+            where: { sourceId: { in: accountingSourceIds } },
+          })
+        }
+
+        await tx.goldException.deleteMany({
+          where: {
+            OR: [
+              { entityType: "GoldShiftAllocation", entityId: { in: priorAllocationIds } },
+              { entityType: "GoldPour", entityId: { in: allPourIds } },
+              { entityType: "BuyerReceipt", entityId: { in: allReceiptIds } },
+              { entityType: "GoldLedgerEntry", entityId: { in: allEntryIds } },
+            ],
+          },
+        })
+
+        if (allReceiptIds.length > 0) {
+          await tx.buyerReceipt.deleteMany({ where: { id: { in: allReceiptIds } } })
+        }
+
+        if (priorAllocationIds.length > 0) {
+          await tx.employeePayment.deleteMany({
+            where: { goldShiftAllocationId: { in: priorAllocationIds } },
+          })
+          await tx.goldShiftWorkerShare.deleteMany({
+            where: { allocationId: { in: priorAllocationIds } },
+          })
+          await tx.goldShiftExpense.deleteMany({
+            where: { allocationId: { in: priorAllocationIds } },
+          })
+        }
+
+        if (allPourIds.length > 0) {
+          await tx.goldPour.deleteMany({ where: { id: { in: allPourIds } } })
+        }
+
+        if (priorAllocationIds.length > 0) {
+          await tx.goldShiftAllocation.deleteMany({
+            where: { id: { in: priorAllocationIds } },
+          })
+        }
+
+        // Attendance was created with a per-row shift name like
+        // "LEDGER-{lineNo}". Use the allocation rows we collected — same
+        // (siteId, date, shift) tuple.
+        for (const a of allocationRows) {
+          await tx.attendance.deleteMany({
+            where: { siteId: a.siteId, date: a.date, shift: a.shift },
+          })
+        }
+
+        if (shiftReportIds.length > 0) {
+          await tx.shiftReport.deleteMany({ where: { id: { in: shiftReportIds } } })
+        }
+
+        // Reset every entry so the main passes will reprocess from scratch.
+        await tx.goldLedgerEntry.updateMany({
+          where: { importId: id },
+          data: {
+            status: "PENDING",
+            goldShiftAllocationId: null,
+            goldPourId: null,
+            buyerReceiptId: null,
+            // Keep parser-level errorMessage if it was a parser warning;
+            // clear post-commit messages.
+            errorMessage: null,
+          },
+        })
+      })
+      // Re-fetch entries after reset so the in-memory collection reflects
+      // the cleared state.
+      const refreshed = await prisma.goldLedgerEntry.findMany({
+        where: { importId: id },
+        orderBy: { lineNo: "asc" },
+      })
+      importRecord.entries = refreshed
     }
 
     let rowsCreated = 0
@@ -163,6 +314,7 @@ export async function POST(
               data: {
                 status: "ANOMALY",
                 errorMessage: rowWarnings.join(" · "),
+                goldPourId: fallbackPourId,
               },
             })
             await tx.goldException.create({
@@ -366,6 +518,7 @@ export async function POST(
             where: { id: entry.id },
             data: {
               goldShiftAllocationId: allocation.id,
+              goldPourId: createdPourId,
               status: isFlagged ? "ANOMALY" : "CREATED",
               errorMessage: isFlagged ? flaggedMessage : null,
             },
