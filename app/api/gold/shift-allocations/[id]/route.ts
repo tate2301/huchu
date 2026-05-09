@@ -54,6 +54,9 @@ export async function GET(
             grossWeight: true,
             valueUsd: true,
             pourDate: true,
+            _count: {
+              select: { receipts: true, dispatches: true, dispatchBatches: true },
+            },
           },
         },
         employeePayments: {

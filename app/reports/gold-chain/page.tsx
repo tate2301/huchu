@@ -96,9 +96,22 @@ export default function GoldChainReportPage() {
     [correctionsData],
   );
 
+  // Index by EVERY pour in the dispatch — primary `goldPourId` AND every
+  // batch in the GoldDispatchBatch join. Without this, batches B and C
+  // in a multi-batch dispatch (whose primary is A) wrongly show as
+  // "Poured" instead of "Dispatched".
   const dispatchByPour = useMemo(() => {
     const map = new Map<string, (typeof dispatches)[number]>();
-    dispatches.forEach((row) => map.set(row.goldPourId, row));
+    dispatches.forEach((row) => {
+      if (row.goldPourId) map.set(row.goldPourId, row);
+      const batches = (row as { batches?: Array<{ goldPourId?: string }> })
+        .batches;
+      if (batches) {
+        for (const b of batches) {
+          if (b.goldPourId) map.set(b.goldPourId, row);
+        }
+      }
+    });
     return map;
   }, [dispatches]);
 

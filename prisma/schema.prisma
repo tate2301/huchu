@@ -2428,6 +2428,9 @@ model GoldLedgerEntry {
   goldPourId            String? // bare-pour fallback OR set after auto-pour for cleanup tracking
   buyerReceiptId        String?
   errorMessage          String?
+  /// Parser-origin warnings (set at parse time, never cleared on recommit
+  /// cleanup). Distinct from errorMessage which is post-commit context.
+  parserWarning         String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
 

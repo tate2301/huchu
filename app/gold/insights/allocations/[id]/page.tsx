@@ -66,6 +66,11 @@ type AllocationDetail = {
     grossWeight: number;
     valueUsd: number | null;
     pourDate: string;
+    _count?: {
+      receipts: number;
+      dispatches: number;
+      dispatchBatches: number;
+    };
   }>;
   employeePayments: Array<{
     id: string;
@@ -147,8 +152,8 @@ export default function AllocationDetailPage() {
     return (
       <DetailShell
         activeTab="payouts"
-        backHref="/gold/payouts"
-        backLabel="Payouts"
+        backHref="/gold/insights/allocations"
+        backLabel="Allocations"
         title="Loading…"
         primary={<Skeleton className="h-64 w-full" />}
         side={<Skeleton className="h-40 w-full" />}
@@ -160,8 +165,8 @@ export default function AllocationDetailPage() {
     return (
       <DetailShell
         activeTab="payouts"
-        backHref="/gold/payouts"
-        backLabel="Payouts"
+        backHref="/gold/insights/allocations"
+        backLabel="Allocations"
         title="Could not load allocation"
         primary={
           <Alert variant="destructive">
@@ -177,8 +182,8 @@ export default function AllocationDetailPage() {
   return (
     <DetailShell
       activeTab="payouts"
-      backHref="/gold/payouts"
-      backLabel="Payouts"
+      backHref="/gold/insights/allocations"
+      backLabel="Allocations"
       title={`${data.shift} · ${new Date(data.date).toLocaleDateString()}`}
       subtitle={`${data.site.name} · led by ${data.shiftReport?.groupLeader?.name ?? "—"}`}
       status={
@@ -316,22 +321,47 @@ export default function AllocationDetailPage() {
               <p className="text-sm text-muted-foreground">No batch created (witnesses missing).</p>
             ) : (
               <ul className="divide-y">
-                {data.pours.map((p) => (
-                  <li key={p.id} className="flex items-center justify-between py-2">
-                    <div>
-                      <Link href={`/gold/intake/pours/${p.id}`} className="font-mono font-semibold hover:underline">
-                        {p.pourBarId}
-                      </Link>
-                      <p className="text-xs text-muted-foreground">
-                        {new Date(p.pourDate).toLocaleDateString()}
-                      </p>
-                    </div>
-                    <div className="text-right text-sm">
-                      <p className="font-semibold">{grams(p.grossWeight)}</p>
-                      <p className="text-xs text-muted-foreground">{usd(p.valueUsd)}</p>
-                    </div>
-                  </li>
-                ))}
+                {data.pours.map((p) => {
+                  const counts = p._count;
+                  const sold = (counts?.receipts ?? 0) > 0;
+                  const dispatched =
+                    (counts?.dispatches ?? 0) > 0 ||
+                    (counts?.dispatchBatches ?? 0) > 0;
+                  return (
+                    <li
+                      key={p.id}
+                      className="flex items-center justify-between gap-3 py-2"
+                    >
+                      <div className="min-w-0">
+                        <Link
+                          href={`/gold/intake/pours/${p.id}`}
+                          className="font-mono font-semibold hover:underline"
+                        >
+                          {p.pourBarId}
+                        </Link>
+                        <p className="text-xs text-muted-foreground">
+                          {new Date(p.pourDate).toLocaleDateString()}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        <StatusChip
+                          status={
+                            sold ? "passing" : dispatched ? "warning" : "pending"
+                          }
+                          label={
+                            sold ? "Sold" : dispatched ? "In transit" : "On site"
+                          }
+                        />
+                        <div className="text-right text-sm">
+                          <p className="font-semibold">{grams(p.grossWeight)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {usd(p.valueUsd)}
+                          </p>
+                        </div>
+                      </div>
+                    </li>
+                  );
+                })}
               </ul>
             )}
           </DetailSection>

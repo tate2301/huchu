@@ -64,6 +64,11 @@ export async function GET(request: NextRequest) {
               },
             },
           },
+          // Lifecycle counters for the list-view Status chip — cheap
+          // _count queries vs. shipping the full receipt/dispatch payload.
+          _count: {
+            select: { receipts: true, dispatches: true, dispatchBatches: true },
+          },
         },
         orderBy: { pourDate: 'desc' },
         skip,

@@ -6,6 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
 import { ArrowRightLeft, PackageCheck, Scale, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { StatusChip } from "@/components/ui/status-chip";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
@@ -142,23 +143,41 @@ export default function DispatchDetailPage() {
             description="Each batch travelled together; receipts may be recorded individually."
           >
             <ul className="divide-y">
-              {allBatches.map((b) => (
-                <li key={b.id} className="flex items-center justify-between py-2">
-                  <div>
-                    <Link
-                      href={`/gold/intake/pours/${b.id}`}
-                      className="font-mono font-semibold hover:underline"
-                    >
-                      {b.pourBarId}
-                    </Link>
-                    <p className="text-xs text-muted-foreground">{b.site.name}</p>
-                  </div>
-                  <div className="text-right text-sm">
-                    <p className="font-semibold">{grams(b.grossWeight)}</p>
-                    <p className="text-xs text-muted-foreground">{usd(b.valueUsd)}</p>
-                  </div>
-                </li>
-              ))}
+              {allBatches.map((b) => {
+                const sold = data.buyerReceipts.some(
+                  (r) => r.goldPourId === b.id,
+                );
+                return (
+                  <li
+                    key={b.id}
+                    className="flex items-center justify-between gap-3 py-2"
+                  >
+                    <div className="min-w-0">
+                      <Link
+                        href={`/gold/intake/pours/${b.id}`}
+                        className="font-mono font-semibold hover:underline"
+                      >
+                        {b.pourBarId}
+                      </Link>
+                      <p className="text-xs text-muted-foreground truncate">
+                        {b.site.name}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <StatusChip
+                        status={sold ? "passing" : "pending"}
+                        label={sold ? "Sold" : "Awaiting sale"}
+                      />
+                      <div className="text-right text-sm">
+                        <p className="font-semibold">{grams(b.grossWeight)}</p>
+                        <p className="text-xs text-muted-foreground">
+                          {usd(b.valueUsd)}
+                        </p>
+                      </div>
+                    </div>
+                  </li>
+                );
+              })}
             </ul>
           </DetailSection>
 

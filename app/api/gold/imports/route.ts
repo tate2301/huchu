@@ -77,20 +77,27 @@ export async function POST(request: NextRequest) {
       })
 
       await tx.goldLedgerEntry.createMany({
-        data: parsed.rows.map((row) => ({
-          importId: importRecord.id,
-          lineNo: row.lineNo,
-          rawJson: row.rawJson,
-          parsedDate: row.parsedDate,
-          parsedName: row.parsedName,
-          gramsTotal: row.gramsTotal,
-          expensesJson: JSON.stringify(row.expenses),
-          boysGrams: row.boysGrams,
-          mdaraGrams: row.mdaraGrams,
-          balGrams: row.balGrams,
-          status: row.warnings.length > 0 ? "ANOMALY" : "PENDING",
-          errorMessage: row.warnings.length > 0 ? row.warnings.join("; ") : null,
-        })),
+        data: parsed.rows.map((row) => {
+          const parserWarning =
+            row.warnings.length > 0 ? row.warnings.join("; ") : null
+          return {
+            importId: importRecord.id,
+            lineNo: row.lineNo,
+            rawJson: row.rawJson,
+            parsedDate: row.parsedDate,
+            parsedName: row.parsedName,
+            gramsTotal: row.gramsTotal,
+            expensesJson: JSON.stringify(row.expenses),
+            boysGrams: row.boysGrams,
+            mdaraGrams: row.mdaraGrams,
+            balGrams: row.balGrams,
+            status: parserWarning ? "ANOMALY" : "PENDING",
+            errorMessage: parserWarning,
+            // Persist parser warnings separately so recommit cleanup can
+            // wipe transient errorMessage without losing parse-time context.
+            parserWarning,
+          }
+        }),
       })
 
       return importRecord

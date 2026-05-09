@@ -185,6 +185,13 @@ export default function GoldPage() {
               <Link href={goldRoutes.intake.create}>Record Batch</Link>
             </Button>
           ) : null}
+          {canRecordBatch ? (
+            <Button asChild size="sm" variant="outline">
+              <Link href="/gold/intake/purchases?create=1">
+                Record Purchase
+              </Link>
+            </Button>
+          ) : null}
           {canRecordDispatch ? (
             <Button asChild size="sm" variant="outline">
               <Link href={goldRoutes.transit.create}>Record Dispatch</Link>
@@ -195,6 +202,9 @@ export default function GoldPage() {
               <Link href={goldRoutes.settlement.create}>Record Sale</Link>
             </Button>
           ) : null}
+          <Button asChild size="sm" variant="outline">
+            <Link href="/gold/insights/allocations">Allocations</Link>
+          </Button>
           <Button asChild size="sm" variant="outline">
             <Link href="/gold/import">Import Ledger</Link>
           </Button>

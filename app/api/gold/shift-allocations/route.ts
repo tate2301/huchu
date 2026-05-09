@@ -102,6 +102,7 @@ export async function GET(request: NextRequest) {
     const shift = searchParams.get("shift")
     const startDate = searchParams.get("startDate")
     const endDate = searchParams.get("endDate")
+    const workflowStatus = searchParams.get("workflowStatus")
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
@@ -110,6 +111,12 @@ export async function GET(request: NextRequest) {
 
     if (siteId) where.siteId = siteId
     if (shift?.trim()) where.shift = normalizeShiftLabel(shift)
+    if (
+      workflowStatus &&
+      ["DRAFT", "SUBMITTED", "APPROVED", "REJECTED"].includes(workflowStatus)
+    ) {
+      where.workflowStatus = workflowStatus
+    }
     if (startDate || endDate) {
       const dateFilter: Record<string, Date> = {}
       if (startDate) dateFilter.gte = new Date(startDate)

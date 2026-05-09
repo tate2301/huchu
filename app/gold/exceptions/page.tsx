@@ -113,9 +113,22 @@ export default function GoldExceptionsPage() {
     [correctionsData],
   );
 
+  // Index by every pour in every dispatch — primary AND multi-batch
+  // join — so secondary batches in a multi-batch dispatch are correctly
+  // recognised as "dispatched" and don't show up under "missing dispatch".
   const dispatchByPourId = useMemo(() => {
     const map = new Map<string, (typeof dispatches)[number]>();
-    dispatches.forEach((dispatch) => map.set(dispatch.goldPourId, dispatch));
+    dispatches.forEach((dispatch) => {
+      if (dispatch.goldPourId) map.set(dispatch.goldPourId, dispatch);
+      const batches = (dispatch as {
+        batches?: Array<{ goldPourId?: string }>;
+      }).batches;
+      if (batches) {
+        for (const b of batches) {
+          if (b.goldPourId) map.set(b.goldPourId, dispatch);
+        }
+      }
+    });
     return map;
   }, [dispatches]);
 
@@ -143,20 +156,41 @@ export default function GoldExceptionsPage() {
     [dispatchByPourId, pours],
   );
 
-  const missingSaleRows = useMemo<MissingSaleRow[]>(
-    () =>
-      dispatches
-        .filter((dispatch) => !soldPourIds.has(dispatch.goldPourId))
-        .map((dispatch) => ({
-          id: dispatch.id,
-          batchId: dispatch.goldPour.pourBarId,
-          courier: dispatch.courier,
-          destination: dispatch.destination,
-          dispatchDate: dispatch.dispatchDate,
-        }))
-        .sort((a, b) => b.dispatchDate.localeCompare(a.dispatchDate)),
-    [dispatches, soldPourIds],
-  );
+  // Iterate every batch in every dispatch. A multi-batch dispatch with
+  // some sold and some unsold batches now correctly flags ONLY the
+  // unsold ones (the previous logic only flagged the dispatch's primary
+  // pour, hiding unsold sibling batches entirely).
+  const missingSaleRows = useMemo<MissingSaleRow[]>(() => {
+    const rows: MissingSaleRow[] = [];
+    for (const dispatch of dispatches) {
+      type DispatchBatch = {
+        goldPourId: string;
+        goldPour?: { pourBarId: string };
+      };
+      const batches = (dispatch as { batches?: DispatchBatch[] }).batches ?? [];
+      const allPours: Array<{ pourId: string; pourBarId: string }> =
+        batches.length > 0
+          ? batches.map((b) => ({
+              pourId: b.goldPourId,
+              pourBarId: b.goldPour?.pourBarId ?? dispatch.goldPour.pourBarId,
+            }))
+          : [{ pourId: dispatch.goldPourId, pourBarId: dispatch.goldPour.pourBarId }];
+      for (const p of allPours) {
+        if (!soldPourIds.has(p.pourId)) {
+          rows.push({
+            id: `${dispatch.id}-${p.pourId}`,
+            batchId: p.pourBarId,
+            courier: dispatch.courier,
+            destination: dispatch.destination,
+            dispatchDate: dispatch.dispatchDate,
+          });
+        }
+      }
+    }
+    return rows.sort((a, b) =>
+      b.dispatchDate.localeCompare(a.dispatchDate),
+    );
+  }, [dispatches, soldPourIds]);
 
   const correctionRows = useMemo<CorrectionRow[]>(
     () =>
