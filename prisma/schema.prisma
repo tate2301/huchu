@@ -2017,6 +2017,22 @@ model PlantReport {
 // PHASE 3: GOLD CONTROL
 // ============================================
 
+enum GoldPriceSource {
+  CONFIGURED // a GoldPrice row matched the business date
+  LIVE       // resolved via live API (within 24h cache)
+  FALLBACK   // fell back to default $80/g
+}
+
+model GoldSpotPriceCache {
+  id              String   @id @default(uuid())
+  fetchedAt       DateTime @default(now())
+  source          String   // e.g. "metals-api", "lbma-am-fix"
+  priceUsdPerGram Float
+  rawResponse     String?  // JSON string
+
+  @@index([fetchedAt])
+}
+
 model GoldPrice {
   id              String   @id @default(uuid())
   companyId       String
@@ -2065,6 +2081,7 @@ model GoldPour {
   additionalExpensesNote   String?
   notes                    String?
   goldPriceUsdPerGram      Float?
+  goldPriceSource          GoldPriceSource?
   valuationDate            DateTime?
   valueUsd                 Float?
 
@@ -2154,6 +2171,7 @@ model GoldDispatch {
   receivedBy          String?
   notes               String?
   goldPriceUsdPerGram Float?
+  goldPriceSource     GoldPriceSource?
   valuationDate       DateTime?
   valueUsd            Float?
 
@@ -2199,6 +2217,7 @@ model BuyerReceipt {
   paymentReference    String?
   notes               String?
   goldPriceUsdPerGram Float?
+  goldPriceSource     GoldPriceSource?
   valuationDate       DateTime?
   paidValueUsd        Float?
 
@@ -2230,6 +2249,7 @@ model BuyerReceiptBatch {
   grams               Float
   valueUsd            Float?
   goldPriceUsdPerGram Float?
+  goldPriceSource     GoldPriceSource?
   notes               String?
   createdAt           DateTime @default(now())
 
@@ -2273,6 +2293,7 @@ model GoldShiftAllocation {
   companyShareWeight        Float
   perWorkerWeight           Float
   goldPriceUsdPerGram       Float?
+  goldPriceSource           GoldPriceSource?
   valuationDate             DateTime?
   totalWeightValueUsd       Float?
   netWeightValueUsd         Float?
@@ -2379,6 +2400,7 @@ model GoldInventoryEvent {
   direction           GoldInventoryDirection
   grams               Float
   goldPriceUsdPerGram Float?
+  goldPriceSource     GoldPriceSource?
   valueUsd            Float?
   sourceType          GoldInventorySourceType
   sourceId            String?
