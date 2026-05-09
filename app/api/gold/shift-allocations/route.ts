@@ -314,6 +314,9 @@ export async function POST(request: NextRequest) {
     const canAutoCreateBatch = Boolean(primaryWitnessId && secondaryWitnessId)
 
     const result = await prisma.$transaction(async (tx) => {
+      // TODO(Epic 3 / constraints): add shiftGroupId: shiftReport.shiftGroupId ?? null
+      // once the constraints agent pushes the GoldShiftAllocation migration that
+      // adds the shiftGroupId column. The shiftReport is already in scope above.
       const allocation = await tx.goldShiftAllocation.create({
         data: {
           date: start,
