@@ -252,6 +252,10 @@ export async function POST(request: NextRequest) {
           where: { id: validated.goldDispatchId },
           include: {
             goldPour: { select: { id: true, site: { select: { companyId: true } } } },
+            // Pull every batch in the dispatch so we can validate that
+            // a chosen goldPourId is part of the trip — not just the
+            // legacy primary pour.
+            batches: { select: { goldPourId: true } },
           },
         })
       : null
@@ -267,12 +271,17 @@ export async function POST(request: NextRequest) {
     if (!resolvedGoldPourId) {
       return errorResponse("Batch is required", 400)
     }
-    if (
-      dispatch &&
-      validated.goldPourId &&
-      validated.goldPourId !== dispatch.goldPourId
-    ) {
-      return errorResponse("Dispatch does not belong to selected batch", 400)
+    if (dispatch && validated.goldPourId) {
+      const dispatchPourIds = new Set<string>([
+        dispatch.goldPourId,
+        ...dispatch.batches.map((b) => b.goldPourId),
+      ])
+      if (!dispatchPourIds.has(validated.goldPourId)) {
+        return errorResponse(
+          "Selected batch is not part of this dispatch",
+          400,
+        )
+      }
     }
 
     const goldPour = await prisma.goldPour.findUnique({

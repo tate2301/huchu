@@ -173,18 +173,43 @@ export async function POST(
         }
 
         // Reset every entry so the main passes will reprocess from scratch.
+        // Parser-origin anomalies (parserWarning column) are preserved —
+        // we restore status=ANOMALY and re-surface the warning on
+        // errorMessage for the operator to see.
         await tx.goldLedgerEntry.updateMany({
-          where: { importId: id },
+          where: { importId: id, parserWarning: null },
           data: {
             status: "PENDING",
             goldShiftAllocationId: null,
             goldPourId: null,
             buyerReceiptId: null,
-            // Keep parser-level errorMessage if it was a parser warning;
-            // clear post-commit messages.
             errorMessage: null,
           },
         })
+        await tx.goldLedgerEntry.updateMany({
+          where: { importId: id, NOT: { parserWarning: null } },
+          data: {
+            status: "ANOMALY",
+            goldShiftAllocationId: null,
+            goldPourId: null,
+            buyerReceiptId: null,
+            // errorMessage gets restored from parserWarning so the wizard
+            // shows the original parse-time anomaly even after a reset.
+            errorMessage: undefined,
+          },
+        })
+        // The PATCH above can't reference another column directly, so a
+        // second pass copies parserWarning -> errorMessage for those rows.
+        const parserAnomalyRows = await tx.goldLedgerEntry.findMany({
+          where: { importId: id, NOT: { parserWarning: null } },
+          select: { id: true, parserWarning: true },
+        })
+        for (const row of parserAnomalyRows) {
+          await tx.goldLedgerEntry.update({
+            where: { id: row.id },
+            data: { errorMessage: row.parserWarning },
+          })
+        }
       })
       // Re-fetch entries after reset so the in-memory collection reflects
       // the cleared state.
@@ -223,7 +248,11 @@ export async function POST(
       const shiftName = `LEDGER-${entry.lineNo}`
       // Soft-validation: collect warnings, decide flag-vs-fail at the end.
       const rowWarnings: string[] = []
-      if (entry.errorMessage && entry.status === "ANOMALY") {
+      // Parser-origin warnings always flow through (they were saved at
+      // parse time and preserved across recommit cleanup).
+      if (entry.parserWarning) {
+        rowWarnings.push(entry.parserWarning)
+      } else if (entry.errorMessage && entry.status === "ANOMALY") {
         rowWarnings.push(entry.errorMessage)
       }
       try {
@@ -331,16 +360,102 @@ export async function POST(
             })
             return
           }
-          if (!group.leader.isActive) {
-            rowWarnings.push(`Group leader ${group.leader.name} is inactive`)
+          // Only seed the leader if they're still active. Otherwise we'd
+          // be marking attendance + paying out a worker who shouldn't be
+          // earning.
+          const presentEmployeeIds = new Set<string>()
+          if (group.leader.isActive) {
+            presentEmployeeIds.add(group.leader.id)
+          } else {
+            rowWarnings.push(
+              `Group leader ${group.leader.name} is inactive — excluded from attendance`,
+            )
           }
-
-          const presentEmployeeIds = new Set<string>([group.leader.id])
           for (const m of group.members) {
             if (m.employee.isActive) presentEmployeeIds.add(m.employee.id)
           }
           if (presentEmployeeIds.size === 0) {
-            rowWarnings.push("No active members in shift group")
+            // Can't credibly create allocation with zero present employees.
+            // Fall through to the bare-pour fallback.
+            rowWarnings.push(
+              "No active members in shift group — saved as bare pour without allocation",
+            )
+            const fallbackWitnesses = await tx.employee.findMany({
+              where: { companyId, isActive: true },
+              select: { id: true },
+              take: 2,
+            })
+            let fallbackPourId: string | null = null
+            if (
+              fallbackWitnesses.length >= 2 &&
+              entry.gramsTotal &&
+              entry.gramsTotal > 0
+            ) {
+              const pourBarId = await reserveIdentifier(tx, {
+                companyId,
+                entity: "GOLD_POUR",
+              })
+              const valuation = await snapshotGoldUsdValue({
+                companyId,
+                businessDate: entry.parsedDate!,
+                grams: entry.gramsTotal,
+              })
+              const pour = await tx.goldPour.create({
+                data: {
+                  siteId,
+                  pourBarId,
+                  pourDate: entry.parsedDate!,
+                  grossWeight: entry.gramsTotal,
+                  goldPriceUsdPerGram:
+                    valuation?.goldPriceUsdPerGram ?? null,
+                  valuationDate: valuation?.valuationDate ?? null,
+                  valueUsd: valuation?.valueUsd ?? null,
+                  witness1Id: fallbackWitnesses[0].id,
+                  witness2Id: fallbackWitnesses[1].id,
+                  storageLocation: "Vault (unverified)",
+                  notes: `Imported from ledger line ${entry.lineNo} — group has no active members. Witnesses are fallback employees; please reconcile.`,
+                  createdById: userId,
+                },
+                select: { id: true, pourBarId: true },
+              })
+              fallbackPourId = pour.id
+              await recordInventoryEvent(tx, {
+                companyId,
+                siteId,
+                eventDate: entry.parsedDate!,
+                direction: "IN",
+                grams: entry.gramsTotal,
+                goldPriceUsdPerGram: valuation?.goldPriceUsdPerGram ?? null,
+                valueUsd: valuation?.valueUsd ?? null,
+                sourceType: "POUR",
+                sourceId: pour.id,
+                notes: `Bare pour ${pour.pourBarId} (no active members) line ${entry.lineNo}`,
+                createdById: userId,
+                skipValuation: true,
+              })
+              poursCreated += 1
+            }
+            await tx.goldLedgerEntry.update({
+              where: { id: entry.id },
+              data: {
+                status: "ANOMALY",
+                goldPourId: fallbackPourId,
+                errorMessage: rowWarnings.join(" · "),
+              },
+            })
+            await tx.goldException.create({
+              data: {
+                companyId,
+                siteId,
+                category: "WITNESS_MISSING",
+                severity: "WARNING",
+                entityType: fallbackPourId ? "GoldPour" : "GoldLedgerEntry",
+                entityId: fallbackPourId ?? entry.id,
+                description: `Ledger line ${entry.lineNo}: shift group "${group.name}" has no active members${fallbackPourId ? "; saved as bare pour" : ""}`,
+                createdById: userId,
+              },
+            })
+            return
           }
 
           // Create ShiftReport

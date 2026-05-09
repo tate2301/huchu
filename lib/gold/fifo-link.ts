@@ -44,16 +44,36 @@ export async function linkFifoSale(
 
   if (input.saleGrams <= 0) return result;
 
-  // Pool of pours not yet receipted (directly or via dispatch), oldest first.
+  // Pool of pours not yet receipted, oldest first.
+  //
+  // `pour.receipts` is the back-relation of BuyerReceipt.goldPourId, so
+  // `receipts: { none: {} }` means "no BuyerReceipt covers this specific
+  // pour" — which is the per-pour check we want for both direct sales
+  // AND for dispatch-routed sales where the batch-receipt endpoint sets
+  // goldPourId on every item.
+  //
+  // For multi-batch dispatches, this naturally allows an unsold sibling
+  // batch to remain in the pool even when other batches in the same
+  // dispatch have already been sold. (The previous "every dispatch has
+  // no receipts" filter incorrectly excluded these.)
+  //
+  // Edge case: legacy receipts created with goldDispatchId set but
+  // goldPourId null — those are excluded by also rejecting any pour that
+  // shares a dispatch with such a "whole-dispatch" receipt.
   const candidates = await db.goldPour.findMany({
     where: {
       siteId: input.siteId,
       site: { companyId: input.companyId },
       receipts: { none: {} },
-      OR: [
-        { dispatches: { none: {} } },
-        { dispatches: { every: { buyerReceipts: { none: {} } } } },
-      ],
+      NOT: {
+        dispatches: {
+          some: {
+            buyerReceipts: {
+              some: { goldPourId: null },
+            },
+          },
+        },
+      },
     },
     orderBy: { pourDate: "asc" },
     select: { id: true, grossWeight: true, pourDate: true, pourBarId: true },

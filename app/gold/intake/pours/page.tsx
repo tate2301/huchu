@@ -22,6 +22,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
+import { StatusChip } from "@/components/ui/status-chip";
 import { fetchEmployees, fetchGoldPours, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 
@@ -104,6 +105,33 @@ export default function GoldIntakePoursPage() {
         size: 130,
         minSize: 130,
         maxSize: 160,
+      },
+      {
+        id: "lifecycleStatus",
+        header: "Status",
+        cell: ({ row }) => {
+          const counts = (row.original as {
+            _count?: {
+              receipts: number;
+              dispatches: number;
+              dispatchBatches: number;
+            };
+          })._count ?? {
+            receipts: 0,
+            dispatches: 0,
+            dispatchBatches: 0,
+          };
+          if (counts.receipts > 0) {
+            return <StatusChip status="passing" label="Sold" />;
+          }
+          if (counts.dispatches > 0 || counts.dispatchBatches > 0) {
+            return <StatusChip status="warning" label="In transit" />;
+          }
+          return <StatusChip status="pending" label="On site" />;
+        },
+        size: 120,
+        minSize: 120,
+        maxSize: 140,
       },
       {
         id: "site",

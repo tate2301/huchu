@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GoldShell } from "@/components/gold/gold-shell";
@@ -153,6 +153,35 @@ export default function GoldImportDetailPage() {
     },
   });
 
+  // Mapping saves debounce + always send the FULL merged snapshot. The
+  // PATCH handler reads-then-writes mappingsJson, so concurrent writes
+  // can drop earlier deltas — but if every write contains the complete
+  // set, "last-write-wins" still has all of it.
+  const [localMappings, setLocalMappings] = useState<Record<string, string>>(
+    {},
+  );
+  const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Sync local from server snapshot whenever data refreshes.
+  useEffect(() => {
+    if (!data) return;
+    const serverMappings: Record<string, string> = data.mappingsJson
+      ? JSON.parse(data.mappingsJson)
+      : {};
+    setLocalMappings((prev) => {
+      const merged: Record<string, string> = { ...serverMappings };
+      // Preserve any not-yet-flushed local edits.
+      for (const [k, v] of Object.entries(prev)) {
+        if (!merged[k]) merged[k] = v;
+      }
+      return merged;
+    });
+  }, [data?.mappingsJson, data]);
+  useEffect(() => {
+    return () => {
+      if (flushTimer.current) clearTimeout(flushTimer.current);
+    };
+  }, []);
+
   if (isLoading) {
     return (
       <GoldShell activeTab="home" title="Loading import...">
@@ -175,11 +204,17 @@ export default function GoldImportDetailPage() {
   const existingMappings: Record<string, string> = data.mappingsJson
     ? JSON.parse(data.mappingsJson)
     : {};
-  const allMapped =
-    distinctNames.length > 0 && distinctNames.every((name) => !!existingMappings[name]);
+  // Sales-only or otherwise name-less imports are valid (the FIFO sales
+  // pass handles them); only require mapping when there ARE distinct
+  // names parsed from the ledger.
+  const allMapped = distinctNames.every(
+    (name) => !!(localMappings[name] || existingMappings[name]),
+  );
   const siteIsSet = !!data.siteId;
   const canCommit = !isLocked && allMapped && siteIsSet;
-  const mappedCount = distinctNames.filter((n) => !!existingMappings[n]).length;
+  const mappedCount = distinctNames.filter(
+    (n) => !!(localMappings[n] || existingMappings[n]),
+  ).length;
 
   const setSiteAndSave = (newSiteId: string) => {
     if (!newSiteId || newSiteId === data.siteId) return;
@@ -188,8 +223,13 @@ export default function GoldImportDetailPage() {
 
   const setMappingAndSave = (name: string, shiftGroupId: string) => {
     if (!shiftGroupId) return;
-    if (existingMappings[name] === shiftGroupId) return;
-    patchMutation.mutate({ mappings: { [name]: shiftGroupId } });
+    if (localMappings[name] === shiftGroupId) return;
+    const nextMappings = { ...localMappings, [name]: shiftGroupId };
+    setLocalMappings(nextMappings);
+    if (flushTimer.current) clearTimeout(flushTimer.current);
+    flushTimer.current = setTimeout(() => {
+      patchMutation.mutate({ mappings: nextMappings });
+    }, 350);
   };
 
   return (
@@ -355,7 +395,8 @@ export default function GoldImportDetailPage() {
             ) : (
               <ul className="divide-y">
                 {distinctNames.map((name) => {
-                  const current = existingMappings[name] ?? "";
+                  const current =
+                    localMappings[name] ?? existingMappings[name] ?? "";
                   const isMapped = !!current;
                   return (
                     <li
@@ -446,12 +487,16 @@ export default function GoldImportDetailPage() {
                     e.mdaraGrams != null
                       ? +(e.mdaraGrams + expenseTotal).toFixed(3)
                       : null;
+                  const mappedGroupId =
+                    e.parsedName != null
+                      ? localMappings[e.parsedName] ??
+                        existingMappings[e.parsedName] ??
+                        null
+                      : null;
                   const groupName =
                     e.shiftGroup?.name ??
-                    (e.parsedName && existingMappings[e.parsedName]
-                      ? groups.find(
-                          (g) => g.id === existingMappings[e.parsedName!],
-                        )?.name
+                    (mappedGroupId
+                      ? groups.find((g) => g.id === mappedGroupId)?.name
                       : null);
                   const tone =
                     e.status === "CREATED"
