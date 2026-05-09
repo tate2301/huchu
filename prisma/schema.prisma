@@ -2338,8 +2338,36 @@ enum GoldInventorySourceType {
   RECEIPT
   ADJUSTMENT
   SHIFT_ALLOCATION
+  REVERSAL
+  DISPATCH
+  PURCHASE
 }
 
+/// APPEND-ONLY TABLE — do NOT UPDATE or DELETE rows from GoldInventoryEvent.
+/// On rollback, insert a compensating REVERSAL event (opposite direction, same
+/// sourceType/sourceId, negated grams). getOnHandGrams() sums IN minus OUT and
+/// remains correct because IN + REVERSAL(OUT) cancel. Mutating or deleting rows
+/// silently invalidates any reconciliation snapshot taken before the mutation.
+///
+/// TODO (future migration): add a Postgres trigger to enforce this at the DB level:
+///
+///   CREATE OR REPLACE FUNCTION gold_inventory_event_append_only()
+///   RETURNS trigger LANGUAGE plpgsql AS $$
+///   BEGIN
+///     RAISE EXCEPTION
+///       'GoldInventoryEvent is append-only. INSERT REVERSAL events instead of UPDATE/DELETE.';
+///   END;
+///   $$;
+///
+///   CREATE TRIGGER trg_gold_inventory_event_no_update
+///   BEFORE UPDATE ON "GoldInventoryEvent"
+///   FOR EACH ROW EXECUTE FUNCTION gold_inventory_event_append_only();
+///
+///   CREATE TRIGGER trg_gold_inventory_event_no_delete
+///   BEFORE DELETE ON "GoldInventoryEvent"
+///   FOR EACH ROW EXECUTE FUNCTION gold_inventory_event_append_only();
+///
+/// See docs/gold-module-review-2026-05-09.md §4.3, §4.4 C-4, §8 Q7, §13.1 P0.1.
 model GoldInventoryEvent {
   id                  String                  @id @default(uuid())
   companyId           String

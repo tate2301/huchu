@@ -159,3 +159,58 @@ describe("recordInventoryEvent — concurrent writes", () => {
     });
   });
 });
+
+// ---------------------------------------------------------------------------
+// Suite 6 — Enum extension witness  MIGRATION WITNESS
+// MIGRATION WITNESS: fails on current schema (missing REVERSAL/DISPATCH/PURCHASE),
+// passes after migration 20260509212814_extend_inventory_source_type.
+// Verifies that GoldInventorySourceType accepts the three new members at the
+// DB level so that inventory.ts can insert REVERSAL/DISPATCH/PURCHASE events.
+// ---------------------------------------------------------------------------
+
+describe("GoldInventorySourceType — extended enum members", () => {
+  it("accepts REVERSAL as sourceType without DB error", async () => {
+    await withRollback(async (tx) => {
+      const evt = await recordInventoryEvent(tx, {
+        companyId,
+        siteId,
+        eventDate: new Date(),
+        direction: "OUT",
+        grams: 1.0,
+        sourceType: "REVERSAL",
+        skipValuation: true,
+      });
+      expect(evt.sourceType).toBe("REVERSAL");
+    });
+  });
+
+  it("accepts DISPATCH as sourceType without DB error", async () => {
+    await withRollback(async (tx) => {
+      const evt = await recordInventoryEvent(tx, {
+        companyId,
+        siteId,
+        eventDate: new Date(),
+        direction: "OUT",
+        grams: 1.0,
+        sourceType: "DISPATCH",
+        skipValuation: true,
+      });
+      expect(evt.sourceType).toBe("DISPATCH");
+    });
+  });
+
+  it("accepts PURCHASE as sourceType without DB error", async () => {
+    await withRollback(async (tx) => {
+      const evt = await recordInventoryEvent(tx, {
+        companyId,
+        siteId,
+        eventDate: new Date(),
+        direction: "IN",
+        grams: 1.0,
+        sourceType: "PURCHASE",
+        skipValuation: true,
+      });
+      expect(evt.sourceType).toBe("PURCHASE");
+    });
+  });
+});
