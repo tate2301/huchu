@@ -28,7 +28,9 @@ beforeAll(async () => {
   companyId = co.id;
   const si = await prisma.site.create({ data: factories.site(companyId) });
   siteId = si.id;
-  const u = await prisma.user.create({ data: factories.user(companyId) as any }); // factory types role as string
+  const u = await prisma.user.create({
+    data: factories.user(companyId) as unknown as Parameters<typeof prisma.user.create>[0]["data"],
+  });
   createdById = u.id;
   const emp = await prisma.employee.create({ data: factories.employee(companyId) });
   leaderEmployeeId = emp.id;
