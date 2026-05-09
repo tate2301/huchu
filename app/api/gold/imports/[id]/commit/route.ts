@@ -618,19 +618,118 @@ export async function POST(
         else rowsCreated += 1
       } catch (rowError) {
         // Real DB-level failure (Prisma error, FK violation, unique
-        // conflict). Log the full stack so the operator can see it in the
-        // server logs; surface a concise message on the row itself.
+        // conflict). Log the full stack and try a defensive fallback:
+        // create a bare GoldPour so the gold output is at least recorded
+        // and reconcilable later. Anomalies never block entry creation.
         const message =
           rowError instanceof Error ? rowError.message : String(rowError)
         console.error(
           `[Import] Production row ${entry.lineNo} failed:`,
           rowError,
         )
-        await prisma.goldLedgerEntry.update({
-          where: { id: entry.id },
-          data: { status: "FAILED", errorMessage: message.slice(0, 500) },
-        })
-        rowsFailed += 1
+        try {
+          await prisma.$transaction(async (tx) => {
+            const fallbackWitnesses = await tx.employee.findMany({
+              where: { companyId, isActive: true },
+              select: { id: true },
+              take: 2,
+            })
+            let fallbackPourId: string | null = null
+            if (
+              fallbackWitnesses.length >= 2 &&
+              entry.gramsTotal &&
+              entry.gramsTotal > 0
+            ) {
+              const pourBarId = await reserveIdentifier(tx, {
+                companyId,
+                entity: "GOLD_POUR",
+              })
+              const valuation = await snapshotGoldUsdValue({
+                companyId,
+                businessDate: entry.parsedDate!,
+                grams: entry.gramsTotal,
+              })
+              const pour = await tx.goldPour.create({
+                data: {
+                  siteId,
+                  pourBarId,
+                  pourDate: entry.parsedDate!,
+                  grossWeight: entry.gramsTotal,
+                  goldPriceUsdPerGram: valuation?.goldPriceUsdPerGram ?? null,
+                  valuationDate: valuation?.valuationDate ?? null,
+                  valueUsd: valuation?.valueUsd ?? null,
+                  witness1Id: fallbackWitnesses[0].id,
+                  witness2Id: fallbackWitnesses[1].id,
+                  storageLocation: "Vault (unverified)",
+                  notes: `Imported from ledger line ${entry.lineNo} — full allocation path failed (${message.slice(0, 120)}). Saved as bare pour for reconciliation.`,
+                  createdById: userId,
+                },
+                select: { id: true, pourBarId: true },
+              })
+              fallbackPourId = pour.id
+              await recordInventoryEvent(tx, {
+                companyId,
+                siteId,
+                eventDate: entry.parsedDate!,
+                direction: "IN",
+                grams: entry.gramsTotal,
+                goldPriceUsdPerGram: valuation?.goldPriceUsdPerGram ?? null,
+                valueUsd: valuation?.valueUsd ?? null,
+                sourceType: "POUR",
+                sourceId: pour.id,
+                notes: `Bare pour ${pour.pourBarId} (catch-fallback) line ${entry.lineNo}`,
+                createdById: userId,
+                skipValuation: true,
+              })
+              poursCreated += 1
+            }
+            await tx.goldLedgerEntry.update({
+              where: { id: entry.id },
+              data: {
+                status: "ANOMALY",
+                goldPourId: fallbackPourId,
+                errorMessage: `${message.slice(0, 400)}${fallbackPourId ? " — saved as bare pour" : " — could not save fallback pour"}`,
+              },
+            })
+            await tx.goldException.create({
+              data: {
+                companyId,
+                siteId,
+                category: "IMPORT_FAILURE",
+                severity: "CRITICAL",
+                entityType: fallbackPourId ? "GoldPour" : "GoldLedgerEntry",
+                entityId: fallbackPourId ?? entry.id,
+                description: `Ledger line ${entry.lineNo} hit a hard error during commit: ${message.slice(0, 200)}${fallbackPourId ? "; saved as bare pour for reconciliation" : ""}`,
+                metadata: JSON.stringify({
+                  ledgerImportId: importRecord.id,
+                  ledgerEntryId: entry.id,
+                  errorMessage: message,
+                }),
+                createdById: userId,
+              },
+            })
+          })
+          rowsAnomaly += 1
+        } catch (fallbackErr) {
+          // If even the bare-pour fallback can't land, mark FAILED so the
+          // operator sees the row needs manual intervention.
+          console.error(
+            `[Import] Production row ${entry.lineNo} fallback also failed:`,
+            fallbackErr,
+          )
+          await prisma.goldLedgerEntry.update({
+            where: { id: entry.id },
+            data: {
+              status: "FAILED",
+              errorMessage: `${message.slice(0, 200)} (fallback also failed: ${
+                fallbackErr instanceof Error
+                  ? fallbackErr.message.slice(0, 200)
+                  : String(fallbackErr).slice(0, 200)
+              })`,
+            },
+          })
+          rowsFailed += 1
+        }
       }
     }
 

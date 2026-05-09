@@ -178,7 +178,7 @@ export default function GoldPage() {
       actions={
         <div className="flex flex-wrap gap-2">
           <Button asChild size="sm">
-            <Link href="/shift-report">Record Shift Output</Link>
+            <Link href="/gold/shift-output/new">Record Shift Output</Link>
           </Button>
           {canRecordBatch ? (
             <Button asChild size="sm" variant="outline">
