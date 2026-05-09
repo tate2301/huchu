@@ -179,8 +179,8 @@ export default function PourDetailPage() {
                   { label: "Group leader", value: data.goldShiftAllocation.shiftReport?.groupLeader?.name ?? "—" },
                   { label: "Total weight", value: grams(data.goldShiftAllocation.totalWeight) },
                   { label: "Net weight", value: grams(data.goldShiftAllocation.netWeight) },
-                  { label: "Worker share (Boys)", value: grams(data.goldShiftAllocation.workerShareWeight) },
-                  { label: "Company share (Mdara)", value: grams(data.goldShiftAllocation.companyShareWeight) },
+                  { label: "Workers share", value: grams(data.goldShiftAllocation.workerShareWeight) },
+                  { label: "Company share", value: grams(data.goldShiftAllocation.companyShareWeight) },
                 ]}
               />
               {data.goldShiftAllocation.expenses.length > 0 ? (

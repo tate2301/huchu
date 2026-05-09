@@ -98,7 +98,8 @@ export default function GoldImportPage() {
             <h2 className="font-semibold">Upload</h2>
             <p className="text-sm text-muted-foreground">
               Save the ledger as CSV and drop it here. Columns expected: Date,
-              Name, Tonn, Grams, Diesel, Shoots, LCD, Tot Exp, Boys, Mdara, Total
+              Name, Tonn, Grams, Diesel, Shoots, LCD, Tot Exp, Workers (Boys),
+              Company (Mdara), Total
               (g), Bal.
             </p>
           </header>

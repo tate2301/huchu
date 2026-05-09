@@ -2,12 +2,15 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
+import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChevronRight, Coins } from "@/lib/icons";
 
@@ -52,6 +55,12 @@ const grams = (n: number) => `${n.toFixed(3)} g`;
 
 export default function AllocationsListPage() {
   const [filter, setFilter] = useState("");
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const canApprove = role === "MANAGER" || role === "SUPERADMIN";
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
   const { data, isLoading, error } = useQuery({
     queryKey: ["gold-allocations-list", filter],
@@ -61,6 +70,54 @@ export default function AllocationsListPage() {
           filter ? `&workflowStatus=${filter}` : ""
         }`,
       ),
+  });
+
+  const bulkApprove = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((aid) =>
+          fetchJson(`/api/gold/shift-allocations/${aid}/approve`, {
+            method: "POST",
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected");
+      return { total: ids.length, failed: failed.length };
+    },
+    onSuccess: ({ total, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-allocations-list"] });
+      setSelected(new Set());
+      toast({
+        title: `Approved ${total - failed} of ${total}`,
+        description:
+          failed > 0
+            ? `${failed} could not be approved (already approved or wrong status). Open them to inspect.`
+            : "All selected allocations approved.",
+        variant: failed > 0 ? "destructive" : "success",
+      });
+    },
+  });
+
+  const bulkSubmit = useMutation({
+    mutationFn: async (ids: string[]) => {
+      const results = await Promise.allSettled(
+        ids.map((aid) =>
+          fetchJson(`/api/gold/shift-allocations/${aid}/submit`, {
+            method: "POST",
+          }),
+        ),
+      );
+      const failed = results.filter((r) => r.status === "rejected");
+      return { total: ids.length, failed: failed.length };
+    },
+    onSuccess: ({ total, failed }) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-allocations-list"] });
+      setSelected(new Set());
+      toast({
+        title: `Submitted ${total - failed} of ${total}`,
+        variant: failed > 0 ? "destructive" : "success",
+      });
+    },
   });
 
   const rows = useMemo(() => data?.data ?? [], [data]);
@@ -97,21 +154,54 @@ export default function AllocationsListPage() {
           </div>
         </header>
 
-        <nav className="flex flex-wrap gap-2">
-          {FILTERS.map((f) => (
-            <Button
-              key={f.value}
-              size="sm"
-              variant={filter === f.value ? "default" : "outline"}
-              onClick={() => setFilter(f.value)}
-            >
-              {f.label}
-              <span className="ml-2 rounded-full bg-muted px-1.5 text-xs">
-                {f.value === "" ? counts.ALL ?? 0 : counts[f.value] ?? 0}
-              </span>
-            </Button>
-          ))}
-        </nav>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <nav className="flex flex-wrap gap-2">
+            {FILTERS.map((f) => (
+              <Button
+                key={f.value}
+                size="sm"
+                variant={filter === f.value ? "default" : "outline"}
+                onClick={() => {
+                  setFilter(f.value);
+                  setSelected(new Set());
+                }}
+              >
+                {f.label}
+                <span className="ml-2 rounded-full bg-muted px-1.5 text-xs">
+                  {f.value === "" ? counts.ALL ?? 0 : counts[f.value] ?? 0}
+                </span>
+              </Button>
+            ))}
+          </nav>
+
+          {canApprove && selected.size > 0 ? (
+            <div className="flex items-center gap-2 rounded-md border bg-amber-50 px-3 py-1.5 text-sm">
+              <span className="font-medium">{selected.size} selected</span>
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={bulkSubmit.isPending}
+                onClick={() => bulkSubmit.mutate(Array.from(selected))}
+              >
+                Submit
+              </Button>
+              <Button
+                size="sm"
+                disabled={bulkApprove.isPending}
+                onClick={() => bulkApprove.mutate(Array.from(selected))}
+              >
+                Approve all
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => setSelected(new Set())}
+              >
+                Clear
+              </Button>
+            </div>
+          ) : null}
+        </div>
 
         {error ? (
           <Alert variant="destructive">
@@ -133,12 +223,29 @@ export default function AllocationsListPage() {
             <table className="min-w-full text-sm">
               <thead className="bg-muted/40">
                 <tr className="text-left">
+                  {canApprove ? (
+                    <th className="px-3 py-2.5 w-8">
+                      <Checkbox
+                        checked={
+                          selected.size > 0 && selected.size === rows.length
+                        }
+                        onCheckedChange={(value) => {
+                          if (value === true) {
+                            setSelected(new Set(rows.map((r) => r.id)));
+                          } else {
+                            setSelected(new Set());
+                          }
+                        }}
+                        aria-label="Select all"
+                      />
+                    </th>
+                  ) : null}
                   <th className="px-4 py-2.5">Date</th>
                   <th className="px-4 py-2.5">Shift</th>
                   <th className="px-4 py-2.5">Site</th>
                   <th className="px-4 py-2.5 text-right">Gross</th>
-                  <th className="px-4 py-2.5 text-right">Boys</th>
-                  <th className="px-4 py-2.5 text-right">Mdara</th>
+                  <th className="px-4 py-2.5 text-right">Workers</th>
+                  <th className="px-4 py-2.5 text-right">Company</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5 w-8" />
                 </tr>
@@ -149,6 +256,22 @@ export default function AllocationsListPage() {
                     key={r.id}
                     className="border-t hover:bg-muted/30 transition-colors"
                   >
+                    {canApprove ? (
+                      <td className="px-3 py-2">
+                        <Checkbox
+                          checked={selected.has(r.id)}
+                          onCheckedChange={(value) =>
+                            setSelected((prev) => {
+                              const next = new Set(prev);
+                              if (value === true) next.add(r.id);
+                              else next.delete(r.id);
+                              return next;
+                            })
+                          }
+                          aria-label={`Select allocation ${r.id}`}
+                        />
+                      </td>
+                    ) : null}
                     <td className="px-4 py-2 whitespace-nowrap">
                       {new Date(r.date).toLocaleDateString()}
                     </td>

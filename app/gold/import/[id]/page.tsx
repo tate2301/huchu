@@ -720,8 +720,8 @@ export default function GoldImportDetailPage() {
                   ))}
                   <th className="px-2 py-2 text-right">Other</th>
                   <th className="px-2 py-2 text-right">Σ exp</th>
-                  <th className="px-2 py-2 text-right">Boys</th>
-                  <th className="px-2 py-2 text-right">Mdara</th>
+                  <th className="px-2 py-2 text-right">Workers</th>
+                  <th className="px-2 py-2 text-right">Company</th>
                   <th className="px-2 py-2 text-right">Co. total</th>
                   <th className="px-2 py-2 text-right">Bal</th>
                   <th className="px-2 py-2">Batch</th>

@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
 import { Coins, Users, Gem, FileCheck, Wallet, Scale, Building2 } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { EmployeeAvatar } from "@/components/shared/employee-avatar";
@@ -148,6 +149,40 @@ export default function AllocationDetailPage() {
     },
   });
 
+  const workflowMutation = useMutation({
+    mutationFn: async (action: "submit" | "approve" | "reject") => {
+      const body: Record<string, string> = {};
+      if (action === "reject") body.reason = "Rejected from allocation detail";
+      return fetchJson(
+        `/api/gold/shift-allocations/${id}/${action}`,
+        {
+          method: "POST",
+          body: action === "reject" ? JSON.stringify(body) : undefined,
+        },
+      );
+    },
+    onSuccess: (_, action) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-allocation", id] });
+      queryClient.invalidateQueries({ queryKey: ["gold-allocations-list"] });
+      toast({
+        title:
+          action === "approve"
+            ? "Allocation approved"
+            : action === "reject"
+              ? "Allocation rejected"
+              : "Allocation submitted",
+        variant: "success",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Workflow change failed",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   if (isLoading) {
     return (
       <DetailShell
@@ -192,6 +227,43 @@ export default function AllocationDetailPage() {
           label={data.workflowStatus}
         />
       }
+      actions={
+        canEditAttendance ? (
+          <div className="flex flex-wrap gap-2">
+            {data.workflowStatus === "DRAFT" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={workflowMutation.isPending}
+                onClick={() => workflowMutation.mutate("submit")}
+              >
+                Submit for approval
+              </Button>
+            ) : null}
+            {data.workflowStatus === "SUBMITTED" ||
+            data.workflowStatus === "DRAFT" ? (
+              <Button
+                size="sm"
+                disabled={workflowMutation.isPending}
+                onClick={() => workflowMutation.mutate("approve")}
+              >
+                Approve
+              </Button>
+            ) : null}
+            {data.workflowStatus === "SUBMITTED" ||
+            data.workflowStatus === "APPROVED" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={workflowMutation.isPending}
+                onClick={() => workflowMutation.mutate("reject")}
+              >
+                Reject
+              </Button>
+            ) : null}
+          </div>
+        ) : null
+      }
       primary={
         <>
           <DetailSection title="Splits" icon={Coins} tone="primary">
@@ -200,11 +272,11 @@ export default function AllocationDetailPage() {
                 { label: "Total (gross)", value: grams(data.totalWeight) },
                 { label: "Net after expenses", value: grams(data.netWeight) },
                 {
-                  label: "Mdara (company)",
+                  label: "Company share",
                   value: `${grams(data.companyShareWeight)} · ${usd(data.companyShareValueUsd)}`,
                 },
                 {
-                  label: "Boys (workers)",
+                  label: "Workers share",
                   value: `${grams(data.workerShareWeight)} · ${usd(data.workerShareValueUsd)}`,
                 },
                 { label: "Per worker", value: `${grams(data.perWorkerWeight)} · ${usd(data.perWorkerValueUsd)}` },
