@@ -67,23 +67,6 @@ function expenseWeightFor(type: string, list: ExpenseBreakdown): number | null {
   return match ? match.weight : null;
 }
 
-/**
- * Replace (or add) a single expense type's weight in the breakdown,
- * preserving the order of the others. Setting weight to null/0 removes
- * the row.
- */
-function upsertExpense(
-  list: ExpenseBreakdown,
-  type: string,
-  weight: number | null,
-): ExpenseBreakdown {
-  const lower = type.toLowerCase();
-  const without = list.filter((e) => e.type.toLowerCase() !== lower);
-  if (weight == null || weight <= 0) return without;
-  // Try to keep the canonical name if the type was already there.
-  const existing = list.find((e) => e.type.toLowerCase() === lower);
-  return [...without, { type: existing?.type ?? type, weight }];
-}
 
 type EditableNumberProps = {
   value: number | null | undefined;
@@ -362,6 +345,72 @@ export default function GoldImportDetailPage() {
     },
   });
 
+  const rollbackMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson<{ removedAllocations: number; removedPours: number; removedReceipts: number }>(
+        `/api/gold/imports/${id}/rollback`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
+      queryClient.invalidateQueries({ queryKey: ["gold-imports"] });
+      queryClient.invalidateQueries({ queryKey: ["gold-summary"] });
+      setCommitResult(null);
+      toast({
+        title: "Import rolled back",
+        description: `Removed ${result.removedAllocations} allocations · ${result.removedPours} pours · ${result.removedReceipts} receipts. Edit & re-commit when ready.`,
+        variant: "success",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Rollback failed",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetFailedMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson<{ resetCount: number }>(
+        `/api/gold/imports/${id}/reset-failed`,
+        { method: "POST" },
+      ),
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
+      toast({
+        title: `Reset ${result.resetCount} failed row${result.resetCount === 1 ? "" : "s"}`,
+        description: "They're back to PENDING. Hit Commit to retry just those.",
+        variant: "success",
+      });
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not reset",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async () =>
+      fetchJson(`/api/gold/imports/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gold-imports"] });
+      toast({ title: "Import deleted", variant: "success" });
+      router.push("/gold/import");
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not delete",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Mapping saves debounce + always send the FULL merged snapshot. The
   // PATCH handler reads-then-writes mappingsJson, so concurrent writes
   // can drop earlier deltas — but if every write contains the complete
@@ -449,7 +498,9 @@ export default function GoldImportDetailPage() {
       patch: {
         parsedDate?: string | null;
         gramsTotal?: number | null;
-        expenses?: ExpenseBreakdown;
+        // For one-type deltas (Diesel/Shoots/LCD/etc.). Server merges
+        // against latest DB state — concurrent edits never clobber.
+        expensePatch?: { type: string; weight: number | null };
         boysGrams?: number | null;
         mdaraGrams?: number | null;
         balGrams?: number | null;
@@ -486,19 +537,87 @@ export default function GoldImportDetailPage() {
       activeTab="home"
       title={`Ledger: ${data.fileName}`}
       actions={
-        <div className="flex gap-2">
+        <div className="flex flex-wrap gap-2">
           <Button asChild size="sm" variant="ghost">
             <Link href="/gold/import">
               <ChevronLeftIcon className="mr-1 h-4 w-4" /> All imports
             </Link>
           </Button>
-          {!isLocked ? (
+
+          {/* Reset only failed rows — useful when most committed cleanly. */}
+          {data.rowsFailed > 0 ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={resetFailedMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    `Reset ${data.rowsFailed} failed row${data.rowsFailed === 1 ? "" : "s"} back to PENDING? Their (rare) artifacts will be wiped.`,
+                  )
+                ) {
+                  resetFailedMutation.mutate();
+                }
+              }}
+            >
+              {resetFailedMutation.isPending
+                ? "Resetting..."
+                : `Reset ${data.rowsFailed} failed`}
+            </Button>
+          ) : null}
+
+          {/* Cancel + delete — only when nothing's been produced yet. */}
+          {data.status !== "COMMITTED" && data.status !== "FAILED" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={deleteMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Delete this import and all of its (uncommitted) entries? This can't be undone.",
+                  )
+                ) {
+                  deleteMutation.mutate();
+                }
+              }}
+            >
+              {deleteMutation.isPending ? "Deleting..." : "Cancel & delete"}
+            </Button>
+          ) : null}
+
+          {/* Roll back a committed/failed import. */}
+          {data.status === "COMMITTED" || data.status === "FAILED" ? (
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={rollbackMutation.isPending}
+              onClick={() => {
+                if (
+                  window.confirm(
+                    "Roll back this import? Allocations, pours, receipts, inventory + accounting events, and shift reports it produced will be deleted. The ledger entries will be reset to PENDING so you can edit and re-commit.",
+                  )
+                ) {
+                  rollbackMutation.mutate();
+                }
+              }}
+            >
+              {rollbackMutation.isPending ? "Rolling back..." : "Roll back"}
+            </Button>
+          ) : null}
+
+          {/* Commit (or recommit). The endpoint itself purges prior runs. */}
+          {data.status !== "COMMITTED" ? (
             <Button
               size="sm"
               disabled={!canCommit || commitMutation.isPending}
               onClick={() => commitMutation.mutate()}
             >
-              {commitMutation.isPending ? "Committing..." : "Commit import"}
+              {commitMutation.isPending
+                ? "Committing..."
+                : data.status === "ROLLED_BACK"
+                  ? "Re-commit"
+                  : "Commit import"}
             </Button>
           ) : null}
         </div>
@@ -774,9 +893,12 @@ export default function GoldImportDetailPage() {
                         ? "warning"
                         : null;
                   const colCount = 15;
+                  // Single-type delta — server merges against latest DB
+                  // state, so two quick edits on different expense types
+                  // (e.g., Diesel then Shoots) can't drop each other's
+                  // change due to client-snapshot races.
                   const setExpense = (type: string) => (next: number | null) => {
-                    const nextExpenses = upsertExpense(expenses, type, next);
-                    updateEntry(e.id, { expenses: nextExpenses });
+                    updateEntry(e.id, { expensePatch: { type, weight: next } });
                   };
                   return (
                     <Fragment key={e.id}>
