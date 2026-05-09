@@ -29,10 +29,23 @@ type LedgerEntry = {
   balGrams: number | null;
   status: "PENDING" | "CREATED" | "SKIPPED" | "ANOMALY" | "FAILED";
   goldShiftAllocationId: string | null;
+  goldPourId: string | null;
   buyerReceiptId: string | null;
   errorMessage: string | null;
   shiftGroup: { id: string; name: string } | null;
 };
+
+type ExpenseBreakdown = Array<{ type: string; weight: number }>;
+
+function parseExpenses(json: string | null): ExpenseBreakdown {
+  if (!json) return [];
+  try {
+    const arr = JSON.parse(json) as ExpenseBreakdown;
+    return Array.isArray(arr) ? arr : [];
+  } catch {
+    return [];
+  }
+}
 
 type ImportDetail = {
   id: string;
@@ -382,12 +395,21 @@ export default function GoldImportDetailPage() {
         ) : null}
 
         <section className="rounded-lg border bg-card">
-          <header className="border-b px-5 py-3">
-            <h2 className="font-semibold">3 · Preview rows</h2>
-            <p className="text-xs text-muted-foreground">
-              {data.entries.length} rows. Negative Bal = sale out. Flagged rows
-              will be created as exceptions on commit.
-            </p>
+          <header className="border-b px-5 py-3 flex items-center justify-between gap-3">
+            <div>
+              <h2 className="font-semibold">
+                {isLocked ? "Allocations & expenses" : "3 · Preview rows"}
+              </h2>
+              <p className="text-xs text-muted-foreground">
+                {data.entries.length} rows. Expense breakdown is per-row
+                (Diesel/Shoots/LCD). Company total = Mdara + total expenses.
+                Negative Bal = sale out. Click a row's batch link to open the
+                full chain detail.
+              </p>
+            </div>
+            <Button asChild size="sm" variant="outline">
+              <Link href="/reports/gold-chain">Open full Chain Records →</Link>
+            </Button>
           </header>
           <div className="overflow-x-auto">
             <table className="min-w-full text-xs">
@@ -395,17 +417,42 @@ export default function GoldImportDetailPage() {
                 <tr className="text-left">
                   <th className="px-3 py-2">#</th>
                   <th className="px-3 py-2">Date</th>
-                  <th className="px-3 py-2">Leader</th>
-                  <th className="px-3 py-2">Group</th>
-                  <th className="px-3 py-2 text-right">Grams</th>
+                  <th className="px-3 py-2">Leader / Group</th>
+                  <th className="px-3 py-2 text-right">Gross</th>
+                  <th className="px-3 py-2 text-right">Total exp.</th>
+                  <th className="px-3 py-2">Expense breakdown</th>
                   <th className="px-3 py-2 text-right">Boys</th>
                   <th className="px-3 py-2 text-right">Mdara</th>
+                  <th className="px-3 py-2 text-right">Co. total</th>
                   <th className="px-3 py-2 text-right">Bal</th>
+                  <th className="px-3 py-2">Batch</th>
                   <th className="px-3 py-2">Status</th>
                 </tr>
               </thead>
               <tbody>
                 {data.entries.map((e) => {
+                  const expenses = parseExpenses(e.expensesJson);
+                  const expenseTotal = expenses.reduce(
+                    (sum, exp) => sum + exp.weight,
+                    0,
+                  );
+                  const expenseBreakdown =
+                    expenses.length === 0
+                      ? "—"
+                      : expenses
+                          .map((exp) => `${exp.type} ${exp.weight.toFixed(2)}`)
+                          .join(" · ");
+                  const companyTotal =
+                    e.mdaraGrams != null
+                      ? +(e.mdaraGrams + expenseTotal).toFixed(3)
+                      : null;
+                  const groupName =
+                    e.shiftGroup?.name ??
+                    (e.parsedName && existingMappings[e.parsedName]
+                      ? groups.find(
+                          (g) => g.id === existingMappings[e.parsedName!],
+                        )?.name
+                      : null);
                   const tone =
                     e.status === "CREATED"
                       ? "passing"
@@ -415,31 +462,81 @@ export default function GoldImportDetailPage() {
                           ? "danger"
                           : "pending";
                   return (
-                    <tr key={e.id} className="border-t">
+                    <tr key={e.id} className="border-t align-top">
                       <td className="px-3 py-1.5">{e.lineNo}</td>
+                      <td className="px-3 py-1.5 whitespace-nowrap">
+                        {e.parsedDate
+                          ? new Date(e.parsedDate).toLocaleDateString()
+                          : "—"}
+                      </td>
                       <td className="px-3 py-1.5">
-                        {e.parsedDate ? new Date(e.parsedDate).toLocaleDateString() : "—"}
+                        <div className="font-mono font-semibold">
+                          {e.parsedName ?? "—"}
+                        </div>
+                        {groupName ? (
+                          <div className="text-[10px] text-muted-foreground">
+                            {groupName}
+                          </div>
+                        ) : null}
                       </td>
-                      <td className="px-3 py-1.5 font-mono">{e.parsedName ?? "—"}</td>
-                      <td className="px-3 py-1.5 text-muted-foreground">
-                        {e.shiftGroup?.name ?? (e.parsedName && existingMappings[e.parsedName]
-                          ? groups.find((g) => g.id === existingMappings[e.parsedName!])?.name
-                          : "—")}
+                      <td className="px-3 py-1.5 text-right font-medium">
+                        {grams(e.gramsTotal)}
                       </td>
-                      <td className="px-3 py-1.5 text-right">{grams(e.gramsTotal)}</td>
-                      <td className="px-3 py-1.5 text-right">{grams(e.boysGrams)}</td>
-                      <td className="px-3 py-1.5 text-right">{grams(e.mdaraGrams)}</td>
+                      <td className="px-3 py-1.5 text-right">
+                        {expenseTotal > 0 ? grams(expenseTotal) : "—"}
+                      </td>
+                      <td className="px-3 py-1.5 text-muted-foreground whitespace-nowrap">
+                        {expenseBreakdown}
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        {grams(e.boysGrams)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right">
+                        {grams(e.mdaraGrams)}
+                      </td>
+                      <td className="px-3 py-1.5 text-right font-medium">
+                        {grams(companyTotal)}
+                      </td>
                       <td
                         className={`px-3 py-1.5 text-right ${
-                          e.balGrams != null && e.balGrams < 0 ? "text-rose-600 font-semibold" : ""
+                          e.balGrams != null && e.balGrams < 0
+                            ? "text-rose-600 font-semibold"
+                            : ""
                         }`}
                       >
                         {grams(e.balGrams)}
                       </td>
                       <td className="px-3 py-1.5">
+                        {e.goldShiftAllocationId ? (
+                          <Link
+                            href={`/gold/insights/allocations/${e.goldShiftAllocationId}`}
+                            className="text-primary hover:underline"
+                          >
+                            allocation →
+                          </Link>
+                        ) : e.goldPourId ? (
+                          <Link
+                            href={`/gold/intake/pours/${e.goldPourId}`}
+                            className="text-primary hover:underline"
+                          >
+                            bare pour →
+                          </Link>
+                        ) : (
+                          <span className="text-muted-foreground">—</span>
+                        )}
+                        {e.buyerReceiptId ? (
+                          <Link
+                            href={`/gold/settlement/receipts/${e.buyerReceiptId}`}
+                            className="ml-2 text-primary hover:underline"
+                          >
+                            sale →
+                          </Link>
+                        ) : null}
+                      </td>
+                      <td className="px-3 py-1.5">
                         <StatusChip status={tone} label={e.status} />
                         {e.errorMessage ? (
-                          <p className="mt-0.5 text-[10px] text-muted-foreground">
+                          <p className="mt-0.5 text-[10px] text-muted-foreground max-w-[240px]">
                             {e.errorMessage}
                           </p>
                         ) : null}
@@ -448,6 +545,57 @@ export default function GoldImportDetailPage() {
                   );
                 })}
               </tbody>
+              <tfoot className="bg-muted/30 text-[11px] font-medium">
+                {(() => {
+                  const totals = data.entries.reduce(
+                    (acc, e) => {
+                      const exp = parseExpenses(e.expensesJson).reduce(
+                        (s, x) => s + x.weight,
+                        0,
+                      );
+                      return {
+                        gross: acc.gross + (e.gramsTotal ?? 0),
+                        expense: acc.expense + exp,
+                        boys: acc.boys + (e.boysGrams ?? 0),
+                        mdara: acc.mdara + (e.mdaraGrams ?? 0),
+                        bal:
+                          acc.bal +
+                          (e.balGrams != null && e.balGrams < 0
+                            ? e.balGrams
+                            : 0),
+                      };
+                    },
+                    { gross: 0, expense: 0, boys: 0, mdara: 0, bal: 0 },
+                  );
+                  return (
+                    <tr className="border-t">
+                      <td className="px-3 py-2" colSpan={3}>
+                        Totals ({data.entries.length} rows)
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {grams(totals.gross)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {grams(totals.expense)}
+                      </td>
+                      <td className="px-3 py-2" />
+                      <td className="px-3 py-2 text-right">
+                        {grams(totals.boys)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {grams(totals.mdara)}
+                      </td>
+                      <td className="px-3 py-2 text-right">
+                        {grams(totals.mdara + totals.expense)}
+                      </td>
+                      <td className="px-3 py-2 text-right text-rose-700">
+                        {totals.bal === 0 ? "—" : grams(totals.bal)}
+                      </td>
+                      <td className="px-3 py-2" colSpan={2} />
+                    </tr>
+                  );
+                })()}
+              </tfoot>
             </table>
           </div>
         </section>
