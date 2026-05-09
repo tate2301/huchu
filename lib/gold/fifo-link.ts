@@ -51,6 +51,13 @@ export async function linkFifoSale(
 
   if (input.saleGrams <= 0) return result;
 
+  // Serialise FIFO consumption per site. Concurrent linkFifoSale calls on the
+  // same site would otherwise both see the same pour as available and double-
+  // consume it. The lock is automatically released when the transaction ends.
+  // db MUST be a transaction client for pg_advisory_xact_lock to be effective.
+  // See review doc §3.3 P0-1.
+  await db.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'gold-fifo:' + input.siteId}))`;
+
   // Pool of pours not yet receipted, oldest first. We now use the new
   // BuyerReceiptBatch join: a pour is "unsold" if no batch row points to
   // it. The legacy single-FK BuyerReceipt.goldPourId is also covered

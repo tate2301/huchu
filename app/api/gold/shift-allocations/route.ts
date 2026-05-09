@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
         shift: validated.shift,
         date: { gte: start, lt: end },
       },
-      select: { id: true, status: true, crewCount: true },
+      select: { id: true, status: true, crewCount: true, shiftGroupId: true },
     })
 
     if (!shiftReport) {
@@ -212,12 +212,20 @@ export async function POST(request: NextRequest) {
       return errorResponse("Shift allocation already exists for this shift", 409)
     }
 
+    if (!shiftReport.shiftGroupId) {
+      console.warn(
+        `[shift-allocations] shiftReport ${shiftReport.id} has no shiftGroupId — attendance will not be scoped by crew. Parallel crews on the same shift label may dilute each other's share.`,
+      )
+    }
     const attendance = await prisma.attendance.findMany({
       where: {
         siteId: validated.siteId,
         shift: validated.shift,
         date: { gte: start, lt: end },
         status: { in: ["PRESENT", "LATE"] },
+        ...(shiftReport.shiftGroupId
+          ? { shiftGroupId: shiftReport.shiftGroupId }
+          : {}),
       },
       include: {
         employee: { select: { id: true, name: true, employeeId: true } },

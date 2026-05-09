@@ -209,6 +209,15 @@ export async function POST(request: NextRequest) {
       )
     }
 
+    const distinctSiteIds = new Set(goldPours.map((p) => p.siteId))
+    if (distinctSiteIds.size > 1) {
+      return errorResponse(
+        "All batches in a dispatch must come from the same site",
+        400,
+        { siteIds: Array.from(distinctSiteIds) },
+      )
+    }
+
     const handedOverBy = await prisma.employee.findUnique({
       where: { id: validated.handedOverById },
       select: { companyId: true, isActive: true },
