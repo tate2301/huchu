@@ -32,6 +32,17 @@ export async function POST(
     if (!importRecord || importRecord.companyId !== companyId) {
       return errorResponse("Import not found", 404)
     }
+    // Coerce Decimal gram fields to number for arithmetic below.
+    const normalizeEntries = <T extends { gramsTotal: unknown; boysGrams: unknown; mdaraGrams: unknown; balGrams: unknown }>(
+      entries: T[],
+    ) => entries.map((e) => ({
+      ...e,
+      gramsTotal: e.gramsTotal != null ? Number(e.gramsTotal) : null,
+      boysGrams: e.boysGrams != null ? Number(e.boysGrams) : null,
+      mdaraGrams: e.mdaraGrams != null ? Number(e.mdaraGrams) : null,
+      balGrams: e.balGrams != null ? Number(e.balGrams) : null,
+    }));
+    importRecord.entries = normalizeEntries(importRecord.entries) as typeof importRecord.entries;
     if (!importRecord.siteId) {
       return errorResponse("Pick a site before committing", 400)
     }
@@ -236,7 +247,7 @@ export async function POST(
         where: { importId: id },
         orderBy: { lineNo: "asc" },
       })
-      importRecord.entries = refreshed
+      importRecord.entries = normalizeEntries(refreshed) as typeof importRecord.entries;
     }
 
     let rowsCreated = 0
@@ -321,6 +332,7 @@ export async function POST(
               })
               const pour = await tx.goldPour.create({
                 data: {
+                  companyId,
                   siteId,
                   pourBarId,
                   pourDate: entry.parsedDate!,
@@ -421,6 +433,7 @@ export async function POST(
               })
               const pour = await tx.goldPour.create({
                 data: {
+                  companyId,
                   siteId,
                   pourBarId,
                   pourDate: entry.parsedDate!,
@@ -557,6 +570,7 @@ export async function POST(
 
           const allocation = await tx.goldShiftAllocation.create({
             data: {
+              companyId,
               date: entry.parsedDate!,
               shift: shiftName,
               siteId,
@@ -626,6 +640,7 @@ export async function POST(
             })
             const pour = await tx.goldPour.create({
               data: {
+                companyId,
                 siteId,
                 pourBarId,
                 pourDate: entry.parsedDate!,
@@ -805,6 +820,7 @@ export async function POST(
               })
               const pour = await tx.goldPour.create({
                 data: {
+                  companyId,
                   siteId,
                   pourBarId,
                   pourDate: entry.parsedDate!,

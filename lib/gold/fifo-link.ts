@@ -71,7 +71,7 @@ export async function linkFifoSale(
   const candidates = await db.goldPour.findMany({
     where: {
       siteId: input.siteId,
-      site: { companyId: input.companyId },
+      companyId: input.companyId,
       receiptBatches: { none: {} },
       receipts: { none: {} },
       NOT: {
@@ -100,7 +100,7 @@ export async function linkFifoSale(
   let remaining = input.saleGrams;
   for (const pour of candidates) {
     if (remaining <= 0) break;
-    const take = Math.min(pour.grossWeight, remaining);
+    const take = Math.min(Number(pour.grossWeight), remaining);
     if (take <= 0) continue;
     plan.push({ pourId: pour.id, pourBarId: pour.pourBarId, take });
     remaining -= take;
@@ -144,6 +144,7 @@ export async function linkFifoSale(
   // truth going forward.
   const receipt = await db.buyerReceipt.create({
     data: {
+      companyId: input.companyId,
       goldPourId: plan[0].pourId,
       receiptNumber,
       receiptDate: input.saleDate,
@@ -174,6 +175,7 @@ export async function linkFifoSale(
 
     await db.buyerReceiptBatch.create({
       data: {
+        companyId: input.companyId,
         buyerReceiptId: receipt.id,
         goldPourId: step.pourId,
         grams: step.take,

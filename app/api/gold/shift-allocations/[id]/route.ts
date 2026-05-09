@@ -15,7 +15,7 @@ export async function GET(
     const allocation = await prisma.goldShiftAllocation.findUnique({
       where: { id },
       include: {
-        site: { select: { id: true, name: true, code: true, companyId: true } },
+        site: { select: { id: true, name: true, code: true } },
         createdBy: { select: { id: true, name: true } },
         submittedBy: { select: { id: true, name: true } },
         approvedBy: { select: { id: true, name: true } },
@@ -75,7 +75,7 @@ export async function GET(
       },
     })
 
-    if (!allocation || allocation.site.companyId !== session.user.companyId) {
+    if (!allocation || allocation.companyId !== session.user.companyId) {
       return errorResponse("Allocation not found", 404)
     }
 

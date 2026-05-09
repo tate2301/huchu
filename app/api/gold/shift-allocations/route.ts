@@ -107,7 +107,7 @@ export async function GET(request: NextRequest) {
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
-      site: { companyId: session.user.companyId },
+      companyId: session.user.companyId,
     }
 
     if (siteId) where.siteId = siteId
@@ -316,6 +316,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       const allocation = await tx.goldShiftAllocation.create({
         data: {
+          companyId: session.user.companyId,
           date: start,
           shift: validated.shift,
           siteId: validated.siteId,
@@ -390,7 +391,7 @@ export async function POST(request: NextRequest) {
             periodStart: start,
             periodEnd: start,
             dueDate: payoutDueDate,
-            amount: share.shareWeight,
+            amount: Number(share.shareWeight),
             amountUsd: share.shareValueUsd ?? perWorkerValueUsd,
             unit: "g",
             goldWeightGrams: share.shareWeight,
@@ -411,6 +412,7 @@ export async function POST(request: NextRequest) {
         const batchCode = await generateUniqueBatchCode(tx)
         const batch = await tx.goldPour.create({
           data: {
+            companyId: session.user.companyId,
             siteId: validated.siteId,
             pourBarId: batchCode,
             pourDate: start,
@@ -470,7 +472,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Mdara
-      if (allocation.companyShareWeight > 0) {
+      if (Number(allocation.companyShareWeight) > 0) {
         await captureAccountingEvent({
           companyId: session.user.companyId,
           sourceDomain: "gold",
@@ -479,12 +481,12 @@ export async function POST(request: NextRequest) {
           sourceId: allocation.id,
           entryDate: allocation.date,
           description: `Gold company share (Mdara) — allocation ${allocation.id}`,
-          amount: allocation.companyShareValueUsd ?? allocation.companyShareWeight,
+          amount: allocation.companyShareValueUsd ?? Number(allocation.companyShareWeight),
           netAmount: allocation.companyShareValueUsd ?? undefined,
           grossAmount: allocation.companyShareValueUsd ?? undefined,
           payload: {
             ...sharedPayload,
-            shareWeight: allocation.companyShareWeight,
+            shareWeight: Number(allocation.companyShareWeight),
             shareValueUsd: allocation.companyShareValueUsd,
           },
           createdById: session.user.id,
@@ -493,7 +495,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Boys
-      if (allocation.workerShareWeight > 0) {
+      if (Number(allocation.workerShareWeight) > 0) {
         await captureAccountingEvent({
           companyId: session.user.companyId,
           sourceDomain: "gold",
@@ -502,12 +504,12 @@ export async function POST(request: NextRequest) {
           sourceId: allocation.id,
           entryDate: allocation.date,
           description: `Gold worker share (Boys) — allocation ${allocation.id}`,
-          amount: allocation.workerShareValueUsd ?? allocation.workerShareWeight,
+          amount: allocation.workerShareValueUsd ?? Number(allocation.workerShareWeight),
           netAmount: allocation.workerShareValueUsd ?? undefined,
           grossAmount: allocation.workerShareValueUsd ?? undefined,
           payload: {
             ...sharedPayload,
-            shareWeight: allocation.workerShareWeight,
+            shareWeight: Number(allocation.workerShareWeight),
             shareValueUsd: allocation.workerShareValueUsd,
             payoutRecordsCreated: result.payoutRecordsCreated,
           },
@@ -520,7 +522,7 @@ export async function POST(request: NextRequest) {
       const goldPrice = allocation.goldPriceUsdPerGram ?? 0
       for (const expense of allocation.expenses) {
         const expenseValueUsd = goldPrice
-          ? Math.round(expense.weight * goldPrice * 100) / 100
+          ? Math.round(Number(expense.weight) * goldPrice * 100) / 100
           : null
         await captureAccountingEvent({
           companyId: session.user.companyId,
@@ -530,14 +532,14 @@ export async function POST(request: NextRequest) {
           sourceId: expense.id,
           entryDate: allocation.date,
           description: `Gold shift expense (${expense.type}) — allocation ${allocation.id}`,
-          amount: expenseValueUsd ?? expense.weight,
+          amount: expenseValueUsd ?? Number(expense.weight),
           netAmount: expenseValueUsd ?? undefined,
           grossAmount: expenseValueUsd ?? undefined,
           payload: {
             ...sharedPayload,
             expenseId: expense.id,
             expenseType: expense.type,
-            weight: expense.weight,
+            weight: Number(expense.weight),
             valueUsd: expenseValueUsd,
           },
           createdById: session.user.id,

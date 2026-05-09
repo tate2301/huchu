@@ -22,7 +22,7 @@ export async function GET(
             grossWeight: true,
             valueUsd: true,
             pourDate: true,
-            site: { select: { id: true, name: true, code: true, companyId: true } },
+            site: { select: { id: true, name: true, code: true } },
             goldShiftAllocation: {
               select: {
                 id: true,
@@ -46,7 +46,7 @@ export async function GET(
                 id: true,
                 pourBarId: true,
                 grossWeight: true,
-                site: { select: { id: true, name: true, code: true, companyId: true } },
+                site: { select: { id: true, name: true, code: true } },
               },
             },
           },
@@ -95,9 +95,7 @@ export async function GET(
 
     if (!receipt) return errorResponse("Receipt not found", 404)
 
-    const companyId =
-      receipt.goldPour?.site.companyId ?? receipt.goldDispatch?.goldPour.site.companyId
-    if (companyId !== session.user.companyId) {
+    if (receipt.companyId !== session.user.companyId) {
       return errorResponse("Receipt not found", 404)
     }
 

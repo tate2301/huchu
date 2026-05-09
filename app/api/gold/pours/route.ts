@@ -33,7 +33,7 @@ export async function GET(request: NextRequest) {
     const { page, limit, skip } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
-      site: { companyId: session.user.companyId },
+      companyId: session.user.companyId,
     };
 
     if (siteId) where.siteId = siteId;
@@ -80,12 +80,12 @@ export async function GET(request: NextRequest) {
     const normalizedPours = pours.map((pour) => {
       const expenseWeightTotal = pour.goldShiftAllocation
         ? pour.goldShiftAllocation.expenses.reduce(
-            (sum, expense) => sum + expense.weight,
+            (sum, expense) => sum + Number(expense.weight),
             0,
           )
         : null;
-      const workerSplitWeight = pour.goldShiftAllocation?.workerShareWeight ?? null;
-      const companySplitWeight = pour.goldShiftAllocation?.companyShareWeight ?? null;
+      const workerSplitWeight = pour.goldShiftAllocation?.workerShareWeight != null ? Number(pour.goldShiftAllocation.workerShareWeight) : null;
+      const companySplitWeight = pour.goldShiftAllocation?.companyShareWeight != null ? Number(pour.goldShiftAllocation.companyShareWeight) : null;
       const companyTotalWeight =
         companySplitWeight !== null && expenseWeightTotal !== null
           ? companySplitWeight + expenseWeightTotal
@@ -196,6 +196,7 @@ export async function POST(request: NextRequest) {
     const pour = await prisma.$transaction(async (tx) => {
       const created = await tx.goldPour.create({
         data: {
+          companyId: session.user.companyId,
           siteId: validated.siteId,
           pourBarId,
           pourDate: new Date(validated.pourDate),
@@ -225,7 +226,7 @@ export async function POST(request: NextRequest) {
         siteId: created.siteId,
         eventDate: created.pourDate,
         direction: "IN",
-        grams: created.grossWeight,
+        grams: Number(created.grossWeight),
         sourceType: "POUR",
         sourceId: created.id,
         notes: `Pour ${created.pourBarId}`,
@@ -240,15 +241,15 @@ export async function POST(request: NextRequest) {
         sourceId: created.id,
         entryDate: created.pourDate,
         description: `Gold pour ${created.pourBarId} created`,
-        amount: created.valueUsd ?? created.grossWeight,
+        amount: created.valueUsd ?? Number(created.grossWeight),
         payload: {
           siteId: created.siteId,
-          grossWeight: created.grossWeight,
+          grossWeight: Number(created.grossWeight),
           valueUsd: created.valueUsd,
           goldPriceUsdPerGram: created.goldPriceUsdPerGram,
           valuationDate: created.valuationDate,
           storageLocation: created.storageLocation,
-          estimatedPurity: created.estimatedPurity,
+          estimatedPurity: created.estimatedPurity != null ? Number(created.estimatedPurity) : null,
         },
         createdById: session.user.id,
         status: "PENDING",

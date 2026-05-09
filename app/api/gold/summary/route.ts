@@ -42,8 +42,6 @@ export async function GET(request: NextRequest) {
     const priorWeekEnd = weekStart
     const trailing30Start = addDays(weekStart, -30)
 
-    const siteScope = { companyId }
-
     const [
       thisWeekReceipts,
       priorWeekReceipts,
@@ -59,29 +57,23 @@ export async function GET(request: NextRequest) {
       // Cash this week
       prisma.buyerReceipt.findMany({
         where: {
+          companyId,
           receiptDate: { gte: weekStart, lt: weekEnd },
-          OR: [
-            { goldPour: { is: { site: siteScope } } },
-            { goldDispatch: { is: { goldPour: { site: siteScope } } } },
-          ],
         },
         select: { paidValueUsd: true, paidAmount: true },
       }),
       // Cash prior week
       prisma.buyerReceipt.findMany({
         where: {
+          companyId,
           receiptDate: { gte: priorWeekStart, lt: priorWeekEnd },
-          OR: [
-            { goldPour: { is: { site: siteScope } } },
-            { goldDispatch: { is: { goldPour: { site: siteScope } } } },
-          ],
         },
         select: { paidValueUsd: true, paidAmount: true },
       }),
       // Production this week
       prisma.goldPour.findMany({
         where: {
-          site: siteScope,
+          companyId,
           pourDate: { gte: weekStart, lt: weekEnd },
         },
         select: { grossWeight: true },
@@ -89,7 +81,7 @@ export async function GET(request: NextRequest) {
       // Production prior week
       prisma.goldPour.findMany({
         where: {
-          site: siteScope,
+          companyId,
           pourDate: { gte: priorWeekStart, lt: priorWeekEnd },
         },
         select: { grossWeight: true },
@@ -97,7 +89,7 @@ export async function GET(request: NextRequest) {
       // Awaiting sale: pours with no receipt (direct or via dispatch)
       prisma.goldPour.findMany({
         where: {
-          site: siteScope,
+          companyId,
           receipts: { none: {} },
           dispatches: { every: { buyerReceipts: { none: {} } } },
         },
@@ -107,7 +99,7 @@ export async function GET(request: NextRequest) {
       prisma.goldShiftWorkerShare.findMany({
         where: {
           allocation: {
-            site: siteScope,
+            companyId,
             workflowStatus: "APPROVED",
           },
         },
@@ -116,7 +108,7 @@ export async function GET(request: NextRequest) {
       // Daily production trailing 30 days
       prisma.goldPour.findMany({
         where: {
-          site: siteScope,
+          companyId,
           pourDate: { gte: trailing30Start, lt: weekEnd },
         },
         select: { pourDate: true, grossWeight: true, valueUsd: true },
@@ -125,7 +117,7 @@ export async function GET(request: NextRequest) {
       // Production by site, last 30 days
       prisma.goldPour.findMany({
         where: {
-          site: siteScope,
+          companyId,
           pourDate: { gte: trailing30Start, lt: weekEnd },
         },
         select: {
@@ -135,12 +127,7 @@ export async function GET(request: NextRequest) {
       }),
       // Recent sales
       prisma.buyerReceipt.findMany({
-        where: {
-          OR: [
-            { goldPour: { is: { site: siteScope } } },
-            { goldDispatch: { is: { goldPour: { site: siteScope } } } },
-          ],
-        },
+        where: { companyId },
         orderBy: { receiptDate: "desc" },
         take: 5,
         select: {
@@ -173,7 +160,7 @@ export async function GET(request: NextRequest) {
         by: ["employeeId"],
         where: {
           allocation: {
-            site: siteScope,
+            companyId,
             date: { gte: trailing30Start, lt: weekEnd },
           },
         },
@@ -202,18 +189,18 @@ export async function GET(request: NextRequest) {
       spotUsdPerGram != null ? +(onHandGrams * spotUsdPerGram).toFixed(2) : null
 
     const awaitingSaleGrams = undispatchedAndUnsoldPours.reduce(
-      (sum, pour) => sum + pour.grossWeight,
+      (sum, pour) => sum + Number(pour.grossWeight),
       0,
     )
     const awaitingSaleUsd = undispatchedAndUnsoldPours.reduce((sum, pour) => {
       if (pour.valueUsd != null) return sum + pour.valueUsd
-      if (spotUsdPerGram != null) return sum + pour.grossWeight * spotUsdPerGram
+      if (spotUsdPerGram != null) return sum + Number(pour.grossWeight) * spotUsdPerGram
       return sum
     }, 0)
 
     const owedToWorkersUsd = workerSharesUnpaid.reduce((sum, share) => {
       if (share.shareValueUsd != null) return sum + share.shareValueUsd
-      if (spotUsdPerGram != null) return sum + share.shareWeight * spotUsdPerGram
+      if (spotUsdPerGram != null) return sum + Number(share.shareWeight) * spotUsdPerGram
       return sum
     }, 0)
 
@@ -228,7 +215,7 @@ export async function GET(request: NextRequest) {
       const key = dateKeyUtc(pour.pourDate)
       const entry = dailyMap.get(key)
       if (!entry) continue
-      entry.grams += pour.grossWeight
+      entry.grams += Number(pour.grossWeight)
       entry.usd += pour.valueUsd ?? 0
     }
     const dailyProductionSeries = Array.from(dailyMap.entries()).map(

@@ -229,6 +229,7 @@ export async function POST(request: NextRequest) {
     const purchase = await prisma.$transaction(async (tx) => {
       const pour = await tx.goldPour.create({
         data: {
+          companyId: session.user.companyId,
           siteId: validated.siteId,
           pourBarId,
           pourDate: purchaseDate,

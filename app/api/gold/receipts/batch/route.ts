@@ -58,17 +58,17 @@ export async function POST(request: NextRequest) {
       where: { id: { in: pourIds } },
       select: {
         id: true,
+        companyId: true,
         grossWeight: true,
         pourBarId: true,
         siteId: true,
-        site: { select: { companyId: true } },
       },
     })
     if (pours.length !== pourIds.length) {
       return errorResponse("One or more batches were not found", 404)
     }
     for (const pour of pours) {
-      if (pour.site.companyId !== session.user.companyId) {
+      if (pour.companyId !== session.user.companyId) {
         return errorResponse("Invalid batch", 403)
       }
     }
@@ -96,7 +96,6 @@ export async function POST(request: NextRequest) {
       const dispatches = await prisma.goldDispatch.findMany({
         where: { id: { in: dispatchIds } },
         include: {
-          goldPour: { select: { site: { select: { companyId: true } } } },
           batches: { select: { goldPourId: true } },
         },
       })
@@ -105,7 +104,7 @@ export async function POST(request: NextRequest) {
       }
       const dispatchPourIds = new Set<string>()
       for (const dispatch of dispatches) {
-        if (dispatch.goldPour.site.companyId !== session.user.companyId) {
+        if (dispatch.companyId !== session.user.companyId) {
           return errorResponse("Invalid dispatch", 403)
         }
         dispatchPourIds.add(dispatch.goldPourId)
@@ -158,7 +157,7 @@ export async function POST(request: NextRequest) {
     const headerValuation = await snapshotGoldUsdValue({
       companyId: session.user.companyId,
       businessDate: validated.receiptDate,
-      grams: pours.reduce((sum, p) => sum + p.grossWeight, 0),
+      grams: pours.reduce((sum, p) => sum + Number(p.grossWeight), 0),
     })
     if (!headerValuation) {
       return errorResponse(
@@ -180,6 +179,7 @@ export async function POST(request: NextRequest) {
       // the join tables.
       const receipt = await tx.buyerReceipt.create({
         data: {
+          companyId: session.user.companyId,
           goldDispatchId: dispatchIds[0] ?? null,
           goldPourId: validated.items[0].goldPourId,
           receiptNumber,
@@ -199,6 +199,7 @@ export async function POST(request: NextRequest) {
         const pour = pourLookup.get(item.goldPourId)!
         await tx.buyerReceiptBatch.create({
           data: {
+            companyId: session.user.companyId,
             buyerReceiptId: receipt.id,
             goldPourId: item.goldPourId,
             grams: pour.grossWeight,
@@ -228,7 +229,7 @@ export async function POST(request: NextRequest) {
           siteId: headerSiteId,
           eventDate: receipt.receiptDate,
           direction: "OUT",
-          grams: pour.grossWeight,
+          grams: Number(pour.grossWeight),
           sourceType: "RECEIPT",
           sourceId: receipt.id,
           notes: `Sale ${receiptNumber} (pour ${pour.pourBarId})`,

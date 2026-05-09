@@ -21,7 +21,7 @@ export async function GET(
             pourBarId: true,
             grossWeight: true,
             valueUsd: true,
-            site: { select: { id: true, name: true, code: true, companyId: true } },
+            site: { select: { id: true, name: true, code: true } },
           },
         },
         handedOverBy: { select: { id: true, name: true, employeeId: true } },
@@ -55,7 +55,7 @@ export async function GET(
       },
     })
 
-    if (!dispatch || dispatch.goldPour.site.companyId !== session.user.companyId) {
+    if (!dispatch || dispatch.companyId !== session.user.companyId) {
       return errorResponse("Dispatch not found", 404)
     }
 

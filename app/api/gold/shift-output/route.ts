@@ -212,6 +212,7 @@ export async function POST(request: NextRequest) {
 
       const allocation = await tx.goldShiftAllocation.create({
         data: {
+          companyId,
           date: dateObj,
           shift: validated.shift,
           siteId: validated.siteId,
@@ -266,6 +267,7 @@ export async function POST(request: NextRequest) {
         })
         const pour = await tx.goldPour.create({
           data: {
+            companyId,
             siteId: validated.siteId,
             pourBarId,
             pourDate: dateObj,
@@ -363,7 +365,7 @@ export async function POST(request: NextRequest) {
       }
       if (goldPrice) {
         for (const expense of allocation.expenses) {
-          const valueUsd = +(expense.weight * goldPrice).toFixed(2)
+          const valueUsd = +(Number(expense.weight) * goldPrice).toFixed(2)
           await captureAccountingEvent({
             companyId,
             sourceDomain: "gold",

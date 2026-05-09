@@ -64,12 +64,9 @@ async function resolveCorrectionTarget(
   if (entityType === "POUR") {
     const pour = await prisma.goldPour.findUnique({
       where: { id: entityId },
-      select: {
-        id: true,
-        site: { select: { companyId: true } },
-      },
+      select: { id: true, companyId: true },
     });
-    if (!pour || pour.site.companyId !== companyId) return null;
+    if (!pour || pour.companyId !== companyId) return null;
     return { pourId: pour.id };
   }
 
@@ -78,15 +75,11 @@ async function resolveCorrectionTarget(
       where: { id: entityId },
       select: {
         id: true,
-        goldPour: {
-          select: {
-            id: true,
-            site: { select: { companyId: true } },
-          },
-        },
+        companyId: true,
+        goldPour: { select: { id: true } },
       },
     });
-    if (!dispatch || dispatch.goldPour.site.companyId !== companyId) return null;
+    if (!dispatch || dispatch.companyId !== companyId) return null;
     return { pourId: dispatch.goldPour.id };
   }
 
@@ -94,27 +87,14 @@ async function resolveCorrectionTarget(
     where: { id: entityId },
     select: {
       id: true,
-      goldPour: {
-        select: {
-          id: true,
-          site: { select: { companyId: true } },
-        },
-      },
-      goldDispatch: {
-        select: {
-          goldPour: {
-            select: {
-              id: true,
-              site: { select: { companyId: true } },
-            },
-          },
-        },
-      },
+      companyId: true,
+      goldPour: { select: { id: true } },
+      goldDispatch: { select: { goldPour: { select: { id: true } } } },
     },
   });
 
-  const receiptPour = receipt?.goldPour ?? receipt?.goldDispatch?.goldPour
-  if (!receipt || !receiptPour || receiptPour.site.companyId !== companyId) {
+  const receiptPour = receipt?.goldPour ?? receipt?.goldDispatch?.goldPour;
+  if (!receipt || !receiptPour || receipt.companyId !== companyId) {
     return null;
   }
   return { pourId: receiptPour.id };
@@ -133,7 +113,7 @@ export async function GET(request: NextRequest) {
     const { page, limit } = getPaginationParams(request);
 
     const where: Record<string, unknown> = {
-      site: { companyId: session.user.companyId },
+      companyId: session.user.companyId,
     };
     if (siteId) where.siteId = siteId;
     if (pourId) where.id = pourId;

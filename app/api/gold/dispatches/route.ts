@@ -107,12 +107,11 @@ export async function GET(request: NextRequest) {
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
-      goldPour: { site: { companyId: session.user.companyId } },
+      companyId: session.user.companyId,
     }
 
     if (siteId) {
-      const goldPourWhere = (where.goldPour as Record<string, unknown> | undefined) ?? {}
-      where.goldPour = { ...goldPourWhere, siteId }
+      where.goldPour = { siteId }
     }
     if (goldPourId) {
       where.OR = [
@@ -169,7 +168,7 @@ export async function POST(request: NextRequest) {
 
     const goldPours = await prisma.goldPour.findMany({
       where: { id: { in: goldPourIds } },
-      include: { site: { select: { companyId: true, isActive: true } } },
+      include: { site: { select: { isActive: true } } },
     })
 
     if (goldPours.length !== goldPourIds.length) {
@@ -177,7 +176,7 @@ export async function POST(request: NextRequest) {
     }
 
     for (const pour of goldPours) {
-      if (pour.site.companyId !== session.user.companyId) {
+      if (pour.companyId !== session.user.companyId) {
         return errorResponse("Invalid gold pour", 403)
       }
       if (!pour.site.isActive) {
@@ -233,7 +232,7 @@ export async function POST(request: NextRequest) {
     }
     const mergedNotes = notesSegments.filter(Boolean).join("\n\n")
 
-    const totalGrossWeight = goldPours.reduce((sum, pour) => sum + pour.grossWeight, 0)
+    const totalGrossWeight = goldPours.reduce((sum, pour) => sum + Number(pour.grossWeight), 0)
     const valuation = await snapshotGoldUsdValue({
       companyId: session.user.companyId,
       businessDate: validated.dispatchDate,
@@ -251,6 +250,7 @@ export async function POST(request: NextRequest) {
     const dispatchRecord = await prisma.$transaction(async (tx) => {
       const created = await tx.goldDispatch.create({
         data: {
+          companyId: session.user.companyId,
           goldPourId: primaryPourId,
           dispatchDate: new Date(validated.dispatchDate),
           goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
@@ -268,6 +268,7 @@ export async function POST(request: NextRequest) {
 
       await tx.goldDispatchBatch.createMany({
         data: orderedPours.map((pour, index) => ({
+          companyId: session.user.companyId,
           dispatchId: created.id,
           goldPourId: pour.id,
           sortOrder: index,
@@ -280,13 +281,13 @@ export async function POST(request: NextRequest) {
           siteId: pour.siteId,
           eventDate: new Date(validated.dispatchDate),
           direction: "OUT",
-          grams: pour.grossWeight,
+          grams: Number(pour.grossWeight),
           sourceType: "DISPATCH",
           sourceId: created.id,
           notes: `Dispatch ${created.id} (pour ${pour.pourBarId})`,
           createdById: session.user.id,
           goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
-          valueUsd: +(pour.grossWeight * valuation.goldPriceUsdPerGram).toFixed(2),
+          valueUsd: +(Number(pour.grossWeight) * valuation.goldPriceUsdPerGram).toFixed(2),
           skipValuation: true,
         })
       }

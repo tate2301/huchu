@@ -140,19 +140,19 @@ type BatchReference = {
   id: string
   pourBarId: string
   goldShiftAllocation?: {
-    workerShareWeight: number
-    companyShareWeight: number
-    expenses: Array<{ weight: number }>
+    workerShareWeight: number | { toNumber(): number }
+    companyShareWeight: number | { toNumber(): number }
+    expenses: Array<{ weight: number | { toNumber(): number } }>
     shiftReport?: { groupLeader?: { name: string } | null } | null
   } | null
 }
 
 function toBatchRef<T extends BatchReference>(goldPour: T) {
   const expenseWeightTotal = goldPour.goldShiftAllocation
-    ? goldPour.goldShiftAllocation.expenses.reduce((sum, expense) => sum + expense.weight, 0)
+    ? goldPour.goldShiftAllocation.expenses.reduce((sum, expense) => sum + Number(expense.weight), 0)
     : null
-  const workerSplitWeight = goldPour.goldShiftAllocation?.workerShareWeight ?? null
-  const companySplitWeight = goldPour.goldShiftAllocation?.companyShareWeight ?? null
+  const workerSplitWeight = goldPour.goldShiftAllocation?.workerShareWeight != null ? Number(goldPour.goldShiftAllocation.workerShareWeight) : null
+  const companySplitWeight = goldPour.goldShiftAllocation?.companyShareWeight != null ? Number(goldPour.goldShiftAllocation.companyShareWeight) : null
   const companyTotalWeight =
     companySplitWeight !== null && expenseWeightTotal !== null
       ? companySplitWeight + expenseWeightTotal
@@ -176,7 +176,7 @@ function normalizeReceipt<
     goldPour: {
       id: string
       pourBarId: string
-      grossWeight: number
+      grossWeight: number | { toNumber(): number }
       pourDate: Date
       site: { name: string; code: string }
     } | null
@@ -187,7 +187,7 @@ function normalizeReceipt<
       goldPour: {
         id: string
         pourBarId: string
-        grossWeight: number
+        grossWeight: number | { toNumber(): number }
         pourDate: Date
         site: { name: string; code: string }
       }
@@ -212,12 +212,7 @@ function normalizeReceipt<
 }
 
 function companyScope(companyId: string) {
-  return {
-    OR: [
-      { goldPour: { is: { site: { companyId } } } },
-      { goldDispatch: { is: { goldPour: { site: { companyId } } } } },
-    ],
-  }
+  return { companyId }
 }
 
 export async function GET(request: NextRequest) {
@@ -292,7 +287,7 @@ export async function POST(request: NextRequest) {
       ? await prisma.goldDispatch.findUnique({
           where: { id: validated.goldDispatchId },
           include: {
-            goldPour: { select: { id: true, site: { select: { companyId: true } } } },
+            goldPour: { select: { id: true } },
             // Pull every batch in the dispatch so we can validate that
             // a chosen goldPourId is part of the trip — not just the
             // legacy primary pour.
@@ -303,7 +298,7 @@ export async function POST(request: NextRequest) {
 
     if (
       validated.goldDispatchId &&
-      (!dispatch || dispatch.goldPour.site.companyId !== session.user.companyId)
+      (!dispatch || dispatch.companyId !== session.user.companyId)
     ) {
       return errorResponse("Invalid dispatch", 403)
     }
@@ -327,14 +322,9 @@ export async function POST(request: NextRequest) {
 
     const goldPour = await prisma.goldPour.findUnique({
       where: { id: resolvedGoldPourId },
-      select: {
-        id: true,
-        grossWeight: true,
-        siteId: true,
-        site: { select: { companyId: true } },
-      },
+      select: { id: true, companyId: true, grossWeight: true, siteId: true },
     })
-    if (!goldPour || goldPour.site.companyId !== session.user.companyId) {
+    if (!goldPour || goldPour.companyId !== session.user.companyId) {
       return errorResponse("Invalid batch", 403)
     }
 
@@ -375,7 +365,7 @@ export async function POST(request: NextRequest) {
     const valuation = await snapshotGoldUsdValue({
       companyId: session.user.companyId,
       businessDate: validated.receiptDate,
-      grams: goldPour.grossWeight,
+      grams: Number(goldPour.grossWeight),
     })
     if (!valuation) {
       return errorResponse("No gold price configured. Add a gold price before recording sales.", 409)
@@ -384,6 +374,7 @@ export async function POST(request: NextRequest) {
     const receipt = await prisma.$transaction(async (tx) => {
       const created = await tx.buyerReceipt.create({
         data: {
+          companyId: session.user.companyId,
           goldDispatchId: validated.goldDispatchId,
           goldPourId: resolvedGoldPourId,
           receiptNumber,
@@ -404,9 +395,10 @@ export async function POST(request: NextRequest) {
       // when the UI surface lands.
       await tx.buyerReceiptBatch.create({
         data: {
+          companyId: session.user.companyId,
           buyerReceiptId: created.id,
           goldPourId: resolvedGoldPourId,
-          grams: goldPour.grossWeight,
+          grams: Number(goldPour.grossWeight),
           valueUsd: validated.paidAmount,
           goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
         },
@@ -425,7 +417,7 @@ export async function POST(request: NextRequest) {
         siteId: goldPour.siteId,
         eventDate: created.receiptDate,
         direction: "OUT",
-        grams: goldPour.grossWeight,
+        grams: Number(goldPour.grossWeight),
         sourceType: "RECEIPT",
         sourceId: created.id,
         notes: `Sale ${receiptNumber}`,

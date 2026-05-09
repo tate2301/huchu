@@ -15,7 +15,7 @@ export async function GET(
     const pour = await prisma.goldPour.findUnique({
       where: { id },
       include: {
-        site: { select: { id: true, name: true, code: true, companyId: true } },
+        site: { select: { id: true, name: true, code: true } },
         witness1: { select: { id: true, name: true, employeeId: true } },
         witness2: { select: { id: true, name: true, employeeId: true } },
         createdBy: { select: { id: true, name: true } },
@@ -86,7 +86,7 @@ export async function GET(
       },
     })
 
-    if (!pour || pour.site.companyId !== session.user.companyId) {
+    if (!pour || pour.companyId !== session.user.companyId) {
       return errorResponse("Pour not found", 404)
     }
 

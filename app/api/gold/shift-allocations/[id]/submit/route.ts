@@ -26,13 +26,13 @@ export async function POST(
       where: { id },
       select: {
         id: true,
+        companyId: true,
         workflowStatus: true,
-        site: { select: { companyId: true } },
         _count: { select: { workerShares: true } },
       },
     })
 
-    if (!existing || existing.site.companyId !== session.user.companyId) {
+    if (!existing || existing.companyId !== session.user.companyId) {
       return errorResponse("Gold payout allocation not found", 404)
     }
     if (!canTransitionStandardWorkflow(existing.workflowStatus, "SUBMIT")) {
