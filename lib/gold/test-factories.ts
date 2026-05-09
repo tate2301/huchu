@@ -84,17 +84,27 @@ function site(companyId: string, overrides?: Overrides<SiteData>): SiteData {
 export interface EmployeeData {
   id: string;
   companyId: string;
-  siteId: string;
-  firstName: string;
-  lastName: string;
+  employeeId: string;
+  name: string;
+  phone: string;
+  nextOfKinName: string;
+  nextOfKinPhone: string;
+  passportPhotoUrl: string;
+  villageOfOrigin: string;
   isActive: boolean;
   createdAt: Date;
   updatedAt: Date;
 }
 
-function employee(companyId: string, siteId: string, overrides?: Overrides<EmployeeData>): EmployeeData {
+function employee(companyId: string, overrides?: Overrides<EmployeeData>): EmployeeData {
   const id = uid();
-  return { id, companyId, siteId, firstName: "Test", lastName: `Worker-${id.slice(0, 6)}`, isActive: true, createdAt: new Date(), updatedAt: new Date(), ...overrides };
+  const short = id.slice(0, 6);
+  return {
+    id, companyId, employeeId: `EMP-${short}`, name: `Test Worker ${short}`,
+    phone: "+1000000000", nextOfKinName: "Next Of Kin", nextOfKinPhone: "+1000000001",
+    passportPhotoUrl: "https://test.local/photo.jpg", villageOfOrigin: "Test Village",
+    isActive: true, createdAt: new Date(), updatedAt: new Date(), ...overrides,
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -106,12 +116,13 @@ export interface ShiftGroupData {
   companyId: string;
   siteId: string;
   name: string;
+  leaderEmployeeId: string;
   createdAt: Date;
   updatedAt: Date;
 }
 
-function shiftGroup(companyId: string, siteId: string, overrides?: Overrides<ShiftGroupData>): ShiftGroupData {
-  return { id: uid(), companyId, siteId, name: "Day Crew", createdAt: new Date(), updatedAt: new Date(), ...overrides };
+function shiftGroup(companyId: string, siteId: string, leaderEmployeeId: string, overrides?: Overrides<ShiftGroupData>): ShiftGroupData {
+  return { id: uid(), companyId, siteId, name: "Day Crew", leaderEmployeeId, createdAt: new Date(), updatedAt: new Date(), ...overrides };
 }
 
 // ---------------------------------------------------------------------------
