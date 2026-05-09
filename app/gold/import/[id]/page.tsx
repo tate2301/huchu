@@ -16,6 +16,7 @@ import { goldRoutes } from "@/app/gold/routes";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
 import { ChevronLeftIcon, AlertCircle } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { ClientDate } from "@/app/gold/components/client-date";
 
 type LedgerEntry = {
   id: string;
@@ -175,7 +176,9 @@ type EditableDateProps = {
 };
 
 function EditableDate({ value, onSave, disabled }: EditableDateProps) {
-  const display = value ? new Date(value).toLocaleDateString() : "—";
+  // Use <ClientDate /> for the rendered display so SSR and the first client
+  // render emit identical bytes (avoids React #418 hydration mismatch).
+  const display = <ClientDate value={value} mode="date" />;
   const isoDate = value ? new Date(value).toISOString().slice(0, 10) : "";
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(isoDate);
@@ -641,7 +644,7 @@ export default function GoldImportDetailPage() {
           </span>
           <span className="text-sm text-muted-foreground">
             Uploaded by {data.uploadedBy?.name ?? "—"} on{" "}
-            {new Date(data.createdAt).toLocaleString()}
+            <ClientDate value={data.createdAt} />
           </span>
         </div>
 

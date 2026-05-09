@@ -14,6 +14,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSites, fetchShiftGroups } from "@/lib/api";
 import { goldRoutes } from "@/app/gold/routes";
 import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { ClientDate } from "@/app/gold/components/client-date";
 
 type CreatedImport = {
   id: string;
@@ -178,7 +179,7 @@ export default function GoldImportPage() {
                     </Link>
                     <p className="text-xs text-muted-foreground truncate">
                       {row.uploadedBy?.name ?? "—"} ·{" "}
-                      {new Date(row.createdAt).toLocaleString()} ·{" "}
+                      <ClientDate value={row.createdAt} /> ·{" "}
                       {row.site?.name ?? "no site"}
                     </p>
                   </div>
