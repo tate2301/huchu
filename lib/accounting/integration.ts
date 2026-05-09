@@ -1,4 +1,4 @@
-import type { AccountingSourceType } from "@prisma/client";
+import type { AccountingSourceType, PrismaClient, Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   createJournalEntryFromSource,
@@ -7,6 +7,8 @@ import {
 } from "@/lib/accounting/posting";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
+
+type Db = PrismaClient | Prisma.TransactionClient;
 
 type CaptureAccountingEventInput = {
   companyId: string;
@@ -72,7 +74,7 @@ async function resolveFallbackActorId(companyId: string) {
   return fallbackUser?.id ?? null;
 }
 
-export async function captureAccountingEvent(input: CaptureAccountingEventInput) {
+export async function captureAccountingEvent(input: CaptureAccountingEventInput, db: Db = prisma) {
   const eventKey = buildAccountingEventKey({
     companyId: input.companyId,
     sourceDomain: input.sourceDomain,
@@ -82,7 +84,7 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput)
     fallback: input.description ?? input.entryDate?.toISOString() ?? "event",
   });
 
-  return prisma.accountingIntegrationEvent.upsert({
+  return db.accountingIntegrationEvent.upsert({
     where: { eventKey },
     update: {
       sourceType: input.sourceType ?? null,

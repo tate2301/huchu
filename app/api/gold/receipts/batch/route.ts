@@ -220,49 +220,40 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      return { receipt, totalPaid }
-    })
-
-    // OUT events are recorded per pour so receipt → event traceability
-    // matches the FIFO sale path.
-    for (const item of validated.items) {
-      const pour = pourLookup.get(item.goldPourId)!
-      try {
-        await recordInventoryEvent(prisma, {
+      // OUT events per pour so receipt → event traceability matches FIFO sale path.
+      for (const item of validated.items) {
+        const pour = pourLookup.get(item.goldPourId)!
+        await recordInventoryEvent(tx, {
           companyId: session.user.companyId,
           siteId: headerSiteId,
-          eventDate: created.receipt.receiptDate,
+          eventDate: receipt.receiptDate,
           direction: "OUT",
           grams: pour.grossWeight,
           sourceType: "RECEIPT",
-          sourceId: created.receipt.id,
-          notes: `Sale ${created.receipt.receiptNumber} (pour ${pour.pourBarId})`,
+          sourceId: receipt.id,
+          notes: `Sale ${receiptNumber} (pour ${pour.pourBarId})`,
           createdById: session.user.id,
           goldPriceUsdPerGram: headerValuation.goldPriceUsdPerGram,
           valueUsd: item.paidAmount,
           skipValuation: true,
         })
-      } catch (invErr) {
-        console.error("[Inventory] batch receipt OUT failed:", invErr)
       }
-    }
 
-    try {
       await createJournalEntryFromSource({
         companyId: session.user.companyId,
         sourceType: "GOLD_RECEIPT",
-        sourceId: created.receipt.id,
-        entryDate: created.receipt.receiptDate,
-        description: `Gold receipt ${created.receipt.receiptNumber}`,
+        sourceId: receipt.id,
+        entryDate: receipt.receiptDate,
+        description: `Gold receipt ${receiptNumber}`,
         createdById: session.user.id,
-        amount: created.totalPaid,
-        netAmount: created.totalPaid,
+        amount: totalPaid,
+        netAmount: totalPaid,
         taxAmount: 0,
-        grossAmount: created.totalPaid,
-      })
-    } catch (error) {
-      console.error("[Accounting] Gold batch receipt auto-post failed:", error)
-    }
+        grossAmount: totalPaid,
+      }, tx)
+
+      return { receipt, totalPaid }
+    })
 
     return successResponse(
       {

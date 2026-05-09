@@ -4,8 +4,12 @@ import type {
   PostingRuleConditionField,
   PostingRuleLine,
   PostingRuleOperator,
+  PrismaClient,
+  Prisma,
 } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
+
+type Db = PrismaClient | Prisma.TransactionClient;
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
@@ -526,7 +530,7 @@ export async function previewPostingFromSource(context: PostingContext) {
   return simulatePosting(context);
 }
 
-export async function createJournalEntryFromSource(context: PostingContext): Promise<PostingResult> {
+export async function createJournalEntryFromSource(context: PostingContext, db: Db = prisma): Promise<PostingResult> {
   const envelope = buildEnvelope(context);
   const integrationEvent = await createOrRefreshIntegrationEvent(context, envelope);
 
@@ -583,7 +587,7 @@ export async function createJournalEntryFromSource(context: PostingContext): Pro
     }
 
     const entryNumber = await getNextEntryNumber(context.companyId);
-    const entry = await prisma.journalEntry.create({
+    const entry = await db.journalEntry.create({
       data: {
         companyId: context.companyId,
         entryNumber,

@@ -193,73 +193,69 @@ export async function POST(request: NextRequest) {
       return errorResponse("No gold price configured. Add a gold price before recording batches.", 409);
     }
 
-    const pour = await prisma.goldPour.create({
-      data: {
-        siteId: validated.siteId,
-        pourBarId,
-        pourDate: new Date(validated.pourDate),
-        grossWeight: validated.grossWeight,
-        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
-        valuationDate: valuation.valuationDate,
-        valueUsd: valuation.valueUsd,
-        witness1Id: validated.witness1Id,
-        witness2Id: validated.witness2Id,
-        storageLocation: validated.storageLocation,
-        estimatedPurity: validated.estimatedPurity,
-        additionalExpensesWeight: validated.additionalExpensesWeight,
-        additionalExpensesNote: validated.additionalExpensesNote,
-        notes: validated.notes,
-        createdById: session.user.id,
-      },
-      include: {
-        site: { select: { name: true, code: true } },
-        witness1: { select: { name: true } },
-        witness2: { select: { name: true } },
-        createdBy: { select: { id: true, name: true } },
-      },
-    });
+    const pour = await prisma.$transaction(async (tx) => {
+      const created = await tx.goldPour.create({
+        data: {
+          siteId: validated.siteId,
+          pourBarId,
+          pourDate: new Date(validated.pourDate),
+          grossWeight: validated.grossWeight,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valuationDate: valuation.valuationDate,
+          valueUsd: valuation.valueUsd,
+          witness1Id: validated.witness1Id,
+          witness2Id: validated.witness2Id,
+          storageLocation: validated.storageLocation,
+          estimatedPurity: validated.estimatedPurity,
+          additionalExpensesWeight: validated.additionalExpensesWeight,
+          additionalExpensesNote: validated.additionalExpensesNote,
+          notes: validated.notes,
+          createdById: session.user.id,
+        },
+        include: {
+          site: { select: { name: true, code: true } },
+          witness1: { select: { name: true } },
+          witness2: { select: { name: true } },
+          createdBy: { select: { id: true, name: true } },
+        },
+      });
 
-    try {
-      await recordInventoryEvent(prisma, {
+      await recordInventoryEvent(tx, {
         companyId: session.user.companyId,
-        siteId: pour.siteId,
-        eventDate: pour.pourDate,
+        siteId: created.siteId,
+        eventDate: created.pourDate,
         direction: "IN",
-        grams: pour.grossWeight,
+        grams: created.grossWeight,
         sourceType: "POUR",
-        sourceId: pour.id,
-        notes: `Pour ${pour.pourBarId}`,
+        sourceId: created.id,
+        notes: `Pour ${created.pourBarId}`,
         createdById: session.user.id,
         skipValuation: true,
       });
-    } catch (error) {
-      console.error("[Inventory] pour event failed:", error);
-    }
 
-    try {
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "gold",
         sourceAction: "pour-created",
-        sourceId: pour.id,
-        entryDate: pour.pourDate,
-        description: `Gold pour ${pour.pourBarId} created`,
-        amount: pour.valueUsd ?? pour.grossWeight,
+        sourceId: created.id,
+        entryDate: created.pourDate,
+        description: `Gold pour ${created.pourBarId} created`,
+        amount: created.valueUsd ?? created.grossWeight,
         payload: {
-          siteId: pour.siteId,
-          grossWeight: pour.grossWeight,
-          valueUsd: pour.valueUsd,
-          goldPriceUsdPerGram: pour.goldPriceUsdPerGram,
-          valuationDate: pour.valuationDate,
-          storageLocation: pour.storageLocation,
-          estimatedPurity: pour.estimatedPurity,
+          siteId: created.siteId,
+          grossWeight: created.grossWeight,
+          valueUsd: created.valueUsd,
+          goldPriceUsdPerGram: created.goldPriceUsdPerGram,
+          valuationDate: created.valuationDate,
+          storageLocation: created.storageLocation,
+          estimatedPurity: created.estimatedPurity,
         },
         createdById: session.user.id,
-        status: "IGNORED",
-      });
-    } catch (error) {
-      console.error("[Accounting] Gold pour capture failed:", error);
-    }
+        status: "PENDING",
+      }, tx);
+
+      return created;
+    });
 
     return successResponse(
       {

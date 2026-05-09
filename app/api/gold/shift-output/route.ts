@@ -319,34 +319,30 @@ export async function POST(request: NextRequest) {
         })
       }
 
-      return { allocation, pourId }
-    })
+      const sharedPayload = {
+        allocationId: allocation.id,
+        siteId: validated.siteId,
+        shift: validated.shift,
+        date: allocation.date,
+        goldPriceUsdPerGram: goldPrice || null,
+      }
 
-    // Accounting events (best-effort; outside the tx like in import flow)
-    const sharedPayload = {
-      allocationId: result.allocation.id,
-      siteId: validated.siteId,
-      shift: validated.shift,
-      date: result.allocation.date,
-      goldPriceUsdPerGram: goldPrice || null,
-    }
-    try {
       if (companyShare > 0 && goldPrice) {
         await captureAccountingEvent({
           companyId,
           sourceDomain: "gold",
           sourceAction: "shift-allocation-company-share",
           sourceType: "GOLD_SHIFT_ALLOCATION_COMPANY",
-          sourceId: result.allocation.id,
-          entryDate: result.allocation.date,
-          description: `Mdara share — allocation ${result.allocation.id}`,
+          sourceId: allocation.id,
+          entryDate: allocation.date,
+          description: `Mdara share — allocation ${allocation.id}`,
           amount: companyShareValueUsd ?? 0,
           netAmount: companyShareValueUsd,
           grossAmount: companyShareValueUsd,
           payload: { ...sharedPayload, shareWeight: companyShare, shareValueUsd: companyShareValueUsd },
           createdById: userId,
           status: "PENDING",
-        })
+        }, tx)
       }
       if (workerShare > 0 && goldPrice) {
         await captureAccountingEvent({
@@ -354,19 +350,19 @@ export async function POST(request: NextRequest) {
           sourceDomain: "gold",
           sourceAction: "shift-allocation-worker-share",
           sourceType: "GOLD_SHIFT_ALLOCATION_WORKER",
-          sourceId: result.allocation.id,
-          entryDate: result.allocation.date,
-          description: `Boys share — allocation ${result.allocation.id}`,
+          sourceId: allocation.id,
+          entryDate: allocation.date,
+          description: `Boys share — allocation ${allocation.id}`,
           amount: workerShareValueUsd ?? 0,
           netAmount: workerShareValueUsd,
           grossAmount: workerShareValueUsd,
           payload: { ...sharedPayload, shareWeight: workerShare, shareValueUsd: workerShareValueUsd },
           createdById: userId,
           status: "PENDING",
-        })
+        }, tx)
       }
       if (goldPrice) {
-        for (const expense of result.allocation.expenses) {
+        for (const expense of allocation.expenses) {
           const valueUsd = +(expense.weight * goldPrice).toFixed(2)
           await captureAccountingEvent({
             companyId,
@@ -374,20 +370,20 @@ export async function POST(request: NextRequest) {
             sourceAction: "shift-expense",
             sourceType: "GOLD_SHIFT_EXPENSE",
             sourceId: expense.id,
-            entryDate: result.allocation.date,
-            description: `${expense.type} — allocation ${result.allocation.id}`,
+            entryDate: allocation.date,
+            description: `${expense.type} — allocation ${allocation.id}`,
             amount: valueUsd,
             netAmount: valueUsd,
             grossAmount: valueUsd,
             payload: { ...sharedPayload, expenseId: expense.id, expenseType: expense.type, weight: expense.weight, valueUsd },
             createdById: userId,
             status: "PENDING",
-          })
+          }, tx)
         }
       }
-    } catch (acctErr) {
-      console.error("[Accounting] Manual shift-output capture failed:", acctErr)
-    }
+
+      return { allocation, pourId }
+    })
 
     return successResponse(
       {

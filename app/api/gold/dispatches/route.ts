@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
+import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -273,38 +274,51 @@ export async function POST(request: NextRequest) {
         })),
       })
 
-      return tx.goldDispatch.findUniqueOrThrow({
-        where: { id: created.id },
-        include: dispatchInclude,
-      })
-    })
+      for (const pour of orderedPours) {
+        await recordInventoryEvent(tx, {
+          companyId: session.user.companyId,
+          siteId: pour.siteId,
+          eventDate: new Date(validated.dispatchDate),
+          direction: "OUT",
+          grams: pour.grossWeight,
+          sourceType: "DISPATCH",
+          sourceId: created.id,
+          notes: `Dispatch ${created.id} (pour ${pour.pourBarId})`,
+          createdById: session.user.id,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valueUsd: +(pour.grossWeight * valuation.goldPriceUsdPerGram).toFixed(2),
+          skipValuation: true,
+        })
+      }
 
-    try {
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "gold",
         sourceAction: "dispatch-created",
         sourceType: "GOLD_DISPATCH",
-        sourceId: dispatchRecord.id,
-        entryDate: dispatchRecord.dispatchDate,
-        description: `Gold dispatch ${dispatchRecord.id} for ${orderedPours.length} batch(es)`,
-        amount: dispatchRecord.valueUsd ?? totalGrossWeight,
+        sourceId: created.id,
+        entryDate: new Date(validated.dispatchDate),
+        description: `Gold dispatch ${created.id} for ${orderedPours.length} batch(es)`,
+        amount: valuation.valueUsd ?? totalGrossWeight,
         payload: {
           goldPourIds,
           totalGrossWeight,
-          valueUsd: dispatchRecord.valueUsd,
-          goldPriceUsdPerGram: dispatchRecord.goldPriceUsdPerGram,
-          valuationDate: dispatchRecord.valuationDate,
-          destination: dispatchRecord.destination,
-          courier: dispatchRecord.courier,
-          sealNumbers: dispatchRecord.sealNumbers,
+          valueUsd: valuation.valueUsd,
+          goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+          valuationDate: valuation.valuationDate,
+          destination: validated.destination,
+          courier: validated.courier,
+          sealNumbers: validated.sealNumbers,
         },
         createdById: session.user.id,
-        status: "IGNORED",
+        status: "PENDING",
+      }, tx)
+
+      return tx.goldDispatch.findUniqueOrThrow({
+        where: { id: created.id },
+        include: dispatchInclude,
       })
-    } catch (error) {
-      console.error("[Accounting] Gold dispatch capture failed:", error)
-    }
+    })
 
     return successResponse(
       {

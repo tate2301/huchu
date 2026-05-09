@@ -419,6 +419,33 @@ export async function POST(request: NextRequest) {
           },
         })
       }
+
+      await recordInventoryEvent(tx, {
+        companyId: session.user.companyId,
+        siteId: goldPour.siteId,
+        eventDate: created.receiptDate,
+        direction: "OUT",
+        grams: goldPour.grossWeight,
+        sourceType: "RECEIPT",
+        sourceId: created.id,
+        notes: `Sale ${receiptNumber}`,
+        createdById: session.user.id,
+        skipValuation: true,
+      })
+
+      await createJournalEntryFromSource({
+        companyId: session.user.companyId,
+        sourceType: "GOLD_RECEIPT",
+        sourceId: created.id,
+        entryDate: created.receiptDate,
+        description: `Gold receipt ${receiptNumber}`,
+        createdById: session.user.id,
+        amount: created.paidValueUsd ?? created.paidAmount,
+        netAmount: created.paidValueUsd ?? created.paidAmount,
+        taxAmount: 0,
+        grossAmount: created.paidValueUsd ?? created.paidAmount,
+      }, tx)
+
       return tx.buyerReceipt.findUnique({
         where: { id: created.id },
         include: receiptInclude,
@@ -426,40 +453,6 @@ export async function POST(request: NextRequest) {
     })
     if (!receipt) {
       return errorResponse("Failed to create receipt", 500)
-    }
-
-    try {
-      await recordInventoryEvent(prisma, {
-        companyId: session.user.companyId,
-        siteId: goldPour.siteId,
-        eventDate: receipt.receiptDate,
-        direction: "OUT",
-        grams: goldPour.grossWeight,
-        sourceType: "RECEIPT",
-        sourceId: receipt.id,
-        notes: `Sale ${receipt.receiptNumber}`,
-        createdById: session.user.id,
-        skipValuation: true,
-      })
-    } catch (error) {
-      console.error("[Inventory] receipt OUT event failed:", error)
-    }
-
-    try {
-      await createJournalEntryFromSource({
-        companyId: session.user.companyId,
-        sourceType: "GOLD_RECEIPT",
-        sourceId: receipt.id,
-        entryDate: receipt.receiptDate,
-        description: `Gold receipt ${receipt.receiptNumber}`,
-        createdById: session.user.id,
-        amount: receipt.paidValueUsd ?? receipt.paidAmount,
-        netAmount: receipt.paidValueUsd ?? receipt.paidAmount,
-        taxAmount: 0,
-        grossAmount: receipt.paidValueUsd ?? receipt.paidAmount,
-      })
-    } catch (error) {
-      console.error("[Accounting] Gold receipt auto-post failed:", error)
     }
 
     return successResponse(normalizeReceipt(receipt), 201)

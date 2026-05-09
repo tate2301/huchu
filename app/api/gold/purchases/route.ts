@@ -12,6 +12,7 @@ import {
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
+import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const goldPurchaseSchema = z
@@ -244,7 +245,7 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      return tx.goldPurchase.create({
+      const created = await tx.goldPurchase.create({
         data: {
           companyId: session.user.companyId,
           siteId: validated.siteId,
@@ -287,24 +288,37 @@ export async function POST(request: NextRequest) {
           },
         },
       })
-    })
 
-    try {
+      await recordInventoryEvent(tx, {
+        companyId: session.user.companyId,
+        siteId: validated.siteId,
+        eventDate: purchaseDate,
+        direction: "IN",
+        grams: validated.grossWeight,
+        sourceType: "PURCHASE",
+        sourceId: pour.id,
+        notes: `Purchase ${created.purchaseNumber}`,
+        createdById: session.user.id,
+        goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
+        valueUsd: valuation.valueUsd,
+        skipValuation: true,
+      })
+
       await createJournalEntryFromSource({
         companyId: session.user.companyId,
         sourceType: "GOLD_PURCHASE",
-        sourceId: purchase.id,
-        entryDate: purchase.purchaseDate,
-        description: `Gold purchase ${purchase.purchaseNumber}`,
+        sourceId: created.id,
+        entryDate: created.purchaseDate,
+        description: `Gold purchase ${created.purchaseNumber}`,
         createdById: session.user.id,
-        amount: purchase.paidAmount,
-        netAmount: purchase.paidAmount,
+        amount: created.paidAmount,
+        netAmount: created.paidAmount,
         taxAmount: 0,
-        grossAmount: purchase.paidAmount,
-      })
-    } catch (error) {
-      console.error("[Accounting] Gold purchase auto-post failed:", error)
-    }
+        grossAmount: created.paidAmount,
+      }, tx)
+
+      return created
+    })
 
     return successResponse(purchase, 201)
   } catch (error) {
