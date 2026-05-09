@@ -3,6 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
+  hasRole,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
@@ -70,6 +71,11 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to edit import entries", 403)
+    }
+
     const companyId = session.user.companyId
     const { id, entryId } = await params
 

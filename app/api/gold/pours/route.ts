@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse, hasRole } from '@/lib/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
@@ -122,6 +122,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request);
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to create gold pours", 403);
+    }
 
     const body = await request.json();
     const validated = goldPourSchema.parse(body);

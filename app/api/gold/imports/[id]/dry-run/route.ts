@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { validateSession, successResponse, errorResponse, hasRole } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { runImportDryRun } from "@/lib/gold/import-validators"
 
@@ -16,6 +16,11 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to run import dry-run", 403)
+    }
+
     const { id } = await params
 
     const importRecord = await prisma.goldLedgerImport.findUnique({

@@ -3,6 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
+  hasRole,
 } from "@/lib/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
@@ -40,6 +41,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to create batch receipts", 403)
+    }
 
     const body = await request.json()
     const validated = batchReceiptSchema.parse(body)

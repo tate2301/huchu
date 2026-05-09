@@ -3,6 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
+  hasRole,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import {
@@ -19,6 +20,7 @@ import {
  *
  * Manager / superadmin only.
  */
+// TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -27,10 +29,11 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
-    const role = (session.user as { role?: string }).role
-    if (role !== "MANAGER" && role !== "SUPERADMIN") {
+
+    if (!hasRole(session, ["MANAGER", "SUPERADMIN"])) {
       return errorResponse("Manager-level access required", 403)
     }
+
     const { id } = await params
 
     const importRecord = await prisma.goldLedgerImport.findUnique({

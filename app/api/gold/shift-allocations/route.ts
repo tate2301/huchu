@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import {
   errorResponse,
   getPaginationParams,
+  hasRole,
   paginationResponse,
   successResponse,
   validateSession,
@@ -162,6 +163,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to create shift allocations", 403)
+    }
 
     const body = await request.json()
     const validated = allocationSchema.parse(body)

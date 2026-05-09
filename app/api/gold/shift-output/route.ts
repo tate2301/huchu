@@ -3,6 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
+  hasRole,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
@@ -63,6 +64,11 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to create shift output", 403)
+    }
+
     const companyId = session.user.companyId
     const userId = session.user.id
 

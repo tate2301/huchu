@@ -4,6 +4,7 @@ import {
   successResponse,
   errorResponse,
   getPaginationParams,
+  hasRole,
   paginationResponse,
 } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
@@ -146,6 +147,10 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to create gold dispatches", 403)
+    }
 
     const body = await request.json()
     const validated = goldDispatchSchema.parse(body)

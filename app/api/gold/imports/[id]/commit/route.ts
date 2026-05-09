@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { validateSession, successResponse, errorResponse, hasRole } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { recordInventoryEvent, recordReversalEvent } from "@/lib/gold/inventory"
 import { linkFifoSale } from "@/lib/gold/fifo-link"
@@ -7,6 +7,7 @@ import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { reserveIdentifier } from "@/lib/id-generator"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 
+// TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -15,6 +16,11 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+
+    if (!hasRole(session, ["MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Manager-level access required to commit imports", 403)
+    }
+
     const companyId = session.user.companyId
     const userId = session.user.id
     const { id } = await params
@@ -594,7 +600,7 @@ export async function POST(
           // in the company so the batch still lands. This matches the
           // manual shift-output endpoint's behaviour and is why imports
           // were previously creating allocations without their batches.
-          let witness1: string | null = presentList[0] ?? null
+          const witness1: string | null = presentList[0] ?? null
           let witness2: string | null = presentList[1] ?? null
           if (witness1 && !witness2) {
             const fallback = await tx.employee.findFirst({
