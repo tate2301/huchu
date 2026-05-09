@@ -414,6 +414,43 @@ export default function GoldImportDetailPage() {
     },
   });
 
+  // Per-entry inline edit. Refuses for entries that already produced
+  // records (server enforces too). Declared alongside the other hooks —
+  // never below an early return — so the hook count is stable across
+  // the loading→loaded transition (React #310).
+  const entryMutation = useMutation({
+    mutationFn: async (input: {
+      entryId: string;
+      patch: {
+        parsedDate?: string | null;
+        gramsTotal?: number | null;
+        // For one-type deltas (Diesel/Shoots/LCD/etc.). Server merges
+        // against latest DB state — concurrent edits never clobber.
+        expensePatch?: { type: string; weight: number | null };
+        boysGrams?: number | null;
+        mdaraGrams?: number | null;
+        balGrams?: number | null;
+      };
+    }) =>
+      fetchJson<unknown>(
+        `/api/gold/imports/${id}/entries/${input.entryId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(input.patch),
+        },
+      ),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Could not save change",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
   // Mapping saves debounce + always send the FULL merged snapshot. The
   // PATCH handler reads-then-writes mappingsJson, so concurrent writes
   // can drop earlier deltas — but if every write contains the complete
@@ -492,41 +529,6 @@ export default function GoldImportDetailPage() {
       patchMutation.mutate({ mappings: nextMappings });
     }, 350);
   };
-
-  // Per-entry inline edit. Refuses for entries that already produced
-  // records (server enforces too).
-  const entryMutation = useMutation({
-    mutationFn: async (input: {
-      entryId: string;
-      patch: {
-        parsedDate?: string | null;
-        gramsTotal?: number | null;
-        // For one-type deltas (Diesel/Shoots/LCD/etc.). Server merges
-        // against latest DB state — concurrent edits never clobber.
-        expensePatch?: { type: string; weight: number | null };
-        boysGrams?: number | null;
-        mdaraGrams?: number | null;
-        balGrams?: number | null;
-      };
-    }) =>
-      fetchJson<unknown>(
-        `/api/gold/imports/${id}/entries/${input.entryId}`,
-        {
-          method: "PATCH",
-          body: JSON.stringify(input.patch),
-        },
-      ),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["gold-import", id] });
-    },
-    onError: (err) => {
-      toast({
-        title: "Could not save change",
-        description: getApiErrorMessage(err),
-        variant: "destructive",
-      });
-    },
-  });
 
   const updateEntry = (
     entryId: string,

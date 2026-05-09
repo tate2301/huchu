@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, type ReactNode } from "react";
+import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
 import { PageActions } from "@/components/layout/page-actions";
@@ -20,6 +20,14 @@ type GoldShellProps = {
   description?: string;
 };
 
+// Hydration gate: returns false during SSR and on the first client paint
+// (matching SSR), then true after hydration. useSyncExternalStore is the
+// React-19-idiomatic way to express this without the setState-in-effect
+// pattern that the new react-hooks rule rejects.
+const subscribeNoop = () => () => {};
+const getHydrated = () => true;
+const getServerHydrated = () => false;
+
 export function GoldShell({
   activeTab,
   actions,
@@ -27,7 +35,20 @@ export function GoldShell({
   title,
   description,
 }: GoldShellProps) {
-  const { data: session } = useSession();
+  // useSession() returns different values on the server (no session
+  // context → null) vs. the first client render (session resolved by
+  // SessionProvider). Anything derived from session that affects
+  // rendered HTML — tab labels, visible tab set — diverges between SSR
+  // and CSR and trips React #418. Gate session reads behind a hydration
+  // flag so SSR and the first client paint emit identical HTML;
+  // session-aware rendering takes over after hydration completes.
+  const hydrated = useSyncExternalStore(
+    subscribeNoop,
+    getHydrated,
+    getServerHydrated,
+  );
+  const { data: rawSession } = useSession();
+  const session = hydrated ? rawSession : null;
   const enabledFeatures = useMemo(
     () =>
       (session?.user as { enabledFeatures?: string[] } | undefined)
