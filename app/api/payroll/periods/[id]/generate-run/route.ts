@@ -200,10 +200,10 @@ async function buildIrregularPayoutRunDraft(input: {
       const current = payoutByEmployee.get(workerShare.employeeId) ?? { goldWeight: 0, valueUsd: 0 }
       const fallbackValueUsd =
         (allocation.goldPriceUsdPerGram ?? 0) > 0
-          ? workerShare.shareWeight * (allocation.goldPriceUsdPerGram ?? 0)
+          ? Number(workerShare.shareWeight) * (allocation.goldPriceUsdPerGram ?? 0)
           : 0
       payoutByEmployee.set(workerShare.employeeId, {
-        goldWeight: current.goldWeight + workerShare.shareWeight,
+        goldWeight: current.goldWeight + Number(workerShare.shareWeight),
         valueUsd: current.valueUsd + (workerShare.shareValueUsd ?? fallbackValueUsd),
       })
     }

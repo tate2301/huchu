@@ -173,8 +173,9 @@ export async function GET(request: NextRequest) {
     const sumPaidUsd = (rows: Array<{ paidValueUsd: number | null; paidAmount: number }>) =>
       rows.reduce((sum, row) => sum + (row.paidValueUsd ?? row.paidAmount ?? 0), 0)
 
-    const sumWeight = (rows: Array<{ grossWeight: number }>) =>
-      rows.reduce((sum, row) => sum + row.grossWeight, 0)
+    // Post Epic-6: grossWeight is Prisma.Decimal; coerce to Number for the JS sum.
+    const sumWeight = (rows: Array<{ grossWeight: unknown }>) =>
+      rows.reduce((sum, row) => sum + Number(row.grossWeight), 0)
 
     const cashThisWeekUsd = sumPaidUsd(thisWeekReceipts)
     const cashPriorWeekUsd = sumPaidUsd(priorWeekReceipts)
@@ -232,7 +233,7 @@ export async function GET(request: NextRequest) {
         code: pour.site.code,
         grams: 0,
       }
-      existing.grams += pour.grossWeight
+      existing.grams += Number(pour.grossWeight)
       siteMap.set(id, existing)
     }
     const productionBySite = Array.from(siteMap.values()).sort((a, b) => b.grams - a.grams)

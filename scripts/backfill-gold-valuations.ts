@@ -170,7 +170,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
         data: {
           goldPriceUsdPerGram,
           valuationDate,
-          valueUsd: roundUsd(pour.grossWeight * goldPriceUsdPerGram),
+          valueUsd: roundUsd(Number(pour.grossWeight) * goldPriceUsdPerGram),
         },
       });
     }
@@ -216,7 +216,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
         data: {
           goldPriceUsdPerGram,
           valuationDate,
-          valueUsd: roundUsd(dispatch.goldPour.grossWeight * goldPriceUsdPerGram),
+          valueUsd: roundUsd(Number(dispatch.goldPour.grossWeight) * goldPriceUsdPerGram),
         },
       });
     }
@@ -323,11 +323,11 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
         data: {
           goldPriceUsdPerGram,
           valuationDate,
-          totalWeightValueUsd: roundUsd(allocation.totalWeight * goldPriceUsdPerGram),
-          netWeightValueUsd: roundUsd(allocation.netWeight * goldPriceUsdPerGram),
-          workerShareValueUsd: roundUsd(allocation.workerShareWeight * goldPriceUsdPerGram),
-          companyShareValueUsd: roundUsd(allocation.companyShareWeight * goldPriceUsdPerGram),
-          perWorkerValueUsd: roundUsd(allocation.perWorkerWeight * goldPriceUsdPerGram),
+          totalWeightValueUsd: roundUsd(Number(allocation.totalWeight) * goldPriceUsdPerGram),
+          netWeightValueUsd: roundUsd(Number(allocation.netWeight) * goldPriceUsdPerGram),
+          workerShareValueUsd: roundUsd(Number(allocation.workerShareWeight) * goldPriceUsdPerGram),
+          companyShareValueUsd: roundUsd(Number(allocation.companyShareWeight) * goldPriceUsdPerGram),
+          perWorkerValueUsd: roundUsd(Number(allocation.perWorkerWeight) * goldPriceUsdPerGram),
         },
       });
     }
@@ -366,7 +366,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
       await prisma.goldShiftWorkerShare.update({
         where: { id: share.id },
         data: {
-          shareValueUsd: roundUsd(share.shareWeight * goldPriceUsdPerGram),
+          shareValueUsd: roundUsd(Number(share.shareWeight) * goldPriceUsdPerGram),
         },
       });
     }

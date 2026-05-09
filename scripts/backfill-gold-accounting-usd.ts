@@ -182,9 +182,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
           dispatch.valueUsd ??
           dispatch.goldPour.valueUsd ??
           (isFinitePositive(dispatch.goldPriceUsdPerGram)
-            ? roundMoney(dispatch.goldPour.grossWeight * dispatch.goldPriceUsdPerGram)
+            ? roundMoney(Number(dispatch.goldPour.grossWeight) * dispatch.goldPriceUsdPerGram)
             : isFinitePositive(dispatch.goldPour.goldPriceUsdPerGram)
-              ? roundMoney(dispatch.goldPour.grossWeight * dispatch.goldPour.goldPriceUsdPerGram)
+              ? roundMoney(Number(dispatch.goldPour.grossWeight) * dispatch.goldPour.goldPriceUsdPerGram)
               : null);
       }
     }

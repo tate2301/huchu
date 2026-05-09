@@ -392,9 +392,10 @@ export async function POST(request: NextRequest) {
             periodEnd: start,
             dueDate: payoutDueDate,
             amount: Number(share.shareWeight),
-            amountUsd: share.shareValueUsd ?? perWorkerValueUsd,
+            amountUsd: share.shareValueUsd == null ? perWorkerValueUsd : Number(share.shareValueUsd),
             unit: "g",
-            goldWeightGrams: share.shareWeight,
+            // share.shareWeight is Prisma.Decimal post Epic-6 — coerce.
+            goldWeightGrams: Number(share.shareWeight),
             goldPriceUsdPerGram,
             valuationDate,
             status: "DUE",

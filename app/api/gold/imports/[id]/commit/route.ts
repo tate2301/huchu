@@ -32,17 +32,11 @@ export async function POST(
     if (!importRecord || importRecord.companyId !== companyId) {
       return errorResponse("Import not found", 404)
     }
-    // Coerce Decimal gram fields to number for arithmetic below.
-    const normalizeEntries = <T extends { gramsTotal: unknown; boysGrams: unknown; mdaraGrams: unknown; balGrams: unknown }>(
-      entries: T[],
-    ) => entries.map((e) => ({
-      ...e,
-      gramsTotal: e.gramsTotal != null ? Number(e.gramsTotal) : null,
-      boysGrams: e.boysGrams != null ? Number(e.boysGrams) : null,
-      mdaraGrams: e.mdaraGrams != null ? Number(e.mdaraGrams) : null,
-      balGrams: e.balGrams != null ? Number(e.balGrams) : null,
-    }));
-    importRecord.entries = normalizeEntries(importRecord.entries) as typeof importRecord.entries;
+    // Coerce Decimal gram columns to number so JS arithmetic below is type-safe.
+    type RawEntry = (typeof importRecord.entries)[0];
+    type Entry = Omit<RawEntry, "gramsTotal"|"boysGrams"|"mdaraGrams"|"balGrams"> & { gramsTotal: number|null; boysGrams: number|null; mdaraGrams: number|null; balGrams: number|null };
+    const toNumberEntries = (raw: RawEntry[]): Entry[] => raw.map((e) => ({ ...e, gramsTotal: e.gramsTotal != null ? Number(e.gramsTotal) : null, boysGrams: e.boysGrams != null ? Number(e.boysGrams) : null, mdaraGrams: e.mdaraGrams != null ? Number(e.mdaraGrams) : null, balGrams: e.balGrams != null ? Number(e.balGrams) : null }));
+    let typedEntries: Entry[] = toNumberEntries(importRecord.entries);
     if (!importRecord.siteId) {
       return errorResponse("Pick a site before committing", 400)
     }
@@ -247,7 +241,7 @@ export async function POST(
         where: { importId: id },
         orderBy: { lineNo: "asc" },
       })
-      importRecord.entries = normalizeEntries(refreshed) as typeof importRecord.entries;
+      typedEntries = toNumberEntries(refreshed);
     }
 
     let rowsCreated = 0
@@ -264,7 +258,7 @@ export async function POST(
     // PENDING (fresh), ANOMALY (parser warnings — still saveable, just flagged),
     // FAILED (previous-attempt remnants from a bug we've since fixed).
     // Once a row has goldShiftAllocationId it's done — we don't re-create.
-    const productionEntries = importRecord.entries.filter(
+    const productionEntries = typedEntries.filter(
       (e) =>
         e.gramsTotal != null &&
         e.gramsTotal > 0 &&
@@ -760,7 +754,8 @@ export async function POST(
           }
           if (goldPrice) {
             for (const expense of allocation.expenses) {
-              const expenseValueUsd = +(expense.weight * goldPrice).toFixed(2)
+              // expense.weight is Prisma.Decimal post Epic-6 — coerce.
+              const expenseValueUsd = +(Number(expense.weight) * goldPrice).toFixed(2)
               await captureAccountingEvent({
                 companyId,
                 sourceDomain: "gold",
@@ -904,7 +899,7 @@ export async function POST(
     }
 
     // Sales pass — entries with negative bal
-    const saleEntries = importRecord.entries.filter(
+    const saleEntries = typedEntries.filter(
       (e) => e.balGrams != null && e.balGrams < 0 && e.parsedDate,
     )
     for (const entry of saleEntries) {
@@ -985,7 +980,7 @@ export async function POST(
     }
 
     rowsSkipped =
-      importRecord.entries.length - rowsCreated - rowsAnomaly - rowsFailed
+      typedEntries.length - rowsCreated - rowsAnomaly - rowsFailed
 
     const updated = await prisma.goldLedgerImport.update({
       where: { id },

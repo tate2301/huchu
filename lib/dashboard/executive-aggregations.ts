@@ -595,7 +595,7 @@ export async function getExecutiveDashboardAggregations({
       value:
         row.valueUsd ??
         ((row.goldPriceUsdPerGram ?? 0) > 0
-          ? (row.grossWeight ?? 0) * (row.goldPriceUsdPerGram ?? 0)
+          ? Number(row.grossWeight ?? 0) * (row.goldPriceUsdPerGram ?? 0)
           : 0),
     })),
   );

@@ -132,8 +132,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
       summary.updatedLinks += 1;
     }
 
-    if (Math.abs(pour.grossWeight - allocation.totalWeight) > 0.000001) {
-      nextData.grossWeight = allocation.totalWeight;
+    if (Math.abs(Number(pour.grossWeight) - Number(allocation.totalWeight)) > 0.000001) {
+      // allocation.totalWeight may be Prisma.Decimal post Epic-6 — coerce.
+      nextData.grossWeight = Number(allocation.totalWeight);
       summary.updatedGrossWeight += 1;
     }
 
@@ -145,7 +146,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
     const targetValueUsd = isFiniteNumber(allocation.totalWeightValueUsd)
       ? roundUsd(allocation.totalWeightValueUsd)
       : isFiniteNumber(pour.goldPriceUsdPerGram)
-        ? roundUsd(allocation.totalWeight * pour.goldPriceUsdPerGram)
+        ? roundUsd(Number(allocation.totalWeight) * pour.goldPriceUsdPerGram)
         : null;
 
     if (

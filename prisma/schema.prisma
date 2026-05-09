@@ -2081,12 +2081,12 @@ model GoldPour {
   sourceType               GoldLotSource    @default(PRODUCTION)
   createdById              String?
   goldShiftAllocationId    String?
-  grossWeight              Float
-  estimatedPurity          Float?
+  grossWeight              Decimal          @db.Decimal(12, 4)
+  estimatedPurity          Decimal?         @db.Decimal(5, 2)
   witness1Id               String
   witness2Id               String
   storageLocation          String
-  additionalExpensesWeight Float?
+  additionalExpensesWeight Decimal?         @db.Decimal(12, 4)
   additionalExpensesNote   String?
   notes                    String?
   goldPriceUsdPerGram      Float?
@@ -2140,8 +2140,8 @@ model GoldPurchase {
   sellerEmployeeId String?
   sellerName       String
   sellerPhone      String
-  grossWeight      Float
-  estimatedPurity  Float?
+  grossWeight      Decimal        @db.Decimal(12, 4)
+  estimatedPurity  Decimal?       @db.Decimal(5, 2)
   storageLocation  String
   receiver1Id      String
   receiver2Id      String
@@ -2229,7 +2229,7 @@ model BuyerReceipt {
   companyId           String?
   receiptNumber       String
   receiptDate         DateTime
-  assayResult         Float? // actual purity
+  assayResult         Decimal? @db.Decimal(5, 2) // actual purity
   paidAmount          Float
   paymentMethod       String
   paymentChannel      String?
@@ -2269,7 +2269,7 @@ model BuyerReceiptBatch {
   buyerReceiptId      String
   goldPourId          String
   companyId           String?
-  grams               Float
+  grams               Decimal          @db.Decimal(12, 4)
   valueUsd            Float?
   goldPriceUsdPerGram Float?
   goldPriceSource     GoldPriceSource?
@@ -2310,14 +2310,14 @@ model GoldShiftAllocation {
   companyId                 String?
   shiftGroupId              String?
   shiftReportId             String             @unique
-  totalWeight               Float
-  netWeight                 Float
+  totalWeight               Decimal            @db.Decimal(12, 4)
+  netWeight                 Decimal            @db.Decimal(12, 4)
   splitMode                 GoldShiftSplitMode @default(DEFAULT_50_50)
-  workerShareOverrideWeight Float?
+  workerShareOverrideWeight Decimal?           @db.Decimal(12, 4)
   splitOverrideReason       String?
-  workerShareWeight         Float
-  companyShareWeight        Float
-  perWorkerWeight           Float
+  workerShareWeight         Decimal            @db.Decimal(12, 4)
+  companyShareWeight        Decimal            @db.Decimal(12, 4)
+  perWorkerWeight           Decimal            @db.Decimal(12, 4)
   goldPriceUsdPerGram       Float?
   goldPriceSource           GoldPriceSource?
   valuationDate             DateTime?
@@ -2358,7 +2358,7 @@ model GoldShiftExpense {
   id           String @id @default(uuid())
   allocationId String
   type         String
-  weight       Float
+  weight       Decimal @db.Decimal(12, 4)
 
   allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
 
@@ -2369,7 +2369,7 @@ model GoldShiftWorkerShare {
   id            String @id @default(uuid())
   allocationId  String
   employeeId    String
-  shareWeight   Float
+  shareWeight   Decimal @db.Decimal(12, 4)
   shareValueUsd Float?
 
   allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
@@ -2547,11 +2547,11 @@ model GoldLedgerEntry {
   parsedDate            DateTime?
   parsedName            String?
   mappedShiftGroupId    String?
-  gramsTotal            Float?
+  gramsTotal            Decimal? @db.Decimal(12, 4)
   expensesJson          String? // JSON: [{type, weight}, ...]
-  boysGrams             Float?
-  mdaraGrams            Float?
-  balGrams              Float? // negative => sale
+  boysGrams             Decimal? @db.Decimal(12, 4)
+  mdaraGrams            Decimal? @db.Decimal(12, 4)
+  balGrams              Decimal? @db.Decimal(12, 4) // negative => sale
   status                GoldLedgerEntryStatus @default(PENDING)
   goldShiftAllocationId String?
   goldPourId            String? // bare-pour fallback OR set after auto-pour for cleanup tracking
