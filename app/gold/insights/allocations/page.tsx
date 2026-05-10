@@ -147,7 +147,7 @@ export default function AllocationsListPage() {
             <div>
               <h2 className="font-semibold">Allocation queue</h2>
               <p className="text-sm text-muted-foreground">
-                Every shift's gold output, splits, and approval status. Click a
+                Every shift&apos;s gold output, splits, and approval status. Click a
                 row to drill in, mark attendance, submit/approve, or follow the
                 auto-pour through to its sale.
               </p>

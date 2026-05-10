@@ -568,7 +568,7 @@ export default function NewShiftOutputPage() {
             <AlertDescription className="text-xs">
               We create a shift report (DRAFT), mark attendance for everyone
               you toggled, save the allocation with the splits + expenses,
-              and auto-pour a witnessed batch. Anomalies don't block — flagged
+              and auto-pour a witnessed batch. Anomalies don&apos;t block — flagged
               rows still land in the database for reconciliation later.
             </AlertDescription>
           </Alert>

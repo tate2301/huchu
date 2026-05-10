@@ -590,7 +590,7 @@ export function ReceiptForm({
             {crossDispatchBackfill ? (
               <p className="text-xs text-muted-foreground">
                 Pick any unsold batches — across dispatches or direct sales — and record their
-                receipts in one go. Amounts are pre-filled from each batch's USD valuation.
+                receipts in one go. Amounts are pre-filled from each batch&apos;s USD valuation.
               </p>
             ) : null}
             <div className="rounded-md border divide-y">

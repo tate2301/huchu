@@ -15,7 +15,7 @@ describe("linkFifoSale — FIFO concurrency lock", () => {
       goldPour: { findMany: findManySpy },
     };
 
-    await linkFifoSale(fakeDb as any, {
+    await linkFifoSale(fakeDb as unknown as Parameters<typeof linkFifoSale>[0], {
       companyId: "co-1",
       siteId: "site-abc",
       saleGrams: 5,
@@ -43,13 +43,13 @@ describe("linkFifoSale — FIFO concurrency lock", () => {
       goldPour: { findMany: vi.fn().mockResolvedValue([]) },
     };
 
-    await linkFifoSale(fakeDb as any, {
+    await linkFifoSale(fakeDb as unknown as Parameters<typeof linkFifoSale>[0], {
       companyId: "co-1",
       siteId: "site-abc",
       saleGrams: 5,
       saleDate: new Date(),
     });
-    await linkFifoSale(fakeDb as any, {
+    await linkFifoSale(fakeDb as unknown as Parameters<typeof linkFifoSale>[0], {
       companyId: "co-1",
       siteId: "site-xyz",
       saleGrams: 5,
