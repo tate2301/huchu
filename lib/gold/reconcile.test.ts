@@ -57,13 +57,14 @@ describe("computeVariance", () => {
         data: { ...factories.goldLedgerImport(companyId, { siteId, uploadedById } as any), status: "COMMITTED" } as any,
       });
       await tx.goldLedgerEntry.create({
-        data: factories.goldLedgerEntry(imp.id, 1, {
+        data: { ...factories.goldLedgerEntry(imp.id, 1, {
           gramsTotal: 10,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           status: "CREATED" as any,
           parsedDate: new Date("2026-01-15T00:00:00.000Z"),
+        }), companyId
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        }) as any,
+        } as any,
       });
       await recordInventoryEvent(tx, {
         companyId, siteId, eventDate: new Date("2026-01-15T00:00:00.000Z"),
@@ -89,13 +90,14 @@ describe("computeVariance", () => {
         data: { ...factories.goldLedgerImport(companyId, { siteId, uploadedById } as any), status: "COMMITTED" } as any,
       });
       await tx.goldLedgerEntry.create({
-        data: factories.goldLedgerEntry(imp.id, 1, {
+        data: { ...factories.goldLedgerEntry(imp.id, 1, {
           gramsTotal: 15,
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           status: "CREATED" as any,
           parsedDate: new Date("2026-01-15T00:00:00.000Z"),
+        }), companyId
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        }) as any,
+        } as any,
       });
       await recordInventoryEvent(tx, {
         companyId, siteId, eventDate: new Date("2026-01-15T00:00:00.000Z"),
@@ -183,12 +185,11 @@ describe("findUnsoldPours", () => {
       });
       await tx.buyerReceiptBatch.create({
         data: {
-          receiptId: receipt.id,
+          buyerReceiptId: receipt.id,
           goldPourId: soldPour.id,
           companyId,
-          gramsAllocated: 8,
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        } as any,
+          grams: 8,
+        },
       });
 
       const unsold = await findUnsoldPours(tx, { companyId, siteId });
