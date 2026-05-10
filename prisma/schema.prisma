@@ -879,6 +879,7 @@ model User {
   uploadedGoldLedgerImports         GoldLedgerImport[]             @relation("GoldLedgerImportUploadedBy")
   createdGoldLedgerCorrections      GoldLedgerCorrection[]         @relation("GoldLedgerCorrectionCreatedBy")
   createdBuyerReceiptCorrections    BuyerReceiptCorrection[]       @relation("BuyerReceiptCorrectionCreatedBy")
+  editingLocks                      EditingLock[]                  @relation("EditingLockUser")
 
   @@index([companyId])
   @@index([email])
@@ -1904,26 +1905,29 @@ model DowntimeEvent {
 }
 
 model Attendance {
-  id              String   @id @default(uuid())
-  date            DateTime
-  siteId          String
-  shift           String
-  shiftGroupId    String?
-  shiftLeaderId   String?
-  shiftLeaderName String?
-  employeeId      String
-  status          String // PRESENT, ABSENT, LATE
-  overtime        Float? // hours
-  notes           String?
-  createdAt       DateTime @default(now())
+  id                  String   @id @default(uuid())
+  date                DateTime
+  siteId              String
+  shift               String
+  shiftGroupId        String?
+  shiftLeaderId       String?
+  shiftLeaderName     String?
+  employeeId          String
+  status              String // PRESENT, ABSENT, LATE
+  overtime            Float? // hours
+  notes               String?
+  goldLedgerEntryId   String?
+  createdAt           DateTime @default(now())
 
-  site       Site        @relation(fields: [siteId], references: [id])
-  shiftGroup ShiftGroup? @relation(fields: [shiftGroupId], references: [id])
-  employee   Employee    @relation(fields: [employeeId], references: [id])
+  site            Site             @relation(fields: [siteId], references: [id])
+  shiftGroup      ShiftGroup?      @relation(fields: [shiftGroupId], references: [id])
+  employee        Employee         @relation(fields: [employeeId], references: [id])
+  goldLedgerEntry GoldLedgerEntry? @relation("AttendanceGoldLedgerEntry", fields: [goldLedgerEntryId], references: [id])
 
   @@unique([date, siteId, shift, employeeId])
   @@index([siteId, date])
   @@index([shiftGroupId])
+  @@index([goldLedgerEntryId])
 }
 
 model ShiftGroup {
@@ -2569,7 +2573,6 @@ enum GoldLedgerImportStatus {
 enum GoldLedgerEntryStatus {
   PENDING
   CREATED
-  SKIPPED
   ANOMALY
   FAILED
 }
@@ -2582,7 +2585,6 @@ model GoldLedgerImport {
   fileName     String
   rowsTotal    Int                    @default(0)
   rowsCreated  Int                    @default(0)
-  rowsSkipped  Int                    @default(0)
   rowsAnomaly  Int                    @default(0)
   rowsFailed   Int                    @default(0)
   status       GoldLedgerImportStatus @default(DRAFT)
@@ -2625,13 +2627,27 @@ model GoldLedgerEntry {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
-  import     GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
-  company    Company?         @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
-  shiftGroup ShiftGroup?      @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
+  import      GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  company     Company?         @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
+  shiftGroup  ShiftGroup?      @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
+  attendance  Attendance[]     @relation("AttendanceGoldLedgerEntry")
 
   @@unique([importId, lineNo])
   @@index([importId, status])
   @@index([companyId, status])
+}
+
+model EditingLock {
+  resource  String   @id // e.g. "import:abc123" or "period-close:co-1:2026-01"
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("EditingLockUser", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
 }
 
 // ============================================

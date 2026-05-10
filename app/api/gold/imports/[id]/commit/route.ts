@@ -183,12 +183,12 @@ export async function POST(
           })
         }
 
-        // Attendance was created with a per-row shift name like
-        // "LEDGER-{lineNo}". Use the allocation rows we collected — same
-        // (siteId, date, shift) tuple.
-        for (const a of allocationRows) {
+        // Delete only import-owned attendance rows scoped by entry ID.
+        // Manually-created attendance sharing the same (siteId, date, shift)
+        // is left untouched.
+        if (allEntryIds.length > 0) {
           await tx.attendance.deleteMany({
-            where: { siteId: a.siteId, date: a.date, shift: a.shift },
+            where: { goldLedgerEntryId: { in: allEntryIds } },
           })
         }
 
@@ -245,7 +245,6 @@ export async function POST(
     }
 
     let rowsCreated = 0
-    let rowsSkipped = 0
     let rowsAnomaly = 0
     let rowsFailed = 0
     let allocationsCreated = 0
@@ -501,7 +500,9 @@ export async function POST(
             select: { id: true },
           })
 
-          // Attendance for everyone in the group → PRESENT
+          // Attendance for everyone in the group → PRESENT.
+          // goldLedgerEntryId tags these rows so cleanup can scope by entry
+          // instead of the broad (siteId, date, shift) triple.
           await tx.attendance.createMany({
             data: Array.from(presentEmployeeIds).map((employeeId) => ({
               date: entry.parsedDate!,
@@ -513,6 +514,7 @@ export async function POST(
               employeeId,
               status: "PRESENT",
               notes: `Imported from ledger line ${entry.lineNo}`,
+              goldLedgerEntryId: entry.id,
             })),
             skipDuplicates: true,
           })
@@ -979,14 +981,12 @@ export async function POST(
       }
     }
 
-    rowsSkipped =
-      typedEntries.length - rowsCreated - rowsAnomaly - rowsFailed
+    const rowsSkipped = Math.max(0, typedEntries.length - rowsCreated - rowsAnomaly - rowsFailed)
 
     const updated = await prisma.goldLedgerImport.update({
       where: { id },
       data: {
         rowsCreated,
-        rowsSkipped,
         rowsAnomaly,
         rowsFailed,
         status: rowsFailed > 0 ? "FAILED" : "COMMITTED",

@@ -12,7 +12,7 @@ export type LedgerEntry = {
   boysGrams: number | null;
   mdaraGrams: number | null;
   balGrams: number | null;
-  status: "PENDING" | "CREATED" | "SKIPPED" | "ANOMALY" | "FAILED";
+  status: "PENDING" | "CREATED" | "ANOMALY" | "FAILED";
   goldShiftAllocationId: string | null;
   goldPourId: string | null;
   buyerReceiptId: string | null;

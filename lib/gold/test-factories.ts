@@ -343,7 +343,6 @@ export interface GoldLedgerImportData {
   fileName: string;
   rowsTotal: number;
   rowsCreated: number;
-  rowsSkipped: number;
   rowsAnomaly: number;
   rowsFailed: number;
   status: string;
@@ -358,7 +357,7 @@ function goldLedgerImport(companyId: string, overrides?: Overrides<GoldLedgerImp
   return {
     id: uid(), companyId, siteId: null, uploadedById: uid(),
     fileName: "test-ledger.csv", rowsTotal: 0, rowsCreated: 0,
-    rowsSkipped: 0, rowsAnomaly: 0, rowsFailed: 0, status: "MAPPING",
+    rowsAnomaly: 0, rowsFailed: 0, status: "MAPPING",
     mappingsJson: null, notes: null, createdAt: new Date(), updatedAt: new Date(),
     committedAt: null, ...overrides,
   };

@@ -193,12 +193,12 @@ export async function purgeImportArtifacts(
     })
   }
 
-  // Attendance was created with a per-row shift name like
-  // "LEDGER-{lineNo}". Use the allocation rows we collected — same
-  // (siteId, date, shift) tuple.
-  for (const a of allocationRows) {
+  // Delete only attendance rows that this import created — those tagged with
+  // the ledger entry ID. Rows with goldLedgerEntryId = null (manually created
+  // attendance that happens to share the same siteId/date/shift) are untouched.
+  if (allEntryIds.length > 0) {
     await tx.attendance.deleteMany({
-      where: { siteId: a.siteId, date: a.date, shift: a.shift },
+      where: { goldLedgerEntryId: { in: allEntryIds } },
     })
   }
 

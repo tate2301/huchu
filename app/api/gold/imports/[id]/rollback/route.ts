@@ -63,7 +63,6 @@ export async function POST(
           rowsCreated: 0,
           rowsAnomaly: 0,
           rowsFailed: 0,
-          rowsSkipped: 0,
           committedAt: null,
         },
       })

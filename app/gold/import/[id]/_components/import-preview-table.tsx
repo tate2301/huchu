@@ -19,7 +19,6 @@ const STATUS_ROW_TINT: Record<LedgerEntry["status"], string> = {
   ANOMALY: "bg-amber-50/60 border-l-2 border-l-amber-400",
   FAILED: "bg-rose-50/60 border-l-2 border-l-rose-400",
   PENDING: "border-l-2 border-l-transparent",
-  SKIPPED: "bg-muted/30 border-l-2 border-l-muted-foreground/20",
 };
 
 const STATUS_TONE: Record<
@@ -30,7 +29,6 @@ const STATUS_TONE: Record<
   ANOMALY: "warning",
   FAILED: "danger",
   PENDING: "pending",
-  SKIPPED: "pending",
 };
 
 const grams = (n: number | null | undefined) =>
