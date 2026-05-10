@@ -3,7 +3,17 @@
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { Plus, Trash2, Search } from "@/lib/icons";
+import {
+  Plus,
+  Trash2,
+  Search,
+  CommandIcon,
+  HelpCircle,
+  Maximize2,
+  Minimize2,
+  Eye,
+  Coins,
+} from "@/lib/icons";
 
 export function StudioToolbar({
   selectedCount,
@@ -12,6 +22,9 @@ export function StudioToolbar({
   isLocked,
   canUndo,
   canRedo,
+  isVimMode,
+  isAnnotationMode,
+  isFullscreen,
   onAddRow,
   onDeleteSelected,
   onDuplicateSelected,
@@ -20,6 +33,13 @@ export function StudioToolbar({
   onRedo,
   onFindReplace,
   findReplaceOpen,
+  onOpenCommandPalette,
+  onOpenKeyboardHelp,
+  onToggleVimMode,
+  onToggleAnnotationMode,
+  onToggleFullscreen,
+  onAddSale,
+  onSellSelected,
 }: {
   selectedCount: number;
   selectedGrams: number;
@@ -27,6 +47,9 @@ export function StudioToolbar({
   isLocked: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  isVimMode: boolean;
+  isAnnotationMode: boolean;
+  isFullscreen: boolean;
   onAddRow: () => void;
   onDeleteSelected: () => void;
   onDuplicateSelected: () => void;
@@ -35,12 +58,33 @@ export function StudioToolbar({
   onRedo: () => void;
   onFindReplace: () => void;
   findReplaceOpen: boolean;
+  onOpenCommandPalette: () => void;
+  onOpenKeyboardHelp: () => void;
+  onToggleVimMode: () => void;
+  onToggleAnnotationMode: () => void;
+  onToggleFullscreen: () => void;
+  onAddSale: () => void;
+  onSellSelected?: () => void;
 }) {
   const hasSelection = selectedCount > 0;
 
   return (
-    <div className="flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[--border] bg-[--surface-muted] px-3 py-1.5">
-      {!isLocked && (
+    <div
+      className={cn(
+        "flex shrink-0 flex-wrap items-center gap-1.5 border-b border-[--border] px-3 py-1.5",
+        isAnnotationMode
+          ? "bg-amber-50 border-amber-200"
+          : "bg-[--surface-muted]",
+      )}
+    >
+      {isAnnotationMode && (
+        <div className="flex items-center gap-1.5 rounded border border-amber-300 bg-amber-100 px-2 py-0.5 text-[11px] font-medium text-amber-800">
+          <Eye className="h-3.5 w-3.5" />
+          Annotation mode — editing disabled
+        </div>
+      )}
+
+      {!isLocked && !isAnnotationMode && (
         <>
           <ToolbarButton
             onClick={onAddRow}
@@ -48,11 +92,17 @@ export function StudioToolbar({
             label="Add row"
             shortcut="+"
           />
+          <ToolbarButton
+            onClick={onAddSale}
+            icon={<Coins className="h-3.5 w-3.5" />}
+            label="Sale"
+            title="Add sale with FIFO preview"
+          />
           <div className="h-4 w-px bg-[--border]" role="separator" />
         </>
       )}
 
-      {hasSelection && !isLocked && (
+      {hasSelection && !isLocked && !isAnnotationMode && (
         <>
           <ToolbarButton
             onClick={onDuplicateSelected}
@@ -62,6 +112,14 @@ export function StudioToolbar({
             onClick={onBulkEdit}
             label={`Bulk edit (${selectedCount})`}
           />
+          {onSellSelected && (
+            <ToolbarButton
+              onClick={onSellSelected}
+              icon={<Coins className="h-3.5 w-3.5" />}
+              label={`Sell as receipt (${selectedCount})`}
+              title="Open sale dialog pre-filled with selected pours"
+            />
+          )}
           <ToolbarButton
             onClick={onDeleteSelected}
             icon={<Trash2 className="h-3.5 w-3.5" />}
@@ -72,7 +130,7 @@ export function StudioToolbar({
         </>
       )}
 
-      {!isLocked && (
+      {!isLocked && !isAnnotationMode && (
         <>
           <ToolbarButton
             onClick={onUndo}
@@ -113,6 +171,50 @@ export function StudioToolbar({
           )}
         </div>
       )}
+
+      <div className="ml-auto flex items-center gap-1">
+        <ToolbarButton
+          onClick={onToggleAnnotationMode}
+          icon={<Eye className="h-3.5 w-3.5" />}
+          label="Annotate"
+          active={isAnnotationMode}
+          title="Annotation mode — review without editing"
+        />
+        <ToolbarButton
+          onClick={onToggleVimMode}
+          label="Vim"
+          active={isVimMode}
+          title="Vim mode — j/k navigation, dd delete, :command palette"
+        />
+        <div className="h-4 w-px bg-[--border]" role="separator" />
+        <ToolbarButton
+          onClick={onOpenCommandPalette}
+          icon={<CommandIcon className="h-3.5 w-3.5" />}
+          label=""
+          shortcut="Cmd+K"
+          title="Command palette"
+        />
+        <ToolbarButton
+          onClick={onOpenKeyboardHelp}
+          icon={<HelpCircle className="h-3.5 w-3.5" />}
+          label=""
+          shortcut="?"
+          title="Keyboard shortcuts"
+        />
+        <ToolbarButton
+          onClick={onToggleFullscreen}
+          icon={
+            isFullscreen ? (
+              <Minimize2 className="h-3.5 w-3.5" />
+            ) : (
+              <Maximize2 className="h-3.5 w-3.5" />
+            )
+          }
+          label=""
+          shortcut="Cmd+\"
+          title={isFullscreen ? "Exit fullscreen" : "Fullscreen"}
+        />
+      </div>
     </div>
   );
 }
@@ -125,6 +227,7 @@ function ToolbarButton({
   disabled,
   variant,
   active,
+  title,
 }: {
   onClick: () => void;
   icon?: React.ReactNode;
@@ -133,13 +236,14 @@ function ToolbarButton({
   disabled?: boolean;
   variant?: "destructive";
   active?: boolean;
+  title?: string;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      title={shortcut ? `${label} (${shortcut})` : label}
+      title={title ?? (shortcut ? `${label} (${shortcut})` : label)}
       className={cn(
         "flex items-center gap-1 rounded px-1.5 py-0.5 text-[11px] font-medium transition-colors",
         variant === "destructive"
