@@ -9,9 +9,8 @@
  * Must run AFTER backfill-gold-dispatch-company-id and backfill-buyer-receipt-company-id.
  */
 
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import "dotenv/config";
+import { prisma } from "@/lib/prisma";
 const apply = process.argv.includes("--apply");
 
 async function backfillDispatchBatches() {

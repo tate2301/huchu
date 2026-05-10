@@ -7,9 +7,8 @@
  * Idempotent: skips rows that already have companyId set.
  */
 
-import { PrismaClient } from "@prisma/client";
-
-const prisma = new PrismaClient();
+import "dotenv/config";
+import { prisma } from "@/lib/prisma";
 const apply = process.argv.includes("--apply");
 
 async function main() {
@@ -40,12 +39,12 @@ async function main() {
   const unmapped = updates.filter((u) => !u.companyId);
   if (unmapped.length > 0) {
     console.warn(
-      `WARNING: ${unmapped.length} GoldPour rows have siteId with no matching site`
+      `WARNING: ${unmapped.length} GoldPour rows have siteId with no matching site`,
     );
   }
 
   const valid = updates.filter(
-    (u): u is { id: string; companyId: string } => !!u.companyId
+    (u): u is { id: string; companyId: string } => !!u.companyId,
   );
   console.log(`Will update ${valid.length} rows`);
 
