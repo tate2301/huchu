@@ -20,7 +20,7 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
-import { Lock, ChevronDown, ChevronUpIcon, Plus, MoreHorizontal, Trash2, FileText } from "@/lib/icons";
+import { Lock, ChevronDown, ChevronUpIcon, Plus, MoreHorizontal, Trash2, FileText, NoteAdd } from "@/lib/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -74,6 +74,7 @@ export type StudioTableProps = {
   onColumnWidthChange: (col: string, w: number) => void;
   findQuery: string;
   onLeaderClick?: (leaderName: string) => void;
+  onRowCommentClick?: (entryId: string) => void;
 };
 
 const STATUS_TINT: Record<LedgerEntry["status"], string> = {
@@ -117,6 +118,7 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
       columnWidths,
       findQuery,
       onLeaderClick,
+      onRowCommentClick,
     },
     ref,
   ) {
@@ -570,6 +572,19 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                         isHovered ? "opacity-100" : "opacity-0 pointer-events-none",
                       )}
                     >
+                      {onRowCommentClick && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onRowCommentClick(entry.id);
+                          }}
+                          title="View / add comment"
+                          className="flex h-6 w-6 items-center justify-center rounded text-[--text-muted] hover:bg-[--surface-muted] hover:text-[--text-strong]"
+                        >
+                          <NoteAdd className="h-3 w-3" />
+                        </button>
+                      )}
                       {!rowLocked && onInsertRowBefore && (
                         <button
                           type="button"

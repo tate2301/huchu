@@ -12,12 +12,11 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
 import { cn } from "@/lib/utils";
-import { AlertCircle, AlertTriangle, Info } from "@/lib/icons";
+import type { BulkAcceptPayload } from "./studio-anomaly-panel";
 
 import type {
   Anomaly,
@@ -28,9 +27,8 @@ import type {
 } from "../types";
 
 import { StudioHeader } from "./studio-header";
-import { StudioTable, type StudioTableHandle } from "./studio-table";
-import { StudioFilterBar, DEFAULT_FILTER, type StudioFilter } from "./studio-filter-bar";
-import { StudioToolbar, FindReplaceBar } from "./studio-toolbar";
+import { type StudioTableHandle } from "./studio-table";
+import { DEFAULT_FILTER, type StudioFilter } from "./studio-filter-bar";
 import { BulkEditDialog, type BulkEditPayload } from "./bulk-edit-dialog";
 import { AddSaleDialog } from "./add-sale-dialog";
 import { useStudioHistory } from "./studio-history";
@@ -46,6 +44,9 @@ import { LeaderTimeline } from "./leader-timeline";
 import { ImportTabRail, type StudioTab } from "./import-tabs";
 import { TabOverview } from "./tab-overview";
 import { TabMappings } from "./tab-mappings";
+import { TabLedger } from "./tab-ledger";
+import { StudioActivityPanel } from "./studio-activity-panel";
+import { StudioCommentThread } from "./studio-comment-thread";
 import {
   TabProducedPours,
   TabProducedReceipts,
@@ -88,13 +89,13 @@ export function ImportStudio() {
   const [addSaleOpen, setAddSaleOpen] = useState(false);
   const [saleInitialPourIds, setSaleInitialPourIds] = useState<string[]>([]);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
-  const [findQuery, setFindQuery] = useState("");
   const [commandPaletteOpen, setCommandPaletteOpen] = useState(false);
   const [keyboardHelpOpen, setKeyboardHelpOpen] = useState(false);
   const [isVimMode, setIsVimMode] = useState(false);
   const [isAnnotationMode, setIsAnnotationMode] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leaderTimeline, setLeaderTimeline] = useState<string | null>(null);
+  const [commentEntryId, setCommentEntryId] = useState<string | null>(null);
   const yankBuffer = useRef<LedgerEntry[]>([]);
 
   const history = useStudioHistory();
@@ -391,6 +392,7 @@ export function ImportStudio() {
       if (!inInput && e.key === "Escape") {
         if (commandPaletteOpen) { setCommandPaletteOpen(false); return; }
         if (keyboardHelpOpen) { setKeyboardHelpOpen(false); return; }
+        if (commentEntryId) { setCommentEntryId(null); return; }
         if (leaderTimeline) { setLeaderTimeline(null); return; }
         if (isFullscreen) { setIsFullscreen(false); return; }
         if (isAnnotationMode) { setIsAnnotationMode(false); return; }
@@ -398,7 +400,7 @@ export function ImportStudio() {
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [commandPaletteOpen, keyboardHelpOpen, leaderTimeline, isFullscreen, isAnnotationMode]);
+  }, [commandPaletteOpen, keyboardHelpOpen, commentEntryId, leaderTimeline, isFullscreen, isAnnotationMode]);
 
   const [localMappings, setLocalMappings] = useState<Record<string, string>>({});
   const flushTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -436,7 +438,6 @@ export function ImportStudio() {
 
   const criticalCount = dryRun?.countsBySeverity.CRITICAL ?? 0;
   const warnCount = dryRun?.countsBySeverity.WARN ?? 0;
-  const infoCount = dryRun?.countsBySeverity.INFO ?? 0;
   const noCriticals = !dryRun || criticalCount === 0;
   const warnsCleared = !dryRun || warnCount === 0 || warnAccepted;
   const isLocked = data?.status === "COMMITTED";
@@ -502,6 +503,21 @@ export function ImportStudio() {
     });
   };
 
+
+  const handleBulkAcceptWarn = useCallback((payload: BulkAcceptPayload) => {
+    if (payload.severity === "WARN") {
+      setWarnAccepted(true);
+      toast({ title: "Warnings accepted", description: payload.reason, variant: "success" });
+    }
+  }, [toast]);
+
+  const handleAutoFix = useCallback(
+    (anomaly: Anomaly) => {
+      if (!anomaly.suggestedFix) return;
+      toast({ title: "Auto-fix applied", description: `${anomaly.code}: ${anomaly.suggestedFix}` });
+    },
+    [toast],
+  );
 
   const entries = useMemo(() => data?.entries ?? [], [data?.entries]);
 
@@ -581,19 +597,6 @@ export function ImportStudio() {
       });
     },
     [entries, selectedIds, updateEntry, toast],
-  );
-
-  const handleFindReplace = useCallback(
-    (find: string, _replace: string, useRegex: boolean) => {
-      const pattern = useRegex ? find : find.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-      const re = new RegExp(pattern, "gi");
-      let count = 0;
-      for (const e of entries) {
-        if (e.parsedName && re.test(e.parsedName)) count++;
-      }
-      return count;
-    },
-    [entries],
   );
 
   const handleDeleteSelected = useCallback(() => {
@@ -840,19 +843,24 @@ export function ImportStudio() {
 
           <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
             {activeTab === "overview" && (
-              <div className="flex-1 overflow-y-auto">
-                <TabOverview
-                  importData={data}
-                  dryRun={dryRun}
-                  isValidating={dryRunMutation.isPending}
-                  siteIsSet={siteIsSet}
-                  allMapped={allMapped}
-                  mappedCount={mappedCount}
-                  totalNames={distinctNames.length}
-                  onValidate={handleValidate}
-                  onSwitchToLedger={() => setActiveTab("ledger")}
-                  onSwitchToMappings={() => setActiveTab("mappings")}
-                />
+              <div className="flex flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto">
+                  <TabOverview
+                    importData={data}
+                    dryRun={dryRun}
+                    isValidating={dryRunMutation.isPending}
+                    siteIsSet={siteIsSet}
+                    allMapped={allMapped}
+                    mappedCount={mappedCount}
+                    totalNames={distinctNames.length}
+                    onValidate={handleValidate}
+                    onSwitchToLedger={() => setActiveTab("ledger")}
+                    onSwitchToMappings={() => setActiveTab("mappings")}
+                  />
+                </div>
+                <div className="w-72 shrink-0 border-l border-[--border]">
+                  <StudioActivityPanel importId={id} />
+                </div>
               </div>
             )}
 
@@ -874,91 +882,16 @@ export function ImportStudio() {
             )}
 
             {activeTab === "ledger" && (
-              <div className="flex flex-1 flex-col overflow-hidden">
-                {dryRun && (criticalCount + warnCount + infoCount) > 0 && (
-                  <div className="flex shrink-0 flex-wrap items-center gap-3 border-b border-[--border] bg-[--surface-base] px-4 py-2 text-xs">
-                    {criticalCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-rose-700">
-                        <AlertCircle className="h-3.5 w-3.5" />
-                        {criticalCount} critical
-                      </span>
-                    )}
-                    {warnCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-amber-700">
-                        <AlertTriangle className="h-3.5 w-3.5" />
-                        {warnCount} warn
-                      </span>
-                    )}
-                    {infoCount > 0 && (
-                      <span className="flex items-center gap-1.5 text-sky-700">
-                        <Info className="h-3.5 w-3.5" />
-                        {infoCount} info
-                      </span>
-                    )}
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={handleValidate}
-                      disabled={dryRunMutation.isPending}
-                      className="ml-auto h-6 px-2 text-xs"
-                    >
-                      {dryRunMutation.isPending ? "Validating…" : "Re-validate"}
-                    </Button>
-                  </div>
-                )}
-
-                <div className="shrink-0 border-b border-[--border] bg-[--surface-base]">
-                  <StudioFilterBar
-                    filter={studioFilter}
-                    onFilterChange={setStudioFilter}
-                    distinctLeaders={distinctNames}
-                  />
-                  <StudioToolbar
-                    selectedCount={selectedIds.size}
-                    selectedGrams={selectedGrams}
-                    selectedBal={selectedBal}
-                    isLocked={isLocked ?? false}
-                    canUndo={history.canUndo}
-                    canRedo={history.canRedo}
-                    isVimMode={isVimMode}
-                    isAnnotationMode={isAnnotationMode}
-                    isFullscreen={isFullscreen}
-                    onAddRow={handleAddRow}
-                    onDeleteSelected={handleDeleteSelected}
-                    onDuplicateSelected={handleDuplicateSelected}
-                    onBulkEdit={() => setBulkEditOpen(true)}
-                    onUndo={handleUndo}
-                    onRedo={handleRedo}
-                    onFindReplace={() => setFindReplaceOpen((o) => !o)}
-                    findReplaceOpen={findReplaceOpen}
-                    onOpenCommandPalette={() => setCommandPaletteOpen(true)}
-                    onOpenKeyboardHelp={() => setKeyboardHelpOpen(true)}
-                    onToggleVimMode={() => setIsVimMode((o) => !o)}
-                    onToggleAnnotationMode={() => setIsAnnotationMode((o) => !o)}
-                    onToggleFullscreen={() => setIsFullscreen((o) => !o)}
-                    onAddSale={handleAddSale}
-                    onSellSelected={handleSellSelected}
-                  />
-                  {findReplaceOpen && (
-                    <FindReplaceBar
-                      onClose={() => {
-                        setFindReplaceOpen(false);
-                        setFindQuery("");
-                      }}
-                      onApply={(find, replace, regex) => {
-                        setFindQuery(find);
-                        return handleFindReplace(find, replace, regex);
-                      }}
-                    />
-                  )}
-                </div>
-
-                <StudioTable
-                  ref={tableRef}
-                  entries={filteredEntries}
-                  isLocked={(isLocked ?? false) || isAnnotationMode}
+              <div className="flex flex-1 overflow-hidden">
+                <TabLedger
+                  tableRef={tableRef}
+                  entries={entries}
+                  filteredEntries={filteredEntries}
+                  isLocked={isLocked ?? false}
                   anomaliesByEntry={anomaliesByEntry}
                   groupNameForEntry={groupNameForEntry}
+                  dryRun={dryRun}
+                  isValidating={dryRunMutation.isPending}
                   onUpdateEntry={updateEntry}
                   onInsertRowAfter={handleInsertRowAfter}
                   onInsertRowBefore={handleInsertRowBefore}
@@ -971,9 +904,46 @@ export function ImportStudio() {
                   onSortingChange={handleSortingChange}
                   columnWidths={columnWidths}
                   onColumnWidthChange={handleColumnWidthChange}
-                  findQuery={findQuery}
+                  findReplaceOpen={findReplaceOpen}
                   onLeaderClick={setLeaderTimeline}
+                  onRowCommentClick={(entryId) => setCommentEntryId(entryId)}
+                  selectedGrams={selectedGrams}
+                  selectedBal={selectedBal}
+                  canUndo={history.canUndo}
+                  canRedo={history.canRedo}
+                  isVimMode={isVimMode}
+                  isAnnotationMode={isAnnotationMode}
+                  isFullscreen={isFullscreen}
+                  onAddRow={handleAddRow}
+                  onDeleteSelected={handleDeleteSelected}
+                  onDuplicateSelected={handleDuplicateSelected}
+                  onBulkEdit={() => setBulkEditOpen(true)}
+                  onUndo={handleUndo}
+                  onRedo={handleRedo}
+                  onFindReplace={() => setFindReplaceOpen((o) => !o)}
+                  onOpenCommandPalette={() => setCommandPaletteOpen(true)}
+                  onOpenKeyboardHelp={() => setKeyboardHelpOpen(true)}
+                  onToggleVimMode={() => setIsVimMode((o) => !o)}
+                  onToggleAnnotationMode={() => setIsAnnotationMode((o) => !o)}
+                  onToggleFullscreen={() => setIsFullscreen((o) => !o)}
+                  onAddSale={handleAddSale}
+                  onSellSelected={handleSellSelected}
+                  onValidate={handleValidate}
+                  onBulkAcceptWarn={handleBulkAcceptWarn}
+                  onAutoFix={handleAutoFix}
+                  studioFilter={studioFilter}
+                  onFilterChange={setStudioFilter}
+                  distinctLeaders={distinctNames}
                 />
+                {commentEntryId && (
+                  <div className="w-72 shrink-0 border-l border-[--border]">
+                    <StudioCommentThread
+                      importId={id}
+                      ledgerEntryId={commentEntryId}
+                      onClose={() => setCommentEntryId(null)}
+                    />
+                  </div>
+                )}
               </div>
             )}
 
