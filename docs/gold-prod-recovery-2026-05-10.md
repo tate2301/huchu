@@ -1,8 +1,16 @@
 # Gold module — prod recovery, 2026-05-10
 
-**Status:** ✅ COMPLETE — Neon prod schema is in sync with the codebase. Runtime "Failed to fetch import" error resolved.
+**Status:** ✅ COMPLETE — both prod failures resolved.
+
+**Deployment:** Vercel project `huchu-gel9` on team `christophers-projects-8a0fd708`. Domain `huchu-enterprises.apps.pagka.dev` is aliased to it.
 
 **PIT restore point** (in case of regression): `2026-05-10T07:37:43.305Z UTC` on `neondb`.
+
+## Two distinct prod failures occurred tonight, both now resolved:
+
+1. **Build failure (~4h ago, deploy `5ilwlogq2`).** `Module not found: ./studio-reconciliation-panel`. Caused by `frontend-finish`'s polish pass (commit `30595aac3`) importing a file that was on disk but never `git add`ed. **Already fixed** — `932c3d7fc` (3h ago) committed the missing file. All deploys since then are Ready.
+
+2. **Runtime failure ("Failed to fetch import").** The current Vercel Ready deploy on `350841b31` was running the new code that selects `rawLine` and `sampleHeaderHash` from the DB, but Neon's schema was 18 migrations behind. The Vercel build does NOT run `prisma migrate deploy`, so the DB never caught up. Fixed by the DB recovery below. **No new deploy needed** — the existing Ready deploy will start serving correctly as soon as the next request hits the import detail page.
 
 ---
 
@@ -65,11 +73,11 @@ ALTER TABLE "GoldImportSavedView" ADD CONSTRAINT ... FK User;
 
 The same drift will happen again unless the deploy chain is fixed:
 
-1. **`package.json` build script does not run migrations.** It runs `prisma generate && next build`. Add `prisma migrate deploy` BEFORE `next build` so future deploys catch any pending migrations:
+1. **`package.json` build script does not run migrations.** It runs `prisma generate && next build`. Add `prisma migrate deploy` BEFORE `next build` so future Vercel deploys catch any pending migrations:
    ```json
    "build": "prisma migrate deploy && prisma generate && next build"
    ```
-   Caveat: `migrate deploy` on Vercel-style serverless requires a privileged DB user and adds ~5-30s to every build. If the team's deploy infra runs migrations separately (e.g., via a deploy hook), keep it that way and document it.
+   This is the single most important fix. Without it, every schema change risks repeating tonight's outage. Vercel's build environment can run `migrate deploy` cleanly because the build container has the prod `DATABASE_URL` env var; adds ~5-30s per build. The migration-during-build pattern is documented and recommended by Prisma for Vercel-deployed apps.
 
 2. **`prisma db push` against prod is now banned.** Update `AGENTS.md` and the `gold-data-foundation` charter to forbid `db push` against any DB except local development.
 
