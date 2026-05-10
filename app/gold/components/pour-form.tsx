@@ -72,7 +72,7 @@ export function PourForm({
   const router = useRouter();
   const [formData, setFormData] = useState<PourFormValues>(() => ({
     ...DEFAULT_VALUES,
-    pourDate: new Date().toISOString().slice(0, 16),
+    pourDate: (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })(),
   }));
   const [moreOpen, setMoreOpen] = useState(false);
   const {
@@ -323,16 +323,21 @@ export function PourForm({
             searchPlaceholder="Search..."
             onValueChange={handleSelectChange("witness1Id")}
           />
-          <SearchableSelect
-            label="Witness 2"
-            value={formData.witness2Id || undefined}
-            options={employeeOptions}
-            placeholder={
-              employeesLoading ? "Loading..." : "Pick a clerk or manager"
-            }
-            searchPlaceholder="Search..."
-            onValueChange={handleSelectChange("witness2Id")}
-          />
+          <div>
+            <SearchableSelect
+              label="Witness 2"
+              value={formData.witness2Id || undefined}
+              options={employeeOptions}
+              placeholder={
+                employeesLoading ? "Loading..." : "Pick a clerk or manager"
+              }
+              searchPlaceholder="Search..."
+              onValueChange={handleSelectChange("witness2Id")}
+            />
+            {formData.witness1Id && formData.witness2Id && formData.witness1Id === formData.witness2Id ? (
+              <p className="mt-1 text-xs text-destructive">Witnesses must be different people.</p>
+            ) : null}
+          </div>
         </div>
       </div>
 

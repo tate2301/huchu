@@ -7,6 +7,7 @@ import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-s
 import { Scale, Gem, ArrowRightLeft, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@/app/gold/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
@@ -140,14 +141,14 @@ export default function ReceiptDetailPage() {
       backHref={goldRoutes.settlement.receipts}
       backLabel="Sales"
       title={data.receiptNumber}
-      subtitle={`Sold ${new Date(data.receiptDate).toLocaleString()} · ${data.paymentMethod.replace(/_/g, " ").toLowerCase()}`}
+      subtitle={<span>Sold <ClientDate value={data.receiptDate} /> · {data.paymentMethod.replace(/_/g, " ").toLowerCase()}</span>}
       primary={
         <>
           <DetailSection title="Sale details" icon={Scale} tone="success">
             <FactGrid
               items={[
                 { label: "Receipt #", value: data.receiptNumber },
-                { label: "Sale date", value: new Date(data.receiptDate).toLocaleString() },
+                { label: "Sale date", value: <ClientDate value={data.receiptDate} /> },
                 { label: "Paid", value: usd(data.paidAmount) },
                 { label: "Tested gold", value: data.assayResult != null ? grams(data.assayResult) : "—" },
                 { label: "Payment method", value: data.paymentMethod.replace(/_/g, " ").toLowerCase() },
@@ -191,7 +192,7 @@ export default function ReceiptDetailPage() {
                       </Link>
                       <span className="ml-2 text-xs text-muted-foreground">
                         {b.goldPour.site.name} ({b.goldPour.site.code}) ·
-                        Pour {new Date(b.goldPour.pourDate).toLocaleDateString()}
+                        Pour <ClientDate value={b.goldPour.pourDate} mode="date" />
                       </span>
                     </div>
                     <div className="flex items-center gap-3 text-xs">
@@ -206,7 +207,7 @@ export default function ReceiptDetailPage() {
                   <p className="font-medium">First batch&apos;s shift allocation</p>
                   <p className="text-xs text-muted-foreground">
                     {data.goldPour.goldShiftAllocation.shift} ·{" "}
-                    {new Date(data.goldPour.goldShiftAllocation.date).toLocaleDateString()} · Company{" "}
+                    <ClientDate value={data.goldPour.goldShiftAllocation.date} mode="date" /> · Company{" "}
                     {grams(data.goldPour.goldShiftAllocation.companyShareWeight)} · Workers{" "}
                     {grams(data.goldPour.goldShiftAllocation.workerShareWeight)}
                   </p>
@@ -269,7 +270,7 @@ export default function ReceiptDetailPage() {
                     </div>
                     <div className="text-xs text-muted-foreground">
                       Seals {d.goldDispatch.sealNumbers} ·{" "}
-                      {new Date(d.goldDispatch.dispatchDate).toLocaleDateString()}
+                      <ClientDate value={d.goldDispatch.dispatchDate} mode="date" />
                     </div>
                   </li>
                 ))}
@@ -292,7 +293,7 @@ export default function ReceiptDetailPage() {
                   { label: "Courier", value: data.goldDispatch.courier },
                   { label: "Destination", value: data.goldDispatch.destination },
                   { label: "Seals", value: data.goldDispatch.sealNumbers },
-                  { label: "Date", value: new Date(data.goldDispatch.dispatchDate).toLocaleString() },
+                  { label: "Date", value: <ClientDate value={data.goldDispatch.dispatchDate} /> },
                 ]}
               />
             </DetailSection>

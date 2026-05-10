@@ -7,6 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ClientDate } from "@/app/gold/components/client-date";
 import { DispatchForm } from "@/app/gold/components/dispatch-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -128,7 +129,7 @@ export default function GoldTransitDispatchesPage() {
               className="inline-flex items-center gap-1 text-primary hover:underline"
               title="View dispatch details"
             >
-              {new Date(row.original.dispatchDate).toLocaleString()}
+              <ClientDate value={row.original.dispatchDate} />
               <ChevronRight className="h-3 w-3 opacity-60" />
             </Link>
           </NumericCell>
@@ -282,7 +283,19 @@ export default function GoldTransitDispatchesPage() {
           tableClassName="text-sm"
           pagination={{ enabled: true }}
           emptyState={
-            dispatchesLoading ? "Loading dispatches..." : "No dispatch records."
+            dispatchesLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No dispatch records."
+            )
           }
         />
       </section>

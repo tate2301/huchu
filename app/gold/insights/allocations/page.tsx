@@ -13,6 +13,7 @@ import { StatusChip } from "@/components/ui/status-chip";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChevronRight, Coins } from "@/lib/icons";
+import { ClientDate } from "@/app/gold/components/client-date";
 
 type AllocationRow = {
   id: string;
@@ -244,8 +245,8 @@ export default function AllocationsListPage() {
                   <th className="px-4 py-2.5">Shift</th>
                   <th className="px-4 py-2.5">Site</th>
                   <th className="px-4 py-2.5 text-right">Gross</th>
-                  <th className="px-4 py-2.5 text-right">Workers</th>
-                  <th className="px-4 py-2.5 text-right">Company</th>
+                  <th className="px-4 py-2.5 text-right" title="Workers share">W: Workers</th>
+                  <th className="px-4 py-2.5 text-right" title="Company share">C: Company</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5 w-8" />
                 </tr>
@@ -273,7 +274,7 @@ export default function AllocationsListPage() {
                       </td>
                     ) : null}
                     <td className="px-4 py-2 whitespace-nowrap">
-                      {new Date(r.date).toLocaleDateString()}
+                      <ClientDate value={r.date} mode="date" />
                     </td>
                     <td className="px-4 py-2 font-mono text-xs">{r.shift}</td>
                     <td className="px-4 py-2">{r.site.name}</td>
@@ -281,10 +282,10 @@ export default function AllocationsListPage() {
                       {grams(r.totalWeight)}
                     </td>
                     <td className="px-4 py-2 text-right text-blue-700">
-                      {grams(r.workerShareWeight)}
+                      <span className="sr-only">W: </span>{grams(r.workerShareWeight)}
                     </td>
                     <td className="px-4 py-2 text-right text-emerald-700">
-                      {grams(r.companyShareWeight)}
+                      <span className="sr-only">C: </span>{grams(r.companyShareWeight)}
                     </td>
                     <td className="px-4 py-2">
                       <StatusChip

@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ClientDate } from "@/app/gold/components/client-date";
 import { PurchaseForm } from "@/app/gold/components/purchase-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -82,7 +83,7 @@ export default function GoldIntakePurchasesPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.purchaseDate).toLocaleString()}
+            <ClientDate value={row.original.purchaseDate} />
           </NumericCell>
         ),
         size: 128,
@@ -221,7 +222,19 @@ export default function GoldIntakePurchasesPage() {
           tableClassName="text-sm"
           pagination={{ enabled: true }}
           emptyState={
-            isLoading ? "Loading purchases..." : "No purchases found."
+            isLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No purchases found."
+            )
           }
         />
       </section>

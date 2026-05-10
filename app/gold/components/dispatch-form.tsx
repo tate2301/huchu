@@ -66,7 +66,7 @@ export function DispatchForm({
   const [batchSearch, setBatchSearch] = useState("");
   const [formData, setFormData] = useState({
     goldPourIds: [] as string[],
-    dispatchDate: new Date().toISOString().slice(0, 16),
+    dispatchDate: (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })(),
     overrideReason: "",
     notes: "",
     ...STICKY_DEFAULTS,

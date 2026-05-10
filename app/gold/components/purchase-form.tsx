@@ -54,7 +54,7 @@ export function PurchaseForm({
 
   const [sellerType, setSellerType] = useState<SellerType>("EXTERNAL")
   const [formData, setFormData] = useState({
-    purchaseDate: new Date().toISOString().slice(0, 16),
+    purchaseDate: (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })(),
     siteId: "",
     sellerEmployeeId: "",
     sellerName: "",
@@ -443,18 +443,23 @@ export function PurchaseForm({
                 }}
                 addLabel="Add employee"
               />
-              <SearchableSelect
-                label="Receiver 2 *"
-                value={formData.receiver2Id || undefined}
-                options={employeeOptions}
-                placeholder={employeesLoading ? "Loading employees..." : "Select employee"}
-                searchPlaceholder="Search employees..."
-                onValueChange={handleSelectChange("receiver2Id")}
-                onAddOption={() => {
-                  router.push("/human-resources")
-                }}
-                addLabel="Add employee"
-              />
+              <div>
+                <SearchableSelect
+                  label="Receiver 2 *"
+                  value={formData.receiver2Id || undefined}
+                  options={employeeOptions}
+                  placeholder={employeesLoading ? "Loading employees..." : "Select employee"}
+                  searchPlaceholder="Search employees..."
+                  onValueChange={handleSelectChange("receiver2Id")}
+                  onAddOption={() => {
+                    router.push("/human-resources")
+                  }}
+                  addLabel="Add employee"
+                />
+                {formData.receiver1Id && formData.receiver2Id && formData.receiver1Id === formData.receiver2Id ? (
+                  <p className="mt-1 text-xs text-destructive">Receivers must be different people.</p>
+                ) : null}
+              </div>
             </div>
           </div>
 

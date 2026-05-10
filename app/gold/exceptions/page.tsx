@@ -27,6 +27,7 @@ import {
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { ClientDate } from "@/app/gold/components/client-date";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
@@ -235,7 +236,7 @@ export default function GoldExceptionsPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.pourDate).toLocaleString()}
+            <ClientDate value={row.original.pourDate} />
           </NumericCell>
         ),
         size: 128,
@@ -293,7 +294,7 @@ export default function GoldExceptionsPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.dispatchDate).toLocaleString()}
+            <ClientDate value={row.original.dispatchDate} />
           </NumericCell>
         ),
         size: 128,
@@ -347,7 +348,7 @@ export default function GoldExceptionsPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.createdAt).toLocaleString()}
+            <ClientDate value={row.original.createdAt} />
           </NumericCell>
         ),
         size: 128,

@@ -93,7 +93,7 @@ export function ReceiptForm({
   const [formData, setFormData] = useState({
     goldPourId: "",
     goldDispatchId: "",
-    receiptDate: new Date().toISOString().slice(0, 16),
+    receiptDate: (() => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 16); })(),
     assayResult: "",
     paidAmount: "",
     paymentMethod: "CASH",
@@ -250,7 +250,7 @@ export function ReceiptForm({
         return {
           value: dispatch.id,
           label: batchLabel,
-          description: `${dispatch.courier} • ${new Date(dispatch.dispatchDate).toLocaleDateString()}`,
+          description: `${dispatch.courier} • ${dispatch.dispatchDate.slice(0, 10)}`,
           meta: dispatch.goldPour.site.name,
         };
       }),
@@ -599,7 +599,7 @@ export function ReceiptForm({
                 return (
                   <div
                     key={item.goldPourId}
-                    className={`grid grid-cols-[auto_1fr_140px_140px] gap-3 items-center px-3 py-2 ${item.selected ? "bg-primary/5" : ""}`}
+                    className={`grid grid-cols-1 sm:grid-cols-[auto_1fr_140px_140px] gap-3 items-center px-3 py-2 ${item.selected ? "bg-primary/5" : ""}`}
                   >
                     <Checkbox
                       checked={item.selected}

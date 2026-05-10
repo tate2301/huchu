@@ -8,6 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ClientDate } from "@/app/gold/components/client-date";
 import { ReceiptForm } from "@/app/gold/components/receipt-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -124,7 +125,7 @@ export default function GoldSettlementReceiptsPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.receiptDate).toLocaleString()}
+            <ClientDate value={row.original.receiptDate} />
           </NumericCell>
         ),
         size: 128,
@@ -249,7 +250,21 @@ export default function GoldSettlementReceiptsPage() {
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
-          emptyState={isLoading ? "Loading sales..." : "No sales recorded."}
+          emptyState={
+            isLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No sales recorded."
+            )
+          }
         />
       </section>
 

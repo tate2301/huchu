@@ -8,6 +8,7 @@ import { ArrowRightLeft, PackageCheck, Scale, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@/app/gold/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
@@ -114,7 +115,7 @@ export default function DispatchDetailPage() {
       backHref={goldRoutes.transit.dispatches}
       backLabel="Dispatches"
       title={`Dispatch ${data.id.slice(0, 8)}`}
-      subtitle={`${new Date(data.dispatchDate).toLocaleString()} · ${data.courier} → ${data.destination}`}
+      subtitle={<span><ClientDate value={data.dispatchDate} /> · {data.courier} → {data.destination}</span>}
       primary={
         <>
           <DetailSection title="Trip details" icon={ArrowRightLeft} tone="primary">
@@ -197,7 +198,7 @@ export default function DispatchDetailPage() {
                         {r.receiptNumber}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(r.receiptDate).toLocaleString()} · {r.paymentMethod.replace(/_/g, " ").toLowerCase()}
+                        <ClientDate value={r.receiptDate} /> · {r.paymentMethod.replace(/_/g, " ").toLowerCase()}
                       </p>
                     </div>
                     <p className="font-semibold">{usd(r.paidAmount)}</p>

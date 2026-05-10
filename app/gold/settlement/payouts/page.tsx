@@ -532,9 +532,19 @@ export default function GoldSettlementPayoutsPage() {
             </div>
           }
           emptyState={
-            isLoading
-              ? "Loading payout schedule..."
-              : "No shift payouts recorded for this window."
+            isLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No shift payouts recorded for this window."
+            )
           }
         />
       </section>

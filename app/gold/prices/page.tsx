@@ -27,6 +27,7 @@ import {
   type GoldPriceRecord,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { ClientDate } from "@/app/gold/components/client-date";
 
 type PriceFormState = {
   effectiveDate: string;
@@ -121,7 +122,7 @@ export default function GoldPricesPage() {
         header: "Effective Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.effectiveDate).toLocaleDateString()}
+            <ClientDate value={row.original.effectiveDate} mode="date" />
           </NumericCell>
         ),
         size: 128,
@@ -151,7 +152,7 @@ export default function GoldPricesPage() {
         header: "Updated",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.updatedAt).toLocaleString()}
+            <ClientDate value={row.original.updatedAt} />
           </NumericCell>
         ),
         size: 180,

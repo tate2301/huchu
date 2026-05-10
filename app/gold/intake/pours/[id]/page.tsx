@@ -8,6 +8,7 @@ import { Gem, ArrowRightLeft, Scale, FileCheck, Building2, Coins } from "@/lib/i
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@/app/gold/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
@@ -131,7 +132,7 @@ export default function PourDetailPage() {
       backHref={goldRoutes.intake.pours}
       backLabel="Batches"
       title={data.pourBarId}
-      subtitle={`${data.site.name} (${data.site.code}) · poured ${new Date(data.pourDate).toLocaleString()}`}
+      subtitle={<span>{data.site.name} ({data.site.code}) · poured <ClientDate value={data.pourDate} /></span>}
       status={
         <StatusChip
           status={isSold ? "passing" : isDispatched ? "warning" : "pending"}
@@ -152,7 +153,7 @@ export default function PourDetailPage() {
                 { label: "Witness 1", value: data.witness1 ? `${data.witness1.name} (${data.witness1.employeeId})` : "—" },
                 { label: "Witness 2", value: data.witness2 ? `${data.witness2.name} (${data.witness2.employeeId})` : "—" },
                 { label: "Recorded by", value: data.createdBy?.name ?? "—" },
-                { label: "Recorded at", value: new Date(data.createdAt).toLocaleString() },
+                { label: "Recorded at", value: <ClientDate value={data.createdAt} /> },
               ]}
             />
             {data.notes ? (
@@ -163,7 +164,7 @@ export default function PourDetailPage() {
           {data.goldShiftAllocation ? (
             <DetailSection
               title="Originating shift allocation"
-              description={`${data.goldShiftAllocation.shift} · ${new Date(data.goldShiftAllocation.date).toLocaleDateString()} · ${data.goldShiftAllocation.workflowStatus}`}
+              description={`${data.goldShiftAllocation.shift} · ${data.goldShiftAllocation.date.slice(0, 10)} · ${data.goldShiftAllocation.workflowStatus}`}
               actions={
                 <Link
                   href={`/gold/insights/allocations/${data.goldShiftAllocation.id}`}
@@ -211,7 +212,7 @@ export default function PourDetailPage() {
                         Dispatch {d.id.slice(0, 8)}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(d.dispatchDate).toLocaleString()} · {d.courier} → {d.destination}
+                        <ClientDate value={d.dispatchDate} /> · {d.courier} → {d.destination}
                       </p>
                     </div>
                   </li>
@@ -237,7 +238,7 @@ export default function PourDetailPage() {
                         {r.receiptNumber}
                       </Link>
                       <p className="text-xs text-muted-foreground">
-                        {new Date(r.receiptDate).toLocaleString()} · {r.paymentMethod.replace(/_/g, " ").toLowerCase()}
+                        <ClientDate value={r.receiptDate} /> · {r.paymentMethod.replace(/_/g, " ").toLowerCase()}
                       </p>
                     </div>
                     <p className="font-semibold">{usd(r.paidAmount)}</p>
@@ -259,7 +260,7 @@ export default function PourDetailPage() {
                   <li key={e.id} className="flex items-center justify-between">
                     <span>{e.direction === "IN" ? "+" : "-"}{grams(e.grams)}</span>
                     <span className="text-xs text-muted-foreground">
-                      {new Date(e.eventDate).toLocaleDateString()}
+                      <ClientDate value={e.eventDate} mode="date" />
                     </span>
                   </li>
                 ))}

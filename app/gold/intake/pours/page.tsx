@@ -7,6 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
+import { ClientDate } from "@/app/gold/components/client-date";
 import { PourForm } from "@/app/gold/components/pour-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
@@ -82,7 +83,7 @@ export default function GoldIntakePoursPage() {
         header: "Date",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.pourDate).toLocaleString()}
+            <ClientDate value={row.original.pourDate} />
           </NumericCell>
         ),
         size: 128,
@@ -180,7 +181,7 @@ export default function GoldIntakePoursPage() {
         header: "Recorded At",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {new Date(row.original.createdAt).toLocaleString()}
+            <ClientDate value={row.original.createdAt} />
           </NumericCell>
         ),
         size: 128,
@@ -233,7 +234,21 @@ export default function GoldIntakePoursPage() {
           searchSubmitLabel="Search"
           tableClassName="text-sm"
           pagination={{ enabled: true }}
-          emptyState={isLoading ? "Loading batches..." : "No batches found."}
+          emptyState={
+            isLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No batches found."
+            )
+          }
         />
       </section>
 

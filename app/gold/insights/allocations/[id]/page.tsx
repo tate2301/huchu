@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
+import { ClientDate } from "@/app/gold/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type AllocationDetail = {
@@ -219,7 +220,7 @@ export default function AllocationDetailPage() {
       activeTab="payouts"
       backHref="/gold/insights/allocations"
       backLabel="Allocations"
-      title={`${data.shift} · ${new Date(data.date).toLocaleDateString()}`}
+      title={<span>{data.shift} · <ClientDate value={data.date} mode="date" /></span>}
       subtitle={`${data.site.name} · led by ${data.shiftReport?.groupLeader?.name ?? "—"}`}
       status={
         <StatusChip
@@ -412,7 +413,7 @@ export default function AllocationDetailPage() {
                           {p.pourBarId}
                         </Link>
                         <p className="text-xs text-muted-foreground">
-                          {new Date(p.pourDate).toLocaleDateString()}
+                          <ClientDate value={p.pourDate} mode="date" />
                         </p>
                       </div>
                       <div className="flex items-center gap-3">
@@ -446,20 +447,20 @@ export default function AllocationDetailPage() {
               <li>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Created</p>
                 <p>{data.createdBy?.name ?? "—"}</p>
-                <p className="text-xs text-muted-foreground">{new Date(data.createdAt).toLocaleString()}</p>
+                <p className="text-xs text-muted-foreground"><ClientDate value={data.createdAt} /></p>
               </li>
               <li>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Submitted</p>
                 <p>{data.submittedBy?.name ?? "—"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {data.submittedAt ? new Date(data.submittedAt).toLocaleString() : "Pending"}
+                  {data.submittedAt ? <ClientDate value={data.submittedAt} /> : "Pending"}
                 </p>
               </li>
               <li>
                 <p className="text-xs font-semibold uppercase text-muted-foreground">Approved</p>
                 <p>{data.approvedBy?.name ?? "—"}</p>
                 <p className="text-xs text-muted-foreground">
-                  {data.approvedAt ? new Date(data.approvedAt).toLocaleString() : "Pending"}
+                  {data.approvedAt ? <ClientDate value={data.approvedAt} /> : "Pending"}
                 </p>
               </li>
             </ul>
