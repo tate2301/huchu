@@ -15,6 +15,7 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"
+import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
 
 const buyerReceiptSchema = z
   .object({
@@ -455,6 +456,42 @@ export async function POST(request: NextRequest) {
         taxAmount: 0,
         grossAmount: Number(created.paidAmount),
       }, tx)
+
+      // AR subledger: record a SalesInvoice so receivables are visible.
+      const customerName = dispatch?.destination ?? "Buyer (direct)"
+      const customerId = await upsertGoldCustomer(tx, {
+        companyId: session.user.companyId,
+        name: customerName,
+      })
+      // Build line items from BuyerReceiptBatches when available (the batch
+      // was just inserted above, so we re-use what we already know).
+      const batchGrams = Number(goldPour.grossWeight)
+      const pricePerGram = Number(valuation.goldPriceUsdPerGram)
+      await createSalesInvoice(tx, {
+        companyId: session.user.companyId,
+        customerId,
+        invoiceDate: created.receiptDate,
+        reference: receiptNumber,
+        currency: "USD",
+        lineItems: [
+          {
+            description: `Gold delivered: ${batchGrams.toFixed(3)}g`,
+            quantity: batchGrams,
+            unitPrice: pricePerGram,
+            totalAmount: Number(created.paidAmount),
+          },
+        ],
+        receipts: [
+          {
+            amount: Number(created.paidAmount),
+            method: validated.paymentMethod,
+            receivedAt: created.receiptDate,
+            reference: validated.paymentReference ?? undefined,
+          },
+        ],
+        notes: `Gold receipt ${receiptNumber}`,
+        createdById: session.user.id,
+      })
 
       return tx.buyerReceipt.findUnique({
         where: { id: created.id },

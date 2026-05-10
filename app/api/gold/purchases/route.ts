@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { createPurchaseBill, upsertGoldVendor } from "@/lib/commodity-billing"
 
 const goldPurchaseSchema = z
   .object({
@@ -317,6 +318,40 @@ export async function POST(request: NextRequest) {
         taxAmount: 0,
         grossAmount: Number(created.paidAmount),
       }, tx)
+
+      // AP subledger: record a PurchaseBill so payables are visible.
+      const vendorId = await upsertGoldVendor(tx, {
+        companyId: session.user.companyId,
+        name: sellerName,
+        phone: sellerPhone,
+      })
+      const priceUsdPerGram = Number(valuation.goldPriceUsdPerGram)
+      const grossWeightNum = Number(validated.grossWeight)
+      await createPurchaseBill(tx, {
+        companyId: session.user.companyId,
+        vendorId,
+        billDate: purchaseDate,
+        reference: created.purchaseNumber,
+        currency: validated.currency?.trim().toUpperCase() || "USD",
+        lineItems: [
+          {
+            description: `Gold purchase: ${grossWeightNum.toFixed(3)}g @ $${priceUsdPerGram.toFixed(2)}/g`,
+            quantity: grossWeightNum,
+            unitPrice: priceUsdPerGram,
+            totalAmount: Number(created.paidAmount),
+          },
+        ],
+        payments: [
+          {
+            amount: Number(created.paidAmount),
+            method: validated.paymentMethod,
+            paidAt: purchaseDate,
+            reference: validated.paymentReference ?? undefined,
+          },
+        ],
+        notes: `Gold purchase ${created.purchaseNumber}`,
+        createdById: session.user.id,
+      })
 
       return created
     })

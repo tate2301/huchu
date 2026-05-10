@@ -11,6 +11,7 @@ import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { reserveIdentifier } from "@/lib/id-generator"
 import { z } from "zod"
+import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
 
 const batchReceiptSchema = z.object({
   goldDispatchId: z.string().uuid().optional(),
@@ -251,6 +252,52 @@ export async function POST(request: NextRequest) {
         taxAmount: 0,
         grossAmount: totalPaid,
       }, tx)
+
+      // AR subledger: record one SalesInvoice for the aggregate receipt.
+      // Customer name: if dispatches are in scope, use the first dispatch's
+      // destination; otherwise fall back to a generic buyer label.
+      let customerName = "Buyer (direct)"
+      if (dispatchIds.length > 0) {
+        const firstDispatch = await tx.goldDispatch.findUnique({
+          where: { id: dispatchIds[0] },
+          select: { destination: true },
+        })
+        if (firstDispatch?.destination) customerName = firstDispatch.destination
+      }
+      const customerId = await upsertGoldCustomer(tx, {
+        companyId: session.user.companyId,
+        name: customerName,
+      })
+      // One line per pour so the invoice matches the batch breakdown.
+      const invoiceLines = validated.items.map((item) => {
+        const pour = pourLookup.get(item.goldPourId)!
+        const grams = Number(pour.grossWeight)
+        const pricePerGram = Number(headerValuation.goldPriceUsdPerGram)
+        return {
+          description: `Gold delivered: ${grams.toFixed(3)}g of pour ${pour.pourBarId}`,
+          quantity: grams,
+          unitPrice: pricePerGram,
+          totalAmount: item.paidAmount,
+        }
+      })
+      await createSalesInvoice(tx, {
+        companyId: session.user.companyId,
+        customerId,
+        invoiceDate: receipt.receiptDate,
+        reference: receiptNumber,
+        currency: "USD",
+        lineItems: invoiceLines,
+        receipts: [
+          {
+            amount: totalPaid,
+            method: validated.paymentMethod,
+            receivedAt: receipt.receiptDate,
+            reference: validated.paymentReference ?? undefined,
+          },
+        ],
+        notes: `Gold receipt ${receiptNumber}`,
+        createdById: session.user.id,
+      })
 
       return { receipt, totalPaid }
     })
