@@ -165,6 +165,7 @@ model Company {
   goldLedgerCorrections         GoldLedgerCorrection[]  @relation("GoldLedgerCorrectionCompany")
   buyerReceiptCorrections       BuyerReceiptCorrection[] @relation("BuyerReceiptCorrectionCompany")
   goldLedgerImportPresets       GoldLedgerImportPreset[]
+  goldImportSavedViews          GoldImportSavedView[]
   goldPeriodCloses              GoldPeriodClose[]
   goldConfig                    GoldCompanyConfig?
 
@@ -888,6 +889,7 @@ model User {
   createdGoldLedgerImportPresets    GoldLedgerImportPreset[]       @relation("GoldLedgerImportPresetCreatedBy")
   createdGoldLedgerImportComments   GoldLedgerImportComment[]      @relation("GoldLedgerImportCommentCreatedBy")
   takenGoldImportSnapshots          GoldImportSnapshot[]           @relation("GoldImportSnapshotTakenBy")
+  goldImportSavedViews              GoldImportSavedView[]          @relation("GoldImportSavedViewUser")
   closedGoldPeriodCloses            GoldPeriodClose[]              @relation("GoldPeriodCloseClosedBy")
   overrideGoldPeriodCloses          GoldPeriodClose[]              @relation("GoldPeriodCloseOverrideBy")
 
@@ -2626,6 +2628,7 @@ model GoldLedgerImport {
   tombstonedAt     DateTime?
   archivedAt       DateTime?
   presetId         String?
+  sampleHeaderHash String? // SHA of the original CSV header row, used to match an import to a saved mapping preset (Epic 14)
 
   company    Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
   site       Site?                      @relation(fields: [siteId], references: [id])
@@ -2649,6 +2652,7 @@ model GoldLedgerEntry {
   companyId             String?
   lineNo                Int
   rawJson               String // JSON of original CSV row
+  rawLine               String? // original CSV line label or manual-sale descriptor, preserved for diagnostics (Epic 14)
   parsedDate            DateTime?
   parsedName            String?
   mappedShiftGroupId    String?
@@ -2752,6 +2756,22 @@ model GoldImportSnapshot {
   takenBy User             @relation("GoldImportSnapshotTakenBy", fields: [takenById], references: [id])
 
   @@index([importId, takenAt(sort: Desc)])
+}
+
+model GoldImportSavedView {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  name       String
+  filterJson String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("GoldImportSavedViewUser", fields: [userId], references: [id])
+
+  @@unique([companyId, userId, name])
+  @@index([companyId, userId])
 }
 
 model GoldPeriodClose {

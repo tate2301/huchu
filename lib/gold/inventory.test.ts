@@ -417,3 +417,71 @@ describe("Suite 8 - Epic 12c: GoldCompanyConfig + GoldPurchase.attachmentsJson",
     expect(result.length).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Suite 9 — Epic 14 schema witnesses  MIGRATION WITNESS
+// MIGRATION WITNESS: fails on current schema (fields/table don't exist),
+// passes after db push / migration adding sampleHeaderHash, rawLine, GoldImportSavedView.
+// ---------------------------------------------------------------------------
+
+describe("Suite 9 - Epic 14: sampleHeaderHash, rawLine, GoldImportSavedView", () => {
+  // MIGRATION WITNESS: fails on current schema, passes after this migration
+  it("GoldLedgerImport.sampleHeaderHash column exists", async () => {
+    const result = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'GoldLedgerImport' AND column_name = 'sampleHeaderHash'
+    `;
+    expect(result.length).toBe(1);
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after this migration
+  it("GoldLedgerEntry.rawLine column exists", async () => {
+    const result = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'GoldLedgerEntry' AND column_name = 'rawLine'
+    `;
+    expect(result.length).toBe(1);
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after this migration
+  it("GoldImportSavedView table exists with companyId, userId, name, filterJson columns", async () => {
+    const result = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'GoldImportSavedView'
+      ORDER BY column_name
+    `;
+    const cols = result.map((r) => r.column_name);
+    expect(cols).toContain("id");
+    expect(cols).toContain("companyId");
+    expect(cols).toContain("userId");
+    expect(cols).toContain("name");
+    expect(cols).toContain("filterJson");
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after this migration
+  it("GoldImportSavedView unique constraint (companyId, userId, name) is enforced", async () => {
+    const uniqueName = `test-view-${Date.now()}`;
+    const user = await prisma.user.create({
+      data: {
+        name: "View Witness",
+        email: `view-witness-${Date.now()}@test.local`,
+        password: "x",
+        companyId,
+        role: "OPERATOR",
+      },
+    });
+    try {
+      await prisma.goldImportSavedView.create({
+        data: { companyId, userId: user.id, name: uniqueName, filterJson: "{}" },
+      });
+      await expect(
+        prisma.goldImportSavedView.create({
+          data: { companyId, userId: user.id, name: uniqueName, filterJson: "{}" },
+        }),
+      ).rejects.toThrow();
+    } finally {
+      await prisma.goldImportSavedView.deleteMany({ where: { companyId, userId: user.id } });
+      await prisma.user.delete({ where: { id: user.id } });
+    }
+  });
+});
