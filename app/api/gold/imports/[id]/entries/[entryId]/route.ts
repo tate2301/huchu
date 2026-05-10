@@ -8,6 +8,84 @@ import {
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
+/**
+ * DELETE /api/gold/imports/[id]/entries/[entryId]
+ *
+ * Remove a PENDING / ANOMALY / FAILED / SKIPPED entry from the import.
+ * Rejects if the entry status is CREATED (committed work — use rollback).
+ * Rejects if the import itself is COMMITTED.
+ * Renumbers subsequent rows (shift lineNo down by 1) in the same tx.
+ * Role gate: OPERATOR+
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string; entryId: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request)
+    if (sessionResult instanceof NextResponse) return sessionResult
+    const { session } = sessionResult
+
+    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+      return errorResponse("Insufficient permissions to delete import entries", 403)
+    }
+
+    const companyId = session.user.companyId
+    const { id, entryId } = await params
+
+    const entry = await prisma.goldLedgerEntry.findUnique({
+      where: { id: entryId },
+      include: {
+        import: {
+          select: { id: true, companyId: true, status: true },
+        },
+      },
+    })
+    if (!entry || entry.importId !== id) {
+      return errorResponse("Entry not found", 404)
+    }
+    if (entry.import.companyId !== companyId) {
+      return errorResponse("Forbidden", 403)
+    }
+    if (entry.import.status === "COMMITTED") {
+      return errorResponse(
+        "Import is committed. Roll back the import to remove entries.",
+        409,
+      )
+    }
+    if (entry.status === "CREATED") {
+      return errorResponse(
+        "Entry has already been committed. Roll back the import to remove it.",
+        409,
+      )
+    }
+
+    const deletedLineNo = entry.lineNo
+
+    await prisma.$transaction(async (tx) => {
+      await tx.goldLedgerEntry.delete({ where: { id: entryId } })
+      // Two-pass decrement avoids transient unique(importId, lineNo) conflicts.
+      await tx.$executeRaw`
+        UPDATE "GoldLedgerEntry"
+        SET "lineNo" = -("lineNo" - 1)
+        WHERE "importId" = ${id}
+          AND "lineNo" > ${deletedLineNo}
+      `
+      await tx.$executeRaw`
+        UPDATE "GoldLedgerEntry"
+        SET "lineNo" = -"lineNo"
+        WHERE "importId" = ${id}
+          AND "lineNo" < 0
+      `
+    })
+
+    return new NextResponse(null, { status: 204 })
+  } catch (error) {
+    console.error("[API] DELETE /api/gold/imports/[id]/entries/[entryId] error:", error)
+    return errorResponse("Failed to delete entry")
+  }
+}
+
 const expenseRow = z.object({
   type: z.string().trim().min(1).max(50),
   weight: z.number().min(0),
