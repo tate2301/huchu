@@ -4,6 +4,7 @@ import {
   useRef,
   useCallback,
   useMemo,
+  useState,
   forwardRef,
   useImperativeHandle,
 } from "react";
@@ -19,7 +20,14 @@ import {
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { cn } from "@/lib/utils";
-import { Lock, ChevronDown, ChevronUpIcon } from "@/lib/icons";
+import { Lock, ChevronDown, ChevronUpIcon, Plus, MoreHorizontal, Trash2, FileText } from "@/lib/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { EditableNumber, EditableDate } from "../editable-cells";
 import {
   KNOWN_EXPENSE_TYPES,
@@ -30,7 +38,7 @@ import {
 } from "../types";
 import type { CellCoord } from "./studio-keyboard";
 
-const ROW_H = 28;
+const ROW_H = 40;
 const OVERSCAN = 10;
 
 type EntryPatch = {
@@ -53,6 +61,9 @@ export type StudioTableProps = {
   anomaliesByEntry: Map<string, Anomaly[]>;
   groupNameForEntry: (entry: LedgerEntry) => string | null;
   onUpdateEntry: (entryId: string, patch: EntryPatch) => void;
+  onInsertRowAfter?: (entryId: string) => void;
+  onInsertRowBefore?: (entryId: string) => void;
+  onDeleteRow?: (entryId: string) => void;
   selectedIds: Set<string>;
   onSelectChange: (ids: Set<string>) => void;
   activeCell: CellCoord | null;
@@ -62,6 +73,7 @@ export type StudioTableProps = {
   columnWidths: Record<string, number>;
   onColumnWidthChange: (col: string, w: number) => void;
   findQuery: string;
+  onLeaderClick?: (leaderName: string) => void;
 };
 
 const STATUS_TINT: Record<LedgerEntry["status"], string> = {
@@ -93,6 +105,9 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
       anomaliesByEntry,
       groupNameForEntry,
       onUpdateEntry,
+      onInsertRowAfter,
+      onInsertRowBefore,
+      onDeleteRow,
       selectedIds,
       onSelectChange,
       activeCell,
@@ -101,9 +116,11 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
       onSortingChange,
       columnWidths,
       findQuery,
+      onLeaderClick,
     },
     ref,
   ) {
+    const [hoveredRowId, setHoveredRowId] = useState<string | null>(null);
     const parentRef = useRef<HTMLDivElement>(null);
 
     const idToIdx = useMemo(
@@ -194,7 +211,21 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
               ? highlight(rawName, findQuery)
               : null;
             return (
-              <div>
+              <div
+                onContextMenu={
+                  onLeaderClick && row.original.parsedName
+                    ? (e) => {
+                        e.preventDefault();
+                        onLeaderClick(row.original.parsedName!);
+                      }
+                    : undefined
+                }
+                title={
+                  onLeaderClick && row.original.parsedName
+                    ? `Right-click to see all rows for ${row.original.parsedName}`
+                    : undefined
+                }
+              >
                 <div
                   className="font-mono font-semibold text-[--text-strong]"
                   {...(marked ? { dangerouslySetInnerHTML: { __html: marked } } : {})}
@@ -470,6 +501,9 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
               const rowAnomalies = anomaliesByEntry.get(entry.id) ?? [];
               const rowIdx = idToIdx.get(entry.id) ?? vRow.index;
 
+              const isHovered = hoveredRowId === entry.id;
+              const rowLocked = isRowLocked(entry, isLocked);
+
               return (
                 <tr
                   key={row.id}
@@ -483,11 +517,14 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                     height: `${ROW_H}px`,
                   }}
                   className={cn(
-                    "border-b border-[--border] align-middle transition-colors",
+                    "group border-b border-[--border] align-middle transition-colors",
                     STATUS_TINT[entry.status],
                     selectedIds.has(entry.id) && "ring-1 ring-inset ring-[--action-primary-bg]/40 bg-[--action-secondary-bg]/30",
                     rowAnomalies.length > 0 && entry.status !== "CREATED" && "border-l-2",
+                    isHovered && !selectedIds.has(entry.id) && "bg-[--surface-muted]/60",
                   )}
+                  onMouseEnter={() => setHoveredRowId(entry.id)}
+                  onMouseLeave={() => setHoveredRowId(null)}
                   onClick={(e) => handleRowClick(e, rowIdx, entry)}
                 >
                   {row.getVisibleCells().map((cell, colIdx) => {
@@ -500,7 +537,7 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                         key={cell.id}
                         style={{ width: cell.column.getSize() }}
                         className={cn(
-                          "px-2 align-middle overflow-hidden",
+                          "px-2 align-middle overflow-hidden text-sm",
                           isActive &&
                             "ring-1 ring-inset ring-[--action-primary-bg]",
                           colIdx === 1 && "text-[--text-muted]",
@@ -521,6 +558,101 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                       </td>
                     );
                   })}
+
+                  {/* Row action column — hover reveals insert + overflow menu */}
+                  <td
+                    className="w-20 px-1 align-middle"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div
+                      className={cn(
+                        "flex items-center justify-end gap-0.5 transition-opacity",
+                        isHovered ? "opacity-100" : "opacity-0 pointer-events-none",
+                      )}
+                    >
+                      {!rowLocked && onInsertRowBefore && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onInsertRowBefore(entry.id);
+                          }}
+                          title="Insert row above"
+                          className="flex h-6 w-6 items-center justify-center rounded text-[--text-muted] hover:bg-[--surface-muted] hover:text-[--text-strong]"
+                        >
+                          <Plus className="h-3 w-3" />
+                        </button>
+                      )}
+                      {!rowLocked && onInsertRowAfter && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            onInsertRowAfter(entry.id);
+                          }}
+                          title="Insert row below"
+                          className="flex h-6 w-6 items-center justify-center rounded text-[--text-muted] hover:bg-[--surface-muted] hover:text-[--text-strong] rotate-180"
+                        >
+                          <Plus className="h-3 w-3 rotate-180" />
+                        </button>
+                      )}
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <button
+                            type="button"
+                            title="Row options"
+                            className="flex h-6 w-6 items-center justify-center rounded text-[--text-muted] hover:bg-[--surface-muted] hover:text-[--text-strong]"
+                          >
+                            <MoreHorizontal className="h-3 w-3" />
+                          </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end" className="w-44">
+                          {!rowLocked && onInsertRowBefore && (
+                            <DropdownMenuItem
+                              onClick={() => onInsertRowBefore(entry.id)}
+                            >
+                              <Plus className="mr-2 h-3.5 w-3.5" />
+                              Add row above
+                            </DropdownMenuItem>
+                          )}
+                          {!rowLocked && onInsertRowAfter && (
+                            <DropdownMenuItem
+                              onClick={() => onInsertRowAfter(entry.id)}
+                            >
+                              <Plus className="mr-2 h-3.5 w-3.5 rotate-180" />
+                              Add row below
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem
+                            onClick={() => {
+                              try {
+                                navigator.clipboard.writeText(
+                                  JSON.stringify(entry, null, 2),
+                                );
+                              } catch {
+                                /* clipboard not available */
+                              }
+                            }}
+                          >
+                            <FileText className="mr-2 h-3.5 w-3.5" />
+                            Copy raw JSON
+                          </DropdownMenuItem>
+                          {!rowLocked && onDeleteRow && (
+                            <>
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                onClick={() => onDeleteRow(entry.id)}
+                                className="text-rose-700 focus:text-rose-700"
+                              >
+                                <Trash2 className="mr-2 h-3.5 w-3.5" />
+                                Delete row
+                              </DropdownMenuItem>
+                            </>
+                          )}
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                  </td>
                 </tr>
               );
             })}
