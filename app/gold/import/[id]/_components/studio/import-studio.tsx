@@ -9,6 +9,7 @@ import {
 } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { motion } from "framer-motion";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -358,13 +359,17 @@ export function ImportStudio() {
 
   useEffect(() => {
     if (isFullscreen) {
+      // Lock background scroll while fullscreen is active so chrome behind
+      // the studio doesn't peek through if the operator scrolls.
       document.documentElement.classList.add("studio-fullscreen");
-    } else {
-      document.documentElement.classList.remove("studio-fullscreen");
+      const prev = document.body.style.overflow;
+      document.body.style.overflow = "hidden";
+      return () => {
+        document.documentElement.classList.remove("studio-fullscreen");
+        document.body.style.overflow = prev;
+      };
     }
-    return () => {
-      document.documentElement.classList.remove("studio-fullscreen");
-    };
+    document.documentElement.classList.remove("studio-fullscreen");
   }, [isFullscreen]);
 
   useEffect(() => {
@@ -817,12 +822,22 @@ export function ImportStudio() {
       activeTab="home"
       title={data.fileName}
     >
-      <div
+      <motion.div
+        // Animate between in-page and fullscreen. `layout` smoothly
+        // transitions size/position; the explicit transition keeps it
+        // crisp (200ms ease-out) rather than springy. z-[60] puts the
+        // fullscreen layer above the GoldShell sidebar/header (which
+        // sit in the default stacking context) and matches the project
+        // convention that toasts/dialogs at z-50 should still float on
+        // top when spawned from inside fullscreen — Radix portals to
+        // body so they render later in DOM order, winning the tie.
+        layout
+        transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "flex flex-col overflow-hidden rounded-lg border border-[--border] bg-[--surface-canvas]",
+          "flex flex-col overflow-hidden border bg-[var(--surface-canvas)]",
           isFullscreen
-            ? "fixed inset-0 z-40 h-screen rounded-none border-0"
-            : "h-[calc(100vh-10rem)]",
+            ? "fixed inset-0 z-[60] h-screen w-screen rounded-none border-0"
+            : "h-[calc(100vh-10rem)] rounded-lg border-[--border]",
         )}
       >
         <StudioHeader
@@ -1055,11 +1070,13 @@ export function ImportStudio() {
             });
           }}
         />
-      </div>
+      </motion.div>
 
       {isAnnotationMode && (
         <div
-          className="pointer-events-none fixed inset-0 z-30 flex items-center justify-center"
+          // z-[70] keeps the "Review only" watermark above the fullscreen
+          // layer (z-[60]) so it stays visible in both modes.
+          className="pointer-events-none fixed inset-0 z-[70] flex items-center justify-center"
           aria-hidden="true"
         >
           <span className="rotate-[-30deg] select-none text-[96px] font-black uppercase tracking-widest text-amber-300/20">
