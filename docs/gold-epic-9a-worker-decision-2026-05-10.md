@@ -2,8 +2,10 @@
 
 **Date:** 2026-05-10  
 **Author:** Engineering (drafted by Claude Sonnet 4.6)  
-**Status:** Decision pending sign-off  
+**Status:** **DECIDED — Inngest** (hosting constraint confirmed: Vercel Serverless only)  
 **Blocking:** Epic 9a implementation tickets  
+
+> **Constraint update (2026-05-10).** The original draft of this memo recommended `pg-boss` because it is the lean option in the abstract. The hosting picture is Vercel Serverless only — no second persistent process host is acceptable, and adding one is out of scope for this epic. That constraint eliminates Option B (`pg-boss` requires a long-running worker process). The recommendation pivots to Option C (Inngest). The option-comparison sections below are preserved unedited so reviewers can see the full reasoning; the recommendation, implementation, and risks sections (§5–§7) reflect the Inngest path.
 
 ---
 
@@ -78,53 +80,66 @@ Use Inngest's hosted function runner. The commit endpoint calls `inngest.send(..
 
 ## 5. Recommendation
 
-**Use `pg-boss`.** Run the worker as a standalone Node process on a small persistent host (Fly.io free tier or a $5/month VPS is sufficient; this project already has a `worker:pdf` pattern). The reasons:
+**Use Inngest.** The hosting constraint (Vercel Serverless only, no second persistent process host) eliminates `pg-boss`. Among the remaining options, Inngest beats the row-cap guard because:
 
-1. The codebase already has a worker script convention (`worker:pdf` in `package.json`, using `tsx`). Adding `worker:gold-import` follows an established pattern with no new concepts for the team.
-2. The DB is Neon Postgres. `pg-boss` runs entirely within Postgres — no new service is added to the infrastructure inventory, just a process.
-3. Transactional enqueueing is a hard requirement for this domain. The import's status transition to `COMMITTING` and the job enqueue must be atomic; `pg-boss` supports this because both operations go to the same DB.
-4. Inngest's external-call model is operationally riskier for a financial ledger commit. A network partition between Inngest and the app would leave jobs in limbo with no local recovery path.
-5. The row-cap option does not solve the problem — it relocates the pain to the operator for a workflow (monthly seed) that is a stated primary use case.
+1. The row-cap option relocates the problem to the operator for the **monthly seed** workflow — a stated primary use case (§9.1 mode 1). Forcing operators to split a 600-row ledger into three 200-row pieces by hand is an ops regression, not a fix.
+2. Inngest's serverless model is a natural fit for Vercel. Inngest hosts the queue/scheduler and calls back into the Next.js app via HTTP — every step runs as a normal Vercel Function invocation, well within the 60s per-invocation budget.
+3. Native Next.js integration via `@inngest/next`. The function definitions live in the codebase. Step-function primitives (sleep, retry, parallel fan-out) map cleanly onto the existing row loop.
+4. Free tier covers the initial usage envelope (50k step runs/month at the time of writing — well above expected volume during the rebuild's first quarter). Paid plans scale predictably.
+5. Built-in observability dashboard, retry policies, and step-level state — all of which we'd otherwise have to build ourselves on top of `pg-boss`.
+
+The trade-offs are real and accepted:
+
+- **Vendor coupling for orchestration.** Mitigated by wrapping Inngest behind a thin `enqueueImportCommit(...)` boundary so swapping it out later (e.g. once the team adopts Vercel Fluid Functions or moves to a multi-host setup) is a one-day rewrite.
+- **Callback model means network reachability matters.** Inngest's servers must be able to reach the public app URL. Mitigated by Inngest's automatic retries with exponential backoff plus a UI "stuck in COMMITTING" detector after 30s.
+- **Cost at scale.** Mitigated by alerting at 80% of free-tier; documented upgrade trigger.
 
 ---
 
-## 6. Implementation steps
+## 6. Implementation steps (Inngest path)
 
-1. **Install `pg-boss`.** `pnpm add pg-boss`. Version ^9 is current. No schema migration needed beyond `boss.start()` on first worker start (auto-creates `pgboss.*` tables in the same DB).
+1. **Install dependencies.** `pnpm add inngest @inngest/next`. Add `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` to every environment (.env, Vercel env, vitest env).
 
-2. **Create `lib/gold/import-worker/boss.ts`.** Export a singleton `pg-boss` instance configured from `DATABASE_URL`. Export a typed `GOLD_IMPORT_COMMIT_QUEUE` constant for the queue name.
+2. **Create `lib/gold/import-worker/inngest-client.ts`.** Export a singleton `inngest` client and the typed event name `"gold/import.commit.requested"`. Wrap the client behind a `enqueueImportCommit({ importId, userId, companyId })` helper so callers never import `inngest` directly — keeps the abstraction swappable.
 
-3. **Create `lib/gold/import-worker/commit-job.ts`.** Move the core loop from `app/api/gold/imports/[id]/commit/route.ts` into a `processImportCommit({ importId, userId, companyId })` function. This function is pure logic — no HTTP, no `NextResponse`. The existing row loop, cleanup phase, and status-update logic move verbatim; only the HTTP-layer plumbing is removed.
+3. **Create `lib/gold/import-worker/commit-job.ts`.** Move the core loop from `app/api/gold/imports/[id]/commit/route.ts` into a `processImportCommit({ importId, userId, companyId, step })` function. The `step` parameter is Inngest's step builder — wrap each phase (cleanup, production-rows loop, sales pass, status finalisation) in `step.run(...)` so each gets its own retry policy and state checkpoint. Pure logic, no `NextResponse`.
 
-4. **Update the commit route to enqueue instead of execute.** The route authenticates, validates, does the synchronous guard checks (site set, leaders mapped, zero CRITICAL anomalies, period open), then:
+4. **Create the Inngest function.** In `lib/gold/import-worker/functions.ts`:
    ```ts
-   await prisma.goldLedgerImport.update({ where: { id }, data: { status: "COMMITTING" } })
-   const jobId = await boss.send(GOLD_IMPORT_COMMIT_QUEUE, { importId: id, userId, companyId })
-   return successResponse({ status: "COMMITTING", jobId })
+   export const goldImportCommitFn = inngest.createFunction(
+     { id: "gold-import-commit", retries: 3 },
+     { event: "gold/import.commit.requested" },
+     async ({ event, step }) => processImportCommit({ ...event.data, step }),
+   );
    ```
-   The transition to `COMMITTING` and the `boss.send` must happen in the same `$transaction`. `pg-boss` supports `boss.sendWithConnection(db, ...)` for exactly this.
 
-5. **Create `scripts/worker-gold-import.ts`.** Mirrors `scripts/pdf-worker.ts`. On start: `await boss.start()`. Register: `boss.work(GOLD_IMPORT_COMMIT_QUEUE, processImportCommit)`. Add `"worker:gold-import": "tsx scripts/worker-gold-import.ts"` to `package.json`.
+5. **Wire the Inngest webhook endpoint.** Create `app/api/inngest/route.ts` using `serve` from `@inngest/next` exporting the registered functions. This is the standard Inngest pattern — Inngest calls back into this URL to drive function execution.
 
-6. **Add SSE progress endpoint.** Create `app/api/gold/imports/[id]/progress/route.ts` as a `GET` returning `text/event-stream`. Each `processImportCommit` row-loop iteration sends a Postgres `NOTIFY gold_import_progress_<importId>` after updating the entry. The SSE endpoint subscribes with `pg.LISTEN`. The UI's "Committing..." state polls or streams this endpoint to show per-row progress and ETA.
+6. **Update the commit route to enqueue.** The route authenticates, validates, runs the synchronous guard checks (site set, leaders mapped, zero CRITICAL anomalies, period open), then in a single `prisma.$transaction`:
+   ```ts
+   await tx.goldLedgerImport.update({ where: { id }, data: { status: "COMMITTING" } });
+   await enqueueImportCommit({ importId: id, userId, companyId });
+   ```
+   If `enqueueImportCommit` throws, the transaction rolls back — the import does NOT get stuck in `COMMITTING` because the status update was inside the same tx as the send.
 
-7. **Update the UI.** On commit click: poll `GET /api/gold/imports/[id]` every 2s (or connect to the SSE endpoint if implemented) until `status !== "COMMITTING"`. Show a progress bar derived from `rowsCreated + rowsAnomaly + rowsFailed` vs `rowsTotal`. The existing `commitResult` state in `import-studio.tsx` handles the success/failure display.
+7. **Progress reporting.** Inngest tracks per-step state automatically. The UI polls `GET /api/gold/imports/[id]` every 2s, watching `status` and the rolling `rowsCreated + rowsAnomaly + rowsFailed` counts. SSE is a v2 enhancement; polling is sufficient for v1 because the worker writes counts to the DB after each row anyway.
 
-8. **Keep the test DB green.** In `vitest` environments, set `DISABLE_GOLD_IMPORT_WORKER=true`. The commit route detects this flag and falls back to synchronous in-process execution (call `processImportCommit` directly instead of `boss.send`). No test changes needed — the existing commit tests continue to work.
+8. **Keep the test DB green.** In `vitest` environments, set `DISABLE_GOLD_IMPORT_WORKER=true`. The commit route detects this flag and falls back to synchronous in-process execution (call `processImportCommit({ ...args, step: stubStep })` directly instead of enqueueing). The `stubStep` runs each phase inline without Inngest. Existing commit tests continue to work without changes.
 
-9. **Local dev.** Add a `concurrently` dev script: `"dev:full": "concurrently \"next dev\" \"tsx scripts/worker-gold-import.ts\""`. Document this in `AGENTS.md` onboarding section.
+9. **Local dev.** Inngest provides a Dev Server (`npx inngest-cli@latest dev`) that runs locally and calls back into `next dev`. Add a `dev:full` script: `"dev:full": "concurrently \"next dev\" \"npx inngest-cli@latest dev\""`. No separate worker process to manage.
 
-10. **Deployment.** Add the worker as a separate process in the hosting config. On Fly.io: a second `[[services]]` stanza in `fly.toml` running `worker:gold-import`, scaled to 1 instance minimum. Worker needs `DATABASE_URL` and nothing else.
+10. **Deployment.** No separate process to deploy. On Vercel: set `INNGEST_EVENT_KEY` and `INNGEST_SIGNING_KEY` in production env. Register the Inngest endpoint URL (`https://<your-domain>/api/inngest`) in the Inngest dashboard. Done.
 
 ---
 
-## 7. Risks and mitigations
+## 7. Risks and mitigations (Inngest path)
 
 | Risk | Mitigation |
 |---|---|
-| Worker crashes mid-commit, leaving partial state | Per-row idempotency already built into the commit loop (`goldShiftAllocationId` null-check before processing). `pg-boss` retries failed jobs. `processImportCommit` is safe to call twice on the same `importId`. |
-| Worker not running; operator commits and nothing happens | UI polls `status` every 2s. After 30s with no progress, show "Commit queued — worker may be offline. Contact support." Include a SUPERADMIN action to re-enqueue a stuck `COMMITTING` import. |
-| `pg-boss` schema tables conflict with app migrations | `pg-boss` creates tables in the `pgboss` schema, not `public`. No conflict with Prisma-managed tables. |
-| Import size grows beyond what the worker can handle in time | Worker timeout is configurable in `pg-boss`. Set `expireInSeconds: 600` (10 min). If 500-row imports take > 10 min, the row-processing logic needs optimization (batch inserts), not the queue architecture. |
-| Transactional enqueue fails | If `boss.sendWithConnection` throws, the status update is also rolled back (same tx). The route returns a 500; the import stays in its prior state; the operator can retry. No partial state. |
-| `NOTIFY`-based SSE is too chatty under load | Throttle `NOTIFY` to one per 10 rows, or skip SSE v1 and use simple polling on `GET /api/gold/imports/[id]`. SSE is a nice-to-have; polling is the safe fallback. |
+| Inngest can't reach the app (network partition, DNS issue, downtime) | Inngest retries with exponential backoff (default 4 retries over ~24 hours). UI watches `status` — if `COMMITTING` for > 30s, show a "Worker may be unreachable. Contact support" banner. SUPERADMIN action to re-enqueue a stuck import. |
+| Worker crashes mid-step | Step-level state means already-completed steps do not re-run. Per-row idempotency is also built into the commit loop (`goldShiftAllocationId` null-check before processing). Re-running the function on the same `importId` is safe by construction. |
+| Free tier exceeded mid-month | Set up monthly cost-alert at 80% of free tier. Document the upgrade decision threshold (recommend: upgrade before reaching 90%). Paid pricing is predictable ($20/month for 100k step runs as of this writing). |
+| Vendor lock-in | The `enqueueImportCommit` abstraction in `lib/gold/import-worker/inngest-client.ts` is the only place Inngest is referenced from app code. Migrating to `pg-boss` (or anything else) means rewriting this one file. |
+| Transactional enqueue fails | Both the status update and `enqueueImportCommit` are in the same `prisma.$transaction`. If the send fails, the status update is rolled back. Operator retries; no partial state. |
+| Vercel function timeout for an Inngest step | Each step is a separate Vercel Function invocation. The largest step (per-row processing) is naturally bounded; if a single row takes > 60s something is very wrong with the row, not the architecture. Set per-step timeout to 50s and let Inngest retry on timeout. |
+| Operator commits while Inngest is degraded (status page shows incident) | Manual override: a SUPERADMIN-only `POST /api/gold/imports/[id]/commit-sync` endpoint that bypasses Inngest and runs `processImportCommit` synchronously, capped at 100 rows. Used only as an escape hatch during Inngest incidents. |
