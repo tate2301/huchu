@@ -11,6 +11,8 @@ import {
 let companyId: string;
 let userId: string;
 let siteId: string;
+let witness1Id: string;
+let witness2Id: string;
 let pourId: string;
 let receiptId: string;
 
@@ -23,9 +25,13 @@ beforeAll(async () => {
   userId = u.id;
   const si = await prisma.site.create({ data: factories.site(companyId) });
   siteId = si.id;
+  const w1 = await prisma.employee.create({ data: factories.employee(companyId) });
+  witness1Id = w1.id;
+  const w2 = await prisma.employee.create({ data: factories.employee(companyId) });
+  witness2Id = w2.id;
   const pour = await prisma.goldPour.create({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    data: { ...factories.goldPour(siteId), companyId } as any,
+    data: { ...factories.goldPour(siteId, { witness1Id, witness2Id }), companyId } as any,
   });
   pourId = pour.id;
   const receiptFactory = factories.buyerReceipt(pourId);
@@ -43,6 +49,7 @@ afterAll(async () => {
   await prisma.goldLedgerCorrection.deleteMany({ where: { companyId } });
   await prisma.buyerReceipt.deleteMany({ where: { companyId } });
   await prisma.goldPour.deleteMany({ where: { companyId } });
+  await prisma.employee.deleteMany({ where: { companyId } });
   await prisma.site.delete({ where: { id: siteId } });
   await prisma.user.delete({ where: { id: userId } });
   await prisma.company.delete({ where: { id: companyId } });
