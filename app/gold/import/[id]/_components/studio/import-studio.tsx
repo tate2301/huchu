@@ -47,6 +47,7 @@ import { TabMappings } from "./tab-mappings";
 import { TabLedger } from "./tab-ledger";
 import { StudioActivityPanel } from "./studio-activity-panel";
 import { StudioCommentThread } from "./studio-comment-thread";
+import { StudioReconciliationPanel } from "./studio-reconciliation-panel";
 import {
   TabProducedPours,
   TabProducedReceipts,
@@ -96,6 +97,7 @@ export function ImportStudio() {
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [leaderTimeline, setLeaderTimeline] = useState<string | null>(null);
   const [commentEntryId, setCommentEntryId] = useState<string | null>(null);
+  const [reconciliationOpen, setReconciliationOpen] = useState(false);
   const yankBuffer = useRef<LedgerEntry[]>([]);
 
   const history = useStudioHistory();
@@ -521,6 +523,11 @@ export function ImportStudio() {
 
   const entries = useMemo(() => data?.entries ?? [], [data?.entries]);
 
+  const commentLineNo = useMemo(() => {
+    if (!commentEntryId) return undefined;
+    return entries.find((e) => e.id === commentEntryId)?.lineNo;
+  }, [commentEntryId, entries]);
+
   const filteredEntries = useMemo(() => {
     const f = studioFilter;
     const noFilter =
@@ -858,8 +865,46 @@ export function ImportStudio() {
                     onSwitchToMappings={() => setActiveTab("mappings")}
                   />
                 </div>
-                <div className="w-72 shrink-0 border-l border-[--border]">
-                  <StudioActivityPanel importId={id} />
+                <div className="flex w-72 shrink-0 flex-col border-l border-[--border]">
+                  <div className="flex shrink-0 border-b border-[--border] bg-[--surface-muted]">
+                    <button
+                      type="button"
+                      onClick={() => setReconciliationOpen(false)}
+                      className={cn(
+                        "flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors",
+                        !reconciliationOpen
+                          ? "bg-[--surface-base] text-[--text-strong]"
+                          : "text-[--text-muted] hover:text-[--text-body]",
+                      )}
+                    >
+                      Activity
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setReconciliationOpen(true)}
+                      className={cn(
+                        "flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors",
+                        reconciliationOpen
+                          ? "bg-[--surface-base] text-[--text-strong]"
+                          : "text-[--text-muted] hover:text-[--text-body]",
+                      )}
+                    >
+                      Reconcile
+                    </button>
+                  </div>
+                  <div className="min-h-0 flex-1">
+                    {reconciliationOpen ? (
+                      <StudioReconciliationPanel
+                        importData={data}
+                        onFilterByVariance={(scopeId) => {
+                          setStudioFilter((f) => ({ ...f, leaders: [scopeId] }));
+                          setActiveTab("ledger");
+                        }}
+                      />
+                    ) : (
+                      <StudioActivityPanel importId={id} />
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -940,6 +985,7 @@ export function ImportStudio() {
                     <StudioCommentThread
                       importId={id}
                       ledgerEntryId={commentEntryId}
+                      lineNo={commentLineNo}
                       onClose={() => setCommentEntryId(null)}
                     />
                   </div>

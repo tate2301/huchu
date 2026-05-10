@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AlertCircle, AlertTriangle, Info, Search, X, Sparkles, Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import {
@@ -24,7 +24,7 @@ import {
 
 const SEVERITY_TONE: Record<
   AnomalySeverity,
-  { dot: string; chip: string; ring: string; row: string; toggle: string }
+  { dot: string; chip: string; ring: string; row: string; toggle: string; focusRing: string }
 > = {
   CRITICAL: {
     dot: "bg-rose-500",
@@ -32,6 +32,7 @@ const SEVERITY_TONE: Record<
     ring: "ring-rose-300",
     row: "bg-rose-50/40",
     toggle: "border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100",
+    focusRing: "ring-2 ring-rose-400",
   },
   WARN: {
     dot: "bg-amber-500",
@@ -39,6 +40,7 @@ const SEVERITY_TONE: Record<
     ring: "ring-amber-300",
     row: "bg-amber-50/40",
     toggle: "border-amber-300 bg-amber-50 text-amber-700 hover:bg-amber-100",
+    focusRing: "ring-2 ring-amber-400",
   },
   INFO: {
     dot: "bg-sky-500",
@@ -46,6 +48,7 @@ const SEVERITY_TONE: Record<
     ring: "ring-sky-300",
     row: "bg-sky-50/20",
     toggle: "border-sky-300 bg-sky-50 text-sky-700 hover:bg-sky-100",
+    focusRing: "ring-2 ring-sky-400",
   },
 };
 
@@ -89,6 +92,9 @@ export function StudioAnomalyPanel({
   const [searchQuery, setSearchQuery] = useState("");
   const [bulkAcceptOpen, setBulkAcceptOpen] = useState(false);
   const [bulkReason, setBulkReason] = useState("");
+  const [focusedIdx, setFocusedIdx] = useState<number>(-1);
+  const listRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const toggleSeverity = useCallback((sev: AnomalySeverity) => {
     setSeverityFilter((prev) => {
@@ -119,8 +125,10 @@ export function StudioAnomalyPanel({
     });
   }, [summary, severityFilter, searchQuery, entries]);
 
-  const lineByEntry = useMemo(() => new Map(entries.map((e) => [e.id, e.lineNo] as const)), [entries]);
+  // Flat list of all anomalies in render order, for keyboard nav
+  const flatList = useMemo(() => filteredAnomalies, [filteredAnomalies]);
 
+  const lineByEntry = useMemo(() => new Map(entries.map((e) => [e.id, e.lineNo] as const)), [entries]);
   const nameByEntry = useMemo(() => new Map(entries.map((e) => [e.id, e.parsedName] as const)), [entries]);
 
   const grouped = useMemo(() => {
@@ -190,6 +198,64 @@ export function StudioAnomalyPanel({
     return result;
   }, [groupBy, filteredAnomalies, entries, nameByEntry]);
 
+  // Reset focus when list changes
+  useEffect(() => {
+    setFocusedIdx(-1);
+  }, [filteredAnomalies.length, searchQuery]);
+
+  // Keyboard navigation: j/k to move, Enter to jump, f to accept, / to focus search
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      const inSearch = target === searchRef.current;
+
+      if (e.key === "/" && !inSearch) {
+        e.preventDefault();
+        searchRef.current?.focus();
+        return;
+      }
+      if (inSearch) return;
+
+      if (e.key === "j" || e.key === "ArrowDown") {
+        e.preventDefault();
+        setFocusedIdx((i) => Math.min(i + 1, flatList.length - 1));
+        return;
+      }
+      if (e.key === "k" || e.key === "ArrowUp") {
+        e.preventDefault();
+        setFocusedIdx((i) => Math.max(i - 1, 0));
+        return;
+      }
+      if (e.key === "Enter" && focusedIdx >= 0 && focusedIdx < flatList.length) {
+        e.preventDefault();
+        onJumpTo(flatList[focusedIdx].entryId);
+        return;
+      }
+      if (e.key === "f" && focusedIdx >= 0 && focusedIdx < flatList.length) {
+        e.preventDefault();
+        const a = flatList[focusedIdx];
+        if (CODES_WITH_AUTO_FIX.includes(a.code) && a.suggestedFix && onAutoFix) {
+          onAutoFix(a);
+        }
+        return;
+      }
+      if (e.key === "Escape" && onClose) {
+        onClose();
+      }
+    };
+
+    const container = listRef.current;
+    container?.addEventListener("keydown", handler);
+    return () => container?.removeEventListener("keydown", handler);
+  }, [flatList, focusedIdx, onJumpTo, onAutoFix, onClose]);
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedIdx < 0) return;
+    const el = listRef.current?.querySelector(`[data-anomaly-idx="${focusedIdx}"]`);
+    el?.scrollIntoView({ block: "nearest" });
+  }, [focusedIdx]);
+
   const warnCount = summary?.countsBySeverity.WARN ?? 0;
   const total = filteredAnomalies.length;
 
@@ -206,16 +272,36 @@ export function StudioAnomalyPanel({
           onToggleSeverity={toggleSeverity}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
+          searchRef={searchRef}
         />
-        <div className="flex flex-1 items-center justify-center p-6 text-center">
-          <p className="text-xs text-[--text-muted]">No anomalies detected</p>
+        <div className="flex flex-1 flex-col items-center justify-center gap-1 p-6 text-center">
+          <Check className="h-5 w-5 text-emerald-500" />
+          <p className="text-xs font-medium text-[--text-strong]">No anomalies detected</p>
+          <p className="text-[11px] text-[--text-muted]">Run validation again after editing rows.</p>
         </div>
       </div>
     );
   }
 
+  // Build flat index across all groups for keyboard nav display
+  let globalIdx = 0;
+  const groupsWithIndex: Array<{
+    key: string;
+    label: string;
+    severity: AnomalySeverity;
+    items: Array<{ anomaly: Anomaly; idx: number }>;
+  }> = [];
+  for (const [key, group] of grouped.entries()) {
+    const items = group.items.map((a) => ({ anomaly: a, idx: globalIdx++ }));
+    groupsWithIndex.push({ key, label: group.label, severity: group.severity, items });
+  }
+
   return (
-    <div className="flex h-full flex-col overflow-hidden">
+    <div
+      ref={listRef}
+      tabIndex={-1}
+      className="flex h-full flex-col overflow-hidden outline-none"
+    >
       <PanelHeader
         onClose={onClose}
         total={total}
@@ -226,7 +312,21 @@ export function StudioAnomalyPanel({
         onToggleSeverity={toggleSeverity}
         searchQuery={searchQuery}
         onSearchChange={setSearchQuery}
+        searchRef={searchRef}
       />
+
+      {/* Keyboard hint bar */}
+      <div className="shrink-0 flex items-center gap-3 border-b border-[--border] bg-[--surface-muted] px-3 py-1">
+        <KbdHint keys={["j", "k"]} label="navigate" />
+        <KbdHint keys={["↵"]} label="jump to row" />
+        <KbdHint keys={["f"]} label="auto-fix" />
+        <KbdHint keys={["/"]} label="search" />
+        {focusedIdx >= 0 && (
+          <span className="ml-auto font-mono text-[10px] tabular-nums text-[--text-muted]">
+            {focusedIdx + 1} / {flatList.length}
+          </span>
+        )}
+      </div>
 
       {warnCount > 0 && onBulkAccept && (
         <div className="shrink-0 border-b border-[--border] px-3 py-1.5">
@@ -248,16 +348,16 @@ export function StudioAnomalyPanel({
           </p>
         ) : (
           <div className="space-y-3">
-            {Array.from(grouped.entries()).map(([key, group]) => {
+            {groupsWithIndex.map((group) => {
               const tone = SEVERITY_TONE[group.severity];
               return (
-                <section key={key}>
+                <section key={group.key}>
                   <h4 className="mb-1.5 flex items-center gap-1.5 px-1 text-[11px] font-semibold uppercase tracking-wide text-[--text-muted]">
                     <SeverityIcon severity={group.severity} className="h-3 w-3" />
                     <span className="truncate">{group.label}</span>
                     <span
                       className={cn(
-                        "ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium",
+                        "ml-auto shrink-0 rounded-full border px-1.5 py-0.5 text-[10px] font-medium tabular-nums",
                         tone.chip,
                       )}
                     >
@@ -265,12 +365,15 @@ export function StudioAnomalyPanel({
                     </span>
                   </h4>
                   <ul className="space-y-1">
-                    {group.items.map((a) => (
+                    {group.items.map(({ anomaly: a, idx }) => (
                       <AnomalyItem
                         key={`${a.entryId}:${a.code}:${a.message}`}
                         anomaly={a}
                         tone={tone}
                         lineNo={lineByEntry.get(a.entryId)}
+                        isFocused={focusedIdx === idx}
+                        dataIdx={idx}
+                        onFocus={() => setFocusedIdx(idx)}
                         onJumpTo={onJumpTo}
                         onAutoFix={
                           CODES_WITH_AUTO_FIX.includes(a.code) && a.suggestedFix && onAutoFix
@@ -326,27 +429,50 @@ export function StudioAnomalyPanel({
   );
 }
 
+function KbdHint({ keys, label }: { keys: string[]; label: string }) {
+  return (
+    <span className="flex items-center gap-0.5 text-[10px] text-[--text-muted]">
+      {keys.map((k) => (
+        <kbd
+          key={k}
+          className="rounded border border-[--border] bg-[--surface-base] px-0.5 font-mono text-[9px] text-[--text-muted]"
+        >
+          {k}
+        </kbd>
+      ))}
+      <span className="ml-0.5">{label}</span>
+    </span>
+  );
+}
+
 function AnomalyItem({
   anomaly,
   tone,
   lineNo,
+  isFocused,
+  dataIdx,
+  onFocus,
   onJumpTo,
   onAutoFix,
 }: {
   anomaly: Anomaly;
   tone: (typeof SEVERITY_TONE)[AnomalySeverity];
   lineNo: number | undefined;
+  isFocused: boolean;
+  dataIdx: number;
+  onFocus: () => void;
   onJumpTo: (entryId: string) => void;
   onAutoFix?: () => void;
 }) {
   return (
-    <li>
+    <li data-anomaly-idx={dataIdx}>
       <button
         type="button"
+        onMouseEnter={onFocus}
         onClick={() => onJumpTo(anomaly.entryId)}
         className={cn(
           "block w-full cursor-pointer rounded border bg-[--surface-base] p-2 text-left text-[11px] transition-colors hover:bg-[--surface-muted] focus:outline-none focus-visible:ring-1",
-          tone.ring,
+          isFocused ? cn(tone.focusRing, "bg-[--surface-muted]") : tone.ring,
         )}
       >
         <div className="flex items-center gap-1.5">
@@ -354,14 +480,17 @@ function AnomalyItem({
           <span className="font-medium text-[--text-strong]">
             {ANOMALY_LABEL[anomaly.code]}
           </span>
-          <span className="ml-auto font-mono text-[10px] text-[--text-muted]">
+          <span className="ml-auto font-mono tabular-nums text-[10px] text-[--text-muted]">
             L{lineNo ?? "?"}
           </span>
+          {isFocused && (
+            <span className="text-[10px] text-[--text-muted]" aria-hidden>↵</span>
+          )}
         </div>
         <p className="mt-0.5 text-[--text-body]">{anomaly.message}</p>
         {anomaly.suggestedFix && (
           <p className="mt-0.5 text-[10px] italic text-[--text-muted]">
-            Fix: {anomaly.suggestedFix}
+            Suggested: {anomaly.suggestedFix}
           </p>
         )}
       </button>
@@ -369,10 +498,12 @@ function AnomalyItem({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onAutoFix(); }}
+          title="Auto-fix this anomaly (f)"
           className="mt-0.5 flex w-full items-center gap-1 rounded border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700 hover:bg-emerald-100"
         >
           <Sparkles className="h-2.5 w-2.5" />
-          Auto-fix this
+          Auto-fix
+          <span className="ml-auto text-[9px] opacity-60">f</span>
         </button>
       )}
     </li>
@@ -389,6 +520,7 @@ function PanelHeader({
   onToggleSeverity,
   searchQuery,
   onSearchChange,
+  searchRef,
 }: {
   onClose?: () => void;
   total: number;
@@ -399,6 +531,7 @@ function PanelHeader({
   onToggleSeverity: (sev: AnomalySeverity) => void;
   searchQuery: string;
   onSearchChange: (q: string) => void;
+  searchRef?: React.RefObject<HTMLInputElement | null>;
 }) {
   return (
     <div className="flex shrink-0 flex-col gap-2 border-b border-[--border] px-3 py-2">
@@ -406,21 +539,43 @@ function PanelHeader({
         <span className="text-[11px] font-semibold uppercase tracking-wide text-[--text-muted]">
           Anomalies
           {total > 0 && (
-            <span className="ml-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold text-rose-800">
+            <span className="ml-1.5 rounded-full bg-rose-100 px-1.5 py-0.5 text-[10px] font-bold tabular-nums text-rose-800">
               {total}
             </span>
           )}
         </span>
-        {onClose && (
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded p-0.5 text-[--text-muted] hover:text-[--text-strong]"
-            aria-label="Close anomaly panel"
-          >
-            <X className="h-3.5 w-3.5" />
-          </button>
-        )}
+        <div className="flex items-center gap-1">
+          {onGroupByChange && (
+            <div className="flex items-center gap-0.5">
+              {(["severity", "code", "leader", "date"] as GroupBy[]).map((g) => (
+                <button
+                  key={g}
+                  type="button"
+                  onClick={() => onGroupByChange(g)}
+                  title={`Group by ${g}`}
+                  className={cn(
+                    "rounded px-1.5 py-0.5 text-[10px] font-medium transition-colors",
+                    groupBy === g
+                      ? "bg-[--action-secondary-bg] text-[--action-primary-bg]"
+                      : "text-[--text-muted] hover:text-[--text-body]",
+                  )}
+                >
+                  {g}
+                </button>
+              ))}
+            </div>
+          )}
+          {onClose && (
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded p-0.5 text-[--text-muted] hover:text-[--text-strong]"
+              aria-label="Close anomaly panel"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
       </div>
 
       {counts && (
@@ -434,8 +589,9 @@ function PanelHeader({
                 key={sev}
                 type="button"
                 onClick={() => onToggleSeverity(sev)}
+                title={`${active ? "Hide" : "Show"} ${sev.toLowerCase()} anomalies`}
                 className={cn(
-                  "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium transition-opacity",
+                  "inline-flex items-center gap-1 rounded border px-1.5 py-0.5 text-[10px] font-medium tabular-nums transition-opacity",
                   active ? tone.toggle : "border-[--border] bg-[--surface-base] text-[--text-muted] opacity-50",
                 )}
               >
@@ -450,10 +606,11 @@ function PanelHeader({
       <div className="relative">
         <Search className="absolute left-1.5 top-1/2 h-3 w-3 -translate-y-1/2 text-[--text-muted]" />
         <input
+          ref={searchRef}
           type="text"
           value={searchQuery}
           onChange={(e) => onSearchChange(e.target.value)}
-          placeholder="Search anomalies…"
+          placeholder="Search anomalies… (/)"
           className="w-full rounded border border-[--border] bg-[--surface-base] py-1 pl-6 pr-2 text-[11px] text-[--text-strong] placeholder:text-[--text-muted] focus:outline-none focus:ring-1 focus:ring-[--ring]"
         />
         {searchQuery && (
@@ -466,27 +623,7 @@ function PanelHeader({
           </button>
         )}
       </div>
-
-      {onGroupByChange && (
-        <div className="flex items-center gap-1">
-          <span className="text-[10px] text-[--text-muted]">Group</span>
-          {(["severity", "code", "leader", "date"] as GroupBy[]).map((g) => (
-            <button
-              key={g}
-              type="button"
-              onClick={() => onGroupByChange(g)}
-              className={cn(
-                "rounded px-1.5 py-0.5 text-[10px] font-medium",
-                groupBy === g
-                  ? "bg-[--action-secondary-bg] text-[--action-primary-bg]"
-                  : "text-[--text-muted] hover:text-[--text-body]",
-              )}
-            >
-              {g}
-            </button>
-          ))}
-        </div>
-      )}
     </div>
   );
 }
+
