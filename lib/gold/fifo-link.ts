@@ -6,6 +6,27 @@ import { recordInventoryEvent } from "@/lib/gold/inventory";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
+export type PlannedBatch = {
+  pourId: string;
+  pourBarId: string;
+  siteId: string;
+  siteName: string;
+  pourDate: Date;
+  grams: number;
+  valueUsd: number | null;
+};
+
+export type FifoSalePlan = {
+  consumedGrams: number;
+  remainingGrams: number;
+  isAnomaly: boolean;
+  plannedBatches: PlannedBatch[];
+  totalUsd: number | null;
+  priceUsdPerGram: number | null;
+  priceSource: "CONFIGURED" | "LIVE" | "FALLBACK" | null;
+  isCrossSite: boolean;
+};
+
 export type FifoSaleResult = {
   consumedGrams: number;
   remainingGrams: number;
@@ -19,6 +40,148 @@ export type FifoSaleResult = {
   consumedPourIds: string[];
   isAnomaly: boolean;
 };
+
+/** Shared pool query — same filter used by both plan and execute paths. */
+async function fetchFifoPool(
+  db: Db,
+  input: { companyId: string; siteId: string; directPourIds?: string[] },
+) {
+  if (input.directPourIds && input.directPourIds.length > 0) {
+    return db.goldPour.findMany({
+      where: {
+        id: { in: input.directPourIds },
+        companyId: input.companyId,
+        receiptBatches: { none: {} },
+        receipts: { none: {} },
+      },
+      orderBy: { pourDate: "asc" },
+      select: {
+        id: true,
+        grossWeight: true,
+        pourDate: true,
+        pourBarId: true,
+        siteId: true,
+        site: { select: { name: true } },
+      },
+    });
+  }
+  return db.goldPour.findMany({
+    where: {
+      siteId: input.siteId,
+      companyId: input.companyId,
+      receiptBatches: { none: {} },
+      receipts: { none: {} },
+      NOT: {
+        dispatches: {
+          some: {
+            OR: [
+              { buyerReceipts: { some: { goldPourId: null } } },
+              { receiptDispatches: { some: {} } },
+            ],
+          },
+        },
+      },
+    },
+    orderBy: { pourDate: "asc" },
+    select: {
+      id: true,
+      grossWeight: true,
+      pourDate: true,
+      pourBarId: true,
+      siteId: true,
+      site: { select: { name: true } },
+    },
+  });
+}
+
+/**
+ * Read-only projection of what linkFifoSale would consume. Does not write
+ * anything. Callers use this for live FIFO preview in the UI.
+ */
+export async function planFifoSale(
+  db: Db,
+  input: {
+    companyId: string;
+    siteId: string;
+    saleGrams: number;
+    saleDate: Date;
+    directPourIds?: string[];
+  },
+): Promise<FifoSalePlan> {
+  const empty: FifoSalePlan = {
+    consumedGrams: 0,
+    remainingGrams: input.saleGrams,
+    isAnomaly: false,
+    plannedBatches: [],
+    totalUsd: null,
+    priceUsdPerGram: null,
+    priceSource: null,
+    isCrossSite: false,
+  };
+
+  if (input.saleGrams <= 0) return empty;
+
+  const candidates = await fetchFifoPool(db, {
+    companyId: input.companyId,
+    siteId: input.siteId,
+    directPourIds: input.directPourIds,
+  });
+
+  const plannedBatches: PlannedBatch[] = [];
+  let remaining = input.saleGrams;
+  for (const pour of candidates) {
+    if (remaining <= 0) break;
+    const take = Math.min(Number(pour.grossWeight), remaining);
+    if (take <= 0) continue;
+    plannedBatches.push({
+      pourId: pour.id,
+      pourBarId: pour.pourBarId,
+      siteId: pour.siteId,
+      siteName: pour.site.name,
+      pourDate: pour.pourDate,
+      grams: take,
+      valueUsd: null, // filled in after price snapshot
+    });
+    remaining -= take;
+  }
+
+  const consumedGrams = plannedBatches.reduce((s, b) => s + b.grams, 0);
+  const remainingGrams = +(input.saleGrams - consumedGrams).toFixed(4);
+  const isAnomaly = remainingGrams > 0.0001;
+
+  const valuation = await snapshotGoldUsdValue({
+    companyId: input.companyId,
+    businessDate: input.saleDate,
+    grams: consumedGrams,
+  });
+  const priceUsdPerGram = valuation?.goldPriceUsdPerGram ?? null;
+
+  for (const batch of plannedBatches) {
+    batch.valueUsd =
+      priceUsdPerGram != null
+        ? Math.round(batch.grams * priceUsdPerGram * 100) / 100
+        : null;
+  }
+
+  const totalUsd =
+    priceUsdPerGram != null
+      ? Math.round(consumedGrams * priceUsdPerGram * 100) / 100
+      : null;
+
+  const siteIds = new Set(plannedBatches.map((b) => b.siteId));
+  const isCrossSite = siteIds.size > 1;
+
+  return {
+    consumedGrams,
+    remainingGrams: isAnomaly ? remainingGrams : 0,
+    isAnomaly,
+    plannedBatches,
+    totalUsd,
+    priceUsdPerGram,
+    priceSource: valuation ? "CONFIGURED" : null,
+    isCrossSite,
+  };
+}
 
 /**
  * Walks unsold pours for a site (oldest first), creating ONE aggregate
@@ -39,6 +202,7 @@ export async function linkFifoSale(
     notes?: string;
     sourceLabel?: string; // e.g., "ledger import line 17"
     createdById?: string;
+    directPourIds?: string[];
   },
 ): Promise<FifoSaleResult> {
   const result: FifoSaleResult = {
@@ -58,35 +222,10 @@ export async function linkFifoSale(
   // See review doc §3.3 P0-1.
   await db.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${'gold-fifo:' + input.siteId}))`;
 
-  // Pool of pours not yet receipted, oldest first. We now use the new
-  // BuyerReceiptBatch join: a pour is "unsold" if no batch row points to
-  // it. The legacy single-FK BuyerReceipt.goldPourId is also covered
-  // because the backfill script and the receipt creation paths in this
-  // codebase always create a BuyerReceiptBatch alongside legacy fields.
-  //
-  // Edge case: legacy receipts created with goldDispatchId set but
-  // goldPourId null — those are excluded by also rejecting any pour that
-  // shares a dispatch with such a "whole-dispatch" receipt (either via
-  // legacy BuyerReceipt or via the new BuyerReceiptDispatch join).
-  const candidates = await db.goldPour.findMany({
-    where: {
-      siteId: input.siteId,
-      companyId: input.companyId,
-      receiptBatches: { none: {} },
-      receipts: { none: {} },
-      NOT: {
-        dispatches: {
-          some: {
-            OR: [
-              { buyerReceipts: { some: { goldPourId: null } } },
-              { receiptDispatches: { some: {} } },
-            ],
-          },
-        },
-      },
-    },
-    orderBy: { pourDate: "asc" },
-    select: { id: true, grossWeight: true, pourDate: true, pourBarId: true },
+  const candidates = await fetchFifoPool(db, {
+    companyId: input.companyId,
+    siteId: input.siteId,
+    directPourIds: input.directPourIds,
   });
 
   // Plan the FIFO walk first so we can size the aggregate receipt before
