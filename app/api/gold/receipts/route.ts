@@ -432,10 +432,10 @@ export async function POST(request: NextRequest) {
         entryDate: created.receiptDate,
         description: `Gold receipt ${receiptNumber}`,
         createdById: session.user.id,
-        amount: created.paidValueUsd ?? created.paidAmount,
-        netAmount: created.paidValueUsd ?? created.paidAmount,
+        amount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
+        netAmount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
         taxAmount: 0,
-        grossAmount: created.paidValueUsd ?? created.paidAmount,
+        grossAmount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
       }, tx)
 
       return tx.buyerReceipt.findUnique({

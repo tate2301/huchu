@@ -34,6 +34,11 @@ function roundUsd(value: number): number {
   return Math.round(value * 100) / 100;
 }
 
+function toNum(value: number | { toNumber(): number } | null | undefined): number | null {
+  if (value == null) return null;
+  return typeof value === "number" ? value : value.toNumber();
+}
+
 function isValidRate(value: number | null | undefined): value is number {
   return typeof value === "number" && Number.isFinite(value) && value > 0;
 }
@@ -100,8 +105,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
   for (const payment of employeePayments) {
     const grams = payment.goldWeightGrams ?? payment.amount;
     const fallbackSnapshot = resolveSnapshot(prices, payment.periodEnd);
-    const goldPriceUsdPerGram = isValidRate(payment.goldPriceUsdPerGram)
-      ? payment.goldPriceUsdPerGram
+    const rawRate = payment.goldPriceUsdPerGram != null ? Number(payment.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
     const valuationDate =
       payment.valuationDate ??
@@ -151,8 +157,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
 
   for (const pour of pours) {
     const fallbackSnapshot = resolveSnapshot(prices, pour.pourDate);
-    const goldPriceUsdPerGram = isValidRate(pour.goldPriceUsdPerGram)
-      ? pour.goldPriceUsdPerGram
+    const rawRate = pour.goldPriceUsdPerGram != null ? Number(pour.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
     const valuationDate =
       pour.valuationDate ??
@@ -197,8 +204,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
 
   for (const dispatch of dispatches) {
     const fallbackSnapshot = resolveSnapshot(prices, dispatch.dispatchDate);
-    const goldPriceUsdPerGram = isValidRate(dispatch.goldPriceUsdPerGram)
-      ? dispatch.goldPriceUsdPerGram
+    const rawRate = dispatch.goldPriceUsdPerGram != null ? Number(dispatch.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
     const valuationDate =
       dispatch.valuationDate ??
@@ -250,8 +258,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
 
   for (const receipt of receipts) {
     const fallbackSnapshot = resolveSnapshot(prices, receipt.receiptDate);
-    const goldPriceUsdPerGram = isValidRate(receipt.goldPriceUsdPerGram)
-      ? receipt.goldPriceUsdPerGram
+    const rawRate = receipt.goldPriceUsdPerGram != null ? Number(receipt.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
     const valuationDate =
       receipt.valuationDate ??
@@ -269,7 +278,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
         data: {
           goldPriceUsdPerGram,
           valuationDate,
-          paidValueUsd: roundUsd(receipt.paidAmount * goldPriceUsdPerGram),
+          paidValueUsd: roundUsd(Number(receipt.paidAmount) * goldPriceUsdPerGram),
         },
       });
     }
@@ -304,8 +313,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
 
   for (const allocation of allocations) {
     const fallbackSnapshot = resolveSnapshot(prices, allocation.date);
-    const goldPriceUsdPerGram = isValidRate(allocation.goldPriceUsdPerGram)
-      ? allocation.goldPriceUsdPerGram
+    const rawRate = allocation.goldPriceUsdPerGram != null ? Number(allocation.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
     const valuationDate =
       allocation.valuationDate ??
@@ -353,8 +363,9 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
 
   for (const share of workerShares) {
     const fallbackSnapshot = resolveSnapshot(prices, share.allocation.date);
-    const goldPriceUsdPerGram = isValidRate(share.allocation.goldPriceUsdPerGram)
-      ? share.allocation.goldPriceUsdPerGram
+    const rawRate = share.allocation.goldPriceUsdPerGram != null ? Number(share.allocation.goldPriceUsdPerGram) : null;
+    const goldPriceUsdPerGram = isValidRate(rawRate)
+      ? rawRate
       : fallbackSnapshot?.priceUsdPerGram;
 
     if (!isValidRate(goldPriceUsdPerGram)) {

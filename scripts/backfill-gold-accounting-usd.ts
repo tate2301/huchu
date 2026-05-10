@@ -165,26 +165,32 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
 
     if (entry.sourceType === "GOLD_PURCHASE") {
       const purchase = purchaseById.get(sourceId);
-      if (purchase) targetAmountUsd = purchase.paidAmount;
+      if (purchase) targetAmountUsd = Number(purchase.paidAmount);
     } else if (entry.sourceType === "GOLD_RECEIPT") {
       const receipt = receiptById.get(sourceId);
       if (receipt) {
+        const rPaidValueUsd = receipt.paidValueUsd != null ? Number(receipt.paidValueUsd) : null;
+        const rGoldPrice = receipt.goldPriceUsdPerGram != null ? Number(receipt.goldPriceUsdPerGram) : null;
         targetAmountUsd =
-          receipt.paidValueUsd ??
-          (isFinitePositive(receipt.goldPriceUsdPerGram)
-            ? roundMoney(receipt.paidAmount * receipt.goldPriceUsdPerGram)
+          rPaidValueUsd ??
+          (isFinitePositive(rGoldPrice)
+            ? roundMoney(Number(receipt.paidAmount) * rGoldPrice)
             : null);
       }
     } else if (entry.sourceType === "GOLD_DISPATCH") {
       const dispatch = dispatchById.get(sourceId);
       if (dispatch) {
+        const dValueUsd = dispatch.valueUsd != null ? Number(dispatch.valueUsd) : null;
+        const dPourValueUsd = dispatch.goldPour.valueUsd != null ? Number(dispatch.goldPour.valueUsd) : null;
+        const dGoldPrice = dispatch.goldPriceUsdPerGram != null ? Number(dispatch.goldPriceUsdPerGram) : null;
+        const dPourGoldPrice = dispatch.goldPour.goldPriceUsdPerGram != null ? Number(dispatch.goldPour.goldPriceUsdPerGram) : null;
         targetAmountUsd =
-          dispatch.valueUsd ??
-          dispatch.goldPour.valueUsd ??
-          (isFinitePositive(dispatch.goldPriceUsdPerGram)
-            ? roundMoney(Number(dispatch.goldPour.grossWeight) * dispatch.goldPriceUsdPerGram)
-            : isFinitePositive(dispatch.goldPour.goldPriceUsdPerGram)
-              ? roundMoney(Number(dispatch.goldPour.grossWeight) * dispatch.goldPour.goldPriceUsdPerGram)
+          dValueUsd ??
+          dPourValueUsd ??
+          (isFinitePositive(dGoldPrice)
+            ? roundMoney(Number(dispatch.goldPour.grossWeight) * dGoldPrice)
+            : isFinitePositive(dPourGoldPrice)
+              ? roundMoney(Number(dispatch.goldPour.grossWeight) * dPourGoldPrice)
               : null);
       }
     }

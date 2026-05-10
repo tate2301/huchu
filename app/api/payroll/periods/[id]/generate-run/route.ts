@@ -198,13 +198,14 @@ async function buildIrregularPayoutRunDraft(input: {
 
     for (const workerShare of allocation.workerShares) {
       const current = payoutByEmployee.get(workerShare.employeeId) ?? { goldWeight: 0, valueUsd: 0 }
+      const allocGoldPrice = allocation.goldPriceUsdPerGram != null ? Number(allocation.goldPriceUsdPerGram) : 0;
       const fallbackValueUsd =
-        (allocation.goldPriceUsdPerGram ?? 0) > 0
-          ? Number(workerShare.shareWeight) * (allocation.goldPriceUsdPerGram ?? 0)
+        allocGoldPrice > 0
+          ? Number(workerShare.shareWeight) * allocGoldPrice
           : 0
       payoutByEmployee.set(workerShare.employeeId, {
         goldWeight: current.goldWeight + Number(workerShare.shareWeight),
-        valueUsd: current.valueUsd + (workerShare.shareValueUsd ?? fallbackValueUsd),
+        valueUsd: current.valueUsd + (workerShare.shareValueUsd != null ? Number(workerShare.shareValueUsd) : fallbackValueUsd),
       })
     }
   }

@@ -143,15 +143,18 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
       summary.updatedCreatedBy += 1;
     }
 
-    const targetValueUsd = isFiniteNumber(allocation.totalWeightValueUsd)
-      ? roundUsd(allocation.totalWeightValueUsd)
-      : isFiniteNumber(pour.goldPriceUsdPerGram)
-        ? roundUsd(Number(allocation.totalWeight) * pour.goldPriceUsdPerGram)
+    const allocationTotalWeightValueUsd = allocation.totalWeightValueUsd != null ? Number(allocation.totalWeightValueUsd) : null;
+    const pourGoldPriceUsdPerGram = pour.goldPriceUsdPerGram != null ? Number(pour.goldPriceUsdPerGram) : null;
+    const pourValueUsd = pour.valueUsd != null ? Number(pour.valueUsd) : null;
+    const targetValueUsd = isFiniteNumber(allocationTotalWeightValueUsd)
+      ? roundUsd(allocationTotalWeightValueUsd)
+      : isFiniteNumber(pourGoldPriceUsdPerGram)
+        ? roundUsd(Number(allocation.totalWeight) * pourGoldPriceUsdPerGram)
         : null;
 
     if (
       targetValueUsd !== null &&
-      (!isFiniteNumber(pour.valueUsd) || Math.abs(pour.valueUsd - targetValueUsd) > 0.005)
+      (!isFiniteNumber(pourValueUsd) || Math.abs(pourValueUsd - targetValueUsd) > 0.005)
     ) {
       nextData.valueUsd = targetValueUsd;
       summary.updatedValueUsd += 1;

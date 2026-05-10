@@ -170,8 +170,8 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    const sumPaidUsd = (rows: Array<{ paidValueUsd: number | null; paidAmount: number }>) =>
-      rows.reduce((sum, row) => sum + (row.paidValueUsd ?? row.paidAmount ?? 0), 0)
+    const sumPaidUsd = (rows: Array<{ paidValueUsd: number | { toNumber(): number } | null; paidAmount: number | { toNumber(): number } }>) =>
+      rows.reduce((sum, row) => sum + (row.paidValueUsd != null ? Number(row.paidValueUsd) : Number(row.paidAmount) ?? 0), 0)
 
     // Post Epic-6: grossWeight is Prisma.Decimal; coerce to Number for the JS sum.
     const sumWeight = (rows: Array<{ grossWeight: unknown }>) =>
@@ -194,13 +194,13 @@ export async function GET(request: NextRequest) {
       0,
     )
     const awaitingSaleUsd = undispatchedAndUnsoldPours.reduce((sum, pour) => {
-      if (pour.valueUsd != null) return sum + pour.valueUsd
+      if (pour.valueUsd != null) return sum + Number(pour.valueUsd)
       if (spotUsdPerGram != null) return sum + Number(pour.grossWeight) * spotUsdPerGram
       return sum
     }, 0)
 
     const owedToWorkersUsd = workerSharesUnpaid.reduce((sum, share) => {
-      if (share.shareValueUsd != null) return sum + share.shareValueUsd
+      if (share.shareValueUsd != null) return sum + Number(share.shareValueUsd)
       if (spotUsdPerGram != null) return sum + Number(share.shareWeight) * spotUsdPerGram
       return sum
     }, 0)
@@ -217,7 +217,7 @@ export async function GET(request: NextRequest) {
       const entry = dailyMap.get(key)
       if (!entry) continue
       entry.grams += Number(pour.grossWeight)
-      entry.usd += pour.valueUsd ?? 0
+      entry.usd += pour.valueUsd != null ? Number(pour.valueUsd) : 0
     }
     const dailyProductionSeries = Array.from(dailyMap.entries()).map(
       ([date, { grams, usd }]) => ({ date, grams, usd }),

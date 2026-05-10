@@ -312,10 +312,10 @@ export async function POST(request: NextRequest) {
         entryDate: created.purchaseDate,
         description: `Gold purchase ${created.purchaseNumber}`,
         createdById: session.user.id,
-        amount: created.paidAmount,
-        netAmount: created.paidAmount,
+        amount: Number(created.paidAmount),
+        netAmount: Number(created.paidAmount),
         taxAmount: 0,
-        grossAmount: created.paidAmount,
+        grossAmount: Number(created.paidAmount),
       }, tx)
 
       return created

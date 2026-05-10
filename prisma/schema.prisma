@@ -2034,7 +2034,7 @@ model GoldSpotPriceCache {
   id              String   @id @default(uuid())
   fetchedAt       DateTime @default(now())
   source          String   // e.g. "metals-api", "lbma-am-fix"
-  priceUsdPerGram Float
+  priceUsdPerGram Decimal  @db.Decimal(12, 4)
   rawResponse     String?  // JSON string
 
   @@index([fetchedAt])
@@ -2089,10 +2089,10 @@ model GoldPour {
   additionalExpensesWeight Decimal?         @db.Decimal(12, 4)
   additionalExpensesNote   String?
   notes                    String?
-  goldPriceUsdPerGram      Float?
+  goldPriceUsdPerGram      Decimal?         @db.Decimal(12, 4)
   goldPriceSource          GoldPriceSource?
   valuationDate            DateTime?
-  valueUsd                 Float?
+  valueUsd                 Decimal?         @db.Decimal(14, 2)
 
   // Audit trail
   createdAt   DateTime @default(now())
@@ -2145,7 +2145,7 @@ model GoldPurchase {
   storageLocation  String
   receiver1Id      String
   receiver2Id      String
-  paidAmount       Float
+  paidAmount       Decimal        @db.Decimal(14, 2)
   currency         String         @default("USD")
   paymentMethod    String
   paymentChannel   String?
@@ -2183,10 +2183,10 @@ model GoldDispatch {
   handedOverById      String
   receivedBy          String?
   notes               String?
-  goldPriceUsdPerGram Float?
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
   goldPriceSource     GoldPriceSource?
   valuationDate       DateTime?
-  valueUsd            Float?
+  valueUsd            Decimal?         @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2230,15 +2230,15 @@ model BuyerReceipt {
   receiptNumber       String
   receiptDate         DateTime
   assayResult         Decimal? @db.Decimal(5, 2) // actual purity
-  paidAmount          Float
+  paidAmount          Decimal  @db.Decimal(14, 2)
   paymentMethod       String
   paymentChannel      String?
   paymentReference    String?
   notes               String?
-  goldPriceUsdPerGram Float?
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
   goldPriceSource     GoldPriceSource?
   valuationDate       DateTime?
-  paidValueUsd        Float?
+  paidValueUsd        Decimal?         @db.Decimal(14, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2270,8 +2270,8 @@ model BuyerReceiptBatch {
   goldPourId          String
   companyId           String?
   grams               Decimal          @db.Decimal(12, 4)
-  valueUsd            Float?
-  goldPriceUsdPerGram Float?
+  valueUsd            Decimal?         @db.Decimal(14, 2)
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
   goldPriceSource     GoldPriceSource?
   notes               String?
   createdAt           DateTime @default(now())
@@ -2318,14 +2318,14 @@ model GoldShiftAllocation {
   workerShareWeight         Decimal            @db.Decimal(12, 4)
   companyShareWeight        Decimal            @db.Decimal(12, 4)
   perWorkerWeight           Decimal            @db.Decimal(12, 4)
-  goldPriceUsdPerGram       Float?
+  goldPriceUsdPerGram       Decimal?           @db.Decimal(12, 4)
   goldPriceSource           GoldPriceSource?
   valuationDate             DateTime?
-  totalWeightValueUsd       Float?
-  netWeightValueUsd         Float?
-  workerShareValueUsd       Float?
-  companyShareValueUsd      Float?
-  perWorkerValueUsd         Float?
+  totalWeightValueUsd       Decimal?           @db.Decimal(14, 2)
+  netWeightValueUsd         Decimal?           @db.Decimal(14, 2)
+  workerShareValueUsd       Decimal?           @db.Decimal(14, 2)
+  companyShareValueUsd      Decimal?           @db.Decimal(14, 2)
+  perWorkerValueUsd         Decimal?           @db.Decimal(14, 2)
   payCycleWeeks             Int                @default(2)
   workflowStatus            WorkflowStatus     @default(DRAFT)
   createdById               String
@@ -2369,8 +2369,8 @@ model GoldShiftWorkerShare {
   id            String @id @default(uuid())
   allocationId  String
   employeeId    String
-  shareWeight   Decimal @db.Decimal(12, 4)
-  shareValueUsd Float?
+  shareWeight   Decimal  @db.Decimal(12, 4)
+  shareValueUsd Decimal? @db.Decimal(14, 2)
 
   allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
   employee   Employee            @relation(fields: [employeeId], references: [id])
@@ -2427,9 +2427,9 @@ model GoldInventoryEvent {
   eventDate           DateTime
   direction           GoldInventoryDirection
   grams               Decimal                 @db.Decimal(12, 4)
-  goldPriceUsdPerGram Float?
+  goldPriceUsdPerGram Decimal?                @db.Decimal(12, 4)
   goldPriceSource     GoldPriceSource?
-  valueUsd            Float?
+  valueUsd            Decimal?                @db.Decimal(14, 2)
   sourceType          GoldInventorySourceType
   sourceId            String?
   notes               String?

@@ -567,10 +567,10 @@ export async function getExecutiveDashboardAggregations({
   const workforceLiability = salaryOwed + goldPayoutOwed;
   const nearTermNetPosition = receivablesDueSoon - payablesDueSoon;
 
-  const goldProducedValue = round(goldPoursCurrent._sum.valueUsd ?? 0);
-  const previousGoldProducedValue = round(goldPoursPrevious._sum.valueUsd ?? 0);
-  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidValueUsd ?? 0);
-  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidValueUsd ?? 0);
+  const goldProducedValue = round(goldPoursCurrent._sum.valueUsd != null ? Number(goldPoursCurrent._sum.valueUsd) : 0);
+  const previousGoldProducedValue = round(goldPoursPrevious._sum.valueUsd != null ? Number(goldPoursPrevious._sum.valueUsd) : 0);
+  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidValueUsd != null ? Number(buyerReceiptsCurrent._sum.paidValueUsd) : 0);
+  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidValueUsd != null ? Number(buyerReceiptsPrevious._sum.paidValueUsd) : 0);
 
   const plantThroughput = round(plantCurrent._sum.tonnesProcessed ?? 0);
   const previousPlantThroughput = round(plantPrevious._sum.tonnesProcessed ?? 0);
@@ -593,9 +593,9 @@ export async function getExecutiveDashboardAggregations({
     goldPoursDaily.map((row) => ({
       date: row.pourDate,
       value:
-        row.valueUsd ??
-        ((row.goldPriceUsdPerGram ?? 0) > 0
-          ? Number(row.grossWeight ?? 0) * (row.goldPriceUsdPerGram ?? 0)
+        row.valueUsd != null ? Number(row.valueUsd) :
+        ((row.goldPriceUsdPerGram != null && Number(row.goldPriceUsdPerGram) > 0)
+          ? Number(row.grossWeight ?? 0) * Number(row.goldPriceUsdPerGram)
           : 0),
     })),
   );

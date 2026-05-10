@@ -482,13 +482,13 @@ export async function POST(request: NextRequest) {
           sourceId: allocation.id,
           entryDate: allocation.date,
           description: `Gold company share (Mdara) — allocation ${allocation.id}`,
-          amount: allocation.companyShareValueUsd ?? Number(allocation.companyShareWeight),
-          netAmount: allocation.companyShareValueUsd ?? undefined,
-          grossAmount: allocation.companyShareValueUsd ?? undefined,
+          amount: allocation.companyShareValueUsd != null ? Number(allocation.companyShareValueUsd) : Number(allocation.companyShareWeight),
+          netAmount: allocation.companyShareValueUsd != null ? Number(allocation.companyShareValueUsd) : undefined,
+          grossAmount: allocation.companyShareValueUsd != null ? Number(allocation.companyShareValueUsd) : undefined,
           payload: {
             ...sharedPayload,
             shareWeight: Number(allocation.companyShareWeight),
-            shareValueUsd: allocation.companyShareValueUsd,
+            shareValueUsd: allocation.companyShareValueUsd != null ? Number(allocation.companyShareValueUsd) : null,
           },
           createdById: session.user.id,
           status: "PENDING",
@@ -505,13 +505,13 @@ export async function POST(request: NextRequest) {
           sourceId: allocation.id,
           entryDate: allocation.date,
           description: `Gold worker share (Boys) — allocation ${allocation.id}`,
-          amount: allocation.workerShareValueUsd ?? Number(allocation.workerShareWeight),
-          netAmount: allocation.workerShareValueUsd ?? undefined,
-          grossAmount: allocation.workerShareValueUsd ?? undefined,
+          amount: allocation.workerShareValueUsd != null ? Number(allocation.workerShareValueUsd) : Number(allocation.workerShareWeight),
+          netAmount: allocation.workerShareValueUsd != null ? Number(allocation.workerShareValueUsd) : undefined,
+          grossAmount: allocation.workerShareValueUsd != null ? Number(allocation.workerShareValueUsd) : undefined,
           payload: {
             ...sharedPayload,
             shareWeight: Number(allocation.workerShareWeight),
-            shareValueUsd: allocation.workerShareValueUsd,
+            shareValueUsd: allocation.workerShareValueUsd != null ? Number(allocation.workerShareValueUsd) : null,
             payoutRecordsCreated: result.payoutRecordsCreated,
           },
           createdById: session.user.id,
@@ -520,7 +520,7 @@ export async function POST(request: NextRequest) {
       }
 
       // Per-expense
-      const goldPrice = allocation.goldPriceUsdPerGram ?? 0
+      const goldPrice = allocation.goldPriceUsdPerGram != null ? Number(allocation.goldPriceUsdPerGram) : 0
       for (const expense of allocation.expenses) {
         const expenseValueUsd = goldPrice
           ? Math.round(Number(expense.weight) * goldPrice * 100) / 100

@@ -37,7 +37,7 @@ export async function resolveGoldPriceUsdPerGram(
     });
     if (cached) {
       return {
-        priceUsdPerGram: cached.priceUsdPerGram,
+        priceUsdPerGram: Number(cached.priceUsdPerGram),
         source: "LIVE",
         valuationDate: cached.fetchedAt,
       };
