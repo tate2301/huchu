@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { AUTO_PAYOUT_NOTE_PREFIX } from "@/lib/gold-payouts"
-import { convertUsdToGrams } from "@/lib/gold/valuation"
+import { applyDisbursementToGoldShares } from "@/lib/gold-payouts"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import {
@@ -132,105 +131,11 @@ export async function POST(
         })
 
         if (isGoldRun) {
-          const linkedGoldPayments = await tx.employeePayment.findMany({
-            where: {
-              employeeId: updatedItem.employeeId,
-              OR: [
-                { type: "GOLD", notes: { startsWith: AUTO_PAYOUT_NOTE_PREFIX } },
-                {
-                  type: "IRREGULAR",
-                  payoutSource: "GOLD",
-                  goldShiftAllocationId: { not: null },
-                },
-              ],
-              ...(batch.payrollRun.goldSettlementMode === "NEXT_PERIOD"
-                ? {
-                    dueDate: {
-                      gte: batch.payrollRun.period.startDate,
-                      lte: batch.payrollRun.period.endDate,
-                    },
-                  }
-                : {
-                    periodStart: { lte: batch.payrollRun.period.endDate },
-                    periodEnd: { gte: batch.payrollRun.period.startDate },
-                  }),
-            },
-            orderBy: [{ periodStart: "asc" }, { createdAt: "asc" }],
+          await applyDisbursementToGoldShares(tx, {
+            updatedItem,
+            batch,
+            createdById: session.user.id,
           })
-
-          if (linkedGoldPayments.length > 0) {
-            let remainingPaidUsd = updatedItem.paidAmount ?? 0
-
-            for (const linked of linkedGoldPayments) {
-              const amountUsd =
-                linked.amountUsd ??
-                ((linked.goldPriceUsdPerGram ?? 0) > 0
-                  ? linked.amount * (linked.goldPriceUsdPerGram ?? 0)
-                  : linked.amount)
-              const paidAmountUsd =
-                remainingPaidUsd > 0 ? Math.min(amountUsd, remainingPaidUsd) : 0
-              remainingPaidUsd = Math.max(remainingPaidUsd - paidAmountUsd, 0)
-
-              const sourceWeightGrams = linked.goldWeightGrams ?? linked.amount
-              let paidGoldForRecord = 0
-              if ((linked.goldPriceUsdPerGram ?? 0) > 0) {
-                paidGoldForRecord = convertUsdToGrams({
-                  usd: paidAmountUsd,
-                  goldPriceUsdPerGram: linked.goldPriceUsdPerGram ?? 0,
-                })
-              } else if (amountUsd > 0 && sourceWeightGrams > 0) {
-                paidGoldForRecord = (paidAmountUsd / amountUsd) * sourceWeightGrams
-              }
-              paidGoldForRecord = Math.max(0, Math.min(paidGoldForRecord, sourceWeightGrams))
-
-              await tx.employeePayment.update({
-                where: { id: linked.id },
-                data: {
-                  amountUsd,
-                  paidAmountUsd: paidAmountUsd > 0 ? paidAmountUsd : null,
-                  goldWeightGrams: sourceWeightGrams,
-                  paidAmount: paidGoldForRecord > 0 ? paidGoldForRecord : null,
-                  paidAt: paidGoldForRecord > 0 ? updatedItem.paidAt : null,
-                  status: derivePaidStatus(amountUsd, paidAmountUsd),
-                  notes: linked.notes ?? `AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:${batch.id}`,
-                  payrollRunId: batch.payrollRunId,
-                  payrollLineItemId: updatedItem.lineItemId,
-                  disbursementBatchId: batch.id,
-                  disbursementItemId: updatedItem.id,
-                },
-              })
-            }
-          } else {
-            await tx.employeePayment.create({
-              data: {
-                employeeId: updatedItem.employeeId,
-                type: "IRREGULAR",
-                payoutSource: "GOLD",
-                periodStart: batch.payrollRun.period.startDate,
-                periodEnd: batch.payrollRun.period.endDate,
-                dueDate: batch.payrollRun.period.dueDate,
-                amount: updatedItem.lineItem.baseAmount,
-                amountUsd: updatedItem.amount,
-                unit: updatedItem.lineItem.currency,
-                goldWeightGrams: updatedItem.lineItem.baseAmount,
-                goldPriceUsdPerGram:
-                  updatedItem.lineItem.baseAmount > 0
-                    ? updatedItem.amount / updatedItem.lineItem.baseAmount
-                    : null,
-                valuationDate: batch.payrollRun.period.endDate,
-                paidAmount: updatedItem.paidAmount,
-                paidAmountUsd: updatedItem.paidAmount,
-                paidAt: updatedItem.paidAt,
-                status: derivePaidStatus(updatedItem.amount, updatedItem.paidAmount ?? 0),
-                notes: updatedItem.notes ?? `Gold disbursement batch ${batch.code}`,
-                createdById: session.user.id,
-                payrollRunId: batch.payrollRunId,
-                payrollLineItemId: updatedItem.lineItemId,
-                disbursementBatchId: batch.id,
-                disbursementItemId: updatedItem.id,
-              },
-            })
-          }
         } else if (isIrregularRun) {
           const existingPayment = await tx.employeePayment.findFirst({
             where: { disbursementItemId: updatedItem.id },

@@ -20,16 +20,7 @@ export type ShiftExpenseInput = {
   weight: string;
 };
 
-export type SearchableOption = {
-  value: string;
-  label: string;
-  description?: string;
-  meta?: string;
-  avatarUrl?: string;
-  badgeVariant?: "default" | "secondary" | "destructive" | "outline";
-  disabled?: boolean;
-  disabledReason?: string;
-};
+export type { SearchableOption } from "@/components/ui/searchable-select";
 
 export type WorkerPayout = {
   id: string;

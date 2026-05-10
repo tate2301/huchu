@@ -7,8 +7,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Save, Send, Trash2, UserCheck, UserX } from "@/lib/icons";
 
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableOption } from "@/components/ui/searchable-select";
 import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";

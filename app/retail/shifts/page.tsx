@@ -11,8 +11,8 @@ import {
   AdminDonutChart,
   AdminTrendChart,
 } from "@/components/charts/admin-headless-charts";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
+import { SearchableSelect } from "@/components/ui/searchable-select";
+import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
