@@ -1,4 +1,3 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -9,96 +8,35 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { prisma } from "@/lib/prisma";
+import {
+  createGoldLedgerCorrection,
+  captureGoldCorrectionAccountingEvent,
+  verifyEntityOwnership,
+  type SupportedEntityType,
+} from "@/lib/gold/corrections";
+
+// Legacy JSON-blob correction GET kept for read-only backward compat.
+// New structured rows are the source of truth from this commit forward.
+// TODO: drop GoldPour.corrections JSON column in a future cleanup sprint.
+
+const SUPPORTED_ENTITY_TYPES = [
+  "GoldPour",
+  "GoldPurchase",
+  "GoldDispatch",
+  "GoldShiftAllocation",
+] as const;
 
 const correctionSchema = z.object({
-  entityType: z.enum(["POUR", "DISPATCH", "RECEIPT"]),
+  entityType: z.enum(SUPPORTED_ENTITY_TYPES),
   entityId: z.string().uuid(),
+  type: z.enum(["ADJUST_AMOUNT", "ADJUST_ASSAY", "ADJUST_GRAMS", "VOID", "RECLASSIFY", "OTHER"]),
   reason: z.string().min(3).max(1000),
-  beforeSnapshot: z.unknown().optional(),
-  afterSnapshot: z.unknown().optional(),
+  beforeJson: z.unknown().optional(),
+  afterJson: z.unknown().optional(),
+  deltaUsd: z.number().optional().nullable(),
+  deltaGrams: z.number().optional().nullable(),
 });
-
-type GoldCorrectionEvent = {
-  id: string;
-  pourId: string;
-  entityType: "POUR" | "DISPATCH" | "RECEIPT";
-  entityId: string;
-  reason: string;
-  beforeSnapshot?: unknown;
-  afterSnapshot?: unknown;
-  createdAt: string;
-  createdBy: { id: string; name: string };
-};
-
-function parseCorrections(raw: string | null): GoldCorrectionEvent[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter(
-      (item) =>
-        item &&
-        typeof item === "object" &&
-        typeof item.id === "string" &&
-        typeof item.pourId === "string" &&
-        typeof item.entityType === "string" &&
-        typeof item.entityId === "string" &&
-        typeof item.reason === "string" &&
-        typeof item.createdAt === "string" &&
-        item.createdBy &&
-        typeof item.createdBy.id === "string" &&
-        typeof item.createdBy.name === "string",
-    ) as GoldCorrectionEvent[];
-  } catch {
-    return [];
-  }
-}
-
-async function resolveCorrectionTarget(
-  companyId: string,
-  entityType: "POUR" | "DISPATCH" | "RECEIPT",
-  entityId: string,
-) {
-  if (entityType === "POUR") {
-    const pour = await prisma.goldPour.findUnique({
-      where: { id: entityId },
-      select: { id: true, companyId: true },
-    });
-    if (!pour || pour.companyId !== companyId) return null;
-    return { pourId: pour.id };
-  }
-
-  if (entityType === "DISPATCH") {
-    const dispatch = await prisma.goldDispatch.findUnique({
-      where: { id: entityId },
-      select: {
-        id: true,
-        companyId: true,
-        goldPour: { select: { id: true } },
-      },
-    });
-    if (!dispatch || dispatch.companyId !== companyId) return null;
-    return { pourId: dispatch.goldPour.id };
-  }
-
-  const receipt = await prisma.buyerReceipt.findUnique({
-    where: { id: entityId },
-    select: {
-      id: true,
-      companyId: true,
-      goldPour: { select: { id: true } },
-      goldDispatch: { select: { goldPour: { select: { id: true } } } },
-    },
-  });
-
-  const receiptPour = receipt?.goldPour ?? receipt?.goldDispatch?.goldPour;
-  if (!receipt || !receiptPour || receipt.companyId !== companyId) {
-    return null;
-  }
-  return { pourId: receiptPour.id };
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -107,51 +45,70 @@ export async function GET(request: NextRequest) {
     const { session } = sessionResult;
 
     const { searchParams } = new URL(request.url);
-    const siteId = searchParams.get("siteId");
-    const pourId = searchParams.get("pourId");
     const entityType = searchParams.get("entityType");
-    const { page, limit } = getPaginationParams(request);
+    const entityId = searchParams.get("entityId");
+    const { page, limit, skip } = getPaginationParams(request);
 
-    const where: Record<string, unknown> = {
+    const where: {
+      companyId: string;
+      entityType?: string;
+      entityId?: string;
+    } = {
       companyId: session.user.companyId,
     };
-    if (siteId) where.siteId = siteId;
-    if (pourId) where.id = pourId;
+    if (entityType) where.entityType = entityType;
+    if (entityId) where.entityId = entityId;
 
-    const pours = await prisma.goldPour.findMany({
-      where,
-      select: {
-        id: true,
-        pourBarId: true,
-        site: { select: { id: true, name: true, code: true } },
-        corrections: true,
-      },
-      orderBy: { pourDate: "desc" },
-    });
+    const [corrections, total] = await prisma.$transaction([
+      prisma.goldLedgerCorrection.findMany({
+        where,
+        orderBy: { createdAt: "desc" },
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          entityType: true,
+          entityId: true,
+          type: true,
+          reason: true,
+          beforeJson: true,
+          afterJson: true,
+          deltaUsd: true,
+          deltaGrams: true,
+          adjustmentEntryId: true,
+          createdAt: true,
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+      }),
+      prisma.goldLedgerCorrection.count({ where }),
+    ]);
 
-    const flattened = pours.flatMap((pour) => {
-      const entries = parseCorrections(pour.corrections);
-      return entries
-        .filter((entry) => !entityType || entry.entityType === entityType)
-        .map((entry) => ({
-          ...entry,
-          pour: {
-            id: pour.id,
-            pourBarId: pour.pourBarId,
-            site: pour.site,
-          },
-        }));
-    });
+    // For BuyerReceipt entityType, also return BuyerReceiptCorrections
+    let receiptCorrections: unknown[] = [];
+    if (entityType === "BuyerReceipt" && entityId) {
+      receiptCorrections = await prisma.buyerReceiptCorrection.findMany({
+        where: { buyerReceiptId: entityId, companyId: session.user.companyId },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          buyerReceiptId: true,
+          type: true,
+          reason: true,
+          beforeJson: true,
+          afterJson: true,
+          deltaAmountUsd: true,
+          deltaAssay: true,
+          adjustmentEntryId: true,
+          createdAt: true,
+          createdBy: { select: { id: true, name: true, email: true } },
+        },
+      });
+    }
 
-    flattened.sort(
-      (a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime(),
-    );
+    const allCorrections =
+      receiptCorrections.length > 0 ? [...corrections, ...receiptCorrections] : corrections;
 
-    const total = flattened.length;
-    const start = (page - 1) * limit;
-    const paged = flattened.slice(start, start + limit);
-
-    return successResponse(paginationResponse(paged, total, page, limit));
+    return successResponse(paginationResponse(allCorrections, total, page, limit));
   } catch (error) {
     console.error("[API] GET /api/gold/corrections error:", error);
     return errorResponse("Failed to fetch gold corrections");
@@ -164,90 +121,58 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    if (!hasRole(session, ["OPERATOR", "MANAGER", "SUPERADMIN"])) {
+    if (!hasRole(session, ["MANAGER", "SUPERADMIN"])) {
       return errorResponse("Insufficient permissions to create corrections", 403);
     }
 
     const body = await request.json();
     const validated = correctionSchema.parse(body);
 
-    const target = await resolveCorrectionTarget(
+    const owned = await verifyEntityOwnership(
       session.user.companyId,
-      validated.entityType,
+      validated.entityType as SupportedEntityType,
       validated.entityId,
     );
-    if (!target) {
+    if (!owned) {
       return errorResponse("Entity not found", 404);
     }
 
-    const pour = await prisma.goldPour.findUnique({
-      where: { id: target.pourId },
-      select: {
-        id: true,
-        corrections: true,
-        pourBarId: true,
-        site: { select: { id: true, name: true, code: true } },
-      },
-    });
-
-    if (!pour) {
-      return errorResponse("Associated pour not found", 404);
-    }
-
-    const existingCorrections = parseCorrections(pour.corrections);
-    const newEntry: GoldCorrectionEvent = {
-      id: randomUUID(),
-      pourId: pour.id,
-      entityType: validated.entityType,
-      entityId: validated.entityId,
-      reason: validated.reason,
-      beforeSnapshot: validated.beforeSnapshot,
-      afterSnapshot: validated.afterSnapshot,
-      createdAt: new Date().toISOString(),
-      createdBy: {
-        id: session.user.id,
-        name: session.user.name ?? session.user.email ?? "Unknown user",
-      },
-    };
-
-    await prisma.goldPour.update({
-      where: { id: pour.id },
-      data: {
-        corrections: JSON.stringify([...existingCorrections, newEntry]),
-      },
-    });
-
-    try {
-      await captureAccountingEvent({
-        companyId: session.user.companyId,
-        sourceDomain: "gold",
-        sourceAction: "correction-created",
-        sourceId: newEntry.id,
-        description: `Gold correction on ${validated.entityType} ${validated.entityId}`,
-        payload: {
-          pourId: pour.id,
-          entityType: validated.entityType,
+    const correction = await prisma.$transaction(async (tx) => {
+      const created = await createGoldLedgerCorrection(
+        {
+          companyId: session.user.companyId,
+          entityType: validated.entityType as SupportedEntityType,
           entityId: validated.entityId,
+          type: validated.type,
           reason: validated.reason,
+          beforeJson: validated.beforeJson,
+          afterJson: validated.afterJson,
+          deltaUsd: validated.deltaUsd,
+          deltaGrams: validated.deltaGrams,
+          createdById: session.user.id,
         },
-        createdById: session.user.id,
-        status: "IGNORED",
-      });
-    } catch (error) {
-      console.error("[Accounting] Gold correction capture failed:", error);
-    }
+        tx,
+      );
 
-    return successResponse(
-      {
-        ...newEntry,
-        pour: {
-          id: pour.id,
-          pourBarId: pour.pourBarId,
-          site: pour.site,
-        },
-      },
-      201,
-    );
+      if (validated.deltaUsd != null) {
+        await captureGoldCorrectionAccountingEvent(
+          {
+            companyId: session.user.companyId,
+            correctionId: created.id,
+            entityType: validated.entityType,
+            entityId: validated.entityId,
+            deltaUsd: validated.deltaUsd,
+            createdById: session.user.id,
+            label: validated.reason,
+          },
+          tx,
+        );
+      }
+
+      return created;
+    });
+
+    return successResponse(correction, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
