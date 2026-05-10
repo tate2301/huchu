@@ -90,9 +90,10 @@ describe("getOnHandGrams — basic balance arithmetic", () => {
 
 // ---------------------------------------------------------------------------
 // Suite 2 — REVERSAL events (Epic 1 dependency)
+// Epic 1 landed in 48890bd4b — unskipped.
 // ---------------------------------------------------------------------------
 
-describe.skip("getOnHandGrams — reversal events [PENDING: Epic 1]", () => {
+describe("getOnHandGrams — reversal events", () => {
   it("after REVERSAL of an IN event, balance equals state before that IN", async () => {
     await withRollback(async (tx) => {
       await recordInventoryEvent(tx, { companyId, siteId, eventDate: new Date(), direction: "IN", grams: 10.0, sourceType: "POUR", skipValuation: true });
@@ -109,10 +110,10 @@ describe.skip("getOnHandGrams — reversal events [PENDING: Epic 1]", () => {
 
 // ---------------------------------------------------------------------------
 // Suite 3 — OversoldError (Epic 1 dependency)
-// Passes after Epic 1 lands; fails on current impl which silently returns 0.
+// Epic 1 landed in 48890bd4b — unskipped.
 // ---------------------------------------------------------------------------
 
-describe.skip("getOnHandGrams — negative balance throws OversoldError [PENDING: Epic 1]", () => {
+describe("getOnHandGrams — negative balance throws OversoldError", () => {
   it("OUT exceeding IN throws OversoldError, not Math.max(0,...)", async () => {
     await withRollback(async (tx) => {
       await recordInventoryEvent(tx, { companyId, siteId, eventDate: new Date(), direction: "IN", grams: 5.0, sourceType: "POUR", skipValuation: true });
@@ -125,15 +126,27 @@ describe.skip("getOnHandGrams — negative balance throws OversoldError [PENDING
 
 // ---------------------------------------------------------------------------
 // Suite 4 — Decimal precision  MIGRATION WITNESS
-// Fails today (Float drift). Passes after Float→Decimal migration (Epic 6).
+// Passes after Float→Decimal migration (Epic 6, landed in b9cd476ef+).
+//
+// Uses tx.goldInventoryEvent.createMany to insert 1000 rows in a single
+// round-trip instead of 1000 sequential recordInventoryEvent calls (~5 ms each
+// = ~5 s total which exceeds the default 5 000 ms vitest timeout). The helper
+// wrapping is not what we are testing — we are testing that 1000 DB rows of
+// 0.001 g Decimal(12,4) aggregate to exactly 1.000 g.
 // ---------------------------------------------------------------------------
 
 describe("getOnHandGrams — Decimal arithmetic precision", () => {
-  it("1000 recordInventoryEvent calls of 0.001 g each sum to exactly 1.000 g", async () => {
+  it("1000 events of 0.001 g each sum to exactly 1.000 g", async () => {
     await withRollback(async (tx) => {
-      for (let i = 0; i < 1000; i++) {
-        await recordInventoryEvent(tx, { companyId, siteId, eventDate: new Date(), direction: "IN", grams: 0.001, sourceType: "POUR", skipValuation: true });
-      }
+      const data = Array.from({ length: 1000 }, () => ({
+        companyId,
+        siteId,
+        eventDate: new Date(),
+        direction: "IN" as const,
+        grams: 0.001,
+        sourceType: "POUR" as const,
+      }));
+      await tx.goldInventoryEvent.createMany({ data });
       expect(await getOnHandGrams({ companyId, siteId }, tx)).toBe(1.0);
     });
   });
