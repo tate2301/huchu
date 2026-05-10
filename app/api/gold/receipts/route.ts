@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
@@ -326,6 +327,23 @@ export async function POST(request: NextRequest) {
     })
     if (!goldPour || goldPour.companyId !== session.user.companyId) {
       return errorResponse("Invalid batch", 403)
+    }
+
+    const receiptDate = new Date(validated.receiptDate)
+    try {
+      await assertPeriodOpen(prisma, {
+        companyId: session.user.companyId,
+        siteId: goldPour.siteId,
+        businessDate: receiptDate,
+      })
+    } catch (err) {
+      if (err instanceof PeriodClosedError) {
+        return errorResponse(err.message, 409, {
+          periodCloseId: err.periodCloseId,
+          businessDate: receiptDate.toISOString().slice(0, 10),
+        })
+      }
+      throw err
     }
 
     const existingBatchReceipt = await prisma.buyerReceipt.findFirst({

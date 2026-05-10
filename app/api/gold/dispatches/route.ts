@@ -10,6 +10,7 @@ import {
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 
@@ -224,6 +225,24 @@ export async function POST(request: NextRequest) {
     })
     if (!handedOverBy || handedOverBy.companyId !== session.user.companyId || !handedOverBy.isActive) {
       return errorResponse("Invalid handover user", 400)
+    }
+
+    const dispatchDate = new Date(validated.dispatchDate)
+    const primarySiteId = goldPours[0]?.siteId ?? null
+    try {
+      await assertPeriodOpen(prisma, {
+        companyId: session.user.companyId,
+        siteId: primarySiteId,
+        businessDate: dispatchDate,
+      })
+    } catch (err) {
+      if (err instanceof PeriodClosedError) {
+        return errorResponse(err.message, 409, {
+          periodCloseId: err.periodCloseId,
+          businessDate: dispatchDate.toISOString().slice(0, 10),
+        })
+      }
+      throw err
     }
 
     const notesSegments = [validated.notes?.trim()]

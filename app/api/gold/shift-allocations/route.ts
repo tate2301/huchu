@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import {
   AUTO_BATCH_NOTE_PREFIX,
   AUTO_PAYOUT_NOTE_PREFIX,
@@ -197,6 +198,23 @@ export async function POST(request: NextRequest) {
 
     if (!shiftReport) {
       return errorResponse("Shift report required before allocation", 400)
+    }
+
+    const allocationDate = new Date(validated.date)
+    try {
+      await assertPeriodOpen(prisma, {
+        companyId: session.user.companyId,
+        siteId: validated.siteId,
+        businessDate: allocationDate,
+      })
+    } catch (err) {
+      if (err instanceof PeriodClosedError) {
+        return errorResponse(err.message, 409, {
+          periodCloseId: err.periodCloseId,
+          businessDate: allocationDate.toISOString().slice(0, 10),
+        })
+      }
+      throw err
     }
 
     const existing = await prisma.goldShiftAllocation.findFirst({

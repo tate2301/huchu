@@ -6,6 +6,7 @@ import { linkFifoSale } from "@/lib/gold/fifo-link"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { reserveIdentifier } from "@/lib/id-generator"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 
 // TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold
 export async function POST(
@@ -50,6 +51,24 @@ export async function POST(
     })
     if (!site || site.companyId !== companyId || !site.isActive) {
       return errorResponse("Invalid site", 403)
+    }
+
+    // Check that every entry's parsedDate falls in an open period.
+    const datesWithParsedDate = importRecord.entries
+      .filter((e) => e.parsedDate != null)
+      .map((e) => e.parsedDate!)
+    for (const businessDate of datesWithParsedDate) {
+      try {
+        await assertPeriodOpen(prisma, { companyId, siteId, businessDate })
+      } catch (err) {
+        if (err instanceof PeriodClosedError) {
+          return errorResponse(err.message, 409, {
+            periodCloseId: err.periodCloseId,
+            businessDate: businessDate.toISOString().slice(0, 10),
+          })
+        }
+        throw err
+      }
     }
 
     // Cleanup phase: re-running a commit replaces every record produced by

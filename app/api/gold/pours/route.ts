@@ -3,6 +3,7 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
+import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close";
 import { prisma } from '@/lib/prisma';
 import { z } from 'zod';
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -165,6 +166,23 @@ export async function POST(request: NextRequest) {
 
     if (!witness2 || witness2.companyId !== session.user.companyId || !witness2.isActive) {
       return errorResponse('Invalid witness 2', 400);
+    }
+
+    const pourDate = new Date(validated.pourDate)
+    try {
+      await assertPeriodOpen(prisma, {
+        companyId: session.user.companyId,
+        siteId: validated.siteId,
+        businessDate: pourDate,
+      })
+    } catch (err) {
+      if (err instanceof PeriodClosedError) {
+        return errorResponse(err.message, 409, {
+          periodCloseId: err.periodCloseId,
+          businessDate: pourDate.toISOString().slice(0, 10),
+        })
+      }
+      throw err
     }
 
     const pourBarId = validated.pourBarId
