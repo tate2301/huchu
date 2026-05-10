@@ -120,7 +120,8 @@ describe("GoldSpotPriceCache schema (Epic 4 prereq)", () => {
       data: { source: "test", priceUsdPerGram: 80.5, rawResponse: '{"test":true}' },
     });
     expect(row.id).toBeTruthy();
-    expect(row.priceUsdPerGram).toBe(80.5);
+    // Post Epic-6: priceUsdPerGram is Prisma.Decimal; coerce to number for equality.
+    expect(Number(row.priceUsdPerGram)).toBe(80.5);
     await prisma.goldSpotPriceCache.delete({ where: { id: row.id } });
   });
 
