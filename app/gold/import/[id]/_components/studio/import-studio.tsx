@@ -1014,7 +1014,7 @@ export function ImportStudio() {
               </div>
             )}
 
-            {activeTab === "purchases" && (
+            {activeTab === "allocations" && (
               <div className="flex-1 overflow-y-auto">
                 <TabProducedAllocations entries={entries} isCommitted={isCommitted} />
               </div>

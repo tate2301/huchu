@@ -1,15 +1,16 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import {
   Dashboard,
   TableRows,
   GitCompare,
   Gem,
-  ShoppingBag,
   LocalShipping,
   ReceiptLong,
   Coins,
+  Layers,
   AlertCircle,
 } from "@/lib/icons";
 
@@ -18,18 +19,24 @@ export type StudioTab =
   | "ledger"
   | "mappings"
   | "pours"
-  | "purchases"
+  | "allocations"
   | "dispatches"
   | "receipts"
   | "payouts"
   | "exceptions";
 
-const TABS: Array<{ id: StudioTab; label: string; icon: React.ComponentType<{ className?: string }> }> = [
+// Imports never produce purchases — that's a domain rule.
+// Allocations get their own tab.
+const TABS: Array<{
+  id: StudioTab;
+  label: string;
+  icon: React.ComponentType<{ className?: string }>;
+}> = [
   { id: "overview", label: "Overview", icon: Dashboard },
   { id: "ledger", label: "Ledger", icon: TableRows },
   { id: "mappings", label: "Mappings", icon: GitCompare },
   { id: "pours", label: "Pours", icon: Gem },
-  { id: "purchases", label: "Purchases", icon: ShoppingBag },
+  { id: "allocations", label: "Allocations", icon: Layers },
   { id: "dispatches", label: "Dispatches", icon: LocalShipping },
   { id: "receipts", label: "Receipts", icon: ReceiptLong },
   { id: "payouts", label: "Payouts", icon: Coins },
@@ -50,11 +57,11 @@ export function ImportTabRail({
   return (
     <nav
       aria-label="Import sections"
-      className="flex w-44 shrink-0 flex-col border-r border-[--border] bg-[--surface-base] py-2"
+      className="flex w-44 shrink-0 flex-col gap-0.5 border-r border-[--border] bg-[--surface-base] p-2"
     >
       {TABS.map(({ id, label, icon: Icon }) => {
         const isActive = id === active;
-        const badge =
+        const badgeCount =
           id === "ledger" && anomalyCount && anomalyCount > 0
             ? anomalyCount
             : id === "exceptions" && exceptionCount && exceptionCount > 0
@@ -68,25 +75,31 @@ export function ImportTabRail({
             onClick={() => onChange(id)}
             aria-current={isActive ? "page" : undefined}
             className={cn(
-              "flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium transition-colors text-left",
+              // Base: shadcn button-like sizing + typography from the design system
+              "group relative flex items-center gap-2 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
               isActive
-                ? "bg-[--action-secondary-bg] text-[--action-primary-bg] border-r-2 border-[--action-primary-bg]"
+                ? // Active: solid surface + primary text + a left accent bar so
+                  // the selection is unmissable across both light and dark
+                  // themes (the previous border-r approach was easy to miss).
+                  "bg-[--action-secondary-bg] text-[--action-primary-bg] shadow-[inset_2px_0_0_0_var(--action-primary-bg)]"
                 : "text-[--text-muted] hover:bg-[--surface-muted] hover:text-[--text-strong]",
             )}
           >
-            <Icon className="h-4 w-4 shrink-0" />
+            <Icon
+              className={cn(
+                "h-4 w-4 shrink-0",
+                isActive ? "" : "text-[--text-subtle] group-hover:text-[--text-muted]",
+              )}
+            />
             <span className="flex-1 truncate">{label}</span>
-            {badge ? (
-              <span
-                className={cn(
-                  "rounded-full px-1.5 py-0.5 text-[10px] font-semibold",
-                  id === "exceptions"
-                    ? "bg-rose-100 text-rose-700"
-                    : "bg-amber-100 text-amber-700",
-                )}
+            {badgeCount ? (
+              <Badge
+                variant={id === "exceptions" ? "destructive" : "warning"}
+                className="h-4 min-w-[1rem] justify-center px-1 text-[10px] tabular-nums"
               >
-                {badge > 99 ? "99+" : badge}
-              </span>
+                {badgeCount > 99 ? "99+" : badgeCount}
+              </Badge>
             ) : null}
           </button>
         );
