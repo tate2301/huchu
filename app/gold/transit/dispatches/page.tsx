@@ -163,7 +163,7 @@ export default function GoldTransitDispatchesPage() {
                     .join(", ")}
                 </div>
                 <div className="text-xs text-muted-foreground">
-                  {totalWeight.toFixed(3)} g total
+                  {Number(totalWeight).toFixed(3)} g total
                 </div>
               </div>
             );
@@ -174,7 +174,7 @@ export default function GoldTransitDispatchesPage() {
                 {row.original.goldPour.pourBarId}
               </div>
               <div className="text-xs text-muted-foreground">
-                {row.original.goldPour.grossWeight.toFixed(3)} g
+                {Number(row.original.goldPour.grossWeight).toFixed(3)} g
               </div>
             </div>
           );
@@ -189,7 +189,7 @@ export default function GoldTransitDispatchesPage() {
         cell: ({ row }) => (
           <NumericCell>
             $
-            {(
+            {Number(
               row.original.valueUsd ??
               row.original.goldPour.valueUsd ??
               0

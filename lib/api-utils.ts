@@ -2,6 +2,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { requireApiAuth } from "@/lib/auth-core/guards";
 import type { AuthenticatedSession } from "@/lib/auth-core/types";
+import { serializeDecimals } from "@/lib/serialize-decimals";
 
 export type { AuthenticatedSession } from "@/lib/auth-core/types";
 
@@ -42,7 +43,7 @@ export function errorResponse(
  * Standard success response for API
  */
 export function successResponse<T>(data: T, status: number = 200) {
-  return NextResponse.json(data, { status });
+  return NextResponse.json(serializeDecimals(data), { status });
 }
 
 /**

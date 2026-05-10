@@ -156,7 +156,7 @@ export default function GoldSettlementReceiptsPage() {
           <div>
             <div className="font-medium">{row.original.goldPour.pourBarId}</div>
             <div className="text-xs text-muted-foreground">
-              {row.original.goldPour.grossWeight.toFixed(3)} g
+              {Number(row.original.goldPour.grossWeight).toFixed(3)} g
             </div>
           </div>
         ),
@@ -169,7 +169,7 @@ export default function GoldSettlementReceiptsPage() {
         header: "Batch Value",
         cell: ({ row }) => (
           <NumericCell>
-            ${(row.original.goldPour.valueUsd ?? 0).toFixed(2)}
+            ${Number(row.original.goldPour.valueUsd ?? 0).toFixed(2)}
           </NumericCell>
         ),
         size: 160,
@@ -200,7 +200,7 @@ export default function GoldSettlementReceiptsPage() {
         header: "Paid Amount",
         cell: ({ row }) => (
           <NumericCell>
-            ${row.original.paidAmount.toFixed(2)}
+            ${Number(row.original.paidAmount).toFixed(2)}
           </NumericCell>
         ),
         size: 120,

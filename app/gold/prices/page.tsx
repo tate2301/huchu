@@ -133,7 +133,7 @@ export default function GoldPricesPage() {
         id: "priceUsdPerGram",
         header: "USD / g",
         cell: ({ row }) => (
-          <NumericCell>${row.original.priceUsdPerGram.toFixed(4)}</NumericCell>
+          <NumericCell>${Number(row.original.priceUsdPerGram).toFixed(4)}</NumericCell>
         ),
         size: 160,
         minSize: 160,

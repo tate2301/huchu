@@ -196,7 +196,7 @@ export function ReceiptForm({
         pourBarId: batch.pourBarId,
         grossWeight: batch.grossWeight,
         assayResult: "",
-        paidAmount: batch.valueUsd != null ? batch.valueUsd.toFixed(2) : "",
+        paidAmount: batch.valueUsd != null ? Number(batch.valueUsd).toFixed(2) : "",
         selected: !soldPourIds?.has(batch.goldPourId),
       })),
     );
@@ -211,7 +211,7 @@ export function ReceiptForm({
         pourBarId: batch.pourBarId,
         grossWeight: batch.grossWeight,
         assayResult: "",
-        paidAmount: batch.valueUsd != null ? batch.valueUsd.toFixed(2) : "",
+        paidAmount: batch.valueUsd != null ? Number(batch.valueUsd).toFixed(2) : "",
         selected: false,
       })),
     );
@@ -224,7 +224,7 @@ export function ReceiptForm({
     if (!batch) return;
     if (formData.paidAmount) return; // don't clobber user input
     if (batch.valueUsd != null) {
-      setFormData((prev) => ({ ...prev, paidAmount: batch.valueUsd!.toFixed(2) }));
+      setFormData((prev) => ({ ...prev, paidAmount: Number(batch.valueUsd!).toFixed(2) }));
     }
   }, [formData.goldPourId, isBatchMode, batchValueByPourId, formData.paidAmount]);
 
@@ -234,7 +234,7 @@ export function ReceiptForm({
         value: batch.id,
         label: batch.pourBarId,
         description: batch.site.name,
-        meta: `${batch.grossWeight} g | $${(batch.valueUsd ?? 0).toFixed(2)}`,
+        meta: `${Number(batch.grossWeight)} g | $${Number(batch.valueUsd ?? 0).toFixed(2)}`,
       })),
     [availableBatches],
   );
@@ -613,7 +613,7 @@ export function ReceiptForm({
                         {item.pourBarId}
                       </div>
                       <div className="text-xs text-muted-foreground">
-                        {item.grossWeight.toFixed(3)} g
+                        {Number(item.grossWeight).toFixed(3)} g
                         {alreadySold ? " • already sold" : ""}
                       </div>
                     </div>

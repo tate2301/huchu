@@ -307,7 +307,7 @@ export function DispatchForm({
           <div className="space-y-2">
             <div className="flex items-center justify-between">
               <label className="block text-sm font-semibold">
-                Batches * ({formData.goldPourIds.length} selected, {totalWeight.toFixed(3)} g, ${totalValue.toFixed(2)})
+                Batches * ({formData.goldPourIds.length} selected, {Number(totalWeight).toFixed(3)} g, ${Number(totalValue).toFixed(2)})
               </label>
               <div className="flex gap-2">
                 <button
@@ -385,9 +385,9 @@ export function DispatchForm({
                         </div>
                       </div>
                       <div className="text-right text-xs whitespace-nowrap">
-                        <div className="font-semibold">{pour.grossWeight.toFixed(3)} g</div>
+                        <div className="font-semibold">{Number(pour.grossWeight).toFixed(3)} g</div>
                         <div className="text-muted-foreground">
-                          ${(pour.valueUsd ?? 0).toFixed(2)}
+                          ${Number(pour.valueUsd ?? 0).toFixed(2)}
                         </div>
                       </div>
                     </label>

@@ -154,7 +154,7 @@ export default function GoldIntakePoursPage() {
         id: "grossWeight",
         header: "Gross Weight",
         cell: ({ row }) => (
-          <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
+          <NumericCell>{Number(row.original.grossWeight).toFixed(3)} g</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -192,7 +192,7 @@ export default function GoldIntakePoursPage() {
         id: "valueUsd",
         header: "Value",
         cell: ({ row }) => (
-          <NumericCell>${(row.original.valueUsd ?? 0).toFixed(2)}</NumericCell>
+          <NumericCell>${Number(row.original.valueUsd ?? 0).toFixed(2)}</NumericCell>
         ),
         size: 120,
         minSize: 120,

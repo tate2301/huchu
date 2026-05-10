@@ -296,7 +296,7 @@ export default function GoldSettlementPayoutsPage() {
         header: "Worker Value",
         cell: ({ row }) => (
           <NumericCell>
-            ${row.original.workerShareValueUsd.toFixed(2)}
+            ${Number(row.original.workerShareValueUsd).toFixed(2)}
           </NumericCell>
         ),
         size: 120,
@@ -386,7 +386,7 @@ export default function GoldSettlementPayoutsPage() {
         id: "shareValueUsd",
         header: "Share Value",
         cell: ({ row }) => (
-          <NumericCell>${row.original.shareValueUsd.toFixed(2)}</NumericCell>
+          <NumericCell>${Number(row.original.shareValueUsd).toFixed(2)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -429,7 +429,7 @@ export default function GoldSettlementPayoutsPage() {
         cell: ({ row }) => (
           <NumericCell>
             {row.original.paidAmountUsd > 0
-              ? `$${row.original.paidAmountUsd.toFixed(2)}`
+              ? `$${Number(row.original.paidAmountUsd).toFixed(2)}`
               : "-"}
           </NumericCell>
         ),
@@ -502,7 +502,7 @@ export default function GoldSettlementPayoutsPage() {
               <Badge variant="secondary">Shifts: {shiftPayouts.length}</Badge>
               <Badge variant="secondary">Worker slots: {totalWorkers}</Badge>
               <Badge variant="secondary">
-                Worker value: ${totalWorkerValueUsd.toFixed(2)}
+                Worker value: ${Number(totalWorkerValueUsd).toFixed(2)}
               </Badge>
               <Select
                 value={payoutWindowWeeks}
@@ -585,7 +585,7 @@ export default function GoldSettlementPayoutsPage() {
                 <div>
                   Worker value:{" "}
                   <span className="font-semibold text-foreground">
-                    ${selectedShift.workerShareValueUsd.toFixed(2)}
+                    ${Number(selectedShift.workerShareValueUsd).toFixed(2)}
                   </span>
                 </div>
                 <div>
@@ -620,7 +620,7 @@ export default function GoldSettlementPayoutsPage() {
               },
               {
                 label: "Worker value total",
-                value: `$${totalWorkerValueUsd.toFixed(2)}`,
+                value: `$${Number(totalWorkerValueUsd).toFixed(2)}`,
               },
             ]}
           >
@@ -649,7 +649,7 @@ export default function GoldSettlementPayoutsPage() {
                     </td>
                     <td className="py-2">{shift.workerCount}</td>
                     <td className="py-2">
-                      {shift.workerShareValueUsd.toFixed(2)}
+                      {Number(shift.workerShareValueUsd).toFixed(2)}
                     </td>
                     <td className="py-2">{shift.payCycleWeeks} weeks</td>
                     <td className="py-2">

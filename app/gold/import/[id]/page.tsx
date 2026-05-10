@@ -508,7 +508,7 @@ export default function GoldImportDetailPage() {
                       <p className="text-lg font-semibold">
                         {summary.salesCreated}
                         <span className="ml-1 text-xs font-normal text-muted-foreground">
-                          ({summary.totalSaleGrams.toFixed(2)} g)
+                          ({Number(summary.totalSaleGrams).toFixed(2)} g)
                         </span>
                       </p>
                     </div>
@@ -521,7 +521,7 @@ export default function GoldImportDetailPage() {
                           summary.totalDeficitGrams > 0 ? "text-rose-700" : ""
                         }`}
                       >
-                        {summary.totalDeficitGrams.toFixed(2)} g
+                        {Number(summary.totalDeficitGrams).toFixed(2)} g
                       </p>
                     </div>
                   </div>

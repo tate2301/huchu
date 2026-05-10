@@ -155,7 +155,7 @@ export default function GoldIntakePurchasesPage() {
         id: "grossWeight",
         header: "Weight",
         cell: ({ row }) => (
-          <NumericCell>{row.original.grossWeight.toFixed(3)} g</NumericCell>
+          <NumericCell>{Number(row.original.grossWeight).toFixed(3)} g</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -166,7 +166,7 @@ export default function GoldIntakePurchasesPage() {
         header: "Spend",
         cell: ({ row }) => (
           <NumericCell>
-            {row.original.paidAmount.toFixed(2)} {row.original.currency}
+            {Number(row.original.paidAmount).toFixed(2)} {row.original.currency}
           </NumericCell>
         ),
         size: 160,
@@ -178,7 +178,7 @@ export default function GoldIntakePurchasesPage() {
         header: "Batch Value",
         cell: ({ row }) => (
           <NumericCell>
-            ${(row.original.goldPour.valueUsd ?? 0).toFixed(2)}
+            ${Number(row.original.goldPour.valueUsd ?? 0).toFixed(2)}
           </NumericCell>
         ),
         size: 120,
