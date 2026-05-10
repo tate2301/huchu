@@ -158,10 +158,12 @@ model Company {
   goldPours                     GoldPour[]           @relation("GoldPourCompany")
   goldShiftAllocations          GoldShiftAllocation[] @relation("GoldShiftAllocationCompany")
   goldDispatches                GoldDispatch[]        @relation("GoldDispatchCompany")
-  buyerReceipts                 BuyerReceipt[]        @relation("BuyerReceiptCompany")
-  goldLedgerEntries             GoldLedgerEntry[]     @relation("GoldLedgerEntryCompany")
-  goldDispatchBatches           GoldDispatchBatch[]   @relation("GoldDispatchBatchCompany")
-  buyerReceiptBatches           BuyerReceiptBatch[]   @relation("BuyerReceiptBatchCompany")
+  buyerReceipts                 BuyerReceipt[]          @relation("BuyerReceiptCompany")
+  goldLedgerEntries             GoldLedgerEntry[]       @relation("GoldLedgerEntryCompany")
+  goldDispatchBatches           GoldDispatchBatch[]     @relation("GoldDispatchBatchCompany")
+  buyerReceiptBatches           BuyerReceiptBatch[]     @relation("BuyerReceiptBatchCompany")
+  goldLedgerCorrections         GoldLedgerCorrection[]  @relation("GoldLedgerCorrectionCompany")
+  buyerReceiptCorrections       BuyerReceiptCorrection[] @relation("BuyerReceiptCorrectionCompany")
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -875,6 +877,8 @@ model User {
   resolvedGoldExceptions            GoldException[]                @relation("GoldExceptionResolved")
   createdGoldExceptions             GoldException[]                @relation("GoldExceptionCreatedBy")
   uploadedGoldLedgerImports         GoldLedgerImport[]             @relation("GoldLedgerImportUploadedBy")
+  createdGoldLedgerCorrections      GoldLedgerCorrection[]         @relation("GoldLedgerCorrectionCreatedBy")
+  createdBuyerReceiptCorrections    BuyerReceiptCorrection[]       @relation("BuyerReceiptCorrectionCreatedBy")
 
   @@index([companyId])
   @@index([email])
@@ -1464,15 +1468,17 @@ model AdjustmentEntry {
   createdAt           DateTime             @default(now())
   updatedAt           DateTime             @updatedAt
 
-  company           Company            @relation(fields: [companyId], references: [id])
-  payrollRun        PayrollRun?        @relation(fields: [payrollRunId], references: [id])
-  disbursementBatch DisbursementBatch? @relation(fields: [disbursementBatchId], references: [id])
-  lineItem          PayrollLineItem?   @relation(fields: [lineItemId], references: [id])
-  disbursementItem  DisbursementItem?  @relation(fields: [disbursementItemId], references: [id])
-  employee          Employee?          @relation(fields: [employeeId], references: [id])
-  createdBy         User               @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
-  submittedBy       User?              @relation("AdjustmentSubmittedBy", fields: [submittedById], references: [id])
-  approvedBy        User?              @relation("AdjustmentApprovedBy", fields: [approvedById], references: [id])
+  company                  Company                  @relation(fields: [companyId], references: [id])
+  payrollRun               PayrollRun?              @relation(fields: [payrollRunId], references: [id])
+  disbursementBatch        DisbursementBatch?       @relation(fields: [disbursementBatchId], references: [id])
+  lineItem                 PayrollLineItem?         @relation(fields: [lineItemId], references: [id])
+  disbursementItem         DisbursementItem?        @relation(fields: [disbursementItemId], references: [id])
+  employee                 Employee?                @relation(fields: [employeeId], references: [id])
+  createdBy                User                     @relation("AdjustmentCreatedBy", fields: [createdById], references: [id])
+  submittedBy              User?                    @relation("AdjustmentSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy               User?                    @relation("AdjustmentApprovedBy", fields: [approvedById], references: [id])
+  goldLedgerCorrections    GoldLedgerCorrection[]   @relation("GoldLedgerCorrectionAdjustment")
+  buyerReceiptCorrections  BuyerReceiptCorrection[] @relation("BuyerReceiptCorrectionAdjustment")
 
   @@index([companyId, targetType, status])
   @@index([employeeId])
@@ -2238,7 +2244,7 @@ model BuyerReceipt {
   goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
   goldPriceSource     GoldPriceSource?
   valuationDate       DateTime?
-  paidValueUsd        Decimal?         @db.Decimal(14, 2)
+  // paidValueUsd dropped in Epic 7 (duplicated paidAmount; gold is USD-only per §8 Q2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2251,8 +2257,9 @@ model BuyerReceipt {
   // The legacy single FKs above remain populated for backward compatibility
   // (UI fallbacks, prior reports, accounting hooks) but new code should
   // prefer iterating these.
-  batches    BuyerReceiptBatch[]
-  dispatches BuyerReceiptDispatch[]
+  batches      BuyerReceiptBatch[]
+  dispatches   BuyerReceiptDispatch[]
+  corrections  BuyerReceiptCorrection[]
 
   @@unique([companyId, receiptNumber])
   @@index([goldPourId])
@@ -2378,6 +2385,61 @@ model GoldShiftWorkerShare {
   @@unique([allocationId, employeeId])
   @@index([allocationId])
   @@index([employeeId])
+}
+
+enum GoldCorrectionType {
+  ADJUST_AMOUNT
+  ADJUST_ASSAY
+  ADJUST_GRAMS
+  VOID
+  RECLASSIFY
+  OTHER
+}
+
+model GoldLedgerCorrection {
+  id                String             @id @default(uuid())
+  companyId         String
+  entityType        String
+  entityId          String
+  type              GoldCorrectionType
+  reason            String
+  beforeJson        Json?
+  afterJson         Json?
+  deltaUsd          Decimal?           @db.Decimal(14, 2)
+  deltaGrams        Decimal?           @db.Decimal(12, 4)
+  adjustmentEntryId String?
+  createdById       String
+  createdAt         DateTime           @default(now())
+
+  company         Company          @relation("GoldLedgerCorrectionCompany", fields: [companyId], references: [id])
+  createdBy       User             @relation("GoldLedgerCorrectionCreatedBy", fields: [createdById], references: [id])
+  adjustmentEntry AdjustmentEntry? @relation("GoldLedgerCorrectionAdjustment", fields: [adjustmentEntryId], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt(sort: Desc)])
+}
+
+model BuyerReceiptCorrection {
+  id                String             @id @default(uuid())
+  buyerReceiptId    String
+  companyId         String
+  type              GoldCorrectionType
+  reason            String
+  beforeJson        Json?
+  afterJson         Json?
+  deltaAmountUsd    Decimal?           @db.Decimal(14, 2)
+  deltaAssay        Decimal?           @db.Decimal(5, 2)
+  adjustmentEntryId String?
+  createdById       String
+  createdAt         DateTime           @default(now())
+
+  buyerReceipt    BuyerReceipt     @relation(fields: [buyerReceiptId], references: [id], onDelete: Cascade)
+  company         Company          @relation("BuyerReceiptCorrectionCompany", fields: [companyId], references: [id])
+  createdBy       User             @relation("BuyerReceiptCorrectionCreatedBy", fields: [createdById], references: [id])
+  adjustmentEntry AdjustmentEntry? @relation("BuyerReceiptCorrectionAdjustment", fields: [adjustmentEntryId], references: [id])
+
+  @@index([buyerReceiptId, createdAt(sort: Desc)])
+  @@index([companyId, createdAt(sort: Desc)])
 }
 
 enum GoldInventoryDirection {
