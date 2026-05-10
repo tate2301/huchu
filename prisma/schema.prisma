@@ -164,6 +164,8 @@ model Company {
   buyerReceiptBatches           BuyerReceiptBatch[]     @relation("BuyerReceiptBatchCompany")
   goldLedgerCorrections         GoldLedgerCorrection[]  @relation("GoldLedgerCorrectionCompany")
   buyerReceiptCorrections       BuyerReceiptCorrection[] @relation("BuyerReceiptCorrectionCompany")
+  goldLedgerImportPresets       GoldLedgerImportPreset[]
+  goldPeriodCloses              GoldPeriodClose[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -726,6 +728,7 @@ model Site {
   goldInventoryEvents   GoldInventoryEvent[]
   goldExceptions        GoldException[]
   goldLedgerImports     GoldLedgerImport[]
+  goldPeriodCloses      GoldPeriodClose[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -877,9 +880,15 @@ model User {
   resolvedGoldExceptions            GoldException[]                @relation("GoldExceptionResolved")
   createdGoldExceptions             GoldException[]                @relation("GoldExceptionCreatedBy")
   uploadedGoldLedgerImports         GoldLedgerImport[]             @relation("GoldLedgerImportUploadedBy")
+  assignedGoldLedgerImports         GoldLedgerImport[]             @relation("GoldLedgerImportAssignedTo")
   createdGoldLedgerCorrections      GoldLedgerCorrection[]         @relation("GoldLedgerCorrectionCreatedBy")
   createdBuyerReceiptCorrections    BuyerReceiptCorrection[]       @relation("BuyerReceiptCorrectionCreatedBy")
   editingLocks                      EditingLock[]                  @relation("EditingLockUser")
+  createdGoldLedgerImportPresets    GoldLedgerImportPreset[]       @relation("GoldLedgerImportPresetCreatedBy")
+  createdGoldLedgerImportComments   GoldLedgerImportComment[]      @relation("GoldLedgerImportCommentCreatedBy")
+  takenGoldImportSnapshots          GoldImportSnapshot[]           @relation("GoldImportSnapshotTakenBy")
+  closedGoldPeriodCloses            GoldPeriodClose[]              @relation("GoldPeriodCloseClosedBy")
+  overrideGoldPeriodCloses          GoldPeriodClose[]              @relation("GoldPeriodCloseOverrideBy")
 
   @@index([companyId])
   @@index([email])
@@ -2578,28 +2587,42 @@ enum GoldLedgerEntryStatus {
 }
 
 model GoldLedgerImport {
-  id           String                 @id @default(uuid())
-  companyId    String
-  siteId       String?
-  uploadedById String
-  fileName     String
-  rowsTotal    Int                    @default(0)
-  rowsCreated  Int                    @default(0)
-  rowsAnomaly  Int                    @default(0)
-  rowsFailed   Int                    @default(0)
-  status       GoldLedgerImportStatus @default(DRAFT)
-  mappingsJson String? // JSON: { "Mutemeri": "shift-group-uuid", ... }
-  notes        String?
-  createdAt    DateTime               @default(now())
-  updatedAt    DateTime               @updatedAt
-  committedAt  DateTime?
+  id               String                 @id @default(uuid())
+  companyId        String
+  siteId           String?
+  uploadedById     String
+  fileName         String
+  rowsTotal        Int                    @default(0)
+  rowsCreated      Int                    @default(0)
+  rowsAnomaly      Int                    @default(0)
+  rowsFailed       Int                    @default(0)
+  status           GoldLedgerImportStatus @default(DRAFT)
+  mappingsJson     String? // JSON: { "Mutemeri": "shift-group-uuid", ... }
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  committedAt      DateTime?
+  name             String?
+  assignedToId     String?
+  sourceFileSha256 String?
+  tombstonedAt     DateTime?
+  archivedAt       DateTime?
+  presetId         String?
 
-  company    Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site       Site?             @relation(fields: [siteId], references: [id])
-  uploadedBy User              @relation("GoldLedgerImportUploadedBy", fields: [uploadedById], references: [id])
+  company    Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?                      @relation(fields: [siteId], references: [id])
+  uploadedBy User                       @relation("GoldLedgerImportUploadedBy", fields: [uploadedById], references: [id])
+  assignedTo User?                      @relation("GoldLedgerImportAssignedTo", fields: [assignedToId], references: [id])
+  preset     GoldLedgerImportPreset?    @relation(fields: [presetId], references: [id])
   entries    GoldLedgerEntry[]
+  tags       GoldLedgerImportTag[]
+  comments   GoldLedgerImportComment[]
+  snapshots  GoldImportSnapshot[]
 
   @@index([companyId, createdAt])
+  @@index([companyId, archivedAt])
+  @@index([companyId, tombstonedAt])
+  @@index([sourceFileSha256])
 }
 
 model GoldLedgerEntry {
@@ -2627,10 +2650,11 @@ model GoldLedgerEntry {
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
-  import      GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
-  company     Company?         @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
-  shiftGroup  ShiftGroup?      @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
-  attendance  Attendance[]     @relation("AttendanceGoldLedgerEntry")
+  import      GoldLedgerImport          @relation(fields: [importId], references: [id], onDelete: Cascade)
+  company     Company?                   @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
+  shiftGroup  ShiftGroup?                @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
+  attendance  Attendance[]               @relation("AttendanceGoldLedgerEntry")
+  comments    GoldLedgerImportComment[]
 
   @@unique([importId, lineNo])
   @@index([importId, status])
@@ -2648,6 +2672,89 @@ model EditingLock {
 
   @@index([userId])
   @@index([expiresAt])
+}
+
+model GoldLedgerImportPreset {
+  id               String   @id @default(uuid())
+  companyId        String
+  name             String
+  mappingJson      String
+  sampleHeaderHash String?
+  isDefault        Boolean  @default(false)
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User             @relation("GoldLedgerImportPresetCreatedBy", fields: [createdById], references: [id])
+  imports   GoldLedgerImport[]
+
+  @@unique([companyId, name])
+  @@index([companyId, sampleHeaderHash])
+}
+
+model GoldLedgerImportTag {
+  id        String           @id @default(uuid())
+  importId  String
+  label     String
+  createdAt DateTime         @default(now())
+
+  import GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, label])
+  @@index([label])
+}
+
+model GoldLedgerImportComment {
+  id            String           @id @default(uuid())
+  importId      String
+  ledgerEntryId String?
+  body          String
+  createdById   String
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  import      GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  ledgerEntry GoldLedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: Cascade)
+  createdBy   User             @relation("GoldLedgerImportCommentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([importId, createdAt])
+  @@index([ledgerEntryId])
+}
+
+model GoldImportSnapshot {
+  id          String           @id @default(uuid())
+  importId    String
+  takenAt     DateTime         @default(now())
+  reason      String
+  payloadJson String
+  takenById   String
+
+  import  GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  takenBy User             @relation("GoldImportSnapshotTakenBy", fields: [takenById], references: [id])
+
+  @@index([importId, takenAt(sort: Desc)])
+}
+
+model GoldPeriodClose {
+  id             String    @id @default(uuid())
+  companyId      String
+  siteId         String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  closedAt       DateTime  @default(now())
+  closedById     String
+  overrideReason String?
+  overrideById   String?
+  overrideAt     DateTime?
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?   @relation(fields: [siteId], references: [id])
+  closedBy   User    @relation("GoldPeriodCloseClosedBy", fields: [closedById], references: [id])
+  overrideBy User?   @relation("GoldPeriodCloseOverrideBy", fields: [overrideById], references: [id])
+
+  @@unique([companyId, siteId, periodStart])
+  @@index([companyId, periodStart])
 }
 
 // ============================================
