@@ -383,7 +383,6 @@ export async function POST(request: NextRequest) {
           paidAmount: validated.paidAmount,
           goldPriceUsdPerGram: valuation.goldPriceUsdPerGram,
           valuationDate: valuation.valuationDate,
-          paidValueUsd: validated.paidAmount,
           paymentMethod: validated.paymentMethod,
           paymentChannel: validated.paymentChannel,
           paymentReference: validated.paymentReference,
@@ -432,10 +431,10 @@ export async function POST(request: NextRequest) {
         entryDate: created.receiptDate,
         description: `Gold receipt ${receiptNumber}`,
         createdById: session.user.id,
-        amount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
-        netAmount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
+        amount: Number(created.paidAmount),
+        netAmount: Number(created.paidAmount),
         taxAmount: 0,
-        grossAmount: created.paidValueUsd != null ? Number(created.paidValueUsd) : Number(created.paidAmount),
+        grossAmount: Number(created.paidAmount),
       }, tx)
 
       return tx.buyerReceipt.findUnique({

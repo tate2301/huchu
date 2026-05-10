@@ -37,7 +37,6 @@ type GoldReceiptReportRow = {
   dispatchDate?: string | null;
   courier: string;
   paidAmount: number;
-  paidValueUsd: number;
   paymentMethod: string;
   paymentChannel: string;
   paymentReference: string;
@@ -81,7 +80,6 @@ export default function GoldReceiptsReportPage() {
           dispatchDate: row.goldDispatch?.dispatchDate ?? null,
           courier: row.goldDispatch?.courier ?? "-",
           paidAmount: row.paidAmount,
-          paidValueUsd: row.paidValueUsd ?? row.paidAmount,
           paymentMethod: row.paymentMethod,
           paymentChannel: row.paymentChannel ?? "-",
           paymentReference: row.paymentReference ?? "-",
@@ -92,7 +90,7 @@ export default function GoldReceiptsReportPage() {
   );
 
   const totalPaid = useMemo(
-    () => rows.reduce((sum, row) => sum + row.paidValueUsd, 0),
+    () => rows.reduce((sum, row) => sum + row.paidAmount, 0),
     [rows],
   );
 
@@ -245,10 +243,10 @@ export default function GoldReceiptsReportPage() {
         maxSize: 220,
       },
       {
-        id: "paidValueUsd",
+        id: "paidAmount",
         header: "Paid (USD)",
         cell: ({ row }) => (
-          <NumericCell>${row.original.paidValueUsd.toFixed(2)}</NumericCell>
+          <NumericCell>${row.original.paidAmount.toFixed(2)}</NumericCell>
         ),
         size: 120,
         minSize: 120,

@@ -185,7 +185,6 @@ export async function POST(request: NextRequest) {
           receiptNumber,
           receiptDate: new Date(validated.receiptDate),
           paidAmount: totalPaid,
-          paidValueUsd: totalPaid,
           goldPriceUsdPerGram: headerValuation.goldPriceUsdPerGram,
           valuationDate: headerValuation.valuationDate,
           paymentMethod: validated.paymentMethod,

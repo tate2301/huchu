@@ -242,7 +242,6 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
           OR: [
             { goldPriceUsdPerGram: null },
             { valuationDate: null },
-            { paidValueUsd: null },
           ],
         },
       ],
@@ -278,7 +277,6 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Back
         data: {
           goldPriceUsdPerGram,
           valuationDate,
-          paidValueUsd: roundUsd(Number(receipt.paidAmount) * goldPriceUsdPerGram),
         },
       });
     }

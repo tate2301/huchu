@@ -16,7 +16,6 @@ type ReceiptDetail = {
   receiptDate: string;
   assayResult: number | null;
   paidAmount: number;
-  paidValueUsd: number | null;
   paymentMethod: string;
   paymentChannel: string | null;
   paymentReference: string | null;
@@ -149,7 +148,7 @@ export default function ReceiptDetailPage() {
               items={[
                 { label: "Receipt #", value: data.receiptNumber },
                 { label: "Sale date", value: new Date(data.receiptDate).toLocaleString() },
-                { label: "Paid", value: usd(data.paidValueUsd ?? data.paidAmount) },
+                { label: "Paid", value: usd(data.paidAmount) },
                 { label: "Tested gold", value: data.assayResult != null ? grams(data.assayResult) : "—" },
                 { label: "Payment method", value: data.paymentMethod.replace(/_/g, " ").toLowerCase() },
                 { label: "Payment channel", value: data.paymentChannel ?? "—" },

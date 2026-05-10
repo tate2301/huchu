@@ -353,7 +353,7 @@ export async function getExecutiveDashboardAggregations({
       orderBy: { pourDate: "asc" },
     }),
     prisma.buyerReceipt.aggregate({
-      _sum: { paidValueUsd: true },
+      _sum: { paidAmount: true },
       where: {
         receiptDate: currentRange,
         OR: [
@@ -377,7 +377,7 @@ export async function getExecutiveDashboardAggregations({
       },
     }),
     prisma.buyerReceipt.aggregate({
-      _sum: { paidValueUsd: true },
+      _sum: { paidAmount: true },
       where: {
         receiptDate: previousRange,
         OR: [
@@ -569,8 +569,8 @@ export async function getExecutiveDashboardAggregations({
 
   const goldProducedValue = round(goldPoursCurrent._sum.valueUsd != null ? Number(goldPoursCurrent._sum.valueUsd) : 0);
   const previousGoldProducedValue = round(goldPoursPrevious._sum.valueUsd != null ? Number(goldPoursPrevious._sum.valueUsd) : 0);
-  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidValueUsd != null ? Number(buyerReceiptsCurrent._sum.paidValueUsd) : 0);
-  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidValueUsd != null ? Number(buyerReceiptsPrevious._sum.paidValueUsd) : 0);
+  const goldRealizedValue = round(buyerReceiptsCurrent._sum.paidAmount != null ? Number(buyerReceiptsCurrent._sum.paidAmount) : 0);
+  const previousGoldRealizedValue = round(buyerReceiptsPrevious._sum.paidAmount != null ? Number(buyerReceiptsPrevious._sum.paidAmount) : 0);
 
   const plantThroughput = round(plantCurrent._sum.tonnesProcessed ?? 0);
   const previousPlantThroughput = round(plantPrevious._sum.tonnesProcessed ?? 0);

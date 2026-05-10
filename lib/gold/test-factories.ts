@@ -235,7 +235,6 @@ export interface BuyerReceiptData {
   notes: string | null;
   goldPriceUsdPerGram: number | null;
   valuationDate: Date | null;
-  paidValueUsd: number | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -247,7 +246,7 @@ function buyerReceipt(pourId: string, overrides?: Overrides<BuyerReceiptData>): 
     receiptDate: new Date(), assayResult: 92.5, paidAmount: 800,
     paymentMethod: "BANK_TRANSFER", paymentChannel: null, paymentReference: null,
     notes: null, goldPriceUsdPerGram: 80, valuationDate: new Date(),
-    paidValueUsd: 800, createdAt: new Date(), updatedAt: new Date(), ...overrides,
+    createdAt: new Date(), updatedAt: new Date(), ...overrides,
   };
 }
 

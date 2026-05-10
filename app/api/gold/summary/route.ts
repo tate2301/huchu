@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
           companyId,
           receiptDate: { gte: weekStart, lt: weekEnd },
         },
-        select: { paidValueUsd: true, paidAmount: true },
+        select: { paidAmount: true },
       }),
       // Cash prior week
       prisma.buyerReceipt.findMany({
@@ -68,7 +68,7 @@ export async function GET(request: NextRequest) {
           companyId,
           receiptDate: { gte: priorWeekStart, lt: priorWeekEnd },
         },
-        select: { paidValueUsd: true, paidAmount: true },
+        select: { paidAmount: true },
       }),
       // Production this week
       prisma.goldPour.findMany({
@@ -134,7 +134,6 @@ export async function GET(request: NextRequest) {
           id: true,
           receiptNumber: true,
           receiptDate: true,
-          paidValueUsd: true,
           paidAmount: true,
           paymentMethod: true,
           goldPour: {
@@ -170,8 +169,8 @@ export async function GET(request: NextRequest) {
       }),
     ])
 
-    const sumPaidUsd = (rows: Array<{ paidValueUsd: number | { toNumber(): number } | null; paidAmount: number | { toNumber(): number } }>) =>
-      rows.reduce((sum, row) => sum + (row.paidValueUsd != null ? Number(row.paidValueUsd) : Number(row.paidAmount) ?? 0), 0)
+    const sumPaidUsd = (rows: Array<{ paidAmount: number | { toNumber(): number } }>) =>
+      rows.reduce((sum, row) => sum + Number(row.paidAmount), 0)
 
     // Post Epic-6: grossWeight is Prisma.Decimal; coerce to Number for the JS sum.
     const sumWeight = (rows: Array<{ grossWeight: unknown }>) =>
@@ -245,7 +244,7 @@ export async function GET(request: NextRequest) {
         id: receipt.id,
         receiptNumber: receipt.receiptNumber,
         receiptDate: receipt.receiptDate,
-        paidUsd: receipt.paidValueUsd ?? receipt.paidAmount,
+        paidUsd: receipt.paidAmount,
         paymentMethod: receipt.paymentMethod,
         batchCode: pour?.pourBarId ?? "—",
         siteName: pour?.site.name ?? "—",

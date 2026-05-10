@@ -78,7 +78,6 @@ export async function GET(
             receiptNumber: true,
             receiptDate: true,
             paidAmount: true,
-            paidValueUsd: true,
             paymentMethod: true,
           },
           orderBy: { receiptDate: "desc" },

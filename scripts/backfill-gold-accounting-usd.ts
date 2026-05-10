@@ -117,7 +117,6 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
           where: { id: { in: receiptIds } },
           select: {
             id: true,
-            paidValueUsd: true,
             paidAmount: true,
             goldPriceUsdPerGram: true,
           },
@@ -169,13 +168,7 @@ async function backfillCompany(companyId: string, dryRun: boolean): Promise<Summ
     } else if (entry.sourceType === "GOLD_RECEIPT") {
       const receipt = receiptById.get(sourceId);
       if (receipt) {
-        const rPaidValueUsd = receipt.paidValueUsd != null ? Number(receipt.paidValueUsd) : null;
-        const rGoldPrice = receipt.goldPriceUsdPerGram != null ? Number(receipt.goldPriceUsdPerGram) : null;
-        targetAmountUsd =
-          rPaidValueUsd ??
-          (isFinitePositive(rGoldPrice)
-            ? roundMoney(Number(receipt.paidAmount) * rGoldPrice)
-            : null);
+        targetAmountUsd = Number(receipt.paidAmount);
       }
     } else if (entry.sourceType === "GOLD_DISPATCH") {
       const dispatch = dispatchById.get(sourceId);

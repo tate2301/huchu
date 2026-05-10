@@ -59,7 +59,6 @@ async function snapshot() {
     pourGrossWeight: await sumWhere("GoldPour", "grossWeight"),
     pourValueUsd: await sumWhere("GoldPour", "valueUsd"),
     receiptPaidAmount: await sumWhere("BuyerReceipt", "paidAmount"),
-    receiptPaidValueUsd: await sumWhere("BuyerReceipt", "paidValueUsd"),
     purchaseGrossWeight: await sumWhere("GoldPurchase", "grossWeight"),
     purchasePaidAmount: await sumWhere("GoldPurchase", "paidAmount"),
     dispatchValueUsd: await sumWhere("GoldDispatch", "valueUsd"),
@@ -91,7 +90,6 @@ const GRAM_KEYS: Array<keyof Snapshot> = [
 const USD_KEYS: Array<keyof Snapshot> = [
   "pourValueUsd",
   "receiptPaidAmount",
-  "receiptPaidValueUsd",
   "purchasePaidAmount",
   "dispatchValueUsd",
   "allocationWorkerShareUsd",

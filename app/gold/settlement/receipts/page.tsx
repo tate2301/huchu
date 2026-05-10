@@ -199,7 +199,7 @@ export default function GoldSettlementReceiptsPage() {
         header: "Paid Amount",
         cell: ({ row }) => (
           <NumericCell>
-            ${(row.original.paidValueUsd ?? row.original.paidAmount).toFixed(2)}
+            ${row.original.paidAmount.toFixed(2)}
           </NumericCell>
         ),
         size: 120,

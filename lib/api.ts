@@ -860,7 +860,6 @@ export type BuyerReceipt = {
   paidAmount: number;
   goldPriceUsdPerGram?: number | null;
   valuationDate?: string | null;
-  paidValueUsd?: number | null;
   paymentMethod: string;
   paymentChannel?: string | null;
   paymentReference?: string | null;

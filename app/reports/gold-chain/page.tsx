@@ -154,7 +154,7 @@ export default function GoldChainReportPage() {
             recordedAt: pour.createdAt,
             valueUsd:
               pour.valueUsd ??
-              receipt?.paidValueUsd ??
+              receipt?.paidAmount ??
               dispatch?.valueUsd ??
               dispatch?.goldPour.valueUsd ??
               0,

@@ -47,7 +47,6 @@ type DispatchDetail = {
     receiptNumber: string;
     receiptDate: string;
     paidAmount: number;
-    paidValueUsd: number | null;
     paymentMethod: string;
     goldPourId: string | null;
   }>;
@@ -201,7 +200,7 @@ export default function DispatchDetailPage() {
                         {new Date(r.receiptDate).toLocaleString()} · {r.paymentMethod.replace(/_/g, " ").toLowerCase()}
                       </p>
                     </div>
-                    <p className="font-semibold">{usd(r.paidValueUsd ?? r.paidAmount)}</p>
+                    <p className="font-semibold">{usd(r.paidAmount)}</p>
                   </li>
                 ))}
               </ul>

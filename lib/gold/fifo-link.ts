@@ -149,7 +149,6 @@ export async function linkFifoSale(
       receiptNumber,
       receiptDate: input.saleDate,
       paidAmount: headerPaidValueUsd ?? 0,
-      paidValueUsd: headerPaidValueUsd,
       goldPriceUsdPerGram,
       valuationDate,
       paymentMethod: input.paymentMethod ?? "CASH",

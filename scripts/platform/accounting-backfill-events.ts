@@ -139,14 +139,7 @@ async function backfillCompany(companyId: string, dryRun: boolean) {
   }
 
   for (const receipt of buyerReceipts) {
-    const rPaidValueUsd = receipt.paidValueUsd != null ? Number(receipt.paidValueUsd) : null;
-    const rGoldPrice = receipt.goldPriceUsdPerGram != null ? Number(receipt.goldPriceUsdPerGram) : 0;
-    const rPaidAmount = Number(receipt.paidAmount);
-    const receiptUsdAmount =
-      rPaidValueUsd ??
-      (rGoldPrice > 0
-        ? rPaidAmount * rGoldPrice
-        : rPaidAmount);
+    const receiptUsdAmount = Number(receipt.paidAmount);
     await captureAccountingEvent({
       companyId,
       sourceDomain: "gold",

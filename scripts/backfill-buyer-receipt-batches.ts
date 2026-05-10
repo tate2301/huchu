@@ -20,7 +20,6 @@ type LegacyReceipt = {
   goldPourId: string | null;
   goldDispatchId: string | null;
   paidAmount: number | { toNumber(): number };
-  paidValueUsd: number | { toNumber(): number } | null;
   goldPriceUsdPerGram: number | { toNumber(): number } | null;
   goldPour: { id: string; grossWeight: number | { toNumber(): number } } | null;
 };
@@ -34,7 +33,6 @@ async function main() {
       goldPourId: true,
       goldDispatchId: true,
       paidAmount: true,
-      paidValueUsd: true,
       goldPriceUsdPerGram: true,
       goldPour: { select: { id: true, grossWeight: true } },
     },
@@ -66,7 +64,7 @@ async function main() {
             buyerReceiptId: r.id,
             goldPourId: r.goldPourId,
             grams: Number(r.goldPour.grossWeight),
-            valueUsd: r.paidValueUsd != null ? Number(r.paidValueUsd) : null,
+            valueUsd: Number(r.paidAmount),
             goldPriceUsdPerGram: r.goldPriceUsdPerGram != null ? Number(r.goldPriceUsdPerGram) : null,
             notes: "Backfilled from legacy BuyerReceipt.goldPourId",
           },
