@@ -1,4 +1,5 @@
 import type { Prisma, ScrapMetalBalanceEntryType } from "@prisma/client";
+import { createPurchaseBill, createSalesInvoice } from "@/lib/commodity-billing";
 
 type TransactionClient = Prisma.TransactionClient;
 
@@ -11,28 +12,6 @@ export const SCRAP_METAL_CATEGORIES = [
   "MIXED",
   "OTHER",
 ] as const;
-
-function formatTwoDigits(value: number) {
-  return String(value).padStart(2, "0");
-}
-
-async function generateUniqueNumber(args: {
-  tx: TransactionClient;
-  prefix: string;
-  exists: (candidate: string) => Promise<boolean>;
-}) {
-  for (let attempt = 0; attempt < 10; attempt += 1) {
-    const now = new Date();
-    const datePart = `${now.getFullYear()}${formatTwoDigits(now.getMonth() + 1)}${formatTwoDigits(now.getDate())}`;
-    const timePart = `${formatTwoDigits(now.getHours())}${formatTwoDigits(now.getMinutes())}`;
-    const randomPart = Math.floor(100 + Math.random() * 900);
-    const candidate = `${args.prefix}-${datePart}-${timePart}-${randomPart}`;
-    if (!(await args.exists(candidate))) {
-      return candidate;
-    }
-  }
-  return `${args.prefix}-${Date.now()}-${Math.floor(1000 + Math.random() * 9000)}`;
-}
 
 export async function applyScrapBalanceDelta(
   tx: TransactionClient,
@@ -87,6 +66,13 @@ export async function applyScrapBalanceDelta(
   return refreshedBalance;
 }
 
+/**
+ * Create AP subledger documents for a scrap-metal purchase.
+ *
+ * Delegates to the shared createPurchaseBill helper in lib/commodity-billing.
+ * The vendorId must resolve to an existing Vendor record — scrap-metal
+ * purchases always go through a vendor-selection flow, so the FK is available.
+ */
 export async function createScrapPurchaseAccountingDocs(
   tx: TransactionClient,
   input: {
@@ -101,82 +87,54 @@ export async function createScrapPurchaseAccountingDocs(
     createdById: string;
   },
 ) {
-  const billNumber = await generateUniqueNumber({
-    tx,
-    prefix: "BILL",
-    exists: async (candidate) => {
-      const existing = await tx.purchaseBill.findFirst({
-        where: { billNumber: candidate },
-        select: { id: true },
-      });
-      return Boolean(existing);
-    },
-  });
-
-  const bill = await tx.purchaseBill.create({
-    data: {
-      companyId: input.companyId,
-      vendorId: input.vendorId,
-      billNumber,
-      billDate: input.billDate,
-      dueDate: input.billDate,
-      status: input.paymentMethod ? "PAID" : "RECEIVED",
-      currency: input.currency,
-      subTotal: input.amount,
-      taxTotal: 0,
-      total: input.amount,
-      amountPaid: input.paymentMethod ? input.amount : 0,
-      notes: input.description,
-      createdById: input.createdById,
-      issuedById: input.createdById,
-      issuedAt: input.billDate,
-      lines: {
-        create: [
+  const { purchaseBillId, paymentIds } = await createPurchaseBill(tx, {
+    companyId: input.companyId,
+    vendorId: input.vendorId,
+    billDate: input.billDate,
+    currency: input.currency,
+    lineItems: [
+      {
+        description: input.description,
+        quantity: 1,
+        unitPrice: input.amount,
+        totalAmount: input.amount,
+      },
+    ],
+    payments: input.paymentMethod
+      ? [
           {
-            description: input.description,
-            quantity: 1,
-            unitPrice: input.amount,
-            taxRate: 0,
-            taxAmount: 0,
-            lineTotal: input.amount,
+            amount: input.amount,
+            method: input.paymentMethod,
+            paidAt: input.billDate,
+            reference: input.paymentReference ?? undefined,
           },
-        ],
-      },
-    },
+        ]
+      : [],
+    notes: input.description,
+    createdById: input.createdById,
   });
 
-  let payment: { id: string; paidAt: Date } | null = null;
-  if (input.paymentMethod) {
-    const paymentNumber = await generateUniqueNumber({
-      tx,
-      prefix: "PAY",
-      exists: async (candidate) => {
-        const existing = await tx.purchasePayment.findFirst({
-          where: { paymentNumber: candidate },
-          select: { id: true },
-        });
-        return Boolean(existing);
-      },
-    });
-
-    payment = await tx.purchasePayment.create({
-      data: {
-        companyId: input.companyId,
-        billId: bill.id,
-        paymentNumber,
-        paidAt: input.billDate,
-        amount: input.amount,
-        method: input.paymentMethod,
-        reference: input.paymentReference ?? undefined,
-        createdById: input.createdById,
-      },
-      select: { id: true, paidAt: true },
-    });
-  }
+  // Return shape-compatible with historical callers that expected { bill, payment }.
+  const bill = await tx.purchaseBill.findUniqueOrThrow({
+    where: { id: purchaseBillId },
+    select: { id: true },
+  });
+  const payment =
+    paymentIds.length > 0
+      ? await tx.purchasePayment.findUniqueOrThrow({
+          where: { id: paymentIds[0] },
+          select: { id: true, paidAt: true },
+        })
+      : null;
 
   return { bill, payment };
 }
 
+/**
+ * Create AR subledger documents for a scrap-metal sale.
+ *
+ * Delegates to the shared createSalesInvoice helper in lib/commodity-billing.
+ */
 export async function createScrapSaleAccountingDocs(
   tx: TransactionClient,
   input: {
@@ -191,78 +149,45 @@ export async function createScrapSaleAccountingDocs(
     createdById: string;
   },
 ) {
-  const invoiceNumber = await generateUniqueNumber({
-    tx,
-    prefix: "INV",
-    exists: async (candidate) => {
-      const existing = await tx.salesInvoice.findFirst({
-        where: { invoiceNumber: candidate },
-        select: { id: true },
-      });
-      return Boolean(existing);
-    },
-  });
-
-  const invoice = await tx.salesInvoice.create({
-    data: {
-      companyId: input.companyId,
-      customerId: input.customerId,
-      invoiceNumber,
-      invoiceDate: input.invoiceDate,
-      dueDate: input.invoiceDate,
-      status: input.paymentMethod ? "PAID" : "ISSUED",
-      currency: input.currency,
-      subTotal: input.amount,
-      taxTotal: 0,
-      total: input.amount,
-      amountPaid: input.paymentMethod ? input.amount : 0,
-      notes: input.description,
-      createdById: input.createdById,
-      issuedById: input.createdById,
-      issuedAt: input.invoiceDate,
-      lines: {
-        create: [
+  const { salesInvoiceId, receiptIds } = await createSalesInvoice(tx, {
+    companyId: input.companyId,
+    customerId: input.customerId,
+    invoiceDate: input.invoiceDate,
+    currency: input.currency,
+    lineItems: [
+      {
+        description: input.description,
+        quantity: 1,
+        unitPrice: input.amount,
+        totalAmount: input.amount,
+      },
+    ],
+    receipts: input.paymentMethod
+      ? [
           {
-            description: input.description,
-            quantity: 1,
-            unitPrice: input.amount,
-            taxRate: 0,
-            taxAmount: 0,
-            lineTotal: input.amount,
+            amount: input.amount,
+            method: input.paymentMethod,
+            receivedAt: input.invoiceDate,
+            reference: input.paymentReference ?? undefined,
           },
-        ],
-      },
-    },
+        ]
+      : [],
+    notes: input.description,
+    createdById: input.createdById,
   });
 
-  let receipt: { id: string; receivedAt: Date } | null = null;
-  if (input.paymentMethod) {
-    const receiptNumber = await generateUniqueNumber({
-      tx,
-      prefix: "REC",
-      exists: async (candidate) => {
-        const existing = await tx.salesReceipt.findFirst({
-          where: { receiptNumber: candidate },
-          select: { id: true },
-        });
-        return Boolean(existing);
-      },
-    });
-
-    receipt = await tx.salesReceipt.create({
-      data: {
-        companyId: input.companyId,
-        invoiceId: invoice.id,
-        receiptNumber,
-        receivedAt: input.invoiceDate,
-        amount: input.amount,
-        method: input.paymentMethod,
-        reference: input.paymentReference ?? undefined,
-        createdById: input.createdById,
-      },
-      select: { id: true, receivedAt: true },
-    });
-  }
+  // Return shape-compatible with historical callers that expected { invoice, receipt }.
+  const invoice = await tx.salesInvoice.findUniqueOrThrow({
+    where: { id: salesInvoiceId },
+    select: { id: true },
+  });
+  const receipt =
+    receiptIds.length > 0
+      ? await tx.salesReceipt.findUniqueOrThrow({
+          where: { id: receiptIds[0] },
+          select: { id: true, receivedAt: true },
+        })
+      : null;
 
   return { invoice, receipt };
 }
