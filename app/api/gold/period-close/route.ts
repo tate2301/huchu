@@ -9,6 +9,7 @@ import {
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { writeGoldAuditEvent } from "@/lib/audit/gold"
 
 const periodCloseSchema = z.object({
   siteId: z.string().uuid().optional(),
@@ -120,6 +121,15 @@ export async function POST(request: NextRequest) {
         overrideBy: { select: { id: true, name: true, email: true } },
         site: { select: { id: true, name: true, code: true } },
       },
+    })
+
+    await writeGoldAuditEvent({
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      eventType: "gold.period.closed",
+      entityType: "GoldPeriodClose",
+      entityId: row.id,
+      payload: { periodStart: row.periodStart.toISOString(), periodEnd: row.periodEnd.toISOString(), siteId: row.siteId ?? null },
     })
 
     return successResponse(row, 201)

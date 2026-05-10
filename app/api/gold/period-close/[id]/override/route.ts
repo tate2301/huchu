@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse, hasRole } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { writeGoldAuditEvent } from "@/lib/audit/gold"
 
 const overrideSchema = z.object({
   reason: z.string().trim().min(10, "Reason must be at least 10 characters"),
@@ -49,6 +50,15 @@ export async function POST(
         overrideBy: { select: { id: true, name: true, email: true } },
         site: { select: { id: true, name: true, code: true } },
       },
+    })
+
+    await writeGoldAuditEvent({
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      eventType: "gold.period.override",
+      entityType: "GoldPeriodClose",
+      entityId: id,
+      payload: { reason: validated.reason },
     })
 
     return successResponse(updated)

@@ -11,6 +11,7 @@ import {
   createBuyerReceiptCorrection,
   captureGoldCorrectionAccountingEvent,
 } from "@/lib/gold/corrections";
+import { writeGoldAuditEvent } from "@/lib/audit/gold";
 
 const receiptCorrectionSchema = z.object({
   type: z.enum(["ADJUST_AMOUNT", "ADJUST_ASSAY", "ADJUST_GRAMS", "VOID", "RECLASSIFY", "OTHER"]),
@@ -78,6 +79,15 @@ export async function POST(
       }
 
       return created;
+    });
+
+    await writeGoldAuditEvent({
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      eventType: "gold.receipt-correction.created",
+      entityType: "BuyerReceipt",
+      entityId: receiptId,
+      payload: { correctionId: correction.id, type: validated.type, reason: validated.reason },
     });
 
     return successResponse(correction, 201);

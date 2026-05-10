@@ -357,3 +357,50 @@ describe("companyId denormalisation — column parity", () => {
     expect(result.length).toBe(1);
   });
 });
+
+// Suite 8 - Epic 12c schema witnesses  MIGRATION WITNESS
+// MIGRATION WITNESS: fails on current schema (GoldCompanyConfig missing, attachmentsJson missing),
+// passes after migration 20260510500001_add_gold_company_config_and_purchase_attachments
+describe("Suite 8 - Epic 12c: GoldCompanyConfig + GoldPurchase.attachmentsJson", () => {
+  // MIGRATION WITNESS: fails on current schema, passes after migration 20260510500001
+  it("GoldCompanyConfig table exists", async () => {
+    const result = await prisma.$queryRaw<{ table_name: string }[]>`
+      SELECT table_name FROM information_schema.tables
+      WHERE table_schema = 'public' AND table_name = 'GoldCompanyConfig'
+    `;
+    expect(result.length).toBe(1);
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after migration 20260510500001
+  it("GoldCompanyConfig.defaultEstimatedPurity is Decimal(5,2)", async () => {
+    const result = await prisma.$queryRaw<{ numeric_precision: number; numeric_scale: number }[]>`
+      SELECT numeric_precision, numeric_scale
+      FROM information_schema.columns
+      WHERE table_name = 'GoldCompanyConfig' AND column_name = 'defaultEstimatedPurity'
+    `;
+    expect(result.length).toBe(1);
+    expect(result[0].numeric_precision).toBe(5);
+    expect(result[0].numeric_scale).toBe(2);
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after migration 20260510500001
+  it("GoldCompanyConfig.importCommitCoSignThresholdUsd is Decimal(14,2)", async () => {
+    const result = await prisma.$queryRaw<{ numeric_precision: number; numeric_scale: number }[]>`
+      SELECT numeric_precision, numeric_scale
+      FROM information_schema.columns
+      WHERE table_name = 'GoldCompanyConfig' AND column_name = 'importCommitCoSignThresholdUsd'
+    `;
+    expect(result.length).toBe(1);
+    expect(result[0].numeric_precision).toBe(14);
+    expect(result[0].numeric_scale).toBe(2);
+  });
+
+  // MIGRATION WITNESS: fails on current schema, passes after migration 20260510500001
+  it("GoldPurchase.attachmentsJson column exists", async () => {
+    const result = await prisma.$queryRaw<{ column_name: string }[]>`
+      SELECT column_name FROM information_schema.columns
+      WHERE table_name = 'GoldPurchase' AND column_name = 'attachmentsJson'
+    `;
+    expect(result.length).toBe(1);
+  });
+});

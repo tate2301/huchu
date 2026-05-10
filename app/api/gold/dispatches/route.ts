@@ -13,6 +13,7 @@ import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
+import { createRequestLogger } from "@/lib/logging"
 
 const goldDispatchSchema = z
   .object({
@@ -144,6 +145,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const requestId = crypto.randomUUID()
+  const log = createRequestLogger(requestId, { route: "POST /api/gold/dispatches" })
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
@@ -355,7 +358,7 @@ export async function POST(request: NextRequest) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues)
     }
-    console.error("[API] POST /api/gold/dispatches error:", error)
+    log.error("dispatch creation failed", error instanceof Error ? error : undefined)
     return errorResponse("Failed to create gold dispatch")
   }
 }

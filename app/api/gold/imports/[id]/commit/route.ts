@@ -7,12 +7,17 @@ import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { reserveIdentifier } from "@/lib/id-generator"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
+import { writeGoldAuditEvent } from "@/lib/audit/gold"
+import { emitGoldImportFailedNotification, emitGoldExceptionNotification } from "@/lib/notifications"
+import { createRequestLogger } from "@/lib/logging"
 
 // TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
 ) {
+  const requestId = crypto.randomUUID()
+  const log = createRequestLogger(requestId, { route: "POST /api/gold/imports/[id]/commit" })
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
@@ -813,7 +818,7 @@ export async function POST(
           rowError,
         )
         try {
-          await prisma.$transaction(async (tx) => {
+          const fallbackResult = await prisma.$transaction(async (tx) => {
             const fallbackWitnesses = await tx.employee.findMany({
               where: { companyId, isActive: true },
               select: { id: true },
@@ -877,7 +882,7 @@ export async function POST(
                 errorMessage: `${message.slice(0, 400)}${fallbackPourId ? " — saved as bare pour" : " — could not save fallback pour"}`,
               },
             })
-            await tx.goldException.create({
+            const exception = await tx.goldException.create({
               data: {
                 companyId,
                 siteId,
@@ -893,9 +898,19 @@ export async function POST(
                 }),
                 createdById: userId,
               },
+              select: { id: true },
             })
+            return { fallbackPourId, exceptionId: exception.id }
           })
           rowsAnomaly += 1
+          await emitGoldExceptionNotification({
+            companyId,
+            exceptionId: fallbackResult.exceptionId,
+            category: "IMPORT_FAILURE",
+            severity: "CRITICAL",
+            entityType: fallbackResult.fallbackPourId ? "GoldPour" : "GoldLedgerEntry",
+            entityId: fallbackResult.fallbackPourId ?? entry.id,
+          })
         } catch (fallbackErr) {
           // If even the bare-pour fallback can't land, mark FAILED so the
           // operator sees the row needs manual intervention.
@@ -982,6 +997,21 @@ export async function POST(
         if (result.isAnomaly) {
           totalDeficitGrams += result.remainingGrams
           rowsAnomaly += 1
+          const inventoryDeficitException = await prisma.goldException.findFirst({
+            where: { companyId, category: "INVENTORY_DEFICIT", entityId: entry.id },
+            select: { id: true },
+            orderBy: { createdAt: "desc" },
+          })
+          if (inventoryDeficitException) {
+            await emitGoldExceptionNotification({
+              companyId,
+              exceptionId: inventoryDeficitException.id,
+              category: "INVENTORY_DEFICIT",
+              severity: "CRITICAL",
+              entityType: "GoldLedgerEntry",
+              entityId: entry.id,
+            })
+          }
         } else {
           rowsCreated += 1
         }
@@ -1013,6 +1043,24 @@ export async function POST(
       },
     })
 
+    await writeGoldAuditEvent({
+      companyId,
+      actorId: userId,
+      eventType: "gold.import.committed",
+      entityType: "GoldLedgerImport",
+      entityId: id,
+      payload: { rowsCreated, rowsAnomaly, rowsFailed, allocationsCreated, poursCreated, salesCreated },
+    })
+
+    if (rowsFailed > 0) {
+      await emitGoldImportFailedNotification({
+        companyId,
+        importId: id,
+        rowsFailed,
+        uploaderId: importRecord.uploadedById ?? userId,
+      })
+    }
+
     return successResponse({
       ...updated,
       summary: {
@@ -1028,7 +1076,7 @@ export async function POST(
       },
     })
   } catch (error) {
-    console.error("[API] POST /api/gold/imports/[id]/commit error:", error)
+    log.error("commit failed", error instanceof Error ? error : undefined)
     return errorResponse("Failed to commit import")
   }
 }

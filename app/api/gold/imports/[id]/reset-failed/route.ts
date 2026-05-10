@@ -10,6 +10,7 @@ import {
   purgeImportArtifacts,
   resetEntriesAfterPurge,
 } from "@/lib/gold/import-cleanup"
+import { writeGoldAuditEvent } from "@/lib/audit/gold"
 
 /**
  * Reset only the failed rows of an import — wipes any artifacts they
@@ -81,6 +82,15 @@ export async function POST(
         })
       }
       return { ...purge, resetCount: failedEntries.length }
+    })
+
+    await writeGoldAuditEvent({
+      companyId: importRecord.companyId,
+      actorId: session.user.id,
+      eventType: "gold.import.reset-failed",
+      entityType: "GoldLedgerImport",
+      entityId: id,
+      payload: { resetCount: summary.resetCount },
     })
 
     return successResponse(summary)

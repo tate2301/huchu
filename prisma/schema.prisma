@@ -166,6 +166,7 @@ model Company {
   buyerReceiptCorrections       BuyerReceiptCorrection[] @relation("BuyerReceiptCorrectionCompany")
   goldLedgerImportPresets       GoldLedgerImportPreset[]
   goldPeriodCloses              GoldPeriodClose[]
+  goldConfig                    GoldCompanyConfig?
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -2148,6 +2149,22 @@ enum GoldSellerType {
   EXTERNAL
 }
 
+model GoldCompanyConfig {
+  companyId                       String   @id
+  defaultSplitMode                String   @default("DEFAULT_50_50")
+  defaultPayCycleWeeks            Int      @default(2)
+  defaultStorageLocation          String   @default("Vault A")
+  defaultEstimatedPurity          Decimal  @default(92.5) @db.Decimal(5, 2)
+  liveSpotPriceEnabled            Boolean  @default(false)
+  liveSpotPriceProvider           String?
+  importCommitCoSignThresholdRows Int      @default(100)
+  importCommitCoSignThresholdUsd  Decimal  @default(10000) @db.Decimal(14, 2)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
 model GoldPurchase {
   id               String         @id @default(uuid())
   companyId        String
@@ -2169,6 +2186,7 @@ model GoldPurchase {
   paymentMethod    String
   paymentChannel   String?
   paymentReference String?
+  attachmentsJson  String?
   notes            String?
   createdById      String
   createdAt        DateTime       @default(now())

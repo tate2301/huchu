@@ -10,6 +10,7 @@ import {
   purgeImportArtifacts,
   resetEntriesAfterPurge,
 } from "@/lib/gold/import-cleanup"
+import { writeGoldAuditEvent } from "@/lib/audit/gold"
 
 /**
  * Roll back a committed import. Wipes every record the import produced
@@ -67,6 +68,14 @@ export async function POST(
         },
       })
       return { ...purge, status: updated.status }
+    })
+
+    await writeGoldAuditEvent({
+      companyId: importRecord.companyId,
+      actorId: session.user.id,
+      eventType: "gold.import.rolled-back",
+      entityType: "GoldLedgerImport",
+      entityId: id,
     })
 
     return successResponse(summary)

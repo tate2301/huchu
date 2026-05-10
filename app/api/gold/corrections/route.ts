@@ -15,6 +15,7 @@ import {
   verifyEntityOwnership,
   type SupportedEntityType,
 } from "@/lib/gold/corrections";
+import { writeGoldAuditEvent } from "@/lib/audit/gold";
 
 // Legacy JSON-blob correction GET kept for read-only backward compat.
 // New structured rows are the source of truth from this commit forward.
@@ -170,6 +171,15 @@ export async function POST(request: NextRequest) {
       }
 
       return created;
+    });
+
+    await writeGoldAuditEvent({
+      companyId: session.user.companyId,
+      actorId: session.user.id,
+      eventType: "gold.correction.created",
+      entityType: validated.entityType,
+      entityId: validated.entityId,
+      payload: { correctionId: correction.id, type: validated.type, reason: validated.reason },
     });
 
     return successResponse(correction, 201);

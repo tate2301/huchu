@@ -14,6 +14,7 @@ import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"
 
 const buyerReceiptSchema = z
   .object({
@@ -462,6 +463,15 @@ export async function POST(request: NextRequest) {
     })
     if (!receipt) {
       return errorResponse("Failed to create receipt", 500)
+    }
+
+    if (validated.goldDispatchId && dispatch) {
+      await emitGoldDispatchReceiptedNotification({
+        companyId: session.user.companyId,
+        dispatchId: validated.goldDispatchId,
+        receiptId: receipt.id,
+        handedOverById: dispatch.handedOverById,
+      })
     }
 
     return successResponse(normalizeReceipt(receipt), 201)
