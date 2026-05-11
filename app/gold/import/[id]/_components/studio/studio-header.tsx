@@ -168,20 +168,8 @@ export function StudioHeader({
           )}
         </div>
 
-        {/* Right: primary actions + 3-dot menu */}
+        {/* Right: secondary actions (Validate + Commit moved to GoldShell.actions) */}
         <div className="flex items-center gap-1.5">
-          {!isLocked && (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={onValidate}
-              disabled={isValidating}
-              className="h-8 text-xs"
-            >
-              {isValidating ? "Validating…" : dryRunLabel}
-            </Button>
-          )}
-
           {importData.rowsFailed > 0 && (
             <Button
               size="sm"
@@ -193,21 +181,6 @@ export function StudioHeader({
               {isResetting
                 ? "Resetting…"
                 : `Reset ${importData.rowsFailed} failed`}
-            </Button>
-          )}
-
-          {!isLocked && (
-            <Button
-              size="sm"
-              disabled={!canCommit || isCommitting}
-              onClick={() => setOpenConfirm("commit")}
-              className="h-8 text-xs"
-            >
-              {isCommitting
-                ? "Committing…"
-                : importData.status === "ROLLED_BACK"
-                  ? "Re-commit"
-                  : "Commit import"}
             </Button>
           )}
 

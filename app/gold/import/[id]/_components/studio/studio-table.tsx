@@ -488,6 +488,18 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                     </th>
                   );
                 })}
+                {/*
+                  Trailing column matches the per-row actions <td className="w-20">
+                  rendered in the tbody (line ~565). Without this th the thead has
+                  one fewer column than each tr, which under `tableLayout: fixed`
+                  caused all columns to drift right of their headers — the user's
+                  reported "cells and their headers are not aligned".
+                */}
+                <th
+                  style={{ width: 80 }}
+                  className="border-b border-[--border] px-1 py-1.5"
+                  aria-hidden="true"
+                />
               </tr>
             ))}
           </thead>
@@ -694,7 +706,8 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
               <td className={cn("px-2 py-1.5 text-right font-mono", totals.bal < 0 && "text-rose-700")}>
                 {totals.bal === 0 ? "—" : `${grams(totals.bal)} g`}
               </td>
-              <td />
+              {/* Matches the trailing actions column (width 80) in thead + tbody. */}
+              <td style={{ width: 80 }} className="px-1 py-1.5" />
             </tr>
           </tfoot>
         </table>

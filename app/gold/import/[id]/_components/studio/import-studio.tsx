@@ -12,6 +12,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -821,6 +822,40 @@ export function ImportStudio() {
     <GoldShell
       activeTab="home"
       title={data.fileName}
+      // Match every other Gold page's pattern: primary actions live in the
+      // shell's actions slot so the studio feels native to the module, not
+      // like an embedded sub-app. The 3-dot menu, rename, status chip,
+      // switch-import sheet, and the AlertDialog confirm flows stay inside
+      // StudioHeader as the section bar.
+      actions={
+        !isLocked ? (
+          <div className="flex items-center gap-1.5">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleValidate}
+              disabled={dryRunMutation.isPending}
+            >
+              {dryRunMutation.isPending
+                ? "Validating…"
+                : dryRun
+                  ? "Re-validate"
+                  : "Validate"}
+            </Button>
+            <Button
+              size="sm"
+              disabled={!canCommit || commitMutation.isPending}
+              onClick={() => commitMutation.mutate()}
+            >
+              {commitMutation.isPending
+                ? "Committing…"
+                : data.status === "ROLLED_BACK"
+                  ? "Re-commit"
+                  : "Commit import"}
+            </Button>
+          </div>
+        ) : null
+      }
     >
       <motion.div
         // Animate between in-page and fullscreen. `layout` smoothly
