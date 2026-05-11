@@ -1,5 +1,35 @@
 "use client";
 
+/**
+ * Import Studio — operator workbench for a single GoldLedgerImport.
+ *
+ * LAYER BOUNDARIES (read this before moving controls around):
+ *
+ *   1. GoldShell.actions   →  primary state-changing verbs for the WHOLE
+ *                             import (Validate, Commit). Lives in the
+ *                             top-of-page action slot so the studio reads
+ *                             as a native Gold page, not an embedded app.
+ *
+ *   2. StudioHeader        →  identity + secondary import verbs. Back,
+ *                             switch-import, rename, status chip, the
+ *                             3-dot overflow (export / archive / roll back
+ *                             / delete), the "Reset N failed" button, and
+ *                             all confirm AlertDialogs except commit.
+ *
+ *   3. Studio tab content  →  local verbs that belong to the work in that
+ *                             tab (Add row, Bulk edit, Sell selected,
+ *                             Validate-from-checklist, Map leaders, etc.).
+ *
+ *   4. ImportStudio        →  the commit-confirm AlertDialog. The Commit
+ *                             button lives in GoldShell.actions and the
+ *                             checklist on Tab Overview also opens this
+ *                             dialog — one ceremony, two entry points,
+ *                             one source of truth. Keep it here so neither
+ *                             entry point can drift.
+ *
+ * Do not put Commit back into StudioHeader. Operators read it there as a
+ * neighbour to identity (back · title · ...) and miss it as a primary verb.
+ */
 import {
   useCallback,
   useEffect,
@@ -12,8 +42,20 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
@@ -100,6 +142,7 @@ export function ImportStudio() {
   const [leaderTimeline, setLeaderTimeline] = useState<string | null>(null);
   const [commentEntryId, setCommentEntryId] = useState<string | null>(null);
   const [reconciliationOpen, setReconciliationOpen] = useState(false);
+  const [commitConfirmOpen, setCommitConfirmOpen] = useState(false);
   const yankBuffer = useRef<LedgerEntry[]>([]);
 
   const history = useStudioHistory();
@@ -845,7 +888,7 @@ export function ImportStudio() {
             <Button
               size="sm"
               disabled={!canCommit || commitMutation.isPending}
-              onClick={() => commitMutation.mutate()}
+              onClick={() => setCommitConfirmOpen(true)}
             >
               {commitMutation.isPending
                 ? "Committing…"
@@ -877,16 +920,10 @@ export function ImportStudio() {
       >
         <StudioHeader
           importData={data}
-          canCommit={canCommit}
-          isCommitting={commitMutation.isPending}
           isResetting={resetFailedMutation.isPending}
-          isValidating={dryRunMutation.isPending}
-          dryRunLabel={dryRun ? "Re-validate" : "Validate"}
-          onCommit={() => commitMutation.mutate()}
           onRollback={() => rollbackMutation.mutate()}
           onResetFailed={() => resetFailedMutation.mutate()}
           onDelete={() => deleteMutation.mutate()}
-          onValidate={handleValidate}
           onRename={handleRename}
           onExportCsv={handleExportCsv}
         />
@@ -906,41 +943,31 @@ export function ImportStudio() {
                     importData={data}
                     dryRun={dryRun}
                     isValidating={dryRunMutation.isPending}
+                    isCommitting={commitMutation.isPending}
+                    canCommit={canCommit}
                     siteIsSet={siteIsSet}
                     allMapped={allMapped}
                     mappedCount={mappedCount}
                     totalNames={distinctNames.length}
                     onValidate={handleValidate}
+                    onCommit={() => setCommitConfirmOpen(true)}
                     onSwitchToLedger={() => setActiveTab("ledger")}
                     onSwitchToMappings={() => setActiveTab("mappings")}
                   />
                 </div>
                 <div className="flex w-72 shrink-0 flex-col border-l border-[--border]">
-                  <div className="flex shrink-0 border-b border-[--border] bg-[--surface-muted]">
-                    <button
-                      type="button"
-                      onClick={() => setReconciliationOpen(false)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors",
-                        !reconciliationOpen
-                          ? "bg-[--surface-base] text-[--text-strong]"
-                          : "text-[--text-muted] hover:text-[--text-body]",
-                      )}
-                    >
-                      Activity
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setReconciliationOpen(true)}
-                      className={cn(
-                        "flex-1 px-3 py-1.5 text-[11px] font-medium transition-colors",
-                        reconciliationOpen
-                          ? "bg-[--surface-base] text-[--text-strong]"
-                          : "text-[--text-muted] hover:text-[--text-body]",
-                      )}
-                    >
-                      Reconcile
-                    </button>
+                  <div className="flex shrink-0 items-center border-b border-[--border] bg-[--surface-muted] px-2 py-1.5">
+                    <SegmentedControl<"activity" | "reconcile">
+                      ariaLabel="Inspector view"
+                      value={reconciliationOpen ? "reconcile" : "activity"}
+                      onValueChange={(v) => setReconciliationOpen(v === "reconcile")}
+                      size="sm"
+                      fullWidth
+                      options={[
+                        { value: "activity", label: "Activity" },
+                        { value: "reconcile", label: "Reconcile" },
+                      ]}
+                    />
                   </div>
                   <div className="min-h-0 flex-1">
                     {reconciliationOpen ? (
@@ -1155,6 +1182,98 @@ export function ImportStudio() {
           onClose={() => setLeaderTimeline(null)}
         />
       )}
+
+      {/*
+        Commit ceremony — the one moment the studio earns color and a beat
+        of friction. Owned by ImportStudio rather than StudioHeader because
+        the Commit button now lives in GoldShell.actions (see layer
+        boundary doc at the top of this file). The dialog shows the
+        operator the *projected* posting impact so they can verify the
+        right import is being committed before the side effects land.
+      */}
+      <AlertDialog
+        open={commitConfirmOpen}
+        onOpenChange={(o) => !commitMutation.isPending && setCommitConfirmOpen(o)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {data.status === "ROLLED_BACK"
+                ? "Re-commit this import?"
+                : "Commit this import?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Allocations, pours and receipts will be posted to the ledger.
+              Inventory and accounting events commit in the same transaction —
+              you can roll back after, but not undo a partial commit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+
+          {/* Posting summary — what's about to land. */}
+          <div className="grid grid-cols-2 gap-2 rounded-md border border-[--border] bg-[--surface-muted] p-3 text-xs">
+            <div>
+              <div className="text-[--text-muted]">Rows</div>
+              <div className="font-mono text-sm font-semibold text-[--text-strong] tabular-nums">
+                {data.rowsTotal}
+              </div>
+            </div>
+            <div>
+              <div className="text-[--text-muted]">Site</div>
+              <div className="font-medium text-[--text-strong] truncate">
+                {data.site ? `${data.site.code} — ${data.site.name}` : "—"}
+              </div>
+            </div>
+            <div>
+              <div className="text-[--text-muted]">Leaders mapped</div>
+              <div className="font-mono text-sm font-semibold text-[--text-strong] tabular-nums">
+                {mappedCount} / {distinctNames.length}
+              </div>
+            </div>
+            <div>
+              <div className="text-[--text-muted]">Anomalies</div>
+              <div className="flex items-center gap-1">
+                {criticalCount > 0 && (
+                  <Badge variant="soft-danger">{criticalCount} critical</Badge>
+                )}
+                {warnCount > 0 && (
+                  <Badge variant="soft-warning">{warnCount} warn</Badge>
+                )}
+                {criticalCount === 0 && warnCount === 0 && (
+                  <span className="text-[--text-muted]">None</span>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {warnCount > 0 && (
+            <div className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Committing with {warnCount} warning{warnCount === 1 ? "" : "s"}
+              {" "}accepted. Critical anomalies still block this action.
+            </div>
+          )}
+
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={commitMutation.isPending}>
+              Cancel
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={!canCommit || commitMutation.isPending}
+              onClick={(e) => {
+                e.preventDefault();
+                commitMutation.mutate(undefined, {
+                  onSettled: () => setCommitConfirmOpen(false),
+                });
+              }}
+            >
+              {commitMutation.isPending
+                ? "Posting ledger…"
+                : data.status === "ROLLED_BACK"
+                  ? "Re-commit & post ledger"
+                  : "Commit & post ledger"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </GoldShell>
   );
 }

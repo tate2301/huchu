@@ -77,12 +77,33 @@ export type StudioTableProps = {
   onRowCommentClick?: (entryId: string) => void;
 };
 
-const STATUS_TINT: Record<LedgerEntry["status"], string> = {
-  CREATED: "bg-emerald-50/40 border-l-2 border-l-emerald-400",
-  ANOMALY: "bg-amber-50/50 border-l-2 border-l-amber-400",
-  FAILED: "bg-rose-50/50 border-l-2 border-l-rose-400",
-  PENDING: "border-l-2 border-l-transparent",
-};
+/**
+ * Row state is communicated via a 3-px inset *rail* on the left edge — not by
+ * tinting the whole row. The rail's color encodes the dominant signal for the
+ * row (anomaly severity wins over committed-success), and the rest of the row
+ * keeps its surface untinted so per-cell legibility stays intact (the user
+ * explicitly asked us to stop full-row tinting).
+ */
+const SEVERITY_RAIL = {
+  critical: "shadow-[inset_3px_0_0_0_var(--danger-600,#e11d48)]",
+  warn: "shadow-[inset_3px_0_0_0_var(--warning-500,#f59e0b)]",
+  info: "shadow-[inset_3px_0_0_0_var(--info-500,#0ea5e9)]",
+  created: "shadow-[inset_3px_0_0_0_var(--success-500,#10b981)]",
+  failed: "shadow-[inset_3px_0_0_0_var(--danger-600,#e11d48)]",
+  none: "",
+} as const;
+
+function railFor(
+  entry: LedgerEntry,
+  anomalies: Anomaly[],
+): keyof typeof SEVERITY_RAIL {
+  if (entry.status === "FAILED") return "failed";
+  if (anomalies.some((a) => a.severity === "CRITICAL")) return "critical";
+  if (anomalies.some((a) => a.severity === "WARN")) return "warn";
+  if (anomalies.some((a) => a.severity === "INFO")) return "info";
+  if (entry.status === "CREATED") return "created";
+  return "none";
+}
 
 function grams(n: number | null | undefined) {
   return n == null ? "—" : n.toFixed(3);
@@ -431,6 +452,19 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
 
     const headerGroups = table.getHeaderGroups();
 
+    const selectionTotals = useMemo(() => {
+      let count = 0;
+      let gross = 0;
+      let bal = 0;
+      for (const e of entries) {
+        if (!selectedIds.has(e.id)) continue;
+        count += 1;
+        gross += e.gramsTotal ?? 0;
+        bal += e.balGrams ?? 0;
+      }
+      return { count, gross, bal };
+    }, [entries, selectedIds]);
+
     const totals = useMemo(() => {
       return entries.reduce(
         (acc, e) => {
@@ -523,6 +557,7 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                   key={row.id}
                   id={`studio-row-${entry.id}`}
                   data-row-idx={rowIdx}
+                  data-row-status={entry.status}
                   style={{
                     position: "absolute",
                     top: 0,
@@ -532,10 +567,13 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                   }}
                   className={cn(
                     "group border-b border-[--border] align-middle transition-colors",
-                    STATUS_TINT[entry.status],
-                    selectedIds.has(entry.id) && "ring-1 ring-inset ring-[--action-primary-bg]/40 bg-[--action-secondary-bg]/30",
-                    rowAnomalies.length > 0 && entry.status !== "CREATED" && "border-l-2",
-                    isHovered && !selectedIds.has(entry.id) && "bg-[--surface-muted]/60",
+                    SEVERITY_RAIL[railFor(entry, rowAnomalies)],
+                    selectedIds.has(entry.id) &&
+                      "bg-[--action-secondary-bg]/40 shadow-[inset_3px_0_0_0_var(--action-primary-bg)]",
+                    isHovered &&
+                      !selectedIds.has(entry.id) &&
+                      "bg-[--surface-muted]/60",
+                    rowLocked && !selectedIds.has(entry.id) && "bg-[--surface-muted]/30",
                   )}
                   onMouseEnter={() => setHoveredRowId(entry.id)}
                   onMouseLeave={() => setHoveredRowId(null)}
@@ -685,30 +723,76 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
             })}
           </tbody>
           <tfoot className="sticky bottom-0 z-20 bg-[--surface-muted] backdrop-blur">
-            <tr className="border-t border-[--border]">
-              <td colSpan={3} className="px-2 py-1.5 text-[--text-muted]">
-                {entries.length} rows
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono font-medium">
-                {grams(totals.gross)} g
-              </td>
-              {KNOWN_EXPENSE_TYPES.map((t) => (
-                <td key={t} className="px-2 py-1.5 text-right font-mono">
-                  —
+            {selectionTotals.count > 0 ? (
+              // Selection bar — replaces the totals row when rows are selected.
+              // Single full-width cell so the strip reads as one continuous
+              // band (no column drift) and the eye stays on the count + grams.
+              <tr className="border-t border-[--action-primary-bg]/40">
+                <td
+                  colSpan={headerGroups[0]?.headers.length + 1 || 13}
+                  className="px-3 py-2 text-xs"
+                >
+                  <div className="flex items-center gap-3">
+                    <span className="font-semibold text-[--text-strong]">
+                      {selectionTotals.count} selected
+                    </span>
+                    <span className="text-[--text-muted]">·</span>
+                    <span className="font-mono tabular-nums text-[--text-body]">
+                      {grams(selectionTotals.gross)} g gross
+                    </span>
+                    <span className="text-[--text-muted]">·</span>
+                    <span
+                      className={cn(
+                        "font-mono tabular-nums",
+                        selectionTotals.bal < 0
+                          ? "text-rose-700"
+                          : "text-[--text-body]",
+                      )}
+                    >
+                      {grams(selectionTotals.bal)} g bal
+                    </span>
+                    <div className="flex-1" />
+                    <button
+                      type="button"
+                      onClick={() => onSelectChange(new Set())}
+                      className="rounded px-2 py-0.5 text-[11px] text-[--text-muted] hover:bg-[--surface-base] hover:text-[--text-strong]"
+                    >
+                      Clear selection
+                    </button>
+                  </div>
                 </td>
-              ))}
-              <td className="px-2 py-1.5 text-right font-mono text-sky-800">
-                {grams(totals.workers)} g
-              </td>
-              <td className="px-2 py-1.5 text-right font-mono text-emerald-800">
-                {grams(totals.company)} g
-              </td>
-              <td className={cn("px-2 py-1.5 text-right font-mono", totals.bal < 0 && "text-rose-700")}>
-                {totals.bal === 0 ? "—" : `${grams(totals.bal)} g`}
-              </td>
-              {/* Matches the trailing actions column (width 80) in thead + tbody. */}
-              <td style={{ width: 80 }} className="px-1 py-1.5" />
-            </tr>
+              </tr>
+            ) : (
+              <tr className="border-t border-[--border]">
+                <td colSpan={3} className="px-2 py-1.5 text-[--text-muted]">
+                  {entries.length} rows
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono font-medium">
+                  {grams(totals.gross)} g
+                </td>
+                {KNOWN_EXPENSE_TYPES.map((t) => (
+                  <td key={t} className="px-2 py-1.5 text-right font-mono">
+                    —
+                  </td>
+                ))}
+                <td className="px-2 py-1.5 text-right font-mono text-sky-800">
+                  {grams(totals.workers)} g
+                </td>
+                <td className="px-2 py-1.5 text-right font-mono text-emerald-800">
+                  {grams(totals.company)} g
+                </td>
+                <td
+                  className={cn(
+                    "px-2 py-1.5 text-right font-mono",
+                    totals.bal < 0 && "text-rose-700",
+                  )}
+                >
+                  {totals.bal === 0 ? "—" : `${grams(totals.bal)} g`}
+                </td>
+                {/* Matches the trailing actions column (width 80) in thead + tbody. */}
+                <td style={{ width: 80 }} className="px-1 py-1.5" />
+              </tr>
+            )}
           </tfoot>
         </table>
 

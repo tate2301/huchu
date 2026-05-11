@@ -55,34 +55,22 @@ const STATUS_CHIP: Record<
   DRAFT: "pending",
 };
 
-type ConfirmKind = "commit" | "rollback" | "delete" | "reset" | null;
+type ConfirmKind = "rollback" | "delete" | "reset" | null;
 
 export function StudioHeader({
   importData,
-  canCommit,
-  isCommitting,
   isResetting,
-  isValidating,
-  dryRunLabel,
-  onCommit,
   onRollback,
   onResetFailed,
   onDelete,
-  onValidate,
   onRename,
   onExportCsv,
 }: {
   importData: ImportDetail;
-  canCommit: boolean;
-  isCommitting: boolean;
   isResetting: boolean;
-  isValidating: boolean;
-  dryRunLabel: string;
-  onCommit: () => void;
   onRollback: () => void;
   onResetFailed: () => void;
   onDelete: () => void;
-  onValidate: () => void;
   onRename: (name: string) => void;
   onExportCsv: () => void;
 }) {
@@ -174,9 +162,10 @@ export function StudioHeader({
             <Button
               size="sm"
               variant="outline"
-              disabled={isResetting}
+              disabled={isResetting || isLocked}
               onClick={() => setOpenConfirm("reset")}
               className="h-8 text-xs"
+              title={isLocked ? "Committed — locked" : "Reset failed rows to PENDING"}
             >
               {isResetting
                 ? "Resetting…"
@@ -273,32 +262,6 @@ export function StudioHeader({
       </Sheet>
 
       {/* Confirm dialogs */}
-      <AlertDialog
-        open={openConfirm === "commit"}
-        onOpenChange={(o) => !o && setOpenConfirm(null)}
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Commit this import?</AlertDialogTitle>
-            <AlertDialogDescription>
-              {importData.rowsTotal} ledger rows will be processed and posted as
-              allocations, pours, and receipts.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction
-              onClick={() => {
-                setOpenConfirm(null);
-                onCommit();
-              }}
-            >
-              Commit import
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
       <AlertDialog
         open={openConfirm === "reset"}
         onOpenChange={(o) => !o && setOpenConfirm(null)}
