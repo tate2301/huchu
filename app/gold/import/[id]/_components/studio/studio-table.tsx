@@ -609,6 +609,17 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                           colIdx === 1 && "text-[--text-muted]",
                         )}
                         onClick={(e) => {
+                          // Shift/Ctrl/Meta clicks are *selection* gestures
+                          // and belong to the row handler — let them bubble.
+                          if (e.shiftKey || e.ctrlKey || e.metaKey) return;
+                          // Clicks on interactive children (EditableNumber
+                          // buttons, links, selects) already stopPropagation
+                          // themselves. Firing an extra setActiveCell on the
+                          // same batch as the child's setEditing(true) was
+                          // racing the parent re-render and clobbering edit
+                          // state — so we only activate when the td itself
+                          // received the click (empty area).
+                          if (e.target !== e.currentTarget) return;
                           e.stopPropagation();
                           onActiveCellChange({ rowIdx, colIdx });
                         }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { ClientDate } from "@/app/gold/components/client-date";
 
@@ -26,11 +26,10 @@ export function EditableNumber({
   format = (n) => n.toFixed(3),
 }: EditableNumberProps) {
   const [editing, setEditing] = useState(false);
+  // `draft` is only displayed while editing. The click-to-edit handler below
+  // seeds it from the current `value` each time the editor opens, so we
+  // don't need a useEffect to keep them in sync when not editing.
   const [draft, setDraft] = useState(value != null ? String(value) : "");
-
-  useEffect(() => {
-    if (!editing) setDraft(value != null ? String(value) : "");
-  }, [value, editing]);
 
   if (disabled || value === undefined) {
     return (
@@ -50,7 +49,13 @@ export function EditableNumber({
     return (
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          // Stop the click from bubbling to the surrounding <td>/<tr>; their
+          // own onClicks call setActiveCell, which would trigger a parent
+          // re-render in the same batch as this component's setEditing(true)
+          // and — depending on how the columns useMemo settles — can clobber
+          // local edit state. Clicking the button IS the activation.
+          e.stopPropagation();
           setDraft(value != null ? String(value) : "");
           setEditing(true);
         }}
@@ -87,7 +92,11 @@ export function EditableNumber({
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
+      // Keep clicks/keys inside the input from bubbling to the row.
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
+        e.stopPropagation();
         if (e.key === "Enter") {
           e.preventDefault();
           (e.target as HTMLInputElement).blur();
@@ -114,11 +123,9 @@ export function EditableDate({ value, onSave, disabled }: EditableDateProps) {
   const display = <ClientDate value={value} mode="date" />;
   const isoDate = value ? new Date(value).toISOString().slice(0, 10) : "";
   const [editing, setEditing] = useState(false);
+  // See note in EditableNumber: draft is only used while editing, seeded at
+  // open-time by the click handler below.
   const [draft, setDraft] = useState(isoDate);
-
-  useEffect(() => {
-    if (!editing) setDraft(isoDate);
-  }, [isoDate, editing]);
 
   if (disabled) {
     return <span className="whitespace-nowrap">{display}</span>;
@@ -128,7 +135,8 @@ export function EditableDate({ value, onSave, disabled }: EditableDateProps) {
     return (
       <button
         type="button"
-        onClick={() => {
+        onClick={(e) => {
+          e.stopPropagation();
           setDraft(isoDate);
           setEditing(true);
         }}
@@ -153,7 +161,10 @@ export function EditableDate({ value, onSave, disabled }: EditableDateProps) {
       value={draft}
       onChange={(e) => setDraft(e.target.value)}
       onBlur={commit}
+      onClick={(e) => e.stopPropagation()}
+      onMouseDown={(e) => e.stopPropagation()}
       onKeyDown={(e) => {
+        e.stopPropagation();
         if (e.key === "Enter") (e.target as HTMLInputElement).blur();
         if (e.key === "Escape") {
           setDraft(isoDate);
