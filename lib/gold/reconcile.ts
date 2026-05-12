@@ -1,4 +1,5 @@
 import type { Prisma, PrismaClient } from "@prisma/client";
+import { toGramsOrZero, toUsd } from "@/lib/gold/decimal-utils";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -71,7 +72,7 @@ export async function computeVariance(
     }),
   ]);
 
-  const bookGrams = bookAgg._sum.gramsTotal != null ? Number(bookAgg._sum.gramsTotal) : 0;
+  const bookGrams = toGramsOrZero(bookAgg._sum.gramsTotal);
   const bookUsd = bookAgg._sum.balGrams != null ? null : null; // balGrams is sale-side, not USD
 
   let sysIn = 0;
@@ -79,8 +80,8 @@ export async function computeVariance(
   let sysInUsd: number | null = null;
   let sysOutUsd: number | null = null;
   for (const row of eventAgg) {
-    const g = row._sum.grams != null ? Number(row._sum.grams) : 0;
-    const u = row._sum.valueUsd != null ? Number(row._sum.valueUsd) : null;
+    const g = toGramsOrZero(row._sum.grams);
+    const u = toUsd(row._sum.valueUsd);
     if (row.direction === "IN") {
       sysIn += g;
       sysInUsd = (sysInUsd ?? 0) + (u ?? 0);
@@ -170,13 +171,13 @@ export async function computeRollForward(
 
   for (const row of openingAgg) {
     const b = ensureBucket(row.siteId);
-    const g = row._sum.grams != null ? Number(row._sum.grams) : 0;
+    const g = toGramsOrZero(row._sum.grams);
     if (row.direction === "IN") b.open.in += g;
     else b.open.out += g;
   }
   for (const row of periodAgg) {
     const b = ensureBucket(row.siteId);
-    const g = row._sum.grams != null ? Number(row._sum.grams) : 0;
+    const g = toGramsOrZero(row._sum.grams);
     if (row.direction === "IN") b.period.in += g;
     else b.period.out += g;
   }
@@ -257,7 +258,7 @@ export async function findUnsoldPours(
     siteId: p.siteId,
     pourDate: p.pourDate,
     grams: Number(p.grossWeight),
-    valueUsd: p.valueUsd != null ? Number(p.valueUsd) : null,
+    valueUsd: toUsd(p.valueUsd),
   }));
 }
 

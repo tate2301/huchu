@@ -34,6 +34,21 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Legacy Gold route redirects — single-line aliases for canonical paths
+  // that used to live at the top level. Replaces seven stub page.tsx files
+  // (every one was an identical `redirect()` indirection that confused
+  // search and onboarding). 308 = permanent; bookmarks still resolve.
+  async redirects() {
+    return [
+      { source: "/gold/pour", destination: "/gold/intake/pours", permanent: true },
+      { source: "/gold/pour/new", destination: "/gold/intake/pours/new", permanent: true },
+      { source: "/gold/dispatch", destination: "/gold/transit/dispatches", permanent: true },
+      { source: "/gold/dispatch/new", destination: "/gold/transit/dispatches/new", permanent: true },
+      { source: "/gold/receipt", destination: "/gold/settlement/receipts", permanent: true },
+      { source: "/gold/receipt/new", destination: "/gold/settlement/receipts/new", permanent: true },
+      { source: "/gold/payouts", destination: "/gold/settlement/payouts", permanent: true },
+    ];
+  },
 };
 
 export default nextConfig;

@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -13,7 +13,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
 import { Send, ChevronDown } from "@/lib/icons";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { useReservedId } from "@/hooks/use-reserved-id";
 

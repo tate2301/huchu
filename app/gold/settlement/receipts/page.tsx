@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -8,8 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { ClientDate } from "@/app/gold/components/client-date";
-import { ReceiptForm } from "@/app/gold/components/receipt-form";
+import { ClientDate } from "@/components/ui/client-date";
+import { ReceiptForm } from "@/components/gold/forms/receipt-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { applyDisbursementToGoldShares } from "@/lib/gold-payouts"
+import { applyDisbursementToGoldShares } from "@/lib/gold/payouts"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import {

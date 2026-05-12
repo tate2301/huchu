@@ -16,8 +16,10 @@ const CHARTERS = {
     forbidden: ["app/", "components/", "lib/gold/fifo", "lib/gold/import", "lib/gold/inventory.ts", "lib/gold/valuation"],
   },
   "domain-backend": {
-    owns: ["lib/gold/", "lib/accounting/", "lib/gold-payouts", "app/api/gold/"],
-    forbidden: ["prisma/schema.prisma", "app/gold/", "components/gold/"],
+    // `lib/gold/payouts` is excluded — it lives under lib/gold/ but is
+    // OWNED by gold-integration per the HR-seam clause in AGENTS.md.
+    owns: ["lib/gold/", "lib/accounting/", "app/api/gold/"],
+    forbidden: ["prisma/schema.prisma", "app/gold/", "components/gold/", "lib/gold/payouts"],
   },
   "import-workflow": {
     owns: ["app/api/gold/imports/", "lib/gold/import", "lib/gold/locks", "lib/gold/reconcile"],
@@ -28,7 +30,7 @@ const CHARTERS = {
     forbidden: ["app/api/", "lib/", "prisma/"],
   },
   integration: {
-    owns: ["lib/gold-payouts", "lib/notifications", "lib/accounting/integration", "lib/accounting/posting", "lib/commodity-billing", "lib/audit/gold", "components/ui/searchable-select", "app/api/disbursements/batches"],
+    owns: ["lib/gold/payouts", "lib/notifications", "lib/accounting/integration", "lib/accounting/posting", "lib/commodity-billing", "lib/audit/gold", "components/ui/searchable-select", "app/api/disbursements/batches"],
     forbidden: ["prisma/schema.prisma", "app/gold/", "lib/gold/fifo", "lib/gold/inventory"],
   },
   reviewer: {

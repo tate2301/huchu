@@ -10,6 +10,11 @@ import {
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
+import {
+  goldPourWithAllocation,
+  goldDispatchEmbedded,
+  goldBuyerReceiptBatches,
+} from "@/lib/gold/prisma-includes"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
@@ -38,89 +43,13 @@ const buyerReceiptSchema = z
     path: ["goldPourId"],
   })
 
+// Receipt shape: the pour and the (optional) dispatch each carry full
+// allocation context so the UI can render worker shares without a follow-up
+// fetch. Composed from `lib/gold/prisma-includes.ts` fragments.
 const receiptInclude = {
-  goldPour: {
-    select: {
-      id: true,
-      pourBarId: true,
-      createdAt: true,
-      grossWeight: true,
-      goldPriceUsdPerGram: true,
-      valueUsd: true,
-      pourDate: true,
-      createdBy: { select: { id: true, name: true } },
-      goldShiftAllocation: {
-        select: {
-          id: true,
-          totalWeight: true,
-          netWeight: true,
-          workerShareWeight: true,
-          companyShareWeight: true,
-          expenses: { select: { id: true, type: true, weight: true } },
-          shiftReport: {
-            select: {
-              id: true,
-              groupLeader: { select: { name: true } },
-            },
-          },
-        },
-      },
-      site: { select: { name: true, code: true } },
-    },
-  },
-  goldDispatch: {
-    include: {
-      goldPour: {
-        select: {
-          id: true,
-          pourBarId: true,
-          createdAt: true,
-          grossWeight: true,
-          goldPriceUsdPerGram: true,
-          valueUsd: true,
-          pourDate: true,
-          createdBy: { select: { id: true, name: true } },
-          goldShiftAllocation: {
-            select: {
-              id: true,
-              totalWeight: true,
-              netWeight: true,
-              workerShareWeight: true,
-              companyShareWeight: true,
-              expenses: { select: { id: true, type: true, weight: true } },
-              shiftReport: {
-                select: {
-                  id: true,
-                  groupLeader: { select: { name: true } },
-                },
-              },
-            },
-          },
-          site: { select: { name: true, code: true } },
-        },
-      },
-    },
-  },
-  batches: {
-    select: {
-      id: true,
-      grams: true,
-      valueUsd: true,
-      goldPriceUsdPerGram: true,
-      notes: true,
-      createdAt: true,
-      goldPour: {
-        select: {
-          id: true,
-          pourBarId: true,
-          grossWeight: true,
-          pourDate: true,
-          site: { select: { id: true, name: true, code: true } },
-        },
-      },
-    },
-    orderBy: { createdAt: "asc" },
-  },
+  goldPour: goldPourWithAllocation,
+  goldDispatch: goldDispatchEmbedded,
+  batches: goldBuyerReceiptBatches,
   dispatches: {
     select: {
       id: true,
@@ -135,7 +64,7 @@ const receiptInclude = {
         },
       },
     },
-    orderBy: { createdAt: "asc" },
+    orderBy: { createdAt: "asc" as const },
   },
 } as const
 

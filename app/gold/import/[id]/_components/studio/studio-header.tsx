@@ -10,7 +10,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import {
   ChevronLeftIcon,
   Lock,

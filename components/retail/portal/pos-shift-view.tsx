@@ -1,8 +1,8 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { FieldHelp } from "@/components/shared/field-help";
 import { Button } from "@/components/ui/button";

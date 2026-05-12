@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
@@ -27,7 +27,7 @@ import {
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 

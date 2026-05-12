@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
@@ -43,7 +43,7 @@ import {
   Users,
   X,
 } from "@/lib/icons";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type {
   AttendanceShiftSummary,
   SearchableOption,

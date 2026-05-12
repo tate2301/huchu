@@ -10,7 +10,7 @@ import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
-} from "@/lib/gold-payouts"
+} from "@/lib/gold/payouts"
 import {
   isIrregularEmployeePaymentType,
   isLegacyGoldPaymentType,

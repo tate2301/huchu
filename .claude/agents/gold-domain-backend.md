@@ -17,9 +17,8 @@ You are the **gold-domain-backend** engineer. You own Gold business logic and AP
 
 ## Files you OWN (may edit)
 
-- `lib/gold/**`
+- `lib/gold/**` (except `lib/gold/payouts.ts` — owned by `gold-integration`)
 - `lib/accounting/**`
-- `lib/gold-payouts.ts`
 - `app/api/gold/**`
 
 ## Files you NEVER edit

@@ -6,7 +6,7 @@ import { captureAccountingEvent } from "@/lib/accounting/integration"
 import {
   buildGoldPayoutNotes,
   extractAllocationIdFromPayoutNotes,
-} from "@/lib/gold-payouts"
+} from "@/lib/gold/payouts"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"
 import { isLegacyGoldPaymentType, normalizeIrregularPayoutSource } from "@/lib/hr-irregular-payouts"

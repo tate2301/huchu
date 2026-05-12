@@ -6,7 +6,7 @@ import { fetchJson } from "@/lib/api-client";
 import { Skeleton } from "@/components/ui/skeleton";
 import { History, X } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 
 type AuditEvent = {
   id: string;

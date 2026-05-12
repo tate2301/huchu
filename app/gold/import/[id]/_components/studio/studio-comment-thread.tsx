@@ -7,7 +7,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Send, X, NoteAdd } from "@/lib/icons";
 import { cn } from "@/lib/utils";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 
 type Comment = {
   id: string;

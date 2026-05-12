@@ -1,6 +1,6 @@
 "use client";
 
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import { Badge } from "@/components/ui/badge";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Button } from "@/components/ui/button";

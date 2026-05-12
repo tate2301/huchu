@@ -11,6 +11,7 @@ import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
+import { goldPourCore } from "@/lib/gold/prisma-includes"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { createRequestLogger } from "@/lib/logging"
@@ -38,33 +39,16 @@ const goldDispatchSchema = z
     path: ["goldPourIds"],
   })
 
+// Dispatch shape used by both the list and the create response. The
+// `goldPour` blocks (top-level + per batch) reuse `goldPourCore` so any
+// schema-level pour field added in one place flows through.
 const dispatchInclude = {
-  goldPour: {
-    select: {
-      id: true,
-      pourBarId: true,
-      pourDate: true,
-      grossWeight: true,
-      goldPriceUsdPerGram: true,
-      valueUsd: true,
-      site: { select: { name: true, code: true } },
-    },
-  },
+  goldPour: goldPourCore,
   handedOverBy: { select: { name: true } },
   batches: {
     orderBy: { sortOrder: "asc" as const },
     include: {
-      goldPour: {
-        select: {
-          id: true,
-          pourBarId: true,
-          pourDate: true,
-          grossWeight: true,
-          goldPriceUsdPerGram: true,
-          valueUsd: true,
-          site: { select: { name: true, code: true } },
-        },
-      },
+      goldPour: goldPourCore,
     },
   },
 } as const

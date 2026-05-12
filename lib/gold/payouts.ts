@@ -1,3 +1,13 @@
+/**
+ * Gold payouts — HR seam helpers. Lives under `lib/gold/` (Gold owns the
+ * shape) but is OWNED by `gold-integration` per AGENTS.md because every
+ * meaningful change crosses the Gold / HR / disbursements boundary. The
+ * HR-side caller is `app/api/disbursements/batches/[id]/mark-paid/route.ts`
+ * via `applyDisbursementToGoldShares`.
+ *
+ * If you find yourself touching this from inside `gold-domain-backend`,
+ * stop and re-route — see the charter map in `.claude/agents/`.
+ */
 import type { Prisma } from "@prisma/client"
 import { convertUsdToGrams } from "@/lib/gold/valuation"
 import { derivePaidStatus } from "@/lib/hr-payroll"

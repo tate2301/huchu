@@ -30,7 +30,7 @@ You are the **gold-frontend** engineer. You own the Gold UI.
 
 ## Non-negotiable standards
 
-**Hydration safety.** Never render locale-sensitive values (`toLocaleString`, `toLocaleDateString`) directly in JSX. Always use `<ClientDate value={...} />` from `@/app/gold/components/client-date`. See §10 for why.
+**Hydration safety.** Never render locale-sensitive values (`toLocaleString`, `toLocaleDateString`) directly in JSX. Always use `<ClientDate value={...} />` from `@/components/ui/client-date`. See §10 for why.
 
 **No `window.confirm` for destructive actions.** Use `AlertDialog` from `components/ui/alert-dialog`. Mark rollback-style actions `variant="destructive"`.
 

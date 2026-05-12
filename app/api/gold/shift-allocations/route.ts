@@ -13,7 +13,7 @@ import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import {
   AUTO_BATCH_NOTE_PREFIX,
   AUTO_PAYOUT_NOTE_PREFIX,
-} from "@/lib/gold-payouts"
+} from "@/lib/gold/payouts"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"

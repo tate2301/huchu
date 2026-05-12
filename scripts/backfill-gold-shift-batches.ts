@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { prisma } from "@/lib/prisma";
-import { AUTO_BATCH_NOTE_PREFIX } from "@/lib/gold-payouts";
+import { AUTO_BATCH_NOTE_PREFIX } from "@/lib/gold/payouts";
 
 type Summary = {
   companyId: string;

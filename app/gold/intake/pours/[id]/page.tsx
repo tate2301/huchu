@@ -8,7 +8,7 @@ import { Gem, ArrowRightLeft, Scale, FileCheck, Building2, Coins } from "@/lib/i
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { StatusChip } from "@/components/ui/status-chip";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 

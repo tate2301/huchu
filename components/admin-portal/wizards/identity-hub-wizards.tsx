@@ -1,10 +1,10 @@
-"use client";
+﻿"use client";
 
 import type { ComponentProps, ReactNode } from "react";
 import { useMemo, useState } from "react";
 import type { AdminSummary, SiteSummary, SupportAccessRequestRecord, SupportSessionRecord, UserSummary } from "@/scripts/platform/types";
 import type { SearchableOption } from "@/app/gold/types";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
 import { executeOperation } from "@/components/admin-portal/api";
 import { ROLES, type UserRole } from "@/lib/roles";

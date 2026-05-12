@@ -17,7 +17,7 @@ You are the **gold-integration** engineer. You own the seams between Gold and ev
 
 ## Files you OWN (may edit)
 
-- `lib/gold-payouts.ts`
+- `lib/gold/payouts.ts` — HR seam (lives under `lib/gold/` but owned by integration)
 - `app/api/disbursements/batches/[id]/mark-paid/route.ts` — only to extract gold-specific branches
 - `lib/notifications.ts` — only to add Gold notification types
 - `lib/accounting/integration.ts` — only to add `tx` parameter to `captureAccountingEvent`

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import { ExternalLink } from "@/lib/icons";
 import type { LedgerEntry } from "../types";
 

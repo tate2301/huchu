@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
@@ -7,8 +7,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { ClientDate } from "@/app/gold/components/client-date";
-import { DispatchForm } from "@/app/gold/components/dispatch-form";
+import { ClientDate } from "@/components/ui/client-date";
+import { DispatchForm } from "@/components/gold/forms/dispatch-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";

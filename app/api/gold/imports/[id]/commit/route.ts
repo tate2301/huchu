@@ -5,6 +5,7 @@ import { recordInventoryEvent, recordReversalEvent } from "@/lib/gold/inventory"
 import { linkFifoSale } from "@/lib/gold/fifo-link"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { reserveIdentifier } from "@/lib/id-generator"
+import { mapEntryGrams } from "@/lib/gold/decimal-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { writeGoldAuditEvent } from "@/lib/audit/gold"
@@ -39,10 +40,10 @@ export async function POST(
       return errorResponse("Import not found", 404)
     }
     // Coerce Decimal gram columns to number so JS arithmetic below is type-safe.
+    // `mapEntryGrams` is the canonical home for this — see lib/gold/decimal-utils.
     type RawEntry = (typeof importRecord.entries)[0];
-    type Entry = Omit<RawEntry, "gramsTotal"|"boysGrams"|"mdaraGrams"|"balGrams"> & { gramsTotal: number|null; boysGrams: number|null; mdaraGrams: number|null; balGrams: number|null };
-    const toNumberEntries = (raw: RawEntry[]): Entry[] => raw.map((e) => ({ ...e, gramsTotal: e.gramsTotal != null ? Number(e.gramsTotal) : null, boysGrams: e.boysGrams != null ? Number(e.boysGrams) : null, mdaraGrams: e.mdaraGrams != null ? Number(e.mdaraGrams) : null, balGrams: e.balGrams != null ? Number(e.balGrams) : null }));
-    let typedEntries: Entry[] = toNumberEntries(importRecord.entries);
+    type Entry = ReturnType<typeof mapEntryGrams<RawEntry>>;
+    let typedEntries: Entry[] = importRecord.entries.map(mapEntryGrams);
     if (!importRecord.siteId) {
       return errorResponse("Pick a site before committing", 400)
     }
@@ -265,7 +266,7 @@ export async function POST(
         where: { importId: id },
         orderBy: { lineNo: "asc" },
       })
-      typedEntries = toNumberEntries(refreshed);
+      typedEntries = refreshed.map(mapEntryGrams);
     }
 
     let rowsCreated = 0

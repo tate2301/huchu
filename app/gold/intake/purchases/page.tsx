@@ -1,12 +1,12 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { ClientDate } from "@/app/gold/components/client-date";
-import { PurchaseForm } from "@/app/gold/components/purchase-form";
+import { ClientDate } from "@/components/ui/client-date";
+import { PurchaseForm } from "@/components/gold/forms/purchase-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";

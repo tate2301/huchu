@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
@@ -18,7 +18,7 @@ import {
   fetchShiftGroups,
   fetchShiftGroupMembers,
 } from "@/lib/api";
-import { SearchableSelect } from "@/app/gold/components/searchable-select";
+import { SearchableSelect } from "@/components/ui/searchable-select";
 import {
   ChevronLeftIcon,
   Send,

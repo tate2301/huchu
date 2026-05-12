@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
@@ -27,7 +27,7 @@ import {
   type GoldPriceRecord,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 
 type PriceFormState = {
   effectiveDate: string;

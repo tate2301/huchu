@@ -7,7 +7,7 @@ import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-s
 import { Scale, Gem, ArrowRightLeft, FileCheck } from "@/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientDate } from "@/app/gold/components/client-date";
+import { ClientDate } from "@/components/ui/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
