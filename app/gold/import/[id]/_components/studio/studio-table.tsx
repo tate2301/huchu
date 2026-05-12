@@ -418,6 +418,17 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
     const virtualRows = rowVirtualizer.getVirtualItems();
     const totalSize = rowVirtualizer.getTotalSize();
 
+    // Padding spacer pattern: instead of position:absolute on each tr (which
+    // pulls the row out of the table layout and decouples it from <colgroup>
+    // widths), reserve top/bottom space with two empty spacer rows. This
+    // keeps every visible <tr> inside the normal table flow so column widths
+    // come from <colgroup> only — thead and tbody columns stay glued.
+    const paddingTop = virtualRows.length > 0 ? virtualRows[0].start : 0;
+    const paddingBottom =
+      virtualRows.length > 0
+        ? totalSize - virtualRows[virtualRows.length - 1].end
+        : 0;
+
     useImperativeHandle(ref, () => ({
       scrollToEntry(entryId: string) {
         const idx = idToIdx.get(entryId);
@@ -492,6 +503,24 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
           className="min-w-full text-[11px] border-collapse"
           style={{ tableLayout: "fixed" }}
         >
+          {/*
+            Column widths are declared once on the table itself via <colgroup>
+            rather than per-th + per-td. Reason: the tbody rows are
+            position:absolute (virtualizer pattern) and `tableLayout: fixed`
+            normally derives widths from the first row — but an absolute-
+            positioned tr is *taken out of the table layout*, so the table's
+            column track was effectively only being constructed from the
+            thead, and any explicit per-td widths inside the absolute rows
+            had to re-align manually. With colgroup the column track is
+            authoritative regardless of row positioning, and thead + tbody
+            stay glued.
+          */}
+          <colgroup>
+            {headerGroups[0]?.headers.map((header) => (
+              <col key={header.id} style={{ width: header.getSize() }} />
+            ))}
+            <col style={{ width: 80 }} />
+          </colgroup>
           <thead className="sticky top-0 z-20 bg-[--surface-muted] backdrop-blur">
             {headerGroups.map((hg) => (
               <tr key={hg.id}>
@@ -500,7 +529,6 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                   return (
                     <th
                       key={header.id}
-                      style={{ width: header.getSize() }}
                       className={cn(
                         "border-b border-[--border] px-2 py-1.5 text-left font-semibold uppercase tracking-wide text-[--text-muted] select-none",
                         header.column.getCanSort() && "cursor-pointer hover:text-[--text-strong]",
@@ -522,27 +550,20 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                     </th>
                   );
                 })}
-                {/*
-                  Trailing column matches the per-row actions <td className="w-20">
-                  rendered in the tbody (line ~565). Without this th the thead has
-                  one fewer column than each tr, which under `tableLayout: fixed`
-                  caused all columns to drift right of their headers — the user's
-                  reported "cells and their headers are not aligned".
-                */}
+                {/* Trailing actions column; width owned by colgroup above. */}
                 <th
-                  style={{ width: 80 }}
                   className="border-b border-[--border] px-1 py-1.5"
                   aria-hidden="true"
                 />
               </tr>
             ))}
           </thead>
-          <tbody
-            style={{
-              height: `${totalSize}px`,
-              position: "relative",
-            }}
-          >
+          <tbody>
+            {paddingTop > 0 && (
+              <tr aria-hidden="true" style={{ height: `${paddingTop}px` }}>
+                <td colSpan={(headerGroups[0]?.headers.length ?? 12) + 1} />
+              </tr>
+            )}
             {virtualRows.map((vRow) => {
               const row = rows[vRow.index];
               const entry = row.original;
@@ -558,13 +579,7 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                   id={`studio-row-${entry.id}`}
                   data-row-idx={rowIdx}
                   data-row-status={entry.status}
-                  style={{
-                    position: "absolute",
-                    top: 0,
-                    transform: `translateY(${vRow.start}px)`,
-                    width: "100%",
-                    height: `${ROW_H}px`,
-                  }}
+                  style={{ height: `${ROW_H}px` }}
                   className={cn(
                     "group border-b border-[--border] align-middle transition-colors",
                     SEVERITY_RAIL[railFor(entry, rowAnomalies)],
@@ -587,7 +602,6 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                     return (
                       <td
                         key={cell.id}
-                        style={{ width: cell.column.getSize() }}
                         className={cn(
                           "px-2 align-middle overflow-hidden text-sm",
                           isActive &&
@@ -611,9 +625,9 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                     );
                   })}
 
-                  {/* Row action column — hover reveals insert + overflow menu */}
+                  {/* Row action column — width owned by colgroup. */}
                   <td
-                    className="w-20 px-1 align-middle"
+                    className="px-1 align-middle"
                     onClick={(e) => e.stopPropagation()}
                   >
                     <div
@@ -721,6 +735,11 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                 </tr>
               );
             })}
+            {paddingBottom > 0 && (
+              <tr aria-hidden="true" style={{ height: `${paddingBottom}px` }}>
+                <td colSpan={(headerGroups[0]?.headers.length ?? 12) + 1} />
+              </tr>
+            )}
           </tbody>
           <tfoot className="sticky bottom-0 z-20 bg-[--surface-muted] backdrop-blur">
             {selectionTotals.count > 0 ? (
@@ -789,8 +808,8 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
                 >
                   {totals.bal === 0 ? "—" : `${grams(totals.bal)} g`}
                 </td>
-                {/* Matches the trailing actions column (width 80) in thead + tbody. */}
-                <td style={{ width: 80 }} className="px-1 py-1.5" />
+                {/* Trailing actions column; width owned by colgroup. */}
+                <td className="px-1 py-1.5" />
               </tr>
             )}
           </tfoot>

@@ -5,27 +5,25 @@
  *
  * LAYER BOUNDARIES (read this before moving controls around):
  *
- *   1. GoldShell.actions   →  primary state-changing verbs for the WHOLE
- *                             import (Validate, Commit). Lives in the
- *                             top-of-page action slot so the studio reads
- *                             as a native Gold page, not an embedded app.
+ *   1. GoldShell.actions   →  every verb that acts on the WHOLE import:
+ *                             Validate, Commit, Reset N failed, and the
+ *                             3-dot overflow (Rename, Export, Duplicate,
+ *                             Archive, Roll back, Cancel & delete). One
+ *                             address for every import-level affordance.
  *
- *   2. StudioHeader        →  identity + secondary import verbs. Back,
- *                             switch-import, rename, status chip, the
- *                             3-dot overflow (export / archive / roll back
- *                             / delete), the "Reset N failed" button, and
- *                             all confirm AlertDialogs except commit.
+ *   2. StudioHeader        →  PURE IDENTITY. Back link, Switch-import
+ *                             sheet trigger, status chip, the (renamable)
+ *                             title with lock indicator, and the stats
+ *                             strip. No verbs. No menus. No dialogs.
  *
  *   3. Studio tab content  →  local verbs that belong to the work in that
  *                             tab (Add row, Bulk edit, Sell selected,
  *                             Validate-from-checklist, Map leaders, etc.).
  *
- *   4. ImportStudio        →  the commit-confirm AlertDialog. The Commit
- *                             button lives in GoldShell.actions and the
- *                             checklist on Tab Overview also opens this
- *                             dialog — one ceremony, two entry points,
- *                             one source of truth. Keep it here so neither
- *                             entry point can drift.
+ *   4. ImportStudio        →  all confirm AlertDialogs and the
+ *                             commit-ceremony dialog live here, next to
+ *                             the actions slot. One ceremony, every entry
+ *                             point routes through it.
  *
  * Do not put Commit back into StudioHeader. Operators read it there as a
  * neighbour to identity (back · title · ...) and miss it as a primary verb.
@@ -54,8 +52,24 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import {
+  MoreHorizontal,
+  Pencil,
+  Download,
+  Layers,
+  Package,
+  RotateCcw,
+  Trash2,
+} from "@/lib/icons";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
@@ -143,6 +157,16 @@ export function ImportStudio() {
   const [commentEntryId, setCommentEntryId] = useState<string | null>(null);
   const [reconciliationOpen, setReconciliationOpen] = useState(false);
   const [commitConfirmOpen, setCommitConfirmOpen] = useState(false);
+  const [openConfirm, setOpenConfirm] = useState<
+    "rollback" | "delete" | "reset" | null
+  >(null);
+  // Rename + switch-import live here so StudioHeader stays pure-controlled.
+  // The token is bumped when an external surface (the 3-dot menu) wants
+  // the header's rename input to focus + select itself.
+  const [renaming, setRenaming] = useState(false);
+  const [renameValue, setRenameValue] = useState("");
+  const [switchOpen, setSwitchOpen] = useState(false);
+  const [focusRenameToken, setFocusRenameToken] = useState<number | null>(null);
   const yankBuffer = useRef<LedgerEntry[]>([]);
 
   const history = useStudioHistory();
@@ -871,61 +895,157 @@ export function ImportStudio() {
       // switch-import sheet, and the AlertDialog confirm flows stay inside
       // StudioHeader as the section bar.
       actions={
-        !isLocked ? (
-          <div className="flex items-center gap-1.5">
+        // Every verb that acts on the whole import lives in this slot —
+        // the studio reads as a native Gold page (matching the canonical
+        // pattern used by `/gold/intake/pours`, `/gold/refining/...` etc.)
+        // rather than an embedded sub-app with its own toolbar.
+        <div className="flex items-center gap-1.5">
+          {!isLocked && data.rowsFailed > 0 && (
             <Button
               size="sm"
               variant="outline"
-              onClick={handleValidate}
-              disabled={dryRunMutation.isPending}
+              disabled={resetFailedMutation.isPending}
+              onClick={() => setOpenConfirm("reset")}
+              title="Reset failed rows to PENDING"
             >
-              {dryRunMutation.isPending
-                ? "Validating…"
-                : dryRun
-                  ? "Re-validate"
-                  : "Validate"}
+              {resetFailedMutation.isPending
+                ? "Resetting…"
+                : `Reset ${data.rowsFailed} failed`}
             </Button>
-            <Button
-              size="sm"
-              disabled={!canCommit || commitMutation.isPending}
-              onClick={() => setCommitConfirmOpen(true)}
-            >
-              {commitMutation.isPending
-                ? "Committing…"
-                : data.status === "ROLLED_BACK"
-                  ? "Re-commit"
-                  : "Commit import"}
-            </Button>
-          </div>
-        ) : null
+          )}
+          {!isLocked && (
+            <>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleValidate}
+                disabled={dryRunMutation.isPending}
+              >
+                {dryRunMutation.isPending
+                  ? "Validating…"
+                  : dryRun
+                    ? "Re-validate"
+                    : "Validate"}
+              </Button>
+              <Button
+                size="sm"
+                disabled={!canCommit || commitMutation.isPending}
+                onClick={() => setCommitConfirmOpen(true)}
+              >
+                {commitMutation.isPending
+                  ? "Committing…"
+                  : data.status === "ROLLED_BACK"
+                    ? "Re-commit"
+                    : "Commit import"}
+              </Button>
+            </>
+          )}
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button
+                size="sm"
+                variant="outline"
+                className="h-8 w-8 px-0"
+                aria-label="More options"
+              >
+                <MoreHorizontal className="h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-52">
+              <DropdownMenuItem
+                onClick={() => {
+                  setRenameValue(data.fileName);
+                  setRenaming(true);
+                  setFocusRenameToken(Date.now());
+                }}
+                disabled={isLocked}
+              >
+                <Pencil className="mr-2 h-3.5 w-3.5" />
+                Rename
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={handleExportCsv}>
+                <Download className="mr-2 h-3.5 w-3.5" />
+                Export CSV
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled
+                title="Duplicate requires a backend endpoint — planned follow-up"
+              >
+                <Layers className="mr-2 h-3.5 w-3.5" />
+                Duplicate
+                <span className="ml-auto text-[10px] text-[--text-subtle]">
+                  soon
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                disabled
+                title="Archive requires a backend endpoint — planned follow-up"
+              >
+                <Package className="mr-2 h-3.5 w-3.5" />
+                Archive
+                <span className="ml-auto text-[10px] text-[--text-subtle]">
+                  soon
+                </span>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              {(data.status === "COMMITTED" || data.status === "FAILED") && (
+                <DropdownMenuItem
+                  className="text-rose-700 focus:text-rose-700"
+                  onClick={() => setOpenConfirm("rollback")}
+                >
+                  <RotateCcw className="mr-2 h-3.5 w-3.5" />
+                  Roll back
+                </DropdownMenuItem>
+              )}
+              {data.status !== "COMMITTED" && data.status !== "FAILED" && (
+                <DropdownMenuItem
+                  className="text-rose-700 focus:text-rose-700"
+                  onClick={() => setOpenConfirm("delete")}
+                >
+                  <Trash2 className="mr-2 h-3.5 w-3.5" />
+                  Cancel &amp; delete
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </div>
       }
     >
       <motion.div
-        // Animate between in-page and fullscreen. `layout` smoothly
-        // transitions size/position; the explicit transition keeps it
-        // crisp (200ms ease-out) rather than springy. z-[60] puts the
-        // fullscreen layer above the GoldShell sidebar/header (which
-        // sit in the default stacking context) and matches the project
-        // convention that toasts/dialogs at z-50 should still float on
-        // top when spawned from inside fullscreen — Radix portals to
-        // body so they render later in DOM order, winning the tie.
+        // In-page mode: the studio is a flat region of the Gold page —
+        //   no rounded card, no outer border. It flows with the page so
+        //   it reads as a native Gold surface, not an embedded toolbar.
+        // Fullscreen mode: full viewport overlay with z-[60] above the
+        //   GoldShell chrome; Radix portals at z-50 still float above
+        //   because they render later in DOM order.
         layout
         transition={{ duration: 0.2, ease: [0.16, 1, 0.3, 1] }}
         className={cn(
-          "flex flex-col overflow-hidden border bg-[var(--surface-canvas)]",
+          "flex flex-col overflow-hidden bg-[var(--surface-canvas)]",
           isFullscreen
-            ? "fixed inset-0 z-[60] h-screen w-screen rounded-none border-0"
-            : "h-[calc(100vh-10rem)] rounded-lg border-[--border]",
+            ? "fixed inset-0 z-[60] h-screen w-screen"
+            : "h-[calc(100vh-12rem)] border-y border-[--border]",
         )}
       >
         <StudioHeader
           importData={data}
-          isResetting={resetFailedMutation.isPending}
-          onRollback={() => rollbackMutation.mutate()}
-          onResetFailed={() => resetFailedMutation.mutate()}
-          onDelete={() => deleteMutation.mutate()}
-          onRename={handleRename}
-          onExportCsv={handleExportCsv}
+          renaming={renaming}
+          renameValue={renameValue}
+          switchOpen={switchOpen}
+          focusRenameToken={focusRenameToken}
+          onRenameStart={() => {
+            setRenameValue(data.fileName);
+            setRenaming(true);
+            setFocusRenameToken(Date.now());
+          }}
+          onRenameValueChange={setRenameValue}
+          onRenameCancel={() => setRenaming(false)}
+          onRenameCommit={() => {
+            const trimmed = renameValue.trim();
+            if (trimmed && trimmed !== data.fileName) handleRename(trimmed);
+            setRenaming(false);
+          }}
+          onSwitchOpenChange={setSwitchOpen}
         />
 
         <div className="flex flex-1 overflow-hidden">
@@ -1270,6 +1390,92 @@ export function ImportStudio() {
                 : data.status === "ROLLED_BACK"
                   ? "Re-commit & post ledger"
                   : "Commit & post ledger"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Reset / rollback / delete confirm dialogs — co-located with the
+          actions slot that triggers them. */}
+      <AlertDialog
+        open={openConfirm === "reset"}
+        onOpenChange={(o) => !o && setOpenConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              Reset {data.rowsFailed} failed row
+              {data.rowsFailed === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              They will go back to PENDING. The next commit will retry only
+              those rows.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setOpenConfirm(null);
+                resetFailedMutation.mutate();
+              }}
+            >
+              Reset
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={openConfirm === "delete"}
+        onOpenChange={(o) => !o && setOpenConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this import?</AlertDialogTitle>
+            <AlertDialogDescription>
+              All entries in this uncommitted ledger will be removed. This
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Keep import</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setOpenConfirm(null);
+                deleteMutation.mutate();
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog
+        open={openConfirm === "rollback"}
+        onOpenChange={(o) => !o && setOpenConfirm(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Roll back this import?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Allocations, pours, receipts, inventory and accounting events it
+              produced will be deleted. Ledger entries will reset to PENDING so
+              you can edit and re-commit.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              variant="destructive"
+              onClick={() => {
+                setOpenConfirm(null);
+                rollbackMutation.mutate();
+              }}
+            >
+              Roll back
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

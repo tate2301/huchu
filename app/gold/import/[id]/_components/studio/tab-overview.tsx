@@ -49,7 +49,7 @@ function KpiCard({
   tone?: "default" | "amber" | "rose" | "emerald" | "sky";
 }) {
   return (
-    <div className="rounded-lg border border-[--border] bg-[--surface-base] p-4">
+    <div className="bg-[--surface-base] p-4">
       <dt className="text-[11px] font-semibold uppercase tracking-wide text-[--text-muted]">
         {label}
       </dt>
@@ -240,7 +240,7 @@ export function TabOverview({
             carries the primary CTA inline so the operator doesn't have to
             scroll up to GoldShell.actions to act. */}
         {!isCommitted && (
-          <div className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+          <div className="bg-[--surface-base] overflow-hidden">
             <header className="space-y-2 border-b border-[--border] bg-[--surface-muted] px-4 py-3">
               <div className="flex items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-[--text-strong]">
@@ -396,7 +396,7 @@ export function TabOverview({
         )}
 
         {/* Anomaly breakdown */}
-        <div className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+        <div className="bg-[--surface-base] overflow-hidden">
           <header className="flex items-center justify-between border-b border-[--border] bg-[--surface-muted] px-4 py-3">
             <h2 className="text-sm font-semibold text-[--text-strong]">
               Anomalies
@@ -469,7 +469,7 @@ export function TabOverview({
         </div>
 
         {/* Source file metadata */}
-        <div className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+        <div className="bg-[--surface-base] overflow-hidden">
           <header className="border-b border-[--border] bg-[--surface-muted] px-4 py-3">
             <h2 className="text-sm font-semibold text-[--text-strong]">
               Source file

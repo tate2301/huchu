@@ -91,7 +91,7 @@ export function TabMappings({
     <div className="space-y-6 p-6">
       {/* Site assignment — pinned at the top as the precondition for every
           mapping below it. */}
-      <section className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+      <section className="bg-[--surface-base] overflow-hidden">
         <header className="flex items-center justify-between gap-3 border-b border-[--border] bg-[--surface-muted] px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold text-[--text-strong]">
@@ -133,7 +133,7 @@ export function TabMappings({
           of parsed leader names; right previews the rows that will be
           attributed to whichever shift group is picked. Cuts the "who is
           this person?" question to one click. */}
-      <section className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+      <section className="bg-[--surface-base] overflow-hidden">
         <header className="flex items-center justify-between gap-3 border-b border-[--border] bg-[--surface-muted] px-4 py-3">
           <div>
             <h2 className="text-sm font-semibold text-[--text-strong]">
@@ -389,7 +389,7 @@ export function TabMappings({
           touched compared to the mapping list, so they sit below as a
           quieter row. */}
       <div className="grid grid-cols-1 gap-5 sm:grid-cols-2">
-        <section className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+        <section className="bg-[--surface-base] overflow-hidden">
           <header className="border-b border-[--border] bg-[--surface-muted] px-4 py-3">
             <h2 className="text-sm font-semibold text-[--text-strong]">
               Presets
@@ -411,7 +411,7 @@ export function TabMappings({
           </div>
         </section>
 
-        <section className="rounded-lg border border-[--border] bg-[--surface-base] overflow-hidden">
+        <section className="bg-[--surface-base] overflow-hidden">
           <header className="border-b border-[--border] bg-[--surface-muted] px-4 py-3">
             <h2 className="text-sm font-semibold text-[--text-strong]">Tags</h2>
             <p className="mt-0.5 text-xs text-[--text-muted]">
