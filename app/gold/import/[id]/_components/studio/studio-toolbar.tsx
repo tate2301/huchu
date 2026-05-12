@@ -27,7 +27,6 @@ export function StudioToolbar({
   isFullscreen,
   onAddRow,
   onDeleteSelected,
-  onDuplicateSelected,
   onBulkEdit,
   onUndo,
   onRedo,
@@ -52,7 +51,6 @@ export function StudioToolbar({
   isFullscreen: boolean;
   onAddRow: () => void;
   onDeleteSelected: () => void;
-  onDuplicateSelected: () => void;
   onBulkEdit: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -104,10 +102,6 @@ export function StudioToolbar({
 
       {hasSelection && !isLocked && !isAnnotationMode && (
         <>
-          <ToolbarButton
-            onClick={onDuplicateSelected}
-            label={`Duplicate (${selectedCount})`}
-          />
           <ToolbarButton
             onClick={onBulkEdit}
             label={`Bulk edit (${selectedCount})`}

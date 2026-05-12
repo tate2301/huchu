@@ -48,7 +48,6 @@ export function TabLedger({
   isFullscreen,
   onAddRow,
   onDeleteSelected,
-  onDuplicateSelected,
   onBulkEdit,
   onUndo,
   onRedo,
@@ -99,7 +98,6 @@ export function TabLedger({
   isFullscreen: boolean;
   onAddRow: () => void;
   onDeleteSelected: () => void;
-  onDuplicateSelected: () => void;
   onBulkEdit: () => void;
   onUndo: () => void;
   onRedo: () => void;
@@ -194,7 +192,6 @@ export function TabLedger({
             isFullscreen={isFullscreen}
             onAddRow={onAddRow}
             onDeleteSelected={onDeleteSelected}
-            onDuplicateSelected={onDuplicateSelected}
             onBulkEdit={onBulkEdit}
             onUndo={onUndo}
             onRedo={onRedo}

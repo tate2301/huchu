@@ -391,6 +391,7 @@ export const StudioTable = forwardRef<StudioTableHandle, StudioTableProps>(
         onUpdateEntry,
         columnWidths,
         findQuery,
+        onLeaderClick,
       ],
     );
 

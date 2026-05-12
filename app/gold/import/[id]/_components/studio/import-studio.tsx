@@ -65,8 +65,6 @@ import {
   MoreHorizontal,
   Pencil,
   Download,
-  Layers,
-  Package,
   RotateCcw,
   Trash2,
 } from "@/lib/icons";
@@ -558,7 +556,7 @@ export function ImportStudio() {
     [entryMutation],
   );
 
-  const handleValidate = () => {
+  const handleValidate = useCallback(() => {
     dryRunMutation.mutate(undefined, {
       onSuccess: (s) => {
         setDryRun(s);
@@ -576,7 +574,7 @@ export function ImportStudio() {
         });
       },
     });
-  };
+  }, [dryRunMutation, toast]);
 
 
   const handleBulkAcceptWarn = useCallback((payload: BulkAcceptPayload) => {
@@ -713,13 +711,6 @@ export function ImportStudio() {
     [deleteEntryMutation],
   );
 
-  const handleDuplicateSelected = useCallback(() => {
-    toast({
-      title: "Duplicate",
-      description: "Row duplication via API not yet wired (Epic 15).",
-    });
-  }, [toast]);
-
   const handleAddSale = useCallback(() => {
     setSaleInitialPourIds([]);
     setAddSaleOpen(true);
@@ -785,14 +776,6 @@ export function ImportStudio() {
     });
   }, [entries, selectedIds, toast]);
 
-  const handlePasteAfterActive = useCallback(() => {
-    if (yankBuffer.current.length === 0) return;
-    toast({
-      title: "Paste after row",
-      description: "Row paste via API not yet wired (Epic 15).",
-    });
-  }, [toast]);
-
   useVimMode({
     enabled: isVimMode,
     activeCell,
@@ -815,7 +798,9 @@ export function ImportStudio() {
     onOpenCommandPalette: () => setCommandPaletteOpen(true),
     onFocusSearch: () => setFindReplaceOpen(true),
     onCopySelected: handleCopySelected,
-    onPasteAfterActive: handlePasteAfterActive,
+    // Paste-after-row needs a backend endpoint (Epic 15); when it lands,
+    // wire it here and the vim `p` binding picks it up automatically.
+    onPasteAfterActive: () => {},
   });
 
   useSpreadsheetPaste({
@@ -844,7 +829,6 @@ export function ImportStudio() {
   const commandVerbs = useMemo((): CommandVerb[] => [
     { id: "add-row", label: "Add row at end", group: "Row operations", disabled: isLocked || isAnnotationMode, onRun: handleAddRow },
     { id: "delete-selected", label: `Delete selected (${selectedIds.size})`, group: "Row operations", disabled: selectedIds.size === 0 || isLocked || isAnnotationMode, onRun: handleDeleteSelected },
-    { id: "duplicate-selected", label: `Duplicate selected (${selectedIds.size})`, group: "Row operations", disabled: selectedIds.size === 0 || isLocked || isAnnotationMode, onRun: handleDuplicateSelected },
     { id: "bulk-edit", label: "Bulk edit field…", group: "Row operations", disabled: selectedIds.size === 0 || isLocked || isAnnotationMode, onRun: () => setBulkEditOpen(true) },
     { id: "dry-run", label: "Run dry-run validation", group: "Validation", shortcut: "Ctrl+Enter", disabled: isLocked, onRun: handleValidate },
     { id: "commit", label: "Commit import", group: "Validation", disabled: !canCommit || isLocked, onRun: () => commitMutation.mutate() },
@@ -858,7 +842,7 @@ export function ImportStudio() {
   ], [
     isLocked, isAnnotationMode, selectedIds.size, isFullscreen, isVimMode, findReplaceOpen,
     history.canUndo, history.canRedo, canCommit,
-    handleAddRow, handleDeleteSelected, handleDuplicateSelected,
+    handleAddRow, handleDeleteSelected,
     handleValidate, handleUndo, handleRedo, commitMutation,
   ]);
 
@@ -889,11 +873,6 @@ export function ImportStudio() {
     <GoldShell
       activeTab="home"
       title={data.fileName}
-      // Match every other Gold page's pattern: primary actions live in the
-      // shell's actions slot so the studio feels native to the module, not
-      // like an embedded sub-app. The 3-dot menu, rename, status chip,
-      // switch-import sheet, and the AlertDialog confirm flows stay inside
-      // StudioHeader as the section bar.
       actions={
         // Every verb that acts on the whole import lives in this slot —
         // the studio reads as a native Gold page (matching the canonical
@@ -966,26 +945,6 @@ export function ImportStudio() {
               <DropdownMenuItem onClick={handleExportCsv}>
                 <Download className="mr-2 h-3.5 w-3.5" />
                 Export CSV
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled
-                title="Duplicate requires a backend endpoint — planned follow-up"
-              >
-                <Layers className="mr-2 h-3.5 w-3.5" />
-                Duplicate
-                <span className="ml-auto text-[10px] text-[--text-subtle]">
-                  soon
-                </span>
-              </DropdownMenuItem>
-              <DropdownMenuItem
-                disabled
-                title="Archive requires a backend endpoint — planned follow-up"
-              >
-                <Package className="mr-2 h-3.5 w-3.5" />
-                Archive
-                <span className="ml-auto text-[10px] text-[--text-subtle]">
-                  soon
-                </span>
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               {(data.status === "COMMITTED" || data.status === "FAILED") && (
@@ -1158,7 +1117,6 @@ export function ImportStudio() {
                   isFullscreen={isFullscreen}
                   onAddRow={handleAddRow}
                   onDeleteSelected={handleDeleteSelected}
-                  onDuplicateSelected={handleDuplicateSelected}
                   onBulkEdit={() => setBulkEditOpen(true)}
                   onUndo={handleUndo}
                   onRedo={handleRedo}
