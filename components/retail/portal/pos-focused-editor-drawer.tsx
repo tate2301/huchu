@@ -21,14 +21,21 @@ export function PosFocusedEditorDrawer({
 }: PosFocusedEditorDrawerProps) {
   if (!open) return null;
   return (
-    <section className="rounded-[1.4rem] border border-[var(--border-default)] bg-[color-mix(in_srgb,var(--surface-base)_88%,var(--surface-muted))] px-4 py-4 shadow-[0_14px_32px_rgba(15,23,42,0.05)]">
+    <section
+      className="rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-4"
+      style={{ boxShadow: "var(--shadow-card, 0 1px 3px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.06))" }}
+    >
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+          <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
             Line editor
           </div>
-          <div className="mt-1 text-lg font-semibold tracking-[-0.02em]">{title}</div>
-          {subtitle ? <div className="mt-1 text-sm text-[var(--text-muted)]">{subtitle}</div> : null}
+          <div className="mt-1 text-lg font-bold tracking-[-0.025em] text-[var(--text-strong)]">
+            {title}
+          </div>
+          {subtitle ? (
+            <div className="mt-1 text-sm text-[var(--text-muted)]">{subtitle}</div>
+          ) : null}
         </div>
         <Button type="button" variant="ghost" size="icon-sm" className="rounded-full" onClick={onClose}>
           <X className="h-4 w-4" />

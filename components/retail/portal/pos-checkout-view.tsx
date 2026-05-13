@@ -197,29 +197,14 @@ function NumField({
   );
 }
 
-/* ─── Tender type grid button ─────────────────────────────────────── */
+/* ─── Tender type grid button (token-driven, physical press) ────────── */
 
-const TENDER_TYPE_STYLES: Record<TenderType, { selected: string; idle: string }> = {
-  CASH: {
-    selected: "border-emerald-500 bg-emerald-500 text-white shadow-[0_4px_14px_rgba(16,185,129,0.35)]",
-    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-emerald-400 hover:bg-emerald-50 hover:text-emerald-700",
-  },
-  CARD: {
-    selected: "border-blue-500 bg-blue-500 text-white shadow-[0_4px_14px_rgba(59,130,246,0.35)]",
-    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700",
-  },
-  MOBILE_MONEY: {
-    selected: "border-orange-500 bg-orange-500 text-white shadow-[0_4px_14px_rgba(249,115,22,0.35)]",
-    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-orange-400 hover:bg-orange-50 hover:text-orange-700",
-  },
-  TRANSFER: {
-    selected: "border-violet-500 bg-violet-500 text-white shadow-[0_4px_14px_rgba(139,92,246,0.35)]",
-    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-violet-400 hover:bg-violet-50 hover:text-violet-700",
-  },
-  VOUCHER: {
-    selected: "border-amber-500 bg-amber-500 text-white shadow-[0_4px_14px_rgba(245,158,11,0.35)]",
-    idle: "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] hover:border-amber-400 hover:bg-amber-50 hover:text-amber-700",
-  },
+const TENDER_TOKEN_KEYS: Record<TenderType, string> = {
+  CASH: "cash",
+  CARD: "card",
+  MOBILE_MONEY: "mobile",
+  TRANSFER: "transfer",
+  VOUCHER: "voucher",
 };
 
 function TenderButton({
@@ -231,15 +216,25 @@ function TenderButton({
   selected: boolean;
   onClick: () => void;
 }) {
-  const styles = TENDER_TYPE_STYLES[type];
+  const key = TENDER_TOKEN_KEYS[type];
+  const selectedStyle = {
+    background: `var(--pos-tender-${key}-bg)`,
+    borderColor: `var(--pos-tender-${key}-bg)`,
+    boxShadow: `0 3px 0 var(--pos-tender-${key}-shadow)`,
+    color: "#ffffff",
+  };
+  const idleStyle = {
+    background: "var(--pos-tender-idle-bg)",
+    borderColor: "var(--pos-tender-idle-border)",
+    boxShadow: "0 3px 0 var(--pos-tender-idle-shadow)",
+    color: "var(--pos-tender-idle-text)",
+  };
   return (
     <button
       type="button"
       onClick={onClick}
-      className={cn(
-        "flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-100 active:scale-[0.95]",
-        selected ? styles.selected : styles.idle,
-      )}
+      className="flex items-center justify-center gap-1.5 rounded-xl border px-2 py-2 text-[10px] font-bold uppercase tracking-[0.12em] transition-all duration-75 active:translate-y-[2px] active:shadow-none"
+      style={selected ? selectedStyle : idleStyle}
     >
       <TenderIcon type={type} className="h-4 w-4" />
       {tenderLabel(type)}
@@ -633,7 +628,7 @@ export function PosCheckoutView() {
           <Search className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
           <input
             ref={searchInputRef}
-            autoFocus
+            autoFocus={typeof window === "undefined" || !window.matchMedia("(hover: none)").matches}
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             onKeyDown={(e) => {
@@ -661,12 +656,24 @@ export function PosCheckoutView() {
 
         {/* Shift badge */}
         {currentShift ? (
-          <span className="hidden shrink-0 items-center gap-1.5 rounded-md bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 md:inline-flex">
-            <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+          <span
+            className="hidden shrink-0 items-center gap-1.5 rounded-full px-2.5 py-1 text-[11px] font-semibold ring-1 md:inline-flex"
+            style={{ background: "var(--pos-status-success-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)`, color: "var(--pos-status-success-text)" }}
+          >
+            <span
+              className="h-1.5 w-1.5 rounded-full"
+              style={{ background: "var(--pos-status-success-text)" }}
+            />
             {currentShift.shiftNo}
           </span>
         ) : (
-          <Button size="sm" variant="outline" className="shrink-0 border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 text-xs" asChild>
+          <Button
+            size="sm"
+            variant="outline"
+            className="shrink-0 text-xs ring-1"
+            style={{ background: "var(--pos-status-warning-bg)", borderColor: "var(--pos-status-warning-ring)", color: "var(--pos-status-warning-text)" }}
+            asChild
+          >
             <Link href={getPosPortalHref("shift", isPosHost)}>
               <Clock className="h-3.5 w-3.5" />
               Open shift
@@ -680,7 +687,8 @@ export function PosCheckoutView() {
             type="button"
             onClick={syncOfflineSales}
             disabled={syncOfflineSalesPending}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-md bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-700 transition-colors hover:bg-amber-100 disabled:opacity-60"
+            className="inline-flex shrink-0 items-center gap-1.5 rounded-full px-2 py-1 text-[11px] font-semibold ring-1 transition-colors disabled:opacity-60"
+            style={{ background: "var(--pos-status-warning-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-warning-ring)`, color: "var(--pos-status-warning-text)" }}
           >
             {syncOfflineSalesPending
               ? <RefreshCcw className="h-3 w-3 animate-spin" />
@@ -996,7 +1004,7 @@ export function PosCheckoutView() {
                         <div className="mt-1 flex items-center gap-2 text-[11px] text-[var(--text-muted)]">
                           <span className="font-mono">{money(item.unitPrice)}</span>
                           {item.lineDiscountAmount ? (
-                            <span className="rounded bg-emerald-50 px-1 font-mono text-emerald-600">−{money(item.lineDiscountAmount)}</span>
+                            <span className="rounded px-1 font-mono" style={{ background: "var(--pos-status-success-bg)", color: "var(--pos-status-success-text)" }}>−{money(item.lineDiscountAmount)}</span>
                           ) : null}
                         </div>
                       </button>
@@ -1017,7 +1025,7 @@ export function PosCheckoutView() {
                               updateQty(item.catalogItemId, next);
                             }
                           }}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.90]"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-red-200 hover:bg-red-50 hover:text-red-500 active:scale-[0.90]"
                         >
                           <Minus className="h-3.5 w-3.5" />
                         </button>
@@ -1028,7 +1036,7 @@ export function PosCheckoutView() {
                             setActiveTarget({ type: "line_qty", lineId: item.catalogItemId });
                           }}
                           className={cn(
-                            "h-8 min-w-[2.5rem] rounded-lg border px-2 font-mono text-sm font-bold transition-all",
+                            "min-h-11 min-w-[2.5rem] rounded-lg border px-2 font-mono text-sm font-bold transition-all",
                             isSelected && activeTarget?.type === "line_qty"
                               ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,white)] text-[var(--action-primary-bg)]"
                               : "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-strong)] hover:border-[var(--action-primary-bg)]",
@@ -1039,7 +1047,7 @@ export function PosCheckoutView() {
                         <button
                           type="button"
                           onClick={() => updateQty(item.catalogItemId, item.quantity + 1)}
-                          className="flex h-8 w-8 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.90]"
+                          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg border border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-muted)] transition-all hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_6%,white)] hover:text-[var(--action-primary-bg)] active:scale-[0.90]"
                         >
                           <Plus className="h-3.5 w-3.5" />
                         </button>
@@ -1065,7 +1073,7 @@ export function PosCheckoutView() {
                             setActiveTarget(null);
                           }
                         }}
-                        className="shrink-0 rounded-lg p-1.5 text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
+                        className="flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg text-[var(--text-muted)] transition-colors hover:bg-red-50 hover:text-red-500"
                       >
                         <X className="h-4 w-4" />
                       </button>
@@ -1126,13 +1134,22 @@ export function PosCheckoutView() {
 
             {/* Change / balance indicators */}
             {changeAmount > 0 ? (
-              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-emerald-100 px-4 py-1.5 text-sm font-black text-emerald-700 shadow-sm">
-                <span className="text-emerald-500">↩</span>
+              <div
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-4 py-1.5 text-sm font-black ring-1"
+                style={{ background: "var(--pos-change-bg)", color: "var(--pos-change-text)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)` }}
+              >
+                <span>↩</span>
                 Change {money(changeAmount)}
               </div>
             ) : tenderedTotal > 0 && tenderedTotal < total ? (
-              <div className="mt-2.5 inline-flex items-center gap-1.5 rounded-full bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 shadow-sm">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+              <div
+                className="mt-2.5 inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold ring-1"
+                style={{ background: "var(--pos-due-bg)", color: "var(--pos-due-text)", boxShadow: `inset 0 0 0 1px var(--pos-status-warning-ring)` }}
+              >
+                <span
+                  className="h-1.5 w-1.5 rounded-full"
+                  style={{ background: "var(--pos-due-text)" }}
+                />
                 Still due {money(total - tenderedTotal)}
               </div>
             ) : tenderedTotal > 0 && cart.length > 0 ? (
@@ -1179,7 +1196,7 @@ export function PosCheckoutView() {
           {/* Scrollable payment section */}
           <div className="min-h-0 flex-1 overflow-y-auto">
             <div className="space-y-3 px-3 pt-2 pb-3">
-              <div className="flex items-center justify-between rounded-[1.1rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2">
                 <button
                   type="button"
                   onClick={() => setCustomerSheetOpen(true)}
@@ -1210,7 +1227,7 @@ export function PosCheckoutView() {
                 ) : null}
               </div>
 
-              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)]">
+              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)]">
                 <div className="flex items-center justify-between border-b border-[var(--border-subtle)] px-3 py-2.5">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-[var(--text-strong)]">Sale items</span>
@@ -1631,25 +1648,29 @@ export function PosCheckoutView() {
 
                 {/* Tender buttons */}
                 <div className="mt-3 grid grid-cols-2 gap-2">
-                  {TENDER_TYPES.slice(0, 4).map((type) => (
-                    <button
-                      key={type}
-                      type="button"
-                      onClick={() => {
-                        setPayments([{ tenderType: type, amount: String(total.toFixed(2)), reference: "" }]);
-                        setActiveTarget({ type: "tender_amount", index: 0 });
-                      }}
-                      className={cn(
-                        "flex h-14 items-center justify-center gap-2 rounded-xl border font-semibold transition-all active:scale-[0.98]",
-                        payments[0]?.tenderType === type
-                          ? TENDER_TYPE_STYLES[type].selected
-                          : TENDER_TYPE_STYLES[type].idle,
-                      )}
-                    >
-                      <TenderIcon type={type} />
-                      <span className="text-sm">{tenderLabel(type)}</span>
-                    </button>
-                  ))}
+                  {TENDER_TYPES.slice(0, 4).map((type) => {
+                    const tKey = TENDER_TOKEN_KEYS[type];
+                    const isSelected = payments[0]?.tenderType === type;
+                    return (
+                      <button
+                        key={type}
+                        type="button"
+                        onClick={() => {
+                          setPayments([{ tenderType: type, amount: String(total.toFixed(2)), reference: "" }]);
+                          setActiveTarget({ type: "tender_amount", index: 0 });
+                        }}
+                        className="flex h-14 items-center justify-center gap-2 rounded-xl border font-semibold transition-all duration-75 active:translate-y-[2px] active:shadow-none"
+                        style={
+                          isSelected
+                            ? { background: `var(--pos-tender-${tKey}-bg)`, borderColor: `var(--pos-tender-${tKey}-bg)`, boxShadow: `0 3px 0 var(--pos-tender-${tKey}-shadow)`, color: "#ffffff" }
+                            : { background: "var(--pos-tender-idle-bg)", borderColor: "var(--pos-tender-idle-border)", boxShadow: "0 3px 0 var(--pos-tender-idle-shadow)", color: "var(--pos-tender-idle-text)" }
+                        }
+                      >
+                        <TenderIcon type={type} />
+                        <span className="text-sm">{tenderLabel(type)}</span>
+                      </button>
+                    );
+                  })}
                 </div>
 
                 {/* Charge button */}

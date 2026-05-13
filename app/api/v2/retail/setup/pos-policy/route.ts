@@ -2,7 +2,7 @@
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../_helpers";
+import { requireRetailManager, requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_POS_POLICY,
   getRetailPosPolicy,
@@ -50,9 +50,8 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  if (!["SUPERADMIN", "MANAGER", "SHOP_MANAGER"].includes(session.user.role ?? "")) {
-    return errorResponse("Only managers can update POS policy", 403);
-  }
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

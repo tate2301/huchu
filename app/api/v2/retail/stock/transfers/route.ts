@@ -7,6 +7,7 @@ import {
   ensureLocationAccess,
   ensureSiteAccess,
   recordRetailInventoryMovement,
+  requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -23,6 +24,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailStock(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();
@@ -87,7 +91,7 @@ export async function POST(request: NextRequest) {
         movementType: "TRANSFER",
       },
       createdById: session.user.id,
-      status: "IGNORED",
+      status: "POSTED",
     });
 
     return successResponse(

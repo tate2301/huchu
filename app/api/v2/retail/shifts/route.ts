@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import {
+  requireRetailPos,
   requireRetailSession,
 } from "../_helpers";
 import { openRetailShiftTransaction } from "../_services";
@@ -64,6 +65,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

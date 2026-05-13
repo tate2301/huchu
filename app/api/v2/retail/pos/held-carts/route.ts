@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../_helpers";
+import { requireRetailPos, requireRetailSession } from "../../_helpers";
 
 const heldCartSchema = z.object({
   holdNo: z.string().min(1).max(50).optional(),
@@ -43,6 +43,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

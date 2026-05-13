@@ -110,6 +110,10 @@
   --radius-2xl: calc(var(--radius) + 8px);
   --radius-3xl: calc(var(--radius) + 12px);
   --radius-4xl: calc(var(--radius) + 16px);
+
+  /* POS-specific breakpoints */
+  --breakpoint-ms: 520px;
+  --breakpoint-3xl: 1920px;
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -822,5 +826,131 @@ input[type="datetime-local"]::-webkit-calendar-picker-indicator {
 @keyframes shimmer {
   100% {
     transform: translateX(100%);
+  }
+}
+
+/* ── POS Terminal Theme ─────────────────────────────────────────────────── */
+
+.pos-terminal {
+  /* Navigation rail */
+  --pos-rail-bg: #0c1015;
+  --pos-rail-border: rgba(255,255,255,0.07);
+  --pos-rail-text-idle: rgba(255,255,255,0.36);
+  --pos-rail-text-active: #ffffff;
+  --pos-rail-active-bg: rgba(47,107,255,0.18);
+  --pos-rail-active-ring: rgba(47,107,255,0.42);
+  --pos-rail-workspace-shadow: 0 8px 28px rgba(0,0,0,0.5);
+
+  /* Dark instrument panel (dialog headers, amount display, table headers) */
+  --pos-amount-bg: #090e18;
+  --pos-amount-surface: #111827;
+  --pos-amount-text: #f0f9ff;
+  --pos-amount-label: rgba(240,249,255,0.42);
+  --pos-amount-border: rgba(255,255,255,0.07);
+  --pos-amount-pill-bg: rgba(255,255,255,0.07);
+  --pos-amount-pill-text: rgba(255,255,255,0.6);
+  --pos-amount-pill-hover-bg: rgba(255,255,255,0.12);
+  --pos-amount-pill-active-bg: rgba(47,107,255,0.22);
+  --pos-amount-pill-active-text: #93b4ff;
+  --pos-amount-pill-active-ring: rgba(47,107,255,0.45);
+  --pos-change-bg: rgba(34,197,94,0.14);
+  --pos-change-text: #4ade80;
+  --pos-due-bg: rgba(245,158,11,0.14);
+  --pos-due-text: #fbbf24;
+
+  /* Physical keypad */
+  --pos-key-bg: #ffffff;
+  --pos-key-border: #cdd5df;
+  --pos-key-shadow: #96a5b5;
+  --pos-key-text: #0f172a;
+  --pos-key-hover-bg: #f8fafc;
+  --pos-key-preset-bg: #f0fdf4;
+  --pos-key-preset-border: #bbf7d0;
+  --pos-key-preset-shadow: #86efac;
+  --pos-key-preset-text: #15803d;
+  --pos-key-back-bg: #f8fafc;
+  --pos-key-back-border: #e2e8f0;
+  --pos-key-back-shadow: #94a3b8;
+  --pos-key-back-text: #475569;
+  --pos-key-clear-bg: #fff1f2;
+  --pos-key-clear-border: #fecdd3;
+  --pos-key-clear-shadow: #fca5a5;
+  --pos-key-clear-text: #be123c;
+
+  /* Flat ringed status banners */
+  --pos-status-success-bg: rgba(34,197,94,0.08);
+  --pos-status-success-ring: rgba(34,197,94,0.25);
+  --pos-status-success-text: #15803d;
+  --pos-status-warning-bg: rgba(245,158,11,0.08);
+  --pos-status-warning-ring: rgba(245,158,11,0.25);
+  --pos-status-warning-text: #92400e;
+  --pos-status-danger-bg: rgba(239,68,68,0.08);
+  --pos-status-danger-ring: rgba(239,68,68,0.25);
+  --pos-status-danger-text: #b91c1c;
+  --pos-status-info-bg: rgba(47,107,255,0.08);
+  --pos-status-info-ring: rgba(47,107,255,0.25);
+  --pos-status-info-text: #1f46c4;
+
+  /* Primary CTA */
+  --pos-cta-bg: #2f6bff;
+  --pos-cta-text: #ffffff;
+  --pos-cta-shadow: #1f46c4;
+
+  /* Tender buttons */
+  --pos-tender-idle-bg: #ffffff;
+  --pos-tender-idle-border: #cdd5df;
+  --pos-tender-idle-shadow: #96a5b5;
+  --pos-tender-idle-text: #475569;
+  --pos-tender-cash-bg: #15803d;
+  --pos-tender-cash-shadow: #14532d;
+  --pos-tender-card-bg: #2563eb;
+  --pos-tender-card-shadow: #1e40af;
+  --pos-tender-mobile-bg: #ea580c;
+  --pos-tender-mobile-shadow: #9a3412;
+  --pos-tender-transfer-bg: #7c3aed;
+  --pos-tender-transfer-shadow: #5b21b6;
+  --pos-tender-voucher-bg: #d97706;
+  --pos-tender-voucher-shadow: #92400e;
+
+  /* LCD numeric input */
+  --pos-lcd-bg: #f0f4f8;
+  --pos-lcd-bg-active: #e0eaf5;
+  --pos-lcd-border: #cdd5df;
+  --pos-lcd-text: #0f172a;
+  --pos-lcd-text-active: var(--action-primary-bg);
+  --pos-lcd-label: #64748b;
+
+  /* Shadow utilities */
+  --shadow-card: 0 1px 3px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.06);
+  --shadow-popover: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
+}
+
+@media (prefers-color-scheme: dark) {
+  .pos-terminal {
+    --pos-lcd-bg: #1a2030;
+    --pos-lcd-bg-active: #1e2a40;
+    --pos-lcd-border: rgba(255,255,255,0.10);
+    --pos-lcd-text: #f0f9ff;
+    --pos-lcd-label: rgba(240,249,255,0.55);
+    --pos-key-bg: #1f2632;
+    --pos-key-border: rgba(255,255,255,0.10);
+    --pos-key-shadow: #0a0d14;
+    --pos-key-text: #f0f9ff;
+    --pos-tender-idle-bg: #1f2632;
+    --pos-tender-idle-border: rgba(255,255,255,0.10);
+    --pos-tender-idle-shadow: #0a0d14;
+    --pos-tender-idle-text: rgba(240,249,255,0.78);
+    --pos-status-success-bg: rgba(34,197,94,0.14);
+    --pos-status-success-ring: rgba(34,197,94,0.42);
+    --pos-status-success-text: #4ade80;
+    --pos-status-warning-bg: rgba(245,158,11,0.14);
+    --pos-status-warning-ring: rgba(245,158,11,0.42);
+    --pos-status-warning-text: #fbbf24;
+    --pos-status-danger-bg: rgba(239,68,68,0.14);
+    --pos-status-danger-ring: rgba(239,68,68,0.42);
+    --pos-status-danger-text: #fca5a5;
+    --pos-status-info-bg: rgba(47,107,255,0.18);
+    --pos-status-info-ring: rgba(47,107,255,0.45);
+    --pos-status-info-text: #93b4ff;
   }
 }

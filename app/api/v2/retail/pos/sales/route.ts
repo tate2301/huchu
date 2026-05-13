@@ -18,6 +18,7 @@ import {
   ensureSiteAccess,
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
+  requireRetailPos,
   requireRetailSession,
 } from "../../_helpers";
 import { createRetailSaleTransaction } from "../../_services";
@@ -288,6 +289,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

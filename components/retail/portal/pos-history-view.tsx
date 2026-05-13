@@ -20,6 +20,7 @@ import {
   PosPanel,
   PosPanelHeader,
   PosStatusPill,
+  PosTerminalHeader,
 } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { PaymentRow, SaleDetail, SaleRow, TenderType } from "./pos-types";
@@ -302,15 +303,9 @@ export function PosHistoryView() {
                         </span>
                       </td>
                       <td className="px-4 py-4">
-                        <span className={
-                          isRefund
-                            ? "inline-flex items-center rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-red-600"
-                            : isVoid
-                              ? "inline-flex items-center rounded-full bg-amber-50 px-2 py-0.5 text-[11px] font-bold text-amber-700"
-                              : "inline-flex items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[11px] font-bold text-emerald-700"
-                        }>
+                        <PosStatusPill tone={isRefund ? "danger" : isVoid ? "warning" : "success"}>
                           {sale.saleType}
-                        </span>
+                        </PosStatusPill>
                       </td>
                       <td className="px-4 py-4 text-[var(--text-muted)]">
                         {sale.customerName ?? "Walk-in"}
@@ -351,54 +346,27 @@ export function PosHistoryView() {
           {selectedSale ? (
             <>
               {/* Receipt header — colored by type */}
-              <div className={`px-6 pt-6 pb-5 ${
-                selectedSale.saleType === "REFUND"
-                  ? "bg-gradient-to-r from-red-50 to-red-50/50 border-b border-red-100"
-                  : selectedSale.saleType === "VOID"
-                    ? "bg-gradient-to-r from-amber-50 to-amber-50/50 border-b border-amber-100"
-                    : "bg-gradient-to-r from-emerald-50 to-emerald-50/50 border-b border-emerald-100"
-              }`}>
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-mono text-xl font-black text-[var(--text-strong)]">
-                        {selectedSale.saleNo}
-                      </span>
-                      <PosStatusPill tone={selectedSale.status === "POSTED" ? "success" : "warning"}>
-                        {selectedSale.status}
-                      </PosStatusPill>
-                      <span className={`rounded-full px-2.5 py-0.5 text-[11px] font-bold ${
-                        selectedSale.saleType === "REFUND"
-                          ? "bg-red-100 text-red-700"
-                          : selectedSale.saleType === "VOID"
-                            ? "bg-amber-100 text-amber-700"
-                            : "bg-emerald-100 text-emerald-700"
-                      }`}>
-                        {selectedSale.saleType}
-                      </span>
-                    </div>
-                    <p className="mt-1.5 text-sm text-[var(--text-muted)]">
-                      {selectedSale.customerName ?? "Walk-in"} ·{" "}
-                      {selectedSale.postedAt
-                        ? new Date(selectedSale.postedAt).toLocaleString([], {
-                            month: "short", day: "numeric",
-                            hour: "2-digit", minute: "2-digit",
-                          })
-                        : "Not yet posted"}
-                    </p>
-                  </div>
-                  <div className="text-right shrink-0">
-                    <div className={`font-mono text-2xl font-black ${
-                      selectedSale.saleType === "REFUND" ? "text-red-600" : "text-[var(--text-strong)]"
-                    }`}>
-                      {money(Math.abs(selectedSale.totalAmount))}
-                    </div>
-                    <div className="text-xs text-[var(--text-muted)]">
-                      {selectedSale.lines.length} line{selectedSale.lines.length !== 1 ? "s" : ""}
-                    </div>
-                  </div>
-                </div>
-              </div>
+              <PosTerminalHeader
+                eyebrow={`Receipt · ${selectedSale.saleType}`}
+                title={selectedSale.saleNo}
+                subtitle={[
+                  selectedSale.customerName ?? "Walk-in",
+                  selectedSale.postedAt
+                    ? new Date(selectedSale.postedAt).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+                    : "Not yet posted",
+                ].join(" · ")}
+                valuePrimary={money(Math.abs(selectedSale.totalAmount))}
+                valueSecondary={`${selectedSale.lines.length} line${selectedSale.lines.length !== 1 ? "s" : ""}`}
+                pill={
+                  <PosStatusPill
+                    tone={
+                      selectedSale.saleType === "REFUND" ? "danger" : selectedSale.saleType === "VOID" ? "warning" : "success"
+                    }
+                  >
+                    {selectedSale.status}
+                  </PosStatusPill>
+                }
+              />
 
               <div className="max-h-[70vh] overflow-y-auto">
                 <div className="grid gap-4 p-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(280px,0.9fr)]">
@@ -593,7 +561,7 @@ export function PosHistoryView() {
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1.3fr)_320px]">
               <div className="space-y-4">
-                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-[var(--text-strong)]">
                       Choose items to refund
@@ -606,7 +574,7 @@ export function PosHistoryView() {
                     {(selectedSale?.lines ?? []).map((line) => (
                       <div
                         key={line.id}
-                        className="grid gap-2 rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 md:grid-cols-[minmax(0,1fr)_136px_120px]"
+                        className="grid gap-2 rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-3 md:grid-cols-[minmax(0,1fr)_136px_120px]"
                       >
                         <div className="min-w-0">
                           <div className="truncate font-medium text-[var(--text-strong)]">
@@ -643,7 +611,7 @@ export function PosHistoryView() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                   <div className="text-sm font-semibold text-[var(--text-strong)]">
                     Refund details
                   </div>
@@ -673,7 +641,7 @@ export function PosHistoryView() {
                   </div>
                 </div>
 
-                <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+                <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                   <div className="flex items-center justify-between gap-3">
                     <div className="text-sm font-semibold text-[var(--text-strong)]">
                       Refund tenders
@@ -690,7 +658,7 @@ export function PosHistoryView() {
                     {refundPayments.map((payment, index) => (
                       <div
                         key={`${payment.tenderType}-${index}`}
-                        className="grid gap-2 rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-base)] px-3 py-3 md:grid-cols-[1fr_118px_1fr_auto]"
+                        className="grid gap-2 rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 py-3 md:grid-cols-[1fr_118px_1fr_auto]"
                       >
                         <Select
                           value={payment.tenderType}
@@ -760,7 +728,7 @@ export function PosHistoryView() {
                 </div>
               </div>
 
-              <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4">
+              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                 <div className="text-sm font-semibold text-[var(--text-strong)]">
                   Amount keypad
                 </div>
@@ -799,7 +767,10 @@ export function PosHistoryView() {
             <DialogTitle>Void sale</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-[1.25rem] border border-[color-mix(in_srgb,var(--status-error-border)_70%,white)] bg-[color-mix(in_srgb,var(--status-error-bg)_92%,white)] px-4 py-4">
+            <div
+              className="rounded-xl px-4 py-4 ring-1"
+              style={{ background: "var(--pos-status-danger-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-danger-ring)` }}
+            >
               <div className="text-sm font-semibold text-[var(--status-error-text)]">
                 Voiding removes the whole sale from the active record.
               </div>
@@ -809,7 +780,7 @@ export function PosHistoryView() {
             </div>
 
             <div className="grid gap-3 sm:grid-cols-2">
-              <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   Receipt
                 </div>
@@ -817,7 +788,7 @@ export function PosHistoryView() {
                   {selectedSale?.saleNo ?? "-"}
                 </div>
               </div>
-              <div className="rounded-[1.15rem] border border-[var(--border-subtle)] bg-[var(--surface-muted)] px-3 py-3">
+              <div className="rounded-lg border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-3">
                 <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
                   Total
                 </div>

@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchInventoryItems, fetchSites } from "@/lib/api";
+import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CheckCircle2, LocalShipping, Pencil, Plus, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
@@ -119,6 +119,9 @@ export default function PurchaseOrdersPage() {
 
   const totalLines = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
   const totalCost = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0);
+  const hasLineErrors = form.lines.some(
+    (l) => (l.quantity !== "" && Number(l.quantity) <= 0) || (l.unitCost !== "" && Number(l.unitCost) < 0),
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (f: OrderForm) => {
@@ -300,10 +303,12 @@ export default function PurchaseOrdersPage() {
                           setForm((current) => {
                             const next = [...current.lines];
                             const option = itemOptions.find((item) => item.value === value);
+                            const fullItem = (inventoryQuery.data?.data ?? []).find((item) => item.id === value) as InventoryItem | undefined;
                             next[idx] = {
                               ...next[idx],
                               inventoryItemId: value,
                               itemName: option?.label ?? "",
+                              unitCost: next[idx].unitCost === "" && fullItem?.unitCost != null ? String(fullItem.unitCost) : next[idx].unitCost,
                             };
                             return { ...current, lines: next };
                           })
@@ -326,7 +331,7 @@ export default function PurchaseOrdersPage() {
 
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending}>Save</Button>
+              <Button type="submit" disabled={saveMutation.isPending || !form.supplierName.trim() || !form.siteId || hasLineErrors}>Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>

@@ -24,35 +24,59 @@ const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
   { label: "0", action: { type: "digit", value: "0" } },
 ];
 
-/* ── Style constants ─────────────────────────────────────────── */
+/* ── Physical-press base class ───────────────────────────────────────── */
 
 const base =
-  "flex items-center justify-center rounded-2xl border font-semibold select-none transition-all duration-75 active:scale-[0.92] active:shadow-none h-[3.5rem]";
+  "flex items-center justify-center leading-none rounded-xl border font-semibold select-none h-12 sm:h-14 3xl:h-[4.5rem] transition-all duration-75 active:translate-y-[2px]";
 
-const numKey = cn(
-  base,
-  "border-[var(--border-default)] bg-[var(--surface-base)] text-[var(--text-strong)] text-xl font-bold",
-  "shadow-[0_2px_0_var(--border-default)] hover:bg-[var(--surface-muted)]",
-  "hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))]",
-);
+function numKeyStyle() {
+  return {
+    background: "var(--pos-key-bg)",
+    borderColor: "var(--pos-key-border)",
+    boxShadow: "0 3px 0 var(--pos-key-shadow)",
+    color: "var(--pos-key-text)",
+  } as React.CSSProperties;
+}
 
-const presetKey = cn(
-  base,
-  "border-emerald-200 bg-emerald-50 text-emerald-700 text-[12px] font-bold",
-  "shadow-[0_2px_0_rgba(16,185,129,0.2)] hover:bg-emerald-100 hover:border-emerald-300",
-);
+function numKeyActiveStyle() {
+  return {
+    boxShadow: "0 1px 0 var(--pos-key-shadow)",
+  } as React.CSSProperties;
+}
 
-const backspaceKey = cn(
-  base,
-  "border-[var(--border-default)] bg-[var(--surface-muted)] text-[var(--text-muted)]",
-  "shadow-[0_2px_0_var(--border-default)] hover:bg-amber-50 hover:border-amber-200 hover:text-amber-700",
-);
+function presetKeyStyle() {
+  return {
+    background: "var(--pos-key-preset-bg)",
+    borderColor: "var(--pos-key-preset-border)",
+    boxShadow: "0 3px 0 var(--pos-key-preset-shadow)",
+    color: "var(--pos-key-preset-text)",
+    fontSize: "12px",
+    fontWeight: 700,
+  } as React.CSSProperties;
+}
 
-const clearKey = cn(
-  base,
-  "border-red-200 bg-red-50 text-red-600 text-sm font-black tracking-wide",
-  "shadow-[0_2px_0_rgba(239,68,68,0.2)] hover:bg-red-100 hover:border-red-300",
-);
+function backspaceKeyStyle() {
+  return {
+    background: "var(--pos-key-back-bg)",
+    borderColor: "var(--pos-key-back-border)",
+    boxShadow: "0 3px 0 var(--pos-key-back-shadow)",
+    color: "var(--pos-key-back-text)",
+  } as React.CSSProperties;
+}
+
+function clearKeyStyle() {
+  return {
+    background: "var(--pos-key-clear-bg)",
+    borderColor: "var(--pos-key-clear-border)",
+    boxShadow: "0 3px 0 var(--pos-key-clear-shadow)",
+    color: "var(--pos-key-clear-text)",
+    fontSize: "13px",
+    fontWeight: 900,
+    letterSpacing: "0.08em",
+  } as React.CSSProperties;
+}
+
+import type React from "react";
 
 export function PosNumericKeypad({
   onAction,
@@ -63,60 +87,56 @@ export function PosNumericKeypad({
   const cols = hasPresets ? "grid-cols-4" : "grid-cols-3";
 
   const rows = [
-    KEYS.slice(0, 3),  // 1 2 3
-    KEYS.slice(3, 6),  // 4 5 6
-    KEYS.slice(6, 9),  // 7 8 9
-    KEYS.slice(9, 11), // . 0
+    KEYS.slice(0, 3),
+    KEYS.slice(3, 6),
+    KEYS.slice(6, 9),
+    KEYS.slice(9, 11),
   ];
 
   return (
     <div className={cn("grid gap-2", cols, className)}>
-      {/* Row 0: 1 2 3 | preset 0 */}
       {rows[0].map((key) => (
-        <button key={key.label} type="button" className={numKey} onClick={() => onAction(key.action)}>
+        <button key={key.label} type="button" className={cn(base, "text-xl font-black")} style={numKeyStyle()} onClick={() => onAction(key.action)}>
           {key.label}
         </button>
       ))}
       {hasPresets && presets[0] ? (
-        <button type="button" className={presetKey} onClick={() => onAction({ type: "preset", value: presets[0].value })}>
+        <button type="button" className={base} style={presetKeyStyle()} onClick={() => onAction({ type: "preset", value: presets[0].value })}>
           {presets[0].label}
         </button>
       ) : hasPresets ? <div /> : null}
 
-      {/* Row 1: 4 5 6 | preset 1 */}
       {rows[1].map((key) => (
-        <button key={key.label} type="button" className={numKey} onClick={() => onAction(key.action)}>
+        <button key={key.label} type="button" className={cn(base, "text-xl font-black")} style={numKeyStyle()} onClick={() => onAction(key.action)}>
           {key.label}
         </button>
       ))}
       {hasPresets && presets[1] ? (
-        <button type="button" className={presetKey} onClick={() => onAction({ type: "preset", value: presets[1].value })}>
+        <button type="button" className={base} style={presetKeyStyle()} onClick={() => onAction({ type: "preset", value: presets[1].value })}>
           {presets[1].label}
         </button>
       ) : hasPresets ? <div /> : null}
 
-      {/* Row 2: 7 8 9 | preset 2 */}
       {rows[2].map((key) => (
-        <button key={key.label} type="button" className={numKey} onClick={() => onAction(key.action)}>
+        <button key={key.label} type="button" className={cn(base, "text-xl font-black")} style={numKeyStyle()} onClick={() => onAction(key.action)}>
           {key.label}
         </button>
       ))}
       {hasPresets && presets[2] ? (
-        <button type="button" className={presetKey} onClick={() => onAction({ type: "preset", value: presets[2].value })}>
+        <button type="button" className={base} style={presetKeyStyle()} onClick={() => onAction({ type: "preset", value: presets[2].value })}>
           {presets[2].label}
         </button>
       ) : hasPresets ? <div /> : null}
 
-      {/* Row 3: . 0 ⌫ C */}
       {rows[3].map((key) => (
-        <button key={key.label} type="button" className={numKey} onClick={() => onAction(key.action)}>
+        <button key={key.label} type="button" className={cn(base, "text-xl font-black")} style={numKeyStyle()} onClick={() => onAction(key.action)}>
           {key.label}
         </button>
       ))}
-      <button type="button" className={backspaceKey} onClick={() => onAction({ type: "backspace" })}>
+      <button type="button" className={base} style={backspaceKeyStyle()} onClick={() => onAction({ type: "backspace" })}>
         <Delete className="h-5 w-5" />
       </button>
-      <button type="button" className={clearKey} onClick={() => onAction({ type: "clear" })}>
+      <button type="button" className={base} style={clearKeyStyle()} onClick={() => onAction({ type: "clear" })}>
         CLR
       </button>
     </div>

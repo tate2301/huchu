@@ -15,15 +15,17 @@ export function PosPortalLoginClient({
   rememberMeEnabled?: boolean;
 }) {
   return (
-    <PortalLoginForm
-      portalTitle="Point of Sale"
-      portalDescription="Sign in to continue."
-      portalIcon={<ReceiptLong className="h-7 w-7" />}
-      companyLabel={companyLabel}
-      redirectTo={redirectTo}
-      callbackUrl={callbackUrl}
-      rememberMeEnabled={rememberMeEnabled}
-      helpText="Use your standard company account."
-    />
+    <div className="pos-terminal flex min-h-[100dvh] items-center justify-center p-4" style={{ background: "var(--surface-canvas)" }}>
+      <PortalLoginForm
+        portalTitle="Point of Sale"
+        portalDescription="Sign in to continue."
+        portalIcon={<ReceiptLong className="h-7 w-7" />}
+        companyLabel={companyLabel}
+        redirectTo={redirectTo}
+        callbackUrl={callbackUrl}
+        rememberMeEnabled={rememberMeEnabled}
+        helpText="Use your standard company account."
+      />
+    </div>
   );
 }

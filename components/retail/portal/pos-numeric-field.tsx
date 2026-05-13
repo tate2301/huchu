@@ -1,6 +1,5 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 type PosNumericFieldProps = {
@@ -21,24 +20,40 @@ export function PosNumericField({
   className,
 }: PosNumericFieldProps) {
   return (
-    <Button
+    <button
       type="button"
-      variant="outline"
       onClick={onActivate}
       className={cn(
-        "h-auto min-h-[4.75rem] w-full items-start justify-start rounded-[1.2rem] px-4 py-3 text-left shadow-none",
-        active
-          ? "border-[var(--action-primary-bg)] bg-[color-mix(in_srgb,var(--action-primary-bg)_8%,white)]"
-          : "border-[var(--border-default)] bg-[var(--surface-base)] hover:bg-[var(--surface-muted)]",
+        "flex min-h-[4.5rem] w-full flex-col items-start justify-center rounded-xl border px-4 py-3 text-left transition-all duration-100",
         className,
       )}
+      style={
+        active
+          ? {
+              background: "var(--pos-lcd-bg-active)",
+              borderColor: "var(--pos-lcd-text-active)",
+              boxShadow: `0 0 0 2px var(--pos-lcd-text-active)`,
+              color: "var(--pos-lcd-text)",
+            }
+          : {
+              background: "var(--pos-lcd-bg)",
+              borderColor: "var(--pos-lcd-border)",
+              color: "var(--pos-lcd-text)",
+            }
+      }
     >
-      <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+      <span
+        className="text-[10px] font-bold uppercase tracking-[0.18em]"
+        style={{ color: "var(--pos-lcd-label)" }}
+      >
         {label}
       </span>
-      <span className="mt-2 font-mono text-xl font-semibold text-[var(--text-strong)]">
-        {value || placeholder}
+      <span
+        className="mt-1 font-mono text-xl font-black tabular-nums tracking-tight"
+        style={{ color: active ? "var(--pos-lcd-text-active)" : "var(--pos-lcd-text)" }}
+      >
+        {value || <span style={{ color: "var(--pos-lcd-label)" }}>{placeholder}</span>}
       </span>
-    </Button>
+    </button>
   );
 }

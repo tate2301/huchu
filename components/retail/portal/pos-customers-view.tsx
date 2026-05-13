@@ -43,22 +43,28 @@ export function PosCustomersView() {
           description="This stays a fast lookup surface for leads and exceptions, while checkout handles most customer attachment inline."
         />
 
-        <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
-          <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-subtle)] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--action-primary-bg)]">
-              <Search className="h-5 w-5" />
+        <div
+          className="flex items-center gap-3 rounded-xl border px-4 py-3"
+          style={{ background: "var(--pos-lcd-bg)", borderColor: "var(--pos-lcd-border)" }}
+        >
+          <Search
+            className="h-5 w-5 shrink-0"
+            style={{ color: "var(--pos-lcd-label)" }}
+          />
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[10px] font-bold uppercase tracking-[0.18em]"
+              style={{ color: "var(--pos-lcd-label)" }}
+            >
+              Search
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                Search
-              </div>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search by name, phone, or email"
-                className="mt-1 h-11 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-              />
-            </div>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Name, phone, or email"
+              className="mt-0.5 h-9 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+              style={{ color: "var(--pos-lcd-text)" }}
+            />
           </div>
         </div>
       </PosPanel>
@@ -92,10 +98,13 @@ export function PosCustomersView() {
               {customers.map((customer) => (
                 <div
                   key={customer.id}
-                  className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-[1.2rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4"
+                  className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-4 ring-1 ring-transparent transition-all hover:ring-[var(--pos-status-info-ring)]"
                 >
                   <div className="flex min-w-0 items-start gap-3">
-                    <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[var(--action-primary-bg)] shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+                    <div
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full"
+                      style={{ background: "var(--pos-status-info-bg)", color: "var(--pos-status-info-text)" }}
+                    >
                       <User className="h-5 w-5" />
                     </div>
                     <div className="min-w-0">
@@ -113,8 +122,8 @@ export function PosCustomersView() {
                     <div className="flex justify-end">
                       <PosStatusPill tone="brand">{customer.loyaltyTier}</PosStatusPill>
                     </div>
-                    <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
-                      {customer.loyaltyPoints} pts
+                    <div className="mt-2 font-mono text-sm font-black tabular-nums text-[var(--text-strong)]">
+                      {customer.loyaltyPoints.toLocaleString()} pts
                     </div>
                   </div>
                 </div>

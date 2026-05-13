@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
+  requireRetailPos,
   requireRetailSession,
 } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
@@ -21,6 +22,9 @@ export async function POST(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   try {
     const { id } = await params;

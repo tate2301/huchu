@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
@@ -30,9 +29,9 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
-import { fetchInventoryItems } from "@/lib/api";
+import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type CatalogItem = {
@@ -89,13 +88,20 @@ function emptyForm(): CatalogForm {
 }
 
 export default function RetailCatalogPage() {
-  const router = useRouter();
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [addAnother, setAddAnother] = useState(false);
   const [editing, setEditing] = useState<CatalogItem | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<CatalogItem | null>(null);
   const [form, setForm] = useState<CatalogForm>(emptyForm);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+
+  // Quick-create stock item sub-dialog
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+  const [quickForm, setQuickForm] = useState({
+    name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "",
+  });
 
   const catalogQuery = useQuery({
     queryKey: ["retail-catalog"],
@@ -104,6 +110,12 @@ export default function RetailCatalogPage() {
   const inventoryQuery = useQuery({
     queryKey: ["retail-catalog-inventory-items"],
     queryFn: () => fetchInventoryItems({ limit: 500 }),
+  });
+  const sitesQuery = useQuery({ queryKey: ["retail-catalog-sites"], queryFn: fetchSites });
+  const locationsQuery = useQuery({
+    queryKey: ["retail-catalog-locations", quickForm.siteId],
+    queryFn: () => fetchStockLocations({ siteId: quickForm.siteId, active: true, limit: 100 }),
+    enabled: Boolean(quickForm.siteId),
   });
 
   const inventoryItems = inventoryQuery.data?.data ?? [];
@@ -118,6 +130,7 @@ export default function RetailCatalogPage() {
     [inventoryItems],
   );
   const selectedInventory = inventoryItems.find((item) => item.id === form.inventoryItemId);
+  const priceIsInvalid = form.unitPrice !== "" && (isNaN(Number(form.unitPrice)) || Number(form.unitPrice) <= 0);
   const {
     reservedId: catalogCode,
     isReserving,
@@ -158,9 +171,16 @@ export default function RetailCatalogPage() {
     onSuccess: () => {
       toast({ title: editing ? "Catalog item updated" : "Catalog item created", variant: "success" });
       queryClient.invalidateQueries({ queryKey: ["retail-catalog"] });
-      setDialogOpen(false);
-      setEditing(null);
-      setForm(emptyForm());
+      if (addAnother && !editing) {
+        setForm(emptyForm());
+        setAdvancedOpen(false);
+      } else {
+        setDialogOpen(false);
+        setEditing(null);
+        setForm(emptyForm());
+        setAdvancedOpen(false);
+      }
+      setAddAnother(false);
     },
     onError: (error) => {
       toast({
@@ -168,6 +188,36 @@ export default function RetailCatalogPage() {
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
+    },
+  });
+
+  const quickCreateMutation = useMutation({
+    mutationFn: (payload: typeof quickForm) =>
+      fetchJson<{ id: string; name: string; unit: string; unitCost: number | null; siteId: string }>("/api/inventory/items", {
+        method: "POST",
+        body: JSON.stringify({
+          name: payload.name.trim(),
+          category: payload.category,
+          unit: payload.unit.trim(),
+          siteId: payload.siteId,
+          locationId: payload.locationId,
+          unitCost: payload.unitCost ? Number(payload.unitCost) : undefined,
+        }),
+      }),
+    onSuccess: (created) => {
+      toast({ title: "Stock item created", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["retail-catalog-inventory-items"] });
+      setQuickCreateOpen(false);
+      setQuickForm({ name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "" });
+      setForm((current) => ({
+        ...current,
+        inventoryItemId: created.id,
+        name: current.name || created.name,
+        unitPrice: current.unitPrice === "" && created.unitCost != null ? String(created.unitCost) : current.unitPrice,
+      }));
+    },
+    onError: (error) => {
+      toast({ title: "Unable to create stock item", description: getApiErrorMessage(error), variant: "destructive" });
     },
   });
 
@@ -321,6 +371,7 @@ export default function RetailCatalogPage() {
           if (!open) {
             setEditing(null);
             setForm(emptyForm());
+            setAdvancedOpen(false);
           }
         }}
       >
@@ -336,75 +387,215 @@ export default function RetailCatalogPage() {
               saveMutation.mutate(form);
             }}
           >
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Catalog code</label>
-                <Input value={editing ? editing.catalogCode : catalogCode} readOnly disabled={isReserving && !editing} />
-                <FieldHelp error={reserveError ?? undefined} hint={reserveError ? undefined : "Generated automatically."} />
-              </div>
-              <SearchableSelect
-                label="Stock item"
-                value={form.inventoryItemId}
-                options={inventoryOptions}
-                placeholder="Select stock item"
-                onValueChange={(value) => {
-                  const item = inventoryItems.find((entry) => entry.id === value);
-                  setForm((current) => ({
-                    ...current,
-                    inventoryItemId: value,
-                    name: current.name || item?.name || "",
-                  }));
-                }}
-                onAddOption={() => router.push("/stores/inventory")}
-                addLabel="Add new stock item"
-              />
+            <SearchableSelect
+              label="Stock item"
+              value={form.inventoryItemId}
+              options={inventoryOptions}
+              placeholder="Select stock item"
+              onValueChange={(value) => {
+                const item = inventoryItems.find((entry) => entry.id === value);
+                setForm((current) => ({
+                  ...current,
+                  inventoryItemId: value,
+                  name: current.name || item?.name || "",
+                  unitPrice: current.unitPrice === "" && (item as InventoryItem | undefined)?.unitCost != null ? String((item as InventoryItem).unitCost) : current.unitPrice,
+                }));
+              }}
+              onAddOption={() => {
+                const firstSite = sitesQuery.data?.[0];
+                setQuickForm((q) => ({ ...q, siteId: firstSite?.id ?? "", locationId: "" }));
+                setQuickCreateOpen(true);
+              }}
+              addLabel="Quick-create stock item"
+            />
+
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold">Sell price</label>
+              <Input value={form.unitPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, unitPrice: event.target.value }))} />
+              {priceIsInvalid ? (
+                <p className="text-xs text-red-600">Price must be greater than 0</p>
+              ) : null}
             </div>
 
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform${advancedOpen ? " rotate-180" : ""}`} />
+              Advanced options
+            </button>
+
+            {advancedOpen ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Catalog code</label>
+                  <Input value={editing ? editing.catalogCode : catalogCode} readOnly disabled={isReserving && !editing} />
+                  <FieldHelp error={reserveError ?? undefined} hint={reserveError ? undefined : "Generated automatically."} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Display name</label>
+                  <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">SKU</label>
+                  <Input value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} placeholder="Generated from code when blank" />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Barcode</label>
+                  <Input value={form.barcode} onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))} />
+                </div>
+                {editing ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold">Status</label>
+                    <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                        <SelectItem value="DISCONTINUED">Discontinued</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Compare at</label>
+                  <Input value={form.compareAtPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, compareAtPrice: event.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Tax percent</label>
+                  <Input value={form.taxPercent} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, taxPercent: event.target.value }))} />
+                </div>
+                <div className="space-y-2 md:col-span-2">
+                  <label className="block text-sm font-semibold">Notes</label>
+                  <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
+                </div>
+              </div>
+            ) : null}
+
+            <DialogFooter className="flex-col gap-2 sm:flex-row">
+              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              {!editing ? (
+                <Button
+                  type="submit"
+                  variant="outline"
+                  disabled={saveMutation.isPending || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
+                  onClick={() => setAddAnother(true)}
+                >
+                  Save and add another
+                </Button>
+              ) : null}
+              <Button
+                type="submit"
+                disabled={saveMutation.isPending || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
+                onClick={() => setAddAnother(false)}
+              >
+                {editing ? "Save changes" : "Create item"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Quick-create stock item */}
+      <Dialog open={quickCreateOpen} onOpenChange={(open) => { setQuickCreateOpen(open); if (!open) setQuickForm({ name: "", category: "CONSUMABLES", unit: "pcs", siteId: "", locationId: "", unitCost: "" }); }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Quick-create stock item</DialogTitle>
+            <DialogDescription>Create a new stock item and add it to the catalog in one step.</DialogDescription>
+          </DialogHeader>
+          <form
+            className="space-y-4"
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (!quickForm.name.trim() || !quickForm.siteId || !quickForm.locationId) return;
+              quickCreateMutation.mutate(quickForm);
+            }}
+          >
+            <div className="space-y-2">
+              <label className="block text-sm font-semibold">Item name</label>
+              <Input
+                value={quickForm.name}
+                onChange={(e) => setQuickForm((q) => ({ ...q, name: e.target.value }))}
+                placeholder="e.g. Bottled water 500ml"
+                autoFocus
+              />
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Display name</label>
-                <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">SKU</label>
-                <Input value={form.sku} onChange={(event) => setForm((current) => ({ ...current, sku: event.target.value }))} placeholder="Generated from code when blank" />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Barcode</label>
-                <Input value={form.barcode} onChange={(event) => setForm((current) => ({ ...current, barcode: event.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Status</label>
-                <Select value={form.status} onValueChange={(value) => setForm((current) => ({ ...current, status: value }))}>
+                <label className="block text-sm font-semibold">Category</label>
+                <Select value={quickForm.category} onValueChange={(v) => setQuickForm((q) => ({ ...q, category: v }))}>
                   <SelectTrigger><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="INACTIVE">Inactive</SelectItem>
-                    <SelectItem value="DISCONTINUED">Discontinued</SelectItem>
+                    <SelectItem value="CONSUMABLES">Consumables</SelectItem>
+                    <SelectItem value="SPARES">Spares</SelectItem>
+                    <SelectItem value="PPE">PPE</SelectItem>
+                    <SelectItem value="FUEL">Fuel</SelectItem>
+                    <SelectItem value="REAGENTS">Reagents</SelectItem>
+                    <SelectItem value="OTHER">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Sell price</label>
-                <Input value={form.unitPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, unitPrice: event.target.value }))} />
+                <label className="block text-sm font-semibold">Unit</label>
+                <Input
+                  value={quickForm.unit}
+                  onChange={(e) => setQuickForm((q) => ({ ...q, unit: e.target.value }))}
+                  placeholder="pcs, kg, L …"
+                  list="unit-presets"
+                />
+                <datalist id="unit-presets">
+                  {["pcs", "kg", "L", "g", "mL", "box", "pair", "roll", "bag"].map((u) => (
+                    <option key={u} value={u} />
+                  ))}
+                </datalist>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Compare at</label>
-                <Input value={form.compareAtPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, compareAtPrice: event.target.value }))} />
+                <label className="block text-sm font-semibold">Site</label>
+                <Select
+                  value={quickForm.siteId}
+                  onValueChange={(v) => setQuickForm((q) => ({ ...q, siteId: v, locationId: "" }))}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select site" /></SelectTrigger>
+                  <SelectContent>
+                    {(sitesQuery.data ?? []).map((site: { id: string; name: string }) => (
+                      <SelectItem key={site.id} value={site.id}>{site.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Tax percent</label>
-                <Input value={form.taxPercent} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, taxPercent: event.target.value }))} />
+                <label className="block text-sm font-semibold">Location</label>
+                <Select
+                  value={quickForm.locationId}
+                  onValueChange={(v) => setQuickForm((q) => ({ ...q, locationId: v }))}
+                  disabled={!quickForm.siteId}
+                >
+                  <SelectTrigger><SelectValue placeholder="Select location" /></SelectTrigger>
+                  <SelectContent>
+                    {(locationsQuery.data?.data ?? []).map((loc: { id: string; name: string }) => (
+                      <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Notes</label>
-              <Textarea value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
+              <div className="space-y-2 md:col-span-2">
+                <label className="block text-sm font-semibold">Unit cost (optional)</label>
+                <Input
+                  value={quickForm.unitCost}
+                  inputMode="decimal"
+                  onChange={(e) => setQuickForm((q) => ({ ...q, unitCost: e.target.value }))}
+                  placeholder="0.00 — will pre-fill sell price"
+                />
+              </div>
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.inventoryItemId}>
-                {editing ? "Save changes" : "Create item"}
+              <Button type="button" variant="outline" onClick={() => setQuickCreateOpen(false)}>Cancel</Button>
+              <Button
+                type="submit"
+                disabled={quickCreateMutation.isPending || !quickForm.name.trim() || !quickForm.siteId || !quickForm.locationId}
+              >
+                {quickCreateMutation.isPending ? "Creating…" : "Create and select"}
               </Button>
             </DialogFooter>
           </form>
