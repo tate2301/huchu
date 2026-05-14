@@ -37,43 +37,54 @@ export function PosPriceCheckView() {
         <PosPanelHeader
           eyebrow="Speed lookup"
           title="Price check"
-          description="Keep this lane scan-first, glanceable, and oversized enough to answer a customer in seconds."
+          description="Scan-first, glanceable. Answers price, code, and stock in seconds."
         />
 
-        <div className="rounded-[1.25rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-3">
-          <div className="flex items-center gap-3 rounded-[1rem] border border-[var(--border-subtle)] bg-white px-3 py-3 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
-            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-[var(--surface-muted)] text-[var(--action-primary-bg)]">
-              <Search className="h-5 w-5" />
+        {/* LCD search input */}
+        <div
+          className="flex items-center gap-3 rounded-xl border px-4 py-3"
+          style={{ background: "var(--pos-lcd-bg)", borderColor: "var(--pos-lcd-border)" }}
+        >
+          <QrCode
+            className="h-5 w-5 shrink-0"
+            style={{ color: "var(--pos-lcd-label)" }}
+          />
+          <div className="min-w-0 flex-1">
+            <div
+              className="text-[10px] font-bold uppercase tracking-[0.18em]"
+              style={{ color: "var(--pos-lcd-label)" }}
+            >
+              Scanner-ready
             </div>
-            <div className="min-w-0 flex-1">
-              <div className="flex items-center gap-2 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-                <QrCode className="h-4 w-4" />
-                Scanner-ready input
-              </div>
-              <Input
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Scan barcode or search product"
-                className="mt-1 h-11 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
-              />
-            </div>
+            <Input
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Scan barcode or search product"
+              className="mt-0.5 h-9 border-none bg-transparent px-0 text-base shadow-none focus-visible:ring-0"
+              style={{ color: "var(--pos-lcd-text)" }}
+            />
           </div>
+          <Search
+            className="h-4 w-4 shrink-0 opacity-40"
+            style={{ color: "var(--pos-lcd-label)" }}
+          />
         </div>
       </PosPanel>
 
       <div className="grid min-h-0 gap-4 xl:grid-cols-[minmax(320px,0.92fr)_minmax(0,1.08fr)]">
+        {/* Featured result hero panel */}
         <PosPanel className="flex min-h-0 flex-col">
           <PosPanelHeader
             eyebrow="Featured result"
             title="Best match"
-            description="The first result should answer price, code, and stock at a glance."
+            description="Price, code, and stock at a glance."
           />
 
           {!currentShift ? (
             <PosEmptyState
               icon={ReceiptLong}
               title="Open a shift to use price check"
-              description="Price check is tied to the active selling site, so it becomes available once the register is open."
+              description="Price check is tied to the active selling site."
             />
           ) : !featuredItem ? (
             <PosEmptyState
@@ -82,46 +93,81 @@ export function PosPriceCheckView() {
               description={
                 catalogQuery.isLoading
                   ? "Loading product matches."
-                  : "Scan a barcode or type a product name to pull the best match here."
+                  : "Scan a barcode or type a product name."
               }
             />
           ) : (
-            <div className="flex h-full flex-col justify-between rounded-[1.4rem] border border-[var(--border-default)] bg-[var(--surface-muted)] p-5">
+            <div
+              className="flex h-full flex-col justify-between rounded-xl border p-5"
+              style={{
+                background: "var(--pos-amount-bg)",
+                borderColor: "var(--pos-amount-border)",
+              }}
+            >
               <div>
                 <div className="flex items-center gap-2">
                   <PosStatusPill tone="brand">Top match</PosStatusPill>
                   {featuredItem.inventoryItem ? (
                     <PosStatusPill
-                      tone={
-                        featuredItem.inventoryItem.currentStock > 0 ? "success" : "danger"
-                      }
+                      tone={featuredItem.inventoryItem.currentStock > 0 ? "success" : "danger"}
                     >
                       {featuredItem.inventoryItem.currentStock > 0 ? "In stock" : "Out of stock"}
                     </PosStatusPill>
                   ) : null}
                 </div>
-                <h2 className="mt-4 text-[1.8rem] font-semibold tracking-[-0.04em] text-[var(--text-strong)]">
+                <h2
+                  className="mt-4 text-[1.8rem] font-bold tracking-[-0.04em]"
+                  style={{ color: "var(--pos-amount-text)" }}
+                >
                   {featuredItem.name}
                 </h2>
-                <div className="mt-3 font-mono text-[2.3rem] font-semibold tracking-[-0.04em] text-[var(--text-strong)]">
+                <div
+                  className="mt-3 font-mono text-[2.5rem] font-black tabular-nums tracking-tight"
+                  style={{ color: "var(--pos-amount-text)" }}
+                >
                   {money(featuredItem.unitPrice)}
                 </div>
               </div>
 
-              <div className="mt-6 grid gap-3">
-                <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+              <div className="mt-6 grid gap-2">
+                <div
+                  className="rounded-lg border px-4 py-3 ring-1"
+                  style={{
+                    background: "var(--pos-amount-surface)",
+                    borderColor: "var(--pos-amount-border)",
+                    boxShadow: `inset 0 0 0 1px var(--pos-amount-border)`,
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    style={{ color: "var(--pos-amount-label)" }}
+                  >
                     Barcode / SKU
                   </div>
-                  <div className="mt-2 font-mono text-sm font-semibold text-[var(--text-strong)]">
+                  <div
+                    className="mt-1 font-mono text-sm font-semibold tabular-nums"
+                    style={{ color: "var(--pos-amount-text)" }}
+                  >
                     {featuredItem.barcode || featuredItem.sku}
                   </div>
                 </div>
-                <div className="rounded-[1rem] border border-[var(--border-subtle)] bg-white/80 px-4 py-3">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
+                <div
+                  className="rounded-lg border px-4 py-3"
+                  style={{
+                    background: "var(--pos-amount-surface)",
+                    borderColor: "var(--pos-amount-border)",
+                  }}
+                >
+                  <div
+                    className="text-[10px] font-bold uppercase tracking-[0.18em]"
+                    style={{ color: "var(--pos-amount-label)" }}
+                  >
                     Stock
                   </div>
-                  <div className="mt-2 text-sm font-medium text-[var(--text-strong)]">
+                  <div
+                    className="mt-1 text-sm font-medium"
+                    style={{ color: "var(--pos-amount-text)" }}
+                  >
                     {featuredItem.inventoryItem
                       ? `${featuredItem.inventoryItem.currentStock.toFixed(2)} ${featuredItem.inventoryItem.unit}`
                       : "No stock data"}
@@ -132,11 +178,12 @@ export function PosPriceCheckView() {
           )}
         </PosPanel>
 
+        {/* Match list */}
         <PosPanel className="min-h-0">
           <PosPanelHeader
             eyebrow="Matches"
             title="Lookup results"
-            description="Keep the list dense, readable, and easy to scan when the first result is not the right one."
+            description="Dense and scannable. First result is the best match."
           />
 
           <div className="h-full min-h-0 overflow-y-auto pr-1">
@@ -144,7 +191,7 @@ export function PosPriceCheckView() {
               <PosEmptyState
                 icon={ReceiptLong}
                 title="Price check is waiting on an open shift"
-                description="Once the register is active, product matches and stock cues will appear here."
+                description="Once the register is active, product matches appear here."
               />
             ) : rows.length === 0 ? (
               <PosEmptyState
@@ -157,36 +204,39 @@ export function PosPriceCheckView() {
                 }
               />
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {rows.map((item, index) => (
                   <div
                     key={item.id}
-                    className="flex min-h-[5.5rem] items-center justify-between gap-4 rounded-[1.2rem] border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-4"
+                    className="flex min-h-[4.5rem] items-center justify-between gap-4 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3 ring-1 ring-transparent transition-all hover:ring-[var(--pos-status-info-ring)]"
                   >
                     <div className="flex min-w-0 items-start gap-3">
-                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-white text-[var(--action-primary-bg)] shadow-[0_8px_18px_rgba(15,23,42,0.05)]">
+                      <div
+                        className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full"
+                        style={{ background: "var(--pos-status-info-bg)", color: "var(--pos-status-info-text)" }}
+                      >
                         <Package className="h-5 w-5" />
                       </div>
                       <div className="min-w-0">
                         <div className="flex items-center gap-2">
-                          <div className="truncate text-base font-semibold text-[var(--text-strong)]">
+                          <div className="truncate text-[15px] font-semibold text-[var(--text-strong)]">
                             {item.name}
                           </div>
                           {index === 0 ? <PosStatusPill tone="brand">Best</PosStatusPill> : null}
                         </div>
-                        <div className="mt-1 font-mono text-xs text-[var(--text-muted)]">
+                        <div className="mt-0.5 font-mono text-xs text-[var(--text-muted)]">
                           {item.barcode || item.sku}
                         </div>
                       </div>
                     </div>
-                    <div className="text-right">
-                      <div className="font-mono text-lg font-semibold text-[var(--text-strong)]">
+                    <div className="shrink-0 text-right">
+                      <div className="font-mono text-lg font-black tabular-nums text-[var(--text-strong)]">
                         {money(item.unitPrice)}
                       </div>
-                      <div className="mt-1 text-xs text-[var(--text-muted)]">
+                      <div className="mt-0.5 text-xs text-[var(--text-muted)]">
                         {item.inventoryItem
                           ? `${item.inventoryItem.currentStock.toFixed(2)} ${item.inventoryItem.unit}`
-                          : "No stock data"}
+                          : "No stock"}
                       </div>
                     </div>
                   </div>

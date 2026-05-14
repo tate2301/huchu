@@ -6,6 +6,7 @@ import {
   ensureSiteAccess,
   postRetailJournal,
   recordRetailInventoryMovement,
+  requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -22,6 +23,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailStock(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

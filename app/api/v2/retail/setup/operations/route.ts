@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
   ensureRetailRegisterAccess,
+  requireRetailManager,
   requireRetailSession,
   ensureSiteAccess,
   upsertRetailRegister,
@@ -51,9 +52,8 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  if (!["SUPERADMIN", "MANAGER", "SHOP_MANAGER"].includes(session.user.role ?? "")) {
-    return errorResponse("Only managers can update retail operations setup", 403);
-  }
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

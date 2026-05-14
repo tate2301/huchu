@@ -13,6 +13,7 @@ import {
   PosPanel,
   PosPanelHeader,
   PosStatusPill,
+  PosTerminalHeader,
 } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
@@ -143,38 +144,21 @@ export function PosHeldView() {
                 return (
                   <div
                     key={heldCart.id}
-                    className="flex flex-col rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] overflow-hidden"
+                    className="flex flex-col rounded-2xl border border-[var(--edge-default)] bg-[var(--surface-base)] overflow-hidden"
+                    style={{ boxShadow: "var(--shadow-card, 0 1px 3px rgba(15,23,42,0.06))" }}
                   >
-                    {/* Card header */}
-                    <div className="flex items-start justify-between gap-3 bg-[var(--surface-base)] px-4 py-3.5 border-b border-[var(--border-subtle)]">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="truncate text-[15px] font-bold text-[var(--text-strong)]">
-                            {heldCart.label || heldCart.holdNo}
-                          </span>
-                          {heldCart.label && (
-                            <span className="font-mono text-[10px] text-[var(--text-muted)]">
-                              {heldCart.holdNo}
-                            </span>
-                          )}
-                        </div>
-                        <div className={cn(
-                          "mt-0.5 inline-flex items-center gap-1 text-[11px] font-semibold",
-                          urgent ? "text-amber-600" : "text-[var(--text-muted)]",
-                        )}>
-                          <Clock className="h-3 w-3" />
-                          {timeLabel}
-                        </div>
-                      </div>
-                      <div className="text-right shrink-0">
-                        <div className="font-mono text-xl font-black text-[var(--text-strong)]">
-                          {money(total)}
-                        </div>
-                        <div className="mt-0.5 text-[11px] text-[var(--text-muted)]">
-                          {itemCount} line{itemCount !== 1 ? "s" : ""}
-                        </div>
-                      </div>
-                    </div>
+                    {/* Dark instrument panel header */}
+                    <PosTerminalHeader
+                      eyebrow={`Hold · ${heldCart.holdNo}`}
+                      title={heldCart.label || heldCart.holdNo}
+                      subtitle={
+                        urgent
+                          ? `⚠ ${timeLabel}`
+                          : timeLabel
+                      }
+                      valuePrimary={money(total)}
+                      valueSecondary={`${itemCount} line${itemCount !== 1 ? "s" : ""}`}
+                    />
 
                     {/* Cart details */}
                     <div className="flex items-center gap-4 px-4 py-3">
@@ -198,7 +182,12 @@ export function PosHeldView() {
                     {/* CTA */}
                     <div className="px-4 pb-4 pt-1">
                       <Button
-                        className="w-full h-11 gap-2 rounded-xl text-[14px] font-bold"
+                        className="w-full h-11 gap-2 rounded-xl text-[14px] font-bold active:translate-y-[2px] active:shadow-none"
+                        style={{
+                          background: "var(--pos-cta-bg)",
+                          color: "var(--pos-cta-text)",
+                          boxShadow: "0 3px 0 var(--pos-cta-shadow)",
+                        }}
                         onClick={() => recallMutation.mutate(heldCart)}
                         disabled={recallMutation.isPending}
                       >

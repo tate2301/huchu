@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
+import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../_helpers";
 
 const catalogItemSchema = z.object({
   catalogCode: z.string().min(1).max(50).optional(),
@@ -95,6 +95,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

@@ -22,11 +22,34 @@ export async function requireRetailSession(request: NextRequest) {
   return { response: null, session: sessionResult.session as RetailSession };
 }
 
-const RETAIL_MANAGER_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"];
+export const RETAIL_MANAGER_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"];
+export const RETAIL_STOCK_ROLES: UserRole[] = [...RETAIL_MANAGER_ROLES, "STOCK_CLERK"];
+export const RETAIL_POS_ROLES: UserRole[] = [...RETAIL_MANAGER_ROLES, "CASHIER"];
 const POS_SUPPORTED_PROMOTION_TYPES = ["PERCENT", "AMOUNT"] as const;
 
 export function canManageRetailTransactions(role: string | null | undefined) {
   return hasRole(role, RETAIL_MANAGER_ROLES);
+}
+
+export function requireRetailManager(session: RetailSession): NextResponse | null {
+  if (!hasRole(session.user.role, RETAIL_MANAGER_ROLES)) {
+    return errorResponse("Insufficient permissions", 403);
+  }
+  return null;
+}
+
+export function requireRetailStock(session: RetailSession): NextResponse | null {
+  if (!hasRole(session.user.role, RETAIL_STOCK_ROLES)) {
+    return errorResponse("Insufficient permissions", 403);
+  }
+  return null;
+}
+
+export function requireRetailPos(session: RetailSession): NextResponse | null {
+  if (!hasRole(session.user.role, RETAIL_POS_ROLES)) {
+    return errorResponse("Insufficient permissions", 403);
+  }
+  return null;
 }
 
 export function isPosSupportedPromotionType(type: string | null | undefined) {
@@ -100,7 +123,10 @@ export function normalizeRetailPostingPayments(input: {
     .filter((payment) => payment.amount > 0);
 }
 
-export async function postRetailJournal(input: Parameters<typeof createJournalEntryFromSource>[0]) {
+export async function postRetailJournal(
+  input: Parameters<typeof createJournalEntryFromSource>[0],
+  options: { throwOnFail?: boolean } = {},
+) {
   const result = await createJournalEntryFromSource(input);
   if (result.entryId || result.skipped) {
     return {
@@ -111,8 +137,13 @@ export async function postRetailJournal(input: Parameters<typeof createJournalEn
     } satisfies RetailAccountingResult;
   }
 
+  const isPending = RETAIL_PENDING_POSTING_CODES.has(result.code ?? "");
+  if (!isPending && options.throwOnFail === true) {
+    throw new Error(result.error ?? "Accounting posting failed");
+  }
+
   return {
-    accountingStatus: RETAIL_PENDING_POSTING_CODES.has(result.code ?? "") ? "PENDING" : "FAILED",
+    accountingStatus: isPending ? "PENDING" : "FAILED",
     accountingError: result.error ?? "Accounting posting failed",
     accountingCode: result.code ?? null,
     journalEntryId: null,

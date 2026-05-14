@@ -66,15 +66,32 @@ function ShiftBanner({ shift }: { shift: NonNullable<ReturnType<typeof usePosPor
   const cashSalesFormatted = money(shift.cashSales);
   const nonCashFormatted = money(shift.nonCashSales);
   return (
-    <div className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-2xl border border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-50/50 px-5 py-3.5">
+    <div
+      className="flex flex-wrap items-center gap-x-6 gap-y-2 rounded-xl px-5 py-3.5 ring-1"
+      style={{ background: "var(--pos-status-success-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)` }}
+    >
       <div className="flex items-center gap-2">
-        <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_3px_rgba(16,185,129,0.2)]" />
-        <span className="text-[13px] font-bold text-emerald-800">Shift {shift.shiftNo}</span>
-        <span className="rounded bg-emerald-100 px-1.5 py-0.5 text-[11px] font-semibold text-emerald-700">
+        <span
+          className="h-2 w-2 rounded-full"
+          style={{ background: "var(--pos-status-success-text)" }}
+        />
+        <span
+          className="text-[13px] font-bold"
+          style={{ color: "var(--pos-status-success-text)" }}
+        >
+          Shift {shift.shiftNo}
+        </span>
+        <span
+          className="rounded px-1.5 py-0.5 text-[11px] font-semibold"
+          style={{ background: "var(--pos-status-success-ring)", color: "var(--pos-status-success-text)" }}
+        >
           {shift.registerName}
         </span>
       </div>
-      <div className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px] text-emerald-700">
+      <div
+        className="flex flex-wrap items-center gap-x-5 gap-y-1 text-[12px]"
+        style={{ color: "var(--pos-status-success-text)" }}
+      >
         <span>
           <span className="font-bold">{shift.saleCount}</span> sale{shift.saleCount !== 1 ? "s" : ""}
         </span>
@@ -123,10 +140,14 @@ function TrendChip({ value, label }: { value: number; label: string }) {
   if (value === 0) return null;
   const isUp = value > 0;
   return (
-    <span className={cn(
-      "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold",
-      isUp ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600",
-    )}>
+    <span
+      className="inline-flex items-center gap-0.5 rounded-full px-2 py-0.5 text-[11px] font-semibold ring-1"
+      style={
+        isUp
+          ? { background: "var(--pos-status-success-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-success-ring)`, color: "var(--pos-status-success-text)" }
+          : { background: "var(--pos-status-danger-bg)", boxShadow: `inset 0 0 0 1px var(--pos-status-danger-ring)`, color: "var(--pos-status-danger-text)" }
+      }
+    >
       {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
       {Math.abs(value).toFixed(0)}% {label}
     </span>

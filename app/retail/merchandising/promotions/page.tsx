@@ -26,7 +26,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Pencil, Plus, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Promotion = {
@@ -40,7 +40,7 @@ type PromotionForm = {
 };
 
 function emptyForm(): PromotionForm {
-  return { name: "", type: "PERCENT", value: "", startsAt: "", endsAt: "", status: "ACTIVE", notes: "" };
+  return { name: "", type: "PERCENT", value: "", startsAt: new Date().toISOString().slice(0, 16), endsAt: "", status: "ACTIVE", notes: "" };
 }
 
 function dateLabel(iso: string | null) {
@@ -54,6 +54,7 @@ export default function RetailPromotionsPage() {
   const [editing, setEditing] = useState<Promotion | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Promotion | null>(null);
   const [form, setForm] = useState<PromotionForm>(emptyForm);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   const promotionsQuery = useQuery({
     queryKey: ["retail-promotions"],
@@ -218,10 +219,6 @@ export default function RetailPromotionsPage() {
           <form className="space-y-4" onSubmit={(e) => { e.preventDefault(); saveMutation.mutate(form); }}>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <label className="block text-sm font-semibold">Promo code</label>
-                <Input value={editing ? editing.promoCode : promoCode} readOnly disabled={isReserving && !editing} />
-              </div>
-              <div className="space-y-2">
                 <label className="block text-sm font-semibold">Name</label>
                 <Input value={form.name} onChange={(e) => setForm((c) => ({ ...c, name: e.target.value }))} />
               </div>
@@ -237,37 +234,61 @@ export default function RetailPromotionsPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <label className="block text-sm font-semibold">Value</label>
                 <Input value={form.value} inputMode="decimal" onChange={(e) => setForm((c) => ({ ...c, value: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Starts</label>
-                <Input type="datetime-local" value={form.startsAt} onChange={(e) => setForm((c) => ({ ...c, startsAt: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Ends</label>
-                <Input type="datetime-local" value={form.endsAt} onChange={(e) => setForm((c) => ({ ...c, endsAt: e.target.value }))} />
-              </div>
-              <div className="space-y-2">
-                <label className="block text-sm font-semibold">Status</label>
-                <Select value={form.status} onValueChange={(v) => setForm((c) => ({ ...c, status: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ACTIVE">Active</SelectItem>
-                    <SelectItem value="SCHEDULED">Scheduled</SelectItem>
-                    <SelectItem value="INACTIVE">Inactive</SelectItem>
-                  </SelectContent>
-                </Select>
+                {form.value !== "" && (isNaN(Number(form.value)) || Number(form.value) <= 0) ? (
+                  <p className="text-xs text-red-600">Value must be greater than 0</p>
+                ) : null}
               </div>
             </div>
-            <div className="space-y-2">
-              <label className="block text-sm font-semibold">Notes</label>
-              <Textarea value={form.notes} onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))} rows={3} />
-            </div>
+
+            <button
+              type="button"
+              onClick={() => setAdvancedOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 text-sm text-[var(--text-muted)] transition-colors hover:text-[var(--text-strong)]"
+            >
+              <ChevronDown className={`h-4 w-4 transition-transform${advancedOpen ? " rotate-180" : ""}`} />
+              Advanced options
+            </button>
+
+            {advancedOpen ? (
+              <div className="grid gap-4 md:grid-cols-2">
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Promo code</label>
+                  <Input value={editing ? editing.promoCode : promoCode} readOnly disabled={isReserving && !editing} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Starts</label>
+                  <Input type="datetime-local" value={form.startsAt} onChange={(e) => setForm((c) => ({ ...c, startsAt: e.target.value }))} />
+                </div>
+                <div className="space-y-2">
+                  <label className="block text-sm font-semibold">Ends</label>
+                  <Input type="datetime-local" value={form.endsAt} onChange={(e) => setForm((c) => ({ ...c, endsAt: e.target.value }))} placeholder="No end date" />
+                </div>
+                {editing ? (
+                  <div className="space-y-2">
+                    <label className="block text-sm font-semibold">Status</label>
+                    <Select value={form.status} onValueChange={(v) => setForm((c) => ({ ...c, status: v }))}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="ACTIVE">Active</SelectItem>
+                        <SelectItem value="SCHEDULED">Scheduled</SelectItem>
+                        <SelectItem value="INACTIVE">Inactive</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                ) : null}
+                <div className="space-y-2 md:col-span-2">
+                  <label className="block text-sm font-semibold">Notes</label>
+                  <Textarea value={form.notes} onChange={(e) => setForm((c) => ({ ...c, notes: e.target.value }))} rows={3} />
+                </div>
+              </div>
+            ) : null}
+
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.name}>Save</Button>
+              <Button type="submit" disabled={saveMutation.isPending || !form.name || !form.value || Number(form.value) <= 0}>Save</Button>
             </DialogFooter>
           </form>
         </DialogContent>

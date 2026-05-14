@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailSession } from "../../../_helpers";
+import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailManager, requireRetailStock, requireRetailSession } from "../../../_helpers";
 
 const lineSchema = z.object({
   inventoryItemId: z.string().uuid().optional().nullable(),
@@ -35,6 +35,9 @@ export async function PATCH(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailStock(session);
+  if (gate) return gate;
 
   try {
     const { id } = await params;
@@ -130,6 +133,9 @@ export async function DELETE(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   const { id } = await params;
   const existing = await getOrder(session.user.companyId, id);

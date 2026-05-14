@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../../../_helpers";
+import { requireRetailPos, requireRetailSession } from "../../../../_helpers";
 
 export async function POST(
   request: NextRequest,
@@ -11,6 +11,9 @@ export async function POST(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   const { id } = await params;
   const cart = await prisma.retailHeldCart.findFirst({

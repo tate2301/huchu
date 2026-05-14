@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailSession } from "../../_helpers";
+import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailManager, requireRetailStock, requireRetailSession } from "../../_helpers";
 
 const lineSchema = z.object({
   inventoryItemId: z.string().uuid().optional().nullable(),
@@ -72,6 +72,9 @@ export async function POST(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailStock(session);
+  if (gate) return gate;
 
   try {
     const body = await request.json();

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { requireRetailSession } from "../../../_helpers";
+import { requireRetailPos, requireRetailSession } from "../../../_helpers";
 import { closeRetailShiftTransaction } from "../../../_services";
 
 const closeShiftSchema = z.object({
@@ -18,6 +18,9 @@ export async function POST(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailPos(session);
+  if (gate) return gate;
 
   try {
     const { id } = await params;

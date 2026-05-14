@@ -54,10 +54,10 @@ export function PosOverviewView() {
       <PosPanel>
         <div className="mb-4 flex items-center justify-between gap-3">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
+            <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
               Operational snapshot
             </p>
-            <h2 className="mt-1 text-[1.35rem] font-semibold tracking-[-0.03em] text-[var(--text-strong)]">
+            <h2 className="mt-1 text-[1.3rem] font-bold tracking-[-0.025em] text-[var(--text-strong)]">
               {currentShift
                 ? `Shift ${currentShift.shiftNo} · ${currentShift.registerName}`
                 : "No active shift"}
@@ -113,9 +113,13 @@ export function PosOverviewView() {
         <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
           <Link
             href={getPosPortalHref("checkout", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-2xl border border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,var(--surface-base))] px-4 py-3.5 transition-all hover:border-[var(--action-primary-bg)] hover:bg-[color-mix(in_srgb,var(--action-primary-bg)_9%,var(--surface-base))] hover:shadow-[0_4px_14px_rgba(0,0,0,0.07)]"
+            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-info-ring)]"
+            style={{ boxShadow: "0 2px 0 var(--pos-cta-shadow)" }}
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[var(--action-primary-bg)] text-white shadow-[0_4px_10px_rgba(0,0,0,0.15)]">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "var(--pos-cta-bg)", color: "var(--pos-cta-text)" }}
+            >
               <Payments className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -126,17 +130,15 @@ export function PosOverviewView() {
 
           <Link
             href={getPosPortalHref("held", isPosHost)}
-            className={cn(
-              "group flex items-center gap-3.5 rounded-2xl border px-4 py-3.5 transition-all hover:shadow-[0_4px_14px_rgba(0,0,0,0.07)]",
-              heldCount > 0
-                ? "border-amber-300 bg-amber-50 hover:border-amber-400 hover:bg-amber-50"
-                : "border-[var(--border-default)] bg-[var(--surface-muted)] hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] hover:bg-[var(--surface-base)]",
-            )}
+            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-warning-ring)]"
           >
-            <div className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_4px_10px_rgba(0,0,0,0.12)]",
-              heldCount > 0 ? "bg-amber-500" : "bg-[var(--text-muted)]",
-            )}>
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{
+                background: heldCount > 0 ? "var(--pos-status-warning-bg)" : "var(--surface-muted)",
+                color: heldCount > 0 ? "var(--pos-status-warning-text)" : "var(--text-muted)",
+              }}
+            >
               <Package className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -151,9 +153,12 @@ export function PosOverviewView() {
 
           <Link
             href={getPosPortalHref("history", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3.5 transition-all hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] hover:bg-[var(--surface-base)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.07)]"
+            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-info-ring)]"
           >
-            <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-slate-500 text-white shadow-[0_4px_10px_rgba(0,0,0,0.12)]">
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{ background: "var(--pos-status-info-bg)", color: "var(--pos-status-info-text)" }}
+            >
               <History className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -164,12 +169,15 @@ export function PosOverviewView() {
 
           <Link
             href={getPosPortalHref("shift", isPosHost)}
-            className="group flex items-center gap-3.5 rounded-2xl border border-[var(--border-default)] bg-[var(--surface-muted)] px-4 py-3.5 transition-all hover:border-[color-mix(in_srgb,var(--action-primary-bg)_35%,var(--border-default))] hover:bg-[var(--surface-base)] hover:shadow-[0_4px_14px_rgba(0,0,0,0.07)]"
+            className="group flex items-center gap-3.5 rounded-xl border border-[var(--edge-default)] bg-[var(--surface-base)] px-4 py-3.5 ring-1 ring-transparent transition-all hover:-translate-y-[1px] hover:shadow-sm hover:ring-[var(--pos-status-success-ring)]"
           >
-            <div className={cn(
-              "flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-white shadow-[0_4px_10px_rgba(0,0,0,0.12)]",
-              currentShift ? "bg-emerald-500" : "bg-amber-500",
-            )}>
+            <div
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl"
+              style={{
+                background: currentShift ? "var(--pos-status-success-bg)" : "var(--pos-status-warning-bg)",
+                color: currentShift ? "var(--pos-status-success-text)" : "var(--pos-status-warning-text)",
+              }}
+            >
               <Clock className="h-4.5 w-4.5" />
             </div>
             <div>
@@ -199,7 +207,10 @@ export function PosOverviewView() {
             />
           ) : (
             <table className="w-full min-w-[600px] text-sm">
-              <thead className="sticky top-0 z-10 border-b border-[var(--border-subtle)] bg-[var(--surface-base)] text-left text-[10px] uppercase tracking-[0.13em] text-[var(--text-muted)]">
+              <thead
+                className="sticky top-0 z-10 text-left text-[10px] uppercase tracking-[0.13em]"
+                style={{ background: "var(--pos-amount-bg)", color: "rgba(240,249,255,0.7)" }}
+              >
                 <tr>
                   <th className="px-3 py-2.5">Receipt</th>
                   <th className="px-3 py-2.5">Type</th>
@@ -212,7 +223,7 @@ export function PosOverviewView() {
                 {recentSales.map((sale) => (
                   <tr
                     key={sale.id}
-                    className="group transition-colors hover:bg-[var(--surface-muted)]"
+                    className="group transition-colors hover:bg-[var(--surface-canvas)]"
                   >
                     <td className="px-3 py-3.5 font-mono text-[13px] font-bold text-[var(--text-strong)]">
                       {sale.saleNo}

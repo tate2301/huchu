@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailSession } from "../../_helpers";
+import { requireRetailManager, requireRetailSession } from "../../_helpers";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -28,6 +28,9 @@ export async function PATCH(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   try {
     const { id } = await params;
@@ -70,6 +73,9 @@ export async function DELETE(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const gate = requireRetailManager(session);
+  if (gate) return gate;
 
   const { id } = await params;
   const existing = await getPromotion(session.user.companyId, id);
