@@ -25,6 +25,7 @@ This is a four-part report produced by parallel deep-reads of the Gold module. R
 13. [**Roadmap — Product Planning stack rank (canonical execution order)**](#13-roadmap--product-planning-stack-rank-canonical-execution-order)
 14. [Document changelog](#14-document-changelog)
 15. [**Plan-of-record refinements (Jira epic review, 2026-05-09)**](#15-planofrecord-refinements-jira-epic-review-20260509)
+16. [**Import Studio — power-user workbench (Epics 14–17)**](#16-import-studio--power-user-workbench-epics-1417)
 
 ---
 
@@ -1752,6 +1753,191 @@ Three things, in order:
 3. **Add the price-fallback service tickets to Epic 4.** Without those three tickets, the `IGNORED → PENDING` promotion breaks the moment a sale happens on a day with no `GoldPrice` row.
 
 After those three land, Epic 5a starts. The team begins deliverying against the §15.3 sequence.
+
+---
+
+## 16. Import Studio — power-user workbench (Epics 14–17)
+
+The current `/gold/import/[id]` is a viewer/editor. The user-stated goal is a **studio** — a complete power-user suite for ingesting paper/Excel ledgers, reconciling against system state, repairing bad rows, and adding sales — all before commit. This chapter scopes the rebuild as four epics.
+
+> **One-line:** Make the importer feel like a spreadsheet a finance ops manager would actually want to use, with anomaly-aware editing, bulk operations, and inline sales construction.
+
+### 16.1 Use cases this serves
+
+1. **Initial seed** — months of historical paper ledgers; operator typically does heavy bulk edits and pattern-fills.
+2. **Periodic catch-up** — weekly/monthly ledger upload; operator reviews anomalies, maps leaders, flags exceptions.
+3. **Spot reconciliation** — book vs system disagreement; operator imports the book, side-by-side with the system, drills into variance.
+4. **Manual sale construction** — operator records a buyer's payment that spans multiple batches without a paper trail; studio walks them through FIFO matching and price snapshots.
+5. **Repair flow** — a previous commit failed N rows; operator fixes them in-place and retries.
+
+### 16.2 Capabilities — must-have
+
+**Data table foundation**
+- Sticky `<thead>` + sticky totals `<tfoot>`; both already shipped post Epic 11
+- Virtualised rows (TanStack Virtual) — 5000+ rows responsive
+- Sortable columns (single + multi-sort with shift-click)
+- Resizable columns; widths persist per user
+- Column visibility toggle (settings menu)
+- Frozen leftmost column (line number)
+- Row striping; current-row highlight
+- Per-row anomaly tint (existing — keep)
+
+**Selection**
+- Checkbox per row + select-all in header
+- Shift-click for range select
+- Cmd/Ctrl-click for additive select
+- Selected-count badge in toolbar
+- "Selected total" running aggregate (grams, balance) shown in footer
+
+**Row operations** (toolbar + per-row context menu)
+- Add row → at end / before selected / after selected
+- Delete selected rows (with confirm if any have ledger-derived data)
+- Duplicate selected
+- Move selected rows up / down (single position) — drag-and-drop in v2
+- Insert blank between every selected pair (utility)
+- Cut/copy/paste rows (clipboard within session)
+
+**Cell editing**
+- Click-to-edit; Tab/Enter/arrow navigation
+- Type-aware widgets: date picker, number with step, employee/group dropdown, expense-type dropdown
+- Bulk edit: select rows → set a column's value to X across all
+- Fill-down: enter a value once, fill across N selected
+- Find/replace across the import (regex optional)
+- Per-row undo/redo (Ctrl+Z / Ctrl+Shift+Z); session-scoped change log
+
+**Shift leader management**
+- Per-row dropdown bound to mapped shift groups
+- Bulk re-map: select N rows → "Set leader to X"
+- "Apply mapping for [name]" — rebinds every row with a particular parsed name to a new shift group
+- Inline-create new shift group from the dropdown if not in list
+
+**Anomaly handling**
+- Inline chips in cells with anomaly codes (existing — keep)
+- Sticky **AnomalyPanel** on the right: groupable by severity / code / leader / date, click-to-jump to row
+- "Auto-fix this" suggestion per anomaly when available (e.g., "Did you mean Munyaradzi?")
+- Bulk "accept-as-is" by anomaly code with mandatory reason
+- "Re-validate after edits" button (avoids constant validation churn during heavy editing)
+
+**Sales / receipt construction inside the studio**
+- "Add sale" toolbar button → modal/panel that:
+  - Picks a buyer + payment method + amount
+  - Shows live FIFO preview: which pours will be consumed, in what order, at what price snapshot
+  - Allows direct-pour selection (override FIFO)
+  - Allows price override (with reason)
+  - Inserts a row in the studio with the negative balance + linked batches
+- Multi-batch sales construction: select N pours explicitly → "Sell as one receipt"
+
+**Validation & dry-run**
+- Run dry-run on demand (existing endpoint — wire it)
+- Live anomaly count badge in the toolbar
+- Period-close awareness: rows in closed periods are read-only with a banner; SUPERADMIN override surface
+- Pre-commit summary: cascade preview ("This commit will create 47 pours, 12 dispatches, 23 receipts")
+- Commit gated on: site set + leaders mapped + zero CRITICAL anomalies + (zero WARN OR explicit accept-with-reason) + period not closed
+
+**Reconciliation panel**
+- Side panel: "Book vs System"
+- Per-leader / per-day variance
+- On-hand roll-forward chart for the import's period
+- Click a variance row → filters the table to the affecting rows
+
+**Import metadata**
+- Inline-rename import (replaces filename label)
+- Tag with labels (multi-select, autocomplete from past tags)
+- Per-row comments (thread style)
+- Per-import notes
+- Activity log: who did what when (already wired via PlatformAuditEvent post Epic 12b)
+- "Save as preset" → captures current mappings as a `GoldLedgerImportPreset`
+- "Apply preset" → loads a preset's mapping config
+
+**Versioning / safety**
+- Auto-snapshot to `GoldImportSnapshot` before any commit or rollback
+- Diff view: pre-commit cascade summary lists every entity that will be created
+- Drafts auto-save every 30s (mappings + cell edits)
+- Lock awareness via `lib/gold/locks.ts` — show "locked by Tendai for 4m" if another operator is editing
+
+**Filters + search**
+- Quick filters: anomaly severity, status, date range, leader, mapped/unmapped
+- Search across all rows (name, parser warning, raw row text)
+- Saved filters per user
+
+**Export / share**
+- Export current studio state as CSV (post-edits)
+- Export anomaly report as PDF
+- Export reconciliation summary
+- "Copy link" deep-links to the studio with current filter state (URL query string)
+
+**Keyboard / power-user**
+- Command palette (Cmd/Ctrl+K) with verbs: Add row, Delete, Map leader, Toggle filter, Save preset, etc.
+- Sticky shortcut hints `?` panel
+- Vim-like row mode: j/k to move, x to select, dd to delete, yy/p to copy/paste
+
+**Layout**
+- Three-pane layout: TableList (left, collapsible) | Studio (center) | AnomalyPanel/Reconciliation (right, tabbed)
+- Resizable panes with persistent ratios
+- Full-screen mode (Cmd/Ctrl+\\)
+- Mobile: AnomalyPanel becomes a bottom-sheet drawer (acceptable since studio is desktop-first)
+
+### 16.3 Brainstormed extras (push past must-have)
+
+- **Spreadsheet paste** — paste from Excel directly into a selected cell range
+- **Formula-like fill** — `balGrams = -SUM(boysGrams + mdaraGrams + expenses)` across rows
+- **Anomaly auto-resolver** — for a known pattern (e.g., trailing whitespace in names), one-click bulk fix
+- **Side-by-side diff vs previous import** — when the same mine uploads two slightly different versions
+- **Photo attachment per row** — drag-drop a phone photo of the paper ledger; OCR is future-state but the storage hook is here
+- **Live presence** — multiple operators can view the same studio but only the lock-holder edits; cursor avatars
+- **Replay mode** — step through every change made to this import in chronological order
+- **Annotation mode** — draw on the import preview without committing changes (review-only)
+- **Per-leader timeline** — for any leader, see every row they appear in across all imports of all time
+- **Anomaly catalog reference** — clickable code badges open a popover with the catalog explanation
+- **AI-assisted suggestions** — "this row looks like a duplicate of line 42 from last week" (future)
+
+### 16.4 Schema additions (mostly already covered in Epic 9.0)
+
+Already exists post Epic 9.0:
+- `GoldLedgerImport.{name, assignedToId, sourceFileSha256, tombstonedAt, archivedAt, presetId}`
+- `GoldLedgerImportPreset`
+- `GoldLedgerImportTag`
+- `GoldLedgerImportComment`
+- `GoldImportSnapshot`
+
+New (Epic 14):
+- `GoldLedgerEntryDraftEdit` — per-cell pending edits before commit (for auto-save)
+- `GoldImportSavedView` — saved filter+sort+column-state per user
+
+### 16.5 Epic split
+
+| Epic | Theme | Scope | Size |
+|---|---|---|---|
+| **14** | **Studio Foundation** | Three-pane layout, virtualised data table, multi-select, add/delete/duplicate rows, cell editing with type widgets, bulk edit, find/replace, undo/redo (session), keyboard nav | XL |
+| **15** | **Studio Power Features** | AnomalyPanel sticky, reconciliation side panel, filter+search, saved views, import rename + tags + comments, save-as-preset / apply-preset, activity log surface | L |
+| **16** | **Studio Sales Workflow** | Add-sale flow with FIFO preview, multi-batch sales, price override, inline sale-row insertion, period-close awareness | M |
+| **17** | **Studio Polish & Power-User** | Command palette, vim-mode, spreadsheet paste, photo attachments, side-by-side diff, presence indicator | M |
+
+### 16.6 Sequencing
+
+Run Epic 14 first as a foundation; the others can run in parallel after 14 lands. Epic 16 (sales workflow) requires the shared FIFO preview API which depends on Epic 14's table primitives.
+
+```
+Epic 14 (Foundation)
+   ↓
+Epic 15 (Power Features) ─┐
+Epic 16 (Sales Workflow)  ├─ Parallel after 14
+Epic 17 (Polish)         ─┘
+```
+
+### 16.7 Approach for the team
+
+- **Frontend-design lens:** every UI agent must use the `frontend-design` skill (per user instruction). Avoid generic shadcn defaults; aim for distinct, opinionated power-user aesthetics.
+- **Decompose the existing import detail page**: split into `<ImportStudio>` shell, `<StudioToolbar>`, `<StudioTable>`, `<StudioAnomalyPanel>`, `<StudioReconciliationPanel>`, `<AddSaleDialog>`, `<CommandPalette>`. Each is a focused component.
+- **Server-side requirements**: extend `app/api/gold/imports/[id]/entries/[entryId]` PATCH for each editable column, add `POST /entries` (insert row), `DELETE /entries/[id]` (remove row), `POST /entries/bulk-edit` (set field for many rows in one tx), `POST /imports/[id]/sales/preview` (FIFO preview without commit).
+- **Test discipline**: every new endpoint ships with route-pair tests. Studio features that change core data ship with E2E (Playwright) coverage.
+
+### 16.8 Done when
+
+- Operator can take a 500-row paper ledger and walk it to a clean commit in under 30 minutes, without leaving the studio.
+- All pre-commit anomaly resolution happens in-studio — no jumping to other pages.
+- A sale spanning 7 batches can be constructed inline with FIFO preview.
+- The import-detail page from before this rebuild is functionally a subset of the studio.
 
 ---
 
