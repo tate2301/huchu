@@ -233,6 +233,9 @@ export const Download = createPhosphorIcon("DownloadSimple", "Download");
 export const EditSquare = createPhosphorIcon("NotePencil", "EditSquare");
 export const EventNote = createPhosphorIcon("Note", "EventNote");
 export const Eye = createPhosphorIcon("Eye", "Eye");
+export const EyeOff = createPhosphorIcon("EyeSlash", "EyeOff");
+export const Mail = createPhosphorIcon("Envelope", "Mail");
+export const Hexagon = createPhosphorIcon("Hexagon", "Hexagon");
 export const ExternalLink = createPhosphorIcon(
   "ArrowSquareOut",
   "ExternalLink",
