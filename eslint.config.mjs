@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local multi-agent worktrees used during parallel implementation.
     ".worktrees/**",
+    // Vendored Claude Code skills (tooling, not app source).
+    ".claude/**",
   ]),
 ]);
 
