@@ -1190,7 +1190,7 @@ async function listOrganizations(input?: ListOrganizationsInput): Promise<Organi
 
   const companies = await prisma.company.findMany({
     where,
-    select: { id: true, name: true, slug: true, workspaceProfile: true, tenantStatus: true, isProvisioned: true, createdAt: true, updatedAt: true },
+    select: { id: true, name: true, slug: true, tenantStatus: true, isProvisioned: true, createdAt: true, updatedAt: true },
     orderBy: { name: "asc" },
     take: input?.limit ?? 100,
     skip: input?.skip ?? 0,
@@ -1198,23 +1198,17 @@ async function listOrganizations(input?: ListOrganizationsInput): Promise<Organi
 
   const rows = await Promise.all(
     companies.map(async (company) => {
-      const [siteCount, activeSiteCount, userCount, activeUserCount, features] = await Promise.all([
+      const [siteCount, activeSiteCount, userCount, activeUserCount] = await Promise.all([
         prisma.site.count({ where: { companyId: company.id } }),
         prisma.site.count({ where: { companyId: company.id, isActive: true } }),
         prisma.user.count({ where: { companyId: company.id } }),
         prisma.user.count({ where: { companyId: company.id, isActive: true } }),
-        listFeatures({ companyId: company.id }),
       ]);
-      const enabledFeatures = features
-        .filter((feature) => feature.enabled)
-        .map((feature) => feature.feature);
 
       return {
         id: company.id,
         name: company.name,
         slug: company.slug,
-        workspaceProfile: company.workspaceProfile,
-        enabledFeatures,
         status: company.tenantStatus as OrganizationStatus,
         isProvisioned: company.isProvisioned,
         siteCount,

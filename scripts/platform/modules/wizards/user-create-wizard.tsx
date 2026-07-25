@@ -1,8 +1,7 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Text, useInput } from "ink";
 
-import type { OrganizationListItem, PlatformServices } from "../../types";
-import { getUserRoleOptionsForOrganization } from "../../user-role-options";
+import type { OrganizationListItem, PlatformServices, UserManagementRole } from "../../types";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
@@ -20,11 +19,7 @@ type Step = 0 | 1 | 2 | 3;
 type UserField = "email" | "name" | "password";
 
 const USER_FIELDS: UserField[] = ["email", "name", "password"];
-
-function getDefaultRoleIndex(options: Array<{ value: string }>): number {
-  const clerkIndex = options.findIndex((option) => option.value === "CLERK");
-  return clerkIndex >= 0 ? clerkIndex : 0;
-}
+const ROLE_OPTIONS: UserManagementRole[] = ["MANAGER", "CLERK"];
 
 export function UserCreateWizard({
   actor,
@@ -77,18 +72,7 @@ export function UserCreateWizard({
   }, [focusCompanyId, services.org]);
 
   const selectedCompany = organizations[companyIndex] ?? null;
-  const roleOptions = useMemo(
-    () => getUserRoleOptionsForOrganization(selectedCompany),
-    [selectedCompany],
-  );
-  const selectedRole = roleOptions[roleIndex]?.value ?? roleOptions[0]?.value ?? "MANAGER";
-
-  useEffect(() => {
-    setRoleIndex((current) => {
-      if (current < roleOptions.length) return current;
-      return getDefaultRoleIndex(roleOptions);
-    });
-  }, [roleOptions]);
+  const selectedRole = ROLE_OPTIONS[roleIndex] ?? ROLE_OPTIONS[1];
 
   async function runCreate() {
     if (!selectedCompany) return;
@@ -119,7 +103,7 @@ export function UserCreateWizard({
         name: "",
         password: "",
       });
-      setRoleIndex(getDefaultRoleIndex(roleOptions));
+      setRoleIndex(1);
       setStep(1);
       setFieldIndex(0);
     } catch (error) {
@@ -183,7 +167,6 @@ export function UserCreateWizard({
           setErrorMessage("Password must be at least 8 characters.");
           return;
         }
-        setRoleIndex(getDefaultRoleIndex(roleOptions));
         setStep(2);
         return;
       }
@@ -199,14 +182,10 @@ export function UserCreateWizard({
         return;
       }
       if (key.downArrow) {
-        setRoleIndex((current) => Math.min(Math.max(0, roleOptions.length - 1), current + 1));
+        setRoleIndex((current) => Math.min(Math.max(0, ROLE_OPTIONS.length - 1), current + 1));
         return;
       }
       if (key.return) {
-        if (roleOptions.length === 0) {
-          setErrorMessage("No roles are available for the selected company's enabled features.");
-          return;
-        }
         setStep(3);
       }
       return;
@@ -220,7 +199,7 @@ export function UserCreateWizard({
   return (
     <WizardFrame
       title="Create User Wizard"
-      description="Create feature-aware managed users with company-scoped context."
+      description="Create MANAGER or CLERK users with company-scoped context."
       step={step}
       steps={["Select Company", "User Details", "Select Role", "Review & Confirm"]}
       statusMessage={statusMessage}
@@ -252,10 +231,10 @@ export function UserCreateWizard({
             <>
               <Text>company: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
               <SelectorList
-                items={roleOptions}
+                items={ROLE_OPTIONS}
                 selectedIndex={roleIndex}
                 emptyMessage="No roles available."
-                render={(item) => `${item.label} (${item.value})`}
+                render={(item) => item}
               />
             </>
           ) : null}

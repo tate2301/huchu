@@ -213,10 +213,6 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
   const scopeLabel = companyId
     ? `${activeCompany?.name ?? "Workspace"} identity`
     : "Identity";
-  const companyById = useMemo(
-    () => new Map(companies.map((company) => [company.id, company])),
-    [companies],
-  );
   const activeAdmins =
     data?.admins.filter((admin) => admin.isActive).length ?? 0;
   const activeUsers = data?.users.filter((user) => user.isActive).length ?? 0;
@@ -898,7 +894,6 @@ export function IdentityHubPage({ companyId }: { companyId?: string }) {
                             <UserRoleDialog
                               actorEmail={actorEmail}
                               user={user}
-                              company={companyById.get(user.companyId) ?? null}
                               triggerLabel="Change role"
                               onCompleted={refresh}
                             />

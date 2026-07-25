@@ -78,7 +78,7 @@ export function getAllowedUserRolesForWorkspace(args: {
   enabledFeatures?: string[] | undefined;
 }): UserRole[] {
   const profile = resolveWorkspaceProfileForRoles(args);
-  return getRegisteredRoles(profile, args.enabledFeatures);
+  return getRegisteredRoles(profile);
 }
 
 export function getAllowedUserRoleOptionsForWorkspace(args: {

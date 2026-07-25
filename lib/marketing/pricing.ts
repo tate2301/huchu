@@ -184,7 +184,6 @@ export function tierPriceFor(tier: MarketingTier, period: BillingPeriod): number
 
 export type AddOnCategory =
   | "Industry"
-  | "Sales & CRM"
   | "Finance"
   | "Workforce"
   | "Assets & Safety"
@@ -208,7 +207,6 @@ const ADD_ON_CATEGORY_BY_CODE: Record<string, AddOnCategory> = {
   ADDON_GOLD_ADVANCED: "Industry",
   ADDON_SCRAP_METAL_SUITE: "Industry",
   ADDON_RETAIL_SUITE: "Industry",
-  ADDON_CRM_CORE: "Sales & CRM",
   ADDON_AUTOS_SUITE: "Industry",
   ADDON_SCHOOLS_SUITE: "Industry",
   ADDON_ACCOUNTING_CORE: "Finance",
@@ -226,7 +224,6 @@ const ADD_ON_CATEGORY_BY_CODE: Record<string, AddOnCategory> = {
 
 export const ADD_ON_CATEGORY_ORDER: AddOnCategory[] = [
   "Industry",
-  "Sales & CRM",
   "Finance",
   "Workforce",
   "Assets & Safety",

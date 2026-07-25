@@ -6,8 +6,6 @@ export type CompanyWorkspace = {
   id: string;
   name: string;
   slug?: string | null;
-  workspaceProfile?: string | null;
-  enabledFeatures?: string[];
   status?: string | null;
   updatedAt?: string | null;
 };

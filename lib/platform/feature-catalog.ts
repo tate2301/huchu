@@ -14,7 +14,6 @@ export type FeatureDomain =
   | "schools"
   | "autos"
   | "retail"
-  | "crm"
   | "portal"
   | "reports"
   | "admin";
@@ -179,8 +178,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "retail.promotions", name: "Retail Promotions", description: "Price lists, markdowns, and promotion rules.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "retail.shifts", name: "Retail Shifts", description: "Shift control, cash-up, and register reconciliation.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "retail.reports", name: "Retail Reports", description: "Retail dashboards and reporting surfaces.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-
-  f({ key: "crm.customers", name: "Customer CRM", description: "Customer profiles, customer search, loyalty summaries, and customer ledgers.", domain: "crm", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -470,18 +467,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "retail.promotions",
       "retail.shifts",
       "retail.reports",
-      "crm.customers",
       "portal.pos",
-    ],
-  },
-  {
-    code: "ADDON_CRM_CORE",
-    name: "CRM Core",
-    description: "Customer profiles, search, loyalty visibility, and customer-ledger workflows.",
-    monthlyPrice: 19,
-    additionalSiteMonthlyPrice: 5,
-    features: [
-      "crm.customers",
     ],
   },
   {

@@ -51,7 +51,7 @@ async function applyRoleChange(request: NextRequest) {
   }
 
   if (!isManagedRole(session, existing.role)) {
-    return errorResponse("This user's current role is not available for this workspace.", 403);
+    return errorResponse("Only SUPERADMIN, MANAGER, and OPERATOR accounts can be managed here.", 403);
   }
 
   const updated = await prisma.user.update({

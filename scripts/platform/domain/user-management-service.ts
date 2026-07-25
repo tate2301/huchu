@@ -5,13 +5,13 @@ import { prisma } from "../prisma";
 import {
   USER_ACCOUNT_STATUSES,
   USER_MANAGEMENT_ROLES,
+  USER_ROLES,
   type ChangeUserRoleInput,
   type CreateUserInput,
   type ListUsersInput,
   type ResetUserPasswordInput,
   type SetUserStatusInput,
   type UserCreateResult,
-  type UserManagementRole,
   type UserResetPasswordResult,
   type UserRole,
   type UserRoleChangeResult,
@@ -20,67 +20,9 @@ import {
 } from "../types";
 import { appendAuditEvent } from "./audit-ledger";
 import { formatDate, normalizeEmail, normalizeEnum, normalizePasswordInput } from "./helpers";
-import { getAllowedUserRolesForWorkspace } from "../../../lib/platform/vertical-roles";
 
-function normalizeAssignableRole(role: string): UserManagementRole {
-  return normalizeEnum(role, "role", USER_MANAGEMENT_ROLES);
-}
-
-function isUserManagementRole(role: UserRole): role is UserManagementRole {
-  return (USER_MANAGEMENT_ROLES as readonly string[]).includes(role);
-}
-
-async function getCompanyRoleContext(companyId: string) {
-  const company = await prisma.company.findUnique({
-    where: { id: companyId },
-    select: {
-      id: true,
-      name: true,
-      slug: true,
-      workspaceProfile: true,
-      featureFlags: {
-        where: {
-          isEnabled: true,
-          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
-        },
-        select: {
-          feature: { select: { key: true } },
-        },
-      },
-    },
-  });
-
-  if (!company) return null;
-
-  return {
-    id: company.id,
-    name: company.name,
-    slug: company.slug,
-    workspaceProfile: company.workspaceProfile,
-    enabledFeatures: company.featureFlags.map((flag) => flag.feature.key),
-  };
-}
-
-function getAllowedAssignableRoles(context: {
-  workspaceProfile: string | null;
-  enabledFeatures: string[];
-}): UserManagementRole[] {
-  return getAllowedUserRolesForWorkspace({
-    workspaceProfile: context.workspaceProfile,
-    enabledFeatures: context.enabledFeatures,
-  }).filter(isUserManagementRole);
-}
-
-function assertAssignableRoleForCompany(
-  role: UserManagementRole,
-  context: { workspaceProfile: string | null; enabledFeatures: string[] },
-) {
-  const allowedRoles = getAllowedAssignableRoles(context);
-  if (!allowedRoles.includes(role)) {
-    throw new Error(
-      `Selected role ${role} is not available for this company's enabled features.`,
-    );
-  }
+function normalizeAssignableRole(role: string): UserRole {
+  return normalizeEnum(role, "role", USER_ROLES);
 }
 
 function assertManagedLifecycleTarget(user: { role: string; email: string }) {
@@ -144,7 +86,10 @@ export async function listUsers(input?: ListUsersInput): Promise<UserSummary[]> 
     where.isActive = normalizeEnum(input.status, "status", USER_ACCOUNT_STATUSES) === "ACTIVE";
   }
   if (input?.role) {
-    const role = normalizeEnum(input.role, "role", USER_MANAGEMENT_ROLES);
+    const role = normalizeEnum(input.role, "role", USER_ROLES);
+    if (role === "SUPERADMIN") {
+      throw new Error("SUPERADMIN users are managed in the Admins module.");
+    }
     where.role = role;
   }
 
@@ -179,7 +124,10 @@ export async function listUsers(input?: ListUsersInput): Promise<UserSummary[]> 
 }
 
 export async function createUser(input: CreateUserInput): Promise<UserCreateResult> {
-  const company = await getCompanyRoleContext(input.companyId);
+  const company = await prisma.company.findUnique({
+    where: { id: input.companyId },
+    select: { id: true, name: true, slug: true },
+  });
   if (!company) throw new Error(`Organization not found for id: ${input.companyId}`);
 
   await assertHasActiveSuperadmin(input.companyId);
@@ -189,7 +137,6 @@ export async function createUser(input: CreateUserInput): Promise<UserCreateResu
   if (!name) throw new Error("User name cannot be empty.");
   const normalizedPassword = normalizePasswordInput(input.password, "Password");
   const role = normalizeAssignableRole(input.role || "CLERK");
-  assertAssignableRoleForCompany(role, company);
 
   const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) throw new Error(`User already exists for email: ${email}`);
@@ -360,11 +307,8 @@ export async function changeUserRole(input: ChangeUserRoleInput): Promise<UserRo
 
   assertManagedLifecycleTarget({ role: before.role, email: before.email });
   await assertHasActiveSuperadmin(before.companyId);
-  const company = await getCompanyRoleContext(before.companyId);
-  if (!company) throw new Error(`Organization not found for id: ${before.companyId}`);
-  assertAssignableRoleForCompany(afterRole, company);
 
-  const beforeRole = normalizeEnum(before.role, "role", USER_MANAGEMENT_ROLES);
+  const beforeRole = normalizeEnum(before.role, "role", USER_ROLES);
   if (beforeRole === afterRole) {
     throw new Error(`User ${before.email} is already ${afterRole}.`);
   }

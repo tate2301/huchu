@@ -17,7 +17,6 @@ export type WorkspaceModuleId =
   | "schools"
   | "car-sales"
   | "retail"
-  | "crm"
   | "hr"
   | "stores"
   | "maintenance"
@@ -99,10 +98,6 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
   },
   retail: {
     title: "Retail",
-    description: "",
-  },
-  crm: {
-    title: "CRM",
     description: "",
   },
   hr: {

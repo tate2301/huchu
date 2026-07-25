@@ -38,15 +38,14 @@ Defined in `lib/platform/feature-catalog.ts` (`TIERS`).
 
 | Tier | Base / Month | Included Sites | Additional Site / Month | Warning Days | Grace Days |
 | --- | ---: | ---: | ---: | ---: | ---: |
-| `BASIC` | 29 | 1 | 19 | 14 | 7 |
-| `STANDARD` | 79 | 3 | 29 | 14 | 7 |
-| `MEDIUM` | 189 | 8 | 39 | 14 | 7 |
-| `ENTERPRISE` | 449 | 25 | 39 | 21 | 14 |
+| `BASIC` | 450 | 1 | 90 | 14 | 7 |
+| `STANDARD` | 900 | 3 | 140 | 14 | 7 |
+| `ENTERPRISE` | 1800 | 8 | 220 | 21 | 14 |
 
 Notes:
 
-- Tier inclusions are code-defined in `TIERS`; do not change plan defaults directly in the database.
-- Higher tiers include selected add-ons at no extra charge through `includedBundles`.
+- `ENTERPRISE` includes `ADDON_ANALYTICS_PRO` by default.
+- User management is add-on-only. No tier includes `ADDON_USER_MANAGEMENT_PRO` or `admin.user-management.*` by default.
 - Tier assignment and health enforcement are handled in platform services and TUI wizards.
 
 ## Add-on Bundles
@@ -58,43 +57,38 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 | Bundle Code | Name | Base / Month | Additional Site / Month |
 | --- | --- | ---: | ---: |
 | `ADDON_OPERATIONS_CORE` | Operations Core | 0 | 0 |
-| `ADDON_MINE_DAILY_OPS` | Mine Daily Operations | 0 | 0 |
 | `ADDON_STORES_CORE` | Stores Core | 0 | 0 |
 | `ADDON_WORKFORCE_CORE` | Workforce Core | 0 | 0 |
-| `ADDON_GOLD_CORE` | Gold Operations | 69 | 15 |
-| `ADDON_CUSTOM_BRANDING` | Custom Branding | 29 | 0 |
-| `ADDON_CCTV_SUITE` | CCTV Suite | 99 | 15 |
-| `ADDON_ADVANCED_PAYROLL` | Advanced Payroll | 49 | 10 |
-| `ADDON_GOLD_ADVANCED` | Gold Advanced Controls | 79 | 10 |
-| `ADDON_COMPLIANCE_PRO` | Compliance Pro | 49 | 10 |
-| `ADDON_MAINTENANCE_PRO` | Maintenance Pro | 39 | 10 |
-| `ADDON_USER_MANAGEMENT_PRO` | User Management Pro | 19 | 5 |
-| `ADDON_ANALYTICS_PRO` | Analytics Pro | 29 | 5 |
-| `ADDON_ACCOUNTING_CORE` | Accounting Core | 39 | 10 |
-| `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 49 | 10 |
-| `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 19 | 5 |
-| `ADDON_SCHOOLS_SUITE` | Schools Suite | 129 | 29 |
-| `ADDON_AUTOS_SUITE` | Auto Sales Suite | 59 | 10 |
-| `ADDON_RETAIL_SUITE` | Retail Suite | 39 | 10 |
-| `ADDON_CRM_CORE` | CRM Core | 19 | 5 |
-| `ADDON_PORTAL_SUITE` | Client Portal Suite | 19 | 5 |
-| `ADDON_SCRAP_METAL_SUITE` | Scrap Metal Suite | 39 | 10 |
+| `ADDON_GOLD_CORE` | Gold Core | 0 | 0 |
+| `ADDON_CUSTOM_BRANDING` | Custom Branding | 120 | 0 |
+| `ADDON_CCTV_SUITE` | CCTV Suite | 300 | 40 |
+| `ADDON_ADVANCED_PAYROLL` | Advanced Payroll | 250 | 30 |
+| `ADDON_GOLD_ADVANCED` | Gold Advanced Controls | 220 | 25 |
+| `ADDON_COMPLIANCE_PRO` | Compliance Pro | 200 | 25 |
+| `ADDON_MAINTENANCE_PRO` | Maintenance Pro | 180 | 20 |
+| `ADDON_USER_MANAGEMENT_PRO` | User Management Pro | 180 | 20 |
+| `ADDON_ANALYTICS_PRO` | Analytics Pro | 160 | 15 |
+| `ADDON_ACCOUNTING_CORE` | Accounting Core | 250 | 30 |
+| `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 350 | 40 |
+| `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 120 | 15 |
+| `ADDON_SCHOOLS_SUITE` | Schools Suite | 320 | 35 |
+| `ADDON_AUTOS_SUITE` | Auto Sales Suite | 210 | 25 |
+| `ADDON_RETAIL_SUITE` | Retail Suite | 180 | 20 |
+| `ADDON_PORTAL_SUITE` | Client Portal Suite | 110 | 10 |
+| `ADDON_SCRAP_METAL_SUITE` | Scrap Metal Suite | 150 | 20 |
 
 ### Bundle Feature Mapping
 
 `ADDON_OPERATIONS_CORE`
 
-- `reports.dashboard`
-- `admin.sites-sections`
-
-`ADDON_MINE_DAILY_OPS`
-
 - `ops.shift-report.submit`
 - `ops.attendance.mark`
 - `ops.plant-report.submit`
+- `reports.dashboard`
 - `reports.shift`
 - `reports.attendance`
 - `reports.plant`
+- `admin.sites-sections`
 
 `ADDON_STORES_CORE`
 
@@ -142,7 +136,7 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 - `hr.disciplinary-actions`
 - `hr.salaries`
 - `hr.approvals-history`
-- `hr.settlements`
+- `hr.gold-payouts`
 - `admin.payroll-config`
 
 `ADDON_GOLD_ADVANCED`
@@ -245,12 +239,7 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 - `retail.promotions`
 - `retail.shifts`
 - `retail.reports`
-- `crm.customers`
 - `portal.pos`
-
-`ADDON_CRM_CORE`
-
-- `crm.customers`
 
 `ADDON_PORTAL_SUITE`
 
@@ -272,27 +261,13 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 - `stores.issue`
 - `stores.receive`
 
-### Why a Bundle May Not Show After Sync
-
-`Sync Catalog` is an upsert from code-defined catalog rows into the database. It does not discover modules from `app/` routes, navigation labels, page headings, or custom UI text.
-
-If a bundle is missing after sync, check these in order:
-
-1. The bundle exists in `FEATURE_BUNDLES` in `lib/platform/feature-catalog.ts`.
-2. Every feature listed by that bundle exists in `FEATURE_CATALOG`.
-3. New page/API routes map to those feature keys in `lib/platform/gating/route-registry.ts`.
-4. The route mapping is more specific than broad fallbacks such as `/retail`, `/portal`, or `/api/v2/retail`.
-5. The bundle was not created only as a custom database row; custom rows can be useful operationally, but system bundles must be represented in code.
-
-The CRM issue came from this exact gap: customer screens existed under `/retail/customers`, and the UI labelled charts as `CRM`, but there was no `crm` domain, no `crm.customers` feature key, and no `ADDON_CRM_CORE` entry in `FEATURE_BUNDLES`. Catalog sync could not create a bundle that was absent from the source catalog, so the route fell through to `retail.core` and CRM never appeared in the bundle catalog.
-
 ### Bundle Behavior in TUI
 
 - Enabling an add-on now auto-enables feature flags for every feature in that bundle.
 - Disabling an add-on now auto-disables only bundle features that are no longer entitled by tier/other enabled bundles.
 - This keeps bundle provisioning aligned with effective feature access.
 - Add-on-only features should use `defaultEnabled: false` so they remain disabled until enabled by entitled tier/add-on access.
-- Bundle dependencies are enforced in `lib/platform/feature-catalog.ts` (`BUNDLE_DEPENDENCIES`). Advanced accounting and ZIMRA require `ADDON_ACCOUNTING_CORE`; Gold Advanced requires `ADDON_GOLD_CORE`.
+- Bundle dependencies are enforced in `lib/platform/feature-catalog.ts` (`BUNDLE_DEPENDENCIES`). Accounting add-ons require `ADDON_ACCOUNTING_CORE`.
 
 ## Client Template Bundles
 
@@ -379,7 +354,7 @@ Relevant files:
 
 ### Source of Truth
 
-Feature definitions live in:
+Feature definitions and routing map live in:
 
 - `lib/platform/feature-catalog.ts`
 
@@ -388,15 +363,6 @@ This file defines:
 - `FEATURE_CATALOG` for feature metadata and default billable values
 - `FEATURE_BUNDLES` for grouped features
 - `TIERS` for tier-included features and bundles
-
-Route mappings live in:
-
-- `lib/platform/gating/route-registry.ts`
-
-This file defines:
-
-- `PAGE_FEATURE_ROUTES` for page route prefixes
-- `API_FEATURE_ROUTES` for API route prefixes
 - `resolveFeatureKeyForPath(pathname)` for page/API feature resolution
 
 ### Runtime Resolution and Enforcement
@@ -423,58 +389,14 @@ Auth/session token enrichment with enabled features:
 - `lib/auth.ts`
 - `types/next-auth.d.ts`
 
-### How to Add a New Feature, Module, or Bundle
+### How to Gate a New Route
 
-Use this checklist before running `Sync Catalog`.
-
-1. Decide the commercial unit.
-   - New feature only: add a key to `FEATURE_CATALOG`.
-   - New sellable bundle: add a code to `FEATURE_BUNDLES`.
-   - New workspace module: add feature keys, routes, navigation, and workspace presentation together.
-2. If the module has a new domain, add it to `FeatureDomain` in `lib/platform/feature-catalog.ts`.
-3. Add feature metadata to `FEATURE_CATALOG`.
-   - Use stable dot keys such as `crm.customers`.
-   - Keep billable add-on features `defaultEnabled: false`.
-   - Put pricing on bundles unless the feature is sold standalone.
-4. Add or update `FEATURE_BUNDLES`.
-   - A system bundle only appears in the bundle catalog if it is listed here.
-   - If an existing suite should continue to grant the feature, include the feature in both the new bundle and the existing suite. Example: `crm.customers` is in `ADDON_CRM_CORE` and `ADDON_RETAIL_SUITE`.
-   - Add required parent bundles in `BUNDLE_DEPENDENCIES` when needed.
-5. Add page and API mappings in `lib/platform/gating/route-registry.ts`.
-   - Add the most-specific prefixes first conceptually, even though the resolver sorts by prefix length.
-   - Always map child routes before broad fallbacks like `/retail`, `/portal`, `/api/retail`, and `/api/v2/retail`.
-   - Map both app pages and API endpoints. API handlers using `validateSession` are gated through the path resolver.
-6. Add navigation and workspace visibility.
-   - Add a section in `lib/navigation.ts` when the module needs a sidebar entry.
-   - Add the module to `WorkspaceModuleId`, `DEFAULT_MODULE_PRESENTATION`, `WORKSPACE_MODULE_ORDER`, and `WORKSPACE_MODULES` in `lib/workspace-products.ts` / `lib/workspaces.ts` when it must appear independently.
-   - Add quick actions in `lib/primary-actions.ts` only when there is a natural first action.
-7. Register user roles when the module introduces module-specific staff personas.
-   - User-account roles are registered in `lib/platform/vertical-role-registry.ts`.
-   - Profile-wide roles belong in `VERTICAL_ROLE_REGISTRY`; add-on/module-driven roles belong in `FEATURE_ROLE_REGISTRY`.
-   - Role defaults must also be reflected in `lib/platform/user-entitlements.ts` so users created with that role inherit the right enabled feature access.
-   - Example: CRM uses the existing `SALES_EXEC` user-account role and registers it against `crm.customers`; `SALES_REP` is an employee position, not a login role.
-   - Do not hard-code role dropdowns. HR employee onboarding, web user management, platform admin dialogs, and TUI user wizards should consume `getAllowedUserRoleOptionsForWorkspace` or the TUI wrapper in `scripts/platform/user-role-options.ts`.
-8. Add template access in `lib/platform/client-templates.ts`.
-   - Include the bundle in relevant templates.
-   - Use `disabledFeatureKeys` only to remove inherited features from a template.
-9. Add marketing/pricing metadata if the bundle is paid.
-   - Add category mapping in `lib/marketing/pricing.ts`.
-   - Update this document's bundle table and feature mapping.
-10. Add regression coverage.
-   - Extend `lib/workspace-feature-resolution.test.ts` for route gating, sidebar visibility, and bundle membership.
-   - Add role-registry assertions when the module registers user roles.
-   - Extend `lib/marketing/pricing.test.ts` when marketing/product pricing references the new bundle.
-11. Run validation before syncing:
-    - `pnpm test -- lib/workspace-feature-resolution.test.ts`
-    - `pnpm test -- lib/marketing/pricing.test.ts` if pricing changed
-    - `pnpm platform:audit-feature-gates`
-    - `pnpm lint`
-12. Run TUI `Sync Catalog` to materialize catalog rows to DB.
-13. Confirm the sync result count and the admin bundle list.
-    - The sync wizard should report the expected bundle count.
-    - `/admin/commercial?view=bundles` should show the system bundle as source `SYSTEM`.
-
-For extra server checks outside route gating, use `hasFeature(companyId, "feature.key")` from `lib/platform/features.ts`.
+1. Add feature key metadata to `FEATURE_CATALOG` in `lib/platform/feature-catalog.ts`.
+2. Add page/API prefix mapping in `PAGE_FEATURE_ROUTES` or `API_FEATURE_ROUTES` in `lib/platform/gating/route-registry.ts`.
+3. Include it in tier/bundle defaults if needed.
+4. Run TUI `Sync Catalog` action to materialize catalog to DB.
+5. For API handlers using `validateSession`, gating is automatic via path resolution.
+6. For extra server checks, use `hasFeature(companyId, "feature.key")` from `lib/platform/features.ts`.
 
 ## Current Platform TUI Modules
 

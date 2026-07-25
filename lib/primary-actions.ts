@@ -97,7 +97,6 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
     { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
-    { href: "/retail/customers", icon: Users, label: "Customers" },
     { href: "/human-resources", icon: Users, label: "Employees" },
     { href: "/reports", icon: BarChart3, label: "Reports" },
   ],

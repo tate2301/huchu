@@ -2,7 +2,6 @@ import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { OrganizationListItem, PlatformServices, UserAccountStatus, UserManagementRole, UserSummary } from "../../types";
-import { getAllUserManagementRoleOptions, getUserRoleOptionsForOrganization } from "../../user-role-options";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";
@@ -25,6 +24,7 @@ interface CompanyOption {
   slug: string;
 }
 
+const ROLE_FILTERS: RoleFilter[] = ["ALL", "MANAGER", "CLERK"];
 const STATUS_FILTERS: StatusFilter[] = ["ALL", "ACTIVE", "INACTIVE"];
 const FIELDS: Field[] = ["search", "status", "role"];
 
@@ -86,38 +86,10 @@ export function UserListWizard({ services, focusCompanyId, setInputLocked, onBac
 
   const selectedCompany = companyOptions[companyIndex] ?? null;
   const activeField = FIELDS[fieldIndex] ?? FIELDS[0];
-  const roleFilterOptions = useMemo(() => {
-    const options = [{ value: "ALL" as RoleFilter, label: "All Roles" }];
-    const seen = new Set<RoleFilter>(["ALL"]);
-    const scopedCompanies = selectedCompany?.id
-      ? companies.filter((company) => company.id === selectedCompany.id)
-      : companies;
-    const sourceOptions = scopedCompanies.length > 0
-      ? scopedCompanies.flatMap((company) => getUserRoleOptionsForOrganization(company))
-      : getAllUserManagementRoleOptions();
-
-    for (const option of sourceOptions) {
-      if (seen.has(option.value)) continue;
-      seen.add(option.value);
-      options.push({ value: option.value, label: option.label });
-    }
-
-    return options;
-  }, [companies, selectedCompany]);
-  const roleFilterCycle = useMemo(
-    () => roleFilterOptions.map((option) => option.value),
-    [roleFilterOptions],
-  );
-  const roleFilterLabel = roleFilterOptions.find((option) => option.value === roleFilter)?.label ?? roleFilter;
 
   useEffect(() => {
     setCompanyIndex((current) => Math.min(Math.max(0, companyOptions.length - 1), current));
   }, [companyOptions.length]);
-
-  useEffect(() => {
-    if (roleFilterCycle.includes(roleFilter)) return;
-    setRoleFilter("ALL");
-  }, [roleFilter, roleFilterCycle]);
 
   const runSearch = useCallback(async () => {
     setLoading(true);
@@ -196,7 +168,7 @@ export function UserListWizard({ services, focusCompanyId, setInputLocked, onBac
 
       if ((key.leftArrow || key.rightArrow || input === " ") && activeField === "role") {
         const direction: 1 | -1 = key.leftArrow ? -1 : 1;
-        const next = nextFromCycle(roleFilterCycle, roleFilter, direction);
+        const next = nextFromCycle(ROLE_FILTERS, roleFilter, direction);
         setRoleFilter(next);
         return;
       }
@@ -214,7 +186,7 @@ export function UserListWizard({ services, focusCompanyId, setInputLocked, onBac
   return (
     <WizardFrame
       title="List/Search Users Wizard"
-      description="Browse managed users by company scope, status, feature-aware role, and search query."
+      description="Browse MANAGER and CLERK users by company scope, status, role, and search query."
       step={step}
       steps={["Select Company Scope", "Filters & Results"]}
       statusMessage={statusMessage}
@@ -239,7 +211,7 @@ export function UserListWizard({ services, focusCompanyId, setInputLocked, onBac
               <Text>scope: {selectedCompany ? `${selectedCompany.name} (${selectedCompany.slug})` : "<none>"}</Text>
               <Text color={fieldIndex === 0 ? "cyan" : undefined}>search: {search || "<none>"}</Text>
               <Text color={fieldIndex === 1 ? "cyan" : undefined}>status: {statusFilter}</Text>
-              <Text color={fieldIndex === 2 ? "cyan" : undefined}>role: {roleFilter === "ALL" ? roleFilterLabel : `${roleFilterLabel} (${roleFilter})`}</Text>
+              <Text color={fieldIndex === 2 ? "cyan" : undefined}>role: {roleFilter}</Text>
               <Text dimColor>results: {results.length}</Text>
               {results.length === 0 ? (
                 <Text dimColor>No users match current filters.</Text>

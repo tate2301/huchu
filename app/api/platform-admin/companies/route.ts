@@ -17,8 +17,6 @@ export async function GET(request: Request) {
       id: row.id,
       name: row.name,
       slug: row.slug,
-      workspaceProfile: row.workspaceProfile,
-      enabledFeatures: row.enabledFeatures,
       status: row.status,
       updatedAt: row.updatedAt,
     }));

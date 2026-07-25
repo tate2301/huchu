@@ -249,15 +249,6 @@ export const navSections: NavSection[] = [
     })),
   },
   {
-    id: "crm",
-    title: "CRM",
-    description: "Customer profiles, loyalty, and ledgers",
-    featureKey: "crm.customers",
-    items: [
-      { href: "/retail/customers", icon: Users, label: "Customers" },
-    ],
-  },
-  {
     id: "gold",
     title: "Gold Operations",
     description: "Production, settlement, and control tasks",

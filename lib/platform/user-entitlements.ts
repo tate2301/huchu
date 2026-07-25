@@ -111,7 +111,6 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.multitenancy.",
     "autos.leads",
     "autos.deals",
-    "crm.",
     "portal.autos",
   ],
   FINANCE_OFFICER: [
