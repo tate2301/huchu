@@ -142,7 +142,13 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
   };
 
   const canProceedFromStep0 = true; // Welcome step
-  const canProceedFromStep1 = sites.some((site) => site.name && site.code);
+  // A site is a mining concept — a shaft, a pit, a section. A payroll bureau, a
+  // school and an accounting practice have none, and blocking the wizard on one
+  // meant the only way past this dialog was to invent a fake site. A partially
+  // filled site is still refused; an empty one is now allowed through.
+  const canProceedFromStep1 = sites.every(
+    (site) => (!site.name && !site.code) || (site.name && site.code),
+  );
   const canProceedFromStep2 = true;
   const canProceedFromStep3 = true;
 
@@ -186,8 +192,8 @@ export function OnboardingDialog({ open, onOpenChange, onComplete }: OnboardingD
         return (
           <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
-              <p className="text-sm uppercase tracking-[0.16em] text-muted-foreground">Required</p>
-              <p className="mt-2 text-sm font-medium">Create at least one site</p>
+              <p className="text-sm uppercase tracking-[0.16em] text-muted-foreground">Optional</p>
+              <p className="mt-2 text-sm font-medium">Add sites if you run more than one</p>
             </div>
             <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-4">
               <p className="text-sm uppercase tracking-[0.16em] text-muted-foreground">Optional</p>

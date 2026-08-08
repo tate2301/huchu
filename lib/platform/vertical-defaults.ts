@@ -216,6 +216,36 @@ const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
       includeSchoolFlows: false,
     },
   },
+  PAYROLL: {
+    // A bureau's own staff, and the positions its clients' employees are likely
+    // to hold. No miners, no teachers — a payroll-only workspace should not offer
+    // a position list that describes somebody else's business.
+    employeePositions: [...SHARED_POSITIONS, "STOREKEEPER", "DRIVER", "CASHIER", "SALES_REP", "TECHNICIAN", "OPERATOR"],
+    defaultEmployeePosition: "SUPPORT_STAFF",
+    workspace: {
+      siteNamePlaceholder: "Head Office",
+      siteCodeExample: "HO",
+      departmentNamePlaceholder: "Payroll",
+      departmentCodeExample: "PAY",
+      locationPlaceholder: "Harare, Zimbabwe",
+      jobTitlePlaceholder: "Payroll Officer",
+    },
+    maintenance: {
+      // Present because the shape requires it, not because a bureau maintains
+      // plant. The maintenance module is not in the template's bundles.
+      technicianPosition: "TECHNICIAN",
+      equipmentCategories: ["EQUIPMENT", "OTHER"],
+      measurementUnits: ["units"],
+      siteNamePlaceholder: "Head Office",
+    },
+    stores: {
+      allowFuel: false,
+    },
+    accounting: {
+      includeGoldFlows: false,
+      includeSchoolFlows: false,
+    },
+  },
   GENERAL: {
     employeePositions: [...SHARED_POSITIONS, "STOREKEEPER", "DRIVER", "TECHNICIAN", "OPERATOR"],
     defaultEmployeePosition: "SUPPORT_STAFF",

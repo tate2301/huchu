@@ -159,15 +159,21 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "gold.exceptions",
       "gold.audit-trail",
       "gold.payouts",
-      "hr.employees",
-      "hr.incidents",
-      "hr.disciplinary-actions",
-      "hr.compensation-rules",
-      "hr.salaries",
-      "hr.payroll",
-      "hr.disbursements",
-      "hr.approvals-history",
-      "hr.settlements",
+      // The HR keys stay off by default — a school template should not silently
+      // bill for payroll — but they are NOT in the disable list any more.
+      //
+      // `disabledFeatureKeys` is a hard block, not a default: while `hr.payroll`
+      // sat here a school could not buy payroll at all, even by adding
+      // ADDON_ZIMBABWE_PAYROLL, because provisioning turned it straight back off.
+      // A school that wants to pay its teachers from the same `Employee` rows
+      // the timetable already uses now can, by buying the addon.
+      //
+      // The settlement keys are different and stay blocked: they are the gold and
+      // scrap payout surface, which a school has no use for and which would render
+      // payout screens for commodities it does not handle.
+      "settlements.core",
+      "settlements.gold",
+      "settlements.scrap",
       "maintenance.dashboard",
       "maintenance.equipment",
       "maintenance.work-orders",
@@ -314,6 +320,75 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     ],
   },
   {
+    // Payroll on its own. The template a client who wants nothing else is
+    // provisioned from — everything they need and nothing they will never open.
+    //
+    // Accounting is deliberately *not* in the disable list even though it is not
+    // bundled: a bureau that later wants a ledger buys `ADDON_*` for it and the
+    // payroll starts posting. Blocking it would make that upgrade impossible,
+    // which is the mistake `TEMPLATE_SCHOOLS` made with `hr.payroll`.
+    code: "TEMPLATE_PAYROLL_BUREAU",
+    label: "Payroll",
+    description:
+      "Zimbabwe payroll on its own — employees, compensation, statutory tables, runs, payslips and the monthly returns.",
+    targetClients: [
+      "Payroll bureaux",
+      "Accounting practices running client payrolls",
+      "Companies that want payroll only",
+    ],
+    recommendedTierCode: "STANDARD",
+    bundleCodes: [
+      "ADDON_WORKFORCE_CORE",
+      "ADDON_ADVANCED_PAYROLL",
+      "ADDON_ZIMBABWE_PAYROLL",
+    ],
+    featureKeys: [],
+    verticalProductId: "payroll-services",
+    disabledFeatureKeys: [
+      ...MINE_DAILY_OPS_FEATURE_KEYS,
+      "stores.dashboard",
+      "stores.inventory",
+      "stores.movements",
+      "stores.issue",
+      "stores.receive",
+      "stores.fuel-ledger",
+      // The reports that read those modules. Leaving them on puts a Stores
+      // entry back in a sidebar whose stores pages are all disabled.
+      "reports.stores-movements",
+      "reports.downtime-analytics",
+      "gold.home",
+      "gold.intake.pours",
+      "gold.dispatches",
+      "gold.receipts",
+      "gold.reconciliation",
+      "gold.exceptions",
+      "gold.audit-trail",
+      "gold.payouts",
+      // A bureau paying salaries has no commodity to settle, and the screens
+      // would be empty tabs.
+      "settlements.core",
+      "settlements.gold",
+      "settlements.scrap",
+      "schools.core",
+      "retail.core",
+      "retail.pos",
+      "autos.core",
+      "maintenance.dashboard",
+      "maintenance.equipment",
+      "maintenance.work-orders",
+      "maintenance.breakdowns",
+      "maintenance.schedule",
+      "cctv.overview",
+      "cctv.live",
+      "cctv.cameras",
+      "cctv.nvrs",
+      "cctv.events",
+      "cctv.playback",
+      "cctv.access-logs",
+      "cctv.streaming-control",
+    ],
+  },
+  {
     code: "TEMPLATE_ALL_FEATURES",
     label: "All Features",
     description: "Enable every feature in the platform catalog for complex or custom enterprise estates.",
@@ -342,6 +417,9 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   SALES: "TEMPLATE_CRM",
   FULL: "TEMPLATE_ALL_FEATURES",
   ALL: "TEMPLATE_ALL_FEATURES",
+  PAYROLL: "TEMPLATE_PAYROLL_BUREAU",
+  BUREAU: "TEMPLATE_PAYROLL_BUREAU",
+  HR: "TEMPLATE_PAYROLL_BUREAU",
 };
 
 function normalizeCode(value: string | null | undefined): string {
@@ -451,6 +529,8 @@ export function getClientTemplateWorkspaceProfile(code: string | null | undefine
       return "AUTOS";
     case "TEMPLATE_RETAIL":
       return "RETAIL";
+    case "TEMPLATE_PAYROLL_BUREAU":
+      return "PAYROLL";
     case "TEMPLATE_CRM":
     case "TEMPLATE_CORE_STARTER":
     case "TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK":

@@ -8,7 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
-import { ensureApproverRole } from "@/lib/hr-payroll";
+import { ensureApproverRole } from "@/lib/workflow/approvals";
 import { prisma } from "@/lib/prisma";
 
 const createGoldPriceSchema = z.object({

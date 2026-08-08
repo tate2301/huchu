@@ -102,7 +102,7 @@ type WorkspaceProfileRecipe = {
 };
 
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
-const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["hr", "accounting", "management"];
+const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["people", "payroll", "accounting", "management"];
 const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {
   "scrap-metal": "scrap-metal.home",
 };
@@ -112,6 +112,9 @@ const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, Worksp
   SCHOOLS: "schools",
   AUTOS: "car-sales",
   RETAIL: "retail",
+  // The only profile whose owning module is one every other profile treats as
+  // foundational. For a bureau, HR is not a supporting module — it is the product.
+  PAYROLL: "payroll",
 };
 const WORKSPACE_PROFILE_ICONS: Record<WorkspaceProfile, LucideIcon> = {
   GOLD_MINE: Gem,
@@ -119,6 +122,7 @@ const WORKSPACE_PROFILE_ICONS: Record<WorkspaceProfile, LucideIcon> = {
   SCHOOLS: MedusaAcademicCapIcon,
   AUTOS: MedusaDirectionsIcon,
   RETAIL: MedusaBuildingStorefrontIcon,
+  PAYROLL: Payments,
   GENERAL: Dashboard,
 };
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
@@ -128,7 +132,8 @@ const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "car-sales",
   "retail",
   "crm",
-  "hr",
+  "people",
+  "payroll",
   "stores",
   "maintenance",
   "accounting",
@@ -266,11 +271,17 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       return context.navSectionById.get("crm")?.groups;
     },
   },
-  hr: createSectionModule({
-    id: "hr",
-    label: "Human Resources",
-    sectionId: "hr",
-    homeHref: "/human-resources",
+  people: createSectionModule({
+    id: "people",
+    label: "People",
+    sectionId: "people",
+    homeHref: "/people",
+  }),
+  payroll: createSectionModule({
+    id: "payroll",
+    label: "Payroll",
+    sectionId: "payroll",
+    homeHref: "/payroll/runs",
   }),
   stores: createSectionModule({
     id: "stores",
@@ -367,7 +378,7 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         refs: [
           { moduleId: "gold", href: "/gold/transit/dispatches/new" },
           { moduleId: "gold", href: "/gold/settlement/receipts/new" },
-          { moduleId: "hr", href: "/human-resources/payouts" },
+          { moduleId: "gold", href: "/gold/settlement/approvals" },
         ],
       },
       {
@@ -613,6 +624,46 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
       },
     ],
   },
+  PAYROLL: {
+    label: "Payroll",
+    // Somewhere real to land. A bureau sent to the general dashboard sees eight
+    // tiles for modules it does not have — and it lands on the runs screen, not
+    // the directory, because paying people is what it opened this for.
+    preferredHomeHref: "/payroll/runs",
+    nativeModules: ["people", "payroll", "accounting", "management"],
+    sections: [
+      {
+        id: "payroll-month-end",
+        title: "Month end",
+        refs: [
+          { moduleId: "payroll", href: "/payroll/runs" },
+          { moduleId: "payroll", href: "/payroll/disbursements" },
+        ],
+      },
+      {
+        id: "payroll-statutory",
+        title: "Statutory",
+        refs: [
+          { moduleId: "payroll", href: "/payroll/statutory" },
+          { moduleId: "payroll", href: "/payroll/statutory/returns" },
+        ],
+      },
+      // Not "People", and it does not claim `/people`. A curated section takes
+      // its hrefs out of the module rails (`getPrimarySections` excludes
+      // `usedHrefs`), so titling this "People" put two sections called People in
+      // the rail *and* emptied the directory out of the one that owns it.
+      // Compensation is what a bureau needs shortcut here; the People rail keeps
+      // the people.
+      {
+        id: "payroll-compensation",
+        title: "Compensation",
+        refs: [
+          { moduleId: "payroll", href: "/payroll/compensation" },
+          { moduleId: "payroll", href: "/payroll/salaries" },
+        ],
+      },
+    ],
+  },
   GENERAL: {
     label: "General Business",
     preferredHomeHref: null,
@@ -636,6 +687,7 @@ export function getWorkspaceProfileForTemplate(code: string | null | undefined):
   if (normalized.includes("SCHOOL")) return "SCHOOLS";
   if (normalized.includes("AUTO") || normalized.includes("CAR_SALES") || normalized.includes("CAR-SALES")) return "AUTOS";
   if (normalized.includes("THRIFT") || normalized.includes("RETAIL")) return "RETAIL";
+  if (normalized.includes("PAYROLL") || normalized.includes("BUREAU")) return "PAYROLL";
   if (normalized.includes("CORE") || normalized.includes("ALL_FEATURES")) return "GENERAL";
   return null;
 }
@@ -1034,7 +1086,8 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
       profile === "SCRAP_METAL" &&
       isScrapOperatorExperienceRole(context.role) &&
       (section.id === "management" ||
-        section.id === "hr" ||
+        section.id === "people" ||
+        section.id === "payroll" ||
         section.id === "accounting" ||
         section.id.startsWith("accounting-"))
     ) {

@@ -1,12 +1,25 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
+import { Prisma } from "@prisma/client"
+import type { CompensationCalcMethod, CompensationRuleType } from "@prisma/client"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { writePlatformAuditEvent } from "@/lib/audit/platform"
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureHrPayrollDefaults } from "@/lib/hr/bootstrap"
 import {
-  calculateRuleAmount,
-  computeLineTotals,
-  createApprovalAction,
-  ensureApproverRole,
-} from "@/lib/hr-payroll"
+  assembleSalaryRun,
+  findReturnBlockers,
+} from "@/lib/hr/payroll/assemble"
+import {
+  money,
+  resolveBaseCurrency,
+  resolveExchangeRate,
+  sumMoney,
+  toBaseAmount,
+  UnknownExchangeRateError,
+  ZERO,
+} from "@/lib/money"
 import { createRouteLogger } from "@/lib/observability/route-logger"
 import { prisma } from "@/lib/prisma"
 
@@ -19,40 +32,87 @@ const generateRunSchema = z.object({
 type LineComponentDraft = {
   ruleId?: string
   name: string
-  type: "ALLOWANCE" | "DEDUCTION"
-  calcMethod: "FIXED" | "PERCENT"
-  rateOrAmount: number
-  amount: number
+  type: CompensationRuleType
+  calcMethod: CompensationCalcMethod
+  rateOrAmount: Prisma.Decimal
+  amount: Prisma.Decimal
   isTaxable: boolean
+  /// Non-null on the lines the state owns, so a return can be built by summing.
+  statutoryKey?: string | null
+  sequence?: number
+  basis?: Prisma.Decimal | null
 }
 
 type LineItemDraft = {
   employeeId: string
   compensationProfileId: string | null
-  baseAmount: number
-  variableAmount: number
-  allowancesTotal: number
-  deductionsTotal: number
-  grossAmount: number
-  netAmount: number
+  baseAmount: Prisma.Decimal
+  variableAmount: Prisma.Decimal
+  allowancesTotal: Prisma.Decimal
+  deductionsTotal: Prisma.Decimal
+  grossAmount: Prisma.Decimal
+  netAmount: Prisma.Decimal
+  /** The slice PAYE was struck on. Zero on a settlement run, which has no tax. */
+  taxableGross?: Prisma.Decimal
+  /** Employer contributions. In neither gross nor deductions. */
+  employerCost?: Prisma.Decimal
   currency: string
   notes?: string
   components: LineComponentDraft[]
 }
 
+/**
+ * Stamp every line with the rate its currency was worth at the period end, and
+ * the base-currency value of its net pay.
+ *
+ * Frozen on the row rather than looked up when something reads it: a payslip
+ * reprinted in a year, and the journal that posted alongside it, have to agree,
+ * and the ZWG rate will not be what it was. A currency with no rate on file
+ * raises `UnknownExchangeRateError` — the run stops rather than paying somebody
+ * against an invented number.
+ */
+async function stampLineCurrencies(input: {
+  companyId: string
+  on: Date
+  lineItems: LineItemDraft[]
+}) {
+  const baseCurrency = await resolveBaseCurrency(input.companyId)
+  const currencies = new Set(input.lineItems.map((line) => line.currency))
+  const rateByCurrency = new Map<string, Prisma.Decimal>()
+
+  for (const currency of currencies) {
+    rateByCurrency.set(
+      currency,
+      await resolveExchangeRate({
+        companyId: input.companyId,
+        currency,
+        baseCurrency,
+        on: input.on,
+      }),
+    )
+  }
+
+  return input.lineItems.map((line) => {
+    const exchangeRate = rateByCurrency.get(line.currency) ?? new Prisma.Decimal(1)
+    return {
+      ...line,
+      exchangeRate,
+      netBaseAmount: toBaseAmount(line.netAmount, exchangeRate),
+    }
+  })
+}
+
 type RunDraft = {
   lineItems: LineItemDraft[]
   totals: {
-    grossTotal: number
-    allowancesTotal: number
-    deductionsTotal: number
-    netTotal: number
+    grossTotal: Prisma.Decimal
+    allowancesTotal: Prisma.Decimal
+    deductionsTotal: Prisma.Decimal
+    netTotal: Prisma.Decimal
+    employerCostTotal: Prisma.Decimal
   }
   workflowNote: string
   warnings: string[]
-  goldRatePerUnit?: number
-  goldRateUnit?: string
-  goldSettlementMode?: "CURRENT_PERIOD" | "NEXT_PERIOD"
 }
 
 function parseEmployeeScopeIds(raw: string | null | undefined) {
@@ -67,205 +127,15 @@ function parseEmployeeScopeIds(raw: string | null | undefined) {
 }
 
 function deriveRunTotals(lineItems: LineItemDraft[]) {
-  return lineItems.reduce(
-    (acc, line) => ({
-      grossTotal: acc.grossTotal + line.grossAmount,
-      allowancesTotal: acc.allowancesTotal + line.allowancesTotal,
-      deductionsTotal: acc.deductionsTotal + line.deductionsTotal,
-      netTotal: acc.netTotal + line.netAmount,
-    }),
-    { grossTotal: 0, allowancesTotal: 0, deductionsTotal: 0, netTotal: 0 },
-  )
-}
-
-async function buildIrregularPayoutRunDraft(input: {
-  companyId: string
-  payoutSource: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER"
-  periodStart: Date
-  periodEnd: Date
-  goldSettlementMode: "CURRENT_PERIOD" | "NEXT_PERIOD"
-}) {
-  if (input.payoutSource !== "GOLD") {
-    const approvedBatches = await prisma.irregularPayoutBatch.findMany({
-      where: {
-        companyId: input.companyId,
-        source: input.payoutSource,
-        workflowStatus: "APPROVED",
-        dueDate: {
-          gte: input.periodStart,
-          lte: input.periodEnd,
-        },
-      },
-      include: {
-        items: {
-          select: {
-            employeeId: true,
-            amount: true,
-          },
-        },
-      },
-      orderBy: [{ dueDate: "asc" }, { createdAt: "asc" }],
-    })
-
-    const payoutByEmployee = new Map<string, { amount: number; batchCount: number }>()
-    for (const batch of approvedBatches) {
-      for (const item of batch.items) {
-        const current = payoutByEmployee.get(item.employeeId) ?? { amount: 0, batchCount: 0 }
-        payoutByEmployee.set(item.employeeId, {
-          amount: current.amount + item.amount,
-          batchCount: current.batchCount + 1,
-        })
-      }
-    }
-
-    const employeeIds = Array.from(payoutByEmployee.keys())
-    if (employeeIds.length === 0) {
-      return null
-    }
-
-    const employees = await prisma.employee.findMany({
-      where: {
-        id: { in: employeeIds },
-        companyId: input.companyId,
-      },
-      select: {
-        id: true,
-        defaultCurrency: true,
-      },
-    })
-    const employeeById = new Map(employees.map((employee) => [employee.id, employee]))
-
-    const lineItems: LineItemDraft[] = employeeIds.map((employeeId) => {
-      const payout = payoutByEmployee.get(employeeId) ?? { amount: 0, batchCount: 0 }
-      const employee = employeeById.get(employeeId)
-      return {
-        employeeId,
-        compensationProfileId: null,
-        baseAmount: 0,
-        variableAmount: payout.amount,
-        allowancesTotal: 0,
-        deductionsTotal: 0,
-        grossAmount: payout.amount,
-        netAmount: payout.amount,
-        currency: employee?.defaultCurrency ?? "USD",
-        notes: `${input.payoutSource} payout snapshot from ${payout.batchCount} approved batch${payout.batchCount === 1 ? "" : "es"}.`,
-        components: [],
-      }
-    })
-
-    return {
-      lineItems,
-      totals: deriveRunTotals(lineItems),
-      workflowNote: `${input.payoutSource} payout run generated from approved irregular payout batches.`,
-      warnings: [],
-    } satisfies RunDraft
-  }
-
-  const allocationDateFloor = new Date(input.periodStart)
-  allocationDateFloor.setDate(allocationDateFloor.getDate() - 42)
-
-  const approvedAllocations = await prisma.goldShiftAllocation.findMany({
-    where: {
-      workflowStatus: "APPROVED",
-      site: { companyId: input.companyId },
-      date:
-        input.goldSettlementMode === "CURRENT_PERIOD"
-          ? { gte: input.periodStart, lte: input.periodEnd }
-          : { gte: allocationDateFloor, lte: input.periodEnd },
-    },
-    include: {
-      workerShares: {
-        select: {
-          employeeId: true,
-          shareWeight: true,
-          shareValueUsd: true,
-        },
-      },
-    },
-  })
-
-  const payoutByEmployee = new Map<string, { goldWeight: number; valueUsd: number }>()
-  for (const allocation of approvedAllocations) {
-    const dueDate = new Date(allocation.date)
-    dueDate.setDate(dueDate.getDate() + allocation.payCycleWeeks * 7)
-
-    const qualifiesForPeriod =
-      input.goldSettlementMode === "CURRENT_PERIOD"
-        ? allocation.date >= input.periodStart && allocation.date <= input.periodEnd
-        : dueDate >= input.periodStart && dueDate <= input.periodEnd
-
-    if (!qualifiesForPeriod) continue
-
-    for (const workerShare of allocation.workerShares) {
-      const current = payoutByEmployee.get(workerShare.employeeId) ?? { goldWeight: 0, valueUsd: 0 }
-      const allocGoldPrice = allocation.goldPriceUsdPerGram != null ? Number(allocation.goldPriceUsdPerGram) : 0;
-      const fallbackValueUsd =
-        allocGoldPrice > 0
-          ? Number(workerShare.shareWeight) * allocGoldPrice
-          : 0
-      payoutByEmployee.set(workerShare.employeeId, {
-        goldWeight: current.goldWeight + Number(workerShare.shareWeight),
-        valueUsd: current.valueUsd + (workerShare.shareValueUsd != null ? Number(workerShare.shareValueUsd) : fallbackValueUsd),
-      })
-    }
-  }
-
-  const employeeIds = Array.from(payoutByEmployee.keys())
-  if (employeeIds.length === 0) {
-    return null
-  }
-
-  const employees = await prisma.employee.findMany({
-    where: {
-      id: { in: employeeIds },
-      companyId: input.companyId,
-    },
-    select: {
-      id: true,
-      defaultCurrency: true,
-    },
-  })
-  const employeeById = new Map(employees.map((employee) => [employee.id, employee]))
-
-  let totalGoldWeight = 0
-  let totalValueUsd = 0
-  const lineItems: LineItemDraft[] = employeeIds.map((employeeId) => {
-    const payout = payoutByEmployee.get(employeeId) ?? { goldWeight: 0, valueUsd: 0 }
-    const goldWeight = payout.goldWeight
-    const convertedAmount = payout.valueUsd
-    const derivedRate = goldWeight > 0 ? convertedAmount / goldWeight : null
-    const employee = employeeById.get(employeeId)
-    totalGoldWeight += goldWeight
-    totalValueUsd += convertedAmount
-
-    return {
-      employeeId,
-      compensationProfileId: null,
-      baseAmount: goldWeight,
-      variableAmount: convertedAmount,
-      allowancesTotal: 0,
-      deductionsTotal: 0,
-      grossAmount: convertedAmount,
-      netAmount: convertedAmount,
-      currency: employee?.defaultCurrency ?? "USD",
-      notes: derivedRate
-        ? `Gold payout snapshot: ${goldWeight.toFixed(3)} g => ${convertedAmount.toFixed(2)} USD @ ${derivedRate.toFixed(4)} per g`
-        : `Gold payout snapshot: ${goldWeight.toFixed(3)} g => ${convertedAmount.toFixed(2)} USD`,
-      components: [],
-    }
-  })
-
-  const weightedRate = totalGoldWeight > 0 ? totalValueUsd / totalGoldWeight : undefined
-
   return {
-    lineItems,
-    totals: deriveRunTotals(lineItems),
-    workflowNote: "Gold payout run generated from approved gold shift allocations.",
-    warnings: [],
-    goldRatePerUnit: weightedRate,
-    goldRateUnit: "g",
-    goldSettlementMode: input.goldSettlementMode,
-  } satisfies RunDraft
+    grossTotal: sumMoney(lineItems.map((line) => line.grossAmount)),
+    allowancesTotal: sumMoney(lineItems.map((line) => line.allowancesTotal)),
+    deductionsTotal: sumMoney(lineItems.map((line) => line.deductionsTotal)),
+    netTotal: sumMoney(lineItems.map((line) => line.netAmount)),
+    // Kept out of gross and net on purpose: the employer's contributions are a
+    // cost to the company, not part of anybody's wage.
+    employerCostTotal: sumMoney(lineItems.map((line) => line.employerCost ?? ZERO)),
+  }
 }
 
 async function buildSalaryPayrollRunDraft(input: {
@@ -274,156 +144,74 @@ async function buildSalaryPayrollRunDraft(input: {
   periodEnd: Date
   employeeScopeJson?: string | null
   appliesToContractorsOnly: boolean
-}) {
-  const scopedEmployeeIds = parseEmployeeScopeIds(input.employeeScopeJson)
-  const employeeWhere: Record<string, unknown> = {
+}): Promise<RunDraft & { gaps: string[] }> {
+  // All the reading, the statutory lookups and the Zimbabwe arithmetic now live
+  // in `lib/hr/payroll/` — `assembleSalaryRun` gathers, `computePayroll`
+  // calculates, and this function only shapes the result for persistence. What
+  // used to be here was `gross = base + allowances, net = gross - deductions`
+  // and nothing else.
+  const assembled = await assembleSalaryRun({
     companyId: input.companyId,
-    isActive: true,
-  }
-  if (input.appliesToContractorsOnly) {
-    employeeWhere.employmentType = "CONTRACT"
-  }
-  if (scopedEmployeeIds.length > 0) {
-    employeeWhere.id = { in: scopedEmployeeIds }
-  }
-
-  const employees = await prisma.employee.findMany({
-    where: employeeWhere,
-    select: {
-      id: true,
-      name: true,
-      employeeId: true,
-      departmentId: true,
-      gradeId: true,
-      defaultCurrency: true,
-    },
-    orderBy: { name: "asc" },
+    periodStart: input.periodStart,
+    periodEnd: input.periodEnd,
+    employeeScopeIds: parseEmployeeScopeIds(input.employeeScopeJson),
+    appliesToContractorsOnly: input.appliesToContractorsOnly,
   })
-  if (employees.length === 0) {
-    return {
-      lineItems: [] as LineItemDraft[],
-      totals: { grossTotal: 0, allowancesTotal: 0, deductionsTotal: 0, netTotal: 0 },
-      workflowNote: "Salary payroll run generated from compensation profiles and active rules.",
-      warnings: ["No eligible employees found for this payroll period scope."],
-    } satisfies RunDraft
+
+  const warnings = [...assembled.warnings]
+
+  if (assembled.lines.length > 0) {
+    // Identity gaps are warnings, not refusals: an employee can be paid before
+    // their BP number comes back from ZIMRA, but the P2 reporting them cannot be
+    // filed — so say so now rather than at filing time.
+    warnings.push(
+      ...(await findReturnBlockers({
+        companyId: input.companyId,
+        employeeIds: assembled.lines.map((line) => line.employee.id),
+      })),
+    )
   }
-
-  const employeeIds = employees.map((employee) => employee.id)
-
-  const profiles = await prisma.compensationProfile.findMany({
-    where: {
-      employeeId: { in: employeeIds },
-      workflowStatus: "APPROVED",
-      status: "ACTIVE",
-      effectiveFrom: { lte: input.periodEnd },
-      OR: [{ effectiveTo: null }, { effectiveTo: { gte: input.periodStart } }],
-    },
-    select: {
-      id: true,
-      employeeId: true,
-      baseAmount: true,
-      currency: true,
-      effectiveFrom: true,
-    },
-    orderBy: [{ employeeId: "asc" }, { effectiveFrom: "desc" }, { createdAt: "desc" }],
-  })
-  const profileByEmployeeId = new Map<string, (typeof profiles)[number]>()
-  for (const profile of profiles) {
-    if (!profileByEmployeeId.has(profile.employeeId)) {
-      profileByEmployeeId.set(profile.employeeId, profile)
-    }
-  }
-
-  const rules = await prisma.compensationRule.findMany({
-    where: {
-      companyId: input.companyId,
-      workflowStatus: "APPROVED",
-      isActive: true,
-    },
-    select: {
-      id: true,
-      name: true,
-      type: true,
-      calcMethod: true,
-      value: true,
-      cap: true,
-      taxable: true,
-      employeeId: true,
-      departmentId: true,
-      gradeId: true,
-    },
-    orderBy: [{ name: "asc" }, { createdAt: "asc" }],
-  })
 
   const lineItems: LineItemDraft[] = []
-  const warnings: string[] = []
-
-  for (const employee of employees) {
-    const profile = profileByEmployeeId.get(employee.id)
-
-    if (!profile) {
-      warnings.push(
-        `${employee.name} (${employee.employeeId}) skipped: no approved compensation profile.`,
-      )
-      continue
-    }
-
-    const baseAmount = profile.baseAmount
-    const currency = profile.currency ?? employee.defaultCurrency
-    const sourceLabel = "Compensation profile"
-
-    const applicableRules = rules.filter((rule) => {
-      if (rule.employeeId && rule.employeeId !== employee.id) return false
-      if (rule.departmentId && rule.departmentId !== employee.departmentId) return false
-      if (rule.gradeId && rule.gradeId !== employee.gradeId) return false
-      return true
-    })
-
-    const components: LineComponentDraft[] = applicableRules.map((rule) => {
-      const amount = calculateRuleAmount({
-        baseAmount,
-        calcMethod: rule.calcMethod,
-        value: rule.value,
-        cap: rule.cap,
+  for (const line of assembled.lines) {
+    for (const slice of line.payroll.slices) {
+      lineItems.push({
+        employeeId: line.employee.id,
+        compensationProfileId: line.profile.id,
+        baseAmount: money(line.profile.baseAmount),
+        variableAmount: ZERO,
+        allowancesTotal: slice.allowancesTotal,
+        deductionsTotal: slice.deductionsTotal,
+        grossAmount: slice.grossAmount,
+        netAmount: slice.netAmount,
+        taxableGross: slice.taxableGross,
+        employerCost: slice.employerCost,
+        currency: slice.currency,
+        notes: `Salary run for ${line.employee.name}.`,
+        components: slice.components.map((component) => ({
+          ruleId: component.ruleId,
+          name: component.name,
+          type: component.type,
+          calcMethod: component.calcMethod,
+          rateOrAmount: component.rateOrAmount,
+          amount: component.amount,
+          isTaxable: component.isTaxable,
+          statutoryKey: component.statutoryKey,
+          sequence: component.sequence,
+          basis: component.basis,
+        })),
       })
-      return {
-        ruleId: rule.id,
-        name: rule.name,
-        type: rule.type,
-        calcMethod: rule.calcMethod,
-        rateOrAmount: rule.value,
-        amount,
-        isTaxable: rule.taxable,
-      }
-    })
-
-    const totals = computeLineTotals({
-      baseAmount,
-      variableAmount: 0,
-      rules: components,
-    })
-
-    lineItems.push({
-      employeeId: employee.id,
-      compensationProfileId: profile.id,
-      baseAmount,
-      variableAmount: 0,
-      allowancesTotal: totals.allowancesTotal,
-      deductionsTotal: totals.deductionsTotal,
-      grossAmount: totals.grossAmount,
-      netAmount: totals.netAmount,
-      currency,
-      notes: `${sourceLabel} salary run for ${employee.name}.`,
-      components,
-    })
+    }
   }
 
   return {
     lineItems,
     totals: deriveRunTotals(lineItems),
-    workflowNote: "Salary payroll run generated from compensation profiles and active rules.",
+    workflowNote:
+      "Salary payroll run generated from compensation profiles, active rules and the Zimbabwe statutory tables.",
     warnings,
-  } satisfies RunDraft
+    gaps: assembled.gaps,
+  }
 }
 
 export async function POST(
@@ -440,6 +228,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "create")
+    if (denial) return errorResponse(denial, 403)
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to generate payroll runs", 403)
     }
@@ -458,11 +248,6 @@ export async function POST(
     const period = await prisma.payrollPeriod.findUnique({
       where: { id },
       include: {
-        company: {
-          select: {
-            goldSettlementMode: true,
-          },
-        },
         runs: {
           select: {
             id: true,
@@ -500,43 +285,44 @@ export async function POST(
       (period.runs.length > 0 ? Math.max(...period.runs.map((run) => run.runNumber)) + 1 : 1)
 
     let runDraft: RunDraft
-    if (period.domain === "GOLD_PAYOUT") {
-      const irregularDraft = await buildIrregularPayoutRunDraft({
-        companyId: session.user.companyId,
-        payoutSource: period.payoutSource ?? "GOLD",
-        periodStart: new Date(period.startDate),
-        periodEnd: new Date(period.endDate),
-        goldSettlementMode: period.company.goldSettlementMode,
-      })
-      if (!irregularDraft) {
-        logger.info("generate_run_no_source_records", {
-          companyId: session.user.companyId,
-          actorId: session.user.id,
-          periodId: id,
-          domain: period.domain,
-          payoutSource: period.payoutSource ?? "GOLD",
-          statusCode: 409,
-        })
-        return errorResponse(
-          `No approved ${(period.payoutSource ?? "GOLD").toLowerCase()} payout records found for this period. Approve source records before generating a run.`,
-          409,
-        )
-      }
-      runDraft = irregularDraft
-    } else {
-      runDraft = await buildSalaryPayrollRunDraft({
+    {
+      // Seed the statutory tables if this company has none — a no-op for anyone
+      // who already does, and it means enabling the payroll addon on an existing
+      // workspace does not need a re-provision.
+      await ensureHrPayrollDefaults(session.user.companyId)
+
+      const salaryDraft = await buildSalaryPayrollRunDraft({
         companyId: session.user.companyId,
         periodStart: new Date(period.startDate),
         periodEnd: new Date(period.endDate),
         employeeScopeJson: period.employeeScopeJson,
         appliesToContractorsOnly: period.appliesToContractorsOnly,
       })
+
+      // A gap in the statutory tables stops the run. Every gap is reported at
+      // once, so an operator adds the rows in one pass rather than fixing one,
+      // retrying, and finding the next.
+      if (salaryDraft.gaps.length > 0) {
+        logger.info("generate_run_statutory_gaps", {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          periodId: id,
+          gapCount: salaryDraft.gaps.length,
+          statusCode: 409,
+        })
+        return errorResponse(
+          "This period is not covered by the statutory tables on file",
+          409,
+          { warnings: [...salaryDraft.warnings, ...salaryDraft.gaps] },
+        )
+      }
+
+      runDraft = salaryDraft
       if (runDraft.lineItems.length === 0) {
         logger.info("generate_run_no_eligible_employees", {
           companyId: session.user.companyId,
           actorId: session.user.id,
           periodId: id,
-          domain: period.domain,
           warningCount: runDraft.warnings.length,
           statusCode: 409,
         })
@@ -544,6 +330,29 @@ export async function POST(
           warnings: runDraft.warnings,
         })
       }
+    }
+
+    // Freeze the FX rate before anything is written. A missing rate is a hard
+    // stop, not a warning: the alternative is paying somebody in ZWG against a
+    // rate nobody entered.
+    let stampedLines: Awaited<ReturnType<typeof stampLineCurrencies>>
+    try {
+      stampedLines = await stampLineCurrencies({
+        companyId: session.user.companyId,
+        on: new Date(period.endDate),
+        lineItems: runDraft.lineItems,
+      })
+    } catch (error) {
+      if (error instanceof UnknownExchangeRateError) {
+        logger.info("generate_run_missing_exchange_rate", {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          periodId: id,
+          statusCode: 409,
+        })
+        return errorResponse(error.message, 409, { warnings: runDraft.warnings })
+      }
+      throw error
     }
 
     const createdRun = await prisma.$transaction(async (tx) => {
@@ -555,8 +364,6 @@ export async function POST(
         data: {
           companyId: session.user.companyId,
           periodId: period.id,
-          domain: period.domain,
-          payoutSource: period.payoutSource ?? undefined,
           runNumber,
           status: "DRAFT",
           notes: validated.notes,
@@ -564,12 +371,10 @@ export async function POST(
           allowancesTotal: runDraft.totals.allowancesTotal,
           deductionsTotal: runDraft.totals.deductionsTotal,
           netTotal: runDraft.totals.netTotal,
-          goldRatePerUnit: runDraft.goldRatePerUnit,
-          goldRateUnit: runDraft.goldRateUnit,
-          goldSettlementMode: runDraft.goldSettlementMode ?? period.company.goldSettlementMode,
+          employerCostTotal: runDraft.totals.employerCostTotal,
           createdById: session.user.id,
           lineItems: {
-            create: runDraft.lineItems.map((line) => ({
+            create: stampedLines.map((line) => ({
               employeeId: line.employeeId,
               compensationProfileId: line.compensationProfileId,
               baseAmount: line.baseAmount,
@@ -578,7 +383,11 @@ export async function POST(
               deductionsTotal: line.deductionsTotal,
               grossAmount: line.grossAmount,
               netAmount: line.netAmount,
+              taxableGross: line.taxableGross ?? ZERO,
+              employerCost: line.employerCost ?? ZERO,
               currency: line.currency,
+              exchangeRate: line.exchangeRate,
+              netBaseAmount: line.netBaseAmount,
               notes: line.notes,
               components:
                 line.components.length > 0
@@ -591,6 +400,11 @@ export async function POST(
                         rateOrAmount: component.rateOrAmount,
                         amount: component.amount,
                         isTaxable: component.isTaxable,
+                        // The three fields a payslip shows the working from and
+                        // a statutory return is summed over.
+                        statutoryKey: component.statutoryKey ?? undefined,
+                        sequence: component.sequence ?? undefined,
+                        basis: component.basis ?? undefined,
                       })),
                     }
                   : undefined,
@@ -620,6 +434,32 @@ export async function POST(
         note: runDraft.workflowNote,
       })
 
+      // Computing a run is the act that decides what everybody is paid and what
+      // the state is owed, so it goes on the tamper-evident chain even though
+      // nothing has been approved yet. The statutory figures are recorded here
+      // because a later dispute is about what the tables said *at compute time* —
+      // and by then somebody may have corrected a rate.
+      await writePlatformAuditEvent(
+        {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          eventType: "hr.payroll.run.computed",
+          entityType: "PAYROLL_RUN",
+          entityId: created.id,
+          payload: {
+            runNumber,
+            periodKey: period.periodKey,
+            lineCount: stampedLines.length,
+            grossTotal: runDraft.totals.grossTotal.toFixed(2),
+            netTotal: runDraft.totals.netTotal.toFixed(2),
+            deductionsTotal: runDraft.totals.deductionsTotal.toFixed(2),
+            employerCostTotal: runDraft.totals.employerCostTotal.toFixed(2),
+            warningCount: runDraft.warnings.length,
+          },
+        },
+        tx,
+      )
+
       return created
     })
 
@@ -628,7 +468,6 @@ export async function POST(
       actorId: session.user.id,
       periodId: id,
       payrollRunId: createdRun.id,
-      domain: createdRun.domain,
       runNumber: createdRun.runNumber,
       lineItemCount: createdRun.lineItems.length,
       warningCount: runDraft.warnings.length,

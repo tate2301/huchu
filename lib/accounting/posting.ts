@@ -16,6 +16,7 @@ import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
+import { toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
 
 const BALANCE_TOLERANCE = 0.01;
 const BASE_RETRY_DELAY_MINUTES = 5;
@@ -47,13 +48,27 @@ export type PostingContext = {
   entryDate: Date;
   description: string;
   createdById: string;
-  amount: number;
-  netAmount?: number;
-  taxAmount?: number;
-  grossAmount?: number;
-  deductionsAmount?: number;
-  allowancesAmount?: number;
+  // `MoneyLike` rather than `number`: callers hold `Prisma.Decimal` now — the
+  // school fee columns always did, the HR payroll columns do since the
+  // Zimbabwe payroll work. `resolveBasisAmount` already went through `toMoney`,
+  // which takes `unknown`, so the only crossing that had to be made explicit is
+  // the write to the event row.
+  amount: MoneyLike;
+  netAmount?: MoneyLike;
+  taxAmount?: MoneyLike;
+  grossAmount?: MoneyLike;
+  deductionsAmount?: MoneyLike;
+  allowancesAmount?: MoneyLike;
   currency?: string;
+  /**
+   * Payroll's statutory breakdown, keyed by `PostingBasis`.
+   *
+   * Present only on a payroll posting. Each figure is the sum of the
+   * `PayrollLineComponent` rows carrying the matching `statutoryKey`, which is
+   * what makes the ledger balance on a payable account and the return filed
+   * against it reconcile — they are summed from the same rows.
+   */
+  statutory?: Partial<Record<StatutoryPostingBasis, MoneyLike>>;
   actorRole?: string | null;
   periodOverrideReason?: string | null;
   invertDirection?: boolean;
@@ -97,7 +112,43 @@ export type PostingSimulationResult = {
   code?: string;
 };
 
+/**
+ * The payroll bases, which are read off `context.statutory` rather than from a
+ * dedicated field. Kept as a set so `resolveBasisAmount` stays one switch.
+ */
+export type StatutoryPostingBasis =
+  | "PAYE"
+  | "AIDS_LEVY"
+  | "NSSA_EMPLOYEE"
+  | "NSSA_EMPLOYER"
+  | "ZIMDEF"
+  | "STANDARDS_DEVELOPMENT_LEVY"
+  | "NEC_EMPLOYEE"
+  | "NEC_EMPLOYER"
+  | "OTHER_DEDUCTIONS"
+  | "EMPLOYER_CONTRIBUTIONS";
+
+const STATUTORY_BASES = new Set<string>([
+  "PAYE",
+  "AIDS_LEVY",
+  "NSSA_EMPLOYEE",
+  "NSSA_EMPLOYER",
+  "ZIMDEF",
+  "STANDARDS_DEVELOPMENT_LEVY",
+  "NEC_EMPLOYEE",
+  "NEC_EMPLOYER",
+  "OTHER_DEDUCTIONS",
+  "EMPLOYER_CONTRIBUTIONS",
+]);
+
 function resolveBasisAmount(basis: PostingBasis, context: PostingContext) {
+  // A statutory basis with nothing behind it is zero, and a zero line is dropped
+  // downstream — so a company with no NEC agreement simply has no NEC line,
+  // rather than an unbalanced entry or a rule that has to be edited.
+  if (STATUTORY_BASES.has(basis)) {
+    return toMoney(context.statutory?.[basis as StatutoryPostingBasis] ?? 0);
+  }
+
   switch (basis) {
     case "NET":
       return toMoney(context.netAmount ?? context.amount);
@@ -257,12 +308,12 @@ async function createOrRefreshIntegrationEvent(context: PostingContext, envelope
       causationKey: context.causationKey ?? null,
       entryDate: context.entryDate,
       description: context.description,
-      amount: context.amount,
-      netAmount: context.netAmount ?? null,
-      taxAmount: context.taxAmount ?? null,
-      grossAmount: context.grossAmount ?? null,
-      deductionsAmount: context.deductionsAmount ?? null,
-      allowancesAmount: context.allowancesAmount ?? null,
+      amount: toNumberOrZero(context.amount),
+      netAmount: toNumber(context.netAmount),
+      taxAmount: toNumber(context.taxAmount),
+      grossAmount: toNumber(context.grossAmount),
+      deductionsAmount: toNumber(context.deductionsAmount),
+      allowancesAmount: toNumber(context.allowancesAmount),
       currency: context.currency ?? null,
       createdById: context.createdById,
       payloadJson: JSON.stringify(envelope),
@@ -283,12 +334,12 @@ async function createOrRefreshIntegrationEvent(context: PostingContext, envelope
       causationKey: context.causationKey ?? null,
       entryDate: context.entryDate,
       description: context.description,
-      amount: context.amount,
-      netAmount: context.netAmount ?? null,
-      taxAmount: context.taxAmount ?? null,
-      grossAmount: context.grossAmount ?? null,
-      deductionsAmount: context.deductionsAmount ?? null,
-      allowancesAmount: context.allowancesAmount ?? null,
+      amount: toNumberOrZero(context.amount),
+      netAmount: toNumber(context.netAmount),
+      taxAmount: toNumber(context.taxAmount),
+      grossAmount: toNumber(context.grossAmount),
+      deductionsAmount: toNumber(context.deductionsAmount),
+      allowancesAmount: toNumber(context.allowancesAmount),
       currency: context.currency ?? null,
       createdById: context.createdById,
       payloadJson: JSON.stringify(envelope),

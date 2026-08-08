@@ -1,24 +1,26 @@
-import type { PayrollCycle, PrismaClient, RunDomain } from "@prisma/client"
+import type { PayrollCycle, PrismaClient } from "@prisma/client"
 
-import {
-  deriveCyclePeriodKey,
-  deriveCycleWindow,
-  nextCycleAnchor,
-  startOfDayUtc,
-} from "@/lib/hr-payroll"
-import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults"
+import { deriveCyclePeriodKey, deriveCycleWindow, nextCycleAnchor, startOfDayUtc } from "@/lib/workflow/periods"
+
+/**
+ * Payroll periods, seeded ahead of time.
+ *
+ * There is one kind of period. This used to seed two — a `PAYROLL` domain and a
+ * `GOLD_PAYOUT` one on a separate cycle, distinguished by a `scopeKey`, so a
+ * gold mine's August existed twice and the unique constraint had to carry four
+ * columns to allow it. Settlements have their own runs on their own windows, so
+ * a period is now just a month (or a fortnight) and `[companyId, periodKey]` is
+ * unique.
+ */
 
 type SeedInput = {
   companyId: string
   createdById: string
-  domains?: RunDomain[]
   now?: Date
 }
 
 type PeriodDraft = {
   companyId: string
-  domain: RunDomain
-  scopeKey: string
   periodKey: string
   cycle: PayrollCycle
   startDate: Date
@@ -29,37 +31,9 @@ type PeriodDraft = {
   createdById: string
 }
 
-function domainsToSeed(inputDomains?: RunDomain[], includeGoldFlows?: boolean) {
-  if (inputDomains && inputDomains.length > 0) {
-    const unique = Array.from(new Set(inputDomains))
-    return includeGoldFlows ? unique : unique.filter((domain) => domain !== "GOLD_PAYOUT")
-  }
-  return includeGoldFlows ? (["PAYROLL", "GOLD_PAYOUT"] as RunDomain[]) : (["PAYROLL"] as RunDomain[])
-}
-
-function cycleForDomain(input: {
-  domain: RunDomain
-  payrollCycle: PayrollCycle
-  goldPayoutCycle: PayrollCycle
-}) {
-  return input.domain === "GOLD_PAYOUT" ? input.goldPayoutCycle : input.payrollCycle
-}
-
-function autoEnabledForDomain(input: {
-  domain: RunDomain
-  autoGeneratePayrollPeriods: boolean
-  autoGenerateGoldPayoutPeriods: boolean
-}) {
-  return input.domain === "GOLD_PAYOUT"
-    ? input.autoGenerateGoldPayoutPeriods
-    : input.autoGeneratePayrollPeriods
-}
-
 function buildAutoDrafts(input: {
   companyId: string
   createdById: string
-  domain: RunDomain
-  scopeKey: string
   cycle: PayrollCycle
   horizon: number
   now: Date
@@ -71,8 +45,6 @@ function buildAutoDrafts(input: {
     const window = deriveCycleWindow(anchor, input.cycle)
     drafts.push({
       companyId: input.companyId,
-      domain: input.domain,
-      scopeKey: input.scopeKey,
       periodKey: deriveCyclePeriodKey(window.startDate, input.cycle),
       cycle: input.cycle,
       startDate: window.startDate,
@@ -95,19 +67,8 @@ export async function ensureAutoPeriods(
   const company = await prisma.company.findUnique({
     where: { id: input.companyId },
     select: {
-      workspaceProfile: true,
-      featureFlags: {
-        where: { isEnabled: true },
-        select: {
-          feature: {
-            select: { key: true },
-          },
-        },
-      },
       payrollCycle: true,
-      goldPayoutCycle: true,
       autoGeneratePayrollPeriods: true,
-      autoGenerateGoldPayoutPeriods: true,
       periodGenerationHorizon: true,
     },
   })
@@ -115,89 +76,34 @@ export async function ensureAutoPeriods(
     throw new Error("Company not found while seeding payroll periods")
   }
 
-  const enabledFeatures = company.featureFlags.map((flag) => flag.feature.key)
-  const verticalDefaults = resolveVerticalDefaults({
-    workspaceProfile: company.workspaceProfile,
-    enabledFeatures,
-  })
+  if (!company.autoGeneratePayrollPeriods) {
+    return { createdCount: 0, skippedCount: 0, periodKeysCreated: [] as string[] }
+  }
+
   const horizon = Math.max(1, Math.min(company.periodGenerationHorizon, 12))
-  const now = input.now ?? new Date()
-  const targetDomains = domainsToSeed(input.domains, verticalDefaults.accounting.includeGoldFlows)
-  const drafts: PeriodDraft[] = []
-
-  for (const domain of targetDomains) {
-    if (domain === "GOLD_PAYOUT" && !verticalDefaults.accounting.includeGoldFlows) {
-      continue
-    }
-
-    if (
-      !autoEnabledForDomain({
-        domain,
-        autoGeneratePayrollPeriods: company.autoGeneratePayrollPeriods,
-        autoGenerateGoldPayoutPeriods: company.autoGenerateGoldPayoutPeriods,
-      })
-    ) {
-      continue
-    }
-
-    drafts.push(
-      ...buildAutoDrafts({
-        companyId: input.companyId,
-        createdById: input.createdById,
-        domain,
-        scopeKey: domain === "GOLD_PAYOUT" ? "GOLD" : "PAYROLL",
-        cycle: cycleForDomain({
-          domain,
-          payrollCycle: company.payrollCycle,
-          goldPayoutCycle: company.goldPayoutCycle,
-        }),
-        horizon,
-        now,
-      }),
-    )
-  }
-
-  if (drafts.length === 0) {
-    return {
-      createdCount: 0,
-      skippedCount: 0,
-      periodKeysCreated: [] as string[],
-    }
-  }
-
-  const uniqueDrafts = drafts.filter((draft, index, list) => {
-    return (
-      list.findIndex(
-        (item) =>
-          item.domain === draft.domain &&
-          item.periodKey === draft.periodKey &&
-          item.scopeKey === draft.scopeKey,
-      ) === index
-    )
+  const drafts = buildAutoDrafts({
+    companyId: input.companyId,
+    createdById: input.createdById,
+    cycle: company.payrollCycle,
+    horizon,
+    now: input.now ?? new Date(),
   })
+
+  const uniqueDrafts = drafts.filter(
+    (draft, index, list) =>
+      list.findIndex((item) => item.periodKey === draft.periodKey) === index,
+  )
 
   const existing = await prisma.payrollPeriod.findMany({
     where: {
       companyId: input.companyId,
-      OR: uniqueDrafts.map((draft) => ({
-        domain: draft.domain,
-        periodKey: draft.periodKey,
-        scopeKey: draft.scopeKey,
-      })),
+      periodKey: { in: uniqueDrafts.map((draft) => draft.periodKey) },
     },
-    select: {
-      domain: true,
-      periodKey: true,
-      scopeKey: true,
-    },
+    select: { periodKey: true },
   })
-  const existingSet = new Set(
-    existing.map((row) => `${row.domain}:${row.scopeKey}:${row.periodKey}`),
-  )
+  const existingSet = new Set(existing.map((row) => row.periodKey))
 
-  const toCreate = uniqueDrafts.filter(
-    (draft) => !existingSet.has(`${draft.domain}:${draft.scopeKey}:${draft.periodKey}`),
-  )
+  const toCreate = uniqueDrafts.filter((draft) => !existingSet.has(draft.periodKey))
   if (toCreate.length > 0) {
     await prisma.payrollPeriod.createMany({
       data: toCreate,
@@ -208,6 +114,6 @@ export async function ensureAutoPeriods(
   return {
     createdCount: toCreate.length,
     skippedCount: uniqueDrafts.length - toCreate.length,
-    periodKeysCreated: toCreate.map((row) => `${row.domain}:${row.scopeKey}:${row.periodKey}`),
+    periodKeysCreated: toCreate.map((row) => row.periodKey),
   }
 }

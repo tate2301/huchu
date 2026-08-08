@@ -1,14 +1,13 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { applyDisbursementToGoldShares } from "@/lib/gold/payouts"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
-import {
-  createApprovalAction,
-  derivePaidStatus,
-  ensureApproverRole,
-} from "@/lib/hr-payroll"
+import { derivePaidStatus } from "@/lib/payroll/disbursements"
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { isPositive, money } from "@/lib/money"
+import { writePlatformAuditEvent } from "@/lib/audit/platform"
 import { createRouteLogger } from "@/lib/observability/route-logger"
 
 const markPaidSchema = z.object({
@@ -43,6 +42,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.disbursements", "disburse")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
     const body = await request.json()
     const validated = markPaidSchema.parse(body)
@@ -107,16 +108,19 @@ export async function POST(
     }
 
     const updatedBatch = await prisma.$transaction(async (tx) => {
-      const isIrregularRun = batch.payrollRun.domain === "GOLD_PAYOUT"
-      const irregularSource = batch.payrollRun.payoutSource ?? "GOLD"
-      const isGoldRun = isIrregularRun && irregularSource === "GOLD"
-
+      // One branch, not three. A disbursement batch is payroll — the gold and
+      // "irregular" branches that used to live here wrote money into a `Float`
+      // column that a gold payout read as grams, and paying a settlement is
+      // `SettlementBatch`'s job now.
       for (const payload of validated.items) {
         const item = itemById.get(payload.id)!
-        const paidAmount = payload.paidAmount ?? item.amount
+        const paidAmount = money(payload.paidAmount ?? item.amount)
         const status = derivePaidStatus(item.amount, paidAmount)
-        const paidAt =
-          paidAmount > 0 ? (payload.paidAt ? new Date(payload.paidAt) : new Date()) : null
+        const paidAt = isPositive(paidAmount)
+          ? payload.paidAt
+            ? new Date(payload.paidAt)
+            : new Date()
+          : null
 
         const updatedItem = await tx.disbursementItem.update({
           where: { id: payload.id },
@@ -130,101 +134,42 @@ export async function POST(
           include: { lineItem: { select: { currency: true, baseAmount: true, netAmount: true } } },
         })
 
-        if (isGoldRun) {
-          await applyDisbursementToGoldShares(tx, {
-            updatedItem,
-            batch,
-            createdById: session.user.id,
-          })
-        } else if (isIrregularRun) {
-          const existingPayment = await tx.employeePayment.findFirst({
-            where: { disbursementItemId: updatedItem.id },
-            select: { id: true },
-          })
+        const existingPayment = await tx.employeePayment.findFirst({
+          where: { disbursementItemId: updatedItem.id },
+          select: { id: true },
+        })
 
-          if (existingPayment) {
-            await tx.employeePayment.update({
-              where: { id: existingPayment.id },
-              data: {
-                amount: updatedItem.amount,
-                amountUsd: updatedItem.amount,
-                unit: updatedItem.lineItem.currency,
-                payoutSource: irregularSource,
-                paidAmount: updatedItem.paidAmount,
-                paidAmountUsd: updatedItem.paidAmount,
-                paidAt: updatedItem.paidAt,
-                status: updatedItem.status,
-                notes: updatedItem.notes ?? `Irregular payout batch ${batch.code}`,
-              },
-            })
-          } else {
-            await tx.employeePayment.create({
-              data: {
-                employeeId: updatedItem.employeeId,
-                type: "IRREGULAR",
-                payoutSource: irregularSource,
-                periodStart: batch.payrollRun.period.startDate,
-                periodEnd: batch.payrollRun.period.endDate,
-                dueDate: batch.payrollRun.period.dueDate,
-                amount: updatedItem.amount,
-                amountUsd: updatedItem.amount,
-                unit: updatedItem.lineItem.currency,
-                paidAmount: updatedItem.paidAmount,
-                paidAmountUsd: updatedItem.paidAmount,
-                paidAt: updatedItem.paidAt,
-                status: updatedItem.status,
-                notes: updatedItem.notes ?? `Irregular payout batch ${batch.code}`,
-                createdById: session.user.id,
-                payrollRunId: batch.payrollRunId,
-                payrollLineItemId: updatedItem.lineItemId,
-                disbursementBatchId: batch.id,
-                disbursementItemId: updatedItem.id,
-              },
-            })
-          }
+        if (existingPayment) {
+          await tx.employeePayment.update({
+            where: { id: existingPayment.id },
+            data: {
+              amount: updatedItem.amount,
+              paidAmount: updatedItem.paidAmount,
+              paidAt: updatedItem.paidAt,
+              status: updatedItem.status,
+              notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,
+            },
+          })
         } else {
-          const existingPayment = await tx.employeePayment.findFirst({
-            where: { disbursementItemId: updatedItem.id },
-            select: { id: true },
+          await tx.employeePayment.create({
+            data: {
+              employeeId: updatedItem.employeeId,
+              periodStart: batch.payrollRun.period.startDate,
+              periodEnd: batch.payrollRun.period.endDate,
+              dueDate: batch.payrollRun.period.dueDate,
+              amount: updatedItem.amount,
+              unit: updatedItem.lineItem.currency,
+              paidAmount: updatedItem.paidAmount,
+              paidAt: updatedItem.paidAt,
+              status: updatedItem.status,
+              notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,
+              createdById: session.user.id,
+              payrollRunId: batch.payrollRunId,
+              payrollLineItemId: updatedItem.lineItemId,
+              disbursementBatchId: batch.id,
+              disbursementItemId: updatedItem.id,
+            },
           })
-
-          if (existingPayment) {
-            await tx.employeePayment.update({
-              where: { id: existingPayment.id },
-              data: {
-                amount: updatedItem.amount,
-                amountUsd: updatedItem.amount,
-                paidAmount: updatedItem.paidAmount,
-                paidAmountUsd: updatedItem.paidAmount,
-                paidAt: updatedItem.paidAt,
-                status: updatedItem.status,
-                notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,
-              },
-            })
-          } else {
-            await tx.employeePayment.create({
-              data: {
-                employeeId: updatedItem.employeeId,
-                type: "SALARY",
-                periodStart: batch.payrollRun.period.startDate,
-                periodEnd: batch.payrollRun.period.endDate,
-                dueDate: batch.payrollRun.period.dueDate,
-                amount: updatedItem.amount,
-                amountUsd: updatedItem.amount,
-                unit: updatedItem.lineItem.currency,
-                paidAmount: updatedItem.paidAmount,
-                paidAmountUsd: updatedItem.paidAmount,
-                paidAt: updatedItem.paidAt,
-                status: updatedItem.status,
-                notes: updatedItem.notes ?? `Disbursement batch ${batch.code}`,
-                createdById: session.user.id,
-                payrollRunId: batch.payrollRunId,
-                payrollLineItemId: updatedItem.lineItemId,
-                disbursementBatchId: batch.id,
-                disbursementItemId: updatedItem.id,
-              },
-            })
-          }
         }
       }
 
@@ -283,11 +228,34 @@ export async function POST(
         note: "Recorded disbursement item payment updates.",
       })
 
+      // Money leaving the business. On the chain, inside the transaction, so the
+      // payment and the record of who authorised it commit together.
+      await writePlatformAuditEvent(
+        {
+          companyId: session.user.companyId,
+          actorId: session.user.id,
+          eventType: "hr.disbursement.paid",
+          entityType: "DISBURSEMENT_BATCH",
+          entityId: id,
+          payload: {
+            code: savedBatch.code,
+            method: savedBatch.method,
+            currency: savedBatch.currency,
+            totalAmount: savedBatch.totalAmount.toFixed(2),
+            itemsPaid: validated.items.length,
+            status: savedBatch.status,
+          },
+        },
+        tx,
+      )
+
       return savedBatch
     })
 
     try {
-      if (updatedBatch.status === "PAID" && updatedBatch.payrollRun.domain !== "GOLD_PAYOUT") {
+      // No domain check. Every disbursement batch is payroll, so every paid one
+      // posts; a settlement posts through its own run.
+      if (updatedBatch.status === "PAID") {
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
           sourceType: "PAYROLL_DISBURSEMENT",
@@ -295,6 +263,9 @@ export async function POST(
           entryDate: updatedBatch.paidAt ?? new Date(),
           description: `Payroll disbursement batch ${updatedBatch.code} paid`,
           createdById: session.user.id,
+          // A batch is one currency, and the entry has to say which — without
+          // it a ZWG payout posted ZWG figures into a USD ledger.
+          currency: updatedBatch.currency,
           amount: updatedBatch.totalAmount,
           netAmount: updatedBatch.totalAmount,
           taxAmount: 0,

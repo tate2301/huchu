@@ -20,11 +20,8 @@ model Company {
   suspendedAt                   DateTime?
   disabledAt                    DateTime?
   payrollCycle                  PayrollCycle       @default(MONTHLY)
-  goldPayoutCycle               PayrollCycle       @default(MONTHLY)
-  goldSettlementMode            GoldSettlementMode @default(CURRENT_PERIOD)
   cashDisbursementOnly          Boolean            @default(true)
   autoGeneratePayrollPeriods    Boolean            @default(true)
-  autoGenerateGoldPayoutPeriods Boolean            @default(true)
   periodGenerationHorizon       Int                @default(3)
   createdAt                     DateTime           @default(now())
   updatedAt                     DateTime           @updatedAt
@@ -39,6 +36,10 @@ model Company {
   jobGrades                     JobGrade[]
   compensationRules             CompensationRule[]
   compensationTemplates         CompensationTemplate[]
+  payeTables                    PayeTable[]
+  statutoryRates                StatutoryRate[]
+  taxCredits                    TaxCredit[]
+  necAgreements                 NecAgreement[]
   payrollPeriods                PayrollPeriod[]
   payrollRuns                   PayrollRun[]
   disbursementBatches           DisbursementBatch[]
@@ -181,7 +182,14 @@ model Company {
   goldPurchases                 GoldPurchase[]
   goldPrices                    GoldPrice[]
   goldExpenseTypes              GoldExpenseType[]
-  irregularPayoutBatches        IrregularPayoutBatch[]
+  leaveTypes                    LeaveType[]
+  leaveEntitlements             LeaveEntitlement[]
+  leaveRequests                 LeaveRequest[]
+  publicHolidays                PublicHoliday[]
+  settlementIntakes             SettlementIntake[]
+  settlementRuns                SettlementRun[]
+  settlementBatches             SettlementBatch[]
+  settlementPayments            SettlementPayment[]
   scrapMaterials                ScrapMaterial[]
   scrapMetalPrices              ScrapMetalPrice[]
   scrapSellerProfiles           ScrapSellerProfile[]
@@ -294,6 +302,10 @@ enum WorkspaceProfile {
   SCHOOLS
   AUTOS
   RETAIL      @map("THRIFT")
+  /// A workspace that bought payroll and nothing else. Must exist here as well
+  /// as in `lib/workspace-products.ts` — the TypeScript list is what the app
+  /// reasons with, this is what the column can actually hold.
+  PAYROLL
   GENERAL
 }
 
@@ -805,6 +817,7 @@ model Site {
   updatedAt DateTime @updatedAt
 
   company               Company                @relation(fields: [companyId], references: [id])
+  publicHolidays        PublicHoliday[]
   sections              Section[]
   shiftGroups           ShiftGroup[]
   shiftGroupSchedules   ShiftGroupSchedule[]
@@ -985,9 +998,18 @@ model User {
   approvedScrapMetalSales           ScrapMetalSale[]               @relation("ScrapMetalSaleApprovedBy")
   createdScrapMetalBalanceEntries   ScrapMetalBalanceEntry[]       @relation("ScrapMetalBalanceEntryCreatedBy")
   createdScrapTicketComplianceRules ScrapTicketComplianceRule[]    @relation("ScrapTicketComplianceRuleCreatedBy")
-  createdIrregularPayoutBatches     IrregularPayoutBatch[]         @relation("IrregularPayoutBatchCreatedBy")
-  submittedIrregularPayoutBatches   IrregularPayoutBatch[]         @relation("IrregularPayoutBatchSubmittedBy")
-  approvedIrregularPayoutBatches    IrregularPayoutBatch[]         @relation("IrregularPayoutBatchApprovedBy")
+  createdLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestCreatedBy")
+  decidedLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestDecidedBy")
+  createdSettlementIntakes          SettlementIntake[]             @relation("SettlementIntakeCreatedBy")
+  submittedSettlementIntakes        SettlementIntake[]             @relation("SettlementIntakeSubmittedBy")
+  approvedSettlementIntakes         SettlementIntake[]             @relation("SettlementIntakeApprovedBy")
+  createdSettlementRuns             SettlementRun[]                @relation("SettlementRunCreatedBy")
+  submittedSettlementRuns           SettlementRun[]                @relation("SettlementRunSubmittedBy")
+  approvedSettlementRuns            SettlementRun[]                @relation("SettlementRunApprovedBy")
+  createdSettlementBatches          SettlementBatch[]              @relation("SettlementBatchCreatedBy")
+  submittedSettlementBatches        SettlementBatch[]              @relation("SettlementBatchSubmittedBy")
+  approvedSettlementBatches         SettlementBatch[]              @relation("SettlementBatchApprovedBy")
+  createdSettlementPayments         SettlementPayment[]            @relation("SettlementPaymentCreatedBy")
   employeeProfile                   Employee?                      @relation("EmployeeUser")
   accounts                          Account[] // For NextAuth
   sessions                          Session[] // For NextAuth
@@ -1081,6 +1103,35 @@ model Employee {
   createdAt             DateTime         @default(now())
   updatedAt             DateTime         @updatedAt
 
+  // Statutory identity. ZIMRA identifies a taxpayer by BP number and NSSA by
+  // its own membership number; neither return can be filed without them, so
+  // payroll surfaces a missing one as a run exception rather than filing a
+  // blank. Nullable because an employee record exists before HR has chased the
+  // paperwork.
+  taxNumber  String?
+  nssaNumber String?
+  taxStatus  EmployeeTaxStatus @default(STANDARD)
+
+  /// Needed for the elderly persons' tax credit, which turns on age and cannot
+  /// be derived from anything else on this record.
+  dateOfBirth   DateTime?
+  /// Drives the disabled persons' credit.
+  hasDisability Boolean   @default(false)
+  /// Hourly rate for overtime. Null means overtime is not paid in money — some
+  /// contracts bank it as leave — and payroll then ignores `Attendance.overtime`
+  /// rather than inventing a rate for it.
+  overtimeHourlyRate Decimal? @db.Decimal(14, 4)
+
+  // Where the money actually goes. `PayoutMethod` has had BANK and MOBILE
+  // since it was written, but the disbursement route validates an enum of
+  // exactly ["CASH"] and then hardcodes CASH — because there was nowhere to
+  // put an account number. There is now.
+  bankName            String?
+  bankAccountNumber   String?
+  bankBranchCode      String?
+  mobileMoneyProvider String?
+  mobileMoneyNumber   String?
+
   company                   Company                    @relation(fields: [companyId], references: [id])
   user                      User?                      @relation("EmployeeUser", fields: [userId], references: [id])
   schoolTeacherProfile      SchoolTeacherProfile?      @relation("SchoolTeacherProfileEmployee")
@@ -1104,7 +1155,13 @@ model Employee {
   scrapMetalBalance         ScrapMetalEmployeeBalance?
   scrapMetalBalanceEntries  ScrapMetalBalanceEntry[]
   moduleAssignments         EmployeeModuleAssignment[]
-  irregularPayoutBatchItems IrregularPayoutBatchItem[]
+  leaveEntitlements         LeaveEntitlement[]
+  leaveRequests             LeaveRequest[]                @relation("LeaveRequestEmployee")
+  coveredLeaveRequests      LeaveRequest[]                @relation("LeaveRequestCover")
+  settlementIntakeItems     SettlementIntakeItem[]
+  settlementLines           SettlementLine[]
+  settlementBatchItems      SettlementBatchItem[]
+  settlementPayments        SettlementPayment[]
   fixedSalary               FixedSalary?
   payments                  EmployeePayment[]
   compensationProfiles      CompensationProfile[]
@@ -1157,52 +1214,50 @@ model FixedSalary {
   @@index([employeeId])
 }
 
+/// What an employee was paid against a payroll run.
+///
+/// `amount` is money, at money's scale. It used to be `Float` and polymorphic —
+/// read in whatever `unit` said, which on a gold payout was **grams** — with
+/// five more columns bolted on to carry the USD value and the weight separately.
+/// Settlements own that shape now: `SettlementPayment.quantity` is the weight
+/// and its `amount` is the money, so neither needs a comment explaining that it
+/// means something else on Tuesdays.
+///
+/// There is no `type` either. Every row here is a salary payment; a settlement
+/// is a `SettlementPayment`.
 model EmployeePayment {
-  id                     String                 @id @default(uuid())
-  employeeId             String
-  type                   PaymentType
-  payoutSource           IrregularPayoutSource?
-  periodStart            DateTime
-  periodEnd              DateTime
-  dueDate                DateTime
-  amount                 Float
-  unit                   String
-  paidAmount             Float?
-  paidAt                 DateTime?
-  status                 PaymentStatus          @default(DUE)
-  notes                  String?
-  goldWeightGrams        Float?
-  goldPriceUsdPerGram    Float?
-  valuationDate          DateTime?
-  amountUsd              Float?
-  paidAmountUsd          Float?
-  payrollRunId           String?
-  payrollLineItemId      String?
-  disbursementBatchId    String?
-  disbursementItemId     String?
-  goldShiftAllocationId  String?
-  irregularPayoutBatchId String?
-  createdById            String
-  createdAt              DateTime               @default(now())
-  updatedAt              DateTime               @updatedAt
+  id                  String        @id @default(uuid())
+  employeeId          String
+  periodStart         DateTime
+  periodEnd           DateTime
+  dueDate             DateTime
+  amount              Decimal       @db.Decimal(14, 2)
+  /// The currency `amount` is in.
+  unit                String
+  paidAmount          Decimal?      @db.Decimal(14, 2)
+  paidAt              DateTime?
+  status              PaymentStatus @default(DUE)
+  notes               String?
+  payrollRunId        String?
+  payrollLineItemId   String?
+  disbursementBatchId String?
+  disbursementItemId  String?
+  createdById         String
+  createdAt           DateTime      @default(now())
+  updatedAt           DateTime      @updatedAt
 
-  employee             Employee              @relation(fields: [employeeId], references: [id])
-  createdBy            User                  @relation(fields: [createdById], references: [id])
-  payrollRun           PayrollRun?           @relation(fields: [payrollRunId], references: [id])
-  payrollLineItem      PayrollLineItem?      @relation(fields: [payrollLineItemId], references: [id])
-  disbursementBatch    DisbursementBatch?    @relation(fields: [disbursementBatchId], references: [id])
-  disbursementItem     DisbursementItem?     @relation(fields: [disbursementItemId], references: [id])
-  goldShiftAllocation  GoldShiftAllocation?  @relation(fields: [goldShiftAllocationId], references: [id])
-  irregularPayoutBatch IrregularPayoutBatch? @relation(fields: [irregularPayoutBatchId], references: [id])
+  employee          Employee           @relation(fields: [employeeId], references: [id])
+  createdBy         User               @relation(fields: [createdById], references: [id])
+  payrollRun        PayrollRun?        @relation(fields: [payrollRunId], references: [id])
+  payrollLineItem   PayrollLineItem?   @relation(fields: [payrollLineItemId], references: [id])
+  disbursementBatch DisbursementBatch? @relation(fields: [disbursementBatchId], references: [id])
+  disbursementItem  DisbursementItem?  @relation(fields: [disbursementItemId], references: [id])
 
-  @@index([employeeId, type])
-  @@index([employeeId, payoutSource])
+  @@index([employeeId, dueDate])
   @@index([payrollRunId])
   @@index([payrollLineItemId])
   @@index([disbursementBatchId])
   @@index([disbursementItemId])
-  @@index([goldShiftAllocationId])
-  @@index([irregularPayoutBatchId])
 }
 
 model Department {
@@ -1243,7 +1298,7 @@ model JobGrade {
 model CompensationProfile {
   id             String                    @id @default(uuid())
   employeeId     String
-  baseAmount     Float
+  baseAmount     Decimal                   @db.Decimal(14, 2)
   currency       String                    @default("USD")
   effectiveFrom  DateTime
   effectiveTo    DateTime?
@@ -1275,10 +1330,21 @@ model CompensationRule {
   name           String
   type           CompensationRuleType
   calcMethod     CompensationCalcMethod
-  value          Float
-  cap            Float?
+  value          Decimal                @db.Decimal(14, 4)
+  cap            Decimal?               @db.Decimal(14, 2)
   taxable        Boolean                @default(false)
   currency       String                 @default("USD")
+  /// Where this rule sits in the pipeline. Order matters and cannot be
+  /// inferred from the type: a pension deduction comes off before PAYE is
+  /// struck and a union subscription comes off after, and both are DEDUCTION.
+  sequence       Int                    @default(100)
+  /// For PERCENT_OF_COMPONENT — the `statutoryKey` of the stage this is a
+  /// percentage of. The AIDS levy points at PAYE.
+  basedOnKey     String?
+  /// Set on the rules the statutory pack owns (PAYE, NSSA, AIDS_LEVY, ZIMDEF,
+  /// SDL, APWCS, NEC_*). Null on anything a company wrote itself. This is what
+  /// tells the payslip and the returns which lines are the state's.
+  statutoryKey   String?
   isActive       Boolean                @default(true)
   workflowStatus WorkflowStatus         @default(DRAFT)
   employeeId     String?
@@ -1348,9 +1414,6 @@ model CompensationTemplateRule {
 model PayrollPeriod {
   id                       String                 @id @default(uuid())
   companyId                String
-  domain                   RunDomain              @default(PAYROLL)
-  payoutSource             IrregularPayoutSource?
-  scopeKey                 String                 @default("DEFAULT")
   periodKey                String
   startDate                DateTime
   endDate                  DateTime
@@ -1376,8 +1439,8 @@ model PayrollPeriod {
   approvedBy  User?        @relation("PayrollPeriodApprovedBy", fields: [approvedById], references: [id])
   runs        PayrollRun[]
 
-  @@unique([companyId, domain, periodKey, scopeKey])
-  @@index([companyId, domain, payoutSource, scopeKey, startDate])
+  @@unique([companyId, periodKey])
+  @@index([companyId, startDate])
   @@index([status])
 }
 
@@ -1385,18 +1448,22 @@ model PayrollRun {
   id                 String                 @id @default(uuid())
   companyId          String
   periodId           String
-  domain             RunDomain              @default(PAYROLL)
-  payoutSource       IrregularPayoutSource?
   runNumber          Int                    @default(1)
   status             PayrollRunStatus       @default(DRAFT)
   notes              String?
-  grossTotal         Float                  @default(0)
-  allowancesTotal    Float                  @default(0)
-  deductionsTotal    Float                  @default(0)
-  netTotal           Float                  @default(0)
-  goldRatePerUnit    Float?
-  goldRateUnit       String                 @default("g")
-  goldSettlementMode GoldSettlementMode     @default(CURRENT_PERIOD)
+  grossTotal         Decimal                @default(0) @db.Decimal(14, 2)
+  allowancesTotal    Decimal                @default(0) @db.Decimal(14, 2)
+  deductionsTotal    Decimal                @default(0) @db.Decimal(14, 2)
+  netTotal           Decimal                @default(0) @db.Decimal(14, 2)
+  /// What the employer owes on top — NSSA employer, ZIMDEF, SDL, APWCS, NEC.
+  /// Not part of gross and not part of net; a separate number the employer
+  /// remits and the P2/NSSA returns report.
+  employerCostTotal  Decimal                @default(0) @db.Decimal(14, 2)
+  /// Set when the run posted to the ledger, null when it did not. A payroll-only
+  /// workspace has no accounting module, so a run legitimately completes
+  /// without a journal — but it says so rather than leaving the caller to guess.
+  journalEntryId     String?
+  postingSkippedReason String?
   createdById        String
   submittedById      String?
   approvedById       String?
@@ -1413,10 +1480,10 @@ model PayrollRun {
   lineItems           PayrollLineItem[]
   disbursementBatches DisbursementBatch[]
   adjustments         AdjustmentEntry[]
-  legacyPayments      EmployeePayment[]
+  payments            EmployeePayment[]
 
   @@unique([periodId, runNumber])
-  @@index([companyId, status, domain, payoutSource])
+  @@index([companyId, status])
 }
 
 model PayrollLineItem {
@@ -1424,13 +1491,29 @@ model PayrollLineItem {
   runId                 String
   employeeId            String
   compensationProfileId String?
-  baseAmount            Float    @default(0)
-  variableAmount        Float    @default(0)
-  allowancesTotal       Float    @default(0)
-  deductionsTotal       Float    @default(0)
-  grossAmount           Float    @default(0)
-  netAmount             Float    @default(0)
+  /// Basic pay. Money, at money's scale — it was `Decimal(14,4)` only because a
+  /// gold payout overloaded it to carry a weight in grams. Weights live on
+  /// `SettlementLine.quantity` now.
+  baseAmount            Decimal  @default(0) @db.Decimal(14, 2)
+  variableAmount        Decimal  @default(0) @db.Decimal(14, 2)
+  allowancesTotal       Decimal  @default(0) @db.Decimal(14, 2)
+  deductionsTotal       Decimal  @default(0) @db.Decimal(14, 2)
+  grossAmount           Decimal  @default(0) @db.Decimal(14, 2)
+  netAmount             Decimal  @default(0) @db.Decimal(14, 2)
+  /// The slice of gross PAYE is actually struck on — gross less the
+  /// non-taxable allowances and the pre-tax deductions. Stored because a
+  /// payslip has to show it and a P2 is filed on it.
+  taxableGross          Decimal  @default(0) @db.Decimal(14, 2)
+  /// Employer contributions attributable to this employee.
+  employerCost          Decimal  @default(0) @db.Decimal(14, 2)
   currency              String   @default("USD")
+  /// Quote units per one base unit at the period end, frozen here so a payslip
+  /// reprinted next year shows the rate it was actually computed at.
+  exchangeRate          Decimal  @default(1) @db.Decimal(12, 4)
+  /// `netAmount` in the company's base currency. Not called `baseAmount` —
+  /// that name is already taken on this model and means basic salary, which is
+  /// a different thing entirely.
+  netBaseAmount         Decimal  @default(0) @db.Decimal(14, 2)
   notes                 String?
   createdAt             DateTime @default(now())
   updatedAt             DateTime @updatedAt
@@ -1441,7 +1524,7 @@ model PayrollLineItem {
   components          PayrollLineComponent[]
   disbursementItems   DisbursementItem[]
   adjustments         AdjustmentEntry[]
-  legacyPayments      EmployeePayment[]
+  payments            EmployeePayment[]
 
   @@unique([runId, employeeId])
   @@index([employeeId])
@@ -1455,9 +1538,22 @@ model PayrollLineComponent {
   name         String
   type         CompensationRuleType
   calcMethod   CompensationCalcMethod
-  rateOrAmount Float
-  amount       Float
+  rateOrAmount Decimal                @db.Decimal(14, 4)
+  amount       Decimal                @db.Decimal(14, 2)
   isTaxable    Boolean                @default(false)
+  /// Non-null on the lines the state owns — PAYE, AIDS_LEVY, NSSA_EMPLOYEE,
+  /// NSSA_EMPLOYER, ZIMDEF, SDL, APWCS, NEC_EMPLOYEE, NEC_EMPLOYER. The P2 and
+  /// the NSSA schedule are built by summing on this, so a return and a payslip
+  /// are reading the same rows.
+  statutoryKey String?
+  /// Position in the computed pipeline, so a payslip can show the working in
+  /// the order it happened rather than in insertion order.
+  sequence     Int                    @default(100)
+  /// What this stage was calculated on — taxable gross for PAYE, the PAYE
+  /// figure for the AIDS levy, capped insurable earnings for NSSA. Stored so
+  /// an employee querying their payslip gets an answer without anyone
+  /// re-deriving it.
+  basis        Decimal?               @db.Decimal(14, 2)
   createdAt    DateTime               @default(now())
 
   lineItem PayrollLineItem   @relation(fields: [lineItemId], references: [id], onDelete: Cascade)
@@ -1477,7 +1573,8 @@ model DisbursementBatch {
   notes         String?
   cashCustodian String?
   cashIssuedAt  DateTime?
-  totalAmount   Float                   @default(0)
+  totalAmount   Decimal                 @default(0) @db.Decimal(14, 2)
+  currency      String                  @default("USD")
   itemCount     Int                     @default(0)
   createdById   String
   submittedById String?
@@ -1507,8 +1604,11 @@ model DisbursementItem {
   batchId          String
   lineItemId       String
   employeeId       String
-  amount           Float
-  paidAmount       Float?
+  amount           Decimal       @db.Decimal(14, 2)
+  paidAmount       Decimal?      @db.Decimal(14, 2)
+  currency         String        @default("USD")
+  exchangeRate     Decimal       @default(1) @db.Decimal(12, 4)
+  baseAmount       Decimal       @default(0) @db.Decimal(14, 2)
   status           PaymentStatus @default(DUE)
   paidAt           DateTime?
   receiptReference String?
@@ -1630,7 +1730,7 @@ model AdjustmentEntry {
   lineItemId          String?
   disbursementItemId  String?
   employeeId          String?
-  amountDelta         Float
+  amountDelta         Decimal              @db.Decimal(14, 2)
   reason              String
   status              AdjustmentStatus     @default(DRAFT)
   createdById         String
@@ -1657,49 +1757,636 @@ model AdjustmentEntry {
   @@index([employeeId])
 }
 
-model IrregularPayoutBatch {
-  id             String                @id @default(uuid())
+// ─────────────────────────────────────────────────────────────────────────────
+// Zimbabwe statutory payroll tables
+//
+// Every one of these is effective-dated, and that is the whole point. PAYE bands
+// change with each budget, the NSSA insurable-earnings ceiling is revised
+// separately, and a ZWG table is revised more often than a USD one. Hard-coding
+// any of it means a rate change needs a deploy, and — worse — means last
+// month's payroll silently recomputes on this month's numbers the next time
+// anybody opens it.
+//
+// So: a rate is looked up for the pay period, and when no row covers that period
+// the run REFUSES rather than reaching for the nearest one. A stale table
+// produces a plausible wrong number, which is the only kind of wrong number
+// that reaches a payslip.
+//
+// The seeded pack is a STARTING SET, labelled with its date. Verify against
+// ZIMRA and NSSA before relying on it.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// A PAYE band table for one currency, valid over one window.
+///
+/// One table per currency, per the dual-currency rule: USD earnings are taxed
+/// on the USD table and ZWG earnings on the ZWG table. They are not converted
+/// and pooled — ZIMRA publishes them separately because they are separate.
+model PayeTable {
+  id            String       @id @default(uuid())
+  companyId     String
+  currency      String
+  cycle         PayrollCycle @default(MONTHLY)
+  /// What ZIMRA calls it, e.g. "Aug 2026 monthly USD".
+  label         String
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  /// Free-form provenance — the circular or gazette this came from. Present so
+  /// an operator correcting a rate can say where the new one came from.
+  source        String?
+  /// True on rows the seeded pack wrote. A company that has entered its own
+  /// table should not have it quietly replaced on the next provision.
+  isSeeded      Boolean      @default(false)
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bands   PayeBand[]
+
+  @@unique([companyId, currency, cycle, effectiveFrom])
+  @@index([companyId, currency, cycle, effectiveFrom])
+}
+
+/// One band of a PAYE table.
+///
+/// Stored in ZIMRA's own subtract-method form — `taxableGross × ratePercent −
+/// deductAmount` — rather than as a cumulative marginal calculation. That is
+/// how the published tables read, so an accountant can check a payslip against
+/// the circular line by line without re-deriving anything, and a transcription
+/// error is visible rather than buried in arithmetic.
+model PayeBand {
+  id          String   @id @default(uuid())
+  tableId     String
+  /// Inclusive.
+  lowerBound  Decimal  @db.Decimal(14, 2)
+  /// Inclusive. Null on the top band, which has no ceiling.
+  upperBound  Decimal? @db.Decimal(14, 2)
+  ratePercent Decimal  @db.Decimal(5, 2)
+  /// The published subtraction for this band. Zero on the first band.
+  deductAmount Decimal @default(0) @db.Decimal(14, 2)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  table PayeTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+
+  @@unique([tableId, lowerBound])
+  @@index([tableId, sortOrder])
+}
+
+/// A single named statutory rate, effective-dated.
+///
+/// One model rather than a column per levy, because the list grows: NSSA, the
+/// AIDS levy, ZIMDEF, the Standards Development Levy and APWCS all reduce to
+/// "a percentage of something, sometimes capped, sometimes floored". A new levy
+/// is a new `key`, not a migration.
+model StatutoryRate {
+  id            String            @id @default(uuid())
+  companyId     String
+  key           StatutoryRateKey
+  /// Null means "applies to every currency" — the AIDS levy is 3% of PAYE
+  /// whichever currency the PAYE was struck in. A currency-specific row (the
+  /// NSSA ceiling) names its currency.
+  currency      String?
+  ratePercent   Decimal           @db.Decimal(7, 4)
+  /// The insurable-earnings ceiling for NSSA: contributions are charged on
+  /// earnings up to this and not beyond. Null where the levy is uncapped.
+  ceilingAmount Decimal?          @db.Decimal(14, 2)
+  /// A floor, where one exists.
+  floorAmount   Decimal?          @db.Decimal(14, 2)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  source        String?
+  isSeeded      Boolean           @default(false)
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key, currency, effectiveFrom])
+  @@index([companyId, key, effectiveFrom])
+}
+
+/// A credit that reduces PAYE after it has been computed.
+///
+/// Not a deduction from gross — these come off the tax, which is why they are
+/// their own model and are applied at their own stage. Medical aid is the one
+/// that is a proportion of something the employee paid; the elderly and
+/// disability credits are flat monthly amounts.
+model TaxCredit {
+  id            String        @id @default(uuid())
+  companyId     String
+  key           TaxCreditKey
+  currency      String
+  /// A flat monthly amount, for the elderly and disability credits.
+  amount        Decimal?      @db.Decimal(14, 2)
+  /// A proportion of a contribution the employee made — 50% for medical aid.
+  ratePercent   Decimal?      @db.Decimal(7, 4)
+  effectiveFrom DateTime
+  effectiveTo   DateTime?
+  source        String?
+  isSeeded      Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, key, currency, effectiveFrom])
+  @@index([companyId, key, effectiveFrom])
+}
+
+/// An NEC agreement — the industry council dues an employer and employee owe.
+///
+/// Not seeded, and cannot be: dues are set per National Employment Council and
+/// there are dozens. A company enters the one for its industry, or has none.
+model NecAgreement {
+  id                    String    @id @default(uuid())
+  companyId             String
+  /// The council, e.g. "NEC for the Commercial Sectors of Zimbabwe".
+  councilName           String
+  currency              String    @default("USD")
+  employeeRatePercent   Decimal?  @db.Decimal(7, 4)
+  employeeFixedAmount   Decimal?  @db.Decimal(14, 2)
+  employerRatePercent   Decimal?  @db.Decimal(7, 4)
+  employerFixedAmount   Decimal?  @db.Decimal(14, 2)
+  effectiveFrom         DateTime
+  effectiveTo           DateTime?
+  source                String?
+  isActive              Boolean   @default(true)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, isActive, effectiveFrom])
+}
+
+// ============================================
+// LEAVE
+// ============================================
+//
+// Time off, and what is left of it.
+//
+// The module had no model for any of this — no type, no entitlement, no request,
+// no public holiday. A Zimbabwean employer is required by the Labour Act to give
+// 22 days' annual leave and 12 days' sick, and the product could not record
+// either, which meant it also could not tell payroll that a month contained
+// unpaid leave.
+//
+// One rule shapes the whole design: **a balance is derived, never stored.**
+// `LeaveEntitlement` holds what was granted and carried over; what has been taken
+// is the sum of approved requests. Keeping a running `remaining` column means two
+// numbers that disagree the first time a request is edited, and the one on screen
+// is the one nobody recomputed.
+
+enum LeaveUnit {
+  DAY
+  HALF_DAY
+  HOUR
+}
+
+enum LeaveAccrualMethod {
+  /// The whole entitlement on day one of the leave year.
+  ANNUAL_GRANT
+  /// A twelfth each month worked. What the Labour Act actually describes.
+  MONTHLY_ACCRUAL
+  /// The whole entitlement on each employment anniversary.
+  ANNIVERSARY_GRANT
+  /// Tracked but not limited — compassionate leave at some employers.
+  UNLIMITED
+}
+
+enum LeaveRequestStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+  /// Withdrawn by the employee after approval, so the days go back.
+  WITHDRAWN
+}
+
+model LeaveType {
+  id                       String             @id @default(uuid())
+  companyId                String
+  code                     String
+  name                     String
+  unit                     LeaveUnit          @default(DAY)
+  accrualMethod            LeaveAccrualMethod @default(ANNUAL_GRANT)
+  defaultEntitlement       Decimal            @default(0) @db.Decimal(6, 2)
+  isPaid                   Boolean            @default(true)
+  /// Sick leave needs a doctor's note from day 3. Null means never.
+  requiresDocumentAfterDays Int?
+  carryOverLimit           Decimal?           @db.Decimal(6, 2)
+  /// `MM-DD`. Unused days expire on this date, not on a rolling anniversary —
+  /// which is how the policy is actually written and displayed.
+  carryOverExpiresOn       String?
+  /// Shown verbatim on the balance card. The staff portal displays the rule next
+  /// to the number, so the rule lives with the type rather than in the UI.
+  policyNote               String?
+  effectiveFrom            DateTime
+  effectiveTo              DateTime?
+  source                   String?
+  isSeeded                 Boolean            @default(false)
+  isActive                 Boolean            @default(true)
+  createdAt                DateTime           @default(now())
+  updatedAt                DateTime           @updatedAt
+
+  company      Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entitlements LeaveEntitlement[]
+  requests     LeaveRequest[]
+
+  @@unique([companyId, code, effectiveFrom])
+  @@index([companyId, isActive, effectiveFrom])
+}
+
+/// What one employee was granted for one leave year.
+///
+/// `taken` and `pending` are deliberately absent: both are sums over
+/// `LeaveRequest` and storing them invites the two to drift.
+model LeaveEntitlement {
+  id          String   @id @default(uuid())
+  companyId   String
+  employeeId  String
+  leaveTypeId String
+  /// The leave year, as a calendar year. Anniversary-granted types still record
+  /// the year the grant falls in so a balance can be asked for by year.
+  year        Int
+  granted     Decimal  @default(0) @db.Decimal(6, 2)
+  carriedOver Decimal  @default(0) @db.Decimal(6, 2)
+  /// A manual correction, signed. Separate from `granted` so an adjustment is
+  /// visible as an adjustment rather than folded into the entitlement.
+  adjustment  Decimal  @default(0) @db.Decimal(6, 2)
+  note        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee  Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType LeaveType @relation(fields: [leaveTypeId], references: [id])
+
+  @@unique([employeeId, leaveTypeId, year])
+  @@index([companyId, year])
+}
+
+model LeaveRequest {
+  id           String             @id @default(uuid())
+  companyId    String
+  employeeId   String
+  leaveTypeId  String
+  startDate    DateTime
+  endDate      DateTime
+  /// Working days, computed at submission against the work week and the public
+  /// holiday calendar, then frozen. Recomputing it later would restate a taken
+  /// balance when somebody adds a holiday.
+  workingDays  Decimal            @db.Decimal(6, 2)
+  /// Which half, when a HALF_DAY type is taken for part of a day.
+  isHalfDay    Boolean            @default(false)
+  reason       String
+  attachmentUrl String?
+  /// Who covers the work. Nullable — not every role needs cover.
+  coveringEmployeeId String?
+  status       LeaveRequestStatus @default(DRAFT)
+  decidedById  String?
+  decidedAt    DateTime?
+  decisionNote String?
+  createdById  String
+  submittedAt  DateTime?
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  company          Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee         Employee  @relation("LeaveRequestEmployee", fields: [employeeId], references: [id], onDelete: Cascade)
+  leaveType        LeaveType @relation(fields: [leaveTypeId], references: [id])
+  coveringEmployee Employee? @relation("LeaveRequestCover", fields: [coveringEmployeeId], references: [id])
+  createdBy        User      @relation("LeaveRequestCreatedBy", fields: [createdById], references: [id])
+  decidedBy        User?     @relation("LeaveRequestDecidedBy", fields: [decidedById], references: [id])
+
+  @@index([companyId, employeeId, startDate])
+  @@index([companyId, status, startDate])
+}
+
+/// A day nobody is expected to work.
+///
+/// `siteId` is nullable so a company-wide holiday is one row rather than one per
+/// site, and a site-specific one — a local shutdown — is still expressible.
+model PublicHoliday {
+  id                String   @id @default(uuid())
+  companyId         String
+  date              DateTime
+  name              String
+  isPaid            Boolean  @default(true)
+  /// The demo's "double pay if you work" case. Payroll reads this, not the UI.
+  doublePayIfWorked Boolean  @default(false)
+  siteId            String?
+  isSeeded          Boolean  @default(false)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site    Site?   @relation(fields: [siteId], references: [id])
+
+  @@unique([companyId, date, siteId])
+  @@index([companyId, date])
+}
+
+// ============================================
+// COMMODITY & VARIABLE SETTLEMENTS
+// ============================================
+//
+// Paying somebody for a quantity of something — grams of gold from a shift
+// allocation, a scrap balance, a sales commission — rather than for a period of
+// employment.
+//
+// This is a separate domain from payroll, and it has its own tables for a
+// specific reason. Settlement used to run *through* payroll: a `PayrollRun` with
+// `domain = GOLD_PAYOUT`, four gold columns bolted onto that run, and
+// `PayrollLineItem.baseAmount` widened to `Decimal(14,4)` so it could carry a
+// weight in grams while every other row in the table held money. A payroll
+// module cannot be sold on its own while its core tables carry a mining
+// discriminator, and a money column that sometimes holds grams is a rounding bug
+// waiting for someone to treat it as money.
+//
+// So quantity is `quantity`, money is `amount`, and neither pretends to be the
+// other.
+
+enum SettlementSource {
+  GOLD
+  SCRAP
+  COMMISSION
+  OTHER
+}
+
+enum SettlementMode {
+  /// Settle what the period itself produced.
+  CURRENT_PERIOD
+  /// Settle what falls due in the period, which may have been produced earlier.
+  NEXT_PERIOD
+}
+
+/// What is owed, before anyone decides to pay it.
+///
+/// Gold does not use this — its source of truth is `GoldShiftAllocation`, which
+/// the gold module already approves through its own workflow, and duplicating
+/// those rows here would give two answers to "what does this worker have coming".
+/// Scrap, commission and everything else have no such record, so an operator
+/// enters one.
+model SettlementIntake {
+  id             String           @id @default(uuid())
   companyId      String
-  source         IrregularPayoutSource
+  source         SettlementSource
   label          String
   periodStart    DateTime
   periodEnd      DateTime
   dueDate        DateTime
-  currency       String                @default("USD")
-  workflowStatus WorkflowStatus        @default(DRAFT)
+  currency       String           @default("USD")
+  workflowStatus WorkflowStatus   @default(DRAFT)
   notes          String?
   createdById    String
   submittedById  String?
   approvedById   String?
   submittedAt    DateTime?
   approvedAt     DateTime?
-  createdAt      DateTime              @default(now())
-  updatedAt      DateTime              @updatedAt
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
 
-  company     Company                    @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  createdBy   User                       @relation("IrregularPayoutBatchCreatedBy", fields: [createdById], references: [id])
-  submittedBy User?                      @relation("IrregularPayoutBatchSubmittedBy", fields: [submittedById], references: [id])
-  approvedBy  User?                      @relation("IrregularPayoutBatchApprovedBy", fields: [approvedById], references: [id])
-  items       IrregularPayoutBatchItem[]
-  payments    EmployeePayment[]
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User                   @relation("SettlementIntakeCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                  @relation("SettlementIntakeSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                  @relation("SettlementIntakeApprovedBy", fields: [approvedById], references: [id])
+  items       SettlementIntakeItem[]
+  settledInto SettlementLineOrigin[]
 
   @@index([companyId, source, workflowStatus, dueDate])
 }
 
-model IrregularPayoutBatchItem {
+model SettlementIntakeItem {
   id         String   @id @default(uuid())
-  batchId    String
+  intakeId   String
   employeeId String
-  amount     Float
+  /// How much of the thing. Grams, kilos, units — whatever `unit` says.
+  quantity   Decimal  @default(0) @db.Decimal(12, 4)
+  unit       String   @default("unit")
+  /// What it is worth. Money, always, at money's scale.
+  amount     Decimal  @db.Decimal(14, 2)
   notes      String?
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
 
-  batch    IrregularPayoutBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  employee Employee             @relation(fields: [employeeId], references: [id])
+  intake   SettlementIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  employee Employee         @relation(fields: [employeeId], references: [id])
+
+  @@unique([intakeId, employeeId])
+  @@index([employeeId])
+}
+
+/// One settlement, computed and frozen.
+///
+/// The payroll analogue is `PayrollRun`, and the workflow is the same shape —
+/// draft, submit, approve — so the two read alike on screen. What it is not is a
+/// `PayrollRun` with a flag.
+model SettlementRun {
+  id                   String           @id @default(uuid())
+  companyId            String
+  code                 String
+  source               SettlementSource
+  periodStart          DateTime
+  periodEnd            DateTime
+  dueDate              DateTime
+  mode                 SettlementMode   @default(CURRENT_PERIOD)
+  currency             String           @default("USD")
+  /// Money per unit of quantity, weighted across the run. Four places because a
+  /// gold price per gram is not a price in cents.
+  ratePerUnit          Decimal?         @db.Decimal(14, 4)
+  rateUnit             String           @default("unit")
+  totalQuantity        Decimal          @default(0) @db.Decimal(14, 4)
+  totalAmount          Decimal          @default(0) @db.Decimal(14, 2)
+  status               PayrollRunStatus @default(DRAFT)
+  journalEntryId       String?
+  postingSkippedReason String?
+  notes                String?
+  createdById          String
+  submittedById        String?
+  approvedById         String?
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User               @relation("SettlementRunCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?              @relation("SettlementRunSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?              @relation("SettlementRunApprovedBy", fields: [approvedById], references: [id])
+  lines       SettlementLine[]
+  batches     SettlementBatch[]
+  payments    SettlementPayment[]
+
+  @@unique([companyId, source, code])
+  @@index([companyId, source, status, periodStart])
+}
+
+model SettlementLine {
+  id         String  @id @default(uuid())
+  runId      String
+  employeeId String
+  /// The quantity being settled. This is the column that used to be
+  /// `PayrollLineItem.baseAmount` on a gold run.
+  quantity   Decimal @default(0) @db.Decimal(12, 4)
+  unit       String  @default("unit")
+  unitRate   Decimal @default(0) @db.Decimal(14, 4)
+  grossAmount Decimal @db.Decimal(14, 2)
+  netAmount   Decimal @db.Decimal(14, 2)
+  currency    String  @default("USD")
+  /// Frozen at compute time, so a later rate change cannot restate a settled run.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  baseAmount   Decimal @default(0) @db.Decimal(14, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  run      SettlementRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee Employee              @relation(fields: [employeeId], references: [id])
+  items    SettlementBatchItem[]
+  payments SettlementPayment[]
+  origins  SettlementLineOrigin[]
+
+  @@unique([runId, employeeId])
+  @@index([employeeId])
+}
+
+/// Which upstream records a line settled.
+///
+/// A line aggregates: one gold worker can have shares from six shifts in a
+/// month, and they settle as one payment. Without this, "has allocation X been
+/// settled?" had no answer — the code that needed it wrote
+/// `AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:<uuid>` into a free-text `notes` column and
+/// parsed the UUID back out with a regex, which loses the link the moment anyone
+/// edits the note.
+model SettlementLineOrigin {
+  id                    String  @id @default(uuid())
+  lineId                String
+  goldShiftAllocationId String?
+  settlementIntakeId    String?
+  /// The share of the line this origin contributed, so a partially settled
+  /// upstream record can be reconciled.
+  quantity              Decimal @default(0) @db.Decimal(12, 4)
+  amount                Decimal @default(0) @db.Decimal(14, 2)
+
+  line                SettlementLine       @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
+  settlementIntake    SettlementIntake?    @relation(fields: [settlementIntakeId], references: [id])
+
+  @@unique([lineId, goldShiftAllocationId])
+  @@unique([lineId, settlementIntakeId])
+  @@index([goldShiftAllocationId])
+  @@index([settlementIntakeId])
+}
+
+/// Handing the money over.
+///
+/// `settlementRunId` is required, which is the mirror image of
+/// `DisbursementBatch.payrollRunId` being required — and the reason a gold payout
+/// had to fabricate a `PayrollRun` before this model existed.
+model SettlementBatch {
+  id              String                    @id @default(uuid())
+  companyId       String
+  settlementRunId String
+  code            String
+  method          PayoutMethod              @default(CASH)
+  cashCustodian   String?
+  cashIssuedAt    DateTime?
+  status          DisbursementBatchStatus   @default(DRAFT)
+  totalAmount     Decimal                   @default(0) @db.Decimal(14, 2)
+  currency        String                    @default("USD")
+  itemCount       Int                       @default(0)
+  notes           String?
+  createdById     String
+  submittedById   String?
+  approvedById    String?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  run         SettlementRun         @relation(fields: [settlementRunId], references: [id], onDelete: Cascade)
+  createdBy   User                  @relation("SettlementBatchCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                 @relation("SettlementBatchSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                 @relation("SettlementBatchApprovedBy", fields: [approvedById], references: [id])
+  items       SettlementBatchItem[]
+  payments    SettlementPayment[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status, createdAt])
+  @@index([settlementRunId])
+}
+
+model SettlementBatchItem {
+  id         String                  @id @default(uuid())
+  batchId    String
+  lineId     String
+  employeeId String
+  amount     Decimal                 @db.Decimal(14, 2)
+  paidAmount Decimal?                @db.Decimal(14, 2)
+  currency   String                  @default("USD")
+  status     String                  @default("DUE")
+  paidAt     DateTime?
+  receiptReference String?
+  notes      String?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  batch    SettlementBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  line     SettlementLine      @relation(fields: [lineId], references: [id])
+  employee Employee            @relation(fields: [employeeId], references: [id])
+  payments SettlementPayment[]
 
   @@unique([batchId, employeeId])
+  @@index([lineId])
   @@index([employeeId])
+}
+
+/// What an employee was actually paid, per settlement.
+///
+/// Replaces the gold half of `EmployeePayment`, which carried `amount Float` read
+/// in whatever `unit` said — grams on a gold payout — plus five gold-specific
+/// columns. Here `quantity` is the weight and `amount` is the money, so neither
+/// needs a comment explaining that it means something else on Tuesdays.
+model SettlementPayment {
+  id                    String           @id @default(uuid())
+  companyId             String
+  employeeId            String
+  source                SettlementSource
+  settlementRunId       String?
+  lineId                String?
+  batchId               String?
+  batchItemId           String?
+  quantity              Decimal          @default(0) @db.Decimal(12, 4)
+  unit                  String           @default("unit")
+  valuationDate         DateTime?
+  unitPrice             Decimal?         @db.Decimal(14, 4)
+  amount                Decimal          @db.Decimal(14, 2)
+  paidAmount            Decimal?         @db.Decimal(14, 2)
+  currency              String           @default("USD")
+  periodStart           DateTime
+  periodEnd             DateTime
+  dueDate               DateTime
+  paidAt                DateTime?
+  status                String           @default("DUE")
+  notes                 String?
+  createdById           String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee            Employee             @relation(fields: [employeeId], references: [id])
+  run                 SettlementRun?       @relation(fields: [settlementRunId], references: [id])
+  line                SettlementLine?      @relation(fields: [lineId], references: [id])
+  batch               SettlementBatch?     @relation(fields: [batchId], references: [id])
+  batchItem           SettlementBatchItem? @relation(fields: [batchItemId], references: [id])
+  createdBy           User?                @relation("SettlementPaymentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, employeeId, source, status])
+  @@index([settlementRunId])
 }
 
 // ============================================
@@ -1746,12 +2433,6 @@ enum ReportStatus {
   REJECTED
 }
 
-enum PaymentType {
-  GOLD
-  IRREGULAR
-  SALARY
-}
-
 enum PaymentStatus {
   DUE
   PARTIAL
@@ -1773,13 +2454,6 @@ enum EmployeeModule {
   RETAIL      @map("THRIFT")
 }
 
-enum IrregularPayoutSource {
-  GOLD
-  SCRAP
-  COMMISSION
-  OTHER
-}
-
 enum WorkflowStatus {
   DRAFT
   SUBMITTED
@@ -1792,30 +2466,77 @@ enum CompensationProfileStatus {
   INACTIVE
 }
 
+/// How an employee is treated for PAYE.
+///
+/// STANDARD is the ordinary employed person on the monthly band table.
+/// EXEMPT covers the handful ZIMRA does not tax through PAYE at all.
+/// CONTRACTOR is paid gross with no PAYE withheld — the payment is theirs to
+/// declare — which is a different thing from EXEMPT and must not be conflated
+/// with it, since the NSSA treatment differs too.
+/// The statutory rates a Zimbabwean payroll needs, one key each.
+enum StatutoryRateKey {
+  /// 3% of the PAYE figure — not of gross. A common and expensive mistake.
+  AIDS_LEVY
+  /// NSSA Pension and Other Benefits Scheme, employee side. 4.5% of insurable
+  /// earnings up to the ceiling on the same row.
+  NSSA_POBS_EMPLOYEE
+  /// NSSA POBS, employer side. Same rate, same ceiling, employer's cost.
+  NSSA_POBS_EMPLOYER
+  /// Accident Prevention and Workers Compensation Scheme — employer only, and
+  /// the rate varies by industry risk class.
+  NSSA_APWCS
+  /// Zimbabwe Manpower Development Fund, 1% of gross, employer only.
+  ZIMDEF
+  /// Standards Development Levy, employer only.
+  STANDARDS_DEVELOPMENT_LEVY
+  /// The portion of an annual bonus that is not taxed. Held here rather than on
+  /// the PAYE table because it is revised on its own schedule.
+  BONUS_EXEMPTION
+}
+
+enum TaxCreditKey {
+  /// 50% of the employee's medical aid contributions.
+  MEDICAL_AID
+  /// The elderly persons' credit, for employees over the qualifying age.
+  ELDERLY
+  /// The disabled persons' credit.
+  DISABILITY
+}
+
+enum EmployeeTaxStatus {
+  STANDARD
+  EXEMPT
+  CONTRACTOR
+}
+
 enum CompensationRuleType {
   ALLOWANCE
   DEDUCTION
+  /// Withheld from the employee and owed to an authority — PAYE, the AIDS
+  /// levy, NSSA employee, NEC employee dues. Reduces net pay and credits a
+  /// statutory payable rather than the generic deductions account.
+  STATUTORY_DEDUCTION
+  /// Paid by the employer on top of the wage — NSSA employer, ZIMDEF, SDL,
+  /// APWCS, NEC employer dues. Cost to the company and a liability to the
+  /// authority; never touches net pay.
+  EMPLOYER_CONTRIBUTION
 }
 
 enum CompensationCalcMethod {
   FIXED
   PERCENT
+  /// Resolved from an effective-dated `PayeTable` for the line's currency
+  /// rather than from a value on the rule.
+  TAX_TABLE
+  /// A percentage of a named earlier stage rather than of gross — the AIDS
+  /// levy is 3% of the PAYE figure, not of anything the employee earned.
+  PERCENT_OF_COMPONENT
 }
 
 enum PayrollCycle {
   MONTHLY
   FORTNIGHTLY
   WEEKLY
-}
-
-enum GoldSettlementMode {
-  CURRENT_PERIOD
-  NEXT_PERIOD
-}
-
-enum RunDomain {
-  PAYROLL
-  GOLD_PAYOUT
 }
 
 enum PeriodPurpose {
@@ -1860,8 +2581,11 @@ enum ApprovalTargetType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
-  IRREGULAR_PAYOUT_BATCH
   DISCIPLINARY_ACTION
+  SETTLEMENT_INTAKE
+  SETTLEMENT_RUN
+  SETTLEMENT_BATCH
+  LEAVE_REQUEST
 }
 
 enum ApprovalActionType {
@@ -1934,7 +2658,6 @@ enum NotificationEntityType {
   COMPENSATION_PROFILE
   COMPENSATION_RULE
   GOLD_SHIFT_ALLOCATION
-  IRREGULAR_PAYOUT_BATCH
   DISCIPLINARY_ACTION
   HR_INCIDENT
   INCIDENT
@@ -2123,10 +2846,16 @@ model Attendance {
   @@index([goldLedgerEntryId])
 }
 
+/// A crew that works together on a shift.
+///
+/// `siteId` is optional. It was required, which meant a workforce with no sites
+/// could not be scheduled at all — a payroll bureau or a school has staff and
+/// rotas but no shafts, and the only way past it was to invent a site. Workforce
+/// scheduling belongs to People; a site is a mine's way of narrowing it.
 model ShiftGroup {
   id               String   @id @default(uuid())
   companyId        String
-  siteId           String
+  siteId           String?
   name             String
   code             String?
   leaderEmployeeId String
@@ -2135,7 +2864,7 @@ model ShiftGroup {
   updatedAt        DateTime @updatedAt
 
   company              Company               @relation(fields: [companyId], references: [id])
-  site                 Site                  @relation(fields: [siteId], references: [id])
+  site                 Site?                 @relation(fields: [siteId], references: [id])
   leader               Employee              @relation("ShiftGroupLeader", fields: [leaderEmployeeId], references: [id])
   members              ShiftGroupMember[]
   schedules            ShiftGroupSchedule[]
@@ -2567,7 +3296,7 @@ model GoldShiftAllocation {
   expenses         GoldShiftExpense[]
   workerShares     GoldShiftWorkerShare[]
   pours            GoldPour[]
-  employeePayments EmployeePayment[]
+  settlementOrigins SettlementLineOrigin[]
 
   @@unique([siteId, date, shift, shiftGroupId])
   @@index([siteId, date])
@@ -3718,6 +4447,21 @@ enum PostingBasis {
   GROSS
   DEDUCTIONS
   ALLOWANCES
+  // Payroll statutory bases. Each is the sum of the `PayrollLineComponent` rows
+  // carrying the matching `statutoryKey`, so the ledger balance on a payable
+  // account and the return filed against it are summed from the same rows.
+  PAYE
+  AIDS_LEVY
+  NSSA_EMPLOYEE
+  NSSA_EMPLOYER
+  ZIMDEF
+  STANDARDS_DEVELOPMENT_LEVY
+  NEC_EMPLOYEE
+  NEC_EMPLOYER
+  /// Employee deductions that are not statutory — pension, union, advances.
+  OTHER_DEDUCTIONS
+  /// Everything the employer owes on top of the wage, summed.
+  EMPLOYER_CONTRIBUTIONS
 }
 
 enum AllocationType {

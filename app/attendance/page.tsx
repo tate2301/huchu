@@ -423,7 +423,7 @@ export default function AttendancePage() {
                   setFormData((prev) => ({ ...prev, shiftGroupId: value }));
                   resetShiftContext();
                 }}
-                onAddOption={() => router.push("/human-resources/shift-groups")}
+                onAddOption={() => router.push("/people/rosters")}
                 addLabel="Manage shift groups"
               />
             )}

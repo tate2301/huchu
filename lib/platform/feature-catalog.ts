@@ -17,6 +17,7 @@ export type FeatureDomain =
   | "crm"
   | "portal"
   | "reports"
+  | "settlements"
   | "admin";
 
 export interface FeatureCatalogEntry {
@@ -111,6 +112,7 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "hr.leave", name: "Leave", description: "Leave types, entitlements, requests and the public holiday calendar.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
   f({ key: "hr.incidents", name: "HR Incidents", description: "HR incident management.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
   f({ key: "hr.disciplinary-actions", name: "Disciplinary Actions", description: "Disciplinary action lifecycle.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
   f({ key: "hr.compensation-rules", name: "Compensation Rules", description: "Compensation profiles/rules/templates.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
@@ -118,7 +120,14 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "hr.payroll", name: "Payroll", description: "Payroll periods and runs.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 5 }),
   f({ key: "hr.disbursements", name: "Disbursements", description: "Cash disbursement batch operations.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
   f({ key: "hr.approvals-history", name: "Approvals History", description: "Approval history and audit approvals.", domain: "hr", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "hr.settlements", name: "HR Settlements", description: "Settlement workflows in HR for gold, scrap, retail, commission, dividends, and other variable settlements.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  // Zimbabwe statutory payroll. Separate keys because they are separately
+  // sellable: a company outside Zimbabwe wants the payroll engine without the
+  // ZIMRA returns, and a company that keeps its own books wants the payslips
+  // without giving every employee a login.
+  f({ key: "hr.statutory-tables", name: "Statutory Tables", description: "Effective-dated PAYE bands, NSSA rates, levies, tax credits and NEC agreements.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
+  f({ key: "hr.statutory-returns", name: "Statutory Returns", description: "Monthly PAYE (P2) and NSSA contribution schedules, reconciled against the ledger.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 4 }),
+  f({ key: "hr.payslips", name: "Payslips", description: "Per-employee payslips showing every stage of the calculation.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "hr.employee-self-service", name: "Employee Self-Service", description: "Lets an employee view their own payslips and nobody else's.", domain: "hr", defaultEnabled: false, isBillable: true, monthlyPrice: 1 }),
 
   f({ key: "accounting.core", name: "Accounting Core", description: "Accounting module dashboard and shared setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.chart-of-accounts", name: "Chart of Accounts", description: "Chart of accounts and account setup.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -169,6 +178,14 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "schools.portal.parent", name: "Parent Portal", description: "Parent portal access for student progress and finance visibility.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.portal.student", name: "Student Portal", description: "Student portal access for own timetable, attendance, and results.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.portal.teacher", name: "Teacher Portal", description: "Teacher portal access for registers, marks, and moderation tasks.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
+
+  // Commodity and variable settlements: paying somebody for a quantity of
+  // something rather than for a period of employment. Its own domain, not HR's,
+  // because a payroll module has to be sellable without it and a mine's site
+  // manager who approves a settlement has no business in the salary bill.
+  f({ key: "settlements.core", name: "Settlements", description: "Settlement intakes, runs and payouts for quantity-based pay.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
+  f({ key: "settlements.gold", name: "Gold Settlements", description: "Settling gold shift allocations by weight, valued at the price agreed upstream.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
+  f({ key: "settlements.scrap", name: "Scrap Settlements", description: "Settling scrap balances by weight.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
 
   f({ key: "autos.core", name: "Auto Sales Core", description: "Auto sales module landing and shared setup.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "autos.inventory", name: "Vehicle Inventory", description: "Vehicle stock catalog and inventory lifecycle.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -276,7 +293,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     description: "Employee directory and workforce base records.",
     monthlyPrice: 0,
     additionalSiteMonthlyPrice: 0,
-    features: ["hr.employees"],
+    features: ["hr.employees", "hr.leave"],
   },
   {
     code: "ADDON_GOLD_CORE",
@@ -335,9 +352,46 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "hr.disciplinary-actions",
       "hr.salaries",
       "hr.approvals-history",
-      "hr.settlements",
+      // `hr.settlements` used to ride in here, so every payroll customer was sold
+      // a gold-and-scrap settlement surface whether or not they had a commodity.
+      // Settlements are their own addon now.
       "admin.payroll-config",
     ],
+  },
+  {
+    // The bolt-on. Everything Zimbabwe-specific, addable to any existing
+    // workspace — including a school, which is the concrete case: a school that
+    // buys this pays its teachers from the same `Employee` rows the timetable
+    // already uses, with no bridging code.
+    //
+    // Separate from ADDON_ADVANCED_PAYROLL rather than folded into it, because a
+    // company outside Zimbabwe wants the payroll engine without the ZIMRA
+    // returns.
+    code: "ADDON_ZIMBABWE_PAYROLL",
+    name: "Zimbabwe Statutory Payroll",
+    description:
+      "PAYE, NSSA, AIDS levy, ZIMDEF and NEC handling with the monthly P2 and NSSA returns.",
+    monthlyPrice: 39,
+    additionalSiteMonthlyPrice: 5,
+    features: [
+      "hr.statutory-tables",
+      "hr.statutory-returns",
+      "hr.payslips",
+      "hr.employee-self-service",
+    ],
+  },
+  {
+    // Paying for a quantity rather than a period. Sold separately from payroll
+    // because most payroll customers have no commodity to settle, and sold as one
+    // addon covering every source because the intake, the run and the payout are
+    // the same machinery whether the quantity is grams or kilos.
+    code: "ADDON_COMMODITY_SETTLEMENTS",
+    name: "Commodity Settlements",
+    description:
+      "Settling gold, scrap, commission and other quantity-based pay, with its own approval chain and payouts.",
+    monthlyPrice: 29,
+    additionalSiteMonthlyPrice: 5,
+    features: ["settlements.core", "settlements.gold", "settlements.scrap"],
   },
   {
     code: "ADDON_GOLD_ADVANCED",

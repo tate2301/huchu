@@ -4,6 +4,7 @@ import {
   successResponse,
   errorResponse,
 } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
 import { Prisma } from "@prisma/client"
 
@@ -12,6 +13,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "view")
+    if (denial) return errorResponse(denial, 403)
     if (session.user.role !== "SUPERADMIN") {
       return errorResponse("Only superadmins can link user accounts to employees", 403)
     }

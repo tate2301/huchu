@@ -3,13 +3,7 @@ import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
-import {
-  canTransitionStandardWorkflow,
-  createApprovalAction,
-  ensureApproverRole,
-  isTwoStepActionAllowed,
-  normalizeWorkflowNote,
-} from "@/lib/hr-payroll"
+import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole, isTwoStepActionAllowed, normalizeWorkflowNote } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 const rejectSchema = z.object({

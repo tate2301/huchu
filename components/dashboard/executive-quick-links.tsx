@@ -101,7 +101,7 @@ const LINK_ICON_BY_HREF_PREFIX: Array<{ prefix: string; icon: IconKey }> = [
   { prefix: "/gold/transit/dispatches", icon: "gold-dispatch" },
   { prefix: "/gold", icon: "gold" },
   { prefix: "/stores", icon: "stores" },
-  { prefix: "/human-resources", icon: "workforce" },
+  { prefix: "/people", icon: "workforce" },
   { prefix: "/accounting", icon: "finance" },
   { prefix: "/maintenance", icon: "maintenance" },
   { prefix: "/compliance", icon: "compliance" },

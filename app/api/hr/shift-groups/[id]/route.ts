@@ -7,13 +7,14 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 const updateShiftGroupSchema = z.object({
   name: z.string().trim().min(1).max(120).optional(),
   code: z.string().trim().max(40).nullable().optional(),
-  siteId: z.string().uuid().optional(),
+  siteId: z.string().uuid().nullable().optional(),
   leaderEmployeeId: z.string().uuid().optional(),
   memberIds: z.array(z.string().uuid()).optional(),
   isActive: z.boolean().optional(),
@@ -27,6 +28,8 @@ export async function GET(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "view")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     const group = await prisma.shiftGroup.findUnique({
@@ -67,6 +70,8 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to update shift groups", 403)
@@ -135,7 +140,7 @@ export async function PATCH(
         data: {
           name: validated.name,
           code: validated.code === null ? null : (validated.code?.trim() || undefined),
-          siteId: validated.siteId,
+          siteId: validated.siteId === undefined ? undefined : (validated.siteId ?? null),
           leaderEmployeeId: validated.leaderEmployeeId,
           isActive: validated.isActive,
         },
@@ -260,6 +265,8 @@ export async function DELETE(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to manage shift groups", 403)

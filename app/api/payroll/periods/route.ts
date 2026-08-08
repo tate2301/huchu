@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import type { PayrollCycle, RunDomain } from "@prisma/client"
+import type { PayrollCycle } from "@prisma/client"
 import { z } from "zod"
 import {
   errorResponse,
@@ -8,19 +8,13 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import {
-  deriveCyclePeriodKey,
-  deriveCycleWindow,
-  ensureApproverRole,
-  monthPeriodKey,
-  nextCycleAnchor,
-} from "@/lib/hr-payroll"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { deriveCyclePeriodKey, deriveCycleWindow, monthPeriodKey, nextCycleAnchor } from "@/lib/workflow/periods"
 import { ensureAutoPeriods } from "@/lib/payroll-periods"
 
 const periodSchema = z.object({
-  domain: z.enum(["PAYROLL", "GOLD_PAYOUT"]).optional(),
-  payoutSource: z.enum(["GOLD", "SCRAP", "COMMISSION", "OTHER"]).optional(),
   periodKey: z.string().regex(/^\d{4}-\d{2}(-H[12])?$/).optional(),
   cycle: z.enum(["MONTHLY", "FORTNIGHTLY"]).optional(),
   anchorDate: z
@@ -61,9 +55,6 @@ function parsePeriodKeyToDate(periodKey: string) {
 }
 
 type PeriodDraft = {
-  domain: RunDomain
-  payoutSource?: "GOLD" | "SCRAP" | "COMMISSION" | "OTHER"
-  scopeKey: string
   periodKey: string
   cycle: PayrollCycle
   startDate: Date
@@ -81,6 +72,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "view")
+    if (denial) return errorResponse(denial, 403)
     await ensureAutoPeriods(prisma, {
       companyId: session.user.companyId,
       createdById: session.user.id,
@@ -88,8 +81,6 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const { page, limit, skip } = getPaginationParams(request)
 
-    const domain = searchParams.get("domain")
-    const payoutSource = searchParams.get("payoutSource")
     const status = searchParams.get("status")
     const cycle = searchParams.get("cycle")
     const periodPurpose = searchParams.get("periodPurpose")
@@ -100,10 +91,6 @@ export async function GET(request: NextRequest) {
 
     const where: Record<string, unknown> = {
       companyId: session.user.companyId,
-    }
-    if (domain === "PAYROLL" || domain === "GOLD_PAYOUT") where.domain = domain
-    if (payoutSource === "GOLD" || payoutSource === "SCRAP" || payoutSource === "COMMISSION" || payoutSource === "OTHER") {
-      where.payoutSource = payoutSource
     }
     if (status) where.status = status
     if (cycle) where.cycle = cycle
@@ -123,9 +110,6 @@ export async function GET(request: NextRequest) {
       where.OR = [
         { periodKey: { contains: search, mode: "insensitive" } },
         { notes: { contains: search, mode: "insensitive" } },
-        ...(normalizedSearch === "PAYROLL" || normalizedSearch === "GOLD_PAYOUT"
-          ? [{ domain: normalizedSearch }]
-          : []),
         ...(normalizedSearch === "MONTHLY" || normalizedSearch === "FORTNIGHTLY"
           ? [{ cycle: normalizedSearch }]
           : []),
@@ -176,6 +160,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "create")
+    if (denial) return errorResponse(denial, 403)
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create payroll periods", 403)
     }
@@ -184,20 +170,14 @@ export async function POST(request: NextRequest) {
 
     const company = await prisma.company.findUnique({
       where: { id: session.user.companyId },
-      select: { payrollCycle: true, goldPayoutCycle: true },
+      select: { payrollCycle: true },
     })
     if (!company) {
       return errorResponse("Company not found", 404)
     }
 
-    const domain = validated.domain ?? "PAYROLL"
-    const payoutSource =
-      domain === "GOLD_PAYOUT" ? (validated.payoutSource ?? "GOLD") : undefined
-    const scopeKey = payoutSource ?? domain
     const inferredCycle = validated.periodKey?.includes("-H") ? "FORTNIGHTLY" : undefined
-    const defaultCycle =
-      domain === "GOLD_PAYOUT" ? company.goldPayoutCycle : company.payrollCycle
-    const cycle = validated.cycle ?? inferredCycle ?? defaultCycle
+    const cycle = validated.cycle ?? inferredCycle ?? company.payrollCycle
     const periodPurpose = validated.periodPurpose ?? "STANDARD"
     const employeeScopeJson =
       validated.employeeScopeIds && validated.employeeScopeIds.length > 0
@@ -220,9 +200,6 @@ export async function POST(request: NextRequest) {
       }
 
       drafts.push({
-        domain,
-        payoutSource,
-        scopeKey,
         periodKey:
           validated.periodKey ??
           (cycle === "FORTNIGHTLY"
@@ -245,9 +222,6 @@ export async function POST(request: NextRequest) {
       for (let i = 0; i < count; i += 1) {
         const window = deriveCycleWindow(anchor, cycle)
         drafts.push({
-          domain,
-          payoutSource,
-          scopeKey,
           periodKey: deriveCyclePeriodKey(window.startDate, cycle),
           cycle,
           startDate: window.startDate,
@@ -265,29 +239,18 @@ export async function POST(request: NextRequest) {
 
     const uniqueDrafts = drafts.filter(
       (draft, index, list) =>
-        list.findIndex(
-          (item) =>
-            item.domain === draft.domain &&
-            item.periodKey === draft.periodKey &&
-            item.scopeKey === draft.scopeKey,
-        ) === index,
+        list.findIndex((item) => item.periodKey === draft.periodKey) === index,
     )
-    const keys = uniqueDrafts.map((draft) => `${draft.scopeKey}:${draft.periodKey}`)
+    const keys = uniqueDrafts.map((draft) => draft.periodKey)
     const existing = await prisma.payrollPeriod.findMany({
       where: {
         companyId: session.user.companyId,
-        domain,
-        OR: uniqueDrafts.map((draft) => ({
-          periodKey: draft.periodKey,
-          scopeKey: draft.scopeKey,
-        })),
+        periodKey: { in: keys },
       },
-      select: { periodKey: true, scopeKey: true },
+      select: { periodKey: true },
     })
-    const existingKeys = new Set(existing.map((row) => `${row.scopeKey}:${row.periodKey}`))
-    const toCreate = uniqueDrafts.filter(
-      (draft) => !existingKeys.has(`${draft.scopeKey}:${draft.periodKey}`),
-    )
+    const existingKeys = new Set(existing.map((row) => row.periodKey))
+    const toCreate = uniqueDrafts.filter((draft) => !existingKeys.has(draft.periodKey))
 
     if (toCreate.length === 0) {
       return errorResponse("Payroll periods already exist for the requested cycle window", 409, {
@@ -300,9 +263,6 @@ export async function POST(request: NextRequest) {
         prisma.payrollPeriod.create({
           data: {
             companyId: session.user.companyId,
-            domain: draft.domain,
-            payoutSource: draft.payoutSource,
-            scopeKey: draft.scopeKey,
             periodKey: draft.periodKey,
             cycle: draft.cycle,
             startDate: draft.startDate,

@@ -59,19 +59,6 @@ export async function GET(
             },
           },
         },
-        employeePayments: {
-          select: {
-            id: true,
-            employeeId: true,
-            amountUsd: true,
-            goldWeightGrams: true,
-            status: true,
-            dueDate: true,
-            employee: {
-              select: { name: true, employeeId: true, passportPhotoUrl: true },
-            },
-          },
-        },
       },
     })
 

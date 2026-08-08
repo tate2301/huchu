@@ -8,7 +8,8 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 function normalizeShiftLabel(value: string) {
@@ -42,6 +43,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const { searchParams } = new URL(request.url)
     const siteId = searchParams.get("siteId")
@@ -119,6 +122,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "create")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create shift group schedules", 403)

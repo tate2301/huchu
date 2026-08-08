@@ -7,9 +7,9 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
-
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
 const ruleSchema = z.object({
   name: z.string().trim().min(1).max(200),
   type: z.enum(["ALLOWANCE", "DEDUCTION"]),
@@ -29,6 +29,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const { searchParams } = new URL(request.url)
     const { page, limit, skip } = getPaginationParams(request)
@@ -82,6 +84,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "create")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create compensation rules", 403)

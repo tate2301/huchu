@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { PostingBasis } from "@prisma/client";
 import { startOfMonth, subDays } from "date-fns";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -96,7 +97,10 @@ type PostingRuleSignature = {
   sourceType: string;
   lines: Array<{
     direction: "DEBIT" | "CREDIT";
-    basis: "AMOUNT" | "NET" | "TAX" | "GROSS" | "DEDUCTIONS" | "ALLOWANCES";
+    // `PostingBasis` rather than a hand-written union: the enum grew payroll's
+    // statutory bases, and a literal list here would have to be edited every
+    // time it grows again, for no benefit — this code only groups accounts.
+    basis: PostingBasis;
     account: AccountSignature;
   }>;
 };

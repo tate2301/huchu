@@ -12,6 +12,12 @@ import {
   isSchoolDocumentSourceKey,
   SCHOOL_DOCUMENT_ACCESS,
 } from "@/lib/documents/schools-sources";
+import {
+  canRenderPayslip,
+  HR_DOCUMENT_ACCESS,
+  isHrDocumentSourceKey,
+} from "@/lib/documents/hr-sources";
+import { isApproverRole } from "@/lib/workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 
@@ -41,6 +47,15 @@ function resolveFeatureKeys(sourceKey: string): string[] {
   // see below.
   if (isSchoolDocumentSourceKey(sourceKey)) {
     return [SCHOOL_DOCUMENT_ACCESS[sourceKey].feature];
+  }
+  // A payslip. Either key opens the door, because an employee fetching their own
+  // has `hr.employee-self-service` and not `hr.payslips` — the row-level check
+  // below is what keeps them to their own.
+  if (isHrDocumentSourceKey(sourceKey)) {
+    const access = HR_DOCUMENT_ACCESS[sourceKey];
+    return access.selfServiceFeature
+      ? [access.feature, access.selfServiceFeature]
+      : [access.feature];
   }
   return [];
 }
@@ -90,6 +105,28 @@ export async function POST(request: NextRequest) {
           `Your role cannot view ${resource.replace("schools.", "")}`,
           403,
         );
+      }
+    }
+
+    // A payslip is one named person's pay. The feature check above says the
+    // tenant has payroll; this says whose payslip the caller may see. HR staff
+    // see any; everybody else sees their own and nothing else.
+    if (isHrDocumentSourceKey(typedInput.sourceKey)) {
+      if (!typedInput.recordId) {
+        return errorResponse("A payslip needs the payroll line it belongs to", 400);
+      }
+      const decision = await canRenderPayslip({
+        companyId: session.user.companyId,
+        lineItemId: typedInput.recordId,
+        userId: session.user.id,
+        hasPayrollAccess:
+          isApproverRole(session.user.role) &&
+          (await hasFeature(session.user.companyId, HR_DOCUMENT_ACCESS["hr.payslip"].feature)),
+      });
+      if (!decision.allowed) {
+        // 404, not 403: a 403 would confirm the payslip exists, which lets
+        // somebody map the workforce by probing ids.
+        return errorResponse(decision.reason, 404);
       }
     }
 

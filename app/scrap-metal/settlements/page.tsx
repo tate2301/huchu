@@ -66,13 +66,35 @@ type BalanceRecord = {
   };
 };
 
-type PayoutBatch = {
+/**
+ * A scrap settlement intake — what is owed to the operators who delivered.
+ *
+ * Amounts arrive as strings: they are `Decimal(14,2)` in the database and
+ * `serializeDecimals` keeps them exact rather than routing money through a
+ * float. `toAmount` is the only place they become numbers, and only for display
+ * arithmetic.
+ */
+type ScrapIntake = {
   id: string;
   label: string;
   workflowStatus: string;
   dueDate: string;
-  items: Array<{ id: string; amount: number; employee: { id: string; name: string; employeeId: string } }>;
+  currency: string;
+  items: Array<{
+    id: string;
+    amount: string;
+    employee: { id: string; name: string; employeeId: string };
+  }>;
 };
+
+function toAmount(value: string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function intakeValue(intake: ScrapIntake) {
+  return intake.items.reduce((sum, item) => sum + toAmount(item.amount), 0);
+}
 
 type EmployeeOption = { id: string; name: string; employeeId: string };
 type BatchItemDraft = { employeeId: string; amount: string; notes: string };
@@ -223,8 +245,9 @@ export default function ScrapSettlementsPage() {
     queryFn: () => fetchJson<{ data: BalanceRecord[] }>("/api/scrap-metal/employee-balances?limit=500&nonZero=true"),
   });
   const batchesQuery = useQuery({
-    queryKey: ["scrap-payout-batches"],
-    queryFn: () => fetchJson<{ data: PayoutBatch[] }>("/api/hr/payout-batches?source=SCRAP&limit=500"),
+    queryKey: ["scrap-settlement-intakes"],
+    queryFn: () =>
+      fetchJson<{ data: ScrapIntake[] }>("/api/settlements/intakes?source=SCRAP&limit=500"),
   });
   const employeesQuery = useQuery({
     queryKey: ["employees", "scrap-settlements"],
@@ -242,7 +265,7 @@ export default function ScrapSettlementsPage() {
 
   const createBatch = useMutation({
     mutationFn: async () =>
-      fetchJson("/api/hr/payout-batches", {
+      fetchJson("/api/settlements/intakes", {
         method: "POST",
         body: JSON.stringify({
           source: "SCRAP",
@@ -262,16 +285,20 @@ export default function ScrapSettlementsPage() {
         }),
       }),
     onSuccess: () => {
-      toast({ title: "Settlement batch created", variant: "success" });
+      toast({
+        title: "Settlement intake recorded",
+        description: "Nothing is owed until it is approved and computed into a run.",
+        variant: "success",
+      });
       setCreateOpen(false);
       setLabel("");
       setNotes("");
       setItems([{ employeeId: "", amount: "", notes: "" }]);
-      queryClient.invalidateQueries({ queryKey: ["scrap-payout-batches"] });
+      queryClient.invalidateQueries({ queryKey: ["scrap-settlement-intakes"] });
     },
     onError: (error) => {
       toast({
-        title: "Unable to create settlement batch",
+        title: "Unable to record the settlement intake",
         description: getApiErrorMessage(error),
         variant: "destructive",
       });
@@ -322,10 +349,7 @@ export default function ScrapSettlementsPage() {
   const totalNegativeBalance = Math.abs(
     balances.filter((balance) => balance.balance < 0).reduce((sum, balance) => sum + balance.balance, 0),
   );
-  const totalBatchValue = batches.reduce(
-    (sum, batch) => sum + batch.items.reduce((itemSum, item) => itemSum + item.amount, 0),
-    0,
-  );
+  const totalBatchValue = batches.reduce((sum, batch) => sum + intakeValue(batch), 0);
   const averageBatchValue = batches.length > 0 ? totalBatchValue / batches.length : 0;
   const balanceChartRows = useMemo(
     () =>
@@ -342,7 +366,7 @@ export default function ScrapSettlementsPage() {
     for (const batch of batches) {
       const key = batch.dueDate.slice(0, 10);
       const current = grouped.get(key) ?? { amount: 0, count: 0 };
-      current.amount += batch.items.reduce((sum, item) => sum + item.amount, 0);
+      current.amount += intakeValue(batch);
       current.count += 1;
       grouped.set(key, current);
     }
@@ -356,11 +380,11 @@ export default function ScrapSettlementsPage() {
       .sort((left, right) => left.label.localeCompare(right.label));
   }, [batches]);
 
-  const batchColumns = useMemo<ColumnDef<PayoutBatch>[]>(
+  const batchColumns = useMemo<ColumnDef<ScrapIntake>[]>(
     () => [
       {
         id: "label",
-        header: "Batch",
+        header: "Intake",
         accessorFn: (row) => row.label,
         cell: ({ row }) => (
           <div>
@@ -390,7 +414,7 @@ export default function ScrapSettlementsPage() {
         header: "Value",
         cell: ({ row }) => (
           <NumericCell>
-            USD {row.original.items.reduce((sum, item) => sum + item.amount, 0).toFixed(2)}
+            {row.original.currency} {intakeValue(row.original).toFixed(2)}
           </NumericCell>
         ),
         size: 140,
@@ -401,7 +425,7 @@ export default function ScrapSettlementsPage() {
 
   const views = [
     { id: "balances", label: "Balances", count: balances.length },
-    { id: "batches", label: "Batches", count: batches.length },
+    { id: "batches", label: "Intakes", count: batches.length },
   ];
 
   const loadError = balancesQuery.error || batchesQuery.error;
@@ -462,7 +486,7 @@ export default function ScrapSettlementsPage() {
               </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem asChild>
-                <Link href="/human-resources/payouts?source=SCRAP">Open in HR</Link>
+                <Link href="/gold/settlement/approvals?source=SCRAP">Open approvals</Link>
               </DropdownMenuItem>
               <DropdownMenuItem asChild>
                 <Link href="/scrap-metal/reports">Open reports</Link>
@@ -512,7 +536,7 @@ export default function ScrapSettlementsPage() {
             </div>
             <div className="mt-3 grid gap-2 text-[11px] sm:grid-cols-2">
               <div>
-                <div className="text-[var(--text-muted)]">Batches</div>
+                <div className="text-[var(--text-muted)]">Intakes</div>
                 <div className="mt-0.5 font-mono text-[var(--text-strong)]">{batches.length}</div>
               </div>
               <div>
@@ -624,7 +648,7 @@ export default function ScrapSettlementsPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search batch"
             tableClassName="text-sm"
-            emptyState={batchesQuery.isLoading ? "Loading batches..." : "No batches yet"}
+            emptyState={batchesQuery.isLoading ? "Loading intakes..." : "Nothing owed yet"}
             mobileCardRenderer={({ row: batch }) => (
               <div className="bg-[var(--surface-muted)] px-4 py-3">
                 <div className="flex items-start justify-between gap-3">
@@ -637,7 +661,7 @@ export default function ScrapSettlementsPage() {
                   </Badge>
                 </div>
                 <div className="mt-2 flex items-center justify-between text-sm">
-                  <span className="font-mono font-semibold">{formatMoney(batch.items.reduce((sum, item) => sum + item.amount, 0))}</span>
+                  <span className="font-mono font-semibold">{formatMoney(intakeValue(batch))}</span>
                 </div>
               </div>
             )}
@@ -845,7 +869,7 @@ export default function ScrapSettlementsPage() {
                       </div>
                     </div>
                     <div className="px-4 py-3">
-                      <div className="text-[11px] text-muted-foreground">Settlement batches</div>
+                      <div className="text-[11px] text-muted-foreground">Settlement intakes</div>
                       <div className="mt-1.5 font-mono text-[1.35rem] font-semibold leading-[1.08]">
                         {balanceHistoryQuery.data.settlements.length}
                       </div>
@@ -921,7 +945,7 @@ export default function ScrapSettlementsPage() {
                 </section>
 
                 <section className="space-y-2.5">
-                  <h3 className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-strong)]">Settlement batches</h3>
+                  <h3 className="text-[13px] font-semibold tracking-[0.01em] text-[var(--text-strong)]">Settlement intakes</h3>
                   <div className="surface-framed overflow-hidden rounded-2xl bg-[var(--surface-muted)]">
                     {balanceHistoryQuery.data.settlements.map((settlement, index) => (
                       <article

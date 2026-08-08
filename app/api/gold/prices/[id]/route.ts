@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { ensureApproverRole } from "@/lib/hr-payroll";
+import { ensureApproverRole } from "@/lib/workflow/approvals";
 import { prisma } from "@/lib/prisma";
 
 const updateGoldPriceSchema = z.object({

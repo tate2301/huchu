@@ -8,7 +8,7 @@ import {
   validateSession,
 } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
 
 const departmentSchema = z.object({

@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useRef, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import { addDays, format, isAfter, isBefore } from "date-fns";
+import { addDays, format } from "date-fns";
 import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
@@ -30,23 +30,59 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StatusChip } from "@/components/ui/status-chip";
-import { fetchEmployeePayments, fetchGoldShiftAllocations } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchGoldShiftAllocations } from "@/lib/api";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 
+/**
+ * One worker's share of one shift, and how far its settlement has got.
+ *
+ * `settlement` is null until a settlement run picks the allocation up. When it
+ * is set, `lineNet` and `linePaid` belong to the **line**, not to this shift: a
+ * line aggregates, so six shifts in a month settle as one payment. Pro-rating
+ * that payment back across the six would produce a per-shift "paid" figure
+ * nobody could reconcile against a receipt, so the screen reports the line's
+ * figure and says which run it is.
+ */
 type WorkerPayoutDetail = {
   employeeId: string;
   employeeName: string;
   code: string;
   shareValueUsd: number;
-  status: "DUE" | "PARTIAL" | "PAID";
+  settlement: {
+    runCode: string;
+    runStatus: string;
+    lineNet: number;
+    linePaid: number;
+    status: "DUE" | "PARTIAL" | "PAID";
+    paidAt?: Date;
+  } | null;
   dueDate: Date;
-  paidAmountUsd: number;
-  paidAt?: Date;
 };
+
+type SettlementOrigin = {
+  goldShiftAllocationId: string | null;
+  amount: string;
+  line: {
+    employee: { id: string; employeeId: string; name: string };
+    netAmount: string;
+    currency: string;
+  };
+  run: { code: string; status: string; dueDate: string };
+  payment: {
+    paidAmount: string | null;
+    paidAt: string | null;
+    status: string;
+  } | null;
+};
+
+function toNumber(value: string | null | undefined) {
+  const parsed = Number(value ?? 0);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
 
 type ShiftPayoutSummary = {
   allocationId: string;
@@ -64,39 +100,21 @@ type ShiftPayoutSummary = {
   workers: WorkerPayoutDetail[];
 };
 
-function toDateOnly(value: string | Date) {
-  const date = value instanceof Date ? value : new Date(value);
-  return format(date, "yyyy-MM-dd");
-}
-
-function findPaymentForShiftWorker(
-  payments: Array<{
-    employeeId: string;
-    periodStart: string;
-    periodEnd: string;
-    dueDate: string;
-    status: "DUE" | "PARTIAL" | "PAID";
-    paidAmount?: number | null;
-    paidAmountUsd?: number | null;
-    paidAt?: string | null;
-  }>,
-  employeeId: string,
-  allocationDate: Date,
-) {
-  const allocationKey = toDateOnly(allocationDate);
-  const exact = payments.find(
-    (payment) =>
-      payment.employeeId === employeeId &&
-      toDateOnly(payment.periodStart) === allocationKey &&
-      toDateOnly(payment.periodEnd) === allocationKey,
-  );
-  if (exact) return exact;
-  return payments.find((payment) => {
-    if (payment.employeeId !== employeeId) return false;
-    const start = new Date(payment.periodStart);
-    const end = new Date(payment.periodEnd);
-    return !isBefore(allocationDate, start) && !isAfter(allocationDate, end);
-  });
+/**
+ * `<allocationId>:<employeeId>` → what settled it.
+ *
+ * Replaces a date-range search. The predecessor looked for an
+ * `EmployeePayment` whose period contained the allocation date, falling back to
+ * a fuzzier overlap test — so a worker settled twice inside one period matched
+ * whichever row came first in the array.
+ */
+function indexOriginsByAllocationWorker(origins: SettlementOrigin[]) {
+  const map = new Map<string, SettlementOrigin>();
+  for (const origin of origins) {
+    if (!origin.goldShiftAllocationId) continue;
+    map.set(`${origin.goldShiftAllocationId}:${origin.line.employee.id}`, origin);
+  }
+  return map;
 }
 
 export default function GoldSettlementPayoutsPage() {
@@ -112,10 +130,10 @@ export default function GoldSettlementPayoutsPage() {
         ?.enabledFeatures,
     [session],
   );
-  const canOpenHrPayouts = useMemo(
+  const canOpenSettlementApprovals = useMemo(
     () =>
       canViewHrefWithEnabledFeatures(
-        "/human-resources/payouts",
+        "/gold/settlement/approvals",
         enabledFeatures,
       ),
     [enabledFeatures],
@@ -135,7 +153,6 @@ export default function GoldSettlementPayoutsPage() {
     start.setDate(start.getDate() - windowWeeks * 7);
     return start;
   }, [windowWeeks]);
-  const windowEndDate = new Date();
 
   const {
     data: shiftAllocationsData,
@@ -159,21 +176,23 @@ export default function GoldSettlementPayoutsPage() {
     isLoading: paymentsLoading,
     error: paymentsError,
   } = useQuery({
-    queryKey: ["employee-payments", "gold", "by-shift", payoutWindowWeeks],
+    queryKey: ["settlement-origins", "gold", payoutWindowWeeks],
     queryFn: () =>
-      fetchEmployeePayments({
-        type: "IRREGULAR",
-        payoutSource: "GOLD",
-        startDate: windowStartDate.toISOString(),
-        limit: 1000,
-      }),
+      fetchJson<{ data: SettlementOrigin[] }>(
+        `/api/settlements/origins?source=GOLD&startDate=${windowStartDate
+          .toISOString()
+          .slice(0, 10)}`,
+      ),
   });
 
   const shiftAllocations = useMemo(
     () => shiftAllocationsData?.data ?? [],
     [shiftAllocationsData],
   );
-  const goldPayments = useMemo(() => paymentsData?.data ?? [], [paymentsData]);
+  const settledByShiftWorker = useMemo(
+    () => indexOriginsByAllocationWorker(paymentsData?.data ?? []),
+    [paymentsData],
+  );
 
   const shiftPayouts = useMemo<ShiftPayoutSummary[]>(() => {
     return shiftAllocations
@@ -186,31 +205,45 @@ export default function GoldSettlementPayoutsPage() {
         );
 
         const workers = allocation.workerShares.map((share) => {
-          const payment = findPaymentForShiftWorker(
-            goldPayments,
-            share.employee.id,
-            allocationDate,
+          const origin = settledByShiftWorker.get(
+            `${allocation.id}:${share.employee.id}`,
           );
 
           return {
             employeeId: share.employee.id,
             employeeName: share.employee.name,
             code: share.employee.employeeId,
-            shareValueUsd:
-              share.shareValueUsd ??
-              share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0),
-            status: payment?.status ?? "DUE",
-            dueDate: payment ? new Date(payment.dueDate) : expectedDueDate,
-            paidAmountUsd: payment?.paidAmountUsd ?? payment?.paidAmount ?? 0,
-            paidAt: payment?.paidAt ? new Date(payment.paidAt) : undefined,
+            // The settled figure when there is one — it is what the run froze,
+            // and it can differ from the allocation's own arithmetic if the rate
+            // moved between the shift and the settlement.
+            shareValueUsd: origin
+              ? toNumber(origin.amount)
+              : (share.shareValueUsd ??
+                share.shareWeight * (allocation.goldPriceUsdPerGram ?? 0)),
+            settlement: origin
+              ? {
+                  runCode: origin.run.code,
+                  runStatus: origin.run.status,
+                  lineNet: toNumber(origin.line.netAmount),
+                  linePaid: toNumber(origin.payment?.paidAmount),
+                  status: (origin.payment?.status ?? "DUE") as
+                    | "DUE"
+                    | "PARTIAL"
+                    | "PAID",
+                  paidAt: origin.payment?.paidAt
+                    ? new Date(origin.payment.paidAt)
+                    : undefined,
+                }
+              : null,
+            dueDate: origin ? new Date(origin.run.dueDate) : expectedDueDate,
           } satisfies WorkerPayoutDetail;
         });
 
         const paidCount = workers.filter(
-          (worker) => worker.status === "PAID",
+          (worker) => worker.settlement?.status === "PAID",
         ).length;
         const partialCount = workers.filter(
-          (worker) => worker.status === "PARTIAL",
+          (worker) => worker.settlement?.status === "PARTIAL",
         ).length;
         const dueCount = workers.length - paidCount - partialCount;
 
@@ -233,7 +266,7 @@ export default function GoldSettlementPayoutsPage() {
         } satisfies ShiftPayoutSummary;
       })
       .sort((a, b) => b.date.getTime() - a.date.getTime());
-  }, [goldPayments, shiftAllocations, windowWeeks]);
+  }, [settledByShiftWorker, shiftAllocations, windowWeeks]);
 
   const totalWorkerValueUsd = useMemo(
     () =>
@@ -407,43 +440,66 @@ export default function GoldSettlementPayoutsPage() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => (
-          <StatusChip
-            status={
-              row.original.status === "PAID"
-                ? "passing"
-                : row.original.status === "PARTIAL"
-                  ? "in_progress"
-                  : "pending"
-            }
-            label={row.original.status}
-          />
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
+        cell: ({ row }) => {
+          const settlement = row.original.settlement;
+          if (!settlement) {
+            return <StatusChip status="pending" label="Not settled" />;
+          }
+          return (
+            <div>
+              <StatusChip
+                status={
+                  settlement.status === "PAID"
+                    ? "passing"
+                    : settlement.status === "PARTIAL"
+                      ? "in_progress"
+                      : "pending"
+                }
+                label={settlement.status}
+              />
+              <div className="mt-1 font-mono text-[10px] text-muted-foreground">
+                {settlement.runCode} · {settlement.runStatus.toLowerCase()}
+              </div>
+            </div>
+          );
+        },
+        size: 140,
+        minSize: 140,
+        maxSize: 140,
       },
       {
-        id: "paidAmountUsd",
-        header: "Paid",
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.paidAmountUsd > 0
-              ? `$${Number(row.original.paidAmountUsd).toFixed(2)}`
-              : "-"}
-          </NumericCell>
-        ),
-        size: 120,
-        minSize: 120,
-        maxSize: 120,
+        // The line's, across every shift it settled — not this shift's alone.
+        // Splitting one payment back across six shifts would print a number that
+        // matches no receipt.
+        id: "linePaid",
+        header: "Paid on the run",
+        cell: ({ row }) => {
+          const settlement = row.original.settlement;
+          if (!settlement) return <NumericCell>-</NumericCell>;
+          return (
+            <div>
+              <NumericCell>
+                {settlement.linePaid > 0
+                  ? `$${settlement.linePaid.toFixed(2)}`
+                  : "-"}
+              </NumericCell>
+              <div className="mt-0.5 text-right font-mono text-[10px] text-muted-foreground">
+                of ${settlement.lineNet.toFixed(2)}
+              </div>
+            </div>
+          );
+        },
+        size: 140,
+        minSize: 140,
+        maxSize: 140,
       },
       {
         id: "paidAt",
         header: "Paid Date",
         cell: ({ row }) =>
-          row.original.paidAt ? (
+          row.original.settlement?.paidAt ? (
             <NumericCell align="left">
-              {format(row.original.paidAt, "MMM d, yyyy")}
+              {format(row.original.settlement.paidAt, "MMM d, yyyy")}
             </NumericCell>
           ) : (
             "-"
@@ -462,9 +518,9 @@ export default function GoldSettlementPayoutsPage() {
       title="Payouts"
       actions={
         <div className="flex gap-2">
-          {canOpenHrPayouts ? (
+          {canOpenSettlementApprovals ? (
             <Button asChild size="sm" variant="outline">
-              <Link href="/human-resources/payouts?source=GOLD">Manage payouts in HR</Link>
+              <Link href="/gold/settlement/approvals?source=GOLD">Manage settlement approvals</Link>
             </Button>
           ) : null}
           {canOpenSales ? (

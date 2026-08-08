@@ -6,7 +6,8 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 const updateMembershipSchema = z.object({
@@ -46,6 +47,8 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to update shift group members", 403)
     }
@@ -93,6 +96,8 @@ export async function DELETE(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to update shift group members", 403)
     }

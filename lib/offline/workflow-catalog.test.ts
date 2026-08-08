@@ -35,7 +35,7 @@ describe("offline workflow catalog", () => {
 
     const warmRoutes = getOfflineWarmupRoutes(enabledFeatures);
     expect(warmRoutes).not.toContain("/scrap-metal/settlements");
-    expect(warmRoutes).not.toContain("/human-resources/payouts");
+    expect(warmRoutes).not.toContain("/gold/settlement/approvals");
     expect(warmRoutes).not.toContain("/accounting");
   });
 
@@ -46,7 +46,7 @@ describe("offline workflow catalog", () => {
     expect(getOfflineExcludedRouteReason("/scrap-metal/settlements")).toMatch(/excluded/i);
     expect(getRouteOfflineMutationPolicy("/scrap-metal/settlements")).toBe("excluded");
 
-    const availability = getOfflineRouteAvailability("/human-resources/payroll", enabledFeatures);
+    const availability = getOfflineRouteAvailability("/payroll/runs", enabledFeatures);
     expect(availability.availability).toBe("online-only");
     expect(availability.reason).toMatch(/online only/i);
   });

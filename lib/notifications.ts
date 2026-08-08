@@ -171,11 +171,6 @@ function mapApprovalToNotificationType(
     if (action === "APPROVE") return NotificationType.HR_GOLD_PAYOUT_APPROVED
     if (action === "REJECT") return NotificationType.HR_GOLD_PAYOUT_REJECTED
   }
-  if (entityType === "IRREGULAR_PAYOUT_BATCH") {
-    if (action === "SUBMIT") return NotificationType.HR_GOLD_PAYOUT_SUBMITTED
-    if (action === "APPROVE") return NotificationType.HR_GOLD_PAYOUT_APPROVED
-    if (action === "REJECT") return NotificationType.HR_GOLD_PAYOUT_REJECTED
-  }
   if (entityType === "DISCIPLINARY_ACTION") {
     if (action === "SUBMIT") return NotificationType.HR_DISCIPLINARY_SUBMITTED
     if (action === "APPROVE") return NotificationType.HR_DISCIPLINARY_APPROVED
@@ -198,9 +193,6 @@ function toNotificationEntityType(entityType: ApprovalTargetType): NotificationE
   if (entityType === "COMPENSATION_PROFILE") return NotificationEntityType.COMPENSATION_PROFILE
   if (entityType === "GOLD_SHIFT_ALLOCATION") {
     return NotificationEntityType.GOLD_SHIFT_ALLOCATION
-  }
-  if (entityType === "IRREGULAR_PAYOUT_BATCH") {
-    return NotificationEntityType.IRREGULAR_PAYOUT_BATCH
   }
   if (entityType === "DISCIPLINARY_ACTION") return NotificationEntityType.DISCIPLINARY_ACTION
   return NotificationEntityType.COMPENSATION_RULE
@@ -239,7 +231,7 @@ async function getWorkflowEntityContext(
       submittedById: run.submittedById,
       createdById: run.createdById,
       label,
-      viewPath: `/human-resources/payroll?runId=${run.id}`,
+      viewPath: `/payroll/runs?runId=${run.id}`,
       payload: {
         runNumber: run.runNumber,
         periodKey: run.period.periodKey,
@@ -268,7 +260,7 @@ async function getWorkflowEntityContext(
       submittedById: batch.submittedById,
       createdById: batch.createdById,
       label: batch.code,
-      viewPath: `/human-resources/disbursements?batchId=${batch.id}`,
+      viewPath: `/payroll/disbursements?batchId=${batch.id}`,
       payload: {
         code: batch.code,
         runNumber: batch.payrollRun.runNumber,
@@ -294,8 +286,8 @@ async function getWorkflowEntityContext(
     if (!adjustment) return null
     const viewPath =
       adjustment.targetType === "DISBURSEMENT_BATCH" || adjustment.disbursementBatchId
-        ? `/human-resources/disbursements?adjustmentId=${adjustment.id}`
-        : `/human-resources/payroll?adjustmentId=${adjustment.id}`
+        ? `/payroll/disbursements?adjustmentId=${adjustment.id}`
+        : `/payroll/runs?adjustmentId=${adjustment.id}`
     return {
       submittedById: adjustment.submittedById,
       createdById: adjustment.createdById,
@@ -324,7 +316,7 @@ async function getWorkflowEntityContext(
       submittedById: profile.submittedById,
       createdById: profile.createdById,
       label: `${profile.employee.name} (${profile.employee.employeeId})`,
-      viewPath: `/human-resources/compensation?profileId=${profile.id}`,
+      viewPath: `/payroll/compensation?profileId=${profile.id}`,
       payload: {
         employeeName: profile.employee.name,
         employeeId: profile.employee.employeeId,
@@ -353,7 +345,7 @@ async function getWorkflowEntityContext(
       submittedById: allocation.submittedById,
       createdById: allocation.createdById,
       label: `${shiftDate} ${allocation.shift} - ${allocation.site.code}`,
-      viewPath: `/human-resources/payouts?allocationId=${allocation.id}`,
+      viewPath: `/gold/settlement/approvals?allocationId=${allocation.id}`,
       payload: {
         shiftDate,
         shift: allocation.shift,
@@ -362,36 +354,6 @@ async function getWorkflowEntityContext(
         totalWeight: allocation.totalWeight,
         netWeight: allocation.netWeight,
         workerShareWeight: allocation.workerShareWeight,
-      },
-    }
-  }
-
-  if (input.entityType === "IRREGULAR_PAYOUT_BATCH") {
-    const batch = await db.irregularPayoutBatch.findUnique({
-      where: { id: input.entityId },
-      select: {
-        id: true,
-        label: true,
-        source: true,
-        periodStart: true,
-        periodEnd: true,
-        dueDate: true,
-        submittedById: true,
-        createdById: true,
-      },
-    })
-    if (!batch) return null
-    return {
-      submittedById: batch.submittedById,
-      createdById: batch.createdById,
-      label: `${batch.source} - ${batch.label}`,
-      viewPath: `/human-resources/payouts?batchId=${batch.id}&source=${batch.source}`,
-      payload: {
-        source: batch.source,
-        label: batch.label,
-        periodStart: batch.periodStart.toISOString(),
-        periodEnd: batch.periodEnd.toISOString(),
-        dueDate: batch.dueDate.toISOString(),
       },
     }
   }
@@ -416,7 +378,7 @@ async function getWorkflowEntityContext(
       submittedById: action.submittedById,
       createdById: action.createdById,
       label,
-      viewPath: `/human-resources/incidents?disciplinaryId=${action.id}`,
+      viewPath: `/people/incidents?disciplinaryId=${action.id}`,
       payload: {
         actionType: action.actionType,
         status: action.status,
@@ -442,7 +404,7 @@ async function getWorkflowEntityContext(
     submittedById: rule.submittedById,
     createdById: rule.createdById,
     label: rule.name,
-    viewPath: `/human-resources/compensation?ruleId=${rule.id}`,
+    viewPath: `/payroll/compensation?ruleId=${rule.id}`,
     payload: {
       ruleName: rule.name,
     },
@@ -579,9 +541,6 @@ export async function emitWorkflowNotificationFromApprovalAction(
   input: WorkflowNotificationInput,
 ) {
   try {
-    if (input.entityType === "IRREGULAR_PAYOUT_BATCH") {
-      return null
-    }
     const notificationType = mapApprovalToNotificationType(input.entityType, input.action)
     if (!notificationType) return null
 
@@ -787,7 +746,7 @@ export async function emitHrIncidentNotification(
         siteName: input.incident.site?.name ?? null,
         siteCode: input.incident.site?.code ?? null,
         previousStatus: input.previousStatus ?? null,
-        viewPath: `/human-resources/incidents?incidentId=${input.incident.id}`,
+        viewPath: `/people/incidents?incidentId=${input.incident.id}`,
       },
       entityType: NotificationEntityType.HR_INCIDENT,
       entityId: input.incident.id,
@@ -1010,14 +969,14 @@ function payloadViewPath(payload: Record<string, unknown> | null) {
 
 function defaultViewPath(entityType?: NotificationEntityType | null, entityId?: string | null) {
   if (!entityType || !entityId) return undefined
-  if (entityType === "PAYROLL_RUN") return `/human-resources/payroll?runId=${entityId}`
-  if (entityType === "DISBURSEMENT_BATCH") return `/human-resources/disbursements?batchId=${entityId}`
-  if (entityType === "ADJUSTMENT_ENTRY") return `/human-resources/payroll?adjustmentId=${entityId}`
-  if (entityType === "COMPENSATION_PROFILE") return `/human-resources/compensation?profileId=${entityId}`
-  if (entityType === "COMPENSATION_RULE") return `/human-resources/compensation?ruleId=${entityId}`
-  if (entityType === "GOLD_SHIFT_ALLOCATION") return `/human-resources/payouts?allocationId=${entityId}`
-  if (entityType === "DISCIPLINARY_ACTION") return `/human-resources/incidents?disciplinaryId=${entityId}`
-  if (entityType === "HR_INCIDENT") return `/human-resources/incidents?incidentId=${entityId}`
+  if (entityType === "PAYROLL_RUN") return `/payroll/runs?runId=${entityId}`
+  if (entityType === "DISBURSEMENT_BATCH") return `/payroll/disbursements?batchId=${entityId}`
+  if (entityType === "ADJUSTMENT_ENTRY") return `/payroll/runs?adjustmentId=${entityId}`
+  if (entityType === "COMPENSATION_PROFILE") return `/payroll/compensation?profileId=${entityId}`
+  if (entityType === "COMPENSATION_RULE") return `/payroll/compensation?ruleId=${entityId}`
+  if (entityType === "GOLD_SHIFT_ALLOCATION") return `/gold/settlement/approvals?allocationId=${entityId}`
+  if (entityType === "DISCIPLINARY_ACTION") return `/people/incidents?disciplinaryId=${entityId}`
+  if (entityType === "HR_INCIDENT") return `/people/incidents?incidentId=${entityId}`
   if (entityType === "INCIDENT") return `/compliance/incidents?createdId=${entityId}`
   if (entityType === "PERMIT") return `/compliance/permits?createdId=${entityId}`
   if (entityType === "WORK_ORDER") return `/maintenance/work-orders?workOrderId=${entityId}`

@@ -412,11 +412,8 @@ export async function getExecutiveDashboardAggregations({
         status: { in: ["DUE", "PARTIAL"] },
       },
       select: {
-        type: true,
         amount: true,
         paidAmount: true,
-        amountUsd: true,
-        paidAmountUsd: true,
       },
     }),
     prisma.payrollRun.count({
@@ -549,22 +546,19 @@ export async function getExecutiveDashboardAggregations({
     writeOff: row.writeOffTotal ?? 0,
   }));
 
+  // Salary only. The gold half used to be summed off the same rows by reading
+  // `type` and reaching for `amountUsd`, because `amount` held grams there.
+  // Settlements carry their own outstanding figure.
   let salaryOwed = 0;
-  let goldPayoutOwed = 0;
   for (const payment of employeePaymentsDue) {
-    const total =
-      payment.type === "GOLD" ? (payment.amountUsd ?? 0) : (payment.amount ?? 0);
-    const paid =
-      payment.type === "GOLD" ? (payment.paidAmountUsd ?? 0) : (payment.paidAmount ?? 0);
-    const outstanding = Math.max(0, total - paid);
-    if (payment.type === "SALARY") {
-      salaryOwed += outstanding;
-    } else {
-      goldPayoutOwed += outstanding;
-    }
+    salaryOwed += Math.max(
+      0,
+      Number(payment.amount ?? 0) - Number(payment.paidAmount ?? 0),
+    );
   }
+  const goldPayoutOwed = 0;
 
-  const workforceLiability = salaryOwed + goldPayoutOwed;
+  const workforceLiability = salaryOwed;
   const nearTermNetPosition = receivablesDueSoon - payablesDueSoon;
 
   const goldProducedValue = round(goldPoursCurrent._sum.valueUsd != null ? Number(goldPoursCurrent._sum.valueUsd) : 0);
@@ -676,9 +670,9 @@ export async function getExecutiveDashboardAggregations({
   };
 
   const quickLinkBadges: Record<string, ExecutiveQuickBadge> = {
-    "/human-resources/approvals": { count: pendingApprovals, label: "Pending approvals" },
-    "/human-resources/payroll": { count: payrollSubmitted, label: "Pending payroll" },
-    "/human-resources/disbursements": {
+    "/people/approvals": { count: pendingApprovals, label: "Pending approvals" },
+    "/payroll/runs": { count: payrollSubmitted, label: "Pending payroll" },
+    "/payroll/disbursements": {
       count: disbursementSubmitted,
       label: "Pending disbursements",
     },

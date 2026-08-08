@@ -7,13 +7,12 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
-import {
-  createApprovalAction,
-  ensureApproverRole,
-  generateDisbursementCode,
-} from "@/lib/hr-payroll"
+import { generateDisbursementCode } from "@/lib/payroll/disbursements"
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { isZeroOrLess, money, sumMoney } from "@/lib/money"
 import { createRouteLogger } from "@/lib/observability/route-logger"
 
 const batchSchema = z.object({
@@ -29,15 +28,13 @@ const batchSchema = z.object({
     .optional(),
 })
 
-function roundMoney(value: number) {
-  return Math.round(value * 100) / 100
-}
-
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.disbursements", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const { searchParams } = new URL(request.url)
     const { page, limit, skip } = getPaginationParams(request)
@@ -75,11 +72,7 @@ export async function GET(request: NextRequest) {
             select: {
               id: true,
               runNumber: true,
-              domain: true,
-              payoutSource: true,
               status: true,
-              goldRatePerUnit: true,
-              goldRateUnit: true,
               period: { select: { id: true, periodKey: true, startDate: true, endDate: true } },
             },
           },
@@ -112,6 +105,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.disbursements", "create")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create disbursement batches", 403)
@@ -138,6 +133,9 @@ export async function POST(request: NextRequest) {
             employeeId: true,
             baseAmount: true,
             netAmount: true,
+            currency: true,
+            exchangeRate: true,
+            netBaseAmount: true,
             notes: true,
           },
         },
@@ -176,19 +174,34 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    const isIrregularRun = run.domain === "GOLD_PAYOUT"
-    const irregularLabel = run.payoutSource ? `${run.payoutSource} payout` : "Irregular payout"
+    // Currency, rate and base amount are copied off the line rather than
+    // re-derived. The line froze its rate when the run was computed; looking the
+    // rate up again here would pay a ZWG employee at today's rate against a
+    // figure struck at last month's, and the ledger would not balance.
     const disbursementItems = run.lineItems.map((line) => ({
       employeeId: line.employeeId,
       lineItemId: line.id,
-      amount: roundMoney(line.netAmount),
+      amount: money(line.netAmount),
+      currency: line.currency,
+      exchangeRate: line.exchangeRate,
+      baseAmount: money(line.netBaseAmount),
       status: "DUE" as const,
     }))
 
     const code = validated.code ?? generateDisbursementCode()
-    const totalAmount = disbursementItems.reduce((sum, item) => sum + item.amount, 0)
+    const totalAmount = sumMoney(disbursementItems.map((item) => item.amount))
     const itemCount = disbursementItems.length
-    if (itemCount === 0 || totalAmount <= 0) {
+    // A batch is one currency. Mixed-currency runs need one batch per currency,
+    // which the caller drives by filtering the run — a single batch total that
+    // added USD to ZWG would be a number with no meaning.
+    const batchCurrency = disbursementItems[0]?.currency ?? "USD"
+    if (disbursementItems.some((item) => item.currency !== batchCurrency)) {
+      return errorResponse(
+        "This run pays in more than one currency. Create one batch per currency.",
+        400,
+      )
+    }
+    if (itemCount === 0 || isZeroOrLess(totalAmount)) {
       logger.info("create_disbursement_batch_empty", {
         companyId: session.user.companyId,
         actorId: session.user.id,
@@ -217,6 +230,7 @@ export async function POST(request: NextRequest) {
           cashCustodian: validated.cashCustodian,
           cashIssuedAt: validated.cashIssuedAt ? new Date(validated.cashIssuedAt) : undefined,
           totalAmount,
+          currency: batchCurrency,
           itemCount,
           createdById: session.user.id,
           items: {
@@ -228,10 +242,6 @@ export async function POST(request: NextRequest) {
             select: {
               id: true,
               runNumber: true,
-              domain: true,
-              payoutSource: true,
-              goldRatePerUnit: true,
-              goldRateUnit: true,
               period: { select: { id: true, periodKey: true, startDate: true, endDate: true } },
             },
           },
@@ -251,16 +261,13 @@ export async function POST(request: NextRequest) {
         action: "CREATE",
         actedById: session.user.id,
         toStatus: "DRAFT",
-        note: isIrregularRun
-          ? `${irregularLabel} disbursement batch ${created.code} created from payout run ${run.runNumber}.`
-          : `Salary disbursement batch ${created.code} created from payroll run ${run.runNumber}.`,
+        note: `Salary disbursement batch ${created.code} created from payroll run ${run.runNumber}.`,
       })
 
       return created
     })
 
     try {
-      const isIrregularRun = batch.payrollRun.domain === "GOLD_PAYOUT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "disbursements",
@@ -272,11 +279,10 @@ export async function POST(request: NextRequest) {
         amount: batch.totalAmount,
         payload: {
           payrollRunId: batch.payrollRun.id,
-          domain: batch.payrollRun.domain,
           itemCount: batch.items.length,
         },
         createdById: session.user.id,
-        status: isIrregularRun ? "IGNORED" : "PENDING",
+        status: "PENDING",
       })
     } catch (error) {
       logger.error("disbursement_batch_capture_failed", error, {

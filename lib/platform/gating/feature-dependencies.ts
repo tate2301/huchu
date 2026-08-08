@@ -8,7 +8,24 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "gold.exceptions": ["gold.home"],
   "gold.audit-trail": ["gold.home"],
   "gold.payouts": ["gold.home"],
-  "hr.settlements": ["hr.employees"],
+  // Settlements need somebody to settle with, and gold settlements need the gold
+  // allocations they read. Deliberately NOT dependent on `hr.payroll`: a yard that
+  // settles scrap in cash and keeps no payroll at all is a real customer, and the
+  // old `hr.settlements` key forced them to buy a payroll they never opened.
+  "settlements.core": ["hr.employees"],
+  "settlements.gold": ["settlements.core", "gold.payouts"],
+  "settlements.scrap": ["settlements.core"],
+  "hr.leave": ["hr.employees"],
+  // Payroll without an employee directory is runs against nobody.
+  "hr.payroll": ["hr.employees"],
+  "hr.compensation-rules": ["hr.employees"],
+  "hr.statutory-tables": ["hr.payroll"],
+  "hr.statutory-returns": ["hr.payroll", "hr.statutory-tables"],
+  "hr.payslips": ["hr.payroll"],
+  "hr.employee-self-service": ["hr.payslips"],
+  // Deliberately NOT declared: payroll does not depend on `accounting.core`.
+  // That is the seam the payroll-only product stands on — a run in a workspace
+  // with no ledger completes, posts nothing, and says so.
   "accounting.chart-of-accounts": ["accounting.core"],
   "accounting.journals": ["accounting.core"],
   "accounting.periods": ["accounting.core"],

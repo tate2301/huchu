@@ -230,7 +230,9 @@ export async function GET(request: NextRequest) {
         orderBy: [{ balance: "desc" }, { lastUpdated: "desc" }],
         take: 20,
       }),
-      prisma.irregularPayoutBatch.findMany({
+      // Intakes, not the retired `IrregularPayoutBatch`. What the yard owes its
+      // operators starts as a counted intake and becomes a settlement run.
+      prisma.settlementIntake.findMany({
         where: { companyId, source: "SCRAP" },
         include: {
           items: { select: { id: true, amount: true } },
@@ -238,11 +240,10 @@ export async function GET(request: NextRequest) {
         orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
         take: 20,
       }),
-      prisma.employeePayment.findMany({
+      prisma.settlementPayment.findMany({
         where: {
-          employee: { companyId },
-          type: "IRREGULAR",
-          payoutSource: "SCRAP",
+          companyId,
+          source: "SCRAP",
           status: { in: ["DUE", "PARTIAL"] },
         },
         include: {
@@ -420,7 +421,7 @@ export async function GET(request: NextRequest) {
     const approvedSales = periodSales.filter((sale) => sale.status === "APPROVED");
     const completedSales = periodSales.filter((sale) => sale.status === "COMPLETED");
     const overdueSettlementAmount = overduePayments.reduce(
-      (sum, payment) => sum + (payment.amountUsd ?? payment.amount ?? 0),
+      (sum, payment) => sum + Number(payment.amount ?? 0),
       0,
     );
     const amountOwedToCompany = balances.reduce(
@@ -958,7 +959,10 @@ export async function GET(request: NextRequest) {
             label: batch.label,
             dueDate: batch.dueDate,
             workflowStatus: batch.workflowStatus,
-            totalAmount: batch.items.reduce((sum, item) => sum + item.amount, 0),
+            totalAmount: batch.items.reduce(
+              (sum, item) => sum + Number(item.amount),
+              0,
+            ),
           }))
           .slice(0, 8),
         overduePayments: overduePayments.slice(0, 8),

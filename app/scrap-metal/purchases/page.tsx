@@ -1044,7 +1044,7 @@ export default function ScrapMetalPurchasesPage() {
                 placeholder={employeesQuery.isLoading ? "Loading buyers..." : "Select buyer"}
                 searchPlaceholder="Search buyers..."
                 onValueChange={(value) => setForm((current) => ({ ...current, employeeId: value }))}
-                onAddOption={() => router.push("/human-resources")}
+                onAddOption={() => router.push("/people")}
                 addLabel="Add new buyer"
               />
               <SearchableSelect

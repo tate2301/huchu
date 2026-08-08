@@ -10,10 +10,6 @@ import {
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
-import {
-  AUTO_BATCH_NOTE_PREFIX,
-  AUTO_PAYOUT_NOTE_PREFIX,
-} from "@/lib/gold/payouts"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
@@ -397,32 +393,12 @@ export async function POST(request: NextRequest) {
         },
       })
 
-      const payoutDueDate = new Date(start)
-      payoutDueDate.setDate(payoutDueDate.getDate() + validated.payCycleWeeks * 7)
-
-      if (allocation.workerShares.length > 0) {
-        await tx.employeePayment.createMany({
-          data: allocation.workerShares.map((share) => ({
-            employeeId: share.employee.id,
-            type: "IRREGULAR",
-            payoutSource: "GOLD",
-            periodStart: start,
-            periodEnd: start,
-            dueDate: payoutDueDate,
-            amount: Number(share.shareWeight),
-            amountUsd: share.shareValueUsd == null ? perWorkerValueUsd : Number(share.shareValueUsd),
-            unit: "g",
-            // share.shareWeight is Prisma.Decimal post Epic-6 — coerce.
-            goldWeightGrams: Number(share.shareWeight),
-            goldPriceUsdPerGram,
-            valuationDate,
-            status: "DUE",
-            notes: `${AUTO_PAYOUT_NOTE_PREFIX}${allocation.id}`,
-            goldShiftAllocationId: allocation.id,
-            createdById: session.user.id,
-          })),
-        })
-      }
+      // No payment rows here. Creating an allocation used to write an
+      // `EmployeePayment` per worker share on the spot, so an *unapproved* count
+      // already read as money owed — and the only link back to the allocation was
+      // a UUID written into a free-text `notes` column behind a magic prefix.
+      // Settlement runs read approved allocations and record what they settled in
+      // `SettlementLineOrigin`, so nothing is owed until somebody approves it.
 
       let createdBatchId: string | null = null
       let createdBatchCode: string | null = null
@@ -442,7 +418,6 @@ export async function POST(request: NextRequest) {
             witness1Id: primaryWitnessId,
             witness2Id: secondaryWitnessId,
             storageLocation: "Shift Vault",
-            notes: `${AUTO_BATCH_NOTE_PREFIX}${allocation.id}`,
             createdById: session.user.id,
             goldShiftAllocationId: allocation.id,
           },

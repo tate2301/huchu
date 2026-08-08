@@ -33,7 +33,6 @@ async function backfillCompany(companyId: string, dryRun: boolean) {
       prisma.payrollRun.findMany({
         where: {
           companyId,
-          domain: "PAYROLL",
           status: { in: ["APPROVED", "POSTED"] },
           approvedAt: { gte: startDate },
         },
@@ -41,7 +40,6 @@ async function backfillCompany(companyId: string, dryRun: boolean) {
       prisma.disbursementBatch.findMany({
         where: {
           companyId,
-          payrollRun: { is: { domain: "PAYROLL" } },
           status: "PAID",
           paidAt: { gte: startDate },
         },

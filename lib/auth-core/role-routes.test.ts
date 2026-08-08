@@ -17,7 +17,7 @@ describe("role route allowlist", () => {
 
   it("blocks SALES_REP from other modules", () => {
     expect(isRouteAllowedForRole("SALES_REP", "/accounting")).toBe(false);
-    expect(isRouteAllowedForRole("SALES_REP", "/human-resources")).toBe(false);
+    expect(isRouteAllowedForRole("SALES_REP", "/people")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/api/v2/autos/leads")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/api/accounting/sales/invoices")).toBe(false);
     expect(isRouteAllowedForRole("SALES_REP", "/")).toBe(false);
@@ -25,7 +25,7 @@ describe("role route allowlist", () => {
 
   it("does not restrict unlisted roles", () => {
     expect(isRouteAllowedForRole("MANAGER", "/accounting")).toBe(true);
-    expect(isRouteAllowedForRole("SUPERADMIN", "/human-resources")).toBe(true);
+    expect(isRouteAllowedForRole("SUPERADMIN", "/people")).toBe(true);
     expect(isRoleRouteRestricted("MANAGER")).toBe(false);
     expect(isRoleRouteRestricted("SALES_REP")).toBe(true);
   });

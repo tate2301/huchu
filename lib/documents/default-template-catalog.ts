@@ -302,6 +302,18 @@ export const DEFAULT_TEMPLATE_CATALOG: DefaultTemplateCatalogEntry[] = [
     schema: reportTemplate("Attendance Register"),
   },
   {
+    key: "hr.payslip",
+    sourceKey: "hr.payslip",
+    documentType: "GENERIC_RECORD",
+    targetType: "RECORD",
+    name: "Payslip Default",
+    description:
+      "One employee's pay for one period, showing every stage of the calculation and what the employer contributed.",
+    // A letter, not a bill. A payslip carrying the company's bank details reads
+    // like a demand for money from the person it is paying.
+    schema: letterTemplate("Payslip"),
+  },
+  {
     key: "ui.table.*",
     sourceKey: "ui.table.*",
     documentType: "REPORT_TABLE",

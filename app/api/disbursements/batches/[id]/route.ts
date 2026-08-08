@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
-import { ensureApproverRole } from "@/lib/hr-payroll"
-
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 const patchSchema = z
   .object({
     method: z.enum(["CASH"]).optional(),
@@ -36,6 +36,8 @@ export async function GET(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.disbursements", "view")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     const batch = await prisma.disbursementBatch.findUnique({
@@ -95,6 +97,8 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.disbursements", "edit")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
     const body = await request.json()
     const validated = patchSchema.parse(body)
@@ -153,7 +157,6 @@ export async function PATCH(
             select: {
               id: true,
               runNumber: true,
-              domain: true,
               period: { select: { id: true, periodKey: true, startDate: true, endDate: true } },
             },
           },
@@ -168,7 +171,6 @@ export async function PATCH(
     })
 
     try {
-      const isGoldRun = updated.payrollRun.domain === "GOLD_PAYOUT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "disbursements",
@@ -184,7 +186,7 @@ export async function PATCH(
           updatedItems: validated.items?.map((item) => item.id) ?? [],
         },
         createdById: session.user.id,
-        status: isGoldRun ? "IGNORED" : "PENDING",
+        status: "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Disbursement batch update capture failed:", error)

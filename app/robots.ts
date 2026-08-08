@@ -26,7 +26,7 @@ export default function robots(): MetadataRoute.Robots {
           "/car-sales/",
           "/thrift/",
           "/stores/",
-          "/human-resources/",
+          "/people/",
           "/accounting/",
           "/maintenance/",
           "/compliance/",

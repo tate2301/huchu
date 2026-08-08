@@ -1,16 +1,22 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
-import {
-  buildGoldPayoutNotes,
-  extractAllocationIdFromPayoutNotes,
-} from "@/lib/gold/payouts"
-import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
-import { derivePaidStatus } from "@/lib/hr-payroll"
-import { isLegacyGoldPaymentType, normalizeIrregularPayoutSource } from "@/lib/hr-irregular-payouts"
+import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { money, toNumberOrZero } from "@/lib/money"
+import { derivePaidStatus } from "@/lib/payroll/disbursements"
 import { prisma } from "@/lib/prisma"
+
+/**
+ * Correcting one payment.
+ *
+ * Most of what used to live here was gold: resolving which shift allocation a
+ * payout belonged to by matching period windows, re-valuing grams at the price
+ * on a valuation date, and writing a UUID into the notes column behind a magic
+ * prefix so the link survived. Settlements hold that link in a real column, so
+ * this is now what it says on the tin — amend an amount, a date, or a status.
+ */
 
 const dateInputSchema = z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/))
 
@@ -30,138 +36,27 @@ type RouteParams = {
   params: Promise<{ id: string }>
 }
 
+/** Same rule as the create route: the numbers decide the status. */
 function normalizePaymentState(input: {
   amount: number
   paidAmount: number
   status?: "DUE" | "PARTIAL" | "PAID"
 }) {
-  let paidAmount = Math.max(input.paidAmount, 0)
   const amount = Math.max(input.amount, 0)
+  let paidAmount = Math.max(input.paidAmount, 0)
+  let status = input.status ?? derivePaidStatus(amount, paidAmount)
 
-  if (input.status === "PAID") {
+  if (status === "PAID") {
     paidAmount = amount
-  } else if (input.status === "DUE") {
+  } else if (status === "DUE") {
     paidAmount = 0
+  } else if (amount <= 0 || paidAmount <= 0 || paidAmount >= amount) {
+    status = derivePaidStatus(amount, paidAmount)
+    if (status === "PAID") paidAmount = amount
+    if (status === "DUE") paidAmount = 0
   }
 
-  const status = derivePaidStatus(amount, paidAmount)
-  return {
-    status,
-    paidAmount: paidAmount > 0 ? paidAmount : null,
-  }
-}
-
-function roundUsd(value: number) {
-  return Math.round(value * 100) / 100
-}
-
-type GoldAllocationResolution =
-  | {
-      allocationId: string
-      workflowStatus: "DRAFT" | "SUBMITTED" | "APPROVED" | "REJECTED"
-    }
-  | {
-      error: string
-      status: number
-    }
-
-function fullDayRange(startInput: string, endInput: string) {
-  const start = new Date(startInput)
-  const end = new Date(endInput)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
-    return null
-  }
-
-  start.setHours(0, 0, 0, 0)
-  end.setHours(23, 59, 59, 999)
-  if (start.getTime() > end.getTime()) {
-    return { start: end, end: start }
-  }
-  return { start, end }
-}
-
-async function resolveGoldAllocationForPayment(input: {
-  companyId: string
-  employeeId: string
-  periodStart: string
-  periodEnd: string
-  notes?: string | null
-}): Promise<GoldAllocationResolution> {
-  const linkedAllocationId = extractAllocationIdFromPayoutNotes(input.notes)
-  if (linkedAllocationId) {
-    const linked = await prisma.goldShiftAllocation.findUnique({
-      where: { id: linkedAllocationId },
-      select: {
-        id: true,
-        workflowStatus: true,
-        site: { select: { companyId: true } },
-        workerShares: {
-          where: { employeeId: input.employeeId },
-          select: { id: true },
-          take: 1,
-        },
-      },
-    })
-
-    if (!linked || linked.site.companyId !== input.companyId) {
-      return {
-        error: "Linked gold shift allocation was not found for this company",
-        status: 404,
-      }
-    }
-    if (linked.workerShares.length === 0) {
-      return {
-        error: "Linked allocation does not include the selected employee",
-        status: 400,
-      }
-    }
-    return { allocationId: linked.id, workflowStatus: linked.workflowStatus }
-  }
-
-  const range = fullDayRange(input.periodStart, input.periodEnd)
-  if (!range) {
-    return {
-      error: "Invalid payment period for gold payout linkage",
-      status: 400,
-    }
-  }
-
-  const candidates = await prisma.goldShiftAllocation.findMany({
-    where: {
-      site: { companyId: input.companyId },
-      workerShares: { some: { employeeId: input.employeeId } },
-      date: {
-        gte: range.start,
-        lte: range.end,
-      },
-    },
-    select: {
-      id: true,
-      workflowStatus: true,
-    },
-    orderBy: { date: "desc" },
-    take: 2,
-  })
-
-  if (candidates.length === 0) {
-    return {
-      error: "Gold payouts must be linked to a shift allocation for this worker and period",
-      status: 400,
-    }
-  }
-
-  if (candidates.length > 1) {
-    return {
-      error:
-        "Multiple shift allocations match this payout period. Use allocation-linked notes to target one allocation.",
-      status: 409,
-    }
-  }
-
-  return {
-    allocationId: candidates[0].id,
-    workflowStatus: candidates[0].workflowStatus,
-  }
+  return { amount, paidAmount, status }
 }
 
 export async function PATCH(request: NextRequest, { params }: RouteParams) {
@@ -169,11 +64,11 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "edit")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
-    const body = await request.json()
-    const validated = updateEmployeePaymentSchema.parse(body)
-
+    const validated = updateEmployeePaymentSchema.parse(await request.json())
     if (Object.keys(validated).length === 0) {
       return errorResponse("No fields provided", 400)
     }
@@ -182,212 +77,88 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       where: { id },
       select: {
         id: true,
-        type: true,
-        payoutSource: true,
-        employeeId: true,
+        amount: true,
+        paidAmount: true,
+        status: true,
         periodStart: true,
         periodEnd: true,
         unit: true,
-        notes: true,
-        amount: true,
-        amountUsd: true,
-        paidAmountUsd: true,
-        goldWeightGrams: true,
-        goldPriceUsdPerGram: true,
-        valuationDate: true,
-        status: true,
-        paidAmount: true,
-        paidAt: true,
-        payrollRunId: true,
-        payrollLineItemId: true,
-        disbursementBatchId: true,
-        disbursementItemId: true,
-        employee: { select: { companyId: true } },
+        employee: { select: { id: true, name: true, companyId: true } },
       },
     })
-
     if (!existing || existing.employee.companyId !== session.user.companyId) {
       return errorResponse("Employee payment not found", 404)
     }
 
-    if (
-      existing.payrollRunId ||
-      existing.payrollLineItemId ||
-      existing.disbursementBatchId ||
-      existing.disbursementItemId
-    ) {
-      return errorResponse(
-        "This payment is linked to payroll/disbursement workflows and cannot be edited manually.",
-        409,
-      )
+    const periodStart = validated.periodStart
+      ? new Date(validated.periodStart)
+      : existing.periodStart
+    const periodEnd = validated.periodEnd ? new Date(validated.periodEnd) : existing.periodEnd
+    if (periodEnd < periodStart) {
+      return errorResponse("The period ends before it starts", 400)
     }
 
-    const existingPayoutSource =
-      existing.type === "SALARY"
-        ? null
-        : isLegacyGoldPaymentType(existing.type)
-          ? "GOLD"
-          : normalizeIrregularPayoutSource(existing.payoutSource)
-
-    let normalizedGoldNotes: string | null | undefined
-    let nextGoldShiftAllocationId: string | undefined
-    if (existingPayoutSource === "GOLD") {
-      const nextPeriodStart = validated.periodStart ?? existing.periodStart.toISOString()
-      const nextPeriodEnd = validated.periodEnd ?? existing.periodEnd.toISOString()
-      const nextNotes =
-        validated.notes !== undefined ? validated.notes : (existing.notes ?? undefined)
-
-      const allocationResolution = await resolveGoldAllocationForPayment({
-        companyId: session.user.companyId,
-        employeeId: existing.employeeId,
-        periodStart: nextPeriodStart,
-        periodEnd: nextPeriodEnd,
-        notes: nextNotes,
-      })
-
-      if ("error" in allocationResolution) {
-        return errorResponse(allocationResolution.error, allocationResolution.status)
-      }
-      if (allocationResolution.workflowStatus !== "APPROVED") {
-        return errorResponse(
-          "Gold payout allocation must be approved before recording payouts",
-          409,
-        )
-      }
-
-      nextGoldShiftAllocationId = allocationResolution.allocationId
-      normalizedGoldNotes = buildGoldPayoutNotes(allocationResolution.allocationId, nextNotes)
-    }
-
-    const nextAmount = validated.amount ?? existing.amount
-    const nextPeriodEndIso = validated.periodEnd ?? existing.periodEnd.toISOString()
-    let nextPaidAmount =
-      validated.paidAmount !== undefined
-        ? (validated.paidAmount ?? 0)
-        : (existing.paidAmount ?? 0)
-
-    if (validated.status === "PAID" && validated.paidAmount === undefined) {
-      nextPaidAmount = nextAmount
-    } else if (validated.status === "DUE" && validated.paidAmount === undefined) {
-      nextPaidAmount = 0
-    }
-
-    const normalizedByInput = normalizePaymentState({
-      amount: nextAmount,
-      paidAmount: nextPaidAmount,
-      status: validated.status ?? (existing.status as "DUE" | "PARTIAL" | "PAID"),
+    const normalized = normalizePaymentState({
+      amount: validated.amount ?? toNumberOrZero(existing.amount),
+      paidAmount:
+        validated.paidAmount === undefined
+          ? toNumberOrZero(existing.paidAmount)
+          : (validated.paidAmount ?? 0),
+      status: validated.status,
     })
-
-    const nextUnit = existingPayoutSource === "GOLD" ? "g" : (validated.unit ?? existing.unit)
-    let nextAmountUsd = roundUsd(nextAmount)
-    let nextPaidAmountUsd =
-      normalizedByInput.paidAmount && normalizedByInput.paidAmount > 0
-        ? roundUsd(normalizedByInput.paidAmount)
-        : null
-    let nextGoldWeightGrams: number | null =
-      existingPayoutSource === "GOLD" ? nextAmount : null
-    let nextGoldPriceUsdPerGram: number | null = null
-    let nextValuationDate: Date | null = null
-
-    if (existingPayoutSource === "GOLD") {
-      const valuation = await snapshotGoldUsdValue({
-        companyId: session.user.companyId,
-        businessDate: nextPeriodEndIso,
-        grams: nextAmount,
-      })
-      if (!valuation) {
-        return errorResponse("No gold price configured. Add a gold price before updating gold payouts.", 409)
-      }
-
-      nextAmountUsd = valuation.valueUsd
-      nextGoldWeightGrams = nextAmount
-      nextGoldPriceUsdPerGram = valuation.goldPriceUsdPerGram
-      nextValuationDate = valuation.valuationDate
-      nextPaidAmountUsd =
-        normalizedByInput.paidAmount && normalizedByInput.paidAmount > 0
-          ? roundUsd(normalizedByInput.paidAmount * valuation.goldPriceUsdPerGram)
-          : null
-    }
-
-    const normalizedStatus = derivePaidStatus(nextAmountUsd, nextPaidAmountUsd ?? 0)
-
-    const nextPaidAt =
-      nextPaidAmountUsd && nextPaidAmountUsd > 0
-        ? validated.paidAt !== undefined
-          ? (validated.paidAt ? new Date(validated.paidAt) : new Date())
-          : (existing.paidAt ?? new Date())
-        : null
 
     const updated = await prisma.employeePayment.update({
       where: { id },
       data: {
-        periodStart: validated.periodStart ? new Date(validated.periodStart) : undefined,
-        periodEnd: validated.periodEnd ? new Date(validated.periodEnd) : undefined,
-        dueDate: validated.dueDate ? new Date(validated.dueDate) : undefined,
-        amount: validated.amount,
-        amountUsd: nextAmountUsd,
-        unit: nextUnit,
-        goldWeightGrams: nextGoldWeightGrams,
-        goldPriceUsdPerGram: nextGoldPriceUsdPerGram,
-        valuationDate: nextValuationDate,
-        paidAmount: normalizedByInput.paidAmount,
-        paidAmountUsd: nextPaidAmountUsd,
-        paidAt: nextPaidAt,
-        status: normalizedStatus,
-        goldShiftAllocationId: nextGoldShiftAllocationId,
-        notes:
-          existingPayoutSource === "GOLD"
-            ? normalizedGoldNotes
-            : (validated.notes !== undefined ? validated.notes : undefined),
+        periodStart,
+        periodEnd,
+        ...(validated.dueDate ? { dueDate: new Date(validated.dueDate) } : {}),
+        amount: money(normalized.amount),
+        ...(validated.unit ? { unit: validated.unit.trim().toUpperCase() } : {}),
+        paidAmount: normalized.paidAmount > 0 ? money(normalized.paidAmount) : null,
+        paidAt:
+          normalized.paidAmount > 0
+            ? validated.paidAt
+              ? new Date(validated.paidAt)
+              : new Date()
+            : null,
+        status: normalized.status,
+        ...(validated.notes === undefined
+          ? {}
+          : { notes: validated.notes?.trim() || null }),
       },
       include: {
         employee: {
-          select: {
-            id: true,
-            name: true,
-            employeeId: true,
-            position: true,
-            isActive: true,
-          },
+          select: { id: true, name: true, employeeId: true, position: true },
         },
         createdBy: { select: { id: true, name: true } },
         payrollRun: {
           select: {
             id: true,
             runNumber: true,
-            domain: true,
             status: true,
             period: { select: { id: true, periodKey: true } },
           },
         },
-        disbursementBatch: {
-          select: {
-            id: true,
-            code: true,
-            status: true,
-          },
-        },
+        disbursementBatch: { select: { id: true, code: true, status: true } },
       },
     })
 
     try {
-      const accountingSourceType =
-        updated.type === "SALARY" ? "PAYROLL_DISBURSEMENT" : "IRREGULAR_PAYOUT_DISBURSEMENT"
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "employee-payments",
         sourceAction: "payment-updated",
-        sourceType: accountingSourceType,
+        sourceType: "PAYROLL_DISBURSEMENT",
         sourceId: updated.id,
         entryDate: updated.updatedAt,
-        description: `${updated.type} employee payment updated`,
-        amount: updated.amountUsd ?? updated.amount,
+        description: `Employee payment for ${updated.employee.name} updated`,
+        amount: toNumberOrZero(updated.amount),
         payload: {
           employeeId: updated.employee.id,
-          payoutSource: updated.payoutSource,
+          currency: updated.unit,
           status: updated.status,
-          paidAmount: updated.paidAmount,
-          paidAmountUsd: updated.paidAmountUsd,
+          paidAmount: toNumberOrZero(updated.paidAmount),
         },
         createdById: session.user.id,
         status: "PENDING",

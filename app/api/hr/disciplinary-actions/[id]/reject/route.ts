@@ -2,11 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import {
-  createApprovalAction,
-  ensureApproverRole,
-  isTwoStepActionAllowed,
-} from "@/lib/hr-payroll"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 const rejectSchema = z.object({
@@ -21,6 +18,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "approve")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
     const body = await request.json()
     const validated = rejectSchema.parse(body)

@@ -92,21 +92,29 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/maintenance/work-orders", icon: Wrench, label: "Work Orders" },
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
-    { href: "/human-resources", icon: Users, label: "Employees" },
+    { href: "/people", icon: Users, label: "Employees" },
   ],
   "multi-site-operations": [
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
     { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
     { href: "/cctv/live", icon: Video, label: "Live Monitor", roles: ["SUPERADMIN", "MANAGER"] },
-    { href: "/human-resources", icon: Users, label: "Employees" },
+    { href: "/people", icon: Users, label: "Employees" },
+  ],
+  // The four things a payroll bureau actually starts from. Nothing about stock,
+  // customers or reports, because none of those modules are provisioned.
+  "payroll-services": [
+    { href: "/people", icon: Users, label: "Employees" },
+    { href: "/payroll/runs", icon: Coins, label: "Payroll Run" },
+    { href: "/payroll/statutory/returns", icon: ReceiptLong, label: "Statutory Returns" },
+    { href: "/payroll/disbursements", icon: Payments, label: "Disbursements" },
   ],
   "general-business": [
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
     { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
     { href: "/retail/customers", icon: Users, label: "Customers" },
-    { href: "/human-resources", icon: Users, label: "Employees" },
+    { href: "/people", icon: Users, label: "Employees" },
     { href: "/reports", icon: BarChart3, label: "Reports" },
   ],
 };

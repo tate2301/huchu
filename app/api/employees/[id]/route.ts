@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
 import { z } from "zod"
 import { Prisma } from "@prisma/client"
@@ -50,6 +51,8 @@ export async function GET(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const { id } = await params
 
@@ -119,6 +122,8 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
 
     const { id } = await params
     const body = await request.json()
@@ -212,6 +217,8 @@ export async function DELETE(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "edit")
+    if (denial) return errorResponse(denial, 403)
 
     const { id } = await params
 

@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
 import { createRouteLogger } from "@/lib/observability/route-logger"
 
 export async function POST(
@@ -18,6 +19,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "submit")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
     logger.info("submit_run_requested", {
       companyId: session.user.companyId,

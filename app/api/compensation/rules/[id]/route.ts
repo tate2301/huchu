@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import { createApprovalAction, ensureApproverRole } from "@/lib/hr-payroll"
-
+import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
 const updateRuleSchema = z
   .object({
     name: z.string().trim().min(1).max(200).optional(),
@@ -28,6 +28,8 @@ export async function GET(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "view")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     const rule = await prisma.compensationRule.findUnique({
@@ -60,6 +62,8 @@ export async function PATCH(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "edit")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     const body = await request.json()
@@ -163,6 +167,8 @@ export async function DELETE(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "edit")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     if (!ensureApproverRole(session)) {

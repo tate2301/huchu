@@ -6,6 +6,10 @@ export const WORKSPACE_PROFILES = [
   "SCHOOLS",
   "AUTOS",
   "RETAIL",
+  // A client who bought nothing but payroll. Without its own profile they land
+  // on the general dashboard, which for them is eight dead tiles and no way to
+  // reach the thing they paid for.
+  "PAYROLL",
   "GENERAL",
 ] as const;
 
@@ -18,7 +22,8 @@ export type WorkspaceModuleId =
   | "car-sales"
   | "retail"
   | "crm"
-  | "hr"
+  | "people"
+  | "payroll"
   | "stores"
   | "maintenance"
   | "reporting"
@@ -35,6 +40,7 @@ export type VerticalProductId =
   | "crm-sales"
   | "service-workshop"
   | "multi-site-operations"
+  | "payroll-services"
   | "general-business";
 
 type ModuleCopyOverride = {
@@ -106,20 +112,27 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
     title: "CRM",
     description: "",
   },
-  hr: {
-    title: "Human Resources",
+  people: {
+    title: "People",
     description: "",
     tabLabels: {
       employees: "Employees",
-      "shift-groups": "Shift Groups",
+      "shift-groups": "Rosters",
       incidents: "Incidents",
-      payouts: "Settlements",
+      approvals: "History",
+    },
+  },
+  payroll: {
+    title: "Payroll",
+    description: "",
+    tabLabels: {
+      compensation: "Rules",
       salaries: "Salaries",
-      "salary-outstanding": "Outstanding Salaries",
-      compensation: "Compensation",
-      payroll: "Payroll",
+      "salary-outstanding": "Outstanding",
+      runs: "Runs",
       disbursements: "Disbursements",
-      approvals: "Approvals",
+      "statutory-tables": "Tables & Rates",
+      "statutory-returns": "Returns",
     },
   },
   stores: {
@@ -173,12 +186,11 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_GOLD_MINE"],
     preferredHomeHref: "/gold",
     primaryModules: ["gold", "reporting"],
-    foundationalModules: ["hr", "stores", "maintenance", "accounting", "management"],
+    foundationalModules: ["people", "payroll", "stores", "maintenance", "accounting", "management"],
     moduleCopy: {
-      hr: {
+      payroll: {
         description: "",
         tabLabels: {
-          payouts: "Settlements",
           salaries: "Salary Operations",
         },
       },
@@ -202,14 +214,8 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_SCRAP_METAL"],
     preferredHomeHref: "/scrap-metal",
     primaryModules: ["scrap-metal", "reporting"],
-    foundationalModules: ["hr", "stores", "maintenance", "accounting", "management"],
+    foundationalModules: ["people", "payroll", "stores", "maintenance", "accounting", "management"],
     moduleCopy: {
-      hr: {
-        description: "",
-        tabLabels: {
-          payouts: "Settlements",
-        },
-      },
       stores: {
         description: "",
       },
@@ -227,12 +233,15 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_SCHOOLS"],
     preferredHomeHref: "/schools",
     primaryModules: ["schools"],
-    foundationalModules: ["accounting", "management", "hr"],
+    foundationalModules: ["accounting", "management", "people", "payroll"],
     moduleCopy: {
       accounting: {
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
       management: {
@@ -249,12 +258,15 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_CAR_SALES"],
     preferredHomeHref: "/car-sales",
     primaryModules: ["car-sales"],
-    foundationalModules: ["accounting", "management", "hr"],
+    foundationalModules: ["accounting", "management", "people", "payroll"],
     moduleCopy: {
       accounting: {
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
     },
@@ -268,7 +280,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_RETAIL"],
     preferredHomeHref: "/retail",
     primaryModules: ["retail"],
-    foundationalModules: ["stores", "accounting", "management", "hr"],
+    foundationalModules: ["stores", "accounting", "management", "people", "payroll"],
     moduleCopy: {
       stores: {
         description: "",
@@ -276,7 +288,10 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
       accounting: {
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
     },
@@ -290,12 +305,15 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     templateCodes: ["TEMPLATE_CRM"],
     preferredHomeHref: "/crm",
     primaryModules: ["crm", "reporting"],
-    foundationalModules: ["accounting", "hr", "management"],
+    foundationalModules: ["accounting", "people", "payroll", "management"],
     moduleCopy: {
       accounting: {
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
     },
@@ -308,7 +326,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     customerExamples: ["Mechanic workshops", "Technician services", "Engineering workshops"],
     templateCodes: ["TEMPLATE_TECH_WORKSHOP"],
     preferredHomeHref: "/maintenance",
-    primaryModules: ["maintenance", "stores", "hr"],
+    primaryModules: ["maintenance", "stores", "people", "payroll"],
     foundationalModules: ["accounting", "management"],
     moduleCopy: {
       maintenance: {
@@ -318,7 +336,10 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
         title: "Parts & Stores",
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
       accounting: {
@@ -334,19 +355,44 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     customerExamples: ["Multi-site shops", "Security-stock operators", "Small distributed companies"],
     templateCodes: ["TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"],
     preferredHomeHref: "/stores/dashboard",
-    primaryModules: ["stores", "hr", "cctv"],
+    primaryModules: ["stores", "people", "payroll", "cctv"],
     foundationalModules: ["accounting", "management", "reporting"],
     moduleCopy: {
       stores: {
         description: "",
       },
-      hr: {
+      people: {
+        description: "",
+      },
+      payroll: {
         description: "",
       },
       cctv: {
         description: "",
       },
     },
+  },
+  {
+    // Payroll on its own. The whole product for a client who wants nothing else:
+    // HR is primary, accounting and management are foundational — and
+    // `foundationalModules` is not the same as required. A payroll-only tenant
+    // that never buys `accounting.core` still runs payroll; the run completes,
+    // posts nothing, and says so.
+    id: "payroll-services",
+    label: "Payroll Services",
+    workspaceLabel: "Payroll",
+    description: "",
+    customerExamples: [
+      "Payroll bureaux",
+      "Accounting practices running client payrolls",
+      "Companies that want payroll only",
+    ],
+    templateCodes: ["TEMPLATE_PAYROLL_BUREAU"],
+    // Without this a payroll-only client lands on a dashboard of dead tiles. The
+    // runs screen rather than the directory: a bureau opens this to pay people.
+    preferredHomeHref: "/payroll/runs",
+    primaryModules: ["payroll"],
+    foundationalModules: ["people", "accounting", "management"],
   },
   {
     id: "general-business",
@@ -356,7 +402,7 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     customerExamples: ["SMEs", "Trading businesses", "Service companies"],
     templateCodes: ["TEMPLATE_CORE_STARTER", "TEMPLATE_ALL_FEATURES"],
     preferredHomeHref: null,
-    primaryModules: ["stores", "hr", "reporting"],
+    primaryModules: ["stores", "people", "payroll", "reporting"],
     foundationalModules: ["accounting", "management", "maintenance"],
   },
 ];
@@ -375,6 +421,14 @@ export function normalizeWorkspaceProfileInput(
   if (normalized === "GOLD" || normalized === "GOLD-MINE" || normalized === "GOLDMINE") return "GOLD_MINE";
   if (normalized === "SCHOOL" || normalized === "SCHOOLS") return "SCHOOLS";
   if (normalized === "THRIFT") return "RETAIL";
+  if (
+    normalized === "PAYROLL_BUREAU" ||
+    normalized === "PAYROLL-BUREAU" ||
+    normalized === "BUREAU" ||
+    normalized === "HR"
+  ) {
+    return "PAYROLL";
+  }
   if (
     normalized === "AUTO" ||
     normalized === "CAR_SALES" ||
@@ -434,6 +488,19 @@ export function inferWorkspaceProfileFromEnabledFeatures(
     return "GOLD_MINE";
   }
 
+  // 6. Payroll only. Checked last on purpose: HR is foundational to every
+  // vertical above, so `hr.payroll` alone is a payroll-only workspace but
+  // `hr.payroll` beside `schools.core` is a school that also runs payroll — and
+  // the ordering here is what tells them apart. Requires the statutory keys, so
+  // an ordinary tenant that merely has payroll switched on is not misread as a
+  // bureau.
+  if (
+    hasTokenFeature(enabledFeatures, "hr.payroll") &&
+    hasTokenFeature(enabledFeatures, "hr.statutory-tables")
+  ) {
+    return "PAYROLL";
+  }
+
   return null;
 }
 
@@ -484,6 +551,8 @@ export function resolveWorkspaceVerticalProductBundle(
       return getBundleById("auto-sales");
     case "RETAIL":
       return getBundleById("retail-operations");
+    case "PAYROLL":
+      return getBundleById("payroll-services");
     case "GENERAL":
     default:
       return getBundleById(resolveGeneralVerticalProduct(args.enabledFeatures));

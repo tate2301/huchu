@@ -364,7 +364,7 @@ export function PurchaseForm({
                 searchPlaceholder="Search employees..."
                 onValueChange={handleEmployeeSellerChange}
                 onAddOption={() => {
-                  router.push("/human-resources")
+                  router.push("/people")
                 }}
                 addLabel="Add employee"
               />
@@ -439,7 +439,7 @@ export function PurchaseForm({
                 searchPlaceholder="Search employees..."
                 onValueChange={handleSelectChange("receiver1Id")}
                 onAddOption={() => {
-                  router.push("/human-resources")
+                  router.push("/people")
                 }}
                 addLabel="Add employee"
               />
@@ -452,7 +452,7 @@ export function PurchaseForm({
                   searchPlaceholder="Search employees..."
                   onValueChange={handleSelectChange("receiver2Id")}
                   onAddOption={() => {
-                    router.push("/human-resources")
+                    router.push("/people")
                   }}
                   addLabel="Add employee"
                 />

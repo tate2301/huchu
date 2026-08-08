@@ -55,6 +55,11 @@ export const VERTICAL_ROLE_REGISTRY: Record<ManagedWorkspaceProfile, VerticalRol
       "TEACHER",
     ],
   },
+  // A bureau's whole staff list. CLERK prepares runs, MANAGER approves them —
+  // the two-step split `lib/hr/permissions.ts` enforces — and FINANCE_OFFICER
+  // handles the remittances. No OPERATOR: there is nothing here for one to do,
+  // and `lib/hr/permissions.ts` grants them nothing.
+  PAYROLL: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "FINANCE_OFFICER"] },
   GENERAL: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "OPERATOR", "FINANCE_OFFICER"] },
 };
 

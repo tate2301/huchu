@@ -65,9 +65,9 @@ const EXECUTIVE_MODULE_ACCESS_CONFIG: Record<ExecutiveModuleKey, ExecutiveModule
   workforce: {
     visibilityFeatures: ["hr.employees", "hr.salaries", "hr.approvals-history"],
     reportTargets: [
-      { href: "/human-resources/approvals", feature: "hr.approvals-history" },
-      { href: "/human-resources/salaries", feature: "hr.salaries" },
-      { href: "/human-resources", feature: "hr.employees" },
+      { href: "/people/approvals", feature: "hr.approvals-history" },
+      { href: "/payroll/salaries", feature: "hr.salaries" },
+      { href: "/people", feature: "hr.employees" },
     ],
   },
   operations: {

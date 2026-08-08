@@ -20,9 +20,9 @@ export type ExecutiveQuickLinkModule =
   | "general";
 
 export const EXECUTIVE_QUICK_LINK_BASE_PRIORITY: Record<string, number> = {
-  "/human-resources/approvals": 95,
-  "/human-resources/payroll": 92,
-  "/human-resources/disbursements": 90,
+  "/people/approvals": 95,
+  "/payroll/runs": 92,
+  "/payroll/disbursements": 90,
   "/gold/exceptions": 89,
   "/gold/settlement/receipts/new": 88,
   "/reports/gold-chain": 86,
@@ -45,9 +45,9 @@ export const EXECUTIVE_QUICK_LINK_BASE_PRIORITY: Record<string, number> = {
 };
 
 export const EXECUTIVE_QUICK_LINK_BADGE_LABELS: Record<string, string> = {
-  "/human-resources/approvals": "Pending approvals",
-  "/human-resources/payroll": "Pending payroll",
-  "/human-resources/disbursements": "Pending disbursements",
+  "/people/approvals": "Pending approvals",
+  "/payroll/runs": "Pending payroll",
+  "/payroll/disbursements": "Pending disbursements",
   "/gold/exceptions": "Open exceptions",
   "/gold/settlement/receipts/new": "Pending receipts",
   "/reports/gold-chain": "Open custody gaps",
@@ -93,7 +93,7 @@ export function getQuickLinkModule(href: string): ExecutiveQuickLinkModule {
   if (href.startsWith("/gold")) return "gold";
   if (href.startsWith("/stores")) return "stores";
   if (href.startsWith("/accounting")) return "finance";
-  if (href.startsWith("/human-resources")) return "workforce";
+  if (href.startsWith("/people")) return "workforce";
   if (href.startsWith("/maintenance")) return "maintenance";
   if (href.startsWith("/compliance")) return "compliance";
   if (href.startsWith("/cctv")) return "security";

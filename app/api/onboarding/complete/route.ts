@@ -26,8 +26,6 @@ type OnboardingPayload = {
 function getWorkspaceOnboardingDefaults(workspaceProfile: string | null | undefined) {
   void workspaceProfile;
   return {
-    goldPayoutCycle: "MONTHLY" as const,
-    goldSettlementMode: "CURRENT_PERIOD" as const,
   };
 }
 
@@ -55,18 +53,17 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as OnboardingPayload;
 
-    if (!body.sites || body.sites.length === 0) {
-      return NextResponse.json(
-        { error: "At least one site is required" },
-        { status: 400 }
-      );
-    }
+    // Sites are optional. They came from the mine — a shaft, a pit, a section —
+    // and a payroll bureau, a school or an accounting practice has none. The
+    // wizard used to refuse to finish without one, so the only way out was to
+    // invent a fake site, and the tenant then carried it forever.
+    const sites = body.sites ?? [];
 
-    // Validate site data
-    for (const site of body.sites) {
+    // A half-filled site is still an error: it is a typo, not a choice.
+    for (const site of sites) {
       if (!site.name || !site.code) {
         return NextResponse.json(
-          { error: "Site name and code are required" },
+          { error: "A site needs both a name and a code" },
           { status: 400 }
         );
       }
@@ -107,7 +104,7 @@ export async function POST(request: NextRequest) {
     const result = await prisma.$transaction(async (tx) => {
       // Create sites
       const createdSites = await Promise.all(
-        body.sites.map((site) =>
+        sites.map((site) =>
           tx.site.create({
             data: {
               name: site.name,
@@ -146,9 +143,6 @@ export async function POST(request: NextRequest) {
           isProvisioned: true,
           tenantStatus: "ACTIVE",
           payrollCycle: body.organizationPrefs?.payrollCycle ?? "MONTHLY",
-          goldPayoutCycle:
-            onboardingDefaults.goldPayoutCycle,
-          goldSettlementMode: onboardingDefaults.goldSettlementMode,
           cashDisbursementOnly:
             body.organizationPrefs?.cashDisbursementOnly ?? true,
         },

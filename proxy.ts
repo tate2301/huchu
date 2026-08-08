@@ -57,7 +57,10 @@ const PORTAL_HOME_BY_ROLE = {
   POS_CASHIER: "/portal/pos",
   CASHIER: "/portal/pos",
 } as const;
-const HR_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
+// Mirrors WORKFORCE_MODULE_ALLOWED_ROLES in `lib/navigation.ts`. Checked on the
+// prefix here so a school teacher signing into a tenant that also runs payroll
+// cannot reach the salary bill by typing the URL.
+const WORKFORCE_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
 const SCRAP_LOTS_ONLY_ROLES = new Set(["OPERATOR", "CLERK"]);
 const SCRAP_OPERATOR_RESTRICTED_PATHS = ["/scrap-metal/purchases/unassigned", "/scrap-metal/adjustments"] as const;
 
@@ -496,9 +499,13 @@ export default withAuth(
       return redirectToPath(request, landing);
     }
 
-    if (token && isPathWithinRoute(pathname, "/human-resources")) {
-      if (!HR_MODULE_ALLOWED_ROLES.has(token.role ?? "")) {
-        return denyAccess(request, "Human resources access is restricted");
+    if (
+      token &&
+      (isPathWithinRoute(pathname, "/people") ||
+        isPathWithinRoute(pathname, "/payroll"))
+    ) {
+      if (!WORKFORCE_MODULE_ALLOWED_ROLES.has(token.role ?? "")) {
+        return denyAccess(request, "People and payroll access is restricted");
       }
     }
 

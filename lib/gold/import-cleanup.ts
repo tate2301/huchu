@@ -172,9 +172,6 @@ export async function purgeImportArtifacts(
   }
 
   if (priorAllocationIds.length > 0) {
-    await tx.employeePayment.deleteMany({
-      where: { goldShiftAllocationId: { in: priorAllocationIds } },
-    })
     await tx.goldShiftWorkerShare.deleteMany({
       where: { allocationId: { in: priorAllocationIds } },
     })

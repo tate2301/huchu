@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
 import { prisma } from "@/lib/prisma"
-import { ensureApproverRole } from "@/lib/hr-payroll"
-
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 const updateDepartmentSchema = z
   .object({
     code: z.string().trim().min(1).max(40).optional(),

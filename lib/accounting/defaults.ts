@@ -144,6 +144,37 @@ export type AccountingFoundationPack = {
   };
 };
 
+/**
+ * Payroll accounts.
+ *
+ * These exist because payroll had none of its own. Deductions were credited to
+ * **2300 Goods Received Not Invoiced** — an inventory account it shared with
+ * `STOCK_RECEIPT`, so PAYE withheld from a wage and stock received but not
+ * invoiced accumulated in the same balance. Net pay went to generic
+ * **2000 Accounts Payable** alongside every supplier invoice.
+ *
+ * Nothing about that was recoverable at filing time: there was no balance an
+ * accountant could point at and say "this is what we owe ZIMRA", so the P2 could
+ * not be reconciled to the ledger at all.
+ *
+ * One account per authority, because each is remitted separately, on its own
+ * date, and reconciled on its own return.
+ */
+const PAYROLL_CHART_OF_ACCOUNTS: DefaultAccount[] = [
+  { code: "2100", name: "Net Pay Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2110", name: "PAYE Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2120", name: "NSSA Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2130", name: "AIDS Levy Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2140", name: "ZIMDEF Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2150", name: "NEC Dues Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2160", name: "Standards Development Levy Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  { code: "2170", name: "Payroll Deductions Payable", type: "LIABILITY", category: "Payroll", systemManaged: true },
+  // The employer's own contributions are an expense of employing people, and a
+  // separate one from the wage itself — a business that wants to know its true
+  // cost of labour needs the two apart.
+  { code: "5210", name: "Employer Statutory Contributions", type: "EXPENSE", category: "Payroll", systemManaged: true },
+];
+
 const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "1000", name: "Till Cash", type: "ASSET", category: "Cash", systemManaged: true },
   { code: "1005", name: "Cash Vault", type: "ASSET", category: "Cash", systemManaged: true },
@@ -159,6 +190,7 @@ const BASE_CHART_OF_ACCOUNTS: DefaultAccount[] = [
   { code: "2200", name: "VAT Output", type: "LIABILITY", category: "Tax", systemManaged: true },
   { code: "2210", name: "VAT Input", type: "ASSET", category: "Tax", systemManaged: true },
   { code: "2300", name: "Goods Received Not Invoiced", type: "LIABILITY", category: "Inventory", systemManaged: true },
+  ...PAYROLL_CHART_OF_ACCOUNTS,
   { code: "3000", name: "Retained Earnings", type: "EQUITY", category: "Equity", systemManaged: true },
   { code: "4000", name: "Retail Sales Revenue", type: "INCOME", category: "Revenue", systemManaged: true },
   { code: "4010", name: "Sales Discounts", type: "INCOME", category: "Revenue", systemManaged: true },
@@ -371,19 +403,40 @@ const BASE_POSTING_RULES: DefaultPostingRule[] = [
     ],
   },
   {
+    // Was three lines: wages debited at gross, net credited to generic Accounts
+    // Payable, and every deduction credited to 2300 Goods Received Not Invoiced —
+    // an inventory account shared with stock receipts. There was no balance an
+    // accountant could reconcile a P2 against.
+    //
+    // Now one credit per authority, each summed from the `PayrollLineComponent`
+    // rows carrying that `statutoryKey`, so the payable balance and the return
+    // filed against it come from the same rows. The employer's own contributions
+    // are their own debit and their own credit — a cost of employing people that
+    // never passed through anybody's wage.
     name: "Payroll Run",
     sourceType: "PAYROLL_RUN",
     lines: [
       { accountCode: "5200", direction: "DEBIT", basis: "GROSS", allocationValue: 100 },
-      { accountCode: "2000", direction: "CREDIT", basis: "NET", allocationValue: 100 },
-      { accountCode: "2300", direction: "CREDIT", basis: "DEDUCTIONS", allocationValue: 100 },
+      { accountCode: "5210", direction: "DEBIT", basis: "EMPLOYER_CONTRIBUTIONS", allocationValue: 100 },
+      { accountCode: "2100", direction: "CREDIT", basis: "NET", allocationValue: 100 },
+      { accountCode: "2110", direction: "CREDIT", basis: "PAYE", allocationValue: 100 },
+      { accountCode: "2130", direction: "CREDIT", basis: "AIDS_LEVY", allocationValue: 100 },
+      { accountCode: "2120", direction: "CREDIT", basis: "NSSA_EMPLOYEE", allocationValue: 100 },
+      { accountCode: "2120", direction: "CREDIT", basis: "NSSA_EMPLOYER", allocationValue: 100 },
+      { accountCode: "2140", direction: "CREDIT", basis: "ZIMDEF", allocationValue: 100 },
+      { accountCode: "2160", direction: "CREDIT", basis: "STANDARDS_DEVELOPMENT_LEVY", allocationValue: 100 },
+      { accountCode: "2150", direction: "CREDIT", basis: "NEC_EMPLOYEE", allocationValue: 100 },
+      { accountCode: "2150", direction: "CREDIT", basis: "NEC_EMPLOYER", allocationValue: 100 },
+      { accountCode: "2170", direction: "CREDIT", basis: "OTHER_DEDUCTIONS", allocationValue: 100 },
     ],
   },
   {
+    // Settling net pay clears 2100, not generic Accounts Payable — the account
+    // the run credited.
     name: "Payroll Disbursement",
     sourceType: "PAYROLL_DISBURSEMENT",
     lines: [
-      { accountCode: "2000", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
+      { accountCode: "2100", direction: "DEBIT", basis: "AMOUNT", allocationValue: 100 },
       { accountCode: "1000", direction: "CREDIT", basis: "AMOUNT", allocationValue: 100 },
     ],
   },

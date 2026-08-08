@@ -1,17 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import { ensureApproverRole } from "@/lib/hr-payroll"
-
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 const updateSchema = z
   .object({
     payrollCycle: z.enum(["MONTHLY", "FORTNIGHTLY"]).optional(),
-    goldPayoutCycle: z.enum(["MONTHLY", "FORTNIGHTLY"]).optional(),
-    goldSettlementMode: z.enum(["CURRENT_PERIOD", "NEXT_PERIOD"]).optional(),
     cashDisbursementOnly: z.boolean().optional(),
     autoGeneratePayrollPeriods: z.boolean().optional(),
-    autoGenerateGoldPayoutPeriods: z.boolean().optional(),
     periodGenerationHorizon: z.number().int().min(1).max(12).optional(),
   })
   .refine((payload) => Object.keys(payload).length > 0, { message: "No fields provided" })
@@ -21,6 +18,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const company = await prisma.company.findUnique({
       where: { id: session.user.companyId },
@@ -28,11 +27,8 @@ export async function GET(request: NextRequest) {
         id: true,
         name: true,
         payrollCycle: true,
-        goldPayoutCycle: true,
-        goldSettlementMode: true,
         cashDisbursementOnly: true,
         autoGeneratePayrollPeriods: true,
-        autoGenerateGoldPayoutPeriods: true,
         periodGenerationHorizon: true,
       },
     })
@@ -52,6 +48,8 @@ export async function PATCH(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "configure")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to update payroll settings", 403)
@@ -67,11 +65,8 @@ export async function PATCH(request: NextRequest) {
         id: true,
         name: true,
         payrollCycle: true,
-        goldPayoutCycle: true,
-        goldSettlementMode: true,
         cashDisbursementOnly: true,
         autoGeneratePayrollPeriods: true,
-        autoGenerateGoldPayoutPeriods: true,
         periodGenerationHorizon: true,
       },
     })

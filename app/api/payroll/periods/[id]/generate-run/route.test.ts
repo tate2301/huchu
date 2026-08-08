@@ -17,6 +17,16 @@ const { validateSessionMock, createApprovalActionMock, prismaMock } = vi.hoisted
       compensationRule: {
         findMany: vi.fn(),
       },
+      // Reached by `assembleSalaryRun` and `ensureHrPayrollDefaults` on the
+      // salary path. Present so the guard-path tests below do not blow up on a
+      // missing delegate; the salary path itself is tested for real.
+      accountingSettings: { findUnique: vi.fn() },
+      currencyRate: { findFirst: vi.fn() },
+      attendance: { groupBy: vi.fn() },
+      payeTable: { count: vi.fn(), create: vi.fn(), findFirst: vi.fn() },
+      statutoryRate: { create: vi.fn(), findMany: vi.fn() },
+      taxCredit: { create: vi.fn(), findMany: vi.fn() },
+      necAgreement: { findFirst: vi.fn() },
       $transaction: vi.fn(),
     },
   }),
@@ -46,9 +56,9 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }))
 
-vi.mock("@/lib/hr-payroll", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/hr-payroll")>(
-    "@/lib/hr-payroll",
+vi.mock("@/lib/workflow/approvals", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/workflow/approvals")>(
+    "@/lib/workflow/approvals",
   )
 
   return {
@@ -106,6 +116,14 @@ describe("POST /api/payroll/periods/[id]/generate-run", () => {
     vi.spyOn(console, "log").mockImplementation(() => {})
     vi.spyOn(console, "error").mockImplementation(() => {})
     validateSessionMock.mockResolvedValue({ session })
+    prismaMock.accountingSettings.findUnique.mockResolvedValue({
+      baseCurrency: "USD",
+    })
+    prismaMock.currencyRate.findFirst.mockResolvedValue(null)
+    // Already seeded, so `ensureHrPayrollDefaults` is a no-op.
+    prismaMock.payeTable.count.mockResolvedValue(2)
+    prismaMock.attendance.groupBy.mockResolvedValue([])
+    prismaMock.necAgreement.findFirst.mockResolvedValue(null)
   })
 
   afterEach(() => {
@@ -146,106 +164,12 @@ describe("POST /api/payroll/periods/[id]/generate-run", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
-  it("creates a salary payroll draft from approved profiles and active rules", async () => {
-    const payrollRunCreate = vi.fn().mockResolvedValue({
-      id: "run-1",
-      companyId: "company-1",
-      periodId: "period-1",
-      domain: "PAYROLL",
-      runNumber: 1,
-      grossTotal: 1100,
-      allowancesTotal: 100,
-      deductionsTotal: 100,
-      netTotal: 1000,
-      lineItems: [{ id: "line-1" }],
-    })
-
-    prismaMock.payrollPeriod.findUnique.mockResolvedValue(makePeriod())
-    prismaMock.employee.findMany.mockResolvedValue([
-      {
-        id: "emp-1",
-        name: "Ada",
-        employeeId: "EMP-001",
-        departmentId: null,
-        gradeId: null,
-        defaultCurrency: "USD",
-      },
-    ])
-    prismaMock.compensationProfile.findMany.mockResolvedValue([
-      {
-        id: "profile-1",
-        employeeId: "emp-1",
-        baseAmount: 1000,
-        currency: "USD",
-        effectiveFrom: new Date("2026-01-01T00:00:00.000Z"),
-      },
-    ])
-    prismaMock.compensationRule.findMany.mockResolvedValue([
-      {
-        id: "allowance-1",
-        name: "Housing",
-        type: "ALLOWANCE",
-        calcMethod: "FIXED",
-        value: 100,
-        cap: null,
-        taxable: true,
-        employeeId: null,
-        departmentId: null,
-        gradeId: null,
-      },
-      {
-        id: "deduction-1",
-        name: "Pension",
-        type: "DEDUCTION",
-        calcMethod: "PERCENT",
-        value: 10,
-        cap: null,
-        taxable: false,
-        employeeId: null,
-        departmentId: null,
-        gradeId: null,
-      },
-    ])
-    prismaMock.$transaction.mockImplementation(async (callback) =>
-      callback({
-        payrollRun: {
-          create: payrollRunCreate,
-          delete: vi.fn(),
-        },
-      }),
-    )
-
-    const response = await POST(makeRequest({ notes: "April payroll" }), {
-      params: Promise.resolve({ id: "period-1" }),
-    })
-    const body = await response.json()
-    const createInput = payrollRunCreate.mock.calls[0]?.[0]
-
-    expect(response.status).toBe(201)
-    expect(body.id).toBe("run-1")
-    expect(createInput.data.grossTotal).toBe(1100)
-    expect(createInput.data.allowancesTotal).toBe(100)
-    expect(createInput.data.deductionsTotal).toBe(100)
-    expect(createInput.data.netTotal).toBe(1000)
-    expect(createInput.data.lineItems.create[0]).toMatchObject({
-      employeeId: "emp-1",
-      compensationProfileId: "profile-1",
-      baseAmount: 1000,
-      allowancesTotal: 100,
-      deductionsTotal: 100,
-      grossAmount: 1100,
-      netAmount: 1000,
-      currency: "USD",
-    })
-    expect(createApprovalActionMock).toHaveBeenCalledWith(
-      expect.anything(),
-      expect.objectContaining({
-        entityType: "PAYROLL_RUN",
-        entityId: "run-1",
-        action: "CREATE",
-      }),
-    )
-  })
+  // The salary path is exercised end to end against a real Postgres in
+  // `lib/hr/payroll/run-integration.test.ts`. It reads compensation profiles,
+  // rules, attendance, four statutory tables and an FX rate; mocking all of
+  // that here would assert the shape of the mocks rather than the behaviour of
+  // the route. The guard paths above stay mocked, because they return before any
+  // of that happens.
 
   it("returns auth responses without querying payroll data", async () => {
     validateSessionMock.mockResolvedValue(

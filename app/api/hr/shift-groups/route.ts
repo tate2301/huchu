@@ -9,13 +9,16 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { prisma } from "@/lib/prisma"
 
 const createShiftGroupSchema = z.object({
   name: z.string().trim().min(1).max(120),
   code: z.string().trim().max(40).optional(),
-  siteId: z.string().uuid(),
+  /// Optional. A workforce without sites still has crews — see the note on the
+  /// model. A mine sends one; a bureau does not.
+  siteId: z.string().uuid().nullable().optional(),
   leaderEmployeeId: z.string().uuid(),
   memberIds: z.array(z.string().uuid()).optional(),
 })
@@ -25,6 +28,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "view")
+    if (denial) return errorResponse(denial, 403)
 
     const { searchParams } = new URL(request.url)
     const search = searchParams.get("search")?.trim()
@@ -76,6 +81,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.employees", "create")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create shift groups", 403)
@@ -85,21 +92,27 @@ export async function POST(request: NextRequest) {
     const validated = createShiftGroupSchema.parse(body)
 
     const [site, leader] = await Promise.all([
-      prisma.site.findUnique({
-        where: { id: validated.siteId },
-        select: { id: true, companyId: true, isActive: true },
-      }),
+      // Only looked up when one was named. A group with no site is valid; a group
+      // naming a site that is not this company's is not.
+      validated.siteId
+        ? prisma.site.findUnique({
+            where: { id: validated.siteId },
+            select: { id: true, companyId: true, isActive: true },
+          })
+        : Promise.resolve(null),
       prisma.employee.findUnique({
         where: { id: validated.leaderEmployeeId },
         select: { id: true, companyId: true, isActive: true },
       }),
     ])
 
-    if (!site || site.companyId !== session.user.companyId) {
-      return errorResponse("Invalid site", 403)
-    }
-    if (!site.isActive) {
-      return errorResponse("Site is not active", 400)
+    if (validated.siteId) {
+      if (!site || site.companyId !== session.user.companyId) {
+        return errorResponse("Invalid site", 403)
+      }
+      if (!site.isActive) {
+        return errorResponse("Site is not active", 400)
+      }
     }
     if (!leader || leader.companyId !== session.user.companyId || !leader.isActive) {
       return errorResponse("Invalid group leader", 400)
@@ -128,7 +141,7 @@ export async function POST(request: NextRequest) {
       const group = await tx.shiftGroup.create({
         data: {
           companyId: session.user.companyId,
-          siteId: validated.siteId,
+          siteId: validated.siteId ?? null,
           name: validated.name,
           code: validated.code?.trim() || undefined,
           leaderEmployeeId: validated.leaderEmployeeId,

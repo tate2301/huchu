@@ -1,12 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@/lib/prisma"
-import {
-  createApprovalAction,
-  ensureApproverRole,
-  isTwoStepActionAllowed,
-} from "@/lib/hr-payroll"
+import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
+import { money, toBaseAmount, toNumberOrZero } from "@/lib/money"
 
 export async function POST(
   request: NextRequest,
@@ -16,6 +14,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "approve")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     if (!ensureApproverRole(session)) {
@@ -31,17 +31,13 @@ export async function POST(
         submittedById: true,
         targetType: true,
         amountDelta: true,
+        reason: true,
         payrollRunId: true,
         disbursementBatchId: true,
         lineItemId: true,
         disbursementItemId: true,
-        payrollRun: { select: { status: true, domain: true } },
-        disbursementBatch: {
-          select: {
-            status: true,
-            payrollRun: { select: { domain: true } },
-          },
-        },
+        payrollRun: { select: { status: true } },
+        disbursementBatch: { select: { status: true } },
       },
     })
 
@@ -65,32 +61,99 @@ export async function POST(
       return errorResponse("Disbursement batch must be in draft to approve adjustment", 409)
     }
 
+    // An adjustment moves net pay, and it has to move the numbers net pay
+    // follows from as well. Previously it incremented `netAmount` alone, leaving
+    // a line whose own three figures contradicted each other:
+    // gross − deductions no longer equalled net, so the payslip and the journal
+    // disagreed and the run's own totals were internally inconsistent.
+    //
+    // A positive delta is an extra payment: gross and allowances rise with net.
+    // A negative delta is an extra withholding: deductions rise and net falls.
+    // Either way the identity holds.
+    //
+    // What this deliberately does NOT do is re-strike PAYE. An adjustment is a
+    // correction applied after tax — a bank detail fixed, a day's pay restored.
+    // A change that *should* be taxed belongs in a compensation rule and a
+    // regenerated run, not here, and pretending otherwise would file a P2 that
+    // does not match the payslips.
+    const delta = money(existing.amountDelta)
+    const isCredit = delta.isPositive()
+    const magnitudeDecimal = delta.abs()
+
+    const lineMovement = isCredit
+      ? {
+          grossAmount: { increment: magnitudeDecimal },
+          allowancesTotal: { increment: magnitudeDecimal },
+          netAmount: { increment: magnitudeDecimal },
+        }
+      : {
+          deductionsTotal: { increment: magnitudeDecimal },
+          netAmount: { decrement: magnitudeDecimal },
+        }
+
+    const runMovement = isCredit
+      ? {
+          grossTotal: { increment: magnitudeDecimal },
+          allowancesTotal: { increment: magnitudeDecimal },
+          netTotal: { increment: magnitudeDecimal },
+        }
+      : {
+          deductionsTotal: { increment: magnitudeDecimal },
+          netTotal: { decrement: magnitudeDecimal },
+        }
+
     const updated = await prisma.$transaction(async (tx) => {
       if (existing.targetType === "PAYROLL_LINE_ITEM") {
         if (!existing.lineItemId || !existing.payrollRunId) {
           throw new Error("Invalid payroll line-item adjustment")
         }
+        const line = await tx.payrollLineItem.update({
+          where: { id: existing.lineItemId },
+          data: lineMovement,
+          select: { exchangeRate: true, netAmount: true },
+        })
+        // `netBaseAmount` is what the ledger posts, so it has to move with net
+        // rather than keep the pre-adjustment figure.
         await tx.payrollLineItem.update({
           where: { id: existing.lineItemId },
-          data: { netAmount: { increment: existing.amountDelta } },
+          data: { netBaseAmount: toBaseAmount(line.netAmount, line.exchangeRate) },
+        })
+        // The adjustment shows on the payslip as the line it is, rather than as
+        // an unexplained difference between gross and net.
+        await tx.payrollLineComponent.create({
+          data: {
+            lineItemId: existing.lineItemId,
+            name: `Adjustment — ${existing.reason}`.slice(0, 200),
+            type: isCredit ? "ALLOWANCE" : "DEDUCTION",
+            calcMethod: "FIXED",
+            rateOrAmount: magnitudeDecimal,
+            amount: magnitudeDecimal,
+            isTaxable: false,
+            sequence: 300,
+          },
         })
         await tx.payrollRun.update({
           where: { id: existing.payrollRunId },
-          data: { netTotal: { increment: existing.amountDelta } },
+          data: runMovement,
         })
       } else if (existing.targetType === "PAYROLL_RUN") {
         if (!existing.payrollRunId) throw new Error("Invalid payroll-run adjustment")
         await tx.payrollRun.update({
           where: { id: existing.payrollRunId },
-          data: { netTotal: { increment: existing.amountDelta } },
+          data: runMovement,
         })
       } else if (existing.targetType === "DISBURSEMENT_ITEM") {
         if (!existing.disbursementItemId || !existing.disbursementBatchId) {
           throw new Error("Invalid disbursement-item adjustment")
         }
-        await tx.disbursementItem.update({
+        const item = await tx.disbursementItem.update({
           where: { id: existing.disbursementItemId },
           data: { amount: { increment: existing.amountDelta } },
+          select: { amount: true, exchangeRate: true },
+        })
+        await tx.disbursementItem.update({
+          where: { id: existing.disbursementItemId },
+          data: { baseAmount: toBaseAmount(item.amount, item.exchangeRate) },
         })
         await tx.disbursementBatch.update({
           where: { id: existing.disbursementBatchId },
@@ -132,10 +195,9 @@ export async function POST(
         updated.targetType === "DISBURSEMENT_BATCH" || updated.targetType === "DISBURSEMENT_ITEM"
           ? "PAYROLL_DISBURSEMENT"
           : "PAYROLL_RUN"
-      const isGoldDomain =
-        (sourceType === "PAYROLL_RUN" && existing.payrollRun?.domain === "GOLD_PAYOUT") ||
-        (sourceType === "PAYROLL_DISBURSEMENT" &&
-          existing.disbursementBatch?.payrollRun?.domain === "GOLD_PAYOUT")
+      // The event carries the size of the correction and a direction flag, so
+      // the sign lives in `invertDirection` and never in the amount.
+      const magnitude = toNumberOrZero(updated.amountDelta.abs())
       await captureAccountingEvent({
         companyId: session.user.companyId,
         sourceDomain: "payroll",
@@ -144,17 +206,17 @@ export async function POST(
         sourceId: updated.id,
         entryDate: updated.approvedAt,
         description: `Adjustment ${updated.id} approved`,
-        amount: Math.abs(updated.amountDelta),
-        netAmount: Math.abs(updated.amountDelta),
-        grossAmount: Math.abs(updated.amountDelta),
+        amount: magnitude,
+        netAmount: magnitude,
+        grossAmount: magnitude,
         payload: {
           targetType: updated.targetType,
           payrollRunId: updated.payrollRunId,
           disbursementBatchId: updated.disbursementBatchId,
-          invertDirection: updated.amountDelta < 0,
+          invertDirection: updated.amountDelta.isNegative(),
         },
         createdById: session.user.id,
-        status: isGoldDomain ? "IGNORED" : "PENDING",
+        status: "PENDING",
       })
     } catch (error) {
       console.error("[Accounting] Adjustment approval capture failed:", error)

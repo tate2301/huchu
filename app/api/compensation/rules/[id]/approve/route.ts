@@ -1,13 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import {
-  canTransitionStandardWorkflow,
-  createApprovalAction,
-  ensureApproverRole,
-  isTwoStepActionAllowed,
-} from "@/lib/hr-payroll"
-
+import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -16,6 +11,8 @@ export async function POST(
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "approve")
+    if (denial) return errorResponse(denial, 403)
     const { id } = await params
 
     if (!ensureApproverRole(session)) {

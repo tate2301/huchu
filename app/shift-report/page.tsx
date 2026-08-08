@@ -488,7 +488,7 @@ export default function ShiftReportPage() {
                         groupLeaderId: matched?.leaderEmployeeId ?? prev.groupLeaderId,
                       }));
                     }}
-                    onAddOption={() => router.push("/human-resources/shift-groups")}
+                    onAddOption={() => router.push("/people/rosters")}
                     addLabel="Manage shift groups"
                   />
                 )}

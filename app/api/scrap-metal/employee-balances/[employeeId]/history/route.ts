@@ -73,10 +73,14 @@ export async function GET(request: NextRequest, context: RouteContext) {
           },
         },
       }),
-      prisma.employeePayment.findMany({
+      // `SettlementPayment`, not the gold half of `EmployeePayment`: there `amount`
+      // was a Float read in whatever `unit` said, and the link back to the batch
+      // was a nullable column shared with three other payout kinds.
+      prisma.settlementPayment.findMany({
         where: {
+          companyId: session.user.companyId,
           employeeId,
-          payoutSource: "SCRAP",
+          source: "SCRAP",
         },
         orderBy: [{ dueDate: "desc" }, { createdAt: "desc" }],
         take: 20,
@@ -84,21 +88,19 @@ export async function GET(request: NextRequest, context: RouteContext) {
           id: true,
           dueDate: true,
           amount: true,
-          amountUsd: true,
           paidAmount: true,
-          paidAmountUsd: true,
           status: true,
           notes: true,
           createdAt: true,
-          irregularPayoutBatchId: true,
+          batchItemId: true,
         },
       }),
-      prisma.irregularPayoutBatchItem.findMany({
+      prisma.settlementBatchItem.findMany({
         where: {
           employeeId,
           batch: {
             companyId: session.user.companyId,
-            source: "SCRAP",
+            run: { source: "SCRAP" },
           },
         },
         orderBy: [{ createdAt: "desc" }],
@@ -107,10 +109,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
           batch: {
             select: {
               id: true,
-              label: true,
-              dueDate: true,
-              workflowStatus: true,
+              code: true,
+              status: true,
               createdAt: true,
+              run: { select: { dueDate: true } },
             },
           },
         },
@@ -153,19 +155,29 @@ export async function GET(request: NextRequest, context: RouteContext) {
         batch: purchase.batchItems[0]?.batch ?? null,
       })),
       settlements: batchItems.map((item) => {
-        const payment = payments.find((candidate) => candidate.irregularPayoutBatchId === item.batchId);
+        // Matched on the batch item, not on a date range. The screen this feeds
+        // used to reconcile payments to batches by comparing period windows,
+        // which quietly paired the wrong two rows whenever an operator was
+        // settled twice in one month.
+        const payment = payments.find((candidate) => candidate.batchItemId === item.id);
         return {
           id: item.id,
           amount: item.amount,
           notes: item.notes,
           createdAt: item.createdAt,
-          batch: item.batch,
+          batch: {
+            id: item.batch.id,
+            label: item.batch.code,
+            dueDate: item.batch.run.dueDate,
+            workflowStatus: item.batch.status,
+            createdAt: item.batch.createdAt,
+          },
           payment: payment
             ? {
                 id: payment.id,
                 dueDate: payment.dueDate,
-                amount: payment.amountUsd ?? payment.amount,
-                paidAmount: payment.paidAmountUsd ?? payment.paidAmount ?? 0,
+                amount: payment.amount,
+                paidAmount: payment.paidAmount ?? 0,
                 status: payment.status,
                 notes: payment.notes,
                 createdAt: payment.createdAt,

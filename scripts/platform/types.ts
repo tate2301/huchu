@@ -134,10 +134,8 @@ export interface OrganizationDetail {
   suspendedAt: string | null;
   disabledAt: string | null;
   payrollCycle: string;
-  goldPayoutCycle: string;
   cashDisbursementOnly: boolean;
   autoGeneratePayrollPeriods: boolean;
-  autoGenerateGoldPayoutPeriods: boolean;
   periodGenerationHorizon: number;
   createdAt: string | null;
   updatedAt: string | null;

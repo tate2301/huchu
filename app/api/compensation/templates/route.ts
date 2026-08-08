@@ -7,8 +7,9 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils"
+import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@/lib/prisma"
-import { ensureApproverRole } from "@/lib/hr-payroll"
+import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
 
 const templateSchema = z.object({
@@ -27,6 +28,8 @@ export async function GET(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "view")
+    if (denial) return errorResponse(denial, 403)
     const { searchParams } = new URL(request.url)
     const { page, limit, skip } = getPaginationParams(request)
 
@@ -88,6 +91,8 @@ export async function POST(request: NextRequest) {
     const sessionResult = await validateSession(request)
     if (sessionResult instanceof NextResponse) return sessionResult
     const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.compensation", "create")
+    if (denial) return errorResponse(denial, 403)
 
     if (!ensureApproverRole(session)) {
       return errorResponse("Insufficient permissions to create compensation templates", 403)

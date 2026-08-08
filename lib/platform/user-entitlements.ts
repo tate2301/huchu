@@ -56,7 +56,10 @@ const OPERATOR_TEMPLATE_ALLOW_PREFIXES = [
   "stores.",
   "maintenance.",
   "reports.",
-  "hr.settlements",
+  // An operator counts the scrap and weighs the gold, so settlements are theirs
+  // to record. The matrix in `lib/settlements/permissions.ts` keeps them to
+  // recording and submitting — they cannot approve their own count or pay it out.
+  "settlements.",
 ] as const;
 
 const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {

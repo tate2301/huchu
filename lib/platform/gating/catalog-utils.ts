@@ -6,9 +6,13 @@ const FEATURE_KEY_ALIASES: Record<string, string> = {
   "thrift.checkout": "retail.pos",
   "thrift.intake": "retail.purchasing",
   "portal.thrift": "portal.pos",
-  "hr.gold-payouts": "hr.settlements",
-  "hr.payouts": "hr.settlements",
-  "gold.settlements": "gold.payouts",
+  // Settlements left HR. These three all resolve to the settlement module's key
+  // now, so a CompanyFeatureFlag row written before the split still turns the
+  // right surface on.
+  "hr.gold-payouts": "settlements.gold",
+  "hr.payouts": "settlements.core",
+  "hr.settlements": "settlements.core",
+  "gold.settlements": "settlements.gold",
 };
 
 export function normalizeFeatureKey(value: string): string {

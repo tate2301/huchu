@@ -450,9 +450,9 @@ const scrapStaffSettlementsPreloadQueries: OfflinePreloadQuery[] = [
     fetcher: async () => fetchJson("/api/scrap-metal/employee-balances?limit=500&nonZero=true"),
   },
   {
-    key: "scrap-payout-batches",
-    queryKey: ["scrap-payout-batches"],
-    fetcher: async () => fetchJson("/api/hr/payout-batches?source=SCRAP&limit=500"),
+    key: "scrap-settlement-intakes",
+    queryKey: ["scrap-settlement-intakes"],
+    fetcher: async () => fetchJson("/api/settlements/intakes?source=SCRAP&limit=500"),
   },
   {
     key: "scrap-settlement-employees",
@@ -616,9 +616,9 @@ const scrapReportSnapshotRoutes = [
   "/scrap-metal/reports/variance-aging",
 ];
 const hrWorkforceCoreRoutes = [
-  "/human-resources",
-  "/human-resources/shift-groups",
-  "/human-resources/incidents",
+  "/people",
+  "/people/rosters",
+  "/people/incidents",
 ];
 
 export const OFFLINE_MODULES: OfflineModuleDefinition[] = [

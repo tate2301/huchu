@@ -6,6 +6,10 @@ import {
   isSchoolDocumentSourceKey,
   resolveSchoolDocument,
 } from "@/lib/documents/schools-sources";
+import {
+  isHrDocumentSourceKey,
+  resolveHrDocumentSource,
+} from "@/lib/documents/hr-sources";
 
 const sourceInputSchema = z.object({
   target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
@@ -765,6 +769,18 @@ export async function resolveSourcePayload(
       sourceKey: input.sourceKey,
       recordId: input.recordId,
       filters: input.filters,
+    });
+  }
+
+  // The payslip. Same reasoning as the school documents above: dispatched here so
+  // it gets the same letterhead, the same PDF renderer and the same template
+  // editor as everything else the product prints, rather than payroll growing its
+  // own printing.
+  if (isHrDocumentSourceKey(input.sourceKey)) {
+    return resolveHrDocumentSource({
+      companyId,
+      sourceKey: input.sourceKey,
+      recordId: input.recordId,
     });
   }
 

@@ -7,6 +7,7 @@ import {
 } from "@/lib/accounting/posting";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
+import { toNumber, type MoneyLike } from "@/lib/money";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -22,12 +23,17 @@ type CaptureAccountingEventInput = {
   causationKey?: string | null;
   entryDate?: Date | null;
   description?: string | null;
-  amount?: number | null;
-  netAmount?: number | null;
-  taxAmount?: number | null;
-  grossAmount?: number | null;
-  deductionsAmount?: number | null;
-  allowancesAmount?: number | null;
+  // `MoneyLike`, not `number`, because callers increasingly hold a
+  // `Prisma.Decimal` — every school fee column is one and the HR payroll
+  // columns became ones. The event table itself is still `Float`, so the
+  // crossing happens once, here, rather than at each of the twenty-odd call
+  // sites where it is easy to get wrong or forget.
+  amount?: MoneyLike;
+  netAmount?: MoneyLike;
+  taxAmount?: MoneyLike;
+  grossAmount?: MoneyLike;
+  deductionsAmount?: MoneyLike;
+  allowancesAmount?: MoneyLike;
   currency?: string | null;
   payload?: unknown;
   createdById?: string | null;
@@ -95,12 +101,12 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
       causationKey: input.causationKey ?? null,
       entryDate: input.entryDate ?? null,
       description: input.description ?? null,
-      amount: input.amount ?? null,
-      netAmount: input.netAmount ?? null,
-      taxAmount: input.taxAmount ?? null,
-      grossAmount: input.grossAmount ?? null,
-      deductionsAmount: input.deductionsAmount ?? null,
-      allowancesAmount: input.allowancesAmount ?? null,
+      amount: toNumber(input.amount),
+      netAmount: toNumber(input.netAmount),
+      taxAmount: toNumber(input.taxAmount),
+      grossAmount: toNumber(input.grossAmount),
+      deductionsAmount: toNumber(input.deductionsAmount),
+      allowancesAmount: toNumber(input.allowancesAmount),
       currency: input.currency ?? null,
       payloadJson: input.payload ? JSON.stringify(input.payload) : null,
       createdById: input.createdById ?? null,
@@ -121,12 +127,12 @@ export async function captureAccountingEvent(input: CaptureAccountingEventInput,
       eventKey,
       entryDate: input.entryDate ?? null,
       description: input.description ?? null,
-      amount: input.amount ?? null,
-      netAmount: input.netAmount ?? null,
-      taxAmount: input.taxAmount ?? null,
-      grossAmount: input.grossAmount ?? null,
-      deductionsAmount: input.deductionsAmount ?? null,
-      allowancesAmount: input.allowancesAmount ?? null,
+      amount: toNumber(input.amount),
+      netAmount: toNumber(input.netAmount),
+      taxAmount: toNumber(input.taxAmount),
+      grossAmount: toNumber(input.grossAmount),
+      deductionsAmount: toNumber(input.deductionsAmount),
+      allowancesAmount: toNumber(input.allowancesAmount),
       currency: input.currency ?? null,
       payloadJson: input.payload ? JSON.stringify(input.payload) : null,
       createdById: input.createdById ?? null,

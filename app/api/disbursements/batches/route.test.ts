@@ -59,14 +59,24 @@ vi.mock("@/lib/prisma", () => ({
   prisma: prismaMock,
 }))
 
-vi.mock("@/lib/hr-payroll", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/hr-payroll")>(
-    "@/lib/hr-payroll",
+vi.mock("@/lib/workflow/approvals", async () => {
+  const actual = await vi.importActual<typeof import("@/lib/workflow/approvals")>(
+    "@/lib/workflow/approvals",
   )
 
   return {
     ...actual,
     createApprovalAction: createApprovalActionMock,
+  }
+})
+
+vi.mock("@/lib/payroll/disbursements", async () => {
+  const actual = await vi.importActual<
+    typeof import("@/lib/payroll/disbursements")
+  >("@/lib/payroll/disbursements")
+
+  return {
+    ...actual,
     generateDisbursementCode: () => "DB-TEST-00001",
   }
 })
@@ -117,6 +127,11 @@ function makeApprovedRun(overrides: Record<string, unknown> = {}) {
         employeeId,
         baseAmount: 1000,
         netAmount: 1000,
+        // The batch copies currency, rate and base value off the line rather
+        // than re-deriving them, so the fixture has to carry them.
+        currency: "USD",
+        exchangeRate: 1,
+        netBaseAmount: 1000,
         notes: "Salary run",
       },
     ],
@@ -167,6 +182,49 @@ describe("POST /api/disbursements/batches", () => {
     expect(prismaMock.$transaction).not.toHaveBeenCalled()
   })
 
+  it("refuses to put two currencies in one batch", async () => {
+    // A batch carries one currency and one total. Summing a USD line and a ZWG
+    // line would produce a number that means nothing, and the payment file
+    // built from it would pay the wrong amounts — so the run is rejected rather
+    // than quietly added up.
+    prismaMock.payrollRun.findUnique.mockResolvedValue(
+      makeApprovedRun({
+        lineItems: [
+          {
+            id: lineItemId,
+            employeeId,
+            baseAmount: 1000,
+            netAmount: 1000,
+            currency: "USD",
+            exchangeRate: 1,
+            netBaseAmount: 1000,
+            notes: "Salary run",
+          },
+          {
+            id: "line-zwg",
+            employeeId: "emp-zwg",
+            baseAmount: 27500,
+            netAmount: 27500,
+            currency: "ZWG",
+            exchangeRate: 27.5,
+            netBaseAmount: 1000,
+            notes: "Salary run",
+          },
+        ],
+      }),
+    )
+    prismaMock.disbursementBatch.findFirst.mockResolvedValue(null)
+
+    const response = await POST(makeRequest({ payrollRunId }))
+    const body = await response.json()
+
+    expect(response.status).toBe(400)
+    expect(body.error).toBe(
+      "This run pays in more than one currency. Create one batch per currency.",
+    )
+    expect(prismaMock.$transaction).not.toHaveBeenCalled()
+  })
+
   it("creates a cash disbursement batch from approved payroll line items", async () => {
     const disbursementBatchCreate = vi.fn().mockResolvedValue({
       id: disbursementBatchId,
@@ -212,18 +270,21 @@ describe("POST /api/disbursements/batches", () => {
       code: "DB-TEST-00001",
       status: "DRAFT",
       method: "CASH",
-      totalAmount: 1000,
+      currency: "USD",
       itemCount: 1,
       createdById: "user-1",
     })
-    expect(createInput.data.items.create).toEqual([
-      {
-        employeeId,
-        lineItemId,
-        amount: 1000,
-        status: "DUE",
-      },
-    ])
+    expect(createInput.data.totalAmount.toString()).toBe("1000")
+
+    const item = createInput.data.items.create[0]
+    expect(item).toMatchObject({
+      employeeId,
+      lineItemId,
+      currency: "USD",
+      status: "DUE",
+    })
+    expect(item.amount.toString()).toBe("1000")
+    expect(item.baseAmount.toString()).toBe("1000")
     expect(createApprovalActionMock).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({

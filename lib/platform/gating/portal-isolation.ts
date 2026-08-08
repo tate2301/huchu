@@ -46,7 +46,7 @@ const BLOCKED_ROUTES_FOR_PORTAL_USERS = [
   "/retail",
   "/thrift",
   "/accounting",
-  "/human-resources",
+  "/people",
   "/maintenance",
   "/stores",
   "/gold",
