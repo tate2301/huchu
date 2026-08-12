@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPos, requireRetailSession } from "../_helpers";
 
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
 
     const postedAt = sale.postedAt ?? sale.createdAt;
     const current = buckets.get(key);
-    const netDelta = sale.totalAmount;
+    const netDelta = toNumberOrZero(sale.totalAmount);
     if (!current) {
       buckets.set(key, {
         customerId: null,

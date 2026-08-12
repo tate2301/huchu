@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   requireRetailPos,
@@ -47,10 +48,11 @@ export async function GET(request: NextRequest) {
         ...shift,
         site: siteMap.get(shift.siteId) ?? null,
         saleCount: shiftSales.length,
-        salesValue: shiftSales.reduce((total, sale) => total + sale.totalAmount, 0),
+        salesValue: toNumberOrZero(sumMoney(shiftSales.map((sale) => sale.totalAmount))),
         tenderMix: shiftSales.flatMap((sale) => sale.payments).reduce<Record<string, number>>(
           (accumulator, payment) => {
-            accumulator[payment.tenderType] = (accumulator[payment.tenderType] ?? 0) + payment.amount;
+            accumulator[payment.tenderType] =
+              (accumulator[payment.tenderType] ?? 0) + toNumberOrZero(payment.amount);
             return accumulator;
           },
           {},

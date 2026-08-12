@@ -4166,6 +4166,108 @@ model StockMovement {
   @@index([createdAt])
 }
 
+/// Retail's status vocabularies.
+///
+/// These were `String` columns with the values living only in handler code, which
+/// is the state `docs/system-reference/building-a-vertical.md` §1a names outright:
+/// a comment is not enforced by the database. Retail was the last module in the
+/// repo with no enums at all — schools has 30, CRM 31, even car sales has 6.
+///
+/// The values are the ones the code actually writes, harvested from the handlers
+/// and the offline runtime rather than invented. An enum an audit row holds may
+/// gain a value later but must never lose one: Postgres refuses to drop a value a
+/// row still uses, and the alternatives falsify or destroy the trail.
+
+/// `POSTED` on creation; `VOIDED` only via the void route, which writes a
+/// reversing sale rather than mutating the original's money.
+enum RetailSaleStatus {
+  POSTED
+  VOIDED
+}
+
+/// A refund and a void are both reversing documents, and the ledger tells them
+/// apart by this: `_services.ts` maps `REFUND` and `VOID` to different source
+/// types and inverts the posting direction for both.
+enum RetailSaleType {
+  SALE
+  REFUND
+  VOID
+}
+
+enum RetailShiftStatus {
+  OPEN
+  CLOSED
+}
+
+/// `RELEASED` is the offline runtime's doing and is not reachable online.
+///
+/// There is no discard route on the till: `held-carts/route.ts` lists and creates,
+/// `recall` moves a cart to `RECALLED`, and nothing else writes this column. But
+/// `lib/retail/offline-held-cart.ts` has `deleteHeldCart`, and its queued
+/// `delete-held-cart` operation lands in `pos/sync/route.ts` writing `"RELEASED"`
+/// — a value that appeared nowhere else in the codebase and that the `String`
+/// column happily accepted. It survived because the list query filters on `HELD`,
+/// so any unrecognised value hides the row and looks like success.
+///
+/// It is named here rather than folded into `RECALLED`, which would be a lie:
+/// recalled means pulled back into a sale, released means thrown away.
+enum RetailHeldCartStatus {
+  HELD
+  RECALLED
+  RELEASED
+}
+
+/// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
+/// outstanding, `RECEIVED` once they are not.
+enum RetailPurchaseOrderStatus {
+  DRAFT
+  PARTIAL
+  RECEIVED
+}
+
+enum RetailGoodsReceiptStatus {
+  POSTED
+}
+
+enum RetailCatalogItemStatus {
+  ACTIVE
+  INACTIVE
+}
+
+/// How the shop came by the stock it is selling. Only `PURCHASE` is reachable
+/// today; consignment and trade-in are real retail models but nothing writes them
+/// yet, and a speculative value is a value that can never be removed.
+enum RetailAcquisitionMode {
+  PURCHASE
+}
+
+/// `PERCENT` and `AMOUNT` are the two the till can apply offline —
+/// `getPosSupportedPromotionTypes()` filters to exactly these. The other two are
+/// accepted by the admin API and are not yet honoured at the point of sale.
+enum RetailPromotionType {
+  PERCENT
+  AMOUNT
+  BUY_X_GET_Y
+  BUNDLE
+}
+
+enum RetailPromotionStatus {
+  ACTIVE
+  SCHEDULED
+  INACTIVE
+}
+
+/// Mirrors `RetailTenderType` in `lib/retail/tender-policy.ts`, which is the set
+/// the checkout zod schemas already enforce at the edge. This puts the same set
+/// behind the column, so a payment row cannot disagree with the policy.
+enum RetailTenderType {
+  CASH
+  CARD
+  MOBILE_MONEY
+  TRANSFER
+  VOUCHER
+}
+
 model RetailRegister {
   id        String   @id @default(uuid())
   companyId String
@@ -4190,12 +4292,12 @@ model RetailCatalogItem {
   sku             String
   barcode         String?
   description     String?
-  unitPrice       Float    @default(0)
-  compareAtPrice  Float?
-  taxPercent      Float    @default(0)
-  acquisitionMode String   @default("PURCHASE")
+  unitPrice       Decimal @default(0) @db.Decimal(14, 2)
+  compareAtPrice  Decimal? @db.Decimal(14, 2)
+  taxPercent      Decimal @default(0) @db.Decimal(5, 2)
+  acquisitionMode RetailAcquisitionMode @default(PURCHASE)
   imageUrl        String?
-  status          String   @default("ACTIVE")
+  status          RetailCatalogItemStatus @default(ACTIVE)
   /// The shared catalogue item this listing sells. Optional so existing
   /// listings keep working untouched. `unitPrice`/`taxPercent` above stay
   /// authoritative for the till — offline POS reads them literally and must
@@ -4218,11 +4320,11 @@ model RetailPromotion {
   companyId String
   promoCode String
   name      String
-  type      String
-  value     Float     @default(0)
+  type      RetailPromotionType
+  value     Decimal @default(0) @db.Decimal(14, 2)
   startsAt  DateTime?
   endsAt    DateTime?
-  status    String    @default("ACTIVE")
+  status    RetailPromotionStatus @default(ACTIVE)
   notes     String?
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -4237,7 +4339,7 @@ model RetailPurchaseOrder {
   poNo         String
   siteId       String
   supplierName String
-  status       String    @default("DRAFT")
+  status       RetailPurchaseOrderStatus @default(DRAFT)
   expectedDate DateTime?
   notes        String?
   createdById  String?
@@ -4255,10 +4357,10 @@ model RetailPurchaseOrderLine {
   purchaseOrderId  String
   inventoryItemId  String?
   itemName         String
-  quantity         Float    @default(0)
-  unitCost         Float    @default(0)
-  lineTotal        Float    @default(0)
-  receivedQuantity Float    @default(0)
+  quantity         Decimal @default(0) @db.Decimal(12, 4)
+  unitCost         Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @default(0) @db.Decimal(14, 2)
+  receivedQuantity Decimal @default(0) @db.Decimal(12, 4)
   createdAt        DateTime @default(now())
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
@@ -4273,7 +4375,7 @@ model RetailGoodsReceipt {
   purchaseOrderId String?
   siteId          String
   supplierName    String
-  status          String    @default("POSTED")
+  status          RetailGoodsReceiptStatus @default(POSTED)
   notes           String?
   receivedById    String?
   createdAt       DateTime  @default(now())
@@ -4291,9 +4393,9 @@ model RetailGoodsReceiptLine {
   receiptId       String
   inventoryItemId String
   itemName        String
-  quantity        Float    @default(0)
-  unitCost        Float    @default(0)
-  lineTotal       Float    @default(0)
+  quantity        Decimal @default(0) @db.Decimal(12, 4)
+  unitCost        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal       Decimal @default(0) @db.Decimal(14, 2)
   createdAt       DateTime @default(now())
 
   receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
@@ -4310,13 +4412,13 @@ model RetailShift {
   siteId       String
   cashierId    String
   cashierName  String
-  openingFloat Float     @default(0)
-  status       String    @default("OPEN")
+  openingFloat Decimal @default(0) @db.Decimal(14, 2)
+  status       RetailShiftStatus @default(OPEN)
   openedAt     DateTime  @default(now())
   closedAt     DateTime?
-  expectedCash Float     @default(0)
-  countedCash  Float?
-  variance     Float?
+  expectedCash Decimal @default(0) @db.Decimal(14, 2)
+  countedCash  Decimal? @db.Decimal(14, 2)
+  variance     Decimal? @db.Decimal(14, 2)
   notes        String?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -4334,7 +4436,7 @@ model RetailHeldCart {
   cashierId    String
   label        String?
   cartSnapshot Json
-  status       String   @default("HELD")
+  status       RetailHeldCartStatus @default(HELD)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -4352,18 +4454,18 @@ model RetailSale {
   cashierId      String?
   cashierName    String?
   customerName   String?
-  saleType       String    @default("SALE")
-  subtotal       Float     @default(0)
-  discountAmount Float     @default(0)
-  taxAmount      Float     @default(0)
-  totalAmount    Float     @default(0)
-  tenderedAmount Float?
-  changeAmount   Float?
+  saleType       RetailSaleType @default(SALE)
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
+  totalAmount    Decimal @default(0) @db.Decimal(14, 2)
+  tenderedAmount Decimal? @db.Decimal(14, 2)
+  changeAmount   Decimal? @db.Decimal(14, 2)
   tenderSummary  Json?
   promotionCode  String?
   overrideReason String?
   voidReason     String?
-  status         String    @default("POSTED")
+  status         RetailSaleStatus @default(POSTED)
   notes          String?
   postedAt       DateTime?
   createdAt      DateTime  @default(now())
@@ -4384,13 +4486,13 @@ model RetailSaleLine {
   inventoryItemId String
   catalogItemId   String?
   itemName        String
-  quantity        Float    @default(0)
-  unitPrice       Float    @default(0)
-  discountAmount  Float    @default(0)
-  taxAmount       Float    @default(0)
-  lineTotal       Float    @default(0)
-  costUnit        Float    @default(0)
-  costTotal       Float    @default(0)
+  quantity        Decimal @default(0) @db.Decimal(12, 4)
+  unitPrice       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount  Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  costUnit        Decimal @default(0) @db.Decimal(14, 2)
+  costTotal       Decimal @default(0) @db.Decimal(14, 2)
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
@@ -4402,8 +4504,8 @@ model RetailSaleLine {
 model RetailSalePayment {
   id         String   @id @default(uuid())
   saleId     String
-  tenderType String
-  amount     Float    @default(0)
+  tenderType RetailTenderType
+  amount     Decimal @default(0) @db.Decimal(14, 2)
   reference  String?
   createdAt  DateTime @default(now())
 

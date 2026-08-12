@@ -38,12 +38,6 @@ function numKeyStyle() {
   } as React.CSSProperties;
 }
 
-function numKeyActiveStyle() {
-  return {
-    boxShadow: "0 1px 0 var(--pos-key-shadow)",
-  } as React.CSSProperties;
-}
-
 function presetKeyStyle() {
   return {
     background: "var(--pos-key-preset-bg)",

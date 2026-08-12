@@ -7,7 +7,6 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AdminDistributionChart,
   AdminDonutChart,
-  AdminTrendChart,
 } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
@@ -65,7 +64,10 @@ export default function RetailPromotionsPage() {
     entity: "RETAIL_PROMOTION", enabled: dialogOpen && !editing,
   });
 
-  const promotions = promotionsQuery.data?.data ?? [];
+  // Memoised because `?? []` mints a fresh array on every render, which changes
+  // the identity of every `useMemo` below that depends on it — they recompute each
+  // render, and the React Compiler bails out of memoising them at all.
+  const promotions = useMemo(() => promotionsQuery.data?.data ?? [], [promotionsQuery.data]);
   const activeCount = promotions.filter((p) => p.status === "ACTIVE").length;
 
   const saveMutation = useMutation({
@@ -257,6 +259,11 @@ export default function RetailPromotionsPage() {
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold">Promo code</label>
                   <Input value={editing ? editing.promoCode : promoCode} readOnly disabled={isReserving && !editing} />
+                  {reserveError && !editing ? (
+                    <p className="text-xs text-[var(--status-error-text)]">
+                      Could not reserve a promo code. {getApiErrorMessage(reserveError)}
+                    </p>
+                  ) : null}
                 </div>
                 <div className="space-y-2">
                   <label className="block text-sm font-semibold">Starts</label>

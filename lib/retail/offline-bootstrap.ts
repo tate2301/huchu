@@ -10,7 +10,7 @@
  */
 
 import { fetchJson } from "@/lib/api-client";
-import { OFFLINE_DB_STORES, putOfflineRecord, getOfflineRecord } from "@/lib/offline/db";
+import { OFFLINE_DB_STORES } from "@/lib/offline/db";
 import { openOfflineDatabaseV2, putRecord, getRecord } from "@/lib/offline/db-v2";
 import type { OfflineTenantKey } from "@/lib/offline/types";
 import type { PosCatalogItem } from "@/components/retail/portal/pos-types";

@@ -3,6 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   ensureInventoryItemAccess,
@@ -68,8 +69,8 @@ export async function GET(request: NextRequest) {
     data: receipts.map((receipt) => ({
       ...receipt,
       site: siteMap.get(receipt.siteId) ?? null,
-      totalValue: receipt.lines.reduce((total, line) => total + line.lineTotal, 0),
-      totalQuantity: receipt.lines.reduce((total, line) => total + line.quantity, 0),
+      totalValue: toNumberOrZero(sumMoney(receipt.lines.map((line) => line.lineTotal))),
+      totalQuantity: toNumberOrZero(sumMoney(receipt.lines.map((line) => line.quantity))),
     })),
   });
 }
@@ -211,7 +212,9 @@ export async function POST(request: NextRequest) {
           });
         }
 
-        const receiptValue = receipt.lines.reduce((total, line) => total + line.lineTotal, 0);
+        const receiptValue = toNumberOrZero(
+          sumMoney(receipt.lines.map((line) => line.lineTotal)),
+        );
         const accounting =
           receiptValue > 0
             ? await postRetailJournal({
@@ -233,9 +236,9 @@ export async function POST(request: NextRequest) {
                   lines: receipt.lines.map((line) => ({
                     inventoryItemId: line.inventoryItemId,
                     itemName: line.itemName,
-                    quantity: line.quantity,
-                    unitCost: line.unitCost,
-                    totalCost: line.lineTotal,
+                    quantity: toNumberOrZero(line.quantity),
+                    unitCost: toNumberOrZero(line.unitCost),
+                    totalCost: toNumberOrZero(line.lineTotal),
                   })),
                   totalCost: receiptValue,
                 },

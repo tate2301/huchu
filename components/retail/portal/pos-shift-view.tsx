@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -19,7 +19,6 @@ import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input"
 import { PosMetricCard, PosPanel, PosPanelHeader, PosStatusPill, PosTerminalHeader } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
-import { cn } from "@/lib/utils";
 
 type CloseoutSummary = {
   shiftNo: string;
@@ -93,26 +92,41 @@ export function PosShiftView() {
     usePosPortalState();
   const [openDialog, setOpenDialog] = useState(false);
   const [closeDialog, setCloseDialog] = useState(false);
-  const [selectedSiteId, setSelectedSiteId] = useState("");
-  const [selectedRegisterId, setSelectedRegisterId] = useState("");
+  const [pickedSiteId, setPickedSiteId] = useState("");
+  const [pickedRegisterId, setPickedRegisterId] = useState("");
   const [openingFloat, setOpeningFloat] = useState("0");
   const [countedCash, setCountedCash] = useState("");
   const [activeNumericTarget, setActiveNumericTarget] = useState<"opening_float" | "counted_cash" | null>(null);
   const [closeNotes, setCloseNotes] = useState("");
   const [closeoutSummary, setCloseoutSummary] = useState<CloseoutSummary | null>(null);
 
-  const { reservedId: shiftNo, isReserving, error: reserveError } = useReservedId({
-    entity: "RETAIL_SHIFT",
-    enabled: openDialog && Boolean(selectedSiteId),
-    siteId: selectedSiteId || undefined,
-  });
-
   const siteOptions = useMemo<SearchableOption[]>(
     () => sites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
     [sites],
   );
-  const selectedSite =
-    sites.find((site) => site.id === selectedSiteId) ?? null;
+  /**
+   * The site and register in force are derived during render, not stored and then
+   * re-synced by an effect.
+   *
+   * The two effects this replaces each wrote a fallback into state, which is a
+   * render behind the data it is a fallback for: the dialog opened showing no
+   * register, then re-rendered with one. Deriving also removes the reset the old
+   * code never had — a picked register that does not belong to the newly picked
+   * site simply stops being picked, rather than lingering until an effect notices.
+   *
+   * `picked*` is the cashier's explicit choice and always wins while it remains
+   * valid. Everything after it is the fallback chain the effects used to encode.
+   */
+  const pickedSiteIsValid = Boolean(pickedSiteId) && sites.some((site) => site.id === pickedSiteId);
+  const selectedSiteId =
+    (pickedSiteIsValid ? pickedSiteId : "") ||
+    (defaultSiteId && sites.some((site) => site.id === defaultSiteId) ? defaultSiteId : "") ||
+    sites.find((site) => site.registers.length > 0)?.id ||
+    sites[0]?.id ||
+    "";
+
+  const selectedSite = sites.find((site) => site.id === selectedSiteId) ?? null;
+
   const registerOptions = useMemo<SearchableOption[]>(
     () =>
       (selectedSite?.registers ?? []).map((register) => ({
@@ -122,48 +136,30 @@ export function PosShiftView() {
       })),
     [selectedSite?.registers],
   );
+
+  const registers = selectedSite?.registers ?? [];
+  const selectedRegisterId =
+    (pickedRegisterId && registers.some((register) => register.id === pickedRegisterId)
+      ? pickedRegisterId
+      : "") ||
+    (selectedSite?.id === defaultSiteId &&
+    defaultRegisterId &&
+    registers.some((register) => register.id === defaultRegisterId)
+      ? defaultRegisterId
+      : "") ||
+    registers[0]?.id ||
+    "";
+
   const selectedRegister =
-    selectedSite?.registers.find((register) => register.id === selectedRegisterId) ??
-    null;
+    registers.find((register) => register.id === selectedRegisterId) ?? null;
 
-  useEffect(() => {
-    if (!openDialog) return;
-    if (!selectedSiteId) {
-      const fallbackSiteId =
-        defaultSiteId ??
-        sites.find((site) => site.registers.length > 0)?.id ??
-        sites[0]?.id ??
-        "";
-      if (fallbackSiteId) {
-        setSelectedSiteId(fallbackSiteId);
-      }
-    }
-  }, [defaultSiteId, openDialog, selectedSiteId, sites]);
-
-  useEffect(() => {
-    if (!openDialog || !selectedSite) return;
-    const hasSelectedRegister = selectedSite.registers.some(
-      (register) => register.id === selectedRegisterId,
-    );
-    if (hasSelectedRegister) return;
-
-    const fallbackRegisterId =
-      (selectedSite.id === defaultSiteId &&
-      defaultRegisterId &&
-      selectedSite.registers.some((register) => register.id === defaultRegisterId)
-        ? defaultRegisterId
-        : null) ??
-      selectedSite.registers[0]?.id ??
-      "";
-
-    setSelectedRegisterId(fallbackRegisterId);
-  }, [
-    defaultRegisterId,
-    defaultSiteId,
-    openDialog,
-    selectedRegisterId,
-    selectedSite,
-  ]);
+  // Sits below the derivations above: it reads `selectedSiteId`, which is now a
+  // `const` computed during render rather than state declared at the top.
+  const { reservedId: shiftNo, isReserving, error: reserveError } = useReservedId({
+    entity: "RETAIL_SHIFT",
+    enabled: openDialog && Boolean(selectedSiteId),
+    siteId: selectedSiteId || undefined,
+  });
 
   const openShiftMutation = useMutation({
     mutationFn: () =>
@@ -179,8 +175,8 @@ export function PosShiftView() {
     onSuccess: () => {
       toast({ title: "Shift opened", variant: "success" });
       setOpenDialog(false);
-      setSelectedSiteId("");
-      setSelectedRegisterId("");
+      setPickedSiteId("");
+      setPickedRegisterId("");
       setOpeningFloat("0");
       setCloseoutSummary(null);
       queryClient.invalidateQueries({ queryKey: ["retail-current-shift"] });
@@ -385,7 +381,7 @@ export function PosShiftView() {
                       value={selectedSiteId}
                       options={siteOptions}
                       placeholder="Select site"
-                      onValueChange={setSelectedSiteId}
+                      onValueChange={setPickedSiteId}
                     />
                     <SearchableSelect
                       label="Register"
@@ -399,7 +395,7 @@ export function PosShiftView() {
                             : "No registers configured"
                       }
                       searchPlaceholder="Search registers"
-                      onValueChange={setSelectedRegisterId}
+                      onValueChange={setPickedRegisterId}
                       disabled={!selectedSiteId || registerOptions.length === 0}
                     />
                     <FieldHelp

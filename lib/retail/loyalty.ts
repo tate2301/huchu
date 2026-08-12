@@ -1,3 +1,4 @@
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
 export const LOYALTY_REDEEM_POINTS_PER_USD = 100;
@@ -39,7 +40,7 @@ export async function getCustomerLoyaltyBalance(input: {
     select: { notes: true },
   });
   const redeemedPoints = sales.reduce((sum, sale) => sum + parseLoyaltyRedeemPoints(sale.notes), 0);
-  const earnedPoints = Math.max(Math.floor(aggregate._sum.totalAmount ?? 0), 0);
+  const earnedPoints = Math.max(Math.floor(toNumberOrZero(aggregate._sum.totalAmount)), 0);
   const balance = Math.max(earnedPoints - redeemedPoints, 0);
   return {
     earnedPoints,

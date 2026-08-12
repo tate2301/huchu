@@ -1,5 +1,15 @@
-import { Prisma } from "@prisma/client";
+import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import {
+  ZERO,
+  exceeds,
+  money,
+  multiplyMoney,
+  rate,
+  sumMoney,
+  toNumberOrZero,
+  type MoneyLike,
+} from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import {
@@ -22,7 +32,7 @@ export type RetailActorContext = {
 };
 
 export type RetailPaymentInput = {
-  tenderType: string;
+  tenderType: RetailTenderType;
   amount: number;
   reference?: string | null;
   currency?: string | null;
@@ -72,21 +82,23 @@ async function ensureRetailSaleAccountingPosted(input: {
     siteId: string;
     postedAt: Date | null;
     createdAt: Date;
-    subtotal: number;
-    discountAmount: number;
-    taxAmount: number;
-    totalAmount: number;
-    changeAmount: number | null;
+    // `MoneyLike` rather than `number`: these come straight off a `RetailSale`
+    // row, and retail money is `Decimal` since R-1.1.
+    subtotal: MoneyLike;
+    discountAmount: MoneyLike;
+    taxAmount: MoneyLike;
+    totalAmount: MoneyLike;
+    changeAmount: MoneyLike;
     lines: Array<{
       inventoryItemId: string;
       itemName: string;
-      quantity: number;
-      costUnit: number;
-      costTotal: number;
+      quantity: MoneyLike;
+      costUnit: MoneyLike;
+      costTotal: MoneyLike;
     }>;
     payments: Array<{
-      tenderType: string;
-      amount: number;
+      tenderType: RetailTenderType;
+      amount: MoneyLike;
       reference: string | null;
       currency?: string | null;
     }>;
@@ -106,6 +118,26 @@ async function ensureRetailSaleAccountingPosted(input: {
     inventoryItems.map((item) => [item.id, item.unitCost ?? 0]),
   );
 
+  // Derived once. The lines and the `totalCost` beneath them used to be two
+  // independent walks over `input.sale.lines`, each re-deriving unit cost from the
+  // fallback map — two chances for a total to stop matching the lines it totals.
+  const postingLines = input.sale.lines.map((line) => {
+    const fallbackUnitCost = fallbackCostByItemId.get(line.inventoryItemId) ?? 0;
+    const lineCostUnit = money(line.costUnit);
+    const unitCost = lineCostUnit.isZero() ? money(fallbackUnitCost).abs() : lineCostUnit.abs();
+    const lineCostTotal = money(line.costTotal);
+    const totalCost = lineCostTotal.isZero()
+      ? multiplyMoney(money(line.quantity).abs(), unitCost)
+      : lineCostTotal.abs();
+    return {
+      inventoryItemId: line.inventoryItemId,
+      itemName: line.itemName,
+      quantity: toNumberOrZero(money(line.quantity).abs()),
+      unitCost: toNumberOrZero(unitCost),
+      totalCost: toNumberOrZero(totalCost),
+    };
+  });
+
   return postRetailJournal({
     companyId: input.actor.companyId,
     sourceType: getRetailSourceType(input.sale.saleType),
@@ -118,40 +150,20 @@ async function ensureRetailSaleAccountingPosted(input: {
     createdById: input.actor.userId,
     actorRole: input.actor.userRole ?? undefined,
     periodOverrideReason: input.periodOverrideReason ?? undefined,
-    amount: Math.abs(input.sale.totalAmount),
-    netAmount: Math.abs(input.sale.subtotal - input.sale.discountAmount),
-    taxAmount: Math.abs(input.sale.taxAmount),
-    grossAmount: Math.abs(input.sale.totalAmount),
+    amount: toNumberOrZero(money(input.sale.totalAmount).abs()),
+    netAmount: toNumberOrZero(money(input.sale.subtotal).minus(money(input.sale.discountAmount)).abs()),
+    taxAmount: toNumberOrZero(money(input.sale.taxAmount).abs()),
+    grossAmount: toNumberOrZero(money(input.sale.totalAmount).abs()),
     invertDirection: input.sale.saleType === "REFUND" || input.sale.saleType === "VOID",
     payments: input.sale.payments.map((payment) => ({
       tenderType: payment.tenderType,
-      amount: Math.abs(payment.amount),
+      amount: toNumberOrZero(money(payment.amount).abs()),
       reference: payment.reference,
       currency: payment.currency ?? null,
     })),
     inventory: {
-      lines: input.sale.lines.map((line) => {
-        const fallbackUnitCost = fallbackCostByItemId.get(line.inventoryItemId) ?? 0;
-        const costUnit = round(Math.abs(line.costUnit || fallbackUnitCost));
-        const costTotal = round(
-          Math.abs(line.costTotal || Math.abs(line.quantity) * costUnit),
-        );
-        return {
-          inventoryItemId: line.inventoryItemId,
-          itemName: line.itemName,
-          quantity: Math.abs(line.quantity),
-          unitCost: costUnit,
-          totalCost: costTotal,
-        };
-      }),
-      totalCost: input.sale.lines.reduce((total, line) => {
-        const fallbackUnitCost = fallbackCostByItemId.get(line.inventoryItemId) ?? 0;
-        const costUnit = round(Math.abs(line.costUnit || fallbackUnitCost));
-        const costTotal = round(
-          Math.abs(line.costTotal || Math.abs(line.quantity) * costUnit),
-        );
-        return total + costTotal;
-      }, 0),
+      lines: postingLines,
+      totalCost: postingLines.reduce((total, line) => total + line.totalCost, 0),
     },
   });
 }
@@ -231,8 +243,9 @@ export async function openRetailShiftTransaction(input: {
         },
       });
 
+      const openingFloat = money(shift.openingFloat);
       const accounting =
-        (shift.openingFloat ?? 0) > 0
+        exceeds(openingFloat, 0)
           ? await postRetailJournal({
               companyId: input.actor.companyId,
               sourceType: "RETAIL_SHIFT_OPEN",
@@ -244,10 +257,10 @@ export async function openRetailShiftTransaction(input: {
               createdById: input.actor.userId,
               actorRole: input.actor.userRole ?? undefined,
               periodOverrideReason: input.periodOverrideReason ?? undefined,
-              amount: Math.abs(shift.openingFloat),
-              netAmount: Math.abs(shift.openingFloat),
+              amount: toNumberOrZero(openingFloat.abs()),
+              netAmount: toNumberOrZero(openingFloat.abs()),
               taxAmount: 0,
-              grossAmount: Math.abs(shift.openingFloat),
+              grossAmount: toNumberOrZero(openingFloat.abs()),
             })
           : ({
               accountingStatus: "POSTED",
@@ -300,7 +313,10 @@ export async function closeRetailShiftTransaction(input: {
     }
   }
 
-  const variance = round(input.countedCash - existing.expectedCash);
+  // In `Decimal`, not `round(a - b)`: a cash-up variance is the number a manager is
+  // asked to explain, and the float subtraction it replaces could put a cent on it
+  // that nobody counted.
+  const variance = money(input.countedCash).minus(money(existing.expectedCash));
   const updated = await prisma.retailShift.update({
     where: { id: existing.id },
     data: {
@@ -313,12 +329,12 @@ export async function closeRetailShiftTransaction(input: {
   });
 
   const accounting =
-    variance !== 0
+    !variance.isZero()
       ? await postRetailJournal({
           companyId: input.actor.companyId,
           sourceType: "RETAIL_SHIFT_VARIANCE",
           sourceId: updated.id,
-          sourceSubtype: variance < 0 ? "SHORT" : "OVER",
+          sourceSubtype: variance.isNegative() ? "SHORT" : "OVER",
           siteId: updated.siteId,
           registerCode: updated.registerCode,
           entryDate: updated.closedAt ?? new Date(),
@@ -326,11 +342,11 @@ export async function closeRetailShiftTransaction(input: {
           createdById: input.actor.userId,
           actorRole: input.actor.userRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
-          amount: Math.abs(variance),
-          netAmount: Math.abs(variance),
+          amount: toNumberOrZero(variance.abs()),
+          netAmount: toNumberOrZero(variance.abs()),
           taxAmount: 0,
-          grossAmount: Math.abs(variance),
-          invertDirection: variance < 0,
+          grossAmount: toNumberOrZero(variance.abs()),
+          invertDirection: variance.isNegative(),
         })
       : ({
           accountingStatus: "POSTED",
@@ -651,13 +667,17 @@ export async function refundRetailSaleTransaction(input: {
       include: { lines: true },
     });
 
+    // Quantities are `Decimal(12,4)` and money `Decimal(14,2)`, so the whole
+    // apportionment below runs in `Decimal` and rounds once per amount. The ratio
+    // itself is deliberately left unrounded: rounding it before multiplying is how
+    // a refund of every line stops adding up to the sale it reverses.
     const refundedByLine = priorRefunds
       .flatMap((sale) => sale.lines)
-      .reduce<Map<string, number>>((accumulator, line) => {
+      .reduce<Map<string, Prisma.Decimal>>((accumulator, line) => {
         if (!line.sourceLineId) return accumulator;
         accumulator.set(
           line.sourceLineId,
-          round((accumulator.get(line.sourceLineId) ?? 0) + Math.abs(line.quantity)),
+          (accumulator.get(line.sourceLineId) ?? ZERO).plus(rate(line.quantity).abs()),
         );
         return accumulator;
       }, new Map());
@@ -667,38 +687,44 @@ export async function refundRetailSaleTransaction(input: {
       if (!sourceLine) {
         throw new Error("One or more refund lines are invalid.");
       }
-      const alreadyRefunded = refundedByLine.get(sourceLine.id) ?? 0;
-      const refundableQty = round(Math.max(sourceLine.quantity - alreadyRefunded, 0));
-      if (line.quantity > refundableQty) {
+      const sourceQuantity = rate(sourceLine.quantity);
+      const requestedQuantity = rate(line.quantity);
+      const alreadyRefunded = refundedByLine.get(sourceLine.id) ?? ZERO;
+      const remaining = sourceQuantity.minus(alreadyRefunded);
+      const refundableQty = remaining.isNegative() ? ZERO : remaining;
+      if (requestedQuantity.greaterThan(refundableQty)) {
         throw new Error(`Refund quantity exceeds remaining quantity for ${sourceLine.itemName}.`);
       }
 
-      const ratio = sourceLine.quantity > 0 ? line.quantity / sourceLine.quantity : 0;
+      const ratio = sourceQuantity.isZero() ? ZERO : requestedQuantity.div(sourceQuantity);
+      const sourceCostUnit = money(sourceLine.costUnit).abs();
+      const sourceCostTotal = money(sourceLine.costTotal);
+      const wholeLineCost = sourceCostTotal.isZero()
+        ? multiplyMoney(sourceQuantity, sourceCostUnit)
+        : sourceCostTotal.abs();
+
       return {
         sourceLine,
-        quantity: line.quantity,
-        baseAmount: round(sourceLine.unitPrice * line.quantity),
-        discountAmount: -round(Math.abs(sourceLine.discountAmount) * ratio),
-        taxAmount: -round(Math.abs(sourceLine.taxAmount) * ratio),
-        lineTotal: -round(Math.abs(sourceLine.lineTotal) * ratio),
-        costUnit: round(Math.abs(sourceLine.costUnit ?? 0)),
-        costTotal: round(
-          Math.abs(
-            sourceLine.costTotal ?? sourceLine.quantity * (sourceLine.costUnit ?? 0),
-          ) * ratio,
-        ),
+        quantity: requestedQuantity,
+        baseAmount: multiplyMoney(requestedQuantity, sourceLine.unitPrice),
+        discountAmount: multiplyMoney(money(sourceLine.discountAmount).abs(), ratio).negated(),
+        taxAmount: multiplyMoney(money(sourceLine.taxAmount).abs(), ratio).negated(),
+        lineTotal: multiplyMoney(money(sourceLine.lineTotal).abs(), ratio).negated(),
+        costUnit: sourceCostUnit,
+        costTotal: multiplyMoney(wholeLineCost, ratio),
       };
     });
 
-    const subtotal = -round(requestedLines.reduce((total, line) => total + line.baseAmount, 0));
-    const discountAmount = round(
-      requestedLines.reduce((total, line) => total + line.discountAmount, 0),
-    );
-    const taxAmount = round(requestedLines.reduce((total, line) => total + line.taxAmount, 0));
-    const totalAmount = round(requestedLines.reduce((total, line) => total + line.lineTotal, 0));
-    const refundValue = round(Math.abs(totalAmount));
-    const paymentTotal = round(refundPayments.reduce((total, payment) => total + payment.amount, 0));
-    if (Math.abs(paymentTotal - refundValue) > 0.01) {
+    const subtotal = sumMoney(requestedLines.map((line) => line.baseAmount)).negated();
+    const discountAmount = sumMoney(requestedLines.map((line) => line.discountAmount));
+    const taxAmount = sumMoney(requestedLines.map((line) => line.taxAmount));
+    const totalAmount = sumMoney(requestedLines.map((line) => line.lineTotal));
+    const refundValue = totalAmount.abs();
+    const paymentTotal = sumMoney(refundPayments.map((payment) => payment.amount));
+    // Exactly equal, not within a cent. The `Math.abs(a - b) > 0.01` this replaces
+    // is the epsilon fudge `lib/money.ts` exists to retire — it let a refund be a
+    // cent off the money actually handed back, every time, and called it balanced.
+    if (!paymentTotal.equals(refundValue)) {
       throw new Error("Refund payments must match the refund value");
     }
 
@@ -768,7 +794,8 @@ export async function refundRetailSaleTransaction(input: {
         userId: input.actor.userId,
         itemId: item.id,
         movementType: "RECEIPT",
-        quantity: line.quantity,
+        // The inventory movement table is still `Float`; the crossing happens here.
+        quantity: toNumberOrZero(line.quantity),
         unit: item.unit,
         unitCost: item.unitCost ?? 0,
         notes: `Retail refund ${created.saleNo}`,
@@ -881,7 +908,7 @@ export async function voidRetailSaleTransaction(input: {
 
     const negativePayments = currentSourceSale.payments.map((payment) => ({
       tenderType: payment.tenderType,
-      amount: -round(Math.abs(payment.amount)),
+      amount: toNumberOrZero(money(payment.amount).abs().negated()),
       reference: payment.reference?.trim() || null,
       currency: null,
     }));
@@ -905,13 +932,15 @@ export async function voidRetailSaleTransaction(input: {
         cashierName: resolveCashierName(input.actor),
         customerName: currentSourceSale.customerName,
         saleType: "VOID",
-        subtotal: -round(Math.abs(currentSourceSale.subtotal)),
-        discountAmount: -round(Math.abs(currentSourceSale.discountAmount)),
-        taxAmount: -round(Math.abs(currentSourceSale.taxAmount)),
-        totalAmount: -round(Math.abs(currentSourceSale.totalAmount)),
-        tenderedAmount: -round(
-          Math.abs(currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount),
-        ),
+        subtotal: money(currentSourceSale.subtotal).abs().negated(),
+        discountAmount: money(currentSourceSale.discountAmount).abs().negated(),
+        taxAmount: money(currentSourceSale.taxAmount).abs().negated(),
+        totalAmount: money(currentSourceSale.totalAmount).abs().negated(),
+        tenderedAmount: money(
+          currentSourceSale.tenderedAmount ?? currentSourceSale.totalAmount,
+        )
+          .abs()
+          .negated(),
         changeAmount: 0,
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: input.reason.trim(),
@@ -927,11 +956,17 @@ export async function voidRetailSaleTransaction(input: {
             itemName: line.itemName,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
-            discountAmount: -round(Math.abs(line.discountAmount)),
-            taxAmount: -round(Math.abs(line.taxAmount)),
-            lineTotal: -round(Math.abs(line.lineTotal)),
-            costUnit: line.costUnit ?? 0,
-            costTotal: line.costTotal ?? round(Math.abs(line.quantity) * (line.costUnit ?? 0)),
+            discountAmount: money(line.discountAmount).abs().negated(),
+            taxAmount: money(line.taxAmount).abs().negated(),
+            lineTotal: money(line.lineTotal).abs().negated(),
+            costUnit: money(line.costUnit),
+            // `costTotal` is non-nullable and defaults to 0, so `??` never fired —
+            // a line whose cost was genuinely zero kept zero, and one that was not
+            // was already stored. Falling back on the product only when it is zero
+            // is what the `??` was reaching for.
+            costTotal: money(line.costTotal).isZero()
+              ? multiplyMoney(money(line.quantity).abs(), money(line.costUnit))
+              : money(line.costTotal),
           })),
         },
         payments: {
@@ -955,7 +990,8 @@ export async function voidRetailSaleTransaction(input: {
         userId: input.actor.userId,
         itemId: item.id,
         movementType: "RECEIPT",
-        quantity: line.quantity,
+        // The inventory movement table is still `Float`; the crossing happens here.
+        quantity: toNumberOrZero(line.quantity),
         unit: item.unit,
         unitCost: item.unitCost ?? 0,
         notes: `Retail sale void ${created.saleNo}`,

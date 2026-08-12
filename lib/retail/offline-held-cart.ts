@@ -13,7 +13,6 @@ import { putRecord, getRecord } from "@/lib/offline/db-v2";
 import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@/lib/offline/outbox";
 import type { OfflineTenantKey, OfflineOutboxOperation } from "@/lib/offline/types";
 import type { POSHeldCart } from "./offline-bootstrap";
-import { getCurrentShift } from "./offline-shift";
 
 export type { POSHeldCart };
 

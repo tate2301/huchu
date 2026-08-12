@@ -7,7 +7,7 @@ import {
 } from "@/lib/accounting/posting";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
-import { toNumber, type MoneyLike } from "@/lib/money";
+import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 
@@ -303,6 +303,35 @@ export async function backfillRetailAccounting(input: {
           : "RETAIL_SALE";
     if (journalKeySet.has(`${sourceType}:${sale.id}`)) continue;
     const shift = sale.shiftId ? shiftMap.get(sale.shiftId) ?? null : null;
+
+    // Retail money is `Decimal` since R-1.1, and the posting contract takes
+    // `number` — so the arithmetic happens in `Decimal` and the conversion happens
+    // once, here at the boundary. Both `context` and `payload` used to build these
+    // two lists separately with `Math.abs` on what is now a `Decimal`; they share
+    // them now, because two copies of the same sum are two chances to disagree.
+    const postingPayments = sale.payments.map((payment) => ({
+      tenderType: payment.tenderType,
+      amount: toNumberOrZero(money(payment.amount).abs()),
+      reference: payment.reference,
+    }));
+
+    const postingInventoryLines = sale.lines.map((line) => {
+      const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
+      const lineUnitCost = money(line.costUnit);
+      const unitCost = lineUnitCost.isZero() ? money(fallbackUnitCost).abs() : lineUnitCost.abs();
+      const lineTotalCost = money(line.costTotal);
+      const totalCost = lineTotalCost.isZero()
+        ? money(line.quantity).abs().times(unitCost)
+        : lineTotalCost.abs();
+      return {
+        inventoryItemId: line.inventoryItemId,
+        itemName: line.itemName,
+        quantity: toNumberOrZero(money(line.quantity).abs()),
+        unitCost: toNumberOrZero(unitCost),
+        totalCost: toNumberOrZero(totalCost),
+      };
+    });
+
     tasks.push({
       key: `${sourceType}:${sale.id}`,
       label: `${sourceType} ${sale.saleNo}`,
@@ -317,66 +346,26 @@ export async function backfillRetailAccounting(input: {
         entryDate: sale.postedAt ?? sale.createdAt,
         description: `Retail ${sale.saleType.toLowerCase()} ${sale.saleNo}`,
         createdById: actorId,
-        amount: Math.abs(sale.totalAmount),
-        netAmount: Math.abs(sale.subtotal - sale.discountAmount),
-        taxAmount: Math.abs(sale.taxAmount),
-        grossAmount: Math.abs(sale.totalAmount),
+        amount: toNumberOrZero(money(sale.totalAmount).abs()),
+        netAmount: toNumberOrZero(money(sale.subtotal).minus(sale.discountAmount).abs()),
+        taxAmount: toNumberOrZero(money(sale.taxAmount).abs()),
+        grossAmount: toNumberOrZero(money(sale.totalAmount).abs()),
         invertDirection: sale.saleType === "REFUND" || sale.saleType === "VOID",
         actorRole: input.actorRole ?? undefined,
         periodOverrideReason: input.periodOverrideReason ?? undefined,
-        payments: sale.payments.map((payment) => ({
-          tenderType: payment.tenderType,
-          amount: Math.abs(payment.amount),
-          reference: payment.reference,
-        })),
-        inventory: {
-          lines: sale.lines.map((line) => {
-            const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
-            const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
-            const totalCost = Math.abs(
-              line.costTotal || Math.abs(line.quantity) * unitCost,
-            );
-            return {
-              inventoryItemId: line.inventoryItemId,
-              itemName: line.itemName,
-              quantity: Math.abs(line.quantity),
-              unitCost,
-              totalCost,
-            };
-          }),
-        },
+        payments: postingPayments,
+        inventory: { lines: postingInventoryLines },
         payload: buildRetailPostingPayload({
           siteId: sale.siteId,
           registerCode: shift?.registerCode ?? null,
           saleType: sale.saleType,
-          payments: sale.payments.map((payment) => ({
-            tenderType: payment.tenderType,
-            amount: Math.abs(payment.amount),
-            reference: payment.reference,
-          })),
+          payments: postingPayments,
           inventory: {
-            lines: sale.lines.map((line) => {
-              const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
-              const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
-              const totalCost = Math.abs(
-                line.costTotal || Math.abs(line.quantity) * unitCost,
-              );
-              return {
-                inventoryItemId: line.inventoryItemId,
-                itemName: line.itemName,
-                quantity: Math.abs(line.quantity),
-                unitCost,
-                totalCost,
-              };
-            }),
-            totalCost: sale.lines.reduce(
-              (total, line) => {
-                const fallbackUnitCost = unitCostByItemId.get(line.inventoryItemId) ?? 0;
-                const unitCost = Math.abs(line.costUnit || fallbackUnitCost);
-                return total + Math.abs(line.costTotal || Math.abs(line.quantity) * unitCost);
-              },
-              0,
-            ),
+            lines: postingInventoryLines,
+            // Summed from the same lines the payload carries. It used to be a
+            // third re-derivation of unit cost from the fallback map, which is
+            // one more place for the total to stop matching its own lines.
+            totalCost: postingInventoryLines.reduce((total, line) => total + line.totalCost, 0),
           },
         }),
       },
@@ -385,6 +374,7 @@ export async function backfillRetailAccounting(input: {
 
   for (const receipt of receipts) {
     if (journalKeySet.has(`RETAIL_GOODS_RECEIPT:${receipt.id}`)) continue;
+    const receiptTotal = sumMoney(receipt.lines.map((line) => line.lineTotal));
     tasks.push({
       key: `RETAIL_GOODS_RECEIPT:${receipt.id}`,
       label: `RETAIL_GOODS_RECEIPT ${receipt.receiptNo}`,
@@ -398,19 +388,21 @@ export async function backfillRetailAccounting(input: {
         entryDate: receipt.postedAt ?? receipt.createdAt,
         description: `Retail goods receipt ${receipt.receiptNo}`,
         createdById: actorId,
-        amount: receipt.lines.reduce((total, line) => total + line.lineTotal, 0),
-        netAmount: receipt.lines.reduce((total, line) => total + line.lineTotal, 0),
+        // Accumulated in `Decimal` and rounded once, rather than summed three
+        // separate times in floating point as this did before.
+        amount: toNumberOrZero(receiptTotal),
+        netAmount: toNumberOrZero(receiptTotal),
         taxAmount: 0,
-        grossAmount: receipt.lines.reduce((total, line) => total + line.lineTotal, 0),
+        grossAmount: toNumberOrZero(receiptTotal),
         actorRole: input.actorRole ?? undefined,
         periodOverrideReason: input.periodOverrideReason ?? undefined,
         inventory: {
           lines: receipt.lines.map((line) => ({
             inventoryItemId: line.inventoryItemId,
             itemName: line.itemName,
-            quantity: line.quantity,
-            unitCost: line.unitCost,
-            totalCost: line.lineTotal,
+            quantity: toNumberOrZero(line.quantity),
+            unitCost: toNumberOrZero(line.unitCost),
+            totalCost: toNumberOrZero(line.lineTotal),
           })),
         },
       },
@@ -418,7 +410,14 @@ export async function backfillRetailAccounting(input: {
   }
 
   for (const shift of shifts) {
-    if (shift.openingFloat > 0 && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
+    // `openingFloat` and `variance` are `Decimal` since R-1.1, so the comparisons
+    // go through `lib/money.ts` rather than JavaScript's operators — `>` on a
+    // `Decimal` is a type error, and `!== 0` would have been true for every shift
+    // because an object is never equal to a number.
+    const openingFloat = money(shift.openingFloat);
+    const variance = money(shift.variance ?? 0);
+
+    if (isPositive(openingFloat) && !journalKeySet.has(`RETAIL_SHIFT_OPEN:${shift.id}`)) {
       tasks.push({
         key: `RETAIL_SHIFT_OPEN:${shift.id}`,
         label: `RETAIL_SHIFT_OPEN ${shift.shiftNo}`,
@@ -432,17 +431,17 @@ export async function backfillRetailAccounting(input: {
           entryDate: shift.openedAt,
           description: `Retail shift open ${shift.shiftNo}`,
           createdById: actorId,
-          amount: Math.abs(shift.openingFloat),
-          netAmount: Math.abs(shift.openingFloat),
+          amount: toNumberOrZero(openingFloat.abs()),
+          netAmount: toNumberOrZero(openingFloat.abs()),
           taxAmount: 0,
-          grossAmount: Math.abs(shift.openingFloat),
+          grossAmount: toNumberOrZero(openingFloat.abs()),
           actorRole: input.actorRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
         },
       });
     }
 
-    if ((shift.variance ?? 0) !== 0 && shift.closedAt && !journalKeySet.has(`RETAIL_SHIFT_VARIANCE:${shift.id}`)) {
+    if (!variance.isZero() && shift.closedAt && !journalKeySet.has(`RETAIL_SHIFT_VARIANCE:${shift.id}`)) {
       tasks.push({
         key: `RETAIL_SHIFT_VARIANCE:${shift.id}`,
         label: `RETAIL_SHIFT_VARIANCE ${shift.shiftNo}`,
@@ -456,11 +455,11 @@ export async function backfillRetailAccounting(input: {
           entryDate: shift.closedAt,
           description: `Retail shift variance ${shift.shiftNo}`,
           createdById: actorId,
-          amount: Math.abs(shift.variance ?? 0),
-          netAmount: Math.abs(shift.variance ?? 0),
+          amount: toNumberOrZero(variance.abs()),
+          netAmount: toNumberOrZero(variance.abs()),
           taxAmount: 0,
-          grossAmount: Math.abs(shift.variance ?? 0),
-          invertDirection: (shift.variance ?? 0) < 0,
+          grossAmount: toNumberOrZero(variance.abs()),
+          invertDirection: variance.isNegative(),
           actorRole: input.actorRole ?? undefined,
           periodOverrideReason: input.periodOverrideReason ?? undefined,
         },

@@ -1,12 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { PostingBasis } from "@prisma/client";
+import { RetailPurchaseOrderStatus, type PostingBasis } from "@prisma/client";
 import { startOfMonth, subDays } from "date-fns";
 import { successResponse } from "@/lib/api-utils";
+import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "./_helpers";
 
-function sum(values: number[]) {
-  return values.reduce((total, value) => total + value, 0);
+/**
+ * Sums money and hands back a `number`.
+ *
+ * Retail columns are `Decimal` since R-1.1, but this route's response contract is
+ * numbers — the dashboard reads them straight into charts. So the accumulation
+ * happens in `Decimal` and rounds once at the end, and the crossing to `number`
+ * happens here rather than at each of the two dozen call sites below.
+ */
+function sum(values: MoneyLike[]) {
+  return toNumberOrZero(sumMoney(values));
 }
 
 function monthKey(value: Date) {
@@ -251,7 +260,13 @@ export async function GET(request: NextRequest) {
     prisma.retailPurchaseOrder.findMany({
       where: {
         companyId,
-        status: { in: ["DRAFT", "APPROVED", "PARTIAL"] },
+        // `APPROVED` used to be listed here too. Nothing has ever written it — a
+        // purchase order goes DRAFT, then PARTIAL or RECEIVED as goods arrive — so
+        // it was a dead term in the filter, and the `String` column meant nothing
+        // said so. Open means not yet fully received.
+        status: {
+          in: [RetailPurchaseOrderStatus.DRAFT, RetailPurchaseOrderStatus.PARTIAL],
+        },
       },
       include: { lines: true },
     }),
@@ -337,7 +352,8 @@ export async function GET(request: NextRequest) {
 
   const tenderTotals = sales.flatMap((sale) => sale.payments).reduce<Record<string, number>>(
     (accumulator, payment) => {
-      accumulator[payment.tenderType] = (accumulator[payment.tenderType] ?? 0) + payment.amount;
+      accumulator[payment.tenderType] =
+        (accumulator[payment.tenderType] ?? 0) + toNumberOrZero(payment.amount);
       return accumulator;
     },
     {},
@@ -366,8 +382,8 @@ export async function GET(request: NextRequest) {
           quantity: 0,
           value: 0,
         };
-        bucket.quantity += line.quantity;
-        bucket.value += line.lineTotal;
+        bucket.quantity += toNumberOrZero(line.quantity);
+        bucket.value += toNumberOrZero(line.lineTotal);
         accumulator[line.itemName] = bucket;
         return accumulator;
       },
@@ -387,7 +403,7 @@ export async function GET(request: NextRequest) {
     .filter((sale) => sale.status === "POSTED")
     .reduce<Record<string, number>>((accumulator, sale) => {
     const key = monthKey(sale.postedAt ?? sale.createdAt);
-    const value = sum(sale.lines.map((line) => Math.abs(line.costTotal ?? 0)));
+    const value = sum(sale.lines.map((line) => money(line.costTotal).abs()));
     accumulator[key] = (accumulator[key] ?? 0) + value;
     return accumulator;
   }, {});
@@ -481,13 +497,13 @@ export async function GET(request: NextRequest) {
     const bucket = accumulator[key] ?? { sale: 0, refund: 0, void: 0, tickets: 0, discounts: 0 };
 
     if (sale.saleType === "SALE") {
-      bucket.sale += sale.totalAmount;
+      bucket.sale += toNumberOrZero(sale.totalAmount);
       bucket.tickets += 1;
-      bucket.discounts += sale.discountAmount;
+      bucket.discounts += toNumberOrZero(sale.discountAmount);
     } else if (sale.saleType === "REFUND") {
-      bucket.refund += Math.abs(sale.totalAmount);
+      bucket.refund += toNumberOrZero(money(sale.totalAmount).abs());
     } else if (sale.saleType === "VOID") {
-      bucket.void += Math.abs(sale.totalAmount);
+      bucket.void += toNumberOrZero(money(sale.totalAmount).abs());
     }
 
     accumulator[key] = bucket;
@@ -751,7 +767,7 @@ export async function GET(request: NextRequest) {
       postedAt: sale.postedAt ?? sale.createdAt,
       cashierName: sale.cashierName,
       totalAmount: sale.totalAmount,
-      itemCount: sale.lines.reduce((total, line) => total + line.quantity, 0),
+      itemCount: sum(sale.lines.map((line) => line.quantity)),
       tenderTypes: sale.payments.map((payment) => payment.tenderType),
     })),
   });

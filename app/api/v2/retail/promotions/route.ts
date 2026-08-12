@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, RetailPromotionStatus, RetailPromotionType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -13,7 +13,7 @@ const promotionSchema = z.object({
   value: z.number().min(0),
   startsAt: z.string().datetime().optional().nullable(),
   endsAt: z.string().datetime().optional().nullable(),
-  status: z.string().min(1).max(40).optional(),
+  status: z.nativeEnum(RetailPromotionStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
 });
 
@@ -31,15 +31,26 @@ export async function GET(request: NextRequest) {
     searchParams.get("pos") === "1" || (status === "ACTIVE" && !includeUnsupported);
 
   const where: Prisma.RetailPromotionWhereInput = { companyId: session.user.companyId };
-  if (status && status !== "all") where.status = status;
+  if (status && status !== "all") {
+    const parsed = RetailPromotionStatus[status as keyof typeof RetailPromotionStatus];
+    if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);
+    where.status = parsed;
+  }
   if (posOnly) {
-    where.type = { in: ["PERCENT", "AMOUNT"] };
+    where.type = { in: [RetailPromotionType.PERCENT, RetailPromotionType.AMOUNT] };
   }
   if (search) {
+    // `type` is an enum now, and Postgres has no `LIKE` for one. Searching it means
+    // resolving the text to the labels it matches first and filtering on those; a
+    // search matching no label simply drops the clause rather than matching every
+    // row, which is what a `contains` against an unmatched string used to do.
+    const matchingTypes = Object.values(RetailPromotionType).filter((value) =>
+      value.toLowerCase().includes(search.toLowerCase()),
+    );
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
       { promoCode: { contains: search, mode: "insensitive" } },
-      { type: { contains: search, mode: "insensitive" } },
+      ...(matchingTypes.length > 0 ? [{ type: { in: matchingTypes } }] : []),
     ];
   }
 
@@ -85,7 +96,7 @@ export async function POST(request: NextRequest) {
             value: input.value,
             startsAt: input.startsAt ? new Date(input.startsAt) : null,
             endsAt: input.endsAt ? new Date(input.endsAt) : null,
-            status: input.status?.trim() || "ACTIVE",
+            status: input.status ?? RetailPromotionStatus.ACTIVE,
             notes: input.notes?.trim() || null,
           },
         });

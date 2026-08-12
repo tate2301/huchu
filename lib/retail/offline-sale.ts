@@ -218,7 +218,7 @@ export async function voidSaleOffline(
   };
 
   // If the saleId is a local tempId, we need to find its operation
-  let dependencies: string[] = [];
+  const dependencies: string[] = [];
   if (input.saleId.startsWith("local:")) {
     const saleOp = await findOfflineOperationForLocalEntity(
       RETAIL_POS_OFFLINE_MODULE_ID,
@@ -268,7 +268,7 @@ export async function refundSaleOffline(
   };
 
   // If the saleId is a local tempId, we need to find its operation
-  let dependencies: string[] = [];
+  const dependencies: string[] = [];
   if (input.saleId.startsWith("local:")) {
     const saleOp = await findOfflineOperationForLocalEntity(
       RETAIL_POS_OFFLINE_MODULE_ID,

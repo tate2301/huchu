@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailManager, requireRetailStock, requireRetailSession } from "../../_helpers";
+import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailStock, requireRetailSession } from "../../_helpers";
 
 const lineSchema = z.object({
   inventoryItemId: z.string().uuid().optional().nullable(),
@@ -18,7 +19,7 @@ const purchaseOrderSchema = z.object({
   siteId: z.string().uuid(),
   supplierName: z.string().min(1).max(200),
   expectedDate: z.string().datetime().optional().nullable(),
-  status: z.string().min(1).max(40).optional(),
+  status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1),
 });
@@ -36,7 +37,11 @@ export async function GET(request: NextRequest) {
   const where: Prisma.RetailPurchaseOrderWhereInput = {
     companyId: session.user.companyId,
   };
-  if (status && status !== "all") where.status = status;
+  if (status && status !== "all") {
+    const parsed = RetailPurchaseOrderStatus[status as keyof typeof RetailPurchaseOrderStatus];
+    if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);
+    where.status = parsed;
+  }
   if (search) {
     where.OR = [
       { poNo: { contains: search, mode: "insensitive" } },
@@ -60,9 +65,11 @@ export async function GET(request: NextRequest) {
     data: orders.map((order) => ({
       ...order,
       site: siteMap.get(order.siteId) ?? null,
-      totalValue: order.lines.reduce((total, line) => total + line.lineTotal, 0),
-      totalQuantity: order.lines.reduce((total, line) => total + line.quantity, 0),
-      receivedQuantity: order.lines.reduce((total, line) => total + line.receivedQuantity, 0),
+      totalValue: toNumberOrZero(sumMoney(order.lines.map((line) => line.lineTotal))),
+      totalQuantity: toNumberOrZero(sumMoney(order.lines.map((line) => line.quantity))),
+      receivedQuantity: toNumberOrZero(
+        sumMoney(order.lines.map((line) => line.receivedQuantity)),
+      ),
     })),
   });
 }
@@ -137,7 +144,7 @@ export async function POST(request: NextRequest) {
             poNo,
             siteId: site.id,
             supplierName: input.supplierName.trim(),
-            status: input.status?.trim() || "DRAFT",
+            status: input.status ?? RetailPurchaseOrderStatus.DRAFT,
             expectedDate: input.expectedDate ? new Date(input.expectedDate) : null,
             notes: input.notes?.trim() || null,
             createdById: session.user.id,

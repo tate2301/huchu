@@ -118,7 +118,7 @@ export default function RetailCatalogPage() {
     enabled: Boolean(quickForm.siteId),
   });
 
-  const inventoryItems = inventoryQuery.data?.data ?? [];
+  const inventoryItems = useMemo(() => inventoryQuery.data?.data ?? [], [inventoryQuery.data]);
   const inventoryOptions = useMemo<SearchableOption[]>(
     () =>
       inventoryItems.map((item) => ({

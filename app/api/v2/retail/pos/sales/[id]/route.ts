@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailSession } from "../../../_helpers";
 
@@ -27,8 +28,8 @@ export async function GET(
 
   const [sourceSale, relatedSales, shift, site] = await Promise.all([
     sale.sourceSaleId
-      ? prisma.retailSale.findUnique({
-          where: { id: sale.sourceSaleId },
+      ? prisma.retailSale.findFirst({
+          where: { id: sale.sourceSaleId, companyId: session.user.companyId },
           select: { id: true, saleNo: true, saleType: true, totalAmount: true },
         })
       : Promise.resolve(null),
@@ -76,7 +77,7 @@ export async function GET(
     if (!line.sourceLineId) return accumulator;
     accumulator.set(
       line.sourceLineId,
-      (accumulator.get(line.sourceLineId) ?? 0) + Math.abs(line.quantity),
+      (accumulator.get(line.sourceLineId) ?? 0) + toNumberOrZero(money(line.quantity).abs()),
     );
     return accumulator;
   }, new Map());
@@ -93,7 +94,7 @@ export async function GET(
         return {
           ...line,
           refundedQuantity,
-          refundableQuantity: Math.max(line.quantity - refundedQuantity, 0),
+          refundableQuantity: Math.max(toNumberOrZero(line.quantity) - refundedQuantity, 0),
         };
       }),
     },

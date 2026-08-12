@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
+import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments, requireRetailSession } from "../../_helpers";
 
@@ -22,8 +23,8 @@ export async function GET(request: NextRequest) {
     return successResponse({ data: null });
   }
 
-  const site = await prisma.site.findUnique({
-    where: { id: shift.siteId },
+  const site = await prisma.site.findFirst({
+    where: { id: shift.siteId, companyId: session.user.companyId },
     select: { id: true, name: true, code: true },
   });
 
@@ -48,9 +49,9 @@ export async function GET(request: NextRequest) {
     cashNet: getCashNetFromPayments(
       sale.payments.map((payment) => ({
         tenderType: payment.tenderType,
-        amount: payment.amount,
+        amount: toNumberOrZero(payment.amount),
       })),
-      sale.changeAmount ?? 0,
+      toNumberOrZero(sale.changeAmount),
     ),
   }));
   const cashIn = cashBySale
@@ -62,7 +63,7 @@ export async function GET(request: NextRequest) {
   const nonCashNet = postedSales
     .flatMap((sale) => sale.payments)
     .filter((payment) => payment.tenderType !== "CASH")
-    .reduce((total, payment) => total + payment.amount, 0);
+    .reduce((total, payment) => total + toNumberOrZero(payment.amount), 0);
 
   return successResponse({
     data: {
@@ -72,13 +73,14 @@ export async function GET(request: NextRequest) {
       saleCount: saleTickets.length,
       refundCount: refundTickets.length,
       voidCount: voidTickets.length,
-      salesValue: saleTickets.reduce((total, sale) => total + sale.totalAmount, 0),
-      refundValue: Math.abs(refundTickets.reduce((total, sale) => total + sale.totalAmount, 0)),
-      voidValue: Math.abs(voidTickets.reduce((total, sale) => total + sale.totalAmount, 0)),
-      netSalesValue: postedSales.reduce((total, sale) => total + sale.totalAmount, 0),
-      itemCount: saleTickets.reduce(
-        (total, sale) => total + sale.lines.reduce((lineTotal, line) => lineTotal + line.quantity, 0),
-        0,
+      salesValue: toNumberOrZero(sumMoney(saleTickets.map((sale) => sale.totalAmount))),
+      refundValue: toNumberOrZero(
+        sumMoney(refundTickets.map((sale) => sale.totalAmount)).abs(),
+      ),
+      voidValue: toNumberOrZero(sumMoney(voidTickets.map((sale) => sale.totalAmount)).abs()),
+      netSalesValue: toNumberOrZero(sumMoney(postedSales.map((sale) => sale.totalAmount))),
+      itemCount: toNumberOrZero(
+        sumMoney(saleTickets.flatMap((sale) => sale.lines).map((line) => line.quantity)),
       ),
       transactionCount: postedSales.length,
       cashSales: cashIn,
@@ -92,9 +94,9 @@ export async function GET(request: NextRequest) {
         saleType: sale.saleType,
         status: sale.status,
         shiftId: sale.shiftId,
-        totalAmount: sale.totalAmount,
+        totalAmount: toNumberOrZero(sale.totalAmount),
         postedAt: sale.postedAt ?? sale.createdAt,
-        itemCount: sale.lines.reduce((total, line) => total + Math.abs(line.quantity), 0),
+        itemCount: toNumberOrZero(sumMoney(sale.lines.map((line) => money(line.quantity).abs()))),
         tenderTypes: [...new Set(sale.payments.map((payment) => payment.tenderType))],
       })),
     },

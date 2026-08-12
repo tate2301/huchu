@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, type RetailTenderType } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -61,7 +61,7 @@ export function getPosSupportedPromotionTypes() {
 }
 
 export function getCashNetFromPayments(
-  payments: Array<{ tenderType: string; amount: number }>,
+  payments: Array<{ tenderType: RetailTenderType; amount: number }>,
   changeAmount = 0,
 ) {
   return payments
@@ -90,9 +90,15 @@ const RETAIL_PENDING_POSTING_CODES = new Set([
 
 export function normalizeRetailPostingPayments(input: {
   payments: Array<{
-    tenderType: string;
+    tenderType: RetailTenderType;
     amount: number;
     reference?: string | null;
+    /**
+     * Accepted, carried through this function, and then dropped on the floor:
+     * `RetailSalePayment` has no currency column. Retail has no currency anywhere
+     * — see R-1.5 in `docs/retail/retail-hardening-plan-2026-08-12.md`. Until that
+     * lands, a till taking USD and ZWG records both as bare numbers in one pool.
+     */
     currency?: string | null;
   }>;
   changeAmount?: number;

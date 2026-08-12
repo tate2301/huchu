@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
@@ -105,69 +105,72 @@ export default function RetailShiftsPage() {
   });
   const [form, setForm] = useState<ShiftForm>(() => emptyForm(""));
   const shiftContext = shiftContextQuery.data?.data;
-  const contextSites = shiftContext?.sites ?? [];
+  const contextSites = useMemo(() => shiftContext?.sites ?? [], [shiftContext]);
   const defaultSiteId = shiftContext?.defaultSiteId ?? null;
   const defaultRegisterId = shiftContext?.defaultRegisterId ?? null;
 
+  const siteOptions = useMemo<SearchableOption[]>(
+    () => contextSites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
+    [contextSites],
+  );
+  /**
+   * The site and register in force are derived during render, not written into
+   * `form` by an effect.
+   *
+   * `form.siteId` and `form.registerId` hold what the user picked; these hold what
+   * the dialog is actually operating on, which is the pick when it is still valid
+   * and the fallback chain otherwise. The two effects this replaces wrote that
+   * chain into state a render late, so the dialog opened with an empty register
+   * select and then filled it in.
+   *
+   * Deriving also fixes a case the effects could not: a `defaultSiteId` that is not
+   * in `contextSites` used to be written into the form regardless, leaving a site
+   * selected that has no registers and a dialog that cannot be submitted.
+   */
+  const effectiveSiteId =
+    (form.siteId && contextSites.some((site) => site.id === form.siteId) ? form.siteId : "") ||
+    (defaultSiteId && contextSites.some((site) => site.id === defaultSiteId)
+      ? defaultSiteId
+      : "") ||
+    contextSites.find((site) => site.registers.length > 0)?.id ||
+    contextSites[0]?.id ||
+    "";
+
+  const selectedSite = contextSites.find((site) => site.id === effectiveSiteId) ?? null;
+  const siteRegisters = useMemo(() => selectedSite?.registers ?? [], [selectedSite]);
+
+  const effectiveRegisterId =
+    (form.registerId && siteRegisters.some((register) => register.id === form.registerId)
+      ? form.registerId
+      : "") ||
+    (selectedSite?.id === defaultSiteId &&
+    defaultRegisterId &&
+    siteRegisters.some((register) => register.id === defaultRegisterId)
+      ? defaultRegisterId
+      : "") ||
+    siteRegisters[0]?.id ||
+    "";
+
+  const registerOptions = useMemo<SearchableOption[]>(
+    () =>
+      siteRegisters.map((register) => ({
+        value: register.id,
+        label: register.name,
+        meta: register.code,
+      })),
+    [siteRegisters],
+  );
+
+  // Below the derivations: it reads `effectiveSiteId`, a `const` computed above.
   const {
     reservedId: shiftNo,
     isReserving,
     error: reserveError,
   } = useReservedId({
     entity: "RETAIL_SHIFT",
-    enabled: openDialog && Boolean(form.siteId),
-    siteId: form.siteId || undefined,
+    enabled: openDialog && Boolean(effectiveSiteId),
+    siteId: effectiveSiteId || undefined,
   });
-
-  const siteOptions = useMemo<SearchableOption[]>(
-    () => contextSites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
-    [contextSites],
-  );
-  const selectedSite = useMemo(
-    () => contextSites.find((site) => site.id === form.siteId) ?? null,
-    [contextSites, form.siteId],
-  );
-  const registerOptions = useMemo<SearchableOption[]>(
-    () =>
-      (selectedSite?.registers ?? []).map((register) => ({
-        value: register.id,
-        label: register.name,
-        meta: register.code,
-      })),
-    [selectedSite],
-  );
-
-  useEffect(() => {
-    if (!openDialog || form.siteId) return;
-
-    const fallbackSiteId =
-      defaultSiteId ??
-      contextSites.find((site) => site.registers.length > 0)?.id ??
-      contextSites[0]?.id ??
-      "";
-
-    if (!fallbackSiteId) return;
-    setForm((current) => ({ ...current, siteId: fallbackSiteId }));
-  }, [contextSites, defaultSiteId, form.siteId, openDialog]);
-
-  useEffect(() => {
-    if (!openDialog || !selectedSite) return;
-    const hasSelectedRegister = selectedSite.registers.some(
-      (register) => register.id === form.registerId,
-    );
-    if (hasSelectedRegister) return;
-
-    const fallbackRegisterId =
-      (selectedSite.id === defaultSiteId &&
-      defaultRegisterId &&
-      selectedSite.registers.some((register) => register.id === defaultRegisterId)
-        ? defaultRegisterId
-        : null) ??
-      selectedSite.registers[0]?.id ??
-      "";
-
-    setForm((current) => ({ ...current, registerId: fallbackRegisterId }));
-  }, [defaultRegisterId, defaultSiteId, form.registerId, openDialog, selectedSite]);
 
   const shiftRows = useMemo(
     () =>
@@ -443,16 +446,28 @@ export default function RetailShiftsPage() {
             className="space-y-4"
             onSubmit={(event) => {
               event.preventDefault();
-              openMutation.mutate(form);
+              // The effective ids, not the raw picks: an untouched form carries an
+              // empty `siteId`, and it is the derived fallback that the selects
+              // have been showing all along.
+              openMutation.mutate({
+                ...form,
+                siteId: effectiveSiteId,
+                registerId: effectiveRegisterId,
+              });
             }}
           >
             <div className="space-y-2">
               <label className="block text-sm font-semibold">Shift number</label>
               <Input value={shiftNo} readOnly disabled={isReserving} />
+              {reserveError ? (
+                <p className="text-xs text-[var(--status-error-text)]">
+                  Could not reserve a shift number. {getApiErrorMessage(reserveError)}
+                </p>
+              ) : null}
             </div>
             <SearchableSelect
               label="Site"
-              value={form.siteId}
+              value={effectiveSiteId}
               options={siteOptions}
               placeholder="Select site"
               onValueChange={(value) =>
@@ -463,10 +478,10 @@ export default function RetailShiftsPage() {
               <div className="space-y-2">
                 <SearchableSelect
                   label="Register"
-                  value={form.registerId}
+                  value={effectiveRegisterId}
                   options={registerOptions}
                   placeholder={
-                    !form.siteId
+                    !effectiveSiteId
                       ? "Select site first"
                       : registerOptions.length > 0
                         ? "Select register"
@@ -474,7 +489,7 @@ export default function RetailShiftsPage() {
                   }
                   searchPlaceholder="Search registers"
                   onValueChange={(value) => setForm((current) => ({ ...current, registerId: value }))}
-                  disabled={!form.siteId || registerOptions.length === 0}
+                  disabled={!effectiveSiteId || registerOptions.length === 0}
                 />
               </div>
               <div className="space-y-2">
@@ -488,7 +503,7 @@ export default function RetailShiftsPage() {
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setOpenDialog(false)}>Cancel</Button>
-              <Button type="submit" disabled={openMutation.isPending || !form.siteId || !form.registerId}>Open shift</Button>
+              <Button type="submit" disabled={openMutation.isPending || !effectiveSiteId || !effectiveRegisterId}>Open shift</Button>
             </DialogFooter>
           </form>
         </DialogContent>

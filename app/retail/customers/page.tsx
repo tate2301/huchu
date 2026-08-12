@@ -16,7 +16,6 @@ import { DataTable } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
-import { Users } from "@/lib/icons";
 
 type CustomerRow = {
   customerId: string | null;

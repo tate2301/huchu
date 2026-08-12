@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -15,7 +16,7 @@ const patchSchema = z.object({
   siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200).optional(),
   expectedDate: z.string().datetime().optional().nullable(),
-  status: z.string().min(1).max(40).optional(),
+  status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(lineSchema).min(1).optional(),
 });
@@ -102,7 +103,7 @@ export async function PATCH(
           siteId: site.id,
           supplierName: input.supplierName?.trim(),
           expectedDate: input.expectedDate ? new Date(input.expectedDate) : input.expectedDate,
-          status: input.status?.trim(),
+          status: input.status,
           notes: input.notes?.trim() ?? input.notes,
           ...(lines
             ? {

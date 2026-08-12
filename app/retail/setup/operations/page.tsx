@@ -97,7 +97,7 @@ export default function RetailSetupOperationsPage() {
     };
   }, [snapshot]);
 
-  const effectiveDraft = draft ?? initialDraft;
+  const rawDraft = draft ?? initialDraft;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -111,16 +111,29 @@ export default function RetailSetupOperationsPage() {
   }, [draft]);
 
   const selectedSite = useMemo(
-    () => snapshot?.sites.find((site) => site.id === effectiveDraft.defaultSiteId) ?? null,
-    [effectiveDraft.defaultSiteId, snapshot],
+    () => snapshot?.sites.find((site) => site.id === rawDraft.defaultSiteId) ?? null,
+    [rawDraft.defaultSiteId, snapshot],
   );
   const selectedSiteRegisters = useMemo(
     () =>
       (snapshot?.registers ?? []).filter(
-        (register) => register.siteId === effectiveDraft.defaultSiteId,
+        (register) => register.siteId === rawDraft.defaultSiteId,
       ),
-    [effectiveDraft.defaultSiteId, snapshot?.registers],
+    [rawDraft.defaultSiteId, snapshot?.registers],
   );
+
+  /**
+   * A register that does not belong to the chosen branch is not a choice, so it is
+   * dropped here during render rather than cleared out of state by an effect one
+   * render later. `saveMutation` is handed this draft, so the correction reaches
+   * the write as well as the screen — the effect only ever fixed what was shown.
+   */
+  const effectiveDraft = useMemo(() => {
+    const registerBelongsToSite =
+      !rawDraft.defaultRegisterId ||
+      selectedSiteRegisters.some((register) => register.id === rawDraft.defaultRegisterId);
+    return registerBelongsToSite ? rawDraft : { ...rawDraft, defaultRegisterId: "" };
+  }, [rawDraft, selectedSiteRegisters]);
 
   const siteOptions = useMemo<SearchableOption[]>(
     () =>
@@ -141,23 +154,6 @@ export default function RetailSetupOperationsPage() {
       })),
     [selectedSiteRegisters],
   );
-
-  useEffect(() => {
-    if (!draft || !selectedSite) return;
-    if (
-      draft.defaultRegisterId &&
-      !selectedSiteRegisters.some((register) => register.id === draft.defaultRegisterId)
-    ) {
-      setDraft((current) =>
-        current
-          ? {
-              ...current,
-              defaultRegisterId: "",
-            }
-          : current,
-      );
-    }
-  }, [draft, selectedSite, selectedSiteRegisters]);
 
   const saveMutation = useMutation({
     mutationFn: (payload: OperationForm) =>

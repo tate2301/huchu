@@ -100,9 +100,9 @@ export default function RetailReceiptsPage() {
     siteId: form.siteId || undefined,
   });
 
-  const sites = sitesQuery.data ?? [];
-  const inventoryItems = inventoryQuery.data?.data ?? [];
-  const orders = ordersQuery.data?.data ?? [];
+  const sites = useMemo(() => sitesQuery.data ?? [], [sitesQuery.data]);
+  const inventoryItems = useMemo(() => inventoryQuery.data?.data ?? [], [inventoryQuery.data]);
+  const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data]);
   const siteOptions = useMemo<SearchableOption[]>(
     () => sites.map((site) => ({ value: site.id, label: site.name, meta: site.code })),
     [sites],

@@ -106,7 +106,7 @@ export default function RetailSalesPage() {
     enabled: Boolean(selectedSaleId),
   });
 
-  const sales = salesQuery.data?.data ?? [];
+  const sales = useMemo(() => salesQuery.data?.data ?? [], [salesQuery.data]);
   const postedSales = sales.filter((sale) => sale.saleType === "SALE");
   const refunds = sales.filter((sale) => sale.saleType === "REFUND");
   const exceptions = sales.filter(

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty";
 import { requireRetailSession } from "../../../_helpers";
@@ -47,7 +48,7 @@ export async function GET(
   });
 
   const ledger = sales.map((sale) => {
-    const earned = Math.max(Math.floor(sale.totalAmount), 0);
+    const earned = Math.max(Math.floor(toNumberOrZero(sale.totalAmount)), 0);
     const redeemed = parseLoyaltyRedeemPoints(sale.notes);
     const delta = earned - redeemed;
     return {

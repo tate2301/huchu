@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { RetailAcquisitionMode, RetailCatalogItemStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
@@ -13,9 +14,9 @@ const patchSchema = z.object({
   unitPrice: z.number().min(0).optional(),
   compareAtPrice: z.number().min(0).optional().nullable(),
   taxPercent: z.number().min(0).max(100).optional(),
-  acquisitionMode: z.string().min(1).max(40).optional(),
+  acquisitionMode: z.nativeEnum(RetailAcquisitionMode).optional(),
   imageUrl: z.string().url().optional().nullable(),
-  status: z.string().min(1).max(40).optional(),
+  status: z.nativeEnum(RetailCatalogItemStatus).optional(),
 });
 
 function normalizeSku(value: string) {
@@ -47,8 +48,9 @@ export async function GET(
     return errorResponse("Catalog item not found", 404);
   }
 
-  const inventoryItem = await prisma.inventoryItem.findUnique({
-    where: { id: item.inventoryItemId },
+  // `InventoryItem` is tenant-scoped through its site, not by a column of its own.
+  const inventoryItem = await prisma.inventoryItem.findFirst({
+    where: { id: item.inventoryItemId, site: { companyId: session.user.companyId } },
     select: { id: true, itemCode: true, name: true, currentStock: true, unit: true },
   });
 
@@ -104,9 +106,9 @@ export async function PATCH(
         unitPrice: input.unitPrice,
         compareAtPrice: input.compareAtPrice,
         taxPercent: input.taxPercent,
-        acquisitionMode: input.acquisitionMode?.trim(),
+        acquisitionMode: input.acquisitionMode,
         imageUrl: input.imageUrl ?? undefined,
-        status: input.status?.trim(),
+        status: input.status,
       },
     });
 

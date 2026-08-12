@@ -16,7 +16,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { Prisma } from "@prisma/client";
+import { Prisma, RetailTenderType } from "@prisma/client";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
@@ -389,6 +389,22 @@ async function processCreateSale(
       };
     });
 
+    // Every `payload` in this file is an unchecked `as` cast of whatever the device
+    // sent, so the tender type is validated here rather than trusted. It used to
+    // reach a `String` column and land whatever it liked; against the enum it would
+    // be a Postgres error surfacing as a 500, when what the device deserves is a
+    // failed operation it can report and retry against.
+    const payments = payload.payments.map((payment) => {
+      const tenderType = RetailTenderType[payment.tenderType as keyof typeof RetailTenderType];
+      if (!tenderType) {
+        throw new Error(
+          `Unknown tender type "${payment.tenderType}" — expected one of ` +
+            `${Object.values(RetailTenderType).join(", ")}`,
+        );
+      }
+      return { ...payment, tenderType };
+    });
+
     let customerName: string | null = null;
     if (resolvedCustomerId) {
       const customer = await prisma.customer.findFirst({
@@ -416,7 +432,7 @@ async function processCreateSale(
       discountAmount: payload.discountAmount,
       taxAmount: payload.taxTotal,
       totalAmount: payload.grandTotal,
-      payments: payload.payments,
+      payments,
       lines: saleLines,
       overrideReason: payload.overrideReason ?? null,
       notes: payload.offlineCreated

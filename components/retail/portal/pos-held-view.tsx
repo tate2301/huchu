@@ -5,20 +5,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User, Wallet } from "@/lib/icons";
+import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   PosEmptyState,
   PosMetricCard,
   PosPanel,
   PosPanelHeader,
-  PosStatusPill,
   PosTerminalHeader,
 } from "./pos-primitives";
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart } from "./pos-types";
 import { money } from "./pos-utils";
-import { cn } from "@/lib/utils";
 
 /* ─── Elapsed time helper ─────────────────────────────────────────── */
 function elapsedLabel(createdAt: string): { label: string; urgent: boolean } {

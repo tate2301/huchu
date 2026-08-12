@@ -12,7 +12,6 @@ import { OFFLINE_DB_STORES } from "@/lib/offline/db";
 import { putRecord, getRecord } from "@/lib/offline/db-v2";
 import {
   upsertOfflineLocalEntity,
-  listOfflineLocalEntities,
   markOfflineLocalEntitySynced,
 } from "@/lib/offline/entity-store";
 import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@/lib/offline/outbox";

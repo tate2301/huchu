@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma } from "@prisma/client";
+import { Prisma, RetailAcquisitionMode, RetailCatalogItemStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -16,9 +16,9 @@ const catalogItemSchema = z.object({
   unitPrice: z.number().min(0),
   compareAtPrice: z.number().min(0).optional().nullable(),
   taxPercent: z.number().min(0).max(100).optional(),
-  acquisitionMode: z.string().min(1).max(40).optional(),
+  acquisitionMode: z.nativeEnum(RetailAcquisitionMode).optional(),
   imageUrl: z.string().url().optional().nullable(),
-  status: z.string().min(1).max(40).optional(),
+  status: z.nativeEnum(RetailCatalogItemStatus).optional(),
 });
 
 function normalizeSku(value: string) {
@@ -45,7 +45,11 @@ export async function GET(request: NextRequest) {
   };
 
   if (siteId) where.siteId = siteId;
-  if (status && status !== "all") where.status = status;
+  if (status && status !== "all") {
+    const parsed = RetailCatalogItemStatus[status as keyof typeof RetailCatalogItemStatus];
+    if (!parsed) return errorResponse(`Unknown status "${status}"`, 400);
+    where.status = parsed;
+  }
   if (search) {
     where.OR = [
       { name: { contains: search, mode: "insensitive" } },
@@ -135,9 +139,9 @@ export async function POST(request: NextRequest) {
             unitPrice: input.unitPrice,
             compareAtPrice: input.compareAtPrice ?? null,
             taxPercent: input.taxPercent ?? 0,
-            acquisitionMode: input.acquisitionMode?.trim() || "PURCHASE",
+            acquisitionMode: input.acquisitionMode ?? RetailAcquisitionMode.PURCHASE,
             imageUrl: input.imageUrl ?? null,
-            status: input.status?.trim() || "ACTIVE",
+            status: input.status ?? RetailCatalogItemStatus.ACTIVE,
           },
         });
 

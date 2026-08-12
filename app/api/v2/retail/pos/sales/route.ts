@@ -1,8 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
-import { Prisma } from "@prisma/client";
+import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -127,22 +128,37 @@ function mapSales(
     cashierName: sale.cashierName,
     customerName: sale.customerName,
     postedAt: sale.postedAt ?? sale.createdAt,
-    subtotal: sale.subtotal,
-    discountAmount: sale.discountAmount,
-    taxAmount: sale.taxAmount,
-    totalAmount: sale.totalAmount,
-    tenderedAmount: sale.tenderedAmount,
-    changeAmount: sale.changeAmount,
+    // Numbers, not `Decimal`. A `Prisma.Decimal` serialises to a JSON *string*,
+    // and every retail screen reads these straight into `.toFixed()` and chart
+    // series. The column type changing must not change the wire contract.
+    subtotal: toNumberOrZero(sale.subtotal),
+    discountAmount: toNumberOrZero(sale.discountAmount),
+    taxAmount: toNumberOrZero(sale.taxAmount),
+    totalAmount: toNumberOrZero(sale.totalAmount),
+    tenderedAmount: toNumber(sale.tenderedAmount),
+    changeAmount: toNumber(sale.changeAmount),
     promotionCode: sale.promotionCode,
     overrideReason: sale.overrideReason,
     voidReason: sale.voidReason,
     sourceSaleId: sale.sourceSaleId,
     sourceSaleNo: sale.sourceSaleId ? sourceSaleMap.get(sale.sourceSaleId) ?? null : null,
-    itemCount: sale.lines.reduce((total, line) => total + Math.abs(line.quantity), 0),
+    itemCount: toNumberOrZero(sumMoney(sale.lines.map((line) => money(line.quantity).abs()))),
     lineCount: sale.lines.length,
     tenderTypes: sale.payments.map((payment) => payment.tenderType),
-    payments: sale.payments,
-    lines: sale.lines,
+    payments: sale.payments.map((payment) => ({
+      ...payment,
+      amount: toNumberOrZero(payment.amount),
+    })),
+    lines: sale.lines.map((line) => ({
+      ...line,
+      quantity: toNumberOrZero(line.quantity),
+      unitPrice: toNumberOrZero(line.unitPrice),
+      discountAmount: toNumberOrZero(line.discountAmount),
+      taxAmount: toNumberOrZero(line.taxAmount),
+      lineTotal: toNumberOrZero(line.lineTotal),
+      costUnit: toNumberOrZero(line.costUnit),
+      costTotal: toNumberOrZero(line.costTotal),
+    })),
     notes: sale.notes,
     };
   });
@@ -186,12 +202,28 @@ export async function GET(request: NextRequest) {
           : cashierId
         : undefined;
 
+  const saleTypeFilter =
+    saleType && saleType !== "all"
+      ? RetailSaleType[saleType as keyof typeof RetailSaleType]
+      : undefined;
+  if (saleType && saleType !== "all" && !saleTypeFilter) {
+    return errorResponse(`Unknown sale type "${saleType}"`, 400);
+  }
+
+  const statusFilter =
+    status && status !== "all"
+      ? RetailSaleStatus[status as keyof typeof RetailSaleStatus]
+      : undefined;
+  if (status && status !== "all" && !statusFilter) {
+    return errorResponse(`Unknown status "${status}"`, 400);
+  }
+
   const where: Prisma.RetailSaleWhereInput = {
     companyId: session.user.companyId,
     ...(shiftId ? { shiftId } : {}),
     ...(siteId ? { siteId } : {}),
-    ...(saleType && saleType !== "all" ? { saleType } : {}),
-    ...(status && status !== "all" ? { status } : {}),
+    ...(saleTypeFilter ? { saleType: saleTypeFilter } : {}),
+    ...(statusFilter ? { status: statusFilter } : {}),
     ...(effectiveCashierId ? { cashierId: effectiveCashierId } : {}),
     ...(fromDate || toDate
       ? {
@@ -260,26 +292,28 @@ export async function GET(request: NextRequest) {
       limit,
     },
     summary: {
-      grossSales: round(
-        postedMapped
-          .filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED")
-          .reduce((total, sale) => total + sale.totalAmount, 0),
+      grossSales: toNumberOrZero(
+        sumMoney(
+          postedMapped
+            .filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED")
+            .map((sale) => sale.totalAmount),
+        ),
       ),
-      refundValue: round(
-        Math.abs(
+      refundValue: toNumberOrZero(
+        sumMoney(
           postedMapped
             .filter((sale) => sale.saleType === "REFUND" && sale.status === "POSTED")
-            .reduce((total, sale) => total + sale.totalAmount, 0),
-        ),
+            .map((sale) => sale.totalAmount),
+        ).abs(),
       ),
-      voidValue: round(
-        Math.abs(
+      voidValue: toNumberOrZero(
+        sumMoney(
           postedMapped
             .filter((sale) => sale.saleType === "VOID" && sale.status === "POSTED")
-            .reduce((total, sale) => total + sale.totalAmount, 0),
-        ),
+            .map((sale) => sale.totalAmount),
+        ).abs(),
       ),
-      netSales: round(postedMapped.reduce((total, sale) => total + sale.totalAmount, 0)),
+      netSales: toNumberOrZero(sumMoney(postedMapped.map((sale) => sale.totalAmount))),
     },
   });
 }
@@ -384,7 +418,12 @@ export async function POST(request: NextRequest) {
         throw new Error(`Inventory item missing for ${catalogItem.name}.`);
       }
 
-      const unitPrice = item.unitPrice ?? catalogItem.unitPrice;
+      // `calculateRetailCheckout` is shared with the offline till, which stores
+      // plain JSON, so the calculator stays in `number` and the crossing from the
+      // `Decimal` column happens here. Moving it to `Decimal` means shipping
+      // decimal.js to the till bundle and reworking the offline store — its own
+      // ticket, noted in the R-1.1 entry of the hardening plan.
+      const unitPrice = item.unitPrice ?? toNumberOrZero(catalogItem.unitPrice);
       const lineDiscount = item.discountAmount ?? 0;
       if (lineDiscount > round(unitPrice * item.quantity)) {
         throw new Error(`Line discount exceeds line amount for ${catalogItem.name}.`);
@@ -428,7 +467,7 @@ export async function POST(request: NextRequest) {
       preNormalizedLines.some(
         (line) =>
           line.baseDiscountAmount > 0 ||
-          Math.abs(line.unitPrice - line.catalogItem.unitPrice) > 0.009,
+          Math.abs(line.unitPrice - toNumberOrZero(line.catalogItem.unitPrice)) > 0.009,
       );
 
     let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
@@ -479,15 +518,15 @@ export async function POST(request: NextRequest) {
         id: line.lineKey,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
-        taxPercent: line.catalogItem.taxPercent,
+        taxPercent: toNumberOrZero(line.catalogItem.taxPercent),
         lineDiscountAmount: line.baseDiscountAmount,
       })),
       orderDiscountAmount: input.discountAmount ?? 0,
       promotion: promotion
         ? {
             id: promotion.id,
-            type: promotion.type as "PERCENT" | "AMOUNT" | "BUY_X_GET_Y" | "BUNDLE",
-            value: promotion.value,
+            type: promotion.type,
+            value: toNumberOrZero(promotion.value),
           }
         : null,
     });
@@ -696,7 +735,9 @@ export async function POST(request: NextRequest) {
           })
         : null;
     const loyaltyPointsEarned =
-      resolvedCustomerName && sale.totalAmount > 0 ? Math.floor(sale.totalAmount) : 0;
+      resolvedCustomerName && money(sale.totalAmount).greaterThan(0)
+        ? Math.floor(toNumberOrZero(sale.totalAmount))
+        : 0;
     const loyaltyPointsRedeemed = parseLoyaltyRedeemPoints(sale.notes);
     const loyaltyPointsBalance = Math.max(customerNetSpend?.balance ?? 0, 0);
 

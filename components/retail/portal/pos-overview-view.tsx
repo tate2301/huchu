@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+
 import { fetchJson } from "@/lib/api-client";
 import { BarChart3, Clock, History, Package, Payments, Wallet } from "@/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
@@ -16,7 +16,6 @@ import {
 import { usePosPortalState } from "./pos-portal-state";
 import type { HeldCart, SaleRow } from "./pos-types";
 import { money } from "./pos-utils";
-import { cn } from "@/lib/utils";
 
 /* ── Sale type style helpers ──────────────────────────────────────── */
 function saleTypeTone(saleType: string): "success" | "danger" | "warning" | "neutral" {

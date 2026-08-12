@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Badge } from "@/components/ui/badge";
+
 import { cn } from "@/lib/utils";
 import type { LucideIcon } from "@/lib/icons";
 
