@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
   ensureInventoryItemAccess,  resolveRetailSite,
   postRetailJournal,
-  recordRetailInventoryMovement,
   requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
       return errorResponse("Counted stock matches current stock; no adjustment needed", 400);
     }
 
-    const movement = await recordRetailInventoryMovement({
+    const { movement } = await recordStockMovement({
       companyId: session.user.companyId,
       userId: session.user.id,
       itemId: item.id,

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { Prisma, type RetailTenderType } from "@prisma/client";
+import { type RetailTenderType } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
@@ -379,97 +379,6 @@ export async function upsertRetailRegister(input: {
       name: normalizedName,
     },
   });
-}
-
-export async function recordRetailInventoryMovement(input: {
-  companyId: string;
-  userId: string;
-  itemId: string;
-  movementType: "RECEIPT" | "ISSUE" | "ADJUSTMENT" | "TRANSFER";
-  quantity: number;
-  unit: string;
-  unitCost?: number | null;
-  notes?: string | null;
-  toLocationId?: string | null;
-  sourceType:
-    | "RETAIL_GOODS_RECEIPT"
-    | "RETAIL_SALE"
-    | "RETAIL_REFUND"
-    | "RETAIL_VOID"
-    | "RETAIL_STOCK_ADJUSTMENT"
-    | "RETAIL_STOCK_TRANSFER"
-    | "RETAIL_SHIFT_VARIANCE";
-  sourceId: string;
-  entryDate?: Date;
-  tx?: Prisma.TransactionClient;
-}) {
-  const db = input.tx ?? prisma;
-  const item = await db.inventoryItem.findUnique({
-    where: { id: input.itemId },
-    include: { site: { select: { companyId: true } } },
-  });
-
-  if (!item || item.site.companyId !== input.companyId) {
-    throw new Error("Invalid inventory item.");
-  }
-
-  if (item.unit !== input.unit) {
-    throw new Error("Stock unit mismatch.");
-  }
-
-  const absoluteQuantity = Math.abs(input.quantity);
-  if (input.movementType === "ISSUE" && item.currentStock < absoluteQuantity) {
-    throw new Error("Insufficient stock.");
-  }
-
-  let nextStock = item.currentStock;
-  if (input.movementType === "RECEIPT") nextStock += absoluteQuantity;
-  if (input.movementType === "ISSUE") nextStock -= absoluteQuantity;
-  if (input.movementType === "ADJUSTMENT") nextStock += input.quantity;
-
-  if (nextStock < 0) {
-    throw new Error("Stock cannot be negative.");
-  }
-
-  const createdAt = input.entryDate ?? new Date();
-  const writeMovement = async (tx: Prisma.TransactionClient) => {
-    // No retry loop here: reserveIdentifier uses an atomic sequence increment so
-    // P2002 collisions on stockMovement.create are not expected. A retry loop that
-    // catches P2002 and continues inside a PostgreSQL transaction would leave the
-    // transaction in an "aborted" state, causing every subsequent query to fail with
-    // "current transaction is aborted". Let any error propagate cleanly.
-    const referenceId = await reserveIdentifier(tx, {
-      companyId: input.companyId,
-      entity: "STOCK_MOVEMENT",
-    });
-
-    const created = await tx.stockMovement.create({
-      data: {
-        referenceId,
-        itemId: input.itemId,
-        toLocationId: input.toLocationId ?? undefined,
-        movementType: input.movementType,
-        quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
-        unit: input.unit,
-        notes: input.notes ?? undefined,
-        issuedById: input.userId,
-        createdAt,
-      },
-    });
-
-    await tx.inventoryItem.update({
-      where: { id: input.itemId },
-      data: {
-        currentStock: nextStock,
-        ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
-      },
-    });
-
-    return created;
-  };
-  const movement = input.tx ? await writeMovement(input.tx) : await prisma.$transaction(writeMovement);
-
-  return movement;
 }
 
 export function retailValidationError(message: string, status = 400, details?: unknown) {

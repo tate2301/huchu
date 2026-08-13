@@ -35,6 +35,10 @@
  * and the divergence is written down; reconciling the catalogue is its own ticket.
  */
 
+import { NextResponse } from "next/server";
+
+import { errorResponse } from "@/lib/api-utils";
+
 /**
  * The seven surfaces retail authorises against.
  *
@@ -242,6 +246,22 @@ export function retailPermissionDenial(
 ): string | null {
   if (canRetailRoleDo(session.user.role, resource, action)) return null;
   return `Your role cannot ${ACTION_VERBS[action]} ${RESOURCE_LABELS[resource]}`;
+}
+
+/**
+ * The door check, in the shape every retail route already uses.
+ *
+ * Returns a 403 to hand straight back, or null to carry on — the same
+ * `gate && return gate` idiom as `requireRetailManager` and friends, so applying
+ * the matrix to a handler is a two-line change rather than a rewrite.
+ */
+export function requireRetailPermission(
+  session: SessionLike,
+  resource: RetailResource,
+  action: RetailAction,
+): NextResponse | null {
+  const denial = retailPermissionDenial(session, resource, action);
+  return denial ? errorResponse(denial, 403) : null;
 }
 
 /**

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailManager, requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_TENDER_POLICY,
@@ -21,6 +22,10 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Which tenders the shop accepts and at what rate.
+  const gate = requireRetailPermission(session, "retail.setup", "view");
+  if (gate) return gate;
 
   const policy = await getRetailTenderPolicy(session.user.companyId);
   return successResponse({ data: policy, defaults: DEFAULT_RETAIL_TENDER_POLICY });

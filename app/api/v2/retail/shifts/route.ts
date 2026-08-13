@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   requireRetailPos,
   requireRetailSession,
@@ -24,6 +25,12 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. The back-office shift list: every cashier's drawer and every
+  // variance. A cashier's own shift reaches them through `pos/current-shift`,
+  // which stays open — this is the till supervisor's view of everyone else.
+  const gate = requireRetailPermission(session, "retail.cash-control", "view");
+  if (gate) return gate;
 
   const shifts = await prisma.retailShift.findMany({
     where: { companyId: session.user.companyId },

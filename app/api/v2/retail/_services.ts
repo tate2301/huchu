@@ -1,5 +1,6 @@
 import { Prisma, type RetailTenderType } from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
   ZERO,
   exceeds,
@@ -19,7 +20,6 @@ import {
   ensureSiteAccess,
   getCashNetFromPayments,
   postRetailJournal,
-  recordRetailInventoryMovement,
   type RetailAccountingResult,
   upsertRetailRegister,
 } from "./_helpers";
@@ -560,7 +560,7 @@ export async function createRetailSaleTransaction(input: {
         });
 
         for (const line of input.lines) {
-          await recordRetailInventoryMovement({
+          await recordStockMovement({
             companyId: input.actor.companyId,
             userId: input.actor.userId,
             itemId: line.inventoryItemId,
@@ -872,7 +872,7 @@ export async function refundRetailSaleTransaction(input: {
       if (!item) {
         throw new Error(`Inventory item missing for ${line.sourceLine.itemName}.`);
       }
-      await recordRetailInventoryMovement({
+      await recordStockMovement({
         companyId: input.actor.companyId,
         userId: input.actor.userId,
         itemId: item.id,
@@ -1086,7 +1086,7 @@ export async function voidRetailSaleTransaction(input: {
       if (!item) {
         throw new Error(`Inventory item missing for ${line.itemName}.`);
       }
-      await recordRetailInventoryMovement({
+      await recordStockMovement({
         companyId: input.actor.companyId,
         userId: input.actor.userId,
         itemId: item.id,

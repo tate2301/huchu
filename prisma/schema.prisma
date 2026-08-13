@@ -257,6 +257,18 @@ model Company {
   products                      Product[]
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
+  retailRegisters               RetailRegister[]
+  retailCatalogItems            RetailCatalogItem[]
+  retailPromotions              RetailPromotion[]
+  retailPurchaseOrders          RetailPurchaseOrder[]
+  retailPurchaseOrderLines      RetailPurchaseOrderLine[]
+  retailGoodsReceipts           RetailGoodsReceipt[]
+  retailGoodsReceiptLines       RetailGoodsReceiptLine[]
+  retailShifts                  RetailShift[]
+  retailHeldCarts               RetailHeldCart[]
+  retailSales                   RetailSale[]
+  retailSaleLines               RetailSaleLine[]
+  retailSalePayments            RetailSalePayment[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -848,6 +860,12 @@ model Site {
   goldExceptions        GoldException[]
   goldLedgerImports     GoldLedgerImport[]
   goldPeriodCloses      GoldPeriodClose[]
+  retailRegisters       RetailRegister[]
+  retailCatalogItems    RetailCatalogItem[]
+  retailPurchaseOrders  RetailPurchaseOrder[]
+  retailGoodsReceipts   RetailGoodsReceipt[]
+  retailShifts          RetailShift[]
+  retailSales           RetailSale[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1073,6 +1091,11 @@ model User {
   crmWorkOrdersCreated              CrmWorkOrder[]                 @relation("CrmWorkOrderCreatedBy")
   productsCreated                   Product[]                      @relation("ProductCreatedBy")
   schoolMessagesSent                SchoolMessage[]
+  retailPurchaseOrdersCreated       RetailPurchaseOrder[]          @relation("RetailPurchaseOrderCreatedBy")
+  retailGoodsReceiptsReceived       RetailGoodsReceipt[]           @relation("RetailGoodsReceiptReceivedBy")
+  retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
+  retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
+  retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
 
   @@index([companyId])
   @@index([email])
@@ -4128,6 +4151,11 @@ model InventoryItem {
   movements StockMovement[]
   product   Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
 
+  retailCatalogItems       RetailCatalogItem[]
+  retailPurchaseOrderLines RetailPurchaseOrderLine[]
+  retailGoodsReceiptLines  RetailGoodsReceiptLine[]
+  retailSaleLines          RetailSaleLine[]
+
   @@unique([siteId, itemCode])
   @@index([siteId])
   @@index([productId])
@@ -4155,6 +4183,22 @@ model StockMovement {
   notes        String?
   photoUrl     String?
 
+  /// What caused this movement, and the document it came from.
+  ///
+  /// S-2. `recordStockMovement` has always taken these and passed them only to
+  /// accounting, so the ledger knew why a bottle moved and the stock row did
+  /// not: a `StockMovement` could say "ISSUE 6 EACH" and nothing else. Now the
+  /// row carries its own provenance and a receipt, a sale or a stock count can
+  /// be traced back from the movement without joining through the journal.
+  ///
+  /// The vocabulary is `AccountingSourceType` rather than a second enum,
+  /// because it is the same vocabulary — these values were already being handed
+  /// to `createJournalEntryFromSource`. Nullable because history has none.
+  sourceType AccountingSourceType?
+  /// The id of the causing document. Not an FK: it spans a dozen tables, and
+  /// some callers key a line within a document (`<receiptId>:<itemId>`).
+  sourceId   String?
+
   createdAt DateTime @default(now())
 
   item       InventoryItem  @relation(fields: [itemId], references: [id])
@@ -4164,6 +4208,7 @@ model StockMovement {
   @@index([itemId])
   @@index([toLocationId])
   @@index([createdAt])
+  @@index([sourceType, sourceId])
 }
 
 /// Retail's status vocabularies.
@@ -4278,6 +4323,9 @@ model RetailRegister {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
 }
@@ -4308,6 +4356,11 @@ model RetailCatalogItem {
 
   product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
 
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site          Site          @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  saleLines     RetailSaleLine[]
+
   @@unique([companyId, catalogCode])
   @@unique([companyId, sku])
   @@index([companyId, siteId, status])
@@ -4329,6 +4382,8 @@ model RetailPromotion {
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
 
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
   @@unique([companyId, promoCode])
   @@index([companyId, status])
 }
@@ -4347,6 +4402,10 @@ model RetailPurchaseOrder {
   updatedAt    DateTime  @updatedAt
 
   lines RetailPurchaseOrderLine[]
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
 
   @@unique([companyId, poNo])
   @@index([companyId, siteId, status])
@@ -4369,6 +4428,9 @@ model RetailPurchaseOrderLine {
 
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
   @@index([purchaseOrderId])
   @@index([companyId])
 }
@@ -4389,6 +4451,10 @@ model RetailGoodsReceipt {
 
   lines RetailGoodsReceiptLine[]
 
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site       Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  receivedBy User?   @relation("RetailGoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
   @@unique([companyId, receiptNo])
   @@index([companyId, siteId, status])
 }
@@ -4407,6 +4473,9 @@ model RetailGoodsReceiptLine {
   createdAt       DateTime @default(now())
 
   receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@index([receiptId])
   @@index([companyId])
@@ -4432,6 +4501,12 @@ model RetailShift {
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
 
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  heldCarts RetailHeldCart[]
+  sales     RetailSale[]
+
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
   @@index([cashierId, status])
@@ -4448,6 +4523,10 @@ model RetailHeldCart {
   status       RetailHeldCartStatus @default(HELD)
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift   RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cashier User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
 
   @@unique([companyId, holdNo])
   @@index([companyId, shiftId, status])
@@ -4496,6 +4575,13 @@ model RetailSale {
   lines    RetailSaleLine[]
   payments RetailSalePayment[]
 
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site       Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashier    User?        @relation("RetailSaleCashier", fields: [cashierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  shift      RetailShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceSale RetailSale?  @relation("RetailSaleSource", fields: [sourceSaleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reversals  RetailSale[] @relation("RetailSaleSource")
+
   @@unique([companyId, saleNo])
   @@index([companyId, siteId, status, postedAt])
   @@index([shiftId])
@@ -4522,6 +4608,12 @@ model RetailSaleLine {
   createdAt       DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  catalogItem   RetailCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
 
   @@index([saleId])
   @@index([sourceLineId])
@@ -4553,6 +4645,8 @@ model RetailSalePayment {
   createdAt  DateTime @default(now())
 
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
 
   @@index([saleId])
   @@index([companyId, tenderType])

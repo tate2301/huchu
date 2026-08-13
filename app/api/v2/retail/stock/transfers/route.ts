@@ -2,10 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
-  ensureInventoryItemAccess,
-  ensureLocationAccess,  resolveRetailSite,
-  recordRetailInventoryMovement,
+  ensureInventoryItemAccess,  resolveRetailSite,
   requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
@@ -45,20 +44,11 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid inventory item for the selected site", 400);
     }
 
-    const destination = await ensureLocationAccess(site.id, input.toLocationId);
-    if (!destination) {
-      return errorResponse("Invalid destination location", 400);
-    }
-
-    if (destination.id === item.locationId) {
-      return errorResponse("Destination location must differ from source location", 400);
-    }
-
-    if (input.quantity > item.currentStock) {
-      return errorResponse("Transfer quantity cannot exceed current stock", 400);
-    }
-
-    const movement = await recordRetailInventoryMovement({
+    // The destination, the same-site rule and the whole-line rule all live in
+    // `recordStockMovement` now — one movement service, one set of rules. It
+    // throws with a message the catch below turns into a 400.
+    const fromLocationId = item.locationId;
+    const { movement } = await recordStockMovement({
       companyId: session.user.companyId,
       userId: session.user.id,
       itemId: item.id,
@@ -67,7 +57,7 @@ export async function POST(request: NextRequest) {
       unit: item.unit,
       unitCost: item.unitCost ?? 0,
       notes: input.notes?.trim() || `Retail transfer of ${item.name}`,
-      toLocationId: destination.id,
+      toLocationId: input.toLocationId,
       sourceType: "RETAIL_STOCK_TRANSFER",
       sourceId: `stock-transfer:${item.id}:${Date.now()}`,
     });
@@ -89,8 +79,8 @@ export async function POST(request: NextRequest) {
         itemId: item.id,
         itemName: item.name,
         quantity: input.quantity,
-        fromLocationId: item.locationId,
-        toLocationId: destination.id,
+        fromLocationId,
+        toLocationId: input.toLocationId,
         movementType: "TRANSFER",
       },
       createdById: session.user.id,
@@ -103,8 +93,8 @@ export async function POST(request: NextRequest) {
         referenceId: movement.referenceId,
         itemId: item.id,
         quantity: input.quantity,
-        fromLocationId: item.locationId,
-        toLocationId: destination.id,
+        fromLocationId,
+        toLocationId: input.toLocationId,
       },
       201,
     );

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureRetailRegisterAccess,
   requireRetailManager,
@@ -33,6 +34,10 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Registers, branches and terminal bindings.
+  const gate = requireRetailPermission(session, "retail.setup", "view");
+  if (gate) return gate;
 
   try {
     const snapshot = await getRetailSetupSnapshot(session.user.companyId);

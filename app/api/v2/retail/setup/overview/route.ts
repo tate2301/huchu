@@ -1,5 +1,6 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 import { getRetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
 
@@ -8,6 +9,10 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Setup is the shop's configuration, not a cashier's business.
+  const gate = requireRetailPermission(session, "retail.setup", "view");
+  if (gate) return gate;
 
   try {
     const snapshot = await getRetailSetupSnapshot(session.user.companyId);

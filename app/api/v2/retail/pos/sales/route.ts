@@ -12,6 +12,7 @@ import {
   LOYALTY_REDEEM_POINTS_PER_USD,
   parseLoyaltyRedeemPoints,
 } from "@/lib/retail/loyalty";
+import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import {
@@ -107,6 +108,12 @@ function mapSales(
   sourceSaleMap: Map<string, string>,
   shiftMap: Map<string, { id: string; shiftNo: string; registerName: string; status: string; closedAt: Date | null }>,
   siteMap: Map<string, { id: string; name: string; code: string }>,
+  // R-2.3. A cashier is entitled to their own sale history — reprinting a slip
+  // and finding a sale to refund are the job. What they are not entitled to is
+  // what the shop paid, which rides along on every line as `costUnit` and
+  // `costTotal`. No door check can express that, because the row is allowed and
+  // two of its fields are not; the decision has to come down into the shaping.
+  showCost: boolean,
 ) {
   return sales.map((sale) => {
     const shift = sale.shiftId ? shiftMap.get(sale.shiftId) ?? null : null;
@@ -148,16 +155,25 @@ function mapSales(
       ...payment,
       amount: toNumberOrZero(payment.amount),
     })),
-    lines: sale.lines.map((line) => ({
-      ...line,
-      quantity: toNumberOrZero(line.quantity),
-      unitPrice: toNumberOrZero(line.unitPrice),
-      discountAmount: toNumberOrZero(line.discountAmount),
-      taxAmount: toNumberOrZero(line.taxAmount),
-      lineTotal: toNumberOrZero(line.lineTotal),
-      costUnit: toNumberOrZero(line.costUnit),
-      costTotal: toNumberOrZero(line.costTotal),
-    })),
+    lines: sale.lines.map((line) => {
+      // Spread first, then delete, so a cost field added to the model later is
+      // withheld by default rather than leaking until somebody notices.
+      const { costUnit, costTotal, ...rest } = line;
+      const shaped = {
+        ...rest,
+        quantity: toNumberOrZero(line.quantity),
+        unitPrice: toNumberOrZero(line.unitPrice),
+        discountAmount: toNumberOrZero(line.discountAmount),
+        taxAmount: toNumberOrZero(line.taxAmount),
+        lineTotal: toNumberOrZero(line.lineTotal),
+      };
+      if (!showCost) return shaped;
+      return {
+        ...shaped,
+        costUnit: toNumberOrZero(costUnit),
+        costTotal: toNumberOrZero(costTotal),
+      };
+    }),
     notes: sale.notes,
     };
   });
@@ -274,7 +290,13 @@ export async function GET(request: NextRequest) {
   const shiftMap = new Map(shifts.map((shift) => [shift.id, shift]));
   const siteMap = new Map(sites.map((site) => [site.id, site]));
 
-  const mapped = mapSales(sales, sourceSaleMap, shiftMap, siteMap);
+  const mapped = mapSales(
+    sales,
+    sourceSaleMap,
+    shiftMap,
+    siteMap,
+    canSeeRetailCostPrice(session.user.role),
+  );
   const postedMapped = mapped.filter((sale) => sale.status === "POSTED");
 
   return successResponse({

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
 export async function GET(
@@ -12,6 +13,8 @@ export async function GET(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  const showCost = canSeeRetailCostPrice(session.user.role);
 
   const { id } = await params;
   const sale = await prisma.retailSale.findFirst({
@@ -91,8 +94,13 @@ export async function GET(
       reversals: relatedSales,
       lines: sale.lines.map((line) => {
         const refundedQuantity = refundedBySourceLine.get(line.id) ?? 0;
+        // R-2.3. Opening a sale to refund it is a cashier's job; reading the
+        // margin on it is not. Destructured out rather than deleted after the
+        // spread, so a cost field added later is withheld by default.
+        const { costUnit, costTotal, ...rest } = line;
         return {
-          ...line,
+          ...rest,
+          ...(showCost ? { costUnit, costTotal } : {}),
           refundedQuantity,
           refundableQuantity: Math.max(toNumberOrZero(line.quantity) - refundedQuantity, 0),
         };

@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailManager, requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_POS_POLICY,
@@ -25,6 +26,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Checkout guardrails — discount ceilings, override rules. Reading
+  // them tells you exactly how far you can push a price before anyone is asked.
+  const gate = requireRetailPermission(session, "retail.setup", "view");
+  if (gate) return gate;
 
   const [policy, record] = await Promise.all([
     getRetailPosPolicy(session.user.companyId),

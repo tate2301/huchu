@@ -65,6 +65,12 @@ const GUARD_MARKERS = [
   "canManageRetailTransactions",
   /** `lib/retail/pos-host.ts` — the POS-capable roles, used by the till routes. */
   "canAccessPosPortal",
+  /**
+   * R-2.3. `lib/retail/permissions.ts` — the resource × action × role matrix
+   * that is replacing the five role sets above. A handler naming this is gated,
+   * and the six reads it now stands in front of have left the allowlist below.
+   */
+  "requireRetailPermission",
 ];
 
 /**
@@ -86,15 +92,6 @@ const GUARD_MARKERS = [
  * outlive the work; an entry naming a handler that no longer exists fails too.
  */
 const UNGATED_READS: Record<string, string> = {
-  "app/api/v2/retail/route.ts GET":
-    "The trading dashboard. Aggregate takings, margin and cost — the widest read in the module.",
-  "app/api/v2/retail/setup/overview/route.ts GET":
-    "Setup readiness. Reveals which of the shop's configuration steps are incomplete.",
-  "app/api/v2/retail/setup/operations/route.ts GET": "Trading hours, registers and site operations.",
-  "app/api/v2/retail/setup/pos-policy/route.ts GET":
-    "Till policy — override limits, discount ceilings, fiscalisation config.",
-  "app/api/v2/retail/setup/tender-policy/route.ts GET":
-    "Which tenders are accepted and which need a reference.",
   "app/api/v2/retail/catalog/route.ts GET": "The admin catalogue list. Carries cost and margin.",
   "app/api/v2/retail/catalog/[id]/route.ts GET": "One catalogue item, with its inventory position.",
   "app/api/v2/retail/customers/route.ts GET": "The customer list.",
@@ -106,7 +103,6 @@ const UNGATED_READS: Record<string, string> = {
   "app/api/v2/retail/purchasing/orders/route.ts GET":
     "Purchase orders, with supplier and unit cost. The GET a dead import made look covered.",
   "app/api/v2/retail/purchasing/receipts/route.ts GET": "Goods receipts, with unit cost.",
-  "app/api/v2/retail/shifts/route.ts GET": "Every shift and its cash variance, across all cashiers.",
   "app/api/v2/retail/pos/catalog/route.ts GET":
     "The sellable catalogue. Open to a cashier is correct — but it carries cost price.",
   "app/api/v2/retail/pos/catalog/categories/route.ts GET":

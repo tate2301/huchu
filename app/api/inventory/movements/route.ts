@@ -4,7 +4,8 @@ import { prisma } from '@/lib/prisma';
 import { createJournalEntryFromSource } from '@/lib/accounting/posting';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
-import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
+import { normalizeProvidedId } from '@/lib/id-generator';
+import { recordStockMovement } from '@/lib/inventory/stock-movements';
 
 const stockMovementSchema = z.object({
   referenceId: z.string().min(1).max(50).optional(),
@@ -107,7 +108,9 @@ export async function POST(request: NextRequest) {
       ? normalizeProvidedId(validated.referenceId, "STOCK_MOVEMENT")
       : null;
 
-    // Get item and verify access
+    // Tenancy is the route's business, and it answers 403 rather than 400. The
+    // item is also needed below for the accounting description and its fallback
+    // unit cost, so it is read here regardless.
     const item = await prisma.inventoryItem.findUnique({
       where: { id: validated.itemId },
       include: { site: { select: { companyId: true } } },
@@ -117,124 +120,78 @@ export async function POST(request: NextRequest) {
       return errorResponse('Invalid item', 403);
     }
 
-    if (validated.unit !== item.unit) {
-      return errorResponse('Unit does not match inventory item unit', 400);
-    }
+    // S-2. Everything this handler used to hand-roll — the unit check, the
+    // transfer destination rules, the insufficient-stock and negative-result
+    // guards, the movement row and the item update in one transaction — now
+    // lives in `recordStockMovement`, which retail has posted through all along.
+    // Two writers meant two sets of rules, and this was the worse copy: it never
+    // moved `locationId` on a transfer, so a transfer here changed nothing at all.
+    const movementDate = validated.movementDate ? new Date(validated.movementDate) : undefined;
+    const quantity =
+      validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity);
+    const sourceType =
+      validated.movementType === 'RECEIPT'
+        ? 'STOCK_RECEIPT'
+        : validated.movementType === 'ISSUE'
+          ? 'STOCK_ISSUE'
+          : validated.movementType === 'TRANSFER'
+            ? 'STOCK_TRANSFER'
+            : 'STOCK_ADJUSTMENT';
 
-    if (validated.movementType === 'TRANSFER') {
-      const destination = await prisma.stockLocation.findUnique({
-        where: { id: validated.toLocationId },
-        select: { siteId: true, isActive: true },
-      });
-      if (!destination || destination.siteId !== item.siteId || !destination.isActive) {
-        return errorResponse('Invalid transfer destination location', 400);
-      }
-      if (validated.toLocationId === item.locationId) {
-        return errorResponse('Transfer destination must differ from source location', 400);
-      }
-    }
-
-    // Validate stock availability for issue
-    if (validated.movementType === 'ISSUE' && item.currentStock < Math.abs(validated.quantity)) {
-      return errorResponse('Insufficient stock', 400);
-    }
-
-    // Calculate new stock based on movement type
-    let newStock = item.currentStock;
-    const quantity = validated.movementType === 'ADJUSTMENT'
-      ? validated.quantity
-      : Math.abs(validated.quantity);
-
-    if (validated.movementType === 'RECEIPT') {
-      newStock += quantity;
-    } else if (validated.movementType === 'ISSUE') {
-      newStock -= quantity;
-    } else if (validated.movementType === 'TRANSFER') {
-      // Transfers reclassify stock location and should not change total on-hand quantity.
-      newStock = item.currentStock;
-    } else if (validated.movementType === 'ADJUSTMENT') {
-      newStock += quantity;
-    }
-
-    if (newStock < 0) {
-      return errorResponse('Stock cannot be negative', 400);
-    }
-
-    // Create movement and update item in transaction
-    const movementDate = validated.movementDate
-      ? new Date(validated.movementDate)
-      : undefined;
-    const itemUpdateData: Record<string, unknown> = { currentStock: newStock };
-    if (validated.movementType === 'RECEIPT' && validated.unitCost !== undefined) {
-      itemUpdateData.unitCost = validated.unitCost;
-    }
-
-    let movement: Awaited<ReturnType<typeof prisma.stockMovement.create>> | null = null;
+    let result: Awaited<ReturnType<typeof recordStockMovement>> | null = null;
 
     for (let attempt = 0; attempt < 5; attempt += 1) {
-      const referenceId =
-        attempt === 0 && providedReferenceId
-          ? providedReferenceId
-          : await reserveIdentifier(prisma, {
-              companyId: session.user.companyId,
-              entity: "STOCK_MOVEMENT",
-            });
-
       try {
-        const [createdMovement] = await prisma.$transaction([
-          prisma.stockMovement.create({
-            data: {
-              referenceId,
-              itemId: validated.itemId,
-              toLocationId: validated.toLocationId,
-              movementType: validated.movementType,
-              quantity: validated.movementType === 'ADJUSTMENT' ? validated.quantity : Math.abs(validated.quantity),
-              unit: validated.unit,
-              issuedTo: validated.issuedTo,
-              requestedBy: validated.requestedBy,
-              approvedBy: validated.approvedBy,
-              notes: validated.notes,
-              photoUrl: validated.photoUrl,
-              issuedById: session.user.id,
-              createdAt: movementDate,
-            },
-          }),
-          prisma.inventoryItem.update({
-            where: { id: validated.itemId },
-            data: itemUpdateData,
-          }),
-        ]);
-
-        movement = createdMovement;
+        result = await recordStockMovement({
+          companyId: session.user.companyId,
+          userId: session.user.id,
+          itemId: validated.itemId,
+          movementType: validated.movementType,
+          quantity: validated.quantity,
+          unit: validated.unit,
+          // Only a receipt restates what the stock cost; an issue quoting a unit
+          // cost must not rewrite the item's.
+          unitCost: validated.movementType === 'RECEIPT' ? (validated.unitCost ?? null) : null,
+          toLocationId: validated.toLocationId ?? null,
+          // A caller-chosen reference is honoured once. If it collides, the next
+          // attempt reserves one from the sequence, which is what this handler
+          // has always done.
+          referenceId: attempt === 0 ? providedReferenceId : null,
+          issuedTo: validated.issuedTo ?? null,
+          requestedBy: validated.requestedBy ?? null,
+          approvedBy: validated.approvedBy ?? null,
+          notes: validated.notes ?? null,
+          photoUrl: validated.photoUrl ?? null,
+          sourceType,
+          // A movement posted by hand has no upstream document: it is the document.
+          sourceId: null,
+          entryDate: movementDate,
+        });
         break;
       } catch (error) {
-        if (
-          error instanceof Prisma.PrismaClientKnownRequestError &&
-          error.code === "P2002"
-        ) {
+        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === 'P2002') {
           continue;
+        }
+        // `recordStockMovement` refuses a bad movement by throwing: wrong unit,
+        // insufficient stock, a transfer across sites or of part of a line. Those
+        // are the caller's mistake, and they carry their own message.
+        if (error instanceof Error && !(error instanceof Prisma.PrismaClientKnownRequestError)) {
+          return errorResponse(error.message, 400);
         }
         throw error;
       }
     }
 
-    if (!movement) {
+    if (!result) {
       return errorResponse('Unable to generate stock movement reference', 409);
     }
 
+    const { movement, nextStock } = result;
     const resolvedUnitCost = validated.unitCost ?? item.unitCost ?? 0;
     const movementAmount = Math.abs(quantity) * resolvedUnitCost;
 
     if (movementAmount > 0) {
       try {
-        const sourceType =
-          validated.movementType === 'RECEIPT'
-            ? 'STOCK_RECEIPT'
-            : validated.movementType === 'ISSUE'
-              ? 'STOCK_ISSUE'
-              : validated.movementType === 'TRANSFER'
-                ? 'STOCK_TRANSFER'
-                : 'STOCK_ADJUSTMENT';
         await createJournalEntryFromSource({
           companyId: session.user.companyId,
           sourceType,
@@ -252,7 +209,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    return successResponse({ movement, updatedStock: newStock }, 201);
+    return successResponse({ movement, updatedStock: nextStock }, 201);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse('Validation failed', 400, error.issues);

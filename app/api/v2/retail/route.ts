@@ -4,6 +4,7 @@ import { startOfMonth, subDays } from "date-fns";
 import { successResponse } from "@/lib/api-utils";
 import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "./_helpers";
 
 /**
@@ -208,6 +209,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. This is the trading dashboard: takings, gross margin, cost of sales
+  // and the profit bridge, for the whole shop. It answered anyone signed in.
+  const gate = requireRetailPermission(session, "retail.reports", "view");
+  if (gate) return gate;
 
   const companyId = session.user.companyId;
   const now = new Date();

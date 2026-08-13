@@ -3,13 +3,13 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   ensureInventoryItemAccess,
   ensureLocationAccess,  resolveRetailSite,
   postRetailJournal,
-  recordRetailInventoryMovement,
   requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
@@ -145,76 +145,103 @@ export async function POST(request: NextRequest) {
         }));
 
       try {
-        const receipt = await prisma.retailGoodsReceipt.create({
-          data: {
-            companyId: session.user.companyId,
-            receiptNo,
-            purchaseOrderId: purchaseOrder?.id ?? null,
-            siteId: site.id,
-            supplierName: input.supplierName.trim(),
-            status: "POSTED",
-            notes: input.notes?.trim() || null,
-            receivedById: session.user.id,
-            postedAt: new Date(),
-            lines: {
-              create: normalizedLines.map((line) => ({
-                companyId: session.user.companyId,
-                inventoryItemId: line.inventoryItem.id,
-                itemName: line.inventoryItem.name,
-                quantity: line.quantity,
-                unitCost: line.unitCost,
-                lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
-              })),
+        // S-2 / 0.3(3). This used to be four sequential awaits — create the
+        // receipt, add the stock, tick off the order lines, close the order —
+        // with nothing holding them together. A failure after the second left
+        // stock on the shelf against a receipt that said it had not arrived, and
+        // a purchase order still showing everything outstanding. One transaction.
+        //
+        // Inside: everything that is a fact about the goods. Outside: the two
+        // things that must not be rolled back with them —
+        //
+        //  - `reserveIdentifier` for the receipt number, above. It is an atomic
+        //    sequence increment; rolling it back would rewind the counter and
+        //    hand the same number to the next receipt. Burning a number on a
+        //    failed attempt is the correct cost. It also has to be outside so the
+        //    P2002 retry can catch and continue — a caught error inside a
+        //    Postgres transaction leaves it aborted and every later query fails.
+        //
+        //  - `postRetailJournal`, below. It writes through the global client, so
+        //    it could not join this transaction anyway, and it must not: it is
+        //    designed to degrade, returning PENDING when the accounting period is
+        //    locked. A locked period is not a reason to refuse a delivery that
+        //    physically arrived. The goods facts commit first; the journal is
+        //    posted against the committed receipt and its status is reported.
+        const receipt = await prisma.$transaction(async (tx) => {
+          const created = await tx.retailGoodsReceipt.create({
+            data: {
+              companyId: session.user.companyId,
+              receiptNo,
+              purchaseOrderId: purchaseOrder?.id ?? null,
+              siteId: site.id,
+              supplierName: input.supplierName.trim(),
+              status: "POSTED",
+              notes: input.notes?.trim() || null,
+              receivedById: session.user.id,
+              postedAt: new Date(),
+              lines: {
+                create: normalizedLines.map((line) => ({
+                  companyId: session.user.companyId,
+                  inventoryItemId: line.inventoryItem.id,
+                  itemName: line.inventoryItem.name,
+                  quantity: line.quantity,
+                  unitCost: line.unitCost,
+                  lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
+                })),
+              },
             },
-          },
-          include: { lines: true },
-        });
-
-        for (const line of normalizedLines) {
-          await recordRetailInventoryMovement({
-            companyId: session.user.companyId,
-            userId: session.user.id,
-            itemId: line.inventoryItem.id,
-            movementType: "RECEIPT",
-            quantity: line.quantity,
-            unit: line.inventoryItem.unit,
-            unitCost: line.unitCost,
-            toLocationId: line.location.id,
-            notes: `Retail receipt ${receipt.receiptNo}`,
-            sourceType: "RETAIL_GOODS_RECEIPT",
-            sourceId: `${receipt.id}:${line.inventoryItem.id}`,
-            entryDate: receipt.postedAt ?? new Date(),
+            include: { lines: true },
           });
-        }
 
-        if (purchaseOrder) {
           for (const line of normalizedLines) {
-            const matchingLine = purchaseOrder.lines.find(
-              (orderLine) => orderLine.inventoryItemId === line.inventoryItem.id,
-            );
-            if (matchingLine) {
-              await prisma.retailPurchaseOrderLine.update({
-                where: { id: matchingLine.id },
-                data: {
-                  receivedQuantity: {
-                    increment: line.quantity,
-                  },
-                },
-              });
-            }
+            await recordStockMovement({
+              companyId: session.user.companyId,
+              userId: session.user.id,
+              itemId: line.inventoryItem.id,
+              movementType: "RECEIPT",
+              quantity: line.quantity,
+              unit: line.inventoryItem.unit,
+              unitCost: line.unitCost,
+              toLocationId: line.location.id,
+              notes: `Retail receipt ${created.receiptNo}`,
+              sourceType: "RETAIL_GOODS_RECEIPT",
+              sourceId: `${created.id}:${line.inventoryItem.id}`,
+              entryDate: created.postedAt ?? new Date(),
+              tx,
+            });
           }
 
-          const refreshedLines = await prisma.retailPurchaseOrderLine.findMany({
-            where: { purchaseOrderId: purchaseOrder.id },
-          });
-          const allReceived = refreshedLines.every(
-            (line) => line.receivedQuantity >= line.quantity,
-          );
-          await prisma.retailPurchaseOrder.update({
-            where: { id: purchaseOrder.id },
-            data: { status: allReceived ? "RECEIVED" : "PARTIAL" },
-          });
-        }
+          if (purchaseOrder) {
+            for (const line of normalizedLines) {
+              const matchingLine = purchaseOrder.lines.find(
+                (orderLine) => orderLine.inventoryItemId === line.inventoryItem.id,
+              );
+              if (matchingLine) {
+                await tx.retailPurchaseOrderLine.update({
+                  where: { id: matchingLine.id },
+                  data: {
+                    receivedQuantity: {
+                      increment: line.quantity,
+                    },
+                  },
+                });
+              }
+            }
+
+            const refreshedLines = await tx.retailPurchaseOrderLine.findMany({
+              where: { purchaseOrderId: purchaseOrder.id },
+            });
+            const allReceived = refreshedLines.every(
+              (line) => line.receivedQuantity >= line.quantity,
+            );
+            await tx.retailPurchaseOrder.update({
+              where: { id: purchaseOrder.id },
+              data: { status: allReceived ? "RECEIVED" : "PARTIAL" },
+            });
+          }
+
+          return created;
+        });
 
         const receiptValue = toNumberOrZero(
           sumMoney(receipt.lines.map((line) => line.lineTotal)),
