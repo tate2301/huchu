@@ -238,7 +238,66 @@ trade at a Harare bottle store; everything is ranked against that.
 | **S-3** | Price engine | `PriceListKind.RETAIL`, `taxInclusive`, resolver used by retail, snapshot cached for the till with `pricedAt`, sync re-validates. Closes 0.3(4). §1.1. |
 | **S-4** | Retire `RetailCatalogItem` | Products migrated, lines repointed, table dropped. §1.2. |
 | **S-5** | Nav | R-4.6 first, then Range & Stock as the one door. §1.5. |
-| **S-6** | Kill the bespoke cards | `KpiCard`, `SectionCard`, `PosMetricCard`, `PosPanel` deleted; surfaces composed per `04-composition.md`. §0.2. |
+| **S-6** | Kill the bespoke cards | `KpiCard`, `SectionCard` deleted; surfaces composed per `04-composition.md`. §0.2. |
+
+### Progress
+
+| Ticket | State |
+|---|---|
+| S-2 one movement service | **done** — `lib/inventory/stock-movements.ts`; `TRANSFER` moves stock; receipt transactional; `sourceType`/`sourceId` persisted |
+| S-1 core money → Decimal | **in flight** — scoped to the six *pricing* columns; see the scope cut below |
+| S-0 broken purchasing page | in flight |
+| S-6 bespoke cards | in flight |
+| R-4.6 one nav (blocks S-5) | in flight |
+| S-3 price engine | not started |
+| S-4 retire `RetailCatalogItem` | not started |
+| S-5 nav: Range & Stock as the one door | blocked on R-4.6 |
+
+**The stock half of the instruction is already satisfied.** "Purchasing feeds stock,
+sales subtract, stock takes and stock transfers affect the stock module" is true as
+of S-2, and now literally so: there is exactly one writer, `recordStockMovement`,
+and every retail path calls it. What remains genuinely retail-owned is **pricing**,
+which is S-3 and S-4.
+
+### Scope cut on S-1, and why
+
+§1.4 lists eleven `Float` columns. Only **six** are being converted — the pricing
+ones on `Product` and `ProductPrice`. The five quantity columns
+(`InventoryItem.currentStock`/`minStock`/`maxStock`/`unitCost`,
+`StockMovement.quantity`) are deferred.
+
+Measured, not guessed: `currentStock` is referenced in **38 files** and `unitCost`
+in **28**, spanning gold, schools, the executive dashboard and operations search.
+`standardPrice` is in 8 and the price-list columns in 6. Taking a 38-file cascade
+across four other modules the day before a client demo buys nothing for this
+demo — bottle-store quantities are whole bottles and whole cases — while risking
+a regression in modules that are not being tested this week.
+
+The deferred five are a named ticket, not an oversight. They must land before any
+module starts doing money arithmetic on `unitCost`, because that column *is* money
+and it is what feeds `costUnit` and therefore every margin figure retail reports.
+
+### Found while doing the above
+
+- **`vitest.config.ts` excluded the wrong worktree path.** `.worktrees/**` matched
+  nothing; agent worktrees live under `.claude/worktrees/`. Every worktree's copy of
+  every test was collected alongside the real one — and because a copy is a
+  *snapshot*, a test just fixed keeps failing from a stale checkout while naming the
+  right filename at a path nobody reads closely. It cost one wrong diagnosis: a
+  `search.test.ts` failure recorded as a transient Neon blip was a pre-fix copy.
+  10 collected files down to 6.
+- **Refunds and voids carried no currency.** They took the column defaults — USD at
+  rate 1, `baseAmount` zero — so a ZWG sale handed back changed currency on the way
+  out and contributed nothing to the day's base-currency takings. Sale and reversal
+  could balance on the receipt and still not net off in the ledger.
+- **The guard-coverage test passed while lying.** Gating six reads with
+  `requireRetailPermission` left it green, because that name was not in
+  `GUARD_MARKERS` — so the handlers still counted as ungated and the allowlist still
+  matched exactly. A test that goes green because it cannot see the change is worse
+  than one that goes red.
+- **The demo tenant has one stock location.** `SHOP`, at Harare Main Branch. With
+  on-hand held per site, a transfer has nowhere to go, so the transfers surface
+  should be hidden below two locations — the same rule as the site picker.
 
 **Sequencing.** S-0 stands alone. S-1 blocks S-3 and S-4 (both write money into
 core columns). S-2 is independent of the pricing work and can run beside it. S-5
