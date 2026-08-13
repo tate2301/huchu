@@ -22,6 +22,7 @@ import type { CashDenominationLine } from "@/lib/retail/cash-movements";
 import {
   buildCashMovementAmounts,
   cashMovementDelta,
+  getCashNetFromPayments,
   totalFromDenominations,
 } from "@/lib/retail/cash-up";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
@@ -29,7 +30,6 @@ import {
   canManageRetailTransactions,
   ensureRetailRegisterAccess,
   ensureSiteAccess,
-  getCashNetFromPayments,
   postRetailJournal,
   type RetailAccountingResult,
   upsertRetailRegister,
@@ -593,7 +593,6 @@ export async function createRetailSaleTransaction(input: {
 
   const cashDue = round(Math.max(input.totalAmount - nonCashTotal, 0));
   const changeAmount = round(Math.max(cashTotal - cashDue, 0));
-  const netCash = getCashNetFromPayments(normalizedPayments, changeAmount);
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
     : null;
@@ -623,6 +622,26 @@ export async function createRetailSaleTransaction(input: {
      */
     const saleCurrency = await getCompanyBaseCurrency(input.actor.companyId);
     const saleExchangeRate = rate(1);
+
+    // Cash into the drawer, in base currency on both sides. Declared here and
+    // not with the other totals above because it needs the sale's currency,
+    // which is only known once the tenant's base currency has been read.
+    //
+    // A basket settled part in USD notes and part in ZWG is the ordinary case
+    // in Harare, so each tender converts at its own rate; the change is handed
+    // back in the currency the sale was priced in, so it converts at the sale's.
+    const netCash = getCashNetFromPayments(
+      normalizedPayments.map((payment) => {
+        const paymentCurrency = payment.currency?.trim().toUpperCase() || saleCurrency;
+        const paymentRate =
+          paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
+        return {
+          tenderType: payment.tenderType,
+          baseAmount: toBaseAmount(payment.amount, paymentRate),
+        };
+      }),
+      toBaseAmount(changeAmount, saleExchangeRate),
+    );
 
     try {
       const sale = await prisma.$transaction(async (tx) => {
@@ -712,7 +731,7 @@ export async function createRetailSaleTransaction(input: {
           });
         }
 
-        if (netCash !== 0) {
+        if (!netCash.isZero()) {
           const updatedShift = await tx.retailShift.updateMany({
             where: {
               id: shift.id,
@@ -1025,8 +1044,15 @@ export async function refundRetailSaleTransaction(input: {
       });
     }
 
-    const netCash = getCashNetFromPayments(negativePayments, 0);
-    if (netCash !== 0) {
+    const netCash = getCashNetFromPayments(
+      // A reversal is denominated by the sale it reverses, so the money leaving
+      // the drawer converts at that sale's rate rather than today's.
+      negativePayments.map((payment) => ({
+        tenderType: payment.tenderType,
+        baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
+      })),
+    );
+    if (!netCash.isZero()) {
       const updatedShift = await tx.retailShift.updateMany({
         where: {
           id: shift.id,
@@ -1239,8 +1265,15 @@ export async function voidRetailSaleTransaction(input: {
       });
     }
 
-    const netCash = getCashNetFromPayments(negativePayments, 0);
-    if (netCash !== 0) {
+    const netCash = getCashNetFromPayments(
+      // A reversal is denominated by the sale it reverses, so the money leaving
+      // the drawer converts at that sale's rate rather than today's.
+      negativePayments.map((payment) => ({
+        tenderType: payment.tenderType,
+        baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
+      })),
+    );
+    if (!netCash.isZero()) {
       const updatedShift = await tx.retailShift.updateMany({
         where: {
           id: shift.id,

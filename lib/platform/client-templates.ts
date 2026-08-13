@@ -150,6 +150,8 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "stores.movements",
       "stores.issue",
       "stores.receive",
+      "stores.catalogue",
+      "stores.price-lists",
       "stores.fuel-ledger",
       "gold.home",
       "gold.intake.pours",
@@ -351,6 +353,8 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "stores.movements",
       "stores.issue",
       "stores.receive",
+      "stores.catalogue",
+      "stores.price-lists",
       "stores.fuel-ledger",
       // The reports that read those modules. Leaving them on puts a Stores
       // entry back in a sidebar whose stores pages are all disabled.

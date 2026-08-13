@@ -21,8 +21,9 @@ import {
   getClientTemplateFeatureKeys,
   getClientTemplateWorkspaceProfile,
 } from "@/lib/platform/client-templates";
-import { FEATURE_BUNDLES, FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
+import { BUNDLE_DEPENDENCIES, FEATURE_BUNDLES, FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
 import { isKnownFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
 import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 import { getAllowedUserRolesForWorkspace } from "@/lib/platform/vertical-roles";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
@@ -82,6 +83,48 @@ describe("feature catalog bundles", () => {
   it("keeps Retail Suite entitled to customer CRM", () => {
     const retail = FEATURE_BUNDLES.find((bundle) => bundle.code === "ADDON_RETAIL_SUITE");
     expect(retail?.features).toContain("crm.customers");
+  });
+
+  /**
+   * S-5. "Retail depends on Stores & Inventory", in the entitlement layer.
+   *
+   * Retail does not own stock and never did: on-hand lives in the core
+   * `InventoryItem` and every retail movement goes through
+   * `recordStockMovement`. The dependency is restrictive — `retail.catalog` is
+   * *denied* without `stores.inventory` — so it must not be declared without the
+   * packaging that satisfies it, or a retail tenant's sidebar goes dark.
+   */
+  describe("retail depends on the stock module", () => {
+    it("declares the dependency", () => {
+      expect(getFeatureDependencies("retail.catalog")).toEqual(
+        expect.arrayContaining(["retail.core", "stores.inventory"]),
+      );
+      expect(getFeatureDependencies("stores.catalogue")).toContain("stores.inventory");
+      expect(getFeatureDependencies("stores.price-lists")).toContain("stores.inventory");
+    });
+
+    it("sells the stock module with the Retail Suite that now requires it", () => {
+      expect(BUNDLE_DEPENDENCIES.ADDON_RETAIL_SUITE).toContain("ADDON_STORES_CORE");
+    });
+
+    it("leaves no retail surface entitled but denied on the retail template", () => {
+      const keys = templateFeatures("TEMPLATE_RETAIL");
+      for (const key of keys) {
+        for (const dependency of getFeatureDependencies(key)) {
+          expect(keys, `${key} needs ${dependency}`).toContain(dependency);
+        }
+      }
+    });
+
+    it("carries the split-out catalogue keys wherever stock was already granted", () => {
+      // Splitting a key must not quietly take a working screen away from a
+      // tenant who could always open it.
+      for (const code of ["ADDON_STORES_CORE", "ADDON_SCRAP_METAL_SUITE"]) {
+        const bundle = FEATURE_BUNDLES.find((candidate) => candidate.code === code);
+        expect(bundle?.features, code).toContain("stores.catalogue");
+        expect(bundle?.features, code).toContain("stores.price-lists");
+      }
+    });
   });
 });
 
@@ -288,6 +331,113 @@ describe("workspace sidebar model", () => {
     expect(model.homeHref.startsWith("/gold")).toBe(false);
   });
 
+  /**
+   * S-5. Range & Stock is the one stock door in a retail workspace.
+   *
+   * "Stores & Inventory" used to be a second entry under More, so a shopkeeper
+   * had to know which of two sections owned the answer — and the answer was
+   * usually both, because on-hand has only ever lived in the core
+   * `InventoryItem`. The section is not deleted, it is claimed: `stores` is a
+   * native module of the RETAIL profile, so its destinations arrive inside the
+   * curated sections and it never renders a rail of its own. Every other
+   * workspace still gets it.
+   */
+  describe("retail: Range & Stock is the one stock door", () => {
+    const retailFeatures = templateFeatures("TEMPLATE_RETAIL");
+
+    function retailModel(activeStockLocationSiteIds?: string[]) {
+      return getWorkspaceSidebarModel({
+        role: "MANAGER",
+        enabledFeatures: retailFeatures,
+        workspaceProfile: "RETAIL",
+        activeStockLocationSiteIds,
+      });
+    }
+
+    function rangeItems(model: ReturnType<typeof retailModel>) {
+      return model.sections.find((section) => section.id === "retail-range")?.items ?? [];
+    }
+
+    it("puts the core stock surfaces under Range & Stock", () => {
+      const hrefs = rangeItems(retailModel()).map((item) => item.href);
+      expect(hrefs).toContain("/stores/inventory");
+      expect(hrefs).toContain("/stores/movements");
+      expect(hrefs).toContain("/stores/locations");
+    });
+
+    it("keeps the retail stock screens core has no answer for", () => {
+      const hrefs = rangeItems(retailModel()).map((item) => item.href);
+      // Purchase-order and goods-receipt value, which the core stock overview
+      // cannot show.
+      expect(hrefs).toContain("/retail/stock");
+      // A variance posted as an ADJUSTMENT. The Stores module offers Issue and
+      // Receive and has no adjustment surface anywhere.
+      expect(hrefs).toContain("/retail/stock/count");
+    });
+
+    it("renders no separate Stores & Inventory section", () => {
+      const model = retailModel();
+      expect(model.sections.map((section) => section.id)).not.toContain("stores");
+      expect(model.sections.map((section) => section.title)).not.toContain("Stores & Inventory");
+
+      // …and the stock destinations are in the sidebar exactly once.
+      const allHrefs = model.sections.flatMap((section) => section.items.map((item) => item.href));
+      expect(allHrefs.filter((href) => href === "/stores/inventory")).toHaveLength(1);
+    });
+
+    it("still renders Stores & Inventory for a non-retail workspace", () => {
+      const model = getWorkspaceSidebarModel({
+        role: "MANAGER",
+        enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+        workspaceProfile: "GENERAL",
+      });
+      const stores = model.sections.find((section) => section.id === "stores");
+      expect(stores?.title).toBe("Stores & Inventory");
+      expect(stores?.items.map((item) => item.href)).toContain("/stores/inventory");
+    });
+
+    it("does not offer core's catalogue or price lists beside retail's own", () => {
+      // A second item master and a second price book that no retail surface
+      // reads. They stay entitled — and now hold their own keys, so a tenant can
+      // be given retail's stock without them — but the retail sidebar does not
+      // ask the shopkeeper to choose between two catalogues.
+      const allHrefs = retailModel().sections.flatMap((section) =>
+        section.items.map((item) => item.href),
+      );
+      expect(allHrefs).not.toContain("/stores/catalogue");
+      expect(allHrefs).not.toContain("/stores/price-lists");
+      expect(allHrefs).toContain("/retail/catalog");
+      expect(allHrefs).toContain("/retail/merchandising/pricing");
+    });
+
+    it("hides transfers until some site has two active stock locations", () => {
+      const hrefsFor = (siteIds?: string[]) => rangeItems(retailModel(siteIds)).map((i) => i.href);
+
+      // Not known yet, and the demo bottle store's one `SHOP` location: a
+      // transfer has nowhere to go and `recordStockMovement` refuses it.
+      expect(hrefsFor()).not.toContain("/retail/stock/transfers");
+      expect(hrefsFor(["site-a"])).not.toContain("/retail/stock/transfers");
+
+      // Two locations, but one each at two sites. On-hand is held per site, so
+      // this is not a reclassification and the movement service refuses it too.
+      expect(hrefsFor(["site-a", "site-b"])).not.toContain("/retail/stock/transfers");
+
+      // A storeroom and a shop floor at the same site — the one transfer the
+      // model can honestly represent.
+      expect(hrefsFor(["site-a", "site-a"])).toContain("/retail/stock/transfers");
+    });
+
+    it("bands Range & Stock rather than listing nine destinations flat", () => {
+      const section = retailModel(["site-a", "site-a"]).sections.find(
+        (candidate) => candidate.id === "retail-range",
+      );
+      expect(section?.groups?.map((group) => group.id)).toEqual(["selling", "stock"]);
+      for (const item of section?.items ?? []) {
+        expect(item.group, `${item.href} sits in no band`).toBeTruthy();
+      }
+    });
+  });
+
   it("schools sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
@@ -348,6 +498,17 @@ describe("route gating", () => {
     expect(resolveFeatureKeyForPath("/preferences/organization/templates")).toBe(
       "core.branding.manage",
     );
+  });
+
+  it("gates the catalogue and the price lists on their own keys", () => {
+    // Both used to ride on `stores.inventory`, so a tenant could not be given a
+    // price book without the whole stock module.
+    expect(resolveFeatureKeyForPath("/stores/catalogue")).toBe("stores.catalogue");
+    expect(resolveFeatureKeyForPath("/stores/price-lists")).toBe("stores.price-lists");
+    expect(resolveFeatureKeyForPath("/api/v2/inventory/price-lists")).toBe("stores.price-lists");
+    // The product API is read by the catalogue, the price-list editor and CRM
+    // quoting, so it stays on the item master's own key.
+    expect(resolveFeatureKeyForPath("/api/v2/inventory/products")).toBe("stores.inventory");
   });
 
   it("gates retail customer surfaces behind CRM", () => {

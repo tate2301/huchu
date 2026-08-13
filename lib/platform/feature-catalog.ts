@@ -94,6 +94,13 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "stores.movements", name: "Stock Movements", description: "Stock movement logs and actions.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   f({ key: "stores.issue", name: "Issue Stock", description: "Issue stock workflows.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   f({ key: "stores.receive", name: "Receive Stock", description: "Receive stock workflows.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  // What the business sells, as opposed to what it holds. Both screens used to
+  // ride on `stores.inventory`, so a tenant could not be given a price book
+  // without being given the whole stock module — and a retail workspace, which
+  // must hold `stores.inventory` for its own stock, could not be kept away from
+  // a second item master it does not read.
+  f({ key: "stores.catalogue", name: "Product Catalogue", description: "The shared product catalogue — what the business sells.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
+  f({ key: "stores.price-lists", name: "Price Lists", description: "Price lists and the prices resolved from them.", domain: "stores", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   f({ key: "stores.fuel-ledger", name: "Fuel Ledger", description: "Fuel-related stock and reporting.", domain: "stores", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
 
   f({ key: "gold.home", name: "Gold Home", description: "Gold module landing and navigation.", domain: "gold", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
@@ -290,6 +297,8 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "stores.movements",
       "stores.issue",
       "stores.receive",
+      "stores.catalogue",
+      "stores.price-lists",
       "reports.stores-movements",
     ],
   },
@@ -552,6 +561,12 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "retail.shifts",
       "retail.reports",
       "crm.customers",
+      // The till, and the portal shell it runs in. `portal.pos` depends on
+      // `portal.core`, and that dependency is restrictive — shipping the till
+      // without the shell left every tenant provisioned from TEMPLATE_RETAIL
+      // *entitled* to the POS and *denied* at the door. The demo tenant only
+      // works because `retail-demo-focus.ts` keeps `portal.core` by hand.
+      "portal.core",
       "portal.pos",
     ],
   },
@@ -605,6 +620,12 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "stores.movements",
       "stores.issue",
       "stores.receive",
+      // Carried, not added: a yard on this bundle has always been able to open
+      // the catalogue and the price lists, because both rode on
+      // `stores.inventory`. Splitting the keys must not quietly take two working
+      // screens away from every scrap tenant.
+      "stores.catalogue",
+      "stores.price-lists",
     ],
   },
 ];
@@ -613,6 +634,12 @@ export const BUNDLE_DEPENDENCIES: Record<string, string[]> = {
   ADDON_ACCOUNTING_ADVANCED: ["ADDON_ACCOUNTING_CORE"],
   ADDON_ZIMRA_FISCAL: ["ADDON_ACCOUNTING_CORE"],
   ADDON_GOLD_ADVANCED: ["ADDON_GOLD_CORE"],
+  // Retail does not own stock. Every retail movement — sale, refund, receipt,
+  // stock take — writes a core `StockMovement` and updates a core
+  // `InventoryItem`, and `retail.catalog` now declares that dependency in
+  // `feature-dependencies.ts`. Selling the Retail Suite without Stores Core
+  // would sell a shop that cannot count its bottles.
+  ADDON_RETAIL_SUITE: ["ADDON_STORES_CORE"],
   // CRM quoting/invoicing writes real accounting AR documents.
   ADDON_CRM_SUITE: ["ADDON_ACCOUNTING_CORE", "ADDON_ACCOUNTING_ADVANCED"],
 };

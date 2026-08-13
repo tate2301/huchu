@@ -3,9 +3,12 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
 import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
+import { fetchStockLocations } from "@/lib/api";
+import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,
@@ -42,14 +45,30 @@ export function AppSidebar() {
   const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   const isCollapsed = state === "collapsed";
 
+  // Which stock surfaces are worth offering depends on how the stock is laid
+  // out, and that is a fact about the tenant rather than about its plan — a
+  // transfer needs two active locations at one site before it has anywhere to
+  // go. Only asked for where a stock surface could appear at all.
+  const stockLocationsQuery = useQuery({
+    queryKey: ["stock-locations", "active"],
+    queryFn: () => fetchStockLocations({ active: true, limit: 200 }),
+    enabled: hasTokenFeature(enabledFeatures, "stores.inventory"),
+    staleTime: 5 * 60_000,
+  });
+  const activeStockLocationSiteIds = React.useMemo(
+    () => stockLocationsQuery.data?.data.map((location) => location.siteId),
+    [stockLocationsQuery.data],
+  );
+
   const sidebarModel = React.useMemo(
     () =>
       getWorkspaceSidebarModel({
         role,
         enabledFeatures,
         workspaceProfile,
+        activeStockLocationSiteIds,
       }),
-    [enabledFeatures, role, workspaceProfile],
+    [activeStockLocationSiteIds, enabledFeatures, role, workspaceProfile],
   );
 
   const orderedSections = React.useMemo(

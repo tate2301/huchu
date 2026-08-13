@@ -3,6 +3,7 @@ import { type RetailTenderType } from "@prisma/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { ZERO, money, sumMoney, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { hasRole, type UserRole } from "@/lib/roles";
 
@@ -58,15 +59,6 @@ export function isPosSupportedPromotionType(type: string | null | undefined) {
 
 export function getPosSupportedPromotionTypes() {
   return [...POS_SUPPORTED_PROMOTION_TYPES];
-}
-
-export function getCashNetFromPayments(
-  payments: Array<{ tenderType: RetailTenderType; amount: number }>,
-  changeAmount = 0,
-) {
-  return payments
-    .filter((payment) => payment.tenderType === "CASH")
-    .reduce((total, payment) => total + payment.amount, 0) - changeAmount;
 }
 
 export type RetailAccountingStatus = "POSTED" | "PENDING" | "FAILED";

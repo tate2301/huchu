@@ -74,6 +74,43 @@ void _schemaMatchesTheTypes;
 void _reasonsMatchTheSchema;
 void _schemaMatchesTheReasons;
 
+/**
+ * Cash into the drawer for one sale, in the company's base currency.
+ *
+ * Moved here from `app/api/v2/retail/_helpers.ts`, and fixed on the way.
+ *
+ * **It summed face values.** It took `{ tenderType, amount }` and nothing else,
+ * so a 5,500 ZWG note tendered against a USD-priced basket added 5,500 to a
+ * drawer denominated in dollars, when what actually went into it was $200.00.
+ * R-1.5 put `currency`, `exchangeRate` and `baseAmount` on `RetailSalePayment`
+ * so this sum could be right, and the sum never started reading them.
+ *
+ * This is the same defect as the missing cash movement above and it is worse:
+ * a drop only happens when a manager banks cash, while this was wrong on
+ * *every* sale settled in the other currency — in a shop that prices in USD and
+ * takes ZWG across the counter all day, which is every shop in Harare. The
+ * cashier wore the difference at cash-up.
+ *
+ * `baseAmount`, not `amount`, for the same reason `cashMovementDelta` uses it:
+ * `openingFloat` and `expectedCash` are base-currency columns, so everything
+ * added to or taken off them has to arrive in that denomination.
+ *
+ * Change is passed in **already converted**. It is handed back in the currency
+ * the sale was priced in, so only the caller knows which rate applied —
+ * guessing here would put the bug back one layer down.
+ */
+export function getCashNetFromPayments(
+  payments: Iterable<{ tenderType: string; baseAmount: MoneyLike }>,
+  changeBaseAmount: MoneyLike = 0,
+): Prisma.Decimal {
+  const cashIn = sumMoney(
+    [...payments]
+      .filter((payment) => payment.tenderType === "CASH")
+      .map((payment) => money(payment.baseAmount)),
+  );
+  return cashIn.minus(money(changeBaseAmount));
+}
+
 /** The shape this module needs off a `RetailCashMovement` row. */
 export type CashMovementLike = {
   type: RetailCashMovementTypeName;

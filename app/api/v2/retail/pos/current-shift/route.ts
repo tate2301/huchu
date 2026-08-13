@@ -1,8 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
-import { money, resolveBaseCurrency, sumMoney, toNumberOrZero } from "@/lib/money";
+import {
+  money,
+  resolveBaseCurrency,
+  sumMoney,
+  toBaseAmount,
+  toNumberOrZero,
+} from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { getCashNetFromPayments, requireRetailSession } from "../../_helpers";
+import { getCashNetFromPayments } from "@/lib/retail/cash-up";
+import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -54,24 +61,32 @@ export async function GET(request: NextRequest) {
   const cashBySale = postedSales.map((sale) => ({
     saleId: sale.id,
     saleType: sale.saleType,
+    // Base currency on both halves. `payment.baseAmount` is stored; change is
+    // handed back in the currency the sale was priced in, so it is converted at
+    // the sale's own rate rather than today's — a rate that moved this
+    // afternoon must not restate what went out of the drawer this morning.
     cashNet: getCashNetFromPayments(
       sale.payments.map((payment) => ({
         tenderType: payment.tenderType,
-        amount: toNumberOrZero(payment.amount),
+        baseAmount: payment.baseAmount,
       })),
-      toNumberOrZero(sale.changeAmount),
+      toBaseAmount(sale.changeAmount ?? 0, sale.exchangeRate),
     ),
   }));
-  const cashIn = cashBySale
-    .filter((entry) => entry.cashNet > 0)
-    .reduce((total, entry) => total + entry.cashNet, 0);
-  const cashOut = Math.abs(
-    cashBySale.filter((entry) => entry.cashNet < 0).reduce((total, entry) => total + entry.cashNet, 0),
+  const cashIn = sumMoney(
+    cashBySale.filter((entry) => entry.cashNet.gt(0)).map((entry) => entry.cashNet),
   );
-  const nonCashNet = postedSales
-    .flatMap((sale) => sale.payments)
-    .filter((payment) => payment.tenderType !== "CASH")
-    .reduce((total, payment) => total + toNumberOrZero(payment.amount), 0);
+  const cashOut = sumMoney(
+    cashBySale.filter((entry) => entry.cashNet.lt(0)).map((entry) => entry.cashNet),
+  ).abs();
+  // `baseAmount` here too. A card or EcoCash tender in ZWG is the same face-value
+  // trap as cash, and this figure sits beside the cash total on the same screen.
+  const nonCashNet = sumMoney(
+    postedSales
+      .flatMap((sale) => sale.payments)
+      .filter((payment) => payment.tenderType !== "CASH")
+      .map((payment) => money(payment.baseAmount)),
+  );
 
   return successResponse({
     data: {
@@ -95,7 +110,7 @@ export async function GET(request: NextRequest) {
       cashSales: cashIn,
       cashIn,
       cashOut,
-      cashNet: cashIn - cashOut,
+      cashNet: cashIn.minus(cashOut),
       nonCashSales: nonCashNet,
       recentTransactions: recentCashierSales.map((sale) => ({
         id: sale.id,

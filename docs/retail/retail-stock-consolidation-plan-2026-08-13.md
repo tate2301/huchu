@@ -327,13 +327,68 @@ trade at a Harare bottle store; everything is ranked against that.
 | R-4.6 one nav (blocks S-5) | in flight |
 | S-3 price engine | not started |
 | S-4 retire `RetailCatalogItem` | not started |
-| S-5 nav: Range & Stock as the one door | blocked on R-4.6 |
+| S-5 nav: Range & Stock as the one door | **done** — see the scope note below |
 
 **The stock half of the instruction is already satisfied.** "Purchasing feeds stock,
 sales subtract, stock takes and stock transfers affect the stock module" is true as
 of S-2, and now literally so: there is exactly one writer, `recordStockMovement`,
 and every retail path calls it. What remains genuinely retail-owned is **pricing**,
 which is S-3 and S-4.
+
+### What S-5 landed, and the one place it departs from §1.5
+
+`stores` is a native module of the RETAIL profile, so Stores & Inventory no
+longer renders a rail of its own in a retail workspace — its destinations arrive
+inside **Range & Stock**, which is banded *What we sell* / *Stock*. Every other
+profile still gets the section.
+
+Range & Stock holds retail's range (catalog, pricing, promotions), the core
+stock surfaces (stock on hand, movements, locations), and the three retail stock
+screens, each kept because core has no answer for it:
+
+| Retail screen | Why it survived |
+|---|---|
+| `/retail/stock` | Carries open-order and goods-received value from retail purchase orders and receipts. The core stock overview has no purchasing figures. |
+| `/retail/stock/count` | Posts a counted-vs-system variance as an `ADJUSTMENT`. The Stores module offers Issue and Receive dialogs and **no adjustment surface at all**. |
+| `/retail/stock/transfers` | The only `TRANSFER` surface in the product. Nothing under `/stores` posts one. |
+
+**Transfers hides itself** below two active stock locations at one site. Derived,
+not hard-coded: the sidebar reads `/api/stock-locations?active=true` and asks
+whether any site has two, which is exactly the condition `recordStockMovement`
+requires. Same rule as the till's site picker at one branch.
+
+**The departure.** §1.5 reads as though Range & Stock hosts *all* the core
+surfaces. `/stores/catalogue` and `/stores/price-lists` are not in it. They are a
+second item master and a second price book that no retail surface reads today
+(§0.1), and putting them beside retail's own Catalog and Pricing would offer the
+shopkeeper a choice with no right answer. They stay entitled and remain one tab
+click away inside the Stores shell. The two new keys — `stores.catalogue` and
+`stores.price-lists`, both depending on `stores.inventory` — are what makes that
+possible: retail *must* hold `stores.inventory` for its own stock, and until
+those keys existed there was no way to hold it without the duplicate screens.
+S-3 and S-4 collapse the pair, and the nav follows that rather than pre-empting
+it. `/stores/dashboard` and `/stores/fuel` are also out: a third overview of rows
+two other entries already open, and a mining surface the RETAIL vertical switches
+off.
+
+### Two entitlement breaks found while wiring it up
+
+Both would have shown as dead links, which is what R-4.6 exists to prevent.
+
+1. **The till was dark on the retail template.** `ADDON_RETAIL_SUITE` shipped
+   `portal.pos` without `portal.core`, and that dependency is *restrictive* — the
+   enforcer denies a feature whose dependencies are missing. Any tenant
+   provisioned from `TEMPLATE_RETAIL` was entitled to the POS and refused at the
+   door. The demo tenant only worked because `retail-demo-focus.ts` keeps
+   `portal.core` by hand. `portal.core` is now in the suite.
+2. **`ADDON_RETAIL_SUITE` did not require Stores Core.** With
+   `"retail.catalog": ["retail.core", "stores.inventory"]` declared, selling the
+   Retail Suite alone would have denied the catalogue. `BUNDLE_DEPENDENCIES` now
+   says the suite requires `ADDON_STORES_CORE`.
+
+`TEMPLATE_GOLD_MINE` has three of the same class of break
+(`portal.schools → schools.core`, `portal.autos → autos.core`,
+`portal.pos → retail.pos`). Pre-existing, out of this ticket, unfixed.
 
 ### Scope cut on S-1, and why
 

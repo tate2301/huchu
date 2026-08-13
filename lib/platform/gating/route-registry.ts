@@ -54,9 +54,12 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/stores/locations", featureKey: "stores.inventory" },
   // The catalogue and its prices are what the business sells, not what it
   // holds — gated with the stock module they live in, not with the CRM that
-  // happens to quote from them.
-  { scope: "page", prefix: "/stores/catalogue", featureKey: "stores.inventory" },
-  { scope: "page", prefix: "/stores/price-lists", featureKey: "stores.inventory" },
+  // happens to quote from them, and each on its own key rather than on
+  // `stores.inventory`. Both depend on `stores.inventory` (see
+  // `feature-dependencies.ts`), so the tighter key never promises more than the
+  // product APIs behind it will honour.
+  { scope: "page", prefix: "/stores/catalogue", featureKey: "stores.catalogue" },
+  { scope: "page", prefix: "/stores/price-lists", featureKey: "stores.price-lists" },
   { scope: "page", prefix: "/stores/issue", featureKey: "stores.issue" },
   { scope: "page", prefix: "/stores/receive", featureKey: "stores.receive" },
   { scope: "page", prefix: "/stores/fuel", featureKey: "stores.fuel-ledger" },
@@ -458,7 +461,10 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/retail", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/thrift", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/v2/inventory/products", featureKey: "stores.inventory" },
-  { scope: "api", prefix: "/api/v2/inventory/price-lists", featureKey: "stores.inventory" },
+  // The price-list API is only ever the price-list screen's; the product API is
+  // read by the catalogue, by the price-list editor and by CRM quoting, so it
+  // stays on the item master's own key.
+  { scope: "api", prefix: "/api/v2/inventory/price-lists", featureKey: "stores.price-lists" },
   { scope: "api", prefix: "/api/v2/inventory/stock-items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/v2/retail/catalog", featureKey: "retail.catalog" },

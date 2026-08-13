@@ -25,6 +25,7 @@ import {
   cashMovementDelta,
   cashVariance,
   expectedCashForShift,
+  getCashNetFromPayments,
   sumCashMovementDeltas,
   totalFromDenominations,
 } from "./cash-up";
@@ -251,6 +252,76 @@ describe("a ZWG drop out of a USD-priced drawer", () => {
       movements: [{ type: "DROP_TO_SAFE", baseAmount: "5500.00" }],
     });
     expect(wrong.toFixed(2)).toBe("-3943.25");
+  });
+});
+
+describe("cash taken across the counter, when it is not all one currency", () => {
+  /**
+   * The second defect of the same family, and the worse one. S-7.1 fixed cash
+   * *leaving* the drawer; this is cash going into it.
+   *
+   * `getCashNetFromPayments` summed `payment.amount` and read no currency at
+   * all, so a 5,500 ZWG note tendered against a USD-priced basket added 5,500 to
+   * a drawer denominated in dollars. A drop only happens when a manager banks
+   * cash; this was wrong on *every* sale settled in the other currency, which in
+   * a Harare bottle store is roughly one in twelve — and the cashier wore the
+   * difference.
+   */
+  it("counts a ZWG tender at what it is worth, not at its face value", () => {
+    // One basket, priced $200.00, settled with 5,500 ZWG at 27.5.
+    const net = getCashNetFromPayments([
+      { tenderType: "CASH", baseAmount: "200.00" },
+    ]);
+    expect(net.toFixed(2)).toBe("200.00");
+
+    // What the old sum did: the face value of the notes, straight onto a
+    // dollar-denominated drawer.
+    const faceValue = getCashNetFromPayments([
+      { tenderType: "CASH", baseAmount: "5500.00" },
+    ]);
+    expect(faceValue.toFixed(2)).toBe("5500.00");
+    expect(faceValue.minus(net).toFixed(2)).toBe("5300.00");
+  });
+
+  it("adds a split basket up in one denomination", () => {
+    // $12.40 of Castle and Chibuku: a $10 note and 66 ZWG, at 27.5 → $2.40.
+    const net = getCashNetFromPayments([
+      { tenderType: "CASH", baseAmount: "10.00" },
+      { tenderType: "CASH", baseAmount: "2.40" },
+    ]);
+    expect(net.toFixed(2)).toBe("12.40");
+  });
+
+  it("ignores the tenders that never reach the drawer", () => {
+    // EcoCash and card do not put notes in the till, so they must not move the
+    // figure the cashier is counted against — however they were denominated.
+    const net = getCashNetFromPayments([
+      { tenderType: "CASH", baseAmount: "40.00" },
+      { tenderType: "MOBILE_MONEY", baseAmount: "35.00" },
+      { tenderType: "CARD", baseAmount: "18.50" },
+      { tenderType: "TRANSFER", baseAmount: "60.00" },
+    ]);
+    expect(net.toFixed(2)).toBe("40.00");
+  });
+
+  it("takes the change back out, in the same denomination", () => {
+    // $48.30 basket, $50 tendered, $1.70 change. Both already in base currency —
+    // the caller converts, because only it knows the rate the sale used.
+    const net = getCashNetFromPayments(
+      [{ tenderType: "CASH", baseAmount: "50.00" }],
+      "1.70",
+    );
+    expect(net.toFixed(2)).toBe("48.30");
+  });
+
+  it("goes negative on a cash refund, which is what keeps the drawer honest", () => {
+    // A refund posts as a reversing sale with negated payment rows, so it pulls
+    // the expected figure down on its own. Subtracting it a second time as a
+    // payout is the bug the Friday test above pins from the other direction.
+    const net = getCashNetFromPayments([
+      { tenderType: "CASH", baseAmount: "-47.60" },
+    ]);
+    expect(net.toFixed(2)).toBe("-47.60");
   });
 });
 

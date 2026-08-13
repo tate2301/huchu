@@ -98,6 +98,13 @@ const KEEP_KEYS = new Set([
   "stores.movements",
   "stores.receive",
   "stores.issue",
+  // Split out of `stores.inventory`, which this tenant already keeps — so these
+  // are the same two screens it could always open, not two new ones. They are
+  // not in the retail sidebar (retail has its own catalogue and price board);
+  // they are reachable as tabs of the Stores shell, and S-3/S-4 make them
+  // retail's own.
+  "stores.catalogue",
+  "stores.price-lists",
   "crm.core",
   "crm.customers",
   "reports.dashboard",

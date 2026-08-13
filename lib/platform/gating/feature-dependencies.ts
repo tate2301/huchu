@@ -56,8 +56,16 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "autos.leads": ["autos.core"],
   "autos.deals": ["autos.core"],
   "autos.financing": ["autos.core"],
+  // What the business sells sits on top of the stock module it lives in. Both
+  // screens read `/api/v2/inventory/products`, which is the item master.
+  "stores.catalogue": ["stores.inventory"],
+  "stores.price-lists": ["stores.inventory"],
   "retail.pos": ["retail.core"],
-  "retail.catalog": ["retail.core"],
+  // Retail does not own stock and never did: on-hand lives in the core
+  // `InventoryItem`, and every retail movement goes through `recordStockMovement`.
+  // A retail range with no stock module behind it is a list of things the shop
+  // cannot count, so the entitlement layer now says so out loud.
+  "retail.catalog": ["retail.core", "stores.inventory"],
   "retail.purchasing": ["retail.core"],
   "retail.promotions": ["retail.core"],
   "retail.shifts": ["retail.core"],
