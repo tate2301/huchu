@@ -521,6 +521,7 @@ export async function createRetailSaleTransaction(input: {
             tenderSummary: normalizedPayments,
             lines: {
               create: input.lines.map((line) => ({
+                companyId: input.actor.companyId,
                 inventoryItemId: line.inventoryItemId,
                 catalogItemId: line.catalogItemId ?? null,
                 itemName: line.itemName,
@@ -544,6 +545,7 @@ export async function createRetailSaleTransaction(input: {
                 const paymentRate =
                   paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
                 return {
+                  companyId: input.actor.companyId,
                   tenderType: payment.tenderType,
                   amount: payment.amount,
                   currency: paymentCurrency,
@@ -817,6 +819,14 @@ export async function refundRetailSaleTransaction(input: {
         totalAmount,
         tenderedAmount: -paymentTotal,
         changeAmount: 0,
+        // R-1.5 — a refund is denominated by the sale it reverses, not by
+        // today's rate. Leaving these to the column defaults recorded every
+        // refund as USD at 1 with a `baseAmount` of zero, so a ZWG sale handed
+        // back across the counter both changed currency and vanished from the
+        // day's base-currency takings.
+        currency: currentSourceSale.currency,
+        exchangeRate: currentSourceSale.exchangeRate,
+        baseAmount: toBaseAmount(totalAmount, currentSourceSale.exchangeRate),
         overrideReason: input.reason.trim(),
         status: "POSTED",
         notes: input.notes?.trim() || null,
@@ -824,6 +834,7 @@ export async function refundRetailSaleTransaction(input: {
         tenderSummary: negativePayments,
         lines: {
           create: requestedLines.map((line) => ({
+            companyId: input.actor.companyId,
             sourceLineId: line.sourceLine.id,
             inventoryItemId: line.sourceLine.inventoryItemId,
             catalogItemId: line.sourceLine.catalogItemId,
@@ -838,9 +849,17 @@ export async function refundRetailSaleTransaction(input: {
           })),
         },
         payments: {
+          // R-1.5 — the reversal is settled in the currency the sale was taken
+          // in. Without these three the tender defaulted to USD at 1 with a zero
+          // base amount, which is how a refund could balance against the sale on
+          // the receipt and still not net off in the ledger.
           create: negativePayments.map((payment) => ({
+            companyId: input.actor.companyId,
             tenderType: payment.tenderType,
             amount: payment.amount,
+            currency: currentSourceSale.currency,
+            exchangeRate: currentSourceSale.exchangeRate,
+            baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
             reference: payment.reference,
           })),
         },
@@ -1006,6 +1025,15 @@ export async function voidRetailSaleTransaction(input: {
           .abs()
           .negated(),
         changeAmount: 0,
+        // R-1.5 — same reasoning as the refund above: a void is denominated by
+        // the sale it cancels. Defaulting these made a void of a ZWG sale post
+        // as USD with a zero base amount, so the two never cancelled out.
+        currency: currentSourceSale.currency,
+        exchangeRate: currentSourceSale.exchangeRate,
+        baseAmount: toBaseAmount(
+          money(currentSourceSale.totalAmount).abs().negated(),
+          currentSourceSale.exchangeRate,
+        ),
         promotionCode: currentSourceSale.promotionCode,
         overrideReason: input.reason.trim(),
         status: "POSTED",
@@ -1014,6 +1042,7 @@ export async function voidRetailSaleTransaction(input: {
         tenderSummary: negativePayments,
         lines: {
           create: currentSourceSale.lines.map((line) => ({
+            companyId: input.actor.companyId,
             sourceLineId: line.id,
             inventoryItemId: line.inventoryItemId,
             catalogItemId: line.catalogItemId,
@@ -1034,9 +1063,17 @@ export async function voidRetailSaleTransaction(input: {
           })),
         },
         payments: {
+          // R-1.5 — the reversal is settled in the currency the sale was taken
+          // in. Without these three the tender defaulted to USD at 1 with a zero
+          // base amount, which is how a refund could balance against the sale on
+          // the receipt and still not net off in the ledger.
           create: negativePayments.map((payment) => ({
+            companyId: input.actor.companyId,
             tenderType: payment.tenderType,
             amount: payment.amount,
+            currency: currentSourceSale.currency,
+            exchangeRate: currentSourceSale.exchangeRate,
+            baseAmount: toBaseAmount(payment.amount, currentSourceSale.exchangeRate),
             reference: payment.reference,
           })),
         },

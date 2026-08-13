@@ -3,7 +3,7 @@ import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
-import { sumMoney, toNumberOrZero } from "@/lib/money";
+import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   ensureInventoryItemAccess,
@@ -158,11 +158,12 @@ export async function POST(request: NextRequest) {
             postedAt: new Date(),
             lines: {
               create: normalizedLines.map((line) => ({
+                companyId: session.user.companyId,
                 inventoryItemId: line.inventoryItem.id,
                 itemName: line.inventoryItem.name,
                 quantity: line.quantity,
                 unitCost: line.unitCost,
-                lineTotal: line.quantity * line.unitCost,
+                lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
               })),
             },
           },

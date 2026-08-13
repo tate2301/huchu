@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma, RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { sumMoney, toNumberOrZero } from "@/lib/money";
+import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import {
@@ -112,11 +112,12 @@ export async function POST(request: NextRequest) {
             throw new Error("One of the selected inventory items is invalid.");
           }
           return {
+            companyId: session.user.companyId,
             inventoryItemId: inventoryItem.id,
             itemName: line.itemName?.trim() || inventoryItem.name,
             quantity: line.quantity,
             unitCost: line.unitCost,
-            lineTotal: line.quantity * line.unitCost,
+            lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
           };
         }
 
@@ -125,11 +126,12 @@ export async function POST(request: NextRequest) {
         }
 
         return {
+          companyId: session.user.companyId,
           inventoryItemId: null,
           itemName: line.itemName.trim(),
           quantity: line.quantity,
           unitCost: line.unitCost,
-          lineTotal: line.quantity * line.unitCost,
+          lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
         };
       }),
     );

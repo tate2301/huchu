@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { money, multiplyMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailManager, requireRetailStock, requireRetailSession } from "../../../_helpers";
 
@@ -67,11 +68,12 @@ export async function PATCH(
                 throw new Error("One of the selected inventory items is invalid.");
               }
               return {
+                companyId: session.user.companyId,
                 inventoryItemId: inventoryItem.id,
                 itemName: line.itemName?.trim() || inventoryItem.name,
                 quantity: line.quantity,
                 unitCost: line.unitCost,
-                lineTotal: line.quantity * line.unitCost,
+                lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
               };
             }
 
@@ -80,11 +82,12 @@ export async function PATCH(
             }
 
             return {
+              companyId: session.user.companyId,
               inventoryItemId: null,
               itemName: line.itemName.trim(),
               quantity: line.quantity,
               unitCost: line.unitCost,
-              lineTotal: line.quantity * line.unitCost,
+              lineTotal: multiplyMoney(money(line.quantity), money(line.unitCost)),
             };
           }),
         )

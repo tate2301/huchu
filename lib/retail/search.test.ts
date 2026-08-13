@@ -80,7 +80,15 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  const companies = { in: [companyId, otherCompanyId] };
+  // Filter before querying. These ids are assigned in `beforeAll`, so if setup
+  // dies partway one of them is still `undefined` — and Prisma answers an
+  // `undefined` inside an `in` array with a validation error thrown from the
+  // teardown, which is then the only failure reported. The real cause is buried
+  // and the message points at the wrong hook entirely.
+  const ids = [companyId, otherCompanyId].filter(Boolean);
+  if (ids.length === 0) return;
+
+  const companies = { in: ids };
   await prisma.retailSale.deleteMany({ where: { companyId: companies } });
   await prisma.site.deleteMany({ where: { companyId: companies } });
   await prisma.company.deleteMany({ where: { id: companies } });

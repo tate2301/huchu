@@ -379,6 +379,7 @@ async function main() {
           const taxAmount = taxOn(baseAmount, VAT_PERCENT)
           lines.push({
             id: randomUUID(),
+            companyId,
             saleId,
             inventoryItemId: target.inventoryItemId,
             catalogItemId: target.catalogItemId,
@@ -449,6 +450,7 @@ async function main() {
         lineRows.push(...lines)
         paymentRows.push({
           id: randomUUID(),
+          companyId,
           saleId,
           tenderType: tender,
           amount: totalAmount,
@@ -501,6 +503,7 @@ async function main() {
           })
           lineRows.push({
             id: randomUUID(),
+            companyId,
             saleId: refundId,
             sourceLineId: source.id as string,
             inventoryItemId: source.inventoryItemId,
@@ -517,6 +520,7 @@ async function main() {
           })
           paymentRows.push({
             id: randomUUID(),
+            companyId,
             saleId: refundId,
             tenderType: "CASH",
             amount: money(source.lineTotal as Prisma.Decimal).negated(),
@@ -645,6 +649,7 @@ async function main() {
         lines: {
           create: [
             {
+              companyId,
               inventoryItemId: castleSingle?.inventoryItemId ?? null,
               itemName: "Castle Lager 340ml",
               quantity: rate("480"),
@@ -653,6 +658,7 @@ async function main() {
               receivedQuantity: rate("0"),
             },
             {
+              companyId,
               inventoryItemId: chibuku?.inventoryItemId ?? null,
               itemName: "Chibuku Scud 1L",
               quantity: rate("300"),
@@ -679,6 +685,7 @@ async function main() {
         lines: {
           create: [
             {
+              companyId,
               inventoryItemId: chibuku?.inventoryItemId ?? "",
               itemName: "Chibuku Scud 1L",
               quantity: rate("300"),

@@ -4354,6 +4354,10 @@ model RetailPurchaseOrder {
 
 model RetailPurchaseOrderLine {
   id               String   @id @default(uuid())
+  /// R-1.3 — denormalised from the order. This table is reached by direct query
+  /// (`purchasing/orders/[id]/route.ts`), so it carries its own tenant rather
+  /// than trusting every caller to remember the join.
+  companyId        String
   purchaseOrderId  String
   inventoryItemId  String?
   itemName         String
@@ -4366,6 +4370,7 @@ model RetailPurchaseOrderLine {
   purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
 
   @@index([purchaseOrderId])
+  @@index([companyId])
 }
 
 model RetailGoodsReceipt {
@@ -4390,6 +4395,9 @@ model RetailGoodsReceipt {
 
 model RetailGoodsReceiptLine {
   id              String   @id @default(uuid())
+  /// R-1.3 — denormalised from the receipt. Reached directly by
+  /// `purchasing/receipts/route.ts`.
+  companyId       String
   receiptId       String
   inventoryItemId String
   itemName        String
@@ -4401,6 +4409,7 @@ model RetailGoodsReceiptLine {
   receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
 
   @@index([receiptId])
+  @@index([companyId])
 }
 
 model RetailShift {
@@ -4494,6 +4503,10 @@ model RetailSale {
 
 model RetailSaleLine {
   id              String   @id @default(uuid())
+  /// R-1.3 — denormalised from the sale. This is the table holding cost and
+  /// margin, and it is read directly by `pos/sales/[id]/route.ts` and by every
+  /// product-level report, so it carries its own tenant.
+  companyId       String
   saleId          String
   sourceLineId    String?
   inventoryItemId String
@@ -4512,10 +4525,14 @@ model RetailSaleLine {
 
   @@index([saleId])
   @@index([sourceLineId])
+  @@index([companyId, inventoryItemId])
 }
 
 model RetailSalePayment {
   id         String   @id @default(uuid())
+  /// R-1.3 — denormalised from the sale. Cash-up sums a day's tenders straight
+  /// off this table.
+  companyId  String
   saleId     String
   tenderType RetailTenderType
   amount     Decimal @default(0) @db.Decimal(14, 2)
@@ -4538,6 +4555,7 @@ model RetailSalePayment {
   sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
 
   @@index([saleId])
+  @@index([companyId, tenderType])
 }
 
 model Equipment {
