@@ -291,6 +291,10 @@ export function PosPortalProvider({
           quantity: item.quantity,
           unitPrice: item.unitPrice,
           taxPercent: item.taxPercent,
+          // S-3 — a Zimbabwean shelf price already contains the VAT. The cart
+          // has to carve it out for the same reason the server does, or the
+          // preview shows a total nobody is going to be charged.
+          taxInclusive: item.taxInclusive ?? false,
           lineDiscountAmount: item.lineDiscountAmount ?? 0,
         })),
         orderDiscountAmount: Number(orderDiscountAmount || "0"),
@@ -329,6 +333,7 @@ export function PosPortalProvider({
           quantity: 1,
           unitPrice: item.unitPrice,
           taxPercent: item.taxPercent,
+          taxInclusive: item.taxInclusive ?? false,
           compareAtPrice: item.compareAtPrice,
           lineDiscountAmount: 0,
         },

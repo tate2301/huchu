@@ -15,6 +15,7 @@ import {
 import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   canManageRetailTransactions,  resolveRetailSite,
   getPosSupportedPromotionTypes,
@@ -433,6 +434,24 @@ export async function POST(request: NextRequest) {
     const inventoryMap = new Map(inventoryItems.map((item) => [item.id, item]));
     const catalogMap = new Map(catalogItems.map((item) => [item.id, item]));
 
+    // S-3. *The* resolution point. The shelf price now comes out of the core
+    // price engine rather than off `RetailCatalogItem.unitPrice`, resolved once
+    // for the whole basket — per line, because a volume break depends on how
+    // many the customer is buying.
+    const shelfPrices = await resolveShelfPrices(
+      session.user.companyId,
+      input.items.map((item, index) => {
+        const catalogItem = catalogMap.get(item.catalogItemId);
+        return {
+          id: `${item.catalogItemId}:${index}`,
+          productId: catalogItem?.productId ?? null,
+          unitPrice: catalogItem?.unitPrice ?? 0,
+          taxPercent: catalogItem?.taxPercent ?? 0,
+          quantity: item.quantity,
+        };
+      }),
+    );
+
     const preNormalizedLines = input.items.map((item, index) => {
       const catalogItem = catalogMap.get(item.catalogItemId)!;
       if (catalogItem.siteId !== site.id) {
@@ -443,21 +462,29 @@ export async function POST(request: NextRequest) {
         throw new Error(`Inventory item missing for ${catalogItem.name}.`);
       }
 
+      const lineKey = `${catalogItem.id}:${index}`;
+      const shelf = shelfPrices.get(lineKey);
+      if (!shelf) {
+        throw new Error(`Unable to price ${catalogItem.name}.`);
+      }
+
       // `calculateRetailCheckout` is shared with the offline till, which stores
-      // plain JSON, so the calculator stays in `number` and the crossing from the
-      // `Decimal` column happens here. Moving it to `Decimal` means shipping
-      // decimal.js to the till bundle and reworking the offline store — its own
-      // ticket, noted in the R-1.1 entry of the hardening plan.
-      const unitPrice = item.unitPrice ?? toNumberOrZero(catalogItem.unitPrice);
+      // plain JSON, so the calculator stays in `number` and the crossing from
+      // `Decimal` happens here — in `shelf-pricing.ts` now rather than off the
+      // column. Moving the calculator to `Decimal` means shipping decimal.js to
+      // the till bundle and reworking the offline store — its own ticket, noted
+      // in the R-1.1 entry of the hardening plan.
+      const unitPrice = item.unitPrice ?? shelf.unitPrice;
       const lineDiscount = item.discountAmount ?? 0;
       if (lineDiscount > round(unitPrice * item.quantity)) {
         throw new Error(`Line discount exceeds line amount for ${catalogItem.name}.`);
       }
 
       return {
-        lineKey: `${catalogItem.id}:${index}`,
+        lineKey,
         catalogItem,
         inventoryItem,
+        shelf,
         quantity: item.quantity,
         unitPrice,
         baseDiscountAmount: lineDiscount,
@@ -492,7 +519,10 @@ export async function POST(request: NextRequest) {
       preNormalizedLines.some(
         (line) =>
           line.baseDiscountAmount > 0 ||
-          Math.abs(line.unitPrice - toNumberOrZero(line.catalogItem.unitPrice)) > 0.009,
+          // Compared against what the price engine resolved, not against the
+          // listing column. Otherwise a shop that edits its shelf price on the
+          // list would have every subsequent sale look like an override.
+          Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.009,
       );
 
     let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
@@ -543,7 +573,11 @@ export async function POST(request: NextRequest) {
         id: line.lineKey,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
-        taxPercent: toNumberOrZero(line.catalogItem.taxPercent),
+        taxPercent: line.shelf.taxPercent,
+        // The list says whether the shelf price already contains the VAT. On a
+        // Zimbabwean shelf it does, so the ex-VAT line and the tax are carved
+        // out of $1.20 rather than added to it.
+        taxInclusive: line.shelf.taxInclusive,
         lineDiscountAmount: line.baseDiscountAmount,
       })),
       orderDiscountAmount: input.discountAmount ?? 0,

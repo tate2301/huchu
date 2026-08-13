@@ -20,7 +20,12 @@ import { Prisma, RetailTenderType } from "@prisma/client";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
+import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
+  canManageRetailTransactions,
+  getPosSupportedPromotionTypes,
   requireRetailPos,
   requireRetailSession,
 } from "../../_helpers";
@@ -307,29 +312,28 @@ async function processCreateSale(
     customerEmail?: string;
     items: Array<{
       catalogItemId: string;
-      sku: string;
-      name: string;
+      name?: string;
       quantity: number;
-      unitPrice: number;
-      originalUnitPrice: number;
+      /** What the device charged. Absent means "whatever the shelf said". */
+      unitPrice?: number;
       discountAmount?: number;
-      taxRate: number;
-      taxAmount: number;
-      lineTotal: number;
     }>;
-    subtotal: number;
-    discountAmount: number;
-    taxTotal: number;
-    grandTotal: number;
+    /** The order-level discount the cashier keyed. */
+    discountAmount?: number;
     payments: Array<{
       tenderType: string;
       amount: number;
       reference?: string;
     }>;
-    cashTendered?: number;
-    changeDue?: number;
     overrideReason?: string;
     promotionId?: string;
+    /**
+     * S-3 (b). When the device resolved the prices it rang this sale at. The
+     * catalogue snapshot carries it; a device that predates the field simply
+     * does not send it, and the sale's own time is used instead.
+     */
+    pricedAt?: string;
+    priceListId?: string;
     offlineCreatedAt?: string;
     offlineCreated?: boolean;
     deviceId?: string;
@@ -365,29 +369,112 @@ async function processCreateSale(
     const inventoryMap = new Map(inventoryItems.map((i) => [i.id, i]));
     const catalogMap = new Map(catalogItems.map((c) => [c.id, c]));
 
-    const saleLines = payload.items.map((item) => {
-      const catalogItem = catalogMap.get(item.catalogItemId);
-      const inventoryItem = catalogItem
-        ? inventoryMap.get(catalogItem.inventoryItemId)
-        : null;
-      if (!catalogItem || !inventoryItem) {
-        throw new Error(`Inventory mapping missing for ${item.name}`);
-      }
+    const soldAt = new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now());
 
+    // S-3 (c), closing 0.3(4). This handler used to persist the device's
+    // `unitPrice` verbatim — no catalogue re-check, no override gate — while the
+    // online path enforced both. Everything below is the online path's rule,
+    // applied to a sale that has already happened.
+    const shelfPrices = await resolveShelfPrices(
+      ctx.companyId,
+      payload.items.map((item, index) => {
+        const catalogItem = catalogMap.get(item.catalogItemId);
+        return {
+          id: `${item.catalogItemId}:${index}`,
+          productId: catalogItem?.productId ?? null,
+          unitPrice: catalogItem?.unitPrice ?? 0,
+          taxPercent: catalogItem?.taxPercent ?? 0,
+          quantity: item.quantity,
+        };
+      }),
+    );
+
+    const replayLines = payload.items.map((item, index) => {
+      const lineKey = `${item.catalogItemId}:${index}`;
+      const catalogItem = catalogMap.get(item.catalogItemId);
+      const inventoryItem = catalogItem ? inventoryMap.get(catalogItem.inventoryItemId) : null;
+      const shelf = shelfPrices.get(lineKey);
+      if (!catalogItem || !inventoryItem || !shelf) {
+        throw new Error(`Inventory mapping missing for ${item.name ?? item.catalogItemId}`);
+      }
+      return { lineKey, item, catalogItem, inventoryItem, shelf };
+    });
+
+    const review = reviewReplayedPrices({
+      lines: replayLines.map((line) => ({
+        itemName: line.catalogItem.name,
+        submittedUnitPrice: line.item.unitPrice,
+        resolvedUnitPrice: line.shelf.unitPrice,
+        priceChangedAt: line.shelf.priceChangedAt ? new Date(line.shelf.priceChangedAt) : null,
+      })),
+      soldAt,
+      snapshotPricedAt: payload.pricedAt ? new Date(payload.pricedAt) : null,
+      actorCanOverride: canManageRetailTransactions(ctx.session.user.role),
+      overrideReason: payload.overrideReason?.trim() || null,
+    });
+
+    if (review.error) {
+      return { clientOperationId: op.clientOperationId, status: "failed", error: review.error };
+    }
+
+    // The promotion is re-read rather than taken on the device's word, the same
+    // way the online path re-reads it. Without this the replay would drop the
+    // discount the customer was actually given and demand more tender than the
+    // shop took.
+    const promotion = payload.promotionId
+      ? await prisma.retailPromotion.findFirst({
+          where: {
+            id: payload.promotionId,
+            companyId: ctx.companyId,
+            type: { in: getPosSupportedPromotionTypes() },
+          },
+          select: { id: true, type: true, value: true, promoCode: true },
+        })
+      : null;
+
+    // The money is recomputed here, never carried across from the device. The
+    // device sends what was sold and at what unit price; what that comes to is
+    // the server's arithmetic, so a till running an older build of the
+    // calculator cannot write a total the books disagree with.
+    const checkout = calculateRetailCheckout({
+      lines: replayLines.map((line, index) => ({
+        id: line.lineKey,
+        quantity: line.item.quantity,
+        unitPrice: review.lines[index].unitPrice,
+        taxPercent: line.shelf.taxPercent,
+        taxInclusive: line.shelf.taxInclusive,
+        lineDiscountAmount: line.item.discountAmount ?? 0,
+      })),
+      orderDiscountAmount: payload.discountAmount ?? 0,
+      promotion: promotion
+        ? { id: promotion.id, type: promotion.type, value: Number(promotion.value) }
+        : null,
+    });
+    const calculatedByKey = new Map(checkout.lines.map((line) => [line.id, line]));
+
+    const saleLines = replayLines.map((line, index) => {
+      const calculated = calculatedByKey.get(line.lineKey);
+      if (!calculated) {
+        throw new Error(`Unable to price ${line.catalogItem.name}`);
+      }
       return {
-        inventoryItemId: inventoryItem.id,
-        inventoryUnit: inventoryItem.unit,
-        catalogItemId: item.catalogItemId,
-        itemName: item.name,
-        quantity: item.quantity,
-        unitPrice: item.unitPrice,
-        discountAmount: item.discountAmount ?? 0,
-        taxAmount: item.taxAmount,
-        lineTotal: item.lineTotal,
-        costUnit: inventoryItem.unitCost ?? 0,
-        costTotal: round(item.quantity * (inventoryItem.unitCost ?? 0)),
+        inventoryItemId: line.inventoryItem.id,
+        inventoryUnit: line.inventoryItem.unit,
+        catalogItemId: line.item.catalogItemId,
+        itemName: line.item.name ?? line.catalogItem.name,
+        quantity: line.item.quantity,
+        unitPrice: review.lines[index].unitPrice,
+        discountAmount: calculated.discountAmount,
+        taxAmount: calculated.taxAmount,
+        lineTotal: calculated.lineTotal,
+        costUnit: line.inventoryItem.unitCost ?? 0,
+        costTotal: round(line.item.quantity * (line.inventoryItem.unitCost ?? 0)),
       };
     });
+
+    const overrideReason = [payload.overrideReason?.trim() || null, review.overrideNote]
+      .filter((value): value is string => Boolean(value))
+      .join(" | ");
 
     // Every `payload` in this file is an unchecked `as` cast of whatever the device
     // sent, so the tender type is validated here rather than trusted. It used to
@@ -428,17 +515,18 @@ async function processCreateSale(
       shiftId: resolvedShiftId,
       siteId: payload.siteId,
       customerName,
-      subtotal: payload.subtotal,
-      discountAmount: payload.discountAmount,
-      taxAmount: payload.taxTotal,
-      totalAmount: payload.grandTotal,
+      subtotal: checkout.subtotal,
+      discountAmount: checkout.discountAmount,
+      taxAmount: checkout.taxAmount,
+      totalAmount: checkout.total,
       payments,
       lines: saleLines,
-      overrideReason: payload.overrideReason ?? null,
+      promotionCode: promotion?.promoCode ?? null,
+      overrideReason: overrideReason || null,
       notes: payload.offlineCreated
         ? `Offline replay from device ${ctx.deviceId ?? payload.deviceId ?? "unknown"}`
         : null,
-      postedAt: new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now()),
+      postedAt: soldAt,
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);

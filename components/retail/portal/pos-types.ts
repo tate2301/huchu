@@ -20,6 +20,12 @@ export type CartItem = {
   quantity: number;
   unitPrice: number;
   taxPercent: number;
+  /**
+   * S-3 — whether `unitPrice` already contains the tax, carried from the
+   * catalogue snapshot. Without it the cart preview would add 15% to a shelf
+   * price that already has it and show a total the server will not charge.
+   */
+  taxInclusive?: boolean;
   compareAtPrice?: number | null;
   lineDiscountAmount?: number;
 };
@@ -63,6 +69,14 @@ export type PosCatalogItem = {
   unitPrice: number;
   compareAtPrice: number | null;
   taxPercent: number;
+  /**
+   * S-3 — the shelf-price snapshot the server resolved out of the core price
+   * engine. The till reads these literally and never resolves a price list.
+   */
+  taxInclusive?: boolean;
+  currency?: string;
+  priceListId?: string | null;
+  pricedAt?: string | null;
   sku: string;
   barcode: string | null;
   imageUrl?: string | null;

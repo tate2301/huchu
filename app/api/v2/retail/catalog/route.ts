@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import { linkListingToCore, resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../_helpers";
 
 const catalogItemSchema = z.object({
@@ -85,12 +86,35 @@ export async function GET(request: NextRequest) {
   const inventoryMap = new Map(inventoryItems.map((item) => [item.id, item]));
   const siteMap = new Map(sites.map((site) => [site.id, site]));
 
-  return successResponse({
-    data: items.map((item) => ({
-      ...item,
-      inventoryItem: inventoryMap.get(item.inventoryItemId) ?? null,
-      site: siteMap.get(item.siteId) ?? null,
+  // S-3. The admin list shows what the till will charge, which means resolving
+  // it the same way the till does rather than reading the listing column. A
+  // pricing screen that disagrees with the counter is worse than no screen.
+  const shelfPrices = await resolveShelfPrices(
+    session.user.companyId,
+    items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      unitPrice: item.unitPrice,
+      taxPercent: item.taxPercent,
     })),
+  );
+
+  return successResponse({
+    data: items.map((item) => {
+      const shelf = shelfPrices.get(item.id);
+      return {
+        ...item,
+        unitPrice: shelf?.unitPrice ?? Number(item.unitPrice),
+        taxPercent: shelf?.taxPercent ?? Number(item.taxPercent),
+        taxInclusive: shelf?.taxInclusive ?? false,
+        currency: shelf?.currency ?? "USD",
+        priceListId: shelf?.priceListId ?? null,
+        priceSource: shelf?.priceSource ?? "LISTING",
+        pricedAt: shelf?.pricedAt ?? null,
+        inventoryItem: inventoryMap.get(item.inventoryItemId) ?? null,
+        site: siteMap.get(item.siteId) ?? null,
+      };
+    }),
   });
 }
 
@@ -145,7 +169,25 @@ export async function POST(request: NextRequest) {
           },
         });
 
-        return successResponse(created, 201);
+        // Core is the price engine from S-3 onward, so a listing has to arrive
+        // with a product behind it. Created after the row rather than inside
+        // its retry loop: the loop exists to survive a catalog-code collision,
+        // and re-running the core link on every collision would be noise.
+        const productId = await linkListingToCore({
+          companyId: session.user.companyId,
+          listingId: created.id,
+          productId: created.productId,
+          sku: created.sku,
+          name: created.name,
+          description: created.description,
+          barcode: created.barcode,
+          imageUrl: created.imageUrl,
+          inventoryItemId: created.inventoryItemId,
+          unitPrice: created.unitPrice,
+          taxPercent: created.taxPercent,
+        });
+
+        return successResponse({ ...created, productId }, 201);
       } catch (error) {
         if (
           error instanceof Prisma.PrismaClientKnownRequestError &&

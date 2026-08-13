@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@prisma/client";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -60,14 +61,42 @@ export async function GET(request: NextRequest) {
   });
   const inventoryMap = new Map(inventoryItems.map((item) => [item.id, item]));
 
+  // S-3. The sellable list is the till's offline snapshot: `offline-bootstrap`
+  // caches whatever comes back here and the till then reads it literally, with
+  // no price list in sight. So the resolving happens once, on the server, and
+  // what ships is still two plain numbers — plus a stamp saying which list they
+  // came off and when, which is what lets sync tell a stale device from a
+  // tampered one.
+  const shelfPrices = await resolveShelfPrices(
+    session.user.companyId,
+    items.map((item) => ({
+      id: item.id,
+      productId: item.productId,
+      unitPrice: item.unitPrice,
+      taxPercent: item.taxPercent,
+    })),
+  );
+
   return successResponse({
     data: items
-      .map((item) => ({
-        ...item,
-        category: inventoryMap.get(item.inventoryItemId)?.category ?? null,
-        siteId: inventoryMap.get(item.inventoryItemId)?.siteId ?? item.siteId,
-        inventoryItem: inventoryMap.get(item.inventoryItemId) ?? null,
-      }))
+      .map((item) => {
+        const shelf = shelfPrices.get(item.id);
+        return {
+          ...item,
+          // Same wire contract as before — numbers, never a `Decimal` rendered
+          // as a JSON string. Only where they come from has changed.
+          unitPrice: shelf?.unitPrice ?? Number(item.unitPrice),
+          taxPercent: shelf?.taxPercent ?? Number(item.taxPercent),
+          taxInclusive: shelf?.taxInclusive ?? false,
+          currency: shelf?.currency ?? "USD",
+          priceListId: shelf?.priceListId ?? null,
+          priceSource: shelf?.priceSource ?? "LISTING",
+          pricedAt: shelf?.pricedAt ?? new Date().toISOString(),
+          category: inventoryMap.get(item.inventoryItemId)?.category ?? null,
+          siteId: inventoryMap.get(item.inventoryItemId)?.siteId ?? item.siteId,
+          inventoryItem: inventoryMap.get(item.inventoryItemId) ?? null,
+        };
+      })
       .filter((item) => (item.inventoryItem?.currentStock ?? 0) > 0),
   });
 }

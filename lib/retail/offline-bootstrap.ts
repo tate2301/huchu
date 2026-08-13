@@ -18,6 +18,21 @@ import type { CurrentShift } from "@/components/retail/portal/pos-types";
 
 // ── TypeScript Interfaces ───────────────────────────────────────────────────
 
+/**
+ * One line of the till's cached shelf.
+ *
+ * S-3: the price fields are a **materialised projection** of the core price
+ * engine, resolved on the server at bootstrap. The till reads them literally —
+ * it never resolves a price list, online or off, which is the constraint
+ * `prisma/schema.prisma` sets on `RetailCatalogItem.unitPrice`. Nothing about
+ * the offline read path changed to make that true; the numbers simply have a
+ * different author now.
+ *
+ * What is new is the provenance. `pricedAt` and `priceListId` say *which*
+ * shelf, and *when* — so a sale rung up against this snapshot can be told apart
+ * at sync time from one rung up against a shelf the shop has since repriced.
+ * Without them a stale device and a tampered one look identical.
+ */
 export interface POSCatalogItem {
   id: string;
   name: string;
@@ -26,6 +41,13 @@ export interface POSCatalogItem {
   unitPrice: number;
   compareAtPrice: number | null;
   taxPercent: number;
+  /** Whether `unitPrice` already contains the tax. From `PriceList.taxInclusive`. */
+  taxInclusive: boolean;
+  currency: string;
+  /** The list `unitPrice` was resolved off, or null when it came off the listing. */
+  priceListId: string | null;
+  /** When the server resolved it. */
+  pricedAt: string | null;
   imageUrl?: string | null;
   inventoryItem: { currentStock: number; unit: string } | null;
   category?: string | null;
@@ -478,6 +500,10 @@ async function bootstrapPhase2(
       unitPrice: item.unitPrice,
       compareAtPrice: item.compareAtPrice,
       taxPercent: item.taxPercent,
+      taxInclusive: item.taxInclusive ?? false,
+      currency: item.currency ?? "USD",
+      priceListId: item.priceListId ?? null,
+      pricedAt: item.pricedAt ?? null,
       imageUrl: item.imageUrl,
       inventoryItem: item.inventoryItem,
       siteId,

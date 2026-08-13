@@ -3,6 +3,7 @@ import { RetailAcquisitionMode, RetailCatalogItemStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { linkListingToCore, resolveShelfPrice } from "@/lib/retail/shelf-pricing";
 import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../../_helpers";
 
 const patchSchema = z.object({
@@ -54,8 +55,23 @@ export async function GET(
     select: { id: true, itemCode: true, name: true, currentStock: true, unit: true },
   });
 
+  // S-3 — resolved through the core price engine, same as the list and the till.
+  const shelf = await resolveShelfPrice(session.user.companyId, {
+    id: item.id,
+    productId: item.productId,
+    unitPrice: item.unitPrice,
+    taxPercent: item.taxPercent,
+  });
+
   return successResponse({
     ...item,
+    unitPrice: shelf.unitPrice,
+    taxPercent: shelf.taxPercent,
+    taxInclusive: shelf.taxInclusive,
+    currency: shelf.currency,
+    priceListId: shelf.priceListId,
+    priceSource: shelf.priceSource,
+    pricedAt: shelf.pricedAt,
     inventoryItem,
   });
 }
@@ -112,7 +128,25 @@ export async function PATCH(
       },
     });
 
-    return successResponse(updated);
+    // S-3. The till reads its price out of core now, so an edit that stopped at
+    // `RetailCatalogItem.unitPrice` would be an edit that changed nothing at the
+    // counter — and would put the two stores out of step, which is the drift the
+    // parity suite exists to catch. Both are written, until S-4 leaves one.
+    const productId = await linkListingToCore({
+      companyId: session.user.companyId,
+      listingId: updated.id,
+      productId: updated.productId,
+      sku: updated.sku,
+      name: updated.name,
+      description: updated.description,
+      barcode: updated.barcode,
+      imageUrl: updated.imageUrl,
+      inventoryItemId: updated.inventoryItemId,
+      unitPrice: updated.unitPrice,
+      taxPercent: updated.taxPercent,
+    });
+
+    return successResponse({ ...updated, productId });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
