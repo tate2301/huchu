@@ -43,7 +43,7 @@ import "dotenv/config"
 
 import { randomUUID } from "node:crypto"
 import { Prisma, type RetailTenderType } from "@prisma/client"
-import { money, multiplyMoney, rate, sumMoney, taxOn } from "@/lib/money"
+import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
 
 function readArg(name: string): string | undefined {
@@ -82,6 +82,24 @@ const CATALOGUE = [
 ]
 
 const VAT_PERCENT = "15.00"
+
+/**
+ * The ex-VAT amount inside a VAT-inclusive figure.
+ *
+ * The same arithmetic as `netOfInclusiveTax` in `lib/retail/checkout.ts`, and
+ * deliberately the same shape: net is the division rounded to the cent, and the
+ * VAT is the *remainder* rather than a second rounded multiplication, so the
+ * two halves always add back to the price on the shelf. $1.20 at 15% inclusive
+ * is $1.04 + $0.16.
+ *
+ * Seeded history that did not agree with the till on this would be worse than
+ * useless — it is the baseline every report compares against.
+ */
+function netOfInclusiveTax(gross: Prisma.Decimal, taxPercent: string) {
+  const rateValue = money(taxPercent)
+  if (rateValue.lte(0)) return money(gross)
+  return money(gross.div(rateValue.div(100).plus(1)))
+}
 
 /**
  * Staff who can sign in. A bottle store is not run by one superadmin, and the
@@ -375,8 +393,20 @@ async function main() {
           const target = stocked.get(product.code)
           if (!target) continue
           const quantity = rate(String(product.weight > 10 ? between(1, 6) : between(1, 2)))
-          const baseAmount = multiplyMoney(quantity, product.price)
-          const taxAmount = taxOn(baseAmount, VAT_PERCENT)
+          // The shelf price is what the customer hands over, so the VAT comes
+          // *out of* it rather than being added on top. A Castle marked $1.20
+          // costs $1.20 at the counter; charging $1.38 for a $1.20 tag is not
+          // something a Harare bottle store does, and it is not what a ZIMRA
+          // receipt shows either.
+          //
+          // This seed used to add the 15%, which made a $1.20 tag ring up at
+          // $1.38. Once core's shelf list was marked tax-inclusive, the same
+          // number started meaning the right thing and six months of history
+          // was left quoting the other convention — a 13% step in the takings
+          // on the day the shop starts trading, with nothing to explain it.
+          const grossAmount = multiplyMoney(quantity, product.price)
+          const netAmount = netOfInclusiveTax(grossAmount, VAT_PERCENT)
+          const taxAmount = grossAmount.minus(netAmount)
           lines.push({
             id: randomUUID(),
             companyId,
@@ -388,7 +418,7 @@ async function main() {
             unitPrice: money(product.price),
             discountAmount: money(0),
             taxAmount,
-            lineTotal: baseAmount.plus(taxAmount),
+            lineTotal: grossAmount,
             costUnit: money(product.cost),
             costTotal: multiplyMoney(quantity, product.cost),
             createdAt: postedAt,
@@ -396,8 +426,15 @@ async function main() {
         }
         if (lines.length === 0) continue
 
+        // Revenue before tax. On a tax-inclusive list that is the ex-VAT value
+        // of the shelf prices, not the shelf prices themselves — the same basis
+        // `calculateRetailCheckout` posts, so that
+        // `subtotal + taxAmount === totalAmount` holds and the ledger's
+        // net/tax/gross triple agrees with the receipt.
         const subtotal = sumMoney(
-          lines.map((line) => multiplyMoney(line.quantity as Prisma.Decimal, line.unitPrice as Prisma.Decimal)),
+          lines.map((line) =>
+            money(line.lineTotal as Prisma.Decimal).minus(line.taxAmount as Prisma.Decimal),
+          ),
         )
         const taxAmount = sumMoney(lines.map((line) => line.taxAmount as Prisma.Decimal))
         const totalAmount = sumMoney(lines.map((line) => line.lineTotal as Prisma.Decimal))
