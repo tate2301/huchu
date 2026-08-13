@@ -4,11 +4,10 @@ import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { Alert, Badge, Card, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/components/ui/use-toast";
 import {
   fetchAccountingReadiness,
@@ -16,20 +15,27 @@ import {
   runSeedPack,
   type AccountingSeedPackResult,
 } from "@/lib/api";
-import {
-  CheckCircle2,
-  XCircle,
-  RefreshCw,
-  ExternalLink,
-  ArrowRight,
-} from "@/lib/icons";
+import { CheckCircle2, XCircle, RefreshCw, ArrowRight } from "@/lib/icons";
 import { Scale, FileCheck, TableRows } from "@/lib/icons";
 
+/**
+ * The tick or cross beside a readiness check.
+ *
+ * Decorative: every row it sits on already carries the state as a text label,
+ * so the icon is hidden from assistive tech rather than repeated. The colours
+ * are tone tokens — this used to reach straight for `text-green-600` and
+ * `text-red-500`, which is the Tailwind palette, not the design system.
+ */
 function ReadinessIcon({ passed, size = "sm" }: { passed: boolean; size?: "sm" | "md" }) {
   const cls = size === "md" ? "h-5 w-5" : "h-4 w-4";
-  return passed
-    ? <CheckCircle2 className={`${cls} text-green-600 flex-shrink-0`} />
-    : <XCircle className={`${cls} text-red-500 flex-shrink-0`} />;
+  const Icon = passed ? CheckCircle2 : XCircle;
+  return (
+    <Icon
+      aria-hidden="true"
+      className={`${cls} flex-shrink-0`}
+      style={{ color: passed ? "var(--tone-success)" : "var(--tone-danger)" }}
+    />
+  );
 }
 
 // Map readiness check keys to fix-now actions
@@ -129,139 +135,137 @@ export default function RetailSetupAccountingPage() {
         </div>
       }
     >
-      <div className="max-w-3xl space-y-8">
-        {/* Header row */}
-        <div className="flex items-start justify-between">
-          <div>
-            <p className="text-sm text-muted-foreground">
-              Configure accounting integration for your retail operations.
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button variant="ghost" size="sm" onClick={() => refetch()}>
-              <RefreshCw className="h-4 w-4" />
-            </Button>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => router.push("/accounting/posting-rules")}
-            >
-              Open Posting Studio
-              <ExternalLink className="h-3.5 w-3.5 ml-1" />
-            </Button>
-          </div>
-        </div>
-
-        {/* Overall status */}
+      <div className="max-w-3xl space-y-6">
         {isLoading ? (
-          <div className="py-8 text-center text-sm text-muted-foreground">Checking setup...</div>
+          <div aria-busy="true" aria-live="polite" className="space-y-4">
+            <span className="sr-only">Checking the accounting setup…</span>
+            <Skeleton height={104} />
+            <Skeleton height={240} />
+          </div>
         ) : error ? (
-          <div className="py-8 text-center text-sm text-destructive">Failed to load readiness data.</div>
+          <Alert
+            tone="danger"
+            title="The readiness checks would not load"
+            actions={
+              <Button variant="outline" size="sm" onClick={() => refetch()}>
+                <RefreshCw className="h-4 w-4" />
+                Retry
+              </Button>
+            }
+          >
+            {error instanceof Error ? error.message : "The accounting service did not respond."}
+          </Alert>
         ) : readiness ? (
           <>
-            {/* Summary bar */}
-            <div className="flex items-center gap-3 p-4 border rounded-lg bg-muted/20">
-              <ReadinessIcon passed={allPassed} size="md" />
-              <div className="flex-1">
-                <p className="font-medium text-sm">
-                  {allPassed ? "All checks passing" : `${passed} of ${total} checks passing`}
-                </p>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  {allPassed
-                    ? "Retail accounting is fully configured."
-                    : "Complete the items below to enable automatic retail journal posting."}
-                </p>
-              </div>
-              {!allPassed && (
-                <Button
-                  size="sm"
-                  onClick={() => seedMutation.mutate("APPLY")}
-                  disabled={seedMutation.isPending}
-                >
-                  {seedMutation.isPending ? "Running..." : "Quick fix with seed pack"}
-                </Button>
-              )}
+            <div className="grid gap-4 sm:grid-cols-3">
+              <StatCard
+                label="Checks passing"
+                value={`${passed}/${total}`}
+                tone={allPassed ? "success" : "warn"}
+                footer={
+                  allPassed
+                    ? "Retail journals post automatically"
+                    : "Automatic posting is blocked until these clear"
+                }
+              />
+              <StatCard
+                label="Tender mappings"
+                value={`${TENDER_TYPES.length - missingTenders.length}/${TENDER_TYPES.length}`}
+                tone={missingTenders.length === 0 ? "success" : "warn"}
+                footer="Clearing accounts for each payment method"
+              />
+              <StatCard
+                label="Posting studio"
+                value={allPassed ? "Ready" : "Needs input"}
+                footer="Where the rules themselves live"
+              />
             </div>
 
-            {/* Readiness checklist */}
-            <div className="space-y-2">
-              {readiness.checks.map((check) => {
-                const action = CHECK_ACTIONS[check.id];
-                return (
-                  <div
-                    key={check.id}
-                    className="flex items-center gap-3 p-3 border rounded-lg hover:bg-muted/10 transition-colors"
+            <Card
+              title="Readiness checks"
+              subtitle="Each one has to pass before a sale can be posted to the ledger without a human."
+              actions={
+                !allPassed ? (
+                  <Button
+                    size="sm"
+                    onClick={() => seedMutation.mutate("APPLY")}
+                    disabled={seedMutation.isPending}
                   >
-                    <ReadinessIcon passed={check.ready} />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium">{check.label}</p>
-                      {check.note && (
-                        <p className="text-xs text-muted-foreground mt-0.5 truncate">{check.note}</p>
-                      )}
-                    </div>
-                    {!check.ready && action && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => router.push(action.href)}
-                        className="flex-shrink-0"
-                      >
-                        {action.label}
-                        <ArrowRight className="h-3.5 w-3.5 ml-1" />
-                      </Button>
-                    )}
-                    {check.ready && (
-                      <Badge variant="outline" className="text-xs text-green-700 border-green-200 bg-green-50 flex-shrink-0">
-                        Configured
-                      </Badge>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+                    {seedMutation.isPending ? "Running…" : "Quick fix with seed pack"}
+                  </Button>
+                ) : undefined
+              }
+              flush
+            >
+              <ul className="list-plain">
+                {readiness.checks.map((check) => {
+                  const action = CHECK_ACTIONS[check.id];
+                  return (
+                    <li key={check.id} className="list-item">
+                      <span className="lead">
+                        <ReadinessIcon passed={check.ready} />
+                      </span>
+                      <div className="min-w-0">
+                        <div className="title bold">{check.label}</div>
+                        {check.note ? <div className="sub truncate">{check.note}</div> : null}
+                      </div>
+                      <div className="meta">
+                        {check.ready ? (
+                          <Badge tone="success">Configured</Badge>
+                        ) : action ? (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => router.push(action.href)}
+                            className="flex-shrink-0"
+                          >
+                            {action.label}
+                            <ArrowRight className="ml-1 h-3.5 w-3.5" />
+                          </Button>
+                        ) : (
+                          <Badge tone="warn">Needs input</Badge>
+                        )}
+                      </div>
+                    </li>
+                  );
+                })}
+              </ul>
+            </Card>
           </>
         ) : null}
 
-        <Separator />
-
-        {/* Tender mapping status */}
-        <div className="space-y-3">
-          <div>
-            <h2 className="text-sm font-semibold">Tender account mappings</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Each payment method needs a clearing account for the posting engine to generate balanced entries.
-            </p>
-          </div>
-
-          <div className="border rounded-md overflow-hidden">
-            <table className="w-full text-sm">
-              <thead className="bg-muted/40 border-b">
+        <Card
+          title="Tender account mappings"
+          subtitle="Each payment method needs a clearing account before the posting engine can balance an entry."
+        >
+          <div className="overflow-x-auto">
+            <table className="table">
+              <caption className="sr-only">Clearing account for each tender type</caption>
+              <thead>
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Tender type</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Clearing account</th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+                  <th scope="col">Tender type</th>
+                  <th scope="col">Clearing account</th>
+                  <th scope="col">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody>
                 {TENDER_TYPES.map((tenderType) => {
                   const mapping = tenderMappings.find(
                     (m) => m.tenderType === tenderType && m.isActive,
                   );
                   return (
-                    <tr key={tenderType} className="hover:bg-muted/20">
-                      <td className="px-3 py-2 font-medium">{tenderType}</td>
-                      <td className="px-3 py-2 text-muted-foreground">
+                    <tr key={tenderType}>
+                      <td className="font-medium">{tenderType.replaceAll("_", " ")}</td>
+                      <td className="t-muted">
                         {mapping?.clearingAccount
-                          ? `${mapping.clearingAccount.code} - ${mapping.clearingAccount.name}`
-                          : mapping?.clearingAccountId
-                          ? mapping.clearingAccountId
-                          : <span className="text-muted-foreground/60 italic">Not configured</span>}
+                          ? `${mapping.clearingAccount.code} — ${mapping.clearingAccount.name}`
+                          : (mapping?.clearingAccountId ?? "Not configured")}
                       </td>
-                      <td className="px-3 py-2">
-                        <div className="flex items-center gap-1.5">
-                          <ReadinessIcon passed={!!mapping} />
-                          <span className="text-xs">{mapping ? "Active" : "Missing"}</span>
-                        </div>
+                      <td>
+                        <span className="inline-flex items-center gap-1.5">
+                          <ReadinessIcon passed={Boolean(mapping)} />
+                          <span>{mapping ? "Active" : "Missing"}</span>
+                        </span>
                       </td>
                     </tr>
                   );
@@ -270,123 +274,123 @@ export default function RetailSetupAccountingPage() {
             </table>
           </div>
 
-          {missingTenders.length > 0 && (
-            <p className="text-xs text-muted-foreground">
-              Missing mappings for: {missingTenders.join(", ")}. Run the seed pack below to create defaults.
-            </p>
-          )}
-        </div>
+          {missingTenders.length > 0 ? (
+            <Alert className="mt-4" tone="warn" title={`${missingTenders.length} tender types are unmapped`}>
+              {missingTenders.map((t) => t.replaceAll("_", " ")).join(", ")}. Run the seed pack below
+              to create the defaults.
+            </Alert>
+          ) : null}
+        </Card>
 
-        <Separator />
-
-        {/* Seed pack */}
-        <div className="space-y-4">
-          <div>
-            <h2 className="text-sm font-semibold">Zimbabwe Retail Foundation seed pack</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">
-              Provisions chart of accounts, tax codes, currencies, posting rules, and tender mappings.
-              Idempotent - safe to re-run at any time.
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3">
+        <Card
+          title="Zimbabwe retail foundation seed pack"
+          subtitle="Provisions the chart of accounts, tax codes, currencies, posting rules and tender mappings. Idempotent — safe to re-run."
+        >
+          <div className="grid gap-4 sm:grid-cols-2">
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">ZWG/USD rate</label>
+              <label htmlFor="fx-zwg" className="t-label-sm t-muted mb-1 block">
+                ZWG/USD rate
+              </label>
               <Input
+                id="fx-zwg"
                 type="number"
                 step="0.01"
                 min="0"
                 value={fxRates.ZWG}
                 onChange={(e) => setFxRates((r) => ({ ...r, ZWG: e.target.value }))}
-                placeholder="e.g. 27.50"
+                placeholder="27.50"
               />
             </div>
             <div>
-              <label className="text-xs text-muted-foreground block mb-1">ZAR/USD rate</label>
+              <label htmlFor="fx-zar" className="t-label-sm t-muted mb-1 block">
+                ZAR/USD rate
+              </label>
               <Input
+                id="fx-zar"
                 type="number"
                 step="0.01"
                 min="0"
                 value={fxRates.ZAR}
                 onChange={(e) => setFxRates((r) => ({ ...r, ZAR: e.target.value }))}
-                placeholder="e.g. 18.50"
+                placeholder="18.50"
               />
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="mt-4 flex gap-2">
             <Button
               variant="outline"
               onClick={() => seedMutation.mutate("DRY_RUN")}
               disabled={seedMutation.isPending}
             >
-              {seedMutation.isPending && seedMutation.variables === "DRY_RUN" ? "Previewing..." : "Preview changes"}
+              {seedMutation.isPending && seedMutation.variables === "DRY_RUN"
+                ? "Previewing…"
+                : "Preview changes"}
             </Button>
-            <Button
-              onClick={() => seedMutation.mutate("APPLY")}
-              disabled={seedMutation.isPending}
-            >
-              {seedMutation.isPending && seedMutation.variables === "APPLY" ? "Applying..." : "Apply seed pack"}
+            <Button onClick={() => seedMutation.mutate("APPLY")} disabled={seedMutation.isPending}>
+              {seedMutation.isPending && seedMutation.variables === "APPLY"
+                ? "Applying…"
+                : "Apply seed pack"}
             </Button>
           </div>
 
-          {seedResult && (
-            <div className="border rounded-md p-4 bg-muted/20 space-y-2">
-              <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
-                {seedResult.mode === "DRY_RUN" ? "Preview - no changes made" : "Changes applied"}
+          {seedResult ? (
+            <div className="mt-4 border-t border-[color:var(--border-subtle)] pt-4">
+              <p className="t-eyebrow t-muted">
+                {seedResult.mode === "DRY_RUN" ? "Preview — nothing changed" : "Changes applied"}
               </p>
-              <div className="grid grid-cols-2 gap-x-8 gap-y-1 text-sm">
-                <span className="text-muted-foreground">Accounts</span>
-                <span className="tabular-nums">
-                  {seedResult.createdAccounts} created
-                </span>
-                <span className="text-muted-foreground">Tax codes</span>
-                <span className="tabular-nums">{seedResult.createdTaxCodes} created</span>
-                <span className="text-muted-foreground">Currencies</span>
-                <span className="tabular-nums">{seedResult.createdCurrencyDefinitions} created</span>
-                <span className="text-muted-foreground">Tender mappings</span>
-                <span className="tabular-nums">{seedResult.createdTenderMappings} created</span>
-                <span className="text-muted-foreground">Posting rules</span>
-                <span className="tabular-nums">
-                  {seedResult.createdPostingRules} created
-                </span>
-                <span className="text-muted-foreground">Periods</span>
-                <span className="tabular-nums">{seedResult.createdPeriods} created</span>
-              </div>
-              {seedResult.preview.missingFxQuotes.length > 0 && (
-                <p className="text-xs text-amber-700">
-                  Missing FX quotes for: {seedResult.preview.missingFxQuotes.join(", ")}
-                </p>
-              )}
+              <dl className="mt-2 grid grid-cols-2 gap-x-8 gap-y-1">
+                {[
+                  ["Accounts", seedResult.createdAccounts],
+                  ["Tax codes", seedResult.createdTaxCodes],
+                  ["Currencies", seedResult.createdCurrencyDefinitions],
+                  ["Tender mappings", seedResult.createdTenderMappings],
+                  ["Posting rules", seedResult.createdPostingRules],
+                  ["Periods", seedResult.createdPeriods],
+                ].map(([label, value]) => (
+                  <div key={String(label)} className="contents">
+                    <dt className="t-body-sm t-muted">{label}</dt>
+                    <dd className="t-body-sm tabular-nums">{value} created</dd>
+                  </div>
+                ))}
+              </dl>
+              {seedResult.preview.missingFxQuotes.length > 0 ? (
+                <Alert className="mt-3" tone="warn" title="Missing FX quotes">
+                  {seedResult.preview.missingFxQuotes.join(", ")}
+                </Alert>
+              ) : null}
             </div>
-          )}
-        </div>
+          ) : null}
+        </Card>
 
-        <Separator />
-
-        {/* Quick links */}
-        <div className="space-y-3">
-          <h2 className="text-sm font-semibold">Quick links</h2>
-          <div className="grid grid-cols-2 gap-2">
+        <Card title="Where the rules live" flush>
+          <ul className="list-plain">
             {[
-              { label: "Posting Studio — Rule library", href: "/accounting/posting-rules" },
-              { label: "Posting Studio — Retail defaults", href: "/accounting/posting-rules?view=retail-defaults" },
-              { label: "Posting Studio — Simulation", href: "/accounting/posting-rules?view=simulation" },
+              { label: "Posting studio — rule library", href: "/accounting/posting-rules" },
+              {
+                label: "Posting studio — retail defaults",
+                href: "/accounting/posting-rules?view=retail-defaults",
+              },
+              {
+                label: "Posting studio — simulation",
+                href: "/accounting/posting-rules?view=simulation",
+              },
               { label: "Chart of accounts", href: "/accounting/chart-of-accounts" },
               { label: "Tax codes", href: "/accounting/tax" },
               { label: "Accounting periods", href: "/accounting/periods" },
             ].map((link) => (
-              <button
-                key={link.href}
-                onClick={() => router.push(link.href)}
-                className="flex items-center gap-2 p-3 border rounded-lg text-sm text-left hover:bg-muted/20 transition-colors"
-              >
-                <span className="flex-1">{link.label}</span>
-                <ArrowRight className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-              </button>
+              <li key={link.href}>
+                <Link href={link.href} className="list-item">
+                  <span className="lead" aria-hidden="true" />
+                  <div className="title bold">{link.label}</div>
+                  <div className="meta">
+                    <ArrowRight className="chev h-4 w-4" />
+                  </div>
+                </Link>
+              </li>
             ))}
-          </div>
-        </div>
+          </ul>
+        </Card>
       </div>
     </RetailShell>
   );

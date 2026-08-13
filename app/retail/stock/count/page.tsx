@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Card } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -130,8 +131,14 @@ export default function RetailStockCountPage() {
         </div>
       }
     >
-      <div className="rounded-2xl bg-[var(--surface-muted)] p-3">
-        <div className="grid gap-2 md:grid-cols-2">
+      {itemsQuery.isError ? (
+        <Alert tone="danger" title="Stock lines would not load">
+          {getApiErrorMessage(itemsQuery.error)}
+        </Alert>
+      ) : null}
+
+      <Card title="Count a line" subtitle="Post the difference between the shelf and the system.">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Site</Label>
             <Select value={activeSiteId} onValueChange={setSiteId}>
@@ -172,11 +179,20 @@ export default function RetailStockCountPage() {
           </div>
         </div>
         {selectedItem ? (
-          <div className="mt-3 rounded-xl bg-[var(--surface-base)] px-3 py-2 text-sm text-[var(--text-muted)]">
-            Current {selectedItem.currentStock.toFixed(2)} {selectedItem.unit}, variance <span className="font-mono">{variance.toFixed(2)}</span>
-          </div>
+          <Alert
+            className="mt-4"
+            tone={variance === 0 ? "info" : "warn"}
+            title={
+              variance === 0
+                ? "The count matches the system"
+                : `The count is ${variance > 0 ? "over" : "under"} by ${Math.abs(variance).toFixed(2)} ${selectedItem.unit}`
+            }
+          >
+            System holds {selectedItem.currentStock.toFixed(2)} {selectedItem.unit}. Posting writes
+            the difference as a stock adjustment.
+          </Alert>
         ) : null}
-        <div className="mt-3">
+        <div className="mt-4">
           <Button
             onClick={() => submitCountMutation.mutate()}
             disabled={
@@ -189,7 +205,7 @@ export default function RetailStockCountPage() {
             Post count adjustment
           </Button>
         </div>
-      </div>
+      </Card>
 
       <DataTable
         data={itemsQuery.data?.data ?? []}
@@ -197,8 +213,12 @@ export default function RetailStockCountPage() {
         features={{ sorting: true, globalFilter: true, pagination: true }}
         pagination={{ enabled: true, server: false }}
         searchPlaceholder="Search inventory items"
-        emptyState={itemsQuery.isLoading ? "Loading inventory..." : "No inventory items found"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Retail stock count candidate items</span>}
+        emptyState={
+          itemsQuery.isPending
+            ? "Fetching stock lines…"
+            : "No stock lines at this branch — add one under Stores & Inventory first."
+        }
+        toolbar={<span className="t-body-sm t-muted">Lines you can count</span>}
       />
     </RetailShell>
   );

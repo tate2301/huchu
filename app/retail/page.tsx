@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useMemo } from "react";
+import { Alert, Badge, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import {
@@ -13,7 +14,6 @@ import {
   type WaterfallRow,
 } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -31,10 +31,7 @@ import {
   LocalShipping,
   Package,
   Payments,
-  TrendingDown,
-  TrendingUp,
   Users,
-  Wallet,
 } from "@/lib/icons";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
@@ -131,74 +128,19 @@ function pct(value: number) {
   return `${value >= 0 ? "+" : ""}${value.toFixed(1)}%`;
 }
 
-function DeltaPill({ value }: { value: number }) {
-  const positive = value >= 0;
-  return (
-    <span
-      className={
-        positive
-          ? "inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-semibold text-emerald-700"
-          : "inline-flex items-center gap-1 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-semibold text-rose-700"
-      }
-    >
-      {positive ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-      {pct(value)}
-    </span>
-  );
-}
-
-function KpiCard({
-  title,
-  value,
-  detail,
-  deltaPct,
-}: {
-  title: string;
-  value: string;
-  detail: string;
-  deltaPct: number;
-}) {
-  return (
-    <div className="bg-[var(--surface-base)] px-2 py-2">
-      <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--text-muted)]">
-        {title}
-      </div>
-      <div className="mt-2 font-mono text-[1.9rem] font-semibold leading-none text-[var(--text-strong)]">
-        {value}
-      </div>
-      <div className="mt-3 flex items-center justify-between gap-2">
-        <div className="text-xs text-[var(--text-muted)]">{detail}</div>
-        <DeltaPill value={deltaPct} />
-      </div>
-    </div>
-  );
-}
-
-function SectionCard({
-  title,
-  metricLabel,
-  metricValue,
-  children,
-}: {
-  title: string;
-  metricLabel: string;
-  metricValue: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <section className="bg-[var(--surface-base)] px-1 py-1">
-      <div className="flex items-center justify-between gap-3 border-b border-[var(--edge-subtle)] pb-3">
-        <h3 className="text-xl font-semibold text-[var(--text-strong)]">{title}</h3>
-        <div className="text-right">
-          <div className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--text-muted)]">
-            {metricLabel}
-          </div>
-          <div className="mt-1 font-mono text-xl font-semibold text-[var(--text-strong)]">{metricValue}</div>
-        </div>
-      </div>
-      <div className="pt-4">{children}</div>
-    </section>
-  );
+/**
+ * A momentum reading for `StatCard`'s delta slot.
+ *
+ * The direction — not a colour written here — is what tints it. The tile that
+ * this replaced carried its own emerald/rose pill with hard-coded Tailwind
+ * palette classes, which is the thing that made retail look like a second
+ * design system.
+ */
+function delta(value: number) {
+  return {
+    direction: value >= 0 ? ("up" as const) : ("down" as const),
+    label: `${pct(value)} on the previous period`,
+  };
 }
 
 export default function RetailOverviewPage() {
@@ -206,7 +148,7 @@ export default function RetailOverviewPage() {
   const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
   const canOpenPos = canAccessPosPortal(session?.user?.role);
   const canOpenCustomers = hasTokenFeature(enabledFeatures, "crm.customers");
-  const { data, isLoading, error } = useQuery({
+  const { data, isPending, isError, error } = useQuery({
     queryKey: ["retail-dashboard-owner-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
   });
@@ -275,100 +217,141 @@ export default function RetailOverviewPage() {
     [data],
   );
 
-  return (
-    <RetailShell
-      title="Business overview"
-      actions={
-        <div className="flex items-center gap-2">
-          {canOpenPos ? (
-            <Button asChild size="sm">
-              <Link href="/portal/pos">
-                <Payments className="h-4 w-4" />
-                POS
-              </Link>
-            </Button>
-          ) : null}
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/sell">
-              <ClipboardList className="h-4 w-4" />
-              Sell
-            </Link>
-          </Button>
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button size="sm" variant="outline" className="gap-1">
-                <Grid3x3 className="h-4 w-4" />
-                <span className="hidden sm:inline">More</span>
-                <ChevronDown className="h-3 w-3" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuItem asChild>
-                <Link href="/retail/stock" className="flex items-center gap-2">
-                  <Package className="h-4 w-4" /> Stock
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/retail/buy" className="flex items-center gap-2">
-                  <LocalShipping className="h-4 w-4" /> Buy
-                </Link>
-              </DropdownMenuItem>
-              {canOpenCustomers ? (
-                <DropdownMenuItem asChild>
-                  <Link href="/retail/customers" className="flex items-center gap-2">
-                    <Users className="h-4 w-4" /> Customers
-                  </Link>
-                </DropdownMenuItem>
-              ) : null}
-              <DropdownMenuItem asChild>
-                <Link href="/retail/reports" className="flex items-center gap-2">
-                  <BarChart3 className="h-4 w-4" /> Reports
-                </Link>
-              </DropdownMenuItem>
-              <DropdownMenuItem asChild>
-                <Link href="/retail/setup" className="flex items-center gap-2">
-                  <Building2 className="h-4 w-4" /> Setup
-                </Link>
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
-        </div>
-      }
-    >
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load retail business overview</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
-        </Alert>
+  const actions = (
+    <div className="flex items-center gap-2">
+      {canOpenPos ? (
+        <Button asChild size="sm">
+          <Link href="/portal/pos">
+            <Payments className="h-4 w-4" />
+            POS
+          </Link>
+        </Button>
       ) : null}
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/sales">
+          <ClipboardList className="h-4 w-4" />
+          Sell
+        </Link>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="gap-1">
+            <Grid3x3 className="h-4 w-4" />
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href="/retail/stock" className="flex items-center gap-2">
+              <Package className="h-4 w-4" /> Stock
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/purchasing/orders" className="flex items-center gap-2">
+              <LocalShipping className="h-4 w-4" /> Buy
+            </Link>
+          </DropdownMenuItem>
+          {canOpenCustomers ? (
+            <DropdownMenuItem asChild>
+              <Link href="/retail/customers" className="flex items-center gap-2">
+                <Users className="h-4 w-4" /> Customers
+              </Link>
+            </DropdownMenuItem>
+          ) : null}
+          <DropdownMenuItem asChild>
+            <Link href="/retail/reports" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Reports
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/setup" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" /> Setup
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
 
+  if (isPending) {
+    return (
+      <RetailShell title="Business overview" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Reading the trading figures…</span>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={320} />
+          <div className="grid gap-4 xl:grid-cols-2">
+            <Skeleton height={300} />
+            <Skeleton height={300} />
+          </div>
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <RetailShell title="Business overview" actions={actions}>
+        <Alert tone="danger" title="The trading overview would not load">
+          {getApiErrorMessage(error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
+  if (data.summary.ticketCount === 0) {
+    return (
+      <RetailShell title="Business overview" actions={actions}>
+        <EmptyState
+          title="No trade recorded yet"
+          body="Sales, margin and tender mix appear here once the till has rung up its first sale of the day."
+          action={
+            canOpenPos ? (
+              <Button asChild size="sm">
+                <Link href="/portal/pos">Open the till</Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      </RetailShell>
+    );
+  }
+
+  const { kpis, momentum, highlights, costBridge } = data.ownerMetrics;
+
+  return (
+    <RetailShell title="Business overview" actions={actions}>
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
         <div className="space-y-4">
-          <div className="grid gap-2 border-b border-[var(--edge-subtle)] pb-3 md:grid-cols-2 xl:grid-cols-3">
-            <KpiCard
-              title="Gross profit"
-              value={money(data?.ownerMetrics.kpis.grossProfit ?? 0)}
-              detail={`Margin ${((data?.ownerMetrics.kpis.grossMarginPct ?? 0) || 0).toFixed(1)}%`}
-              deltaPct={data?.ownerMetrics.momentum.grossProfitDeltaPct ?? 0}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <StatCard
+              label="Gross profit"
+              value={money(kpis.grossProfit)}
+              delta={delta(momentum.grossProfitDeltaPct)}
+              footer={`Margin ${kpis.grossMarginPct.toFixed(1)}%`}
             />
-            <KpiCard
-              title="EBITDA"
-              value={money(data?.ownerMetrics.kpis.ebitda ?? 0)}
-              detail={`Margin ${((data?.ownerMetrics.kpis.ebitdaMarginPct ?? 0) || 0).toFixed(1)}%`}
-              deltaPct={data?.ownerMetrics.momentum.ebitdaDeltaPct ?? 0}
+            <StatCard
+              label="EBITDA"
+              value={money(kpis.ebitda)}
+              delta={delta(momentum.ebitdaDeltaPct)}
+              footer={`Margin ${kpis.ebitdaMarginPct.toFixed(1)}%`}
             />
-            <KpiCard
-              title="Net profit"
-              value={money(data?.ownerMetrics.kpis.netProfit ?? 0)}
-              detail={`Margin ${((data?.ownerMetrics.kpis.netMarginPct ?? 0) || 0).toFixed(1)}%`}
-              deltaPct={data?.ownerMetrics.momentum.netProfitDeltaPct ?? 0}
+            <StatCard
+              label="Net profit"
+              value={money(kpis.netProfit)}
+              delta={delta(momentum.netProfitDeltaPct)}
+              footer={`Margin ${kpis.netMarginPct.toFixed(1)}%`}
             />
           </div>
 
-          <SectionCard
+          <Card
             title="Volume"
-            metricLabel="Revenue run-rate"
-            metricValue={money(data?.ownerMetrics.kpis.monthlyRunRateRevenue ?? 0)}
+            subtitle={`Revenue run-rate ${money(kpis.monthlyRunRateRevenue)} a month`}
           >
             <AdminTrendChart
               rows={trendRows}
@@ -389,19 +372,18 @@ export default function RetailOverviewPage() {
                   dashed: true,
                 },
               ]}
-              emptyLabel={isLoading ? "Loading revenue trend..." : "No revenue trend available."}
+              emptyLabel="No revenue trend for this period."
               valueFormatter={money}
               yTickFormatter={money}
               xTickInterval={0}
               height={260}
             />
-          </SectionCard>
+          </Card>
 
-          <section className="grid gap-5 xl:grid-cols-2">
-            <SectionCard
+          <div className="grid gap-5 xl:grid-cols-2">
+            <Card
               title="Performance"
-              metricLabel="Gross margin"
-              metricValue={`${(data?.ownerMetrics.kpis.grossMarginPct ?? 0).toFixed(1)}%`}
+              subtitle={`Gross margin ${kpis.grossMarginPct.toFixed(1)}%`}
             >
               <AdminTrendChart
                 rows={trendRows}
@@ -419,88 +401,82 @@ export default function RetailOverviewPage() {
                     dashed: true,
                   },
                 ]}
-                emptyLabel={isLoading ? "Loading profitability trend..." : "No profitability trend."}
+                emptyLabel="No profitability trend for this period."
                 valueFormatter={money}
                 yTickFormatter={money}
                 xTickInterval={0}
                 height={250}
               />
-            </SectionCard>
+            </Card>
 
-            <SectionCard
+            <Card
               title="Profit bridge"
-              metricLabel="Current net profit"
-              metricValue={money(data?.ownerMetrics.costBridge.netProfit ?? 0)}
+              subtitle={`Net profit ${money(costBridge.netProfit)}`}
             >
               <AdminWaterfallChart
                 rows={bridgeRows}
-                emptyLabel={isLoading ? "Loading bridge..." : "No bridge data available."}
+                emptyLabel="No bridge data for this period."
                 valueFormatter={money}
                 yTickFormatter={money}
                 height={250}
               />
-            </SectionCard>
-          </section>
+            </Card>
+          </div>
         </div>
 
         <aside className="space-y-4">
-          <section className="bg-[var(--surface-base)] px-1 py-1">
-            <div className="flex items-start justify-between gap-3">
-              <h3 className="text-xl font-semibold text-[var(--text-strong)]">Priorities</h3>
-              <span className="rounded-full bg-[var(--surface-muted)] px-2 py-1 text-xs font-semibold">
-                {(data?.ownerMetrics.highlights?.length ?? 0).toString()}
-              </span>
-            </div>
-            <div className="mt-3 space-y-2">
-              {(data?.ownerMetrics.highlights ?? []).map((highlight) => (
-                <div key={highlight.id} className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3 last:border-b-0">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-semibold text-[var(--text-strong)]">{highlight.title}</div>
-                    <DeltaPill value={highlight.deltaPct} />
-                  </div>
-                  <div className="mt-1 font-mono text-lg font-semibold">
-                    {typeof highlight.value === "string" ? highlight.value : money(highlight.value)}
-                  </div>
-                  <div className="mt-1 text-xs text-[var(--text-muted)]">{highlight.detail}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          <section className="bg-[var(--surface-base)] px-1 py-1">
-            <h3 className="text-xl font-semibold text-[var(--text-strong)]">Cash and demand mix</h3>
-            <div className="mt-3">
-              <AdminDonutChart
-                rows={tenderRows}
-                emptyLabel={isLoading ? "Loading tender mix..." : "No tender mix yet."}
-                valueLabel="Tender amount"
-                valueFormatter={money}
-                height={250}
+          <Card title="Priorities" subtitle={`${highlights.length} to look at`}>
+            {highlights.length === 0 ? (
+              <EmptyState
+                title="Nothing needs attention"
+                body="Anomalies and wins appear here as the day trades."
               />
-            </div>
-          </section>
+            ) : (
+              <ul className="space-y-3">
+                {highlights.map((highlight) => (
+                  <li
+                    key={highlight.id}
+                    className="border-b border-[color:var(--border-subtle)] pb-3 last:border-b-0 last:pb-0"
+                  >
+                    <div className="flex items-baseline justify-between gap-3">
+                      <h3 className="t-body-sm t-strong font-semibold">{highlight.title}</h3>
+                      <Badge tone={highlight.deltaPct >= 0 ? "success" : "danger"}>
+                        {pct(highlight.deltaPct)}
+                      </Badge>
+                    </div>
+                    <p className="t-strong mt-1 font-mono text-base font-semibold tabular-nums">
+                      {typeof highlight.value === "string" ? highlight.value : money(highlight.value)}
+                    </p>
+                    <p className="t-caption t-muted mt-1">{highlight.detail}</p>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Card>
 
-          <section className="bg-[var(--surface-base)] px-1 py-1">
-            <h3 className="text-xl font-semibold text-[var(--text-strong)]">Opportunities</h3>
-            <div className="mt-3 space-y-2">
-              <div className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Wallet className="h-4 w-4 text-[var(--text-muted)]" />
-                  Seven-day sales
-                </div>
-                <div className="mt-1 font-mono text-lg">{money(data?.summary.sevenDaySales ?? 0)}</div>
-              </div>
-              <div className="border-b border-[var(--edge-subtle)] bg-[var(--surface-base)] px-1 py-3">
-                <div className="flex items-center gap-2 text-sm font-semibold">
-                  <Package className="h-4 w-4 text-[var(--text-muted)]" />
-                  Inventory pressure
-                </div>
-                <div className="mt-1 font-mono text-lg">
-                  {(data?.ownerMetrics.kpis.inventoryPressurePct ?? 0).toFixed(1)}%
-                </div>
-              </div>
-            </div>
-          </section>
+          <Card title="Cash and demand mix">
+            <AdminDonutChart
+              rows={tenderRows}
+              emptyLabel="No tender mix yet."
+              valueLabel="Tender amount"
+              valueFormatter={money}
+              height={250}
+            />
+          </Card>
+
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+            <StatCard
+              label="Seven-day sales"
+              value={money(data.summary.sevenDaySales)}
+              footer="Rolling week, tills combined"
+            />
+            <StatCard
+              label="Inventory pressure"
+              value={`${kpis.inventoryPressurePct.toFixed(1)}%`}
+              footer={`${data.summary.lowStockCount} lines at or under reorder`}
+              tone={kpis.inventoryPressurePct > 50 ? "warn" : "neutral"}
+            />
+          </div>
         </aside>
       </div>
     </RetailShell>

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Card } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -184,8 +185,16 @@ export default function RetailStockTransfersPage() {
         </div>
       }
     >
-      <div className="rounded-2xl bg-[var(--surface-muted)] p-3">
-        <div className="grid gap-2 md:grid-cols-2">
+      {itemsQuery.isError || locationsQuery.isError || transfersQuery.isError ? (
+        <Alert tone="danger" title="Transfer data would not load">
+          {getApiErrorMessage(
+            itemsQuery.error ?? locationsQuery.error ?? transfersQuery.error,
+          )}
+        </Alert>
+      ) : null}
+
+      <Card title="Move stock" subtitle="Shift a line from one location in the branch to another.">
+        <div className="grid gap-4 md:grid-cols-2">
           <div className="space-y-2">
             <Label>Site</Label>
             <Select value={activeSiteId} onValueChange={setSiteId}>
@@ -240,7 +249,13 @@ export default function RetailStockTransfersPage() {
             <Input value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Transfer reason" />
           </div>
         </div>
-        <div className="mt-3">
+        {selectedItem && transferQty > selectedItem.currentStock ? (
+          <Alert className="mt-4" tone="warn" title="More than the branch is holding">
+            {selectedItem.name} has {selectedItem.currentStock.toFixed(2)} {selectedItem.unit} on
+            hand. Reduce the quantity before posting.
+          </Alert>
+        ) : null}
+        <div className="mt-4">
           <Button
             onClick={() => submitTransferMutation.mutate()}
             disabled={
@@ -255,7 +270,7 @@ export default function RetailStockTransfersPage() {
             Post transfer
           </Button>
         </div>
-      </div>
+      </Card>
 
       <DataTable
         data={transfersQuery.data?.data ?? []}
@@ -263,8 +278,12 @@ export default function RetailStockTransfersPage() {
         features={{ sorting: true, globalFilter: true, pagination: true }}
         pagination={{ enabled: true, server: false }}
         searchPlaceholder="Search transfer history"
-        emptyState={transfersQuery.isLoading ? "Loading transfers..." : "No transfers yet"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Recent retail stock transfers</span>}
+        emptyState={
+          transfersQuery.isPending
+            ? "Fetching transfer history…"
+            : "No transfers yet — stock moved between locations is listed here."
+        }
+        toolbar={<span className="t-body-sm t-muted">Recent stock transfers</span>}
       />
     </RetailShell>
   );

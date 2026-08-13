@@ -11,6 +11,7 @@ import {
   AdminDonutChart,
   AdminTrendChart,
 } from "@/components/charts/admin-headless-charts";
+import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
@@ -23,12 +24,18 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { BarChart3, Payments, Plus, ReceiptLong } from "@/lib/icons";
+import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
@@ -69,6 +76,15 @@ type ShiftContextSite = {
     siteId: string;
   }>;
 };
+
+function money(value: number) {
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value || 0);
+}
 
 function emptyForm(siteId = ""): ShiftForm {
   return {
@@ -316,126 +332,175 @@ export default function RetailShiftsPage() {
     [],
   );
 
-  return (
-    <RetailShell
-      title="Shifts & Cash-up"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setForm(emptyForm(""));
-              setOpenDialog(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            Open shift
-          </Button>
-          {canOpenPos ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href="/portal/pos">
-                <Payments className="h-4 w-4" />
-                POS
-              </Link>
-            </Button>
-          ) : null}
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/sales">
-              <ReceiptLong className="h-4 w-4" />
-              Sales
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/reports">
-              <BarChart3 className="h-4 w-4" />
-              Reports
-            </Link>
-          </Button>
-        </div>
-      }
+  const shifts = shiftsQuery.data?.data ?? [];
+  const openShifts = shifts.filter((shift) => shift.status === "OPEN");
+  const cashVariance = shifts.reduce((total, shift) => total + Math.abs(shift.variance ?? 0), 0);
+  const takings = shifts.reduce((total, shift) => total + shift.salesValue, 0);
+
+  const openShiftButton = (
+    <Button
+      size="sm"
+      onClick={() => {
+        setForm(emptyForm(""));
+        setOpenDialog(true);
+      }}
     >
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Sales, expected cash, and variance by shift</h2>
+      <Plus className="h-4 w-4" />
+      Open shift
+    </Button>
+  );
+
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      {openShiftButton}
+      {canOpenPos ? (
+        <Button asChild size="sm" variant="outline">
+          <Link href="/portal/pos">
+            <Payments className="h-4 w-4" />
+            POS
+          </Link>
+        </Button>
+      ) : null}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="gap-1">
+            <Grid3x3 className="h-4 w-4" />
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href="/retail/sales" className="flex items-center gap-2">
+              <ReceiptLong className="h-4 w-4" /> Sales
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/reports" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Reports
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  if (shiftsQuery.isPending) {
+    return (
+      <RetailShell title="Shifts & Cash-up" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching shifts…</span>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
           </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-              {shiftsQuery.data?.data.filter((shift) => shift.status === "OPEN").length ?? 0}
-            </p>
+          <Skeleton height={340} />
+          <Skeleton height={280} />
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (shiftsQuery.isError) {
+    return (
+      <RetailShell title="Shifts & Cash-up" actions={actions}>
+        <Alert tone="danger" title="Shifts would not load">
+          {getApiErrorMessage(shiftsQuery.error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
+  return (
+    <RetailShell title="Shifts & Cash-up" actions={actions}>
+      {shifts.length === 0 ? (
+        <EmptyState
+          title="No shifts opened yet"
+          body="Open a shift with a float and the till can start trading. Takings, expected cash and variance appear here at cash-up."
+          action={openShiftButton}
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <StatCard
+              label="Open shifts"
+              value={String(openShifts.length)}
+              tone={openShifts.length > 0 ? "success" : "neutral"}
+              footer="Tills trading now"
+            />
+            <StatCard
+              label="Takings"
+              value={money(takings)}
+              footer={`Across ${shifts.length} shift${shifts.length === 1 ? "" : "s"}`}
+            />
+            <StatCard
+              label="Cash variance"
+              value={money(cashVariance)}
+              tone={cashVariance > 0 ? "warn" : "success"}
+              footer="Counted against expected, absolute"
+            />
           </div>
-        </div>
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
-          <AdminTrendChart
-            rows={trendRows}
-            series={[
-              { key: "opened", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
-              { key: "variance", label: "Variance", kind: "line", tone: "warning", dashed: true },
-              { key: "count", label: "Shifts", kind: "line", tone: "default", hiddenByDefault: true },
-            ]}
-            height={300}
-            valueFormatter={(value) => value.toFixed(2)}
-            yTickFormatter={(value) => value.toFixed(0)}
-            emptyLabel="Shift trend is loading"
+          <Card title="Sales, expected cash and variance by shift">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+              <AdminTrendChart
+                rows={trendRows}
+                series={[
+                  { key: "opened", label: "Sales", kind: "area", tone: "success", fillOpacity: 0.12 },
+                  { key: "variance", label: "Variance", kind: "line", tone: "warning", dashed: true },
+                  { key: "count", label: "Shifts", kind: "line", tone: "default", hiddenByDefault: true },
+                ]}
+                height={300}
+                valueFormatter={(value) => value.toFixed(2)}
+                yTickFormatter={(value) => value.toFixed(0)}
+                emptyLabel="No shift trend to show."
+              />
+              <AdminDonutChart
+                rows={statusRows}
+                valueLabel="Shifts"
+                valueFormatter={(value) => value.toString()}
+                height={300}
+                emptyLabel="No shift statuses to show."
+              />
+            </div>
+          </Card>
+
+          <Card title="Sales against expected cash on the busiest shifts">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+              <AdminDualBarChart
+                rows={shiftRows.slice(0, 8)}
+                primaryLabel="Sales"
+                secondaryLabel="Expected"
+                height={280}
+                valueFormatter={(value) => value.toFixed(2)}
+                emptyLabel="No shift cash data to show."
+              />
+              <AdminDistributionChart
+                rows={shiftRows.slice(0, 8).map((shift) => ({
+                  id: shift.id,
+                  label: shift.label,
+                  value: shift.variance,
+                  tone: shift.variance > 0 ? ("warning" as const) : ("success" as const),
+                }))}
+                valueLabel="Variance"
+                valueFormatter={(value) => value.toFixed(2)}
+                height={280}
+                emptyLabel="No variance to show."
+              />
+            </div>
+          </Card>
+
+          <DataTable
+            data={shifts}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search shifts"
+            emptyState="No shifts match that search."
           />
-          <AdminDonutChart
-            rows={statusRows}
-            valueLabel="Shifts"
-            valueFormatter={(value) => value.toString()}
-            height={300}
-            emptyLabel="Shift status is loading"
-          />
-        </div>
-      </section>
-
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Sales versus expected cash on the busiest shifts</h3>
-          </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
-              {new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(
-                shiftsQuery.data?.data.find((shift) => shift.status === "OPEN")?.variance ?? 0,
-              )}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
-          <AdminDualBarChart
-            rows={shiftRows.slice(0, 8)}
-            primaryLabel="Sales"
-            secondaryLabel="Expected"
-            height={280}
-            valueFormatter={(value) => value.toFixed(2)}
-            emptyLabel="Shift cash data is loading"
-          />
-          <AdminDistributionChart
-            rows={shiftRows.slice(0, 8).map((shift) => ({
-              id: shift.id,
-              label: shift.label,
-              value: shift.variance,
-              tone: shift.variance > 0 ? ("warning" as const) : ("success" as const),
-            }))}
-            valueLabel="Variance"
-            valueFormatter={(value) => value.toFixed(2)}
-            height={280}
-            emptyLabel="Variance distribution is loading"
-          />
-        </div>
-      </section>
-
-      <DataTable
-        data={shiftsQuery.data?.data ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search shifts"
-        emptyState={shiftsQuery.isLoading ? "Loading shifts..." : "No shifts yet"}
-
-      />
+        </>
+      )}
 
       <Dialog open={openDialog} onOpenChange={setOpenDialog}>
         <DialogContent className="sm:max-w-xl">
@@ -460,9 +525,9 @@ export default function RetailShiftsPage() {
               <label className="block text-sm font-semibold">Shift number</label>
               <Input value={shiftNo} readOnly disabled={isReserving} />
               {reserveError ? (
-                <p className="text-xs text-[var(--status-error-text)]">
-                  Could not reserve a shift number. {getApiErrorMessage(reserveError)}
-                </p>
+                <Alert tone="danger" title="Could not reserve a shift number">
+                  {getApiErrorMessage(reserveError)}
+                </Alert>
               ) : null}
             </div>
             {/*
@@ -522,12 +587,11 @@ export default function RetailShiftsPage() {
             <DialogTitle>Close shift</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
-            <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3 text-sm">
-              <div className="flex items-center justify-between gap-3">
-                <span>Expected cash</span>
-                <span className="font-mono">{closeTarget?.expectedCash.toFixed(2)}</span>
-              </div>
-            </div>
+            <StatCard
+              label="Expected cash"
+              value={money(closeTarget?.expectedCash ?? 0)}
+              footer={`${closeTarget?.shiftNo ?? ""} · ${closeTarget?.registerName ?? ""}`}
+            />
             <div className="space-y-2">
               <label className="block text-sm font-semibold">Counted cash</label>
               <Input value={closeCash} inputMode="decimal" onChange={(event) => setCloseCash(event.target.value)} />

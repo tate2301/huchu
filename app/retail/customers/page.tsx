@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import {
@@ -9,13 +10,11 @@ import {
   AdminDonutChart,
 } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
-import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
-import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type CustomerRow = {
   customerId: string | null;
@@ -32,39 +31,55 @@ type CustomerLoyaltyPayload = {
   customer: { id: string; name: string; phone: string | null; email: string | null };
   loyalty: { earnedPoints: number; redeemedPoints: number; balance: number; tier: string };
   ledger: Array<{
-    id: string; saleNo: string; saleType: string; postedAt: string;
-    amount: number; earnedPoints: number; redeemedPoints: number; delta: number;
+    id: string;
+    saleNo: string;
+    saleType: string;
+    postedAt: string;
+    amount: number;
+    earnedPoints: number;
+    redeemedPoints: number;
+    delta: number;
   }>;
 };
 
 function money(value: number) {
-  return new Intl.NumberFormat("en-US", { style: "currency", currency: "USD", maximumFractionDigits: 0 }).format(value);
+  return new Intl.NumberFormat("en-US", {
+    style: "currency",
+    currency: "USD",
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export default function RetailCustomersPage() {
   const [activeCustomer, setActiveCustomer] = useState<{ id: string; name: string } | null>(null);
-  const { data, isLoading } = useQuery({
+  const customersQuery = useQuery({
     queryKey: ["retail-customers-overview"],
-    queryFn: () => fetchJson<{ data: CustomerRow[]; summary: { namedCustomerCount: number; totalLoyaltyPoints: number } }>("/api/v2/retail/customers"),
+    queryFn: () =>
+      fetchJson<{
+        data: CustomerRow[];
+        summary: { namedCustomerCount: number; totalLoyaltyPoints: number };
+      }>("/api/v2/retail/customers"),
   });
   const loyaltyDetailQuery = useQuery({
     queryKey: ["retail-customer-loyalty", activeCustomer?.id],
-    queryFn: () => fetchJson<CustomerLoyaltyPayload>(`/api/v2/retail/customers/${activeCustomer?.id}/loyalty`),
+    queryFn: () =>
+      fetchJson<CustomerLoyaltyPayload>(`/api/v2/retail/customers/${activeCustomer?.id}/loyalty`),
     enabled: Boolean(activeCustomer?.id),
   });
 
   const customerRows = useMemo<CustomerRow[]>(
-    () => (data?.data ?? []).sort((a, b) => b.totalSpend - a.totalSpend),
-    [data?.data],
+    () => (customersQuery.data?.data ?? []).slice().sort((a, b) => b.totalSpend - a.totalSpend),
+    [customersQuery.data?.data],
   );
 
   const spendRows = useMemo(
-    () => customerRows.slice(0, 8).map((c) => ({
-      id: c.customerId ?? c.customerName,
-      label: c.customerName,
-      primary: c.totalSpend,
-      secondary: c.visits,
-    })),
+    () =>
+      customerRows.slice(0, 8).map((c) => ({
+        id: c.customerId ?? c.customerName,
+        label: c.customerName,
+        primary: c.totalSpend,
+        secondary: c.visits,
+      })),
     [customerRows],
   );
 
@@ -75,123 +90,245 @@ export default function RetailCustomersPage() {
   }, [customerRows]);
 
   const visitRows = useMemo(
-    () => customerRows.slice().sort((a, b) => b.visits - a.visits).slice(0, 8).map((c) => ({
-      id: c.customerId ?? c.customerName,
-      label: c.customerName,
-      value: c.visits,
-    })),
+    () =>
+      customerRows
+        .slice()
+        .sort((a, b) => b.visits - a.visits)
+        .slice(0, 8)
+        .map((c) => ({
+          id: c.customerId ?? c.customerName,
+          label: c.customerName,
+          value: c.visits,
+        })),
     [customerRows],
   );
 
-  const columns = useMemo<ColumnDef<CustomerRow>[]>(() => [
-    { id: "customerName", header: "Customer", cell: ({ row }) => (
-      <div>
-        <div className="font-medium">{row.original.customerName}</div>
-        <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.lastSaleNo}</div>
-      </div>
-    )},
-    { id: "visits", header: "Visits", cell: ({ row }) => <NumericCell>{row.original.visits}</NumericCell> },
-    { id: "totalSpend", header: "Spend", cell: ({ row }) => <NumericCell>{money(row.original.totalSpend)}</NumericCell> },
-    { id: "loyalty", header: "Loyalty", cell: ({ row }) => <NumericCell>{row.original.loyaltyPoints}</NumericCell> },
-    { id: "tier", header: "Tier", cell: ({ row }) => row.original.loyaltyTier },
-    { id: "actions", header: "", cell: ({ row }) => row.original.customerId ? (
-      <button
-        className="text-xs font-medium text-[var(--action-primary-bg)] hover:underline"
-        onClick={() => setActiveCustomer({ id: row.original.customerId!, name: row.original.customerName })}
-      >
-        Ledger
-      </button>
-    ) : null },
-  ], []);
+  const columns = useMemo<ColumnDef<CustomerRow>[]>(
+    () => [
+      {
+        id: "customerName",
+        header: "Customer",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.customerName}</div>
+            <div className="t-caption t-muted font-mono">{row.original.lastSaleNo}</div>
+          </div>
+        ),
+      },
+      {
+        id: "visits",
+        header: "Visits",
+        cell: ({ row }) => <NumericCell>{row.original.visits}</NumericCell>,
+      },
+      {
+        id: "totalSpend",
+        header: "Spend",
+        cell: ({ row }) => <NumericCell>{money(row.original.totalSpend)}</NumericCell>,
+      },
+      {
+        id: "loyalty",
+        header: "Loyalty",
+        cell: ({ row }) => <NumericCell>{row.original.loyaltyPoints}</NumericCell>,
+      },
+      { id: "tier", header: "Tier", cell: ({ row }) => row.original.loyaltyTier },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) =>
+          row.original.customerId ? (
+            <div className="flex justify-end">
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() =>
+                  setActiveCustomer({
+                    id: row.original.customerId!,
+                    name: row.original.customerName,
+                  })
+                }
+              >
+                Ledger
+              </Button>
+            </div>
+          ) : null,
+      },
+    ],
+    [],
+  );
+
+  const averageSpend = customerRows.length
+    ? customerRows.reduce((total, c) => total + c.totalSpend, 0) / customerRows.length
+    : 0;
+
+  if (customersQuery.isPending) {
+    return (
+      <RetailShell title="Customers" actions={undefined}>
+        <div aria-busy="true" aria-live="polite" className="space-y-5">
+          <span className="sr-only">Fetching the customer list…</span>
+          <div className="grid gap-5 xl:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={340} />
+          <Skeleton height={280} />
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (customersQuery.isError) {
+    return (
+      <RetailShell title="Customers" actions={undefined}>
+        <Alert tone="danger" title="Customers would not load">
+          {getApiErrorMessage(customersQuery.error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
 
   return (
     <RetailShell title="Customers" actions={undefined}>
-      <ReportFilterBar onExport={() => {}} />
+      {customerRows.length === 0 ? (
+        <EmptyState
+          title="No named customers yet"
+          body="A customer appears here once a cashier attaches a name or a loyalty number to a sale. Walk-in trade is not listed."
+        />
+      ) : (
+        <>
+          <div className="grid gap-5 xl:grid-cols-3">
+            <StatCard
+              label="Named customers"
+              value={String(customersQuery.data.summary.namedCustomerCount)}
+              footer="Walk-in trade excluded"
+            />
+            <StatCard
+              label="Top spend"
+              value={money(customerRows[0]?.totalSpend ?? 0)}
+              footer={customerRows[0]?.customerName ?? "No customer yet"}
+            />
+            <StatCard
+              label="Loyalty points"
+              value={String(customersQuery.data.summary.totalLoyaltyPoints)}
+              footer={`Average spend ${money(averageSpend)}`}
+            />
+          </div>
 
-      {/* KPI row */}
-      <div className="grid gap-5 xl:grid-cols-3">
-        <ReportChartShell title="Customers" sourceTag={{ label: "CRM" }}>
-          <ReportBigNumber label="Named customers" value={String(data?.summary.namedCustomerCount ?? 0)} />
-        </ReportChartShell>
-        <ReportChartShell title="Top spend" sourceTag={{ label: "Sales" }}>
-          <ReportBigNumber label="Top customer" value={customerRows[0] ? money(customerRows[0].totalSpend) : money(0)} dotColor="var(--status-success-border)" />
-        </ReportChartShell>
-        <ReportChartShell title="Loyalty" sourceTag={{ label: "Rewards" }}>
-          <ReportBigNumber label="Total points" value={String(data?.summary.totalLoyaltyPoints ?? 0)} dotColor="var(--status-warning-border)" />
-        </ReportChartShell>
-      </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
+            <Card title="Spend against visits" subtitle="The eight biggest accounts">
+              <AdminDualBarChart
+                rows={spendRows}
+                primaryLabel="Spend"
+                secondaryLabel="Visits"
+                height={300}
+                valueFormatter={(v) => v.toFixed(0)}
+                emptyLabel="No customer spend to show."
+              />
+            </Card>
+            <Card title="Loyalty tiers">
+              <AdminDonutChart
+                rows={tierRows}
+                valueLabel="Customers"
+                valueFormatter={(v) => v.toString()}
+                height={300}
+                emptyLabel="No tiers assigned yet."
+              />
+            </Card>
+          </div>
 
-      {/* Charts */}
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.4fr)_minmax(300px,0.8fr)]">
-        <ReportChartShell title="Spend vs visits" sourceTag={{ label: "Sales" }} legend={[{ label: "Spend", color: "var(--action-primary-bg)" }, { label: "Visits", color: "var(--status-info-border)" }]}>
-          <AdminDualBarChart rows={spendRows} primaryLabel="Spend" secondaryLabel="Visits" height={300} valueFormatter={(v) => v.toFixed(0)} />
-        </ReportChartShell>
-        <ReportChartShell title="Loyalty tiers" sourceTag={{ label: "Rewards" }}>
-          <AdminDonutChart rows={tierRows.length ? tierRows : [{ id: "none", label: "No tiers", value: 0 }]} valueLabel="Customers" valueFormatter={(v) => v.toString()} height={300} />
-        </ReportChartShell>
-      </div>
+          <Card title="Visit frequency" subtitle="Who comes back most often">
+            <AdminDistributionChart
+              rows={visitRows}
+              valueLabel="Visits"
+              valueFormatter={(v) => v.toString()}
+              height={280}
+              emptyLabel="No visits to show."
+            />
+          </Card>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-        <ReportChartShell title="Visit frequency" sourceTag={{ label: "CRM" }}>
-          <AdminDistributionChart rows={visitRows} valueLabel="Visits" valueFormatter={(v) => v.toString()} height={280} />
-        </ReportChartShell>
-        <ReportChartShell title="Avg spend" sourceTag={{ label: "Sales" }}>
-          <ReportBigNumber
-            label="Avg per customer"
-            value={money(customerRows.length ? customerRows.reduce((s, c) => s + c.totalSpend, 0) / customerRows.length : 0)}
-            dotColor="var(--action-primary-bg)"
+          <DataTable
+            data={customerRows}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search customers"
+            emptyState="No customers match that search."
           />
-        </ReportChartShell>
-      </div>
+        </>
+      )}
 
-      <DataTable
-        data={customerRows}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search customers"
-        emptyState={isLoading ? "Loading customers..." : "No customers yet"}
-      />
-
-      {/* Loyalty Dialog */}
-      <Dialog open={Boolean(activeCustomer)} onOpenChange={(open) => !open && setActiveCustomer(null)}>
+      <Dialog
+        open={Boolean(activeCustomer)}
+        onOpenChange={(open) => !open && setActiveCustomer(null)}
+      >
         <DialogContent className="max-w-3xl">
           <DialogHeader>
             <DialogTitle>Loyalty ledger — {activeCustomer?.name}</DialogTitle>
           </DialogHeader>
-          {!loyaltyDetailQuery.data ? (
-            <div className="py-6 text-sm text-[var(--text-muted)]">
-              {loyaltyDetailQuery.isLoading ? "Loading..." : "No data"}
+          {loyaltyDetailQuery.isPending ? (
+            <div aria-busy="true" className="space-y-3">
+              <Skeleton height={88} />
+              <Skeleton height={200} />
             </div>
+          ) : loyaltyDetailQuery.isError ? (
+            <Alert tone="danger" title="The loyalty ledger would not load">
+              {getApiErrorMessage(loyaltyDetailQuery.error)}
+            </Alert>
           ) : (
             <div className="space-y-3">
               <div className="grid gap-3 md:grid-cols-4">
-                {(["earnedPoints", "redeemedPoints", "balance", "tier"] as const).map((key) => (
-                  <div key={key} className="rounded-xl bg-[var(--surface-muted)] px-3 py-2">
-                    <div className="text-[10px] uppercase tracking-[0.14em] text-[var(--text-muted)]">{key.replace(/([A-Z])/g, " $1").trim()}</div>
-                    <div className="font-mono text-base font-semibold">{String(loyaltyDetailQuery.data.loyalty[key])}</div>
-                  </div>
-                ))}
+                <StatCard label="Earned" value={String(loyaltyDetailQuery.data.loyalty.earnedPoints)} />
+                <StatCard
+                  label="Redeemed"
+                  value={String(loyaltyDetailQuery.data.loyalty.redeemedPoints)}
+                />
+                <StatCard label="Balance" value={String(loyaltyDetailQuery.data.loyalty.balance)} />
+                <StatCard label="Tier" value={loyaltyDetailQuery.data.loyalty.tier} />
               </div>
-              <div className="overflow-auto rounded-xl border border-[var(--edge-subtle)]">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-[var(--surface-muted)] text-left text-xs uppercase tracking-[0.08em] text-[var(--text-muted)]">
-                    <tr>{["Sale", "Date", "Amount", "Earned", "Redeemed", "Net"].map((h) => <th key={h} className="px-3 py-2 text-right">{h}</th>)}</tr>
-                  </thead>
-                  <tbody>
-                    {loyaltyDetailQuery.data.ledger.map((e) => (
-                      <tr key={e.id} className="border-t border-[var(--edge-subtle)]">
-                        <td className="px-3 py-2 font-mono text-xs">{e.saleNo}</td>
-                        <td className="px-3 py-2">{new Date(e.postedAt).toLocaleDateString()}</td>
-                        <td className="px-3 py-2 text-right font-mono">{money(e.amount)}</td>
-                        <td className="px-3 py-2 text-right font-mono">{e.earnedPoints}</td>
-                        <td className="px-3 py-2 text-right font-mono">{e.redeemedPoints}</td>
-                        <td className="px-3 py-2 text-right font-mono">{e.delta}</td>
+              {loyaltyDetailQuery.data.ledger.length === 0 ? (
+                <EmptyState
+                  title="No points movement yet"
+                  body="Points earned and redeemed against this customer will be listed here."
+                />
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="table">
+                    <caption className="sr-only">
+                      Points earned and redeemed against {activeCustomer?.name}
+                    </caption>
+                    <thead>
+                      <tr>
+                        <th scope="col">Sale</th>
+                        <th scope="col">Date</th>
+                        <th scope="col" className="num">
+                          Amount
+                        </th>
+                        <th scope="col" className="num">
+                          Earned
+                        </th>
+                        <th scope="col" className="num">
+                          Redeemed
+                        </th>
+                        <th scope="col" className="num">
+                          Net
+                        </th>
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                    </thead>
+                    <tbody>
+                      {loyaltyDetailQuery.data.ledger.map((entry) => (
+                        <tr key={entry.id}>
+                          <td className="font-mono">{entry.saleNo}</td>
+                          <td>{new Date(entry.postedAt).toLocaleDateString()}</td>
+                          <td className="num">{money(entry.amount)}</td>
+                          <td className="num">{entry.earnedPoints}</td>
+                          <td className="num">{entry.redeemedPoints}</td>
+                          <td className="num">{entry.delta}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </div>
           )}
         </DialogContent>

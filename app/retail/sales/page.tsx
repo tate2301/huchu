@@ -11,8 +11,8 @@ import {
   AdminTrendChart,
   AdminDualBarChart,
 } from "@/components/charts/admin-headless-charts";
+import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -250,64 +250,106 @@ export default function RetailSalesPage() {
     [],
   );
 
-  return (
-    <RetailShell
-      title="Sales"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          {canOpenPos ? (
-            <Button asChild size="sm">
-              <Link href="/portal/pos">
-                <Payments className="h-4 w-4" />
-                Open POS
-              </Link>
-            </Button>
-          ) : null}
-          {!canOpenPos ? (
-            <Button asChild size="sm" variant="outline">
-              <Link href="/retail/shifts">
-                <ReceiptLong className="h-4 w-4" />
-                Shifts & Cash-up
-              </Link>
-            </Button>
-          ) : null}
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/catalog">
-              <Package className="h-4 w-4" />
-              Catalog
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/reports">
-              <BarChart3 className="h-4 w-4" />
-              Reports
-            </Link>
-          </Button>
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      {canOpenPos ? (
+        <Button asChild size="sm">
+          <Link href="/portal/pos">
+            <Payments className="h-4 w-4" />
+            Open POS
+          </Link>
+        </Button>
+      ) : (
+        <Button asChild size="sm" variant="outline">
+          <Link href="/retail/shifts">
+            <ReceiptLong className="h-4 w-4" />
+            Shifts & Cash-up
+          </Link>
+        </Button>
+      )}
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/catalog">
+          <Package className="h-4 w-4" />
+          Catalog
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/reports">
+          <BarChart3 className="h-4 w-4" />
+          Reports
+        </Link>
+      </Button>
+    </div>
+  );
+
+  if (salesQuery.isPending) {
+    return (
+      <RetailShell title="Sales" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching posted sales…</span>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={340} />
+          <Skeleton height={280} />
         </div>
-      }
-    >
-      {salesQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load retail sales</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(salesQuery.error)}</AlertDescription>
+      </RetailShell>
+    );
+  }
+
+  if (salesQuery.isError) {
+    return (
+      <RetailShell title="Sales" actions={actions}>
+        <Alert tone="danger" title="Retail sales would not load">
+          {getApiErrorMessage(salesQuery.error)}
         </Alert>
-      ) : null}
+      </RetailShell>
+    );
+  }
 
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">
-              Gross, refunds, voids, and net movement
-            </h2>
-          </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-              {money(salesQuery.data?.summary.netSales ?? 0)}
-            </p>
-          </div>
-        </div>
+  if (sales.length === 0) {
+    return (
+      <RetailShell title="Sales" actions={actions}>
+        <EmptyState
+          title="No sales posted yet"
+          body="Every ticket the till rings up lands here, with its refunds and voids alongside it."
+          action={
+            canOpenPos ? (
+              <Button asChild size="sm">
+                <Link href="/portal/pos">Open the till</Link>
+              </Button>
+            ) : undefined
+          }
+        />
+      </RetailShell>
+    );
+  }
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+  return (
+    <RetailShell title="Sales" actions={actions}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Net sales"
+          value={money(salesQuery.data.summary.netSales ?? 0)}
+          footer="After refunds and voids"
+        />
+        <StatCard
+          label="Gross sales"
+          value={money(salesQuery.data.summary.grossSales ?? 0)}
+          footer={`${postedSales.length} posted ticket${postedSales.length === 1 ? "" : "s"}`}
+        />
+        <StatCard
+          label="Exceptions"
+          value={String(refunds.length + exceptions.length)}
+          tone={refunds.length + exceptions.length > 0 ? "warn" : "neutral"}
+          footer={`${refunds.length} refund${refunds.length === 1 ? "" : "s"}, ${exceptions.length} void${exceptions.length === 1 ? "" : "s"}`}
+        />
+      </div>
+
+      <Card title="Gross, refunds, voids and net movement">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
           <AdminTrendChart
             rows={trendRows}
             series={[
@@ -321,48 +363,37 @@ export default function RetailSalesPage() {
             height={300}
             valueFormatter={money}
             yTickFormatter={money}
-            emptyLabel="Sales trend is loading"
+            emptyLabel="No sales in this window."
           />
           <AdminDonutChart
             rows={saleMixRows}
             valueLabel="Transactions"
             valueFormatter={(value) => value.toString()}
             height={300}
-            emptyLabel="Sale mix is loading"
+            emptyLabel="No sale mix to show."
           />
         </div>
-      </section>
+      </Card>
 
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest tickets in the current view</h3>
-          </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
-              {money(salesQuery.data?.summary.grossSales ?? 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
+      <Card title="Largest tickets in the current view">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
           <AdminDualBarChart
             rows={topTicketRows}
             primaryLabel="Amount"
             secondaryLabel="Items"
             height={280}
             valueFormatter={(value) => value.toFixed(0)}
-            emptyLabel="Top sales are loading"
+            emptyLabel="No tickets to rank."
           />
           <AdminDistributionChart
             rows={valueRows}
             valueLabel="Value"
             valueFormatter={money}
             height={280}
-            emptyLabel="Type totals are loading"
+            emptyLabel="No type totals to show."
           />
         </div>
-      </section>
+      </Card>
 
       <VerticalDataViews
         value={activeView}
@@ -381,8 +412,7 @@ export default function RetailSalesPage() {
             features={{ sorting: true, globalFilter: true, pagination: true }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search posted sales"
-            emptyState={salesQuery.isLoading ? "Loading sales..." : "No posted sales yet"}
-
+            emptyState="No posted sales match that search."
           />
         ) : null}
 
@@ -393,8 +423,7 @@ export default function RetailSalesPage() {
             features={{ sorting: true, globalFilter: true, pagination: true }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search refunds"
-            emptyState={salesQuery.isLoading ? "Loading refunds..." : "No refunds yet"}
-
+            emptyState="No refunds in this window."
           />
         ) : null}
 
@@ -405,8 +434,7 @@ export default function RetailSalesPage() {
             features={{ sorting: true, globalFilter: true, pagination: true }}
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search exceptions"
-            emptyState={salesQuery.isLoading ? "Loading exceptions..." : "No exceptions yet"}
-
+            emptyState="No voids or overrides in this window."
           />
         ) : null}
       </VerticalDataViews>
@@ -416,93 +444,97 @@ export default function RetailSalesPage() {
           <DialogHeader>
             <DialogTitle>{detailQuery.data?.data.saleNo ?? "Transaction detail"}</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-4">
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Type
-                </div>
-                <div className="mt-2 text-sm font-medium">{typeLabel(detailQuery.data?.data.saleType ?? "-")}</div>
-              </div>
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Total
-                </div>
-                <div className="mt-2 font-mono text-sm font-semibold">
-                  {money(detailQuery.data?.data.totalAmount ?? 0)}
-                </div>
-              </div>
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Promotion
-                </div>
-                <div className="mt-2 text-sm font-medium">{detailQuery.data?.data.promotionCode ?? "-"}</div>
-              </div>
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">
-                  Source
-                </div>
-                <div className="mt-2 text-sm font-medium">{detailQuery.data?.data.sourceSale?.saleNo ?? "-"}</div>
-              </div>
+          {detailQuery.isPending ? (
+            <div aria-busy="true" className="space-y-3">
+              <Skeleton height={88} />
+              <Skeleton height={160} />
             </div>
-
-            {detailQuery.data?.data.overrideReason || detailQuery.data?.data.voidReason || detailQuery.data?.data.notes ? (
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3 text-sm text-[var(--text-muted)]">
-                {detailQuery.data?.data.overrideReason ? <div>Override: {detailQuery.data.data.overrideReason}</div> : null}
-                {detailQuery.data?.data.voidReason ? <div>Void: {detailQuery.data.data.voidReason}</div> : null}
-                {detailQuery.data?.data.notes ? <div>Notes: {detailQuery.data.data.notes}</div> : null}
+          ) : detailQuery.isError ? (
+            <Alert tone="danger" title="That transaction would not open">
+              {getApiErrorMessage(detailQuery.error)}
+            </Alert>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid gap-3 md:grid-cols-4">
+                <StatCard label="Type" value={typeLabel(detailQuery.data.data.saleType)} />
+                <StatCard label="Total" value={money(detailQuery.data.data.totalAmount)} />
+                <StatCard label="Promotion" value={detailQuery.data.data.promotionCode ?? "None"} />
+                <StatCard label="Source" value={detailQuery.data.data.sourceSale?.saleNo ?? "None"} />
               </div>
-            ) : null}
 
-            <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-              <div className="text-sm font-medium">Lines</div>
-              <div className="mt-3 space-y-2">
-                {(detailQuery.data?.data.lines ?? []).map((line) => (
-                  <div key={line.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm">
-                    <div>
-                      <div className="font-medium">{line.itemName}</div>
-                      <div className="text-xs text-[var(--text-muted)]">
-                        {line.quantity.toFixed(2)} x {money(line.unitPrice)}
-                      </div>
-                    </div>
-                    <NumericCell>{money(line.lineTotal)}</NumericCell>
-                  </div>
-                ))}
-              </div>
-            </div>
+              {detailQuery.data.data.overrideReason ||
+              detailQuery.data.data.voidReason ||
+              detailQuery.data.data.notes ? (
+                <Alert tone="warn" title="Recorded against this transaction">
+                  {detailQuery.data.data.overrideReason ? (
+                    <div>Override: {detailQuery.data.data.overrideReason}</div>
+                  ) : null}
+                  {detailQuery.data.data.voidReason ? (
+                    <div>Void: {detailQuery.data.data.voidReason}</div>
+                  ) : null}
+                  {detailQuery.data.data.notes ? <div>Notes: {detailQuery.data.data.notes}</div> : null}
+                </Alert>
+              ) : null}
 
-            <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-              <div className="text-sm font-medium">Payments</div>
-              <div className="mt-3 space-y-2">
-                {(detailQuery.data?.data.payments ?? []).map((payment) => (
-                  <div key={payment.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm">
-                    <div>
-                      <div className="font-medium">{typeLabel(payment.tenderType)}</div>
-                      <div className="text-xs text-[var(--text-muted)]">{payment.reference ?? "No reference"}</div>
-                    </div>
-                    <NumericCell>{money(payment.amount)}</NumericCell>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {(detailQuery.data?.data.reversals ?? []).length > 0 ? (
-              <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-                <div className="text-sm font-medium">Reversals</div>
-                <div className="mt-3 space-y-2">
-                  {detailQuery.data?.data.reversals.map((reversal) => (
-                    <div key={reversal.id} className="flex items-center justify-between gap-3 rounded-2xl bg-[var(--surface-base)] px-3 py-3 text-sm">
+              <section aria-labelledby="sale-lines">
+                <h3 id="sale-lines" className="t-section t-strong">
+                  Lines
+                </h3>
+                <ul className="list-plain mt-2">
+                  {detailQuery.data.data.lines.map((line) => (
+                    <li key={line.id} className="list-item">
+                      <span className="lead" aria-hidden="true" />
                       <div>
-                        <div className="font-medium">{reversal.saleNo}</div>
-                        <div className="text-xs text-[var(--text-muted)]">{typeLabel(reversal.saleType)}</div>
+                        <div className="title bold">{line.itemName}</div>
+                        <div className="sub">
+                          {line.quantity.toFixed(2)} × {money(line.unitPrice)}
+                        </div>
                       </div>
-                      <NumericCell>{money(reversal.totalAmount)}</NumericCell>
-                    </div>
+                      <NumericCell>{money(line.lineTotal)}</NumericCell>
+                    </li>
                   ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
+                </ul>
+              </section>
+
+              <section aria-labelledby="sale-payments">
+                <h3 id="sale-payments" className="t-section t-strong">
+                  Payments
+                </h3>
+                <ul className="list-plain mt-2">
+                  {detailQuery.data.data.payments.map((payment) => (
+                    <li key={payment.id} className="list-item">
+                      <span className="lead" aria-hidden="true" />
+                      <div>
+                        <div className="title bold">{typeLabel(payment.tenderType)}</div>
+                        <div className="sub">{payment.reference ?? "No reference"}</div>
+                      </div>
+                      <NumericCell>{money(payment.amount)}</NumericCell>
+                    </li>
+                  ))}
+                </ul>
+              </section>
+
+              {detailQuery.data.data.reversals.length > 0 ? (
+                <section aria-labelledby="sale-reversals">
+                  <h3 id="sale-reversals" className="t-section t-strong">
+                    Reversals
+                  </h3>
+                  <ul className="list-plain mt-2">
+                    {detailQuery.data.data.reversals.map((reversal) => (
+                      <li key={reversal.id} className="list-item">
+                        <span className="lead" aria-hidden="true" />
+                        <div>
+                          <div className="title bold">{reversal.saleNo}</div>
+                          <div className="sub">{typeLabel(reversal.saleType)}</div>
+                        </div>
+                        <NumericCell>{money(reversal.totalAmount)}</NumericCell>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              ) : null}
+            </div>
+          )}
         </DialogContent>
       </Dialog>
     </RetailShell>

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import {
@@ -42,8 +42,17 @@ export function ReportFilterBar({
 }) {
   const [filters, setFilters] = useState<FilterRule[]>([]);
 
+  // A counter, not `crypto.randomUUID()`. That call is only defined in a secure
+  // context, and the tenant hosts are plain `http://<slug>.apps.pagka.local` —
+  // so `crypto.randomUUID` is `undefined` there and "Add filter" threw on the
+  // demo host while working perfectly on `https://` and on localhost. These ids
+  // never leave the component; they are React keys for rows in a local list, so
+  // a monotonic counter is not merely adequate, it is the right tool.
+  const nextFilterId = useRef(0);
+
   const addFilter = () => {
-    const id = crypto.randomUUID();
+    nextFilterId.current += 1;
+    const id = `filter-${nextFilterId.current}`;
     setFilters((prev) => [
       ...prev,
       { id, field: "Date", operator: "after", value: "" },

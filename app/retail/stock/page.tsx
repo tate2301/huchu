@@ -9,12 +9,28 @@ import {
   AdminDualBarChart,
   AdminDonutChart,
 } from "@/components/charts/admin-headless-charts";
+import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { fetchJson } from "@/lib/api-client";
-import { BarChart3, LocalShipping, Package, ReceiptLong, Scale, TableRows } from "@/lib/icons";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  BarChart3,
+  ChevronDown,
+  Grid3x3,
+  LocalShipping,
+  Package,
+  ReceiptLong,
+  Scale,
+  TableRows,
+} from "@/lib/icons";
 
 type RetailDashboardPayload = {
   summary: {
@@ -41,7 +57,7 @@ function money(value: number) {
 }
 
 export default function RetailStockPage() {
-  const { data, isLoading, error } = useQuery({
+  const { data, isPending, isError, error } = useQuery({
     queryKey: ["retail-stock-overview"],
     queryFn: () => fetchJson<RetailDashboardPayload>("/api/v2/retail"),
   });
@@ -130,127 +146,155 @@ export default function RetailStockPage() {
     [],
   );
 
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      <Button asChild size="sm">
+        <Link href="/retail/purchasing/receipts">
+          <ReceiptLong className="h-4 w-4" />
+          Receive stock
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/stock/count">
+          <Scale className="h-4 w-4" />
+          Stock count
+        </Link>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="gap-1">
+            <Grid3x3 className="h-4 w-4" />
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href="/retail/catalog" className="flex items-center gap-2">
+              <TableRows className="h-4 w-4" /> Catalog
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/stores/inventory" className="flex items-center gap-2">
+              <Package className="h-4 w-4" /> Store stock
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/stock/transfers" className="flex items-center gap-2">
+              <LocalShipping className="h-4 w-4" /> Transfers
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/reports" className="flex items-center gap-2">
+              <BarChart3 className="h-4 w-4" /> Insights
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  if (isPending) {
+    return (
+      <RetailShell title="Stock" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Reading the stock watchlist…</span>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={340} />
+          <Skeleton height={280} />
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (isError) {
+    return (
+      <RetailShell title="Stock" actions={actions}>
+        <Alert tone="danger" title="Stock would not load">
+          {getApiErrorMessage(error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
   return (
-    <RetailShell
-      title="Stock"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm">
-            <Link href="/retail/purchasing/receipts">
-              <ReceiptLong className="h-4 w-4" />
-              Receive stock
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/catalog">
-              <TableRows className="h-4 w-4" />
-              Catalog
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/stores/inventory">
-              <Package className="h-4 w-4" />
-              Store stock
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/stock/count">
-              <Scale className="h-4 w-4" />
-              Stock count
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-              <Link href="/retail/stock/transfers">
-              <LocalShipping className="h-4 w-4" />
-              Transfers
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/reports">
-              <BarChart3 className="h-4 w-4" />
-              Insights
-            </Link>
-          </Button>
-        </div>
-      }
-    >
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Availability, reorder pressure, and gap depth</h2>
-          </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-              {data?.summary.lowStockCount ?? 0}
-            </p>
-          </div>
-        </div>
+    <RetailShell title="Stock" actions={actions}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="On the watchlist"
+          value={String(data.summary.lowStockCount)}
+          tone={data.summary.lowStockCount > 0 ? "warn" : "success"}
+          footer="Lines at or under reorder"
+        />
+        <StatCard
+          label="On order"
+          value={money(data.summary.openOrderValue)}
+          footer="Placed, not yet received"
+        />
+        <StatCard
+          label="Received"
+          value={money(data.summary.goodsReceivedValue)}
+          footer="Goods booked in this period"
+        />
+      </div>
 
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
-          <AdminDualBarChart
-            rows={stockRows}
-            primaryLabel="On hand"
-            secondaryLabel="Reorder"
-            height={300}
-            valueFormatter={(value) => value.toFixed(2)}
-            emptyLabel="Stock coverage is loading"
+      {data.lowStock.length === 0 ? (
+        <EmptyState
+          title="Nothing is running low"
+          body="Lines appear on this watchlist as soon as they fall to their reorder point, so you can order before the weekend."
+          action={
+            <Button asChild size="sm">
+              <Link href="/retail/purchasing/receipts">Receive stock</Link>
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <Card title="Availability, reorder pressure and gap depth">
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.85fr)]">
+              <AdminDualBarChart
+                rows={stockRows}
+                primaryLabel="On hand"
+                secondaryLabel="Reorder"
+                height={300}
+                valueFormatter={(value) => value.toFixed(2)}
+                emptyLabel="No stock coverage to show."
+              />
+              <AdminDonutChart
+                rows={stockHealthRows}
+                valueLabel="Items"
+                valueFormatter={(value) => value.toString()}
+                height={300}
+                emptyLabel="No stock health to show."
+              />
+            </div>
+          </Card>
+
+          <Card title="Largest reorder gaps in the current watchlist">
+            <AdminDistributionChart
+              rows={gapRows}
+              valueLabel="Gap"
+              valueFormatter={(value) => value.toFixed(2)}
+              height={280}
+              emptyLabel="No reorder gaps to show."
+            />
+          </Card>
+
+          <DataTable
+            data={data.lowStock}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search low stock items"
+            emptyState="No low-stock lines match that search."
+            toolbar={<span className="t-body-sm t-muted">Low-stock watchlist</span>}
           />
-          <AdminDonutChart
-            rows={stockHealthRows}
-            valueLabel="Items"
-            valueFormatter={(value) => value.toString()}
-            height={300}
-            emptyLabel="Stock health is loading"
-          />
-        </div>
-      </section>
-
-      <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-        <div className="flex flex-wrap items-end justify-between gap-4">
-          <div>
-            <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Largest reorder gaps in the current watchlist</h3>
-          </div>
-          <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-            <p className="font-mono text-2xl font-semibold text-[var(--text-strong)]">
-              {money(data?.summary.openOrderValue ?? 0)}
-            </p>
-          </div>
-        </div>
-
-        <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.75fr)]">
-          <AdminDistributionChart
-            rows={gapRows}
-            valueLabel="Gap"
-            valueFormatter={(value) => value.toFixed(2)}
-            height={280}
-            emptyLabel="Reorder gaps are loading"
-          />
-          <div className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
-            <p className="mt-2 font-mono text-3xl font-semibold text-[var(--text-strong)]">
-              {money(data?.summary.goodsReceivedValue ?? 0)}
-            </p>
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              Stock movement is still listed below, but the chart now carries the visual signal up front.
-            </p>
-          </div>
-        </div>
-      </section>
-
-      {error ? (
-        <div className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
-          Unable to load stock data.
-        </div>
-      ) : null}
-
-      <DataTable
-        data={data?.lowStock ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search low stock items"
-        emptyState={isLoading ? "Loading stock..." : "No low-stock items"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Low-stock watchlist</span>}
-      />
+        </>
+      )}
     </RetailShell>
   );
 }

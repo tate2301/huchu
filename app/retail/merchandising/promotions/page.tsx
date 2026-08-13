@@ -8,10 +8,8 @@ import {
   AdminDistributionChart,
   AdminDonutChart,
 } from "@/components/charts/admin-headless-charts";
+import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
-import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
-import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -143,7 +141,7 @@ export default function RetailPromotionsPage() {
     { id: "status", header: "Status", cell: ({ row }) => row.original.status },
     { id: "actions", header: "", cell: ({ row }) => (
       <div className="flex justify-end gap-2">
-        <Button size="sm" variant="outline" onClick={() => { setEditing(row.original); setForm({
+        <Button size="sm" variant="outline" aria-label={`Edit ${row.original.name}`} onClick={() => { setEditing(row.original); setForm({
           name: row.original.name, type: row.original.type, value: String(row.original.value),
           startsAt: row.original.startsAt ? row.original.startsAt.slice(0, 16) : "",
           endsAt: row.original.endsAt ? row.original.endsAt.slice(0, 16) : "",
@@ -151,68 +149,144 @@ export default function RetailPromotionsPage() {
         }); setDialogOpen(true); }}>
           <Pencil className="h-4 w-4" />
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setDeleteTarget(row.original)}>
+        <Button
+          size="sm"
+          variant="outline"
+          aria-label={`Remove ${row.original.name}`}
+          onClick={() => setDeleteTarget(row.original)}
+        >
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
     )},
   ], []);
 
+  const newPromotionButton = (
+    <Button
+      size="sm"
+      onClick={() => {
+        setEditing(null);
+        setForm(emptyForm());
+        setDialogOpen(true);
+      }}
+    >
+      <Plus className="h-4 w-4" />
+      New promotion
+    </Button>
+  );
+
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      {newPromotionButton}
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/merchandising/pricing">
+          <Wallet className="h-4 w-4" />
+          Pricing
+        </Link>
+      </Button>
+    </div>
+  );
+
+  if (promotionsQuery.isPending) {
+    return (
+      <RetailShell title="Promotions" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-5">
+          <span className="sr-only">Fetching promotions…</span>
+          <div className="grid gap-5 xl:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={300} />
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (promotionsQuery.isError) {
+    return (
+      <RetailShell title="Promotions" actions={actions}>
+        <Alert tone="danger" title="Promotions would not load">
+          {getApiErrorMessage(promotionsQuery.error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
+  const averageValue = promotions.length
+    ? promotions.reduce((s, p) => s + p.value, 0) / promotions.length
+    : 0;
+
   return (
-    <RetailShell title="Promotions" actions={
-      <div className="flex flex-wrap gap-2">
-        <Button size="sm" onClick={() => { setEditing(null); setForm(emptyForm()); setDialogOpen(true); }}>
-          <Plus className="h-4 w-4" />New
-        </Button>
-        <Button asChild size="sm" variant="outline">
-          <Link href="/retail/merchandising/pricing"><Wallet className="h-4 w-4" />Pricing</Link>
-        </Button>
-      </div>
-    }>
-      <ReportFilterBar onExport={() => {}} />
+    <RetailShell title="Promotions" actions={actions}>
+      {promotions.length === 0 ? (
+        <EmptyState
+          title="No promotions set up"
+          body="A promotion is a discount the till applies at checkout — a percentage off a line, a fixed amount off a basket, or a bundle."
+          action={newPromotionButton}
+        />
+      ) : (
+        <>
+          <div className="grid gap-5 xl:grid-cols-3">
+            <StatCard
+              label="Running now"
+              value={activeCount.toString()}
+              tone={activeCount > 0 ? "success" : "neutral"}
+              footer="Applied by the till at checkout"
+            />
+            <StatCard
+              label="All campaigns"
+              value={promotions.length.toString()}
+              footer={`${new Set(promotions.map((p) => p.type)).size} type${new Set(promotions.map((p) => p.type)).size === 1 ? "" : "s"} in use`}
+            />
+            <StatCard
+              label="Average value"
+              value={averageValue.toFixed(2)}
+              footer="Percent or amount, as configured"
+            />
+          </div>
 
-      <div className="grid gap-5 xl:grid-cols-3">
-        <ReportChartShell title="Active" sourceTag={{ label: "Promotions" }}>
-          <ReportBigNumber label="Active campaigns" value={activeCount.toString()} dotColor="var(--status-success-border)" />
-        </ReportChartShell>
-        <ReportChartShell title="Total" sourceTag={{ label: "Promotions" }}>
-          <ReportBigNumber label="Total campaigns" value={promotions.length.toString()} dotColor="var(--status-info-border)" />
-        </ReportChartShell>
-        <ReportChartShell title="Types" sourceTag={{ label: "Promotions" }}>
-          <ReportBigNumber label="Type variants" value={String(new Set(promotions.map((p) => p.type)).size)} dotColor="var(--action-primary-bg)" />
-        </ReportChartShell>
-      </div>
+          <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
+            <Card title="Promotion values" subtitle="The eight richest offers">
+              <AdminDistributionChart
+                rows={valueRows}
+                valueLabel="Value"
+                valueFormatter={(v) => v.toFixed(2)}
+                height={280}
+                emptyLabel="No promotion values to show."
+              />
+            </Card>
+            <Card title="Status">
+              <AdminDonutChart
+                rows={statusRows}
+                valueLabel="Count"
+                valueFormatter={(v) => v.toString()}
+                height={280}
+                emptyLabel="No statuses to show."
+              />
+            </Card>
+          </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-        <ReportChartShell title="Promotion values" sourceTag={{ label: "Promotions" }}>
-          <AdminDistributionChart rows={valueRows} valueLabel="Value" valueFormatter={(v) => v.toFixed(2)} height={280} />
-        </ReportChartShell>
-        <ReportChartShell title="Status" sourceTag={{ label: "Promotions" }}>
-          <AdminDonutChart rows={statusRows} valueLabel="Count" valueFormatter={(v) => v.toString()} height={280} />
-        </ReportChartShell>
-      </div>
+          <Card title="Type distribution">
+            <AdminDonutChart
+              rows={typeRows}
+              valueLabel="Count"
+              valueFormatter={(v) => v.toString()}
+              height={260}
+              emptyLabel="No types to show."
+            />
+          </Card>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1.2fr)_minmax(300px,0.8fr)]">
-        <ReportChartShell title="Type distribution" sourceTag={{ label: "Promotions" }}>
-          <AdminDonutChart rows={typeRows} valueLabel="Count" valueFormatter={(v) => v.toString()} height={260} />
-        </ReportChartShell>
-        <ReportChartShell title="Avg value" sourceTag={{ label: "Promotions" }}>
-          <ReportBigNumber
-            label="Avg value"
-            value={promotions.length ? (promotions.reduce((s, p) => s + p.value, 0) / promotions.length).toFixed(2) : "0"}
-            dotColor="var(--action-primary-bg)"
+          <DataTable
+            data={promotions}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search promotions"
+            emptyState="No promotions match that search."
           />
-        </ReportChartShell>
-      </div>
-
-      <DataTable
-        data={promotions}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search promotions"
-        emptyState={promotionsQuery.isLoading ? "Loading..." : "No promotions"}
-      />
+        </>
+      )}
 
       {/* Edit/Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -240,7 +314,9 @@ export default function RetailPromotionsPage() {
                 <label className="block text-sm font-semibold">Value</label>
                 <Input value={form.value} inputMode="decimal" onChange={(e) => setForm((c) => ({ ...c, value: e.target.value }))} />
                 {form.value !== "" && (isNaN(Number(form.value)) || Number(form.value) <= 0) ? (
-                  <p className="text-xs text-red-600">Value must be greater than 0</p>
+                  <p className="t-body-sm text-[color:var(--tone-danger-strong)]">
+                    Value must be greater than 0
+                  </p>
                 ) : null}
               </div>
             </div>
@@ -260,9 +336,9 @@ export default function RetailPromotionsPage() {
                   <label className="block text-sm font-semibold">Promo code</label>
                   <Input value={editing ? editing.promoCode : promoCode} readOnly disabled={isReserving && !editing} />
                   {reserveError && !editing ? (
-                    <p className="text-xs text-[var(--status-error-text)]">
-                      Could not reserve a promo code. {getApiErrorMessage(reserveError)}
-                    </p>
+                    <Alert tone="danger" title="Could not reserve a promo code">
+                      {getApiErrorMessage(reserveError)}
+                    </Alert>
                   ) : null}
                 </div>
                 <div className="space-y-2">
@@ -304,10 +380,22 @@ export default function RetailPromotionsPage() {
       {/* Delete Dialog */}
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Remove promotion</DialogTitle></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>Remove {deleteTarget?.name ?? "promotion"}</DialogTitle>
+          </DialogHeader>
+          <p className="t-body t-muted">
+            The till stops applying {deleteTarget?.promoCode ?? "this promotion"} at checkout. Sales
+            already discounted by it keep their discount.
+          </p>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>Remove</Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              Remove {deleteTarget?.promoCode ?? ""}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

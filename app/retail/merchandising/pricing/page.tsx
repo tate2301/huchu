@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -153,62 +154,101 @@ export default function RetailPricingPage() {
     [drafts, updateMutation],
   );
 
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/catalog">
+          <Package className="h-4 w-4" />
+          Catalog
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/merchandising/promotions">
+          <ReceiptLong className="h-4 w-4" />
+          Promotions
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/reports">
+          <BarChart3 className="h-4 w-4" />
+          Reports
+        </Link>
+      </Button>
+    </div>
+  );
+
+  if (catalogQuery.isPending) {
+    return (
+      <RetailShell title="Pricing" actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Reading shelf prices…</span>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={360} />
+        </div>
+      </RetailShell>
+    );
+  }
+
+  if (catalogQuery.isError) {
+    return (
+      <RetailShell title="Pricing" actions={actions}>
+        <Alert tone="danger" title="Shelf prices would not load">
+          {getApiErrorMessage(catalogQuery.error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
+  const items = catalogQuery.data.data;
+  const averagePrice = items.length
+    ? items.reduce((total, item) => total + item.unitPrice, 0) / items.length
+    : 0;
+  const compareAtCount = items.filter(
+    (item) => item.compareAtPrice && item.compareAtPrice > item.unitPrice,
+  ).length;
+
   return (
-    <RetailShell
-      title="Pricing"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/catalog">
-              <Package className="h-4 w-4" />
-              Catalog
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/merchandising/promotions">
-              <ReceiptLong className="h-4 w-4" />
-              Promotions
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/reports">
-              <BarChart3 className="h-4 w-4" />
-              Reports
-            </Link>
-          </Button>
-        </div>
-      }
-    >
-      <div className="grid gap-3 md:grid-cols-3">
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Active items</div>
-          <div className="mt-2 font-mono text-xl font-semibold">{catalogQuery.data?.data.length ?? 0}</div>
-        </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Average sell price</div>
-          <div className="mt-2 font-mono text-xl font-semibold">
-            {(
-              (catalogQuery.data?.data.reduce((total, item) => total + item.unitPrice, 0) ?? 0) /
-              Math.max(catalogQuery.data?.data.length ?? 1, 1)
-            ).toFixed(2)}
+    <RetailShell title="Pricing" actions={actions}>
+      {items.length === 0 ? (
+        <EmptyState
+          title="Nothing is priced yet"
+          body="Add an item to the catalogue and its shelf price becomes editable here, line by line."
+          action={
+            <Button asChild size="sm">
+              <Link href="/retail/catalog">Open the catalogue</Link>
+            </Button>
+          }
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatCard label="Priced lines" value={String(items.length)} footer="On the shelf today" />
+            <StatCard
+              label="Average shelf price"
+              value={averagePrice.toFixed(2)}
+              footer="Across every line"
+            />
+            <StatCard
+              label="Showing a was-price"
+              value={String(compareAtCount)}
+              footer="Compare-at above the sell price"
+            />
           </div>
-        </div>
-        <div className="rounded-2xl bg-[var(--surface-muted)] px-3 py-3">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.16em] text-[var(--text-muted)]">Compare-at coverage</div>
-          <div className="mt-2 font-mono text-xl font-semibold">
-            {catalogQuery.data?.data.filter((item) => item.compareAtPrice && item.compareAtPrice > item.unitPrice).length ?? 0}
-          </div>
-        </div>
-      </div>
-      <DataTable
-        data={catalogQuery.data?.data ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search pricing"
-        emptyState={catalogQuery.isLoading ? "Loading pricing..." : "No retail items yet"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Live shelf pricing</span>}
-      />
+          <DataTable
+            data={items}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search pricing"
+            emptyState="No lines match that search."
+            toolbar={<span className="t-body-sm t-muted">Live shelf pricing</span>}
+          />
+        </>
+      )}
     </RetailShell>
   );
 }

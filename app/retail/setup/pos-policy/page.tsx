@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Badge, Card, Skeleton, StatCard } from "@corelithzw/react";
 import { AdminDistributionChart, AdminDualBarChart, AdminDonutChart } from "@/components/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
@@ -159,115 +160,130 @@ export default function RetailSetupPosPolicyPage() {
     [query.data?.saved],
   );
 
-  return (
-    <RetailShell
-      title="POS policy"
-      description="Tune the checkout guardrails without slowing the cashier down."
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/setup">
-              <Settings2 className="h-4 w-4" />
-              Overview
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/setup/operations">
-              <CheckCircle2 className="h-4 w-4" />
-              Operations
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/setup/accounting">
-              <ShieldCheck className="h-4 w-4" />
-              Accounting
-            </Link>
-          </Button>
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/setup">
+          <Settings2 className="h-4 w-4" />
+          Overview
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/setup/operations">
+          <CheckCircle2 className="h-4 w-4" />
+          Operations
+        </Link>
+      </Button>
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/setup/accounting">
+          <ShieldCheck className="h-4 w-4" />
+          Accounting
+        </Link>
+      </Button>
+    </div>
+  );
+
+  const description = "Tune the checkout guardrails without slowing the cashier down.";
+
+  if (query.isPending) {
+    return (
+      <RetailShell title="POS policy" description={description} actions={actions}>
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Reading the checkout policy…</span>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={340} />
+          <Skeleton height={280} />
         </div>
-      }
-    >
+      </RetailShell>
+    );
+  }
+
+  if (query.isError) {
+    return (
+      <RetailShell title="POS policy" description={description} actions={actions}>
+        <Alert tone="danger" title="The checkout policy would not load">
+          {getApiErrorMessage(query.error)}
+        </Alert>
+      </RetailShell>
+    );
+  }
+
+  return (
+    <RetailShell title="POS policy" description={description} actions={actions}>
+      <div className="grid gap-4 sm:grid-cols-3">
+        <StatCard
+          label="Policy state"
+          value={query.data.saved ? "Saved" : "Draft"}
+          tone={query.data.saved ? "success" : "warn"}
+          footer={query.data.saved ? "Backed by provider config" : "Running on setup defaults"}
+        />
+        <StatCard
+          label="Tenders needing a reference"
+          value={String(effectivePolicy.requiredReferenceTenders.length)}
+          footer={`Minimum ${effectivePolicy.minReferenceLength} characters`}
+        />
+        <StatCard
+          label="Refund guard"
+          value={effectivePolicy.requireSupervisorForRefunds ? "Supervisor" : "Cashier"}
+          tone={effectivePolicy.requireSupervisorForRefunds ? "success" : "warn"}
+          footer="Who can approve a refund"
+        />
+      </div>
+
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.95fr)]">
         <div className="space-y-6">
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Checkout guardrails</p>
-                <h2 className="mt-1 text-2xl font-semibold text-[var(--text-strong)]">Fast lane with sensible controls</h2>
-                <p className="mt-2 max-w-2xl text-sm text-[var(--text-muted)]">
-                  The policy should protect the business without making every tender feel like a compliance exercise.
-                  The important part is that the rules are deliberate and saved in one place.
-                </p>
-              </div>
-              <div className="rounded-2xl bg-[var(--surface-subtle)] px-4 py-3 text-right">
-                <p className="text-xs uppercase tracking-[0.18em] text-[var(--text-muted)]">Policy state</p>
-                <p className="font-mono text-3xl font-semibold text-[var(--text-strong)]">
-                  {query.data?.saved ? "Saved" : "Draft"}
-                </p>
-                <p className="text-xs text-[var(--text-muted)]">
-                  {query.data ? "Provider config backed" : "Loading policy"}
-                </p>
-              </div>
-            </div>
-
-            <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
+          <Card
+            title="Fast lane with sensible controls"
+            subtitle="Protect the takings without making every tender feel like a compliance exercise."
+          >
+            <div className="grid gap-5 xl:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
               <AdminDualBarChart
                 rows={chartRows}
                 primaryLabel="Configured"
                 secondaryLabel="Missing"
                 height={300}
                 valueFormatter={(value) => value.toString()}
-                emptyLabel="POS policy is loading"
+                emptyLabel="No policy rules to chart."
               />
               <AdminDonutChart
                 rows={readyRows}
                 valueLabel="Policy state"
                 valueFormatter={(value) => value.toString()}
                 height={300}
-                emptyLabel="POS policy is loading"
+                emptyLabel="No policy state to show."
               />
             </div>
-          </section>
+          </Card>
 
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Tender references</p>
-                <h3 className="mt-1 text-xl font-semibold text-[var(--text-strong)]">Which tenders must carry a reference?</h3>
-              </div>
+          <Card
+            title="Which tenders must carry a reference?"
+            actions={
               <Button asChild variant="ghost" size="sm">
                 <Link href="/retail/setup/accounting">
                   Accounting map
                   <ArrowRight className="h-4 w-4" />
                 </Link>
               </Button>
-            </div>
-
-            <div className="mt-4">
-              <AdminDistributionChart
-                rows={tenderRows}
-                valueLabel="Required tenders"
-                valueFormatter={(value) => value.toString()}
-                height={260}
-                emptyLabel="Tender references are loading"
-              />
-            </div>
-          </section>
+            }
+          >
+            <AdminDistributionChart
+              rows={tenderRows}
+              valueLabel="Required tenders"
+              valueFormatter={(value) => value.toString()}
+              height={260}
+              emptyLabel="No tenders configured."
+            />
+          </Card>
         </div>
 
         <aside className="space-y-4">
-          <section className="rounded-[28px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] p-5 shadow-[var(--shadow-card)]">
-            <div className="flex items-center gap-3">
-              <div className="rounded-2xl bg-[var(--surface-subtle)] p-3 text-[var(--text-strong)]">
-                <ShieldCheck className="h-5 w-5" />
-              </div>
-              <div>
-                <p className="text-sm font-medium uppercase tracking-[0.18em] text-[var(--text-muted)]">Controls</p>
-                <h3 className="text-lg font-semibold text-[var(--text-strong)]">Edit the policy</h3>
-              </div>
-            </div>
-
+          <Card title="Edit the policy" subtitle="Applies to every till in the shop.">
             <form
-              className="mt-4 space-y-4"
+              className="space-y-4"
               onSubmit={(event) => {
                 event.preventDefault();
                 if (effectivePolicy.requiredReferenceTenders.length === 0) {
@@ -285,7 +301,7 @@ export default function RetailSetupPosPolicyPage() {
                     return (
                       <label
                         key={tender}
-                        className="flex min-h-12 items-center gap-3 rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3 text-sm"
+                        className="flex min-h-12 items-center gap-3 border-b border-[color:var(--border-subtle)] py-2 last:border-b-0"
                       >
                         <Checkbox
                           checked={checked}
@@ -333,12 +349,12 @@ export default function RetailSetupPosPolicyPage() {
                         referencePattern: event.target.value,
                       }))
                     }
-                    className="h-12 font-mono text-xs"
+                    className="h-12 font-mono"
                   />
                 </div>
               </div>
 
-              <div className="space-y-3 rounded-2xl border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] p-4">
+              <div className="space-y-3 border-t border-[color:var(--border-subtle)] pt-4">
                 {[
                   {
                     label: "Allow split tender",
@@ -361,7 +377,7 @@ export default function RetailSetupPosPolicyPage() {
                     value: "requireSupervisorForRefunds",
                   },
                 ].map((item) => (
-                  <label key={item.value} className="flex items-start gap-3 rounded-xl px-1 py-1">
+                  <label key={item.value} className="flex items-start gap-3 py-1">
                     <Checkbox
                       checked={effectivePolicy[item.value as keyof RetailPosPolicy] as boolean}
                       onCheckedChange={(next) =>
@@ -372,24 +388,24 @@ export default function RetailSetupPosPolicyPage() {
                       }
                     />
                     <div className="space-y-1">
-                      <span className="block text-sm font-medium text-[var(--text-strong)]">{item.label}</span>
-                      <span className="block text-xs text-[var(--text-muted)]">{item.description}</span>
+                      <span className="t-body-sm block font-medium text-[color:var(--text-strong)]">
+                        {item.label}
+                      </span>
+                      <span className="t-caption t-muted block">{item.description}</span>
                     </div>
                   </label>
                 ))}
               </div>
 
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <Button type="submit" disabled={saveMutation.isPending}>
                   <Save className="h-4 w-4" />
                   Save POS policy
                 </Button>
-                <Button asChild variant="outline">
-                  <Link href="/retail/setup/operations">Operations</Link>
-                </Button>
+                {draft ? <Badge tone="warn">Unsaved changes</Badge> : null}
               </div>
             </form>
-          </section>
+          </Card>
         </aside>
       </div>
     </RetailShell>

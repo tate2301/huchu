@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
@@ -18,6 +19,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -31,7 +38,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Grid3x3, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type CatalogItem = {
@@ -289,6 +296,7 @@ export default function RetailCatalogPage() {
               type="button"
               variant="outline"
               size="sm"
+              aria-label={`Edit ${row.original.name}`}
               onClick={() => {
                 setEditing(row.original);
                 setForm({
@@ -307,7 +315,13 @@ export default function RetailCatalogPage() {
             >
               <Pencil className="h-4 w-4" />
             </Button>
-            <Button type="button" variant="outline" size="sm" onClick={() => setDeleteTarget(row.original)}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              aria-label={`Remove ${row.original.name}`}
+              onClick={() => setDeleteTarget(row.original)}
+            >
               <Trash2 className="h-4 w-4" />
             </Button>
           </div>
@@ -317,52 +331,108 @@ export default function RetailCatalogPage() {
     [],
   );
 
-  return (
-    <RetailShell
-      title="Catalog"
-      actions={
-        <div className="flex flex-wrap gap-2">
-          <Button
-            size="sm"
-            onClick={() => {
-              setEditing(null);
-              setForm(emptyForm());
-              setDialogOpen(true);
-            }}
-          >
-            <Plus className="h-4 w-4" />
-            New item
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/merchandising/pricing">
-              <Wallet className="h-4 w-4" />
-              Pricing
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/merchandising/promotions">
-              <ReceiptLong className="h-4 w-4" />
-              Promotions
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/retail/purchasing/orders">
-              <ReceiptLong className="h-4 w-4" />
-              Purchase Orders
-            </Link>
-          </Button>
-        </div>
-      }
+  const newItemButton = (
+    <Button
+      size="sm"
+      onClick={() => {
+        setEditing(null);
+        setForm(emptyForm());
+        setDialogOpen(true);
+      }}
     >
-      <DataTable
-        data={catalogQuery.data?.data ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search catalog"
-        emptyState={catalogQuery.isLoading ? "Loading catalog..." : "No catalog items yet"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Sellable retail items</span>}
-      />
+      <Plus className="h-4 w-4" />
+      New item
+    </Button>
+  );
+
+  const actions = (
+    <div className="flex flex-wrap gap-2">
+      {newItemButton}
+      <Button asChild size="sm" variant="outline">
+        <Link href="/retail/merchandising/pricing">
+          <Wallet className="h-4 w-4" />
+          Pricing
+        </Link>
+      </Button>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="gap-1">
+            <Grid3x3 className="h-4 w-4" />
+            <span className="hidden sm:inline">More</span>
+            <ChevronDown className="h-3 w-3" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          <DropdownMenuItem asChild>
+            <Link href="/retail/merchandising/promotions" className="flex items-center gap-2">
+              <ReceiptLong className="h-4 w-4" /> Promotions
+            </Link>
+          </DropdownMenuItem>
+          <DropdownMenuItem asChild>
+            <Link href="/retail/purchasing/orders" className="flex items-center gap-2">
+              <ReceiptLong className="h-4 w-4" /> Purchase orders
+            </Link>
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </div>
+  );
+
+  const catalogItems = catalogQuery.data?.data ?? [];
+  const activeItems = catalogItems.filter((item) => item.status === "ACTIVE").length;
+  const outOfStock = catalogItems.filter(
+    (item) => (item.inventoryItem?.currentStock ?? 0) <= 0,
+  ).length;
+
+  return (
+    <RetailShell title="Catalog" actions={actions}>
+      {catalogQuery.isPending ? (
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching the catalogue…</span>
+          <div className="grid gap-4 md:grid-cols-3">
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+            <Skeleton height={104} />
+          </div>
+          <Skeleton height={360} />
+        </div>
+      ) : catalogQuery.isError ? (
+        <Alert tone="danger" title="The catalogue would not load">
+          {getApiErrorMessage(catalogQuery.error)}
+        </Alert>
+      ) : catalogItems.length === 0 ? (
+        <EmptyState
+          title="Nothing is on the shelf yet"
+          body="A catalogue item links a stock line to a shelf price, which is what the till sells. Add the first one to start trading."
+          action={newItemButton}
+        />
+      ) : (
+        <>
+          <div className="grid gap-4 md:grid-cols-3">
+            <StatCard label="Sellable lines" value={String(catalogItems.length)} footer="In the catalogue" />
+            <StatCard
+              label="Active"
+              value={String(activeItems)}
+              footer="Rung up by the till today"
+            />
+            <StatCard
+              label="Out of stock"
+              value={String(outOfStock)}
+              tone={outOfStock > 0 ? "warn" : "success"}
+              footer="Priced but nothing on hand"
+            />
+          </div>
+          <DataTable
+            data={catalogItems}
+            columns={columns}
+            features={{ sorting: true, globalFilter: true, pagination: true }}
+            pagination={{ enabled: true, server: false }}
+            searchPlaceholder="Search catalog"
+            emptyState="No catalogue lines match that search."
+            toolbar={<span className="t-body-sm t-muted">Sellable retail items</span>}
+          />
+        </>
+      )}
 
       <Dialog
         open={dialogOpen}
@@ -413,7 +483,9 @@ export default function RetailCatalogPage() {
               <label className="block text-sm font-semibold">Sell price</label>
               <Input value={form.unitPrice} inputMode="decimal" onChange={(event) => setForm((current) => ({ ...current, unitPrice: event.target.value }))} />
               {priceIsInvalid ? (
-                <p className="text-xs text-red-600">Price must be greater than 0</p>
+                <p className="t-body-sm text-[color:var(--tone-danger-strong)]">
+                  Price must be greater than 0
+                </p>
               ) : null}
             </div>
 
@@ -605,13 +677,20 @@ export default function RetailCatalogPage() {
       <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Remove catalog item</DialogTitle>
-            <DialogDescription>{deleteTarget?.name}</DialogDescription>
+            <DialogTitle>Remove {deleteTarget?.name ?? "catalogue item"}</DialogTitle>
+            <DialogDescription>
+              {deleteTarget?.catalogCode} stops appearing on the till. The stock line behind it is
+              left alone.
+            </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
-            <Button type="button" variant="destructive" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>
-              Remove
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+            >
+              Remove {deleteTarget?.catalogCode ?? ""}
             </Button>
           </DialogFooter>
         </DialogContent>
