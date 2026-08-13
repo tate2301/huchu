@@ -58,7 +58,16 @@ export const UNIT_LABELS: Record<UnitOfMeasure, string> = {
   OTHER: "unit",
 };
 
-export const PRICE_LIST_KINDS = ["STANDARD", "WHOLESALE", "TRADE", "VIP", "REGIONAL"] as const;
+export const PRICE_LIST_KINDS = [
+  "STANDARD",
+  "WHOLESALE",
+  "TRADE",
+  "VIP",
+  "REGIONAL",
+  // S-1 — the shelf price a customer at the counter is charged. The kind exists
+  // so a till can ask for its list by name; resolving a price through it is S-3.
+  "RETAIL",
+] as const;
 
 export const PRICE_LIST_KIND_LABELS: Record<PriceListKind, string> = {
   STANDARD: "Standard",
@@ -66,6 +75,7 @@ export const PRICE_LIST_KIND_LABELS: Record<PriceListKind, string> = {
   TRADE: "Trade",
   VIP: "VIP",
   REGIONAL: "Region-specific",
+  RETAIL: "Retail shelf",
 };
 
 /** Only goods can be held in stock. Asking "how many hours are on the shelf" is a category error. */

@@ -10942,12 +10942,33 @@ model Product {
   /// Free text when `unit` is OTHER, e.g. "per pallet".
   unitLabel          String?
   /// The fallback price, used when no price list has an entry for this item.
-  standardPrice      Float         @default(0)
-  costPrice          Float?
-  defaultTaxRate     Float         @default(0)
+  ///
+  /// S-1 — `Decimal`, not `Float`. Retail resolves its shelf price out of this
+  /// model from S-3 onward, and routing numbers R-1.1 made exact back through a
+  /// double would undo R-1.1 by the back door.
+  standardPrice      Decimal       @default(0) @db.Decimal(14, 2)
+  costPrice          Decimal?      @db.Decimal(14, 2)
+  /// A percentage, not money — hence the narrower scale.
+  defaultTaxRate     Decimal       @default(0) @db.Decimal(5, 2)
   currency           String        @default("USD")
   /// The most a seller may discount without approval. Null means no ceiling.
-  maxDiscountPercent Float?
+  maxDiscountPercent Decimal?      @db.Decimal(5, 2)
+  /// S-1 — the retail profile. These attributes live on `RetailCatalogItem`
+  /// today, or nowhere at all; `Product` becomes the one item master in S-4 and
+  /// has to be able to hold them first.
+  ///
+  /// Scanned at the till. Indexed and deliberately *not* unique per company:
+  /// `RetailCatalogItem` already holds distinct SKUs sharing a barcode inside one
+  /// company and one site, so a unique constraint would pass on today's empty
+  /// column and then block the S-4 backfill that fills it.
+  barcode            String?
+  /// A liquor licence is not optional, and a bottle store's range is mostly
+  /// things it applies to. The counter has to be told to check.
+  ageRestricted      Boolean       @default(false)
+  /// A Chibuku scud comes back and the empty is worth money. Ordinary Zimbabwean
+  /// bottle-store trade, modelled nowhere in this repo before now.
+  returnable         Boolean       @default(false)
+  depositAmount      Decimal?      @db.Decimal(14, 2)
   imageUrl           String?
   notes              String?
   isActive           Boolean       @default(true)
@@ -10968,6 +10989,8 @@ model Product {
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])
   @@index([companyId, category])
+  /// The till scans on this and expects an answer before the next item.
+  @@index([companyId, barcode])
 }
 
 /// A named price list — Standard, Wholesale, Trade, VIP, or a region's own.
@@ -10983,6 +11006,14 @@ model PriceList {
   /// Region-specific lists say which region they serve.
   region    String?
   currency  String        @default("USD")
+  /// S-1 — how `ProductPrice.unitPrice` on this list is meant to be read.
+  ///
+  /// A Zimbabwean shelf price is what the customer pays: VAT at 15% is already
+  /// inside it, and adding 15% again at the till prints a number nobody at the
+  /// counter recognises. The till derives the ex-VAT line and the VAT from the
+  /// shelf figure instead. False by default, so every list that existed this
+  /// morning still means exactly what it meant.
+  taxInclusive Boolean    @default(false)
   isActive  Boolean       @default(true)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
@@ -11001,8 +11032,11 @@ model ProductPrice {
   companyId   String
   priceListId String
   productId   String
-  minQuantity Float    @default(1)
-  unitPrice   Float
+  /// S-1 — `Decimal` at the quantity scale, so a volume break can start at a
+  /// fraction the cent scale would flatten.
+  minQuantity Decimal  @default(1) @db.Decimal(12, 4)
+  /// S-1 — what a price list actually says a thing costs. Money, so `Decimal`.
+  unitPrice   Decimal  @db.Decimal(14, 2)
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
@@ -11042,6 +11076,10 @@ enum PriceListKind {
   TRADE
   VIP
   REGIONAL
+  /// S-1 — the shelf price a customer at the counter is charged. Distinct from
+  /// the trade lists above so the till can ask for it by name rather than guess
+  /// which one was meant.
+  RETAIL
 }
 
 enum CrmApprovalDecision {

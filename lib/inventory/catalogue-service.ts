@@ -8,6 +8,7 @@
  */
 import type { Prisma, ProductKind } from "@prisma/client";
 
+import { toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   choosePriceList,
@@ -131,7 +132,13 @@ export async function priceProducts(
   const entriesByProduct = new Map<string, PriceEntry[]>();
   for (const entry of entries) {
     const list = entriesByProduct.get(entry.productId) ?? [];
-    list.push({ minQuantity: entry.minQuantity, unitPrice: entry.unitPrice });
+    // S-1 — these columns are `Decimal` in the database now. `catalogue.ts` is
+    // still pure `number`, and moving price *resolution* onto `Decimal` is S-3;
+    // this service is the one boundary that converts.
+    list.push({
+      minQuantity: toNumberOrZero(entry.minQuantity),
+      unitPrice: toNumberOrZero(entry.unitPrice),
+    });
     entriesByProduct.set(entry.productId, list);
   }
 
@@ -153,30 +160,37 @@ export async function priceProducts(
 
   return {
     priceList: priceList ? { id: priceList.id, name: priceList.name } : null,
-    products: products.map((product) => ({
-      id: product.id,
-      code: product.code,
-      name: product.name,
-      description: product.description,
-      kind: product.kind,
-      unit: product.unit,
-      unitLabel: product.unitLabel,
-      standardPrice: product.standardPrice,
-      costPrice: product.costPrice,
-      defaultTaxRate: product.defaultTaxRate,
-      maxDiscountPercent: product.maxDiscountPercent,
-      category: product.category,
-      imageUrl: product.imageUrl,
-      isActive: product.isActive,
-      line: toCatalogueLine(product, {
-        quantity: options.quantity,
-        entries: entriesByProduct.get(product.id),
-        priceListId: priceList?.id,
-      }),
-      // Null rather than zero for a service: "no stock record" and "none left"
-      // are different facts and must not render the same.
-      stock: stockByProduct.get(product.id) ?? null,
-    })),
+    products: products.map((product) => {
+      // Converted once, here, and used for both the response and the line — so a
+      // product cannot be priced off one representation and rendered off another.
+      const catalogue: CatalogueProduct = {
+        id: product.id,
+        code: product.code,
+        name: product.name,
+        description: product.description,
+        kind: product.kind,
+        unit: product.unit,
+        unitLabel: product.unitLabel,
+        standardPrice: toNumberOrZero(product.standardPrice),
+        costPrice: toNumber(product.costPrice),
+        defaultTaxRate: toNumberOrZero(product.defaultTaxRate),
+        maxDiscountPercent: toNumber(product.maxDiscountPercent),
+      };
+      return {
+        ...catalogue,
+        category: product.category,
+        imageUrl: product.imageUrl,
+        isActive: product.isActive,
+        line: toCatalogueLine(catalogue, {
+          quantity: options.quantity,
+          entries: entriesByProduct.get(product.id),
+          priceListId: priceList?.id,
+        }),
+        // Null rather than zero for a service: "no stock record" and "none left"
+        // are different facts and must not render the same.
+        stock: stockByProduct.get(product.id) ?? null,
+      };
+    }),
   };
 }
 
