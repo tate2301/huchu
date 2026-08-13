@@ -225,6 +225,82 @@ first.
 
 ---
 
+## 1.6 The POS portal — the omission in both plans
+
+Neither this plan nor the primary one has a single ticket for the till. It is
+the highest-traffic surface in the module by an order of magnitude: the
+back-office screens are opened by one manager a few times a day, and the till
+is used by two cashiers continuously for the whole trading day. Both plans
+treated it as done because it exists and works.
+
+**There is a build contract and we were not reading it.**
+`docs/design-system/06-reference-urls.md` lists a `pos` portal prototype —
+*"Cashiers, field buyers · Tablet · Sales entry, payments, receipts, till
+reconciliation"* — and `docs/design-system/portals/README.md` states the rule
+for this class of artefact plainly: **"every feature in a demo is required."**
+The three school portals were downloaded and treated as a contract; the POS one
+never was. It is now at `docs/design-system/portals/pos.html`, alongside
+`docs/design-system/verticals/retail.html`.
+
+### What the demo has that the till does not
+
+| Demo surface | Ours | Assessment |
+|---|---|---|
+| Cash drop / pickup | **missing** | Not a feature gap — a **correctness** one. See below. |
+| Z-report (end-of-day) | **missing** | Expected by Zimbabwean retail, and the document fiscalisation will attach to. |
+| Offline queue | runtime only | The till sells offline and the cashier cannot see what is waiting to sync. |
+| Audit log | **missing** | |
+| Settings — till identity, currency & tax, discount limits, PINs, printer, receipt template | back office only | Reachable at `/retail/setup`, not from the till. |
+| Help & keyboard shortcuts | **missing** | |
+| PIN sign-in | password | The demo signs a cashier in on a 4-digit PIN. Typing a password on a tablet between customers is not a thing a queue tolerates. |
+
+Matching screens: sell/cart, saved sales, refund, void, customers, find-an-item,
+open-shift, cash-up, and the hour-by-hour / top-items / tender-mix summaries.
+
+### Cash drop is a reconciliation defect, not a missing screen
+
+`RetailShift` carries `openingFloat`, `expectedCash`, `countedCash` and
+`variance`, and there is **no model for cash leaving the drawer mid-shift**.
+
+A bottle store on a Friday or on the 25th takes more cash across the counter
+than a drawer should hold, and the manager removes some of it to the safe. That
+is ordinary practice, not an edge case. With nowhere to record it:
+
+- `expectedCash` still counts money that is no longer in the drawer,
+- `countedCash` correctly does not,
+- so `variance` reads as a shortfall exactly equal to what was banked,
+- and the cashier is short on paper at the end of their shift.
+
+This is the user's own third-ranked requirement — *money is right and
+reconciles at cash-up* — failing on the busiest day of the week. It is the one
+POS gap that produces a **wrong number** rather than an absent feature, and it
+ranks above everything else outstanding.
+
+### Tickets
+
+| # | Ticket | Done when |
+|---|---|---|
+| **S-7.1** | Cash movements | `RetailCashMovement` (shift, type, amount, currency, reason, actor). `expectedCash` accounts for drops, pickups, payouts and float top-ups. Cash-up arithmetic has a hand-worked test. Till screen. |
+| **S-7.2** | Z-report | End-of-day summary per register per trading day: takings by tender, VAT, voids, refunds, discounts, cash movements, opening and closing float. Reprintable, and identical on reprint. |
+| **S-7.3** | Offline queue screen | What is pending, what failed, what a superseded price did (S-3 stamps this). |
+| **S-7.4** | Till settings | The setup surfaces the demo puts on the till, at the till, gated by the permissions matrix. |
+| **S-7.5** | PIN sign-in | A cashier signs in on a PIN, not a password. Needs a considered auth decision — a 4-digit PIN is not a password and must not be stored or rate-limited like one. |
+| **S-7.6** | Audit log, help & shortcuts | The remaining two demo surfaces. |
+
+**Sequencing.** S-7.1 first and alone — it is the only one that makes a number
+wrong. S-7.2 depends on it (a Z-report that ignores cash drops is wrong in the
+same way). S-7.3 depends on S-3, which has landed. S-7.4–S-7.6 are additive.
+
+**S-7.5 carries a real decision and should not be taken quietly.** Moving
+cashier auth from password to PIN changes the credential model for the people
+who handle the money. It is the right call for a tablet till in a queue, and it
+is what the demo does — but it wants an explicit choice about lockout, reuse
+across shifts, and whether a PIN can authorise a manager override (it must not:
+the override gate exists precisely so that the person approving is not the
+person ringing up).
+
+---
+
 ## 2. Tickets
 
 Ordered by demo risk, not by dependency elegance. The till must survive a day of

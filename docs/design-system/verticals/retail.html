@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" /><title>Retail & POS · Kits · Huchu DS</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<link rel="stylesheet" href="../../tokens.css" />
+<link rel="stylesheet" href="../../components.css" />
+<link rel="stylesheet" href="../../shared.css" />
+<script src="../../icons.js" defer></script>
+<link rel="stylesheet" href="../../huchu-nav.css" />
+<script src="../../huchu-nav.js" defer></script>
+<style>
+  body { background: var(--canvas); }
+  .modules-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; margin-top: 8px; }
+  @media (max-width: 900px) { .modules-grid { grid-template-columns: 1fr; } }
+  .module-card { padding: 18px 20px; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; display: flex; flex-direction: column; gap: 6px; }
+  .module-card .num { font: 500 11px/1 var(--font-mono); color: var(--text-subtle); letter-spacing: 0.08em; }
+  .module-card .nm { font: 600 15px/1.3 var(--font-sans); color: var(--text-strong); }
+  .module-card .ds { font: var(--type-body-sm); color: var(--text-muted); line-height: 1.55; }
+
+  .shell-spotlight { background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: 32px; margin-top: 24px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 32px; align-items: center; }
+  @media (max-width: 900px) { .shell-spotlight { grid-template-columns: 1fr; } }
+  .shell-spotlight .meta .lbl { font: 500 12px/1 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--brand-strong); margin-bottom: 12px; display: block; }
+  .shell-spotlight .meta h3 { font: 600 22px/1.2 var(--font-sans); letter-spacing: -0.015em; color: var(--text-strong); margin: 0 0 12px; }
+  .shell-spotlight .meta p { font: 15px/1.55 var(--font-sans); color: var(--text-muted); margin: 0 0 18px; max-width: 48ch; }
+  .shell-spotlight .meta .pills { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 18px; }
+  .shell-spotlight .meta .pill { padding: 4px 11px; border-radius: 9999px; background: var(--surface-muted); font: 500 11px/1 var(--font-sans); color: var(--text-muted); }
+  .shell-spotlight .meta .pill.b { background: var(--brand-soft); color: var(--brand-strong); }
+  .shell-spotlight .pic { background: var(--canvas); border-radius: 12px; padding: 20px; display: grid; place-items: center; min-height: 280px; border: 1px solid var(--border-subtle); }
+  .shell-spotlight .pic img, .shell-spotlight .pic .placeholder { max-width: 100%; }
+  .shell-spotlight .placeholder { text-align: center; font: 500 13px/1.55 var(--font-sans); color: var(--text-muted); }
+  .shell-spotlight .placeholder .glyph { width: 80px; height: 80px; border-radius: 16px; background: var(--surface-muted); color: var(--text-strong); display: grid; place-items: center; margin: 0 auto 18px; }
+  .shell-spotlight .placeholder .glyph svg { width: 36px; height: 36px; }
+</style>
+</head>
+<body>
+
+<header class="hx-topbar">
+  <a class="brand" href="../../index.html"><span class="mark" data-icon="corelith" data-icon-size="22"></span> Huchu <span class="badge">DS · 0.5</span></a>
+  <nav>
+    <a href="../../index.html">Overview</a>
+    <a href="../../system/foundations.html">Foundations</a>
+    <a href="../../system/primitives.html">Components</a>
+    <a href="../../system/shells.html">Shells</a>
+    <a href="../../index.html#kits" class="current">Kits</a>
+  </nav>
+  <div class="spacer"></div>
+  <a class="cta" href="../../index.html#kits">All kits</a>
+</header>
+
+<div class="hub-wrap">
+  <section class="hub-hero">
+    <div class="breadcrumb">
+      <a href="../../index.html">Home</a><span class="sep">/</span>
+      <a href="../../index.html#kits">Kits</a><span class="sep">/</span>
+      <span>Retail & POS</span>
+    </div>
+    <div class="area-icon retail" data-icon="bag" data-icon-size="28"></div>
+    <h1>Retail & POS</h1>
+    <p class="lede">POS &amp; checkout, stock control, shift management, purchasing, reporting. Five modules for retail operations from checkout to close of day, across branches.</p>
+    <div class="meta-pills">
+      <span class="meta-pill brand">Vertical kit</span>
+      <span class="meta-pill">5 modules</span>
+      <span class="meta-pill">5 pages</span>
+      <span class="meta-pill tone-success">Production</span>
+      <span class="meta-pill">/verticals/retail</span>
+    </div>
+  </section>
+
+  <section class="hub-section">
+    <span class="label">Modules</span>
+    <h2>What this kit covers</h2>
+    <p class="sub">Five modules — branch ops in one place; POS itself runs in the POS portal.</p>
+    <div class="modules-grid">
+      
+        <div class="module-card">
+          <span class="num">01</span>
+          <div class="nm">POS & checkout</div>
+          <div class="ds">Configuration of tills, products, pricing rules, promotions.</div>
+        </div>
+      
+        <div class="module-card">
+          <span class="num">02</span>
+          <div class="nm">Stock control</div>
+          <div class="ds">Branch stockpile, low-stock alerts, expiry, shrink reports.</div>
+        </div>
+      
+        <div class="module-card">
+          <span class="num">03</span>
+          <div class="nm">Shift management</div>
+          <div class="ds">Schedules, cashier assignment, shift open/close & cash-up.</div>
+        </div>
+      
+        <div class="module-card">
+          <span class="num">04</span>
+          <div class="nm">Purchasing</div>
+          <div class="ds">Supplier orders, GRN receiving, returns and credit notes.</div>
+        </div>
+      
+        <div class="module-card">
+          <span class="num">05</span>
+          <div class="nm">Reporting</div>
+          <div class="ds">Daily takings, basket size, top SKUs, branch comparison.</div>
+        </div>
+      
+    </div>
+  </section>
+
+  
+  <section class="hub-section">
+    <span class="label">Shell</span>
+    <h2>Shell used by this kit</h2>
+    <p class="sub">Every page in this kit composes inside the same shell — sidebar nav, breadcrumb topbar, content column. Same chrome the rest of the dashboard uses.</p>
+    <div class="shell-spotlight">
+      <div class="meta">
+        <span class="lbl">Dashboard shell · SHL-01</span>
+        <h3>Standard sidebar + topbar</h3>
+        <p>Sidebar surfaces all 5 retail modules plus shared stock & HR. Topbar shows active branch and shift.</p>
+        <div class="pills">
+          <span class="pill b"><span data-icon="desktop" data-icon-size="11"></span> Desktop</span>
+          <span class="pill"><span data-icon="tablet" data-icon-size="11"></span> Tablet</span>
+          <span class="pill"><span data-icon="phone" data-icon-size="11"></span> Mobile collapse</span>
+        </div>
+        <a href="../../system/shells.html" class="btn btn-secondary">Open shell <span data-icon="arrow" data-icon-size="14"></span></a>
+      </div>
+      <div class="pic">
+        <div class="placeholder">
+          <div class="glyph"><span data-icon="bag" data-icon-size="36"></span></div>
+          <div>See dashboard.html for the live shell.</div>
+        </div>
+      </div>
+    </div>
+  </section>
+  
+
+  <section class="hub-section">
+    <span class="label">Pages</span>
+    <h2>Designed surfaces in this kit</h2>
+    <p class="sub">Each page is a real rendered mockup at production density. Click any to open.</p>
+    <div class="surface-grid">
+      
+        <a class="surface-card " href="dashboard.html">
+          <span class="num">01</span>
+          <span class="nm">Branch dashboard</span>
+          <span class="ds">Today's takings, basket size, shift status, low-stock alerts.</span>
+          <span class="arrow">Open →</span>
+        </a>
+      
+        <a class="surface-card " href="products.html">
+          <span class="num">02</span>
+          <span class="nm">Product catalog</span>
+          <span class="ds">Full SKU list with filters, bulk actions, price overrides.</span>
+          <span class="arrow">Open →</span>
+        </a>
+      
+        <a class="surface-card " href="stock-receiving.html">
+          <span class="num">03</span>
+          <span class="nm">Stock receiving</span>
+          <span class="ds">Receive a GRN against a purchase order with discrepancies.</span>
+          <span class="arrow">Open →</span>
+        </a>
+      
+        <a class="surface-card " href="z-report.html">
+          <span class="num">04</span>
+          <span class="nm">Daily Z-report</span>
+          <span class="ds">End-of-day sales summary by tender, cashier, branch.</span>
+          <span class="arrow">Open →</span>
+        </a>
+      
+        <a class="surface-card " href="promotions.html">
+          <span class="num">05</span>
+          <span class="nm">Promotions</span>
+          <span class="ds">Build a promo — buy-X-get-Y, % off category, member-only.</span>
+          <span class="arrow">Open →</span>
+        </a>
+      
+    </div>
+  </section>
+
+  <div class="hub-cta">
+    <div>
+      <h3>Need to extend the retail & pos kit?</h3>
+      <p>All surfaces compose from the documented system. Start a new page by copying an existing template and swapping content — the chrome, type, spacing and behaviour come from tokens.</p>
+    </div>
+    <a class="btn-link-light" href="../../system/shells.html">Browse shells <span data-icon="arrow" data-icon-size="14"></span></a>
+  </div>
+</div>
+
+<footer class="hx-footer">
+  <div class="hx-footer-inner">
+    <span>© 2026 Huchu · Retail & POS kit v0.5</span>
+    <div class="links">
+      <a href="../../index.html">Overview</a>
+      <a href="../../system/shells.html">Shells</a>
+      <a href="../../index.html#kits">All kits</a>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
