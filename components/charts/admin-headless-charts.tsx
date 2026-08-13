@@ -646,10 +646,24 @@ function CartesianChart({
                   );
                 })}
 
-                {rows.map((row) => {
+                {/*
+                  One hit area per band, not per row.
+
+                  A band scale maps every row sharing an x label onto the same
+                  band, so a day with two shifts produced two rects at identical
+                  coordinates — invisible, but keyed `${label}-hit` twice, which
+                  React reports as a duplicate key and is entitled to drop or
+                  duplicate. Drawing the second one was never useful either: it
+                  sits exactly on top of the first and answers the same hover.
+                */}
+                {rows.map((row, index) => {
                   const label = String(row[xKey] ?? row.label);
                   const bandX = xScale(label);
                   if (bandX === undefined) return null;
+                  const firstForLabel =
+                    rows.findIndex((candidate) => String(candidate[xKey] ?? candidate.label) === label) ===
+                    index;
+                  if (!firstForLabel) return null;
                   return (
                     <rect
                       key={`${label}-hit`}
