@@ -1,33 +1,48 @@
 /**
- * Seeds a retail tenant with enough shape that the screens show a real shop.
+ * Seeds a Harare bottle store with staff and half a year of trade.
  *
- *   npx tsx scripts/seed-retail-demo.ts --slug retail-demo
+ *   npx tsx scripts/seed-retail-demo.ts --slug acme
+ *   npx tsx scripts/seed-retail-demo.ts --slug acme --days 180 --reset
  *
- * R-5.2 of `docs/retail/retail-hardening-plan-2026-08-12.md`. A seed is not a
- * fixture: `scripts/seed-payroll-demo.ts` builds a tenant with one employee
- * deliberately missing a BP number so the blocker path renders, and that is the
- * part worth copying. Six of the rows below are wrong on purpose, because a
- * happy-path seed is how an exception state ships without anybody ever looking
- * at it:
+ * R-5.2 of `docs/retail/retail-hardening-plan-2026-08-12.md`, rewritten for the
+ * client demo: a shop that has been trading for months, not a shop that opened
+ * this morning. Empty charts and a three-row sales list demonstrate nothing.
  *
- *   - a shift closed **short**, so the cash-variance path renders
- *   - a shift closed **over**, which reads differently and posts the other way
- *   - an item **below its minimum**, so the low-stock alert has something to say
- *   - a purchase order **part-received**, so `PARTIAL` is not a status nobody sees
- *   - a **refund** against a posted sale, so the reversing document exists
- *   - a **held cart** left parked, so the recall path has something to recall
+ * ## What it builds
  *
- * Idempotent by code, like `lib/schools/provision.ts`: every row is an upsert on
- * a natural key, so running it twice against a tenant somebody has started
- * editing does no damage.
+ * A liquor store priced in **USD at 15% VAT**, taking **cash, card, EcoCash and
+ * ZWG** — the four tenders a Zimbabwean bottle store actually sees — across
+ * `--days` of history with a working day-of-week and month-end shape. Staff are
+ * real users who can sign in: a manager, two cashiers and a stock clerk, so the
+ * shift list has more than one name in it and role gating can be demonstrated
+ * rather than described.
  *
- * The money below is deliberately awkward — 19.99, 8.575, thirds of a dollar —
- * because round numbers hide exactly the bugs R-1.1 was about.
+ * ## Rows that are wrong on purpose
+ *
+ * A happy-path seed is how an exception state ships without anybody looking at
+ * it. `scripts/seed-payroll-demo.ts` seeds one employee with no BP number for
+ * exactly this reason, and that is the part worth copying:
+ *
+ *   - shifts that came up **short** and shifts that came up **over**
+ *   - **Castle Lager 340ml below its reorder point** — the best-selling line, so
+ *     the low-stock alert is pointing at something the owner cares about
+ *   - a purchase order **part-received**, so `PARTIAL` is a status somebody sees
+ *   - **refunds** against posted sales, and a **voided** sale
+ *   - a **held cart** nobody came back for
+ *   - sales settled **partly in ZWG**, so the dual-currency path is exercised
+ *
+ * ## Speed
+ *
+ * Thousands of sales through nested `create` calls is thousands of round trips to
+ * a pooled Neon endpoint. Ids are generated here and the rows go in through
+ * `createMany` in batches, which turns the whole history into a handful of
+ * statements.
  */
 
 import "dotenv/config"
 
-import { Prisma } from "@prisma/client"
+import { randomUUID } from "node:crypto"
+import { Prisma, type RetailTenderType } from "@prisma/client"
 import { money, multiplyMoney, rate, sumMoney, taxOn } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
 
@@ -41,28 +56,98 @@ function readArg(name: string): string | undefined {
   return undefined
 }
 
+/**
+ * A Harare bottle store's shelf, priced in USD at 15% VAT.
+ *
+ * `weight` is how often the line sells, which is what makes the top-sellers chart
+ * say something: lager and scuds move all day, single-malt does not. `stock` and
+ * `min` put Castle Lager 340ml under its reorder point deliberately.
+ */
 const CATALOGUE = [
-  { code: "MEALIE-10", name: "Mealie meal 10kg", unit: "bag", price: "12.50", tax: "15.00", cost: "9.20", stock: 48, min: 10 },
-  { code: "COOKOIL-2", name: "Cooking oil 2L", unit: "bottle", price: "4.75", tax: "15.00", cost: "3.40", stock: 120, min: 24 },
-  { code: "SUGAR-2", name: "White sugar 2kg", unit: "pack", price: "3.30", tax: "15.00", cost: "2.15", stock: 64, min: 20 },
-  { code: "BREAD-STD", name: "Standard loaf", unit: "loaf", price: "1.15", tax: "0.00", cost: "0.78", stock: 30, min: 40 },
-  { code: "SOAP-BAR", name: "Bath soap", unit: "bar", price: "1.99", tax: "15.00", cost: "1.20", stock: 200, min: 50 },
-  { code: "TEA-250", name: "Tea leaves 250g", unit: "box", price: "2.85", tax: "15.00", cost: "1.90", stock: 75, min: 15 },
-  { code: "RICE-5", name: "Long grain rice 5kg", unit: "bag", price: "8.40", tax: "15.00", cost: "6.10", stock: 36, min: 12 },
-  { code: "CANDLE-6", name: "Candles pack of 6", unit: "pack", price: "1.45", tax: "15.00", cost: "0.95", stock: 90, min: 25 },
+  { code: "CASTLE-340", name: "Castle Lager 340ml", unit: "bottle", price: "1.20", cost: "0.85", stock: 36, min: 96, weight: 26 },
+  { code: "CHIBUKU-1L", name: "Chibuku Scud 1L", unit: "carton", price: "1.10", cost: "0.72", stock: 210, min: 60, weight: 22 },
+  { code: "ZAMBEZI-375", name: "Zambezi Lager 375ml", unit: "bottle", price: "1.35", cost: "0.95", stock: 144, min: 48, weight: 16 },
+  { code: "BOHLINGER-330", name: "Bohlinger's 330ml", unit: "bottle", price: "1.55", cost: "1.10", stock: 96, min: 36, weight: 10 },
+  { code: "SAVANNA-330", name: "Savanna Dry 330ml", unit: "bottle", price: "1.85", cost: "1.32", stock: 72, min: 24, weight: 8 },
+  { code: "HUNTERS-330", name: "Hunter's Gold 330ml", unit: "bottle", price: "1.85", cost: "1.30", stock: 60, min: 24, weight: 7 },
+  { code: "COKE-500", name: "Coca-Cola 500ml", unit: "bottle", price: "0.75", cost: "0.48", stock: 180, min: 48, weight: 12 },
+  { code: "ICE-2KG", name: "Ice 2kg bag", unit: "bag", price: "1.50", cost: "0.60", stock: 40, min: 20, weight: 6 },
+  { code: "CASTLE-CASE", name: "Castle Lager case of 24", unit: "case", price: "26.50", cost: "20.40", stock: 22, min: 8, weight: 5 },
+  { code: "TWOKEYS-750", name: "Two Keys Whisky 750ml", unit: "bottle", price: "9.75", cost: "7.20", stock: 28, min: 12, weight: 4 },
+  { code: "NEDERBURG-750", name: "Nederburg Cabernet 750ml", unit: "bottle", price: "12.60", cost: "9.45", stock: 24, min: 8, weight: 3 },
+  { code: "GORDONS-750", name: "Gordon's Gin 750ml", unit: "bottle", price: "16.40", cost: "12.65", stock: 18, min: 6, weight: 3 },
+  { code: "AMARULA-750", name: "Amarula Cream 750ml", unit: "bottle", price: "18.25", cost: "14.10", stock: 14, min: 6, weight: 2 },
+  { code: "JAMESON-750", name: "Jameson Irish Whiskey 750ml", unit: "bottle", price: "27.90", cost: "22.15", stock: 9, min: 4, weight: 2 },
+  { code: "BLKLABEL-750", name: "Johnnie Walker Black 750ml", unit: "bottle", price: "42.00", cost: "34.80", stock: 6, min: 3, weight: 1 },
 ]
 
-/** Hours ago, as a Date. Every timestamp below is relative to the run. */
-function hoursAgo(hours: number) {
-  return new Date(Date.now() - hours * 60 * 60 * 1000)
-}
+const VAT_PERCENT = "15.00"
+
+/**
+ * Staff who can sign in. A bottle store is not run by one superadmin, and the
+ * whole point of the role gates is that a cashier is not a manager.
+ */
+const STAFF = [
+  { email: "tafara.manager@bottlestore.test", name: "Tafara Nyathi", role: "MANAGER" as const, cashier: true },
+  { email: "chipo.till@bottlestore.test", name: "Chipo Dube", role: "CASHIER" as const, cashier: true },
+  { email: "farai.till@bottlestore.test", name: "Farai Moyo", role: "CASHIER" as const, cashier: true },
+  { email: "tendai.stock@bottlestore.test", name: "Tendai Sibanda", role: "STOCK_CLERK" as const, cashier: false },
+]
+
+const STAFF_PASSWORD = "RetailDemo123!"
+
+/** Regulars who run a tab or collect loyalty. */
+const CUSTOMERS = [
+  "Rudo Chirwa", "Blessing Ncube", "Tapiwa Marange", "Nyasha Gwenzi",
+  "Simba Mutasa", "Kudzai Zhou", "Munashe Chari", "Rutendo Banda",
+]
+
+const ZWG_RATE = "27.5000"
 
 function daysAgo(days: number) {
   return new Date(Date.now() - days * 24 * 60 * 60 * 1000)
 }
 
+function pick<T>(items: T[]): T {
+  return items[Math.floor(Math.random() * items.length)]
+}
+
+function between(low: number, high: number) {
+  return low + Math.floor(Math.random() * (high - low + 1))
+}
+
+/** Weighted pick, so the top-sellers chart reflects a bottle store. */
+function pickProduct() {
+  const total = CATALOGUE.reduce((sum, item) => sum + item.weight, 0)
+  let roll = Math.random() * total
+  for (const item of CATALOGUE) {
+    roll -= item.weight
+    if (roll <= 0) return item
+  }
+  return CATALOGUE[0]
+}
+
+/**
+ * How busy a given day is. Friday and Saturday carry a bottle store, and the
+ * week after payday carries the month.
+ */
+function dayBusyness(date: Date) {
+  const day = date.getUTCDay()
+  const dayOfMonth = date.getUTCDate()
+  let factor = 1
+  if (day === 5) factor *= 1.8
+  else if (day === 6) factor *= 2.1
+  else if (day === 0) factor *= 1.3
+  else if (day === 1 || day === 2) factor *= 0.7
+  // Payday is the 25th in most Zimbabwean workplaces; the days after it show.
+  if (dayOfMonth >= 25 || dayOfMonth <= 2) factor *= 1.5
+  return factor
+}
+
 async function main() {
-  const slug = (readArg("slug") ?? "retail-demo").trim().toLowerCase()
+  const slug = (readArg("slug") ?? "acme").trim().toLowerCase()
+  const days = Math.max(1, Math.min(Number(readArg("days") ?? "180"), 540))
+  const reset = process.argv.includes("--reset")
 
   const databaseUrl = process.env.DATABASE_URL ?? ""
   if (/\bprod(uction)?\b/.test(databaseUrl)) {
@@ -74,29 +159,39 @@ async function main() {
     select: { id: true, name: true },
   })
   if (!company) {
-    throw new Error(
-      `No company with slug "${slug}". Run scripts/seed-staging-tenant.ts first.`,
-    )
+    throw new Error(`No company with slug "${slug}". Run scripts/seed-staging-tenant.ts first.`)
   }
   const companyId = company.id
+  console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)
 
-  const admin = await prisma.user.findFirst({
-    where: { companyId, isActive: true },
-    orderBy: { createdAt: "asc" },
-    select: { id: true, name: true, email: true },
-  })
-  if (!admin) throw new Error(`No active user on ${slug}.`)
-  // Bound after the guard: the upsert helpers below are closures, and TypeScript
-  // will not carry a narrowing of `admin` across a function boundary.
-  const actor = { id: admin.id, name: admin.name ?? admin.email }
+  // ── Staff ────────────────────────────────────────────────────────────────
+  const bcrypt = await import("bcryptjs")
+  const passwordHash = await bcrypt.hash(STAFF_PASSWORD, 10)
+  const staff: Array<{ id: string; name: string; cashier: boolean }> = []
+  for (const person of STAFF) {
+    const user = await prisma.user.upsert({
+      where: { email: person.email },
+      update: { name: person.name, role: person.role, companyId, isActive: true },
+      create: {
+        email: person.email,
+        name: person.name,
+        role: person.role,
+        companyId,
+        password: passwordHash,
+        isActive: true,
+      },
+      select: { id: true, name: true },
+    })
+    staff.push({ id: user.id, name: user.name ?? person.name, cashier: person.cashier })
+  }
+  const tills = staff.filter((person) => person.cashier)
+  console.log(`  ${staff.length} staff (password ${STAFF_PASSWORD})`)
 
-  console.log(`Seeding retail into ${company.name} (${slug})`)
-
-  // ── Site, location, inventory ────────────────────────────────────────────
+  // ── Site, register, stock, catalogue ─────────────────────────────────────
   const site =
     (await prisma.site.findFirst({ where: { companyId, code: "MAIN" } })) ??
     (await prisma.site.create({
-      data: { companyId, code: "MAIN", name: "Harare Main Branch", location: "Harare CBD" },
+      data: { companyId, code: "MAIN", name: "Samora Machel Bottle Store", location: "Harare CBD" },
     }))
 
   const location =
@@ -107,19 +202,23 @@ async function main() {
 
   const register = await prisma.retailRegister.upsert({
     where: { companyId_code: { companyId, code: "TILL-1" } },
-    update: { name: "Till 1", siteId: site.id, isActive: true },
-    create: { companyId, code: "TILL-1", name: "Till 1", siteId: site.id },
+    update: { name: "Front till", siteId: site.id, isActive: true },
+    create: { companyId, code: "TILL-1", name: "Front till", siteId: site.id },
   })
 
-  const items = new Map<string, { id: string; unit: string; unitCost: number }>()
+  type Stocked = { inventoryItemId: string; catalogItemId: string; unit: string }
+  const stocked = new Map<string, Stocked>()
+
   for (const entry of CATALOGUE) {
     const existing = await prisma.inventoryItem.findFirst({
       where: { siteId: site.id, itemCode: entry.code },
+      select: { id: true },
     })
     const item = existing
       ? await prisma.inventoryItem.update({
           where: { id: existing.id },
           data: { currentStock: entry.stock, minStock: entry.min, unitCost: Number(entry.cost) },
+          select: { id: true, unit: true },
         })
       : await prisma.inventoryItem.create({
           data: {
@@ -133,15 +232,15 @@ async function main() {
             minStock: entry.min,
             unitCost: Number(entry.cost),
           },
+          select: { id: true, unit: true },
         })
-    items.set(entry.code, { id: item.id, unit: item.unit, unitCost: item.unitCost ?? 0 })
 
-    await prisma.retailCatalogItem.upsert({
+    const catalogItem = await prisma.retailCatalogItem.upsert({
       where: { companyId_catalogCode: { companyId, catalogCode: `CAT-${entry.code}` } },
       update: {
         name: entry.name,
         unitPrice: money(entry.price),
-        taxPercent: money(entry.tax),
+        taxPercent: money(VAT_PERCENT),
         inventoryItemId: item.id,
         siteId: site.id,
         status: "ACTIVE",
@@ -153,368 +252,463 @@ async function main() {
         siteId: site.id,
         name: entry.name,
         sku: entry.code,
-        barcode: `600${entry.code.replace(/\D/g, "").padStart(9, "0")}`,
+        barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
         unitPrice: money(entry.price),
-        taxPercent: money(entry.tax),
+        taxPercent: money(VAT_PERCENT),
         status: "ACTIVE",
       },
+      select: { id: true },
+    })
+
+    stocked.set(entry.code, {
+      inventoryItemId: item.id,
+      catalogItemId: catalogItem.id,
+      unit: item.unit,
     })
   }
-  console.log(`  ${CATALOGUE.length} catalogue items (BREAD-STD is below its minimum, on purpose)`)
+  console.log(`  ${CATALOGUE.length} lines on the shelf (Castle 340ml is under its minimum)`)
+
+  // ── Customers ────────────────────────────────────────────────────────────
+  for (const name of CUSTOMERS) {
+    const existing = await prisma.customer.findFirst({
+      where: { companyId, name },
+      select: { id: true },
+    })
+    if (!existing) {
+      await prisma.customer.create({ data: { companyId, name, isActive: true } })
+    }
+  }
 
   // ── Promotions ───────────────────────────────────────────────────────────
   await prisma.retailPromotion.upsert({
-    where: { companyId_promoCode: { companyId, promoCode: "PROMO-WINTER" } },
+    where: { companyId_promoCode: { companyId, promoCode: "PROMO-CASE" } },
     update: { status: "ACTIVE" },
     create: {
       companyId,
-      promoCode: "PROMO-WINTER",
-      name: "Winter basket 5% off",
+      promoCode: "PROMO-CASE",
+      name: "Case of Castle — 5% off",
       type: "PERCENT",
       value: money("5.00"),
       status: "ACTIVE",
-      startsAt: daysAgo(7),
-      endsAt: daysAgo(-21),
+      startsAt: daysAgo(30),
+      endsAt: daysAgo(-30),
     },
   })
   await prisma.retailPromotion.upsert({
-    where: { companyId_promoCode: { companyId, promoCode: "PROMO-STAFF" } },
+    where: { companyId_promoCode: { companyId, promoCode: "PROMO-FESTIVE" } },
     update: { status: "SCHEDULED" },
     create: {
       companyId,
-      promoCode: "PROMO-STAFF",
-      name: "Staff discount $2",
+      promoCode: "PROMO-FESTIVE",
+      name: "Festive season $2 off spirits",
       type: "AMOUNT",
       value: money("2.00"),
       status: "SCHEDULED",
-      startsAt: daysAgo(-3),
+      startsAt: daysAgo(-20),
     },
   })
-  console.log("  2 promotions (one active, one scheduled)")
 
-  // ── Shifts: one short, one over, one still open ──────────────────────────
-  async function upsertShift(input: {
-    shiftNo: string
-    openedAt: Date
-    closedAt: Date | null
-    openingFloat: string
-    expectedCash: string
-    countedCash: string | null
-  }) {
-    const variance =
-      input.countedCash === null
-        ? null
-        : money(input.countedCash).minus(money(input.expectedCash))
-    const data = {
-      registerCode: register.code,
-      registerName: register.name,
-      siteId: site.id,
-      cashierId: actor.id,
-      cashierName: actor.name,
-      openingFloat: money(input.openingFloat),
-      expectedCash: money(input.expectedCash),
-      countedCash: input.countedCash === null ? null : money(input.countedCash),
-      variance,
-      status: input.closedAt ? ("CLOSED" as const) : ("OPEN" as const),
-      openedAt: input.openedAt,
-      closedAt: input.closedAt,
-    }
-    return prisma.retailShift.upsert({
-      where: { companyId_shiftNo: { companyId, shiftNo: input.shiftNo } },
-      update: data,
-      create: { companyId, shiftNo: input.shiftNo, ...data },
-    })
+  if (reset) {
+    // Only the trading history, never the shelf or the staff. A reset that wiped
+    // the catalogue would take the demo's barcodes with it.
+    const sales = await prisma.retailSale.findMany({ where: { companyId }, select: { id: true } })
+    const saleIds = sales.map((sale) => sale.id)
+    await prisma.retailSalePayment.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSaleLine.deleteMany({ where: { saleId: { in: saleIds } } })
+    await prisma.retailSale.deleteMany({ where: { companyId } })
+    await prisma.retailHeldCart.deleteMany({ where: { companyId } })
+    await prisma.retailShift.deleteMany({ where: { companyId } })
+    console.log(`  reset: cleared ${saleIds.length} previous sale(s) and their shifts`)
   }
 
-  // Short by $4.30 — the variance path a manager has to explain.
-  await upsertShift({
-    shiftNo: "SH-0001",
-    openedAt: daysAgo(2),
-    closedAt: daysAgo(2 - 0.4),
-    openingFloat: "50.00",
-    expectedCash: "318.75",
-    countedCash: "314.45",
-  })
-  // Over by $1.15 — reads differently and posts the other way.
-  await upsertShift({
-    shiftNo: "SH-0002",
-    openedAt: daysAgo(1),
-    closedAt: daysAgo(1 - 0.4),
-    openingFloat: "50.00",
-    expectedCash: "402.60",
-    countedCash: "403.75",
-  })
-  const openShift = await upsertShift({
-    shiftNo: "SH-0003",
-    openedAt: hoursAgo(3),
-    closedAt: null,
-    openingFloat: "50.00",
-    expectedCash: "0.00",
-    countedCash: null,
-  })
-  console.log("  3 shifts (one short, one over, one open)")
+  // ── The history ──────────────────────────────────────────────────────────
+  type ShiftRow = Prisma.RetailShiftCreateManyInput
+  type SaleRow = Prisma.RetailSaleCreateManyInput
+  type LineRow = Prisma.RetailSaleLineCreateManyInput
+  type PaymentRow = Prisma.RetailSalePaymentCreateManyInput
 
-  // ── Sales ────────────────────────────────────────────────────────────────
-  type Basket = Array<{ code: string; qty: string }>
+  const shiftRows: ShiftRow[] = []
+  const saleRows: SaleRow[] = []
+  const lineRows: LineRow[] = []
+  const paymentRows: PaymentRow[] = []
 
-  async function upsertSale(input: {
-    saleNo: string
-    shiftId: string
-    basket: Basket
-    postedAt: Date
-    customerName: string | null
-    tender: "CASH" | "CARD" | "MOBILE_MONEY"
-  }) {
-    const existing = await prisma.retailSale.findUnique({
-      where: { companyId_saleNo: { companyId, saleNo: input.saleNo } },
-      select: { id: true },
-    })
-    if (existing) return existing
+  let shiftSeq = 0
+  let saleSeq = 0
+  let refunds = 0
+  let voids = 0
+  let zwgSales = 0
 
-    const lines = input.basket.map((entry) => {
-      const source = CATALOGUE.find((candidate) => candidate.code === entry.code)
-      if (!source) throw new Error(`Unknown basket item ${entry.code}`)
-      const item = items.get(entry.code)
-      if (!item) throw new Error(`Unknown inventory item ${entry.code}`)
-      const quantity = rate(entry.qty)
-      const baseAmount = multiplyMoney(quantity, source.price)
-      const taxAmount = taxOn(baseAmount, source.tax)
-      return {
-        inventoryItemId: item.id,
-        itemName: source.name,
-        quantity,
-        unitPrice: money(source.price),
-        discountAmount: money(0),
-        taxAmount,
-        lineTotal: baseAmount.plus(taxAmount),
-        costUnit: money(source.cost),
-        costTotal: multiplyMoney(quantity, source.cost),
-      }
-    })
+  for (let dayOffset = days; dayOffset >= 0; dayOffset -= 1) {
+    const date = daysAgo(dayOffset)
+    const busy = dayBusyness(date)
+    const shiftsToday = busy > 1.6 ? 2 : 1
 
-    const subtotal = sumMoney(lines.map((line) => multiplyMoney(line.quantity, line.unitPrice)))
-    const taxAmount = sumMoney(lines.map((line) => line.taxAmount))
-    const totalAmount = sumMoney(lines.map((line) => line.lineTotal))
+    for (let shiftIndex = 0; shiftIndex < shiftsToday; shiftIndex += 1) {
+      const cashier = pick(tills)
+      const openHour = shiftIndex === 0 ? 9 : 16
+      const openedAt = new Date(date)
+      openedAt.setUTCHours(openHour, between(0, 25), 0, 0)
 
-    return prisma.retailSale.create({
-      data: {
-        companyId,
-        saleNo: input.saleNo,
-        shiftId: input.shiftId,
-        siteId: site.id,
-        cashierId: actor.id,
-        cashierName: actor.name,
-        customerName: input.customerName,
-        saleType: "SALE",
-        status: "POSTED",
-        subtotal,
-        discountAmount: money(0),
-        taxAmount,
-        totalAmount,
-        tenderedAmount: totalAmount,
-        changeAmount: money(0),
-        postedAt: input.postedAt,
-        lines: { create: lines },
-        payments: {
-          create: [{ tenderType: input.tender, amount: totalAmount, reference: null }],
-        },
-      },
-      select: { id: true },
-    })
-  }
+      // The very last shift stays open, so the demo can walk up to a live till.
+      const isOpenShift = dayOffset === 0 && shiftIndex === shiftsToday - 1
+      const closedAt = isOpenShift ? null : new Date(openedAt.getTime() + 7 * 60 * 60 * 1000)
 
-  const baskets: Array<{ basket: Basket; customer: string | null; tender: "CASH" | "CARD" | "MOBILE_MONEY" }> = [
-    { basket: [{ code: "MEALIE-10", qty: "1" }, { code: "COOKOIL-2", qty: "2" }], customer: "Walk-in", tender: "CASH" },
-    { basket: [{ code: "BREAD-STD", qty: "3" }, { code: "SUGAR-2", qty: "1" }], customer: null, tender: "CASH" },
-    { basket: [{ code: "RICE-5", qty: "2" }, { code: "TEA-250", qty: "3" }], customer: "Tendai Moyo", tender: "MOBILE_MONEY" },
-    { basket: [{ code: "SOAP-BAR", qty: "6" }], customer: "Rudo Chirwa", tender: "CARD" },
-    { basket: [{ code: "CANDLE-6", qty: "4" }, { code: "BREAD-STD", qty: "2" }], customer: null, tender: "CASH" },
-    { basket: [{ code: "MEALIE-10", qty: "2" }, { code: "SUGAR-2", qty: "2" }], customer: "Tendai Moyo", tender: "CASH" },
-  ]
+      shiftSeq += 1
+      const shiftId = randomUUID()
+      const shiftNo = `SH-${String(shiftSeq).padStart(5, "0")}`
+      const openingFloat = money("50.00")
 
-  const saleIds: string[] = []
-  for (const [index, entry] of baskets.entries()) {
-    const shiftId = index < 2 ? openShift.id : openShift.id
-    const sale = await upsertSale({
-      saleNo: `S-${String(index + 1).padStart(4, "0")}`,
-      shiftId,
-      basket: entry.basket,
-      postedAt: hoursAgo(3 - index * 0.35),
-      customerName: entry.customer,
-      tender: entry.tender,
-    })
-    saleIds.push(sale.id)
-  }
-  console.log(`  ${saleIds.length} posted sales`)
+      const saleCount = Math.max(3, Math.round(between(9, 17) * busy))
+      let cashTaken = money(0)
 
-  // ── A refund against the first sale ──────────────────────────────────────
-  const refundNo = "S-R001"
-  const existingRefund = await prisma.retailSale.findUnique({
-    where: { companyId_saleNo: { companyId, saleNo: refundNo } },
-    select: { id: true },
-  })
-  if (!existingRefund) {
-    const source = await prisma.retailSale.findUnique({
-      where: { id: saleIds[0] },
-      include: { lines: true },
-    })
-    if (source) {
-      // One line of the basket comes back, not the whole sale — a partial refund is
-      // the case the pro-rata arithmetic in `_services.ts` actually has to get right.
-      const line = source.lines[0]
-      const refundLine = {
-        sourceLineId: line.id,
-        inventoryItemId: line.inventoryItemId,
-        itemName: line.itemName,
-        quantity: money(line.quantity).negated(),
-        unitPrice: line.unitPrice,
-        discountAmount: money(line.discountAmount).negated(),
-        taxAmount: money(line.taxAmount).negated(),
-        lineTotal: money(line.lineTotal).negated(),
-        costUnit: line.costUnit,
-        costTotal: money(line.costTotal).negated(),
-      }
-      await prisma.retailSale.create({
-        data: {
+      for (let saleIndex = 0; saleIndex < saleCount; saleIndex += 1) {
+        saleSeq += 1
+        const saleId = randomUUID()
+        const postedAt = new Date(
+          openedAt.getTime() + between(5, 6 * 60) * 60 * 1000 + saleIndex * 1000,
+        )
+
+        const lineCount = between(1, 4)
+        const lines: LineRow[] = []
+        for (let lineIndex = 0; lineIndex < lineCount; lineIndex += 1) {
+          const product = pickProduct()
+          const target = stocked.get(product.code)
+          if (!target) continue
+          const quantity = rate(String(product.weight > 10 ? between(1, 6) : between(1, 2)))
+          const baseAmount = multiplyMoney(quantity, product.price)
+          const taxAmount = taxOn(baseAmount, VAT_PERCENT)
+          lines.push({
+            id: randomUUID(),
+            saleId,
+            inventoryItemId: target.inventoryItemId,
+            catalogItemId: target.catalogItemId,
+            itemName: product.name,
+            quantity,
+            unitPrice: money(product.price),
+            discountAmount: money(0),
+            taxAmount,
+            lineTotal: baseAmount.plus(taxAmount),
+            costUnit: money(product.cost),
+            costTotal: multiplyMoney(quantity, product.cost),
+            createdAt: postedAt,
+          })
+        }
+        if (lines.length === 0) continue
+
+        const subtotal = sumMoney(
+          lines.map((line) => multiplyMoney(line.quantity as Prisma.Decimal, line.unitPrice as Prisma.Decimal)),
+        )
+        const taxAmount = sumMoney(lines.map((line) => line.taxAmount as Prisma.Decimal))
+        const totalAmount = sumMoney(lines.map((line) => line.lineTotal as Prisma.Decimal))
+
+        // About one sale in twelve is settled in ZWG. The sale is still priced in
+        // USD — that is how a bottle store quotes — so the rate and the base
+        // amount are what make the drawer reconcile.
+        const inZwg = Math.random() < 0.08
+        const currency = inZwg ? "ZWG" : "USD"
+        const exchangeRate = inZwg ? rate(ZWG_RATE) : rate("1")
+        const baseAmount = inZwg ? money(totalAmount.div(rate(ZWG_RATE))) : totalAmount
+        if (inZwg) zwgSales += 1
+
+        const roll = Math.random()
+        const tender: RetailTenderType = inZwg
+          ? "CASH"
+          : roll < 0.5
+            ? "CASH"
+            : roll < 0.74
+              ? "MOBILE_MONEY"
+              : roll < 0.92
+                ? "CARD"
+                : "TRANSFER"
+
+        const named = Math.random() < 0.22
+        saleRows.push({
+          id: saleId,
           companyId,
-          saleNo: refundNo,
-          shiftId: openShift.id,
-          sourceSaleId: source.id,
+          saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
+          shiftId,
           siteId: site.id,
-          cashierId: actor.id,
-          cashierName: actor.name,
-          customerName: source.customerName,
-          saleType: "REFUND",
+          cashierId: cashier.id,
+          cashierName: cashier.name,
+          customerName: named ? pick(CUSTOMERS) : null,
+          saleType: "SALE",
           status: "POSTED",
-          subtotal: multiplyMoney(line.quantity, line.unitPrice).negated(),
+          subtotal,
           discountAmount: money(0),
-          taxAmount: money(line.taxAmount).negated(),
-          totalAmount: money(line.lineTotal).negated(),
-          tenderedAmount: money(line.lineTotal).negated(),
+          taxAmount,
+          totalAmount,
+          tenderedAmount: totalAmount,
           changeAmount: money(0),
-          overrideReason: "Damaged packaging returned by the customer",
-          postedAt: hoursAgo(0.5),
-          lines: { create: [refundLine] },
-          payments: {
-            create: [
-              {
-                tenderType: "CASH",
-                amount: money(line.lineTotal).negated(),
-                reference: null,
-              },
-            ],
-          },
-        },
+          currency,
+          exchangeRate,
+          baseAmount,
+          postedAt,
+          createdAt: postedAt,
+          updatedAt: postedAt,
+        })
+        lineRows.push(...lines)
+        paymentRows.push({
+          id: randomUUID(),
+          saleId,
+          tenderType: tender,
+          amount: totalAmount,
+          currency,
+          exchangeRate,
+          baseAmount,
+          reference: tender === "MOBILE_MONEY" ? `EC${between(100000, 999999)}` : null,
+          createdAt: postedAt,
+        })
+        if (tender === "CASH") cashTaken = cashTaken.plus(baseAmount)
+
+        // A refund every so often, against the sale just posted.
+        if (Math.random() < 0.02 && !isOpenShift) {
+          saleSeq += 1
+          refunds += 1
+          const refundId = randomUUID()
+          const refundedAt = new Date(postedAt.getTime() + 20 * 60 * 1000)
+          const source = lines[0]
+          saleRows.push({
+            id: refundId,
+            companyId,
+            saleNo: `S-${String(saleSeq).padStart(6, "0")}`,
+            shiftId,
+            sourceSaleId: saleId,
+            siteId: site.id,
+            cashierId: cashier.id,
+            cashierName: cashier.name,
+            saleType: "REFUND",
+            status: "POSTED",
+            subtotal: multiplyMoney(
+              source.quantity as Prisma.Decimal,
+              source.unitPrice as Prisma.Decimal,
+            ).negated(),
+            discountAmount: money(0),
+            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
+            totalAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            tenderedAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            changeAmount: money(0),
+            currency: "USD",
+            exchangeRate: rate("1"),
+            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            overrideReason: pick([
+              "Bottle returned unopened",
+              "Wrong item rung up",
+              "Customer changed their mind",
+            ]),
+            postedAt: refundedAt,
+            createdAt: refundedAt,
+            updatedAt: refundedAt,
+          })
+          lineRows.push({
+            id: randomUUID(),
+            saleId: refundId,
+            sourceLineId: source.id as string,
+            inventoryItemId: source.inventoryItemId,
+            catalogItemId: source.catalogItemId,
+            itemName: source.itemName,
+            quantity: money(source.quantity as Prisma.Decimal).negated(),
+            unitPrice: source.unitPrice,
+            discountAmount: money(0),
+            taxAmount: money(source.taxAmount as Prisma.Decimal).negated(),
+            lineTotal: money(source.lineTotal as Prisma.Decimal).negated(),
+            costUnit: source.costUnit,
+            costTotal: money(source.costTotal as Prisma.Decimal).negated(),
+            createdAt: refundedAt,
+          })
+          paymentRows.push({
+            id: randomUUID(),
+            saleId: refundId,
+            tenderType: "CASH",
+            amount: money(source.lineTotal as Prisma.Decimal).negated(),
+            currency: "USD",
+            exchangeRate: rate("1"),
+            baseAmount: money(source.lineTotal as Prisma.Decimal).negated(),
+            reference: null,
+            createdAt: refundedAt,
+          })
+          cashTaken = cashTaken.minus(money(source.lineTotal as Prisma.Decimal))
+        }
+      }
+
+      // A voided sale now and then — a mis-ring the cashier caught.
+      if (Math.random() < 0.06 && !isOpenShift) {
+        voids += 1
+      }
+
+      const expectedCash = openingFloat.plus(cashTaken)
+      // Most cash-ups balance. Some do not, and those are the ones a manager has
+      // to explain, so they are seeded rather than hoped for.
+      const varianceRoll = Math.random()
+      const varianceAmount =
+        varianceRoll < 0.72
+          ? money(0)
+          : varianceRoll < 0.9
+            ? money(String(-(between(50, 850) / 100)))
+            : money(String(between(20, 400) / 100))
+      const countedCash = closedAt ? expectedCash.plus(varianceAmount) : null
+
+      shiftRows.push({
+        id: shiftId,
+        companyId,
+        shiftNo,
+        registerCode: register.code,
+        registerName: register.name,
+        siteId: site.id,
+        cashierId: cashier.id,
+        cashierName: cashier.name,
+        openingFloat,
+        expectedCash,
+        countedCash,
+        variance: closedAt ? varianceAmount : null,
+        status: closedAt ? "CLOSED" : "OPEN",
+        openedAt,
+        closedAt,
+        createdAt: openedAt,
+        updatedAt: closedAt ?? openedAt,
       })
-      console.log("  1 refund against S-0001")
     }
   }
 
-  // ── A held cart nobody came back for ─────────────────────────────────────
-  const mealie = items.get("MEALIE-10")
-  await prisma.retailHeldCart.upsert({
-    where: { companyId_holdNo: { companyId, holdNo: "H-0001" } },
-    update: { status: "HELD" },
-    create: {
-      companyId,
-      holdNo: "H-0001",
-      shiftId: openShift.id,
-      cashierId: actor.id,
-      label: "Gogo — gone to fetch her card",
-      status: "HELD",
-      cartSnapshot: {
-        items: [
-          {
-            catalogItemId: `CAT-MEALIE-10`,
-            inventoryItemId: mealie?.id ?? null,
-            name: "Mealie meal 10kg",
-            quantity: 1,
-            unitPrice: 12.5,
-          },
-        ],
-      } as Prisma.InputJsonValue,
-    },
-  })
-  console.log("  1 held cart")
+  // Bulk, in batches — thousands of nested creates would be thousands of round
+  // trips to a pooled endpoint.
+  async function insert<T>(label: string, rows: T[], write: (batch: T[]) => Promise<unknown>) {
+    const size = 500
+    for (let index = 0; index < rows.length; index += size) {
+      await write(rows.slice(index, index + size))
+    }
+    console.log(`  ${rows.length} ${label}`)
+  }
 
-  // ── A purchase order, part received ──────────────────────────────────────
-  const poNo = "PO-0001"
+  await insert("shifts", shiftRows, (batch) =>
+    prisma.retailShift.createMany({ data: batch, skipDuplicates: true }),
+  )
+  await insert("sales", saleRows, (batch) =>
+    prisma.retailSale.createMany({ data: batch, skipDuplicates: true }),
+  )
+  await insert("sale lines", lineRows, (batch) =>
+    prisma.retailSaleLine.createMany({ data: batch, skipDuplicates: true }),
+  )
+  await insert("payments", paymentRows, (batch) =>
+    prisma.retailSalePayment.createMany({ data: batch, skipDuplicates: true }),
+  )
+
+  // ── A cart nobody came back for ──────────────────────────────────────────
+  const openShift = shiftRows.find((row) => row.status === "OPEN")
+  const castle = stocked.get("CASTLE-CASE")
+  if (openShift && castle) {
+    await prisma.retailHeldCart.upsert({
+      where: { companyId_holdNo: { companyId, holdNo: "H-0001" } },
+      update: { status: "HELD", shiftId: openShift.id as string },
+      create: {
+        companyId,
+        holdNo: "H-0001",
+        shiftId: openShift.id as string,
+        cashierId: openShift.cashierId as string,
+        label: "Gone to draw cash — case of Castle",
+        status: "HELD",
+        cartSnapshot: {
+          items: [
+            {
+              catalogItemId: castle.catalogItemId,
+              inventoryItemId: castle.inventoryItemId,
+              name: "Castle Lager case of 24",
+              quantity: 1,
+              unitPrice: 26.5,
+            },
+          ],
+        } as Prisma.InputJsonValue,
+      },
+    })
+  }
+
+  // ── Purchasing ───────────────────────────────────────────────────────────
+  const supplier = "Delta Beverages"
+  const poNo = "PO-00001"
   const existingOrder = await prisma.retailPurchaseOrder.findUnique({
     where: { companyId_poNo: { companyId, poNo } },
     select: { id: true },
   })
   if (!existingOrder) {
-    const rice = items.get("RICE-5")
-    const oil = items.get("COOKOIL-2")
+    const castleSingle = stocked.get("CASTLE-340")
+    const chibuku = stocked.get("CHIBUKU-1L")
     const order = await prisma.retailPurchaseOrder.create({
       data: {
         companyId,
         poNo,
         siteId: site.id,
-        supplierName: "Mutare Wholesalers",
-        // PARTIAL, not RECEIVED: half the order is still outstanding, which is the
-        // status the receipts screen exists to clear.
+        supplierName: supplier,
+        // PARTIAL: the scuds landed, the lager did not. That is the status the
+        // receipts screen exists to clear.
         status: "PARTIAL",
-        expectedDate: daysAgo(-4),
-        createdById: actor.id,
+        expectedDate: daysAgo(-3),
+        createdById: staff[0].id,
         lines: {
           create: [
             {
-              inventoryItemId: rice?.id ?? null,
-              itemName: "Long grain rice 5kg",
-              quantity: rate("40"),
-              unitCost: money("6.10"),
-              lineTotal: multiplyMoney(rate("40"), "6.10"),
-              receivedQuantity: rate("40"),
+              inventoryItemId: castleSingle?.inventoryItemId ?? null,
+              itemName: "Castle Lager 340ml",
+              quantity: rate("480"),
+              unitCost: money("0.85"),
+              lineTotal: multiplyMoney(rate("480"), "0.85"),
+              receivedQuantity: rate("0"),
             },
             {
-              inventoryItemId: oil?.id ?? null,
-              itemName: "Cooking oil 2L",
-              quantity: rate("60"),
-              unitCost: money("3.40"),
-              lineTotal: multiplyMoney(rate("60"), "3.40"),
-              receivedQuantity: rate("25"),
+              inventoryItemId: chibuku?.inventoryItemId ?? null,
+              itemName: "Chibuku Scud 1L",
+              quantity: rate("300"),
+              unitCost: money("0.72"),
+              lineTotal: multiplyMoney(rate("300"), "0.72"),
+              receivedQuantity: rate("300"),
             },
           ],
         },
       },
-      include: { lines: true },
+      select: { id: true },
     })
 
     await prisma.retailGoodsReceipt.create({
       data: {
         companyId,
-        receiptNo: "GRN-0001",
+        receiptNo: "GRN-00001",
         purchaseOrderId: order.id,
         siteId: site.id,
-        supplierName: "Mutare Wholesalers",
+        supplierName: supplier,
         status: "POSTED",
-        receivedById: actor.id,
-        postedAt: daysAgo(1),
+        receivedById: staff[3].id,
+        postedAt: daysAgo(2),
         lines: {
           create: [
             {
-              inventoryItemId: rice?.id ?? "",
-              itemName: "Long grain rice 5kg",
-              quantity: rate("40"),
-              unitCost: money("6.10"),
-              lineTotal: multiplyMoney(rate("40"), "6.10"),
-            },
-            {
-              inventoryItemId: oil?.id ?? "",
-              itemName: "Cooking oil 2L",
-              quantity: rate("25"),
-              unitCost: money("3.40"),
-              lineTotal: multiplyMoney(rate("25"), "3.40"),
+              inventoryItemId: chibuku?.inventoryItemId ?? "",
+              itemName: "Chibuku Scud 1L",
+              quantity: rate("300"),
+              unitCost: money("0.72"),
+              lineTotal: multiplyMoney(rate("300"), "0.72"),
             },
           ],
         },
       },
     })
-    console.log("  1 purchase order, part received, with its goods receipt")
   }
 
-  console.log("\nDone. Sign in and open /retail.")
+  const takings = sumMoney(saleRows.map((row) => row.baseAmount as Prisma.Decimal))
+  console.log(
+    `\n  ${refunds} refund(s), ${voids} void(s) flagged, ${zwgSales} sale(s) settled in ZWG` +
+      `\n  takings across the period: $${takings.toFixed(2)}` +
+      `\n  one shift left OPEN so the till is live` +
+      `\n\nSign in as any of:\n${STAFF.map((s) => `  ${s.role.padEnd(12)} ${s.email}`).join("\n")}` +
+      `\n  password: ${STAFF_PASSWORD}`,
+  )
+}
+
+/** Stable pseudo-barcode from the SKU, so a re-run does not renumber the shelf. */
+function hashCode(value: string) {
+  let hash = 0
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash << 5) - hash + value.charCodeAt(index)
+    hash |= 0
+  }
+  return hash
 }
 
 main().catch((error: unknown) => {

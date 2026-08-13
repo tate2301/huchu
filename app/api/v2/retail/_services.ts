@@ -7,6 +7,7 @@ import {
   multiplyMoney,
   rate,
   sumMoney,
+  toBaseAmount,
   toNumberOrZero,
   type MoneyLike,
 } from "@/lib/money";
@@ -35,7 +36,14 @@ export type RetailPaymentInput = {
   tenderType: RetailTenderType;
   amount: number;
   reference?: string | null;
+  /** The tender's own currency, when it differs from the sale's. */
   currency?: string | null;
+  /**
+   * Quote units per one base unit for this tender — 27.5 means 27.5 ZWG buys one
+   * USD. Only meaningful alongside `currency`; ignored when the tender is in the
+   * sale's own currency.
+   */
+  exchangeRate?: number | null;
 };
 
 export type RetailSaleLineInput = {
@@ -55,6 +63,23 @@ export type RetailSaleLineInput = {
 
 function round(value: number) {
   return Number(value.toFixed(2));
+}
+
+/**
+ * The currency a tenant keeps its books in.
+ *
+ * `AccountingSettings.baseCurrency` is the same column the ledger and the school
+ * fee surface read, so retail agreeing with it is what lets a sale, its journal
+ * and a VAT return talk about the same money. USD when a tenant has not been set
+ * up for accounting yet — which is what `lib/accounting/bootstrap.ts` writes on
+ * provisioning anyway.
+ */
+async function getCompanyBaseCurrency(companyId: string) {
+  const settings = await prisma.accountingSettings.findUnique({
+    where: { companyId },
+    select: { baseCurrency: true },
+  });
+  return settings?.baseCurrency?.trim().toUpperCase() || "USD";
 }
 
 function resolveCashierName(actor: RetailActorContext) {
@@ -401,6 +426,7 @@ export async function createRetailSaleTransaction(input: {
     amount: round(payment.amount),
     reference: payment.reference?.trim() || null,
     currency: payment.currency ?? null,
+    exchangeRate: payment.exchangeRate ?? null,
   }));
   const tenderPolicy = await getRetailTenderPolicy(input.actor.companyId);
   const paymentReferenceError = validateTenderReferences(tenderPolicy, normalizedPayments);
@@ -445,6 +471,23 @@ export async function createRetailSaleTransaction(input: {
         siteId: site.id,
       }));
 
+    /**
+     * The sale is priced in the company's base currency at rate 1.
+     *
+     * That is what every retail sale has been implicitly since the module was
+     * written, and writing it down is the point: the columns exist now, so the
+     * value has to be *stated* rather than defaulted, or `baseAmount` lands at
+     * zero and a day's takings read as nothing.
+     *
+     * Quoting a basket in a second currency is a separate change — it needs a
+     * price list per currency and a rate the till can show the customer before
+     * they agree to it. What R-1.5 buys today is that a **payment** may be in
+     * ZWG against a USD-priced sale, which is the case a Harare bottle store
+     * actually has all day, and that is carried on the payment rows below.
+     */
+    const saleCurrency = await getCompanyBaseCurrency(input.actor.companyId);
+    const saleExchangeRate = rate(1);
+
     try {
       const sale = await prisma.$transaction(async (tx) => {
         const created = await tx.retailSale.create({
@@ -462,6 +505,14 @@ export async function createRetailSaleTransaction(input: {
             totalAmount: input.totalAmount,
             tenderedAmount,
             changeAmount,
+            // R-1.5. Defaulting these at the column would put `baseAmount` at zero
+            // on every sale the till takes, and a day's takings would read as
+            // nothing. A sale priced in the base currency is rate 1 and its own
+            // base amount, which is what every sale is until multi-currency
+            // pricing is switched on for a tenant.
+            currency: saleCurrency,
+            exchangeRate: saleExchangeRate,
+            baseAmount: toBaseAmount(input.totalAmount, saleExchangeRate),
             promotionCode: input.promotionCode ?? null,
             overrideReason: input.overrideReason ?? null,
             status: "POSTED",
@@ -483,11 +534,24 @@ export async function createRetailSaleTransaction(input: {
               })),
             },
             payments: {
-              create: normalizedPayments.map((payment) => ({
-                tenderType: payment.tenderType,
-                amount: payment.amount,
-                reference: payment.reference,
-              })),
+              // The tender's own currency, which need not be the sale's. A
+              // USD-priced basket settled in ZWG notes is the ordinary case in
+              // Harare, and `normalizeRetailPostingPayments` has been carrying
+              // this field the whole time with nowhere to put it.
+              create: normalizedPayments.map((payment) => {
+                const paymentCurrency =
+                  payment.currency?.trim().toUpperCase() || saleCurrency;
+                const paymentRate =
+                  paymentCurrency === saleCurrency ? saleExchangeRate : rate(payment.exchangeRate ?? 1);
+                return {
+                  tenderType: payment.tenderType,
+                  amount: payment.amount,
+                  currency: paymentCurrency,
+                  exchangeRate: paymentRate,
+                  baseAmount: toBaseAmount(payment.amount, paymentRate),
+                  reference: payment.reference,
+                };
+              }),
             },
           },
           include: { lines: true, payments: true },

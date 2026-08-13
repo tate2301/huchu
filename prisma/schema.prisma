@@ -4461,6 +4461,19 @@ model RetailSale {
   totalAmount    Decimal @default(0) @db.Decimal(14, 2)
   tenderedAmount Decimal? @db.Decimal(14, 2)
   changeAmount   Decimal? @db.Decimal(14, 2)
+  /// R-1.5 — what the shelf price is quoted in. Zimbabwe trades in both, and a
+  /// bottle store prices in USD while taking ZWG across the counter all day, so a
+  /// sale that does not say which one it means is a sale nobody can reconcile.
+  /// Copied onto the row at posting so a later rate change cannot restate a
+  /// receipt that has already been handed over.
+  currency       String   @default("USD")
+  /// Quote units per one base unit, the same sense as `CurrencyRate.rate` and
+  /// `SchoolFeeInvoice.exchangeRate`: 27.5 means 27.5 ZWG buys one USD. Always 1
+  /// for a sale already in the company's base currency.
+  exchangeRate   Decimal  @default(1) @db.Decimal(12, 4)
+  /// `totalAmount` in `AccountingSettings.baseCurrency` — what reaches the ledger
+  /// and what a day's takings are summed in when the till has seen both.
+  baseAmount     Decimal  @default(0) @db.Decimal(14, 2)
   tenderSummary  Json?
   promotionCode  String?
   overrideReason String?
@@ -4506,6 +4519,19 @@ model RetailSalePayment {
   saleId     String
   tenderType RetailTenderType
   amount     Decimal @default(0) @db.Decimal(14, 2)
+  /// R-1.5 — the currency of *this tender*, which need not be the sale's.
+  ///
+  /// A split payment across the counter is the normal case in Harare, not an edge
+  /// one: a USD-priced basket settled part in USD notes and part in ZWG or
+  /// EcoCash. `normalizeRetailPostingPayments` already accepted a per-payment
+  /// currency and dropped it on the floor because there was no column, so both
+  /// halves were recorded as bare numbers in one pool and the drawer could not be
+  /// counted against them.
+  currency   String   @default("USD")
+  /// The rate applied to *this tender* at the moment it was taken.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  /// `amount` in the company's base currency, so a mixed-tender sale still adds up.
+  baseAmount Decimal @default(0) @db.Decimal(14, 2)
   reference  String?
   createdAt  DateTime @default(now())
 

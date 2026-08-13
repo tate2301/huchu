@@ -94,12 +94,14 @@ export function normalizeRetailPostingPayments(input: {
     amount: number;
     reference?: string | null;
     /**
-     * Accepted, carried through this function, and then dropped on the floor:
-     * `RetailSalePayment` has no currency column. Retail has no currency anywhere
-     * — see R-1.5 in `docs/retail/retail-hardening-plan-2026-08-12.md`. Until that
-     * lands, a till taking USD and ZWG records both as bare numbers in one pool.
+     * The tender's own currency. R-1.5 gave `RetailSalePayment` a column for
+     * this; before that it was accepted here, carried through, and dropped on the
+     * floor, so a till taking USD and ZWG recorded both as bare numbers in one
+     * pool and the drawer could not be counted against them.
      */
     currency?: string | null;
+    /** Quote units per one base unit for this tender: 27.5 ZWG buys one USD. */
+    exchangeRate?: number | null;
   }>;
   changeAmount?: number;
 }) {
@@ -109,6 +111,7 @@ export function normalizeRetailPostingPayments(input: {
     amount: round(Math.abs(payment.amount)),
     reference: payment.reference ?? null,
     currency: payment.currency ?? null,
+    exchangeRate: payment.exchangeRate ?? null,
   }));
 
   if (changeAmount <= 0) {
