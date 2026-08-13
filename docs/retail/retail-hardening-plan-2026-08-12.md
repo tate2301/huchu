@@ -170,10 +170,11 @@ screenshots, and right about the order of work. The plan below follows it.
 | R-5.2 seed | **done** — `scripts/seed-retail-demo.ts`: a bottle store, 180 days, 5,044 sales, four staff |
 | Workspace focus | **done** — `scripts/retail-demo-focus.ts` narrows a tenant to retail |
 | Offline till | **done** — `retail-pos` was never warmed by anybody; `lib/offline/workflow-catalog.test.ts` pins it |
-| R-1.3 `companyId` on line tables | **not started** |
-| R-1.4 FK relations | **not started** |
-| Phase 2 permissions | **not started** — highest remaining value for the demo |
-| Stock/pricing into core | **not started** — the §2b consolidation |
+| R-1.3 `companyId` on line tables | **done** — 4 tables, backfilled from parent, indexed; `scripts/retail-line-company-id.ts` |
+| R-2.1/R-2.2 permissions matrix | **done** — `lib/retail/permissions.ts` + 42 tests, 1,771 decisions swept |
+| R-1.4 FK relations | **not started** — deferred behind S-4; the FKs land once `RetailCatalogItem` retires |
+| R-2.3/R-2.4 wiring | **not started** — the matrix exists, the routes do not consult it yet |
+| Stock/pricing into core | **specified** — see `retail-stock-consolidation-plan-2026-08-13.md` |
 
 ### Found while doing the above
 
@@ -310,6 +311,44 @@ already cost the crew query on People.
   was going to restyle.
 - **A liquor-store seed replaces the generic one**, and provisioning (R-5.1) has to
   produce a shop that can trade on its first morning.
+
+## 2c. Revision — 2026-08-13, second pass
+
+**The consolidation is specified in
+`docs/retail/retail-stock-consolidation-plan-2026-08-13.md`.** That document is
+secondary to this one and obeys it. Read it before touching stock or pricing.
+
+Two things this plan asserts are **wrong**, established by reading the repo. The
+secondary plan's §0 carries the measurements; the corrections are recorded here
+so nobody builds on the wrong statement:
+
+- **§2b's "two systems counting the same bottles" is false.** Retail has never
+  owned a stock quantity. `InventoryItem.currentStock` has always been the only
+  on-hand figure, and every retail mutation already goes through one function
+  that writes core rows. What is genuinely duplicated is **pricing**
+  (`RetailCatalogItem.unitPrice`/`taxPercent` versus core `PriceList`, which
+  retail never once references) and **item identity** (`RetailCatalogItem`
+  beside core `Product`, whose `productId` link exists as a column and is never
+  written). The work is smaller than §2b implied and differently shaped.
+- **R-4.1's premise is wrong.** "Retail imports `@corelithzw/react`, as schools
+  and CRM do — zero files today" measures nothing: the package is consumed
+  through `components/ui/*` wrappers by 212 files repo-wide, and schools' 58 are
+  mostly those same wrappers. Retail's actual design-system defect is that it
+  built **parallel card primitives** — `KpiCard`, `SectionCard`, `PosMetricCard`,
+  `PosPanel` — instead of composing with the shared ones. There is not one
+  `<Card>` in retail. R-4.1 is superseded by **S-6**.
+
+Four defects found while mapping, two of them demo-blocking: `TRANSFER` writes a
+movement and moves no stock; the purchasing orders page calls routes that do not
+exist; goods receipt is four writes with no transaction; offline sync persists
+the device's price with no re-check and no manager gate. All four are tickets in
+the secondary plan.
+
+**The decision on risk posture was the user's and it went against the
+recommendation:** ship the redesign outright, with no per-tenant switch and no
+fallback to the old path. The compensation is heavier per-ticket verification.
+
+---
 
 ## 3. Plan
 
