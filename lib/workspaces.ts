@@ -16,26 +16,15 @@ import {
   type WorkspaceProfile,
 } from "@/lib/workspace-products";
 import {
-  ArrowDownward,
-  ClipboardList,
   Dashboard,
   Gem,
-  Building2,
-  BarChart3,
   Coins,
   FileText,
-  LocalShipping,
   MedusaAcademicCapIcon,
   MedusaBuildingStorefrontIcon,
   MedusaDirectionsIcon,
-  Package,
   Payments,
   Recycle,
-  ReceiptLong,
-  Scale,
-  TableRows,
-  Users,
-  Wallet,
   type LucideIcon,
 } from "@/lib/icons";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
@@ -194,57 +183,24 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     id: "retail",
     label: "Retail",
     homeHref: "/retail",
+    /**
+     * The retail nav section is already the definition — see `lib/navigation.ts`.
+     * This adds the two things gating cannot express: the till is a portal app
+     * rather than a retail page, and the back-office shifts screen is the
+     * manager's view of a cash-up a cashier does at the register.
+     */
     getItems(context) {
-      const baseItems = context.navSectionById.get("retail")?.items ?? [];
-      const has = (href: string) => baseItems.some((item) => item.href === href);
+      const posCapable = canAccessPosPortal(context.role);
       const items: NavItem[] = [];
 
-      if (has("/retail")) {
-        items.push({ href: "/retail", label: "Overview", icon: Wallet });
-      }
-      if (has("/retail/sell")) {
-        if (canAccessPosPortal(context.role)) {
+      for (const item of context.navSectionById.get("retail")?.items ?? []) {
+        if (item.href === "/retail/shifts" && posCapable) continue;
+        // `/portal/pos` and `/retail/sales` are both gated on `retail.pos`, so
+        // offering the till alongside the sales list keeps them in step.
+        if (item.href === "/retail/sales" && posCapable) {
           items.push({ href: "/portal/pos", label: "Open POS", icon: Payments });
         }
-        items.push({ href: "/retail/sales", label: "Sales", icon: ClipboardList });
-      }
-      if (has("/retail/customers")) {
-        items.push({ href: "/retail/customers", label: "Customers", icon: Users });
-      }
-      if (has("/retail/cash-control") && !canAccessPosPortal(context.role)) {
-        items.push({ href: "/retail/shifts", label: "Shifts", icon: ReceiptLong });
-      }
-      if (has("/retail/merchandise")) {
-        items.push(
-          { href: "/retail/catalog", label: "Catalog", icon: TableRows },
-          { href: "/retail/merchandising/pricing", label: "Pricing", icon: Coins },
-          { href: "/retail/merchandising/promotions", label: "Promotions", icon: ReceiptLong },
-        );
-      }
-      if (has("/retail/stock")) {
-        items.push(
-          { href: "/retail/stock", label: "Stock Overview", icon: Package },
-          { href: "/retail/stock/count", label: "Stock Count", icon: ClipboardList },
-          { href: "/retail/stock/transfers", label: "Transfers", icon: ArrowDownward },
-        );
-      }
-      if (has("/retail/buy")) {
-        items.push(
-          { href: "/retail/purchasing/orders", label: "Purchase Orders", icon: Package },
-          { href: "/retail/purchasing/receipts", label: "Goods Receipts", icon: LocalShipping },
-        );
-      }
-      if (has("/retail/insights")) {
-        items.push({ href: "/retail/reports", label: "Reports", icon: BarChart3 });
-      }
-      if (has("/retail/setup")) {
-        items.push(
-          { href: "/retail/setup", label: "Setup Overview", icon: Building2 },
-          { href: "/retail/setup/operations", label: "Operations", icon: Building2 },
-          { href: "/retail/setup/branding", label: "Branding", icon: Building2 },
-          { href: "/retail/setup/pos-policy", label: "POS Policy", icon: Scale },
-          { href: "/retail/setup/accounting", label: "Accounting Setup", icon: Scale },
-        );
+        items.push(item);
       }
 
       return items;
@@ -614,7 +570,6 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         id: "retail-control",
         title: "Controls & Growth",
         refs: [
-          { moduleId: "retail", href: "/retail/accounting" },
           { moduleId: "retail", href: "/retail/reports" },
           { moduleId: "retail", href: "/retail/setup" },
           { moduleId: "retail", href: "/retail/setup/operations" },

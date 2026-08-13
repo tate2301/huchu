@@ -1,6 +1,7 @@
 import {
   MapPin,
   AlertCircle,
+  ArrowDownward,
   BarChart3,
   Building2,
   CalendarCheck,
@@ -47,7 +48,6 @@ import {
 } from "@/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
-import { RETAIL_TABS } from "@/lib/retail/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
 import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 
@@ -348,13 +348,35 @@ export const navSections: NavSection[] = [
   {
     id: "retail",
     title: "Retail",
-    description: "Overview, sell, stock, buy, customers, cash control, accounting, insights, and setup",
+    description: "Overview, sales, range and stock, purchasing, customers, shifts, reports, and setup",
     featureKey: "retail.core",
-    items: RETAIL_TABS.map((tab) => ({
-      href: tab.href,
-      icon: tab.icon,
-      label: tab.label,
-    })),
+    // The only definition of retail's nav items, and every href is a route that
+    // exists. It used to be a second list of alias paths (`/retail/sell`,
+    // `/retail/buy`, …) whose sole purpose was to carry a feature key for
+    // `lib/workspaces.ts` to probe, which meant every surface was gated on
+    // `retail.core` here while the page itself enforced a tighter key. The
+    // real paths carry their own keys in the route registry, so gating and
+    // enforcement now agree.
+    items: [
+      { href: "/retail", icon: Wallet, label: "Overview" },
+      { href: "/retail/sales", icon: ClipboardList, label: "Sales" },
+      { href: "/retail/shifts", icon: ReceiptLong, label: "Shifts" },
+      { href: "/retail/customers", icon: Users, label: "Customers" },
+      { href: "/retail/catalog", icon: TableRows, label: "Catalog" },
+      { href: "/retail/merchandising/pricing", icon: Coins, label: "Pricing" },
+      { href: "/retail/merchandising/promotions", icon: ReceiptLong, label: "Promotions" },
+      { href: "/retail/stock", icon: Package, label: "Stock Overview" },
+      { href: "/retail/stock/count", icon: ClipboardList, label: "Stock Count" },
+      { href: "/retail/stock/transfers", icon: ArrowDownward, label: "Transfers" },
+      { href: "/retail/purchasing/orders", icon: Package, label: "Purchase Orders" },
+      { href: "/retail/purchasing/receipts", icon: LocalShipping, label: "Goods Receipts" },
+      { href: "/retail/reports", icon: BarChart3, label: "Reports" },
+      { href: "/retail/setup", icon: Building2, label: "Setup Overview" },
+      { href: "/retail/setup/operations", icon: Building2, label: "Operations" },
+      { href: "/retail/setup/branding", icon: Building2, label: "Branding" },
+      { href: "/retail/setup/pos-policy", icon: Scale, label: "POS Policy" },
+      { href: "/retail/setup/accounting", icon: Scale, label: "Accounting Setup" },
+    ],
   },
   {
     // Retail's customer ledger, not the CRM module. It used to share the id

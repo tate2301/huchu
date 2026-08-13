@@ -103,7 +103,7 @@ export async function searchRetail(
         ["Type", row.saleType],
         ["Status", row.status],
       ]),
-      href: `/retail/sell?saleId=${row.id}`,
+      href: `/retail/sales?saleId=${row.id}`,
     };
   });
 }

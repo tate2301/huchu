@@ -172,6 +172,7 @@ screenshots, and right about the order of work. The plan below follows it.
 | Offline till | **done** — `retail-pos` was never warmed by anybody; `lib/offline/workflow-catalog.test.ts` pins it |
 | R-1.3 `companyId` on line tables | **done** — 4 tables, backfilled from parent, indexed; `scripts/retail-line-company-id.ts` |
 | R-2.1/R-2.2 permissions matrix | **done** — `lib/retail/permissions.ts` + 42 tests, 1,771 decisions swept |
+| R-4.6 one nav | **done** — `RETAIL_TABS` deleted, the items live on the real paths in `lib/navigation.ts`, eight alias routes removed |
 | R-1.4 FK relations | **not started** — deferred behind S-4; the FKs land once `RetailCatalogItem` retires |
 | R-2.3/R-2.4 wiring | **not started** — the matrix exists, the routes do not consult it yet |
 | Stock/pricing into core | **specified** — see `retail-stock-consolidation-plan-2026-08-13.md` |
