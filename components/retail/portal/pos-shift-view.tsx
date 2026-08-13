@@ -376,13 +376,20 @@ export function PosShiftView() {
                 <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
                   <p className="mb-3 text-[13px] font-bold text-[var(--text-strong)]">Register details</p>
                   <div className="space-y-3">
-                    <SearchableSelect
-                      label="Site"
-                      value={selectedSiteId}
-                      options={siteOptions}
-                      placeholder="Select site"
-                      onValueChange={setPickedSiteId}
-                    />
+                    {/*
+                      One branch is not a choice. The till resolves it and moves
+                      the cashier straight to the register, which is the thing
+                      they actually pick.
+                    */}
+                    {siteOptions.length > 1 ? (
+                      <SearchableSelect
+                        label="Site"
+                        value={selectedSiteId}
+                        options={siteOptions}
+                        placeholder="Select site"
+                        onValueChange={setPickedSiteId}
+                      />
+                    ) : null}
                     <SearchableSelect
                       label="Register"
                       value={selectedRegisterId}
