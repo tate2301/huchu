@@ -25,7 +25,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CheckCircle2, LocalShipping, Pencil, Plus, Trash2 } from "@/lib/icons";
+import { LocalShipping, Pencil, Plus, ReceiptLong, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type PurchaseOrderLine = {
@@ -34,6 +34,7 @@ type PurchaseOrderLine = {
   quantity: number;
   unitCost: number;
   lineTotal: number;
+  receivedQuantity: number;
 };
 
 type PurchaseOrder = {
@@ -80,25 +81,29 @@ function dateLabel(iso: string | null) {
   return iso ? new Date(iso).toLocaleDateString() : "—";
 }
 
+/** What the supplier still owes on this order. Zero means there is nothing to receive. */
+function outstandingQuantity(order: PurchaseOrder) {
+  return order.totalQuantity - order.receivedQuantity;
+}
+
 export default function PurchaseOrdersPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<PurchaseOrder | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<PurchaseOrder | null>(null);
-  const [receiveTarget, setReceiveTarget] = useState<PurchaseOrder | null>(null);
   const [form, setForm] = useState<OrderForm>(emptyForm);
 
   const ordersQuery = useQuery({
-    queryKey: ["purchase-orders"],
-    queryFn: () => fetchJson<{ data: PurchaseOrder[] }>("/api/v2/retail/purchase-orders"),
+    queryKey: ["retail-purchase-orders"],
+    queryFn: () => fetchJson<{ data: PurchaseOrder[] }>("/api/v2/retail/purchasing/orders"),
   });
   const sitesQuery = useQuery({ queryKey: ["retail-sites"], queryFn: fetchSites });
   const inventoryQuery = useQuery({ queryKey: ["retail-inventory"], queryFn: () => fetchInventoryItems() });
 
   const orders = useMemo(() => ordersQuery.data?.data ?? [], [ordersQuery.data?.data]);
   const draftOrders = orders.filter((o) => o.status === "DRAFT");
-  const pendingOrders = orders.filter((o) => o.status === "SENT");
+  const awaitingOrders = orders.filter((o) => outstandingQuantity(o) > 0);
 
   const siteOptions: SearchableOption[] = useMemo(
     () => (sitesQuery.data ?? []).map((s: { id: string; name: string }) => ({ value: s.id, label: s.name })),
@@ -119,27 +124,33 @@ export default function PurchaseOrdersPage() {
 
   const totalLines = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0), 0);
   const totalCost = (f: OrderForm) => f.lines.reduce((s, l) => s + (Number(l.quantity) || 0) * (Number(l.unitCost) || 0), 0);
-  const hasLineErrors = form.lines.some(
-    (l) => (l.quantity !== "" && Number(l.quantity) <= 0) || (l.unitCost !== "" && Number(l.unitCost) < 0),
-  );
+  // The API demands at least one line, a positive quantity, and a real inventory item per line.
+  const hasLineErrors =
+    form.lines.length === 0 ||
+    form.lines.some(
+      (l) => !l.inventoryItemId || !(Number(l.quantity) > 0) || !(Number(l.unitCost) >= 0),
+    );
 
   const saveMutation = useMutation({
     mutationFn: async (f: OrderForm) => {
       const body = {
-        poNo: editing ? undefined : poNo || undefined,
-        supplierName: f.supplierName, siteId: f.siteId,
-        expectedDate: f.expectedDate ? new Date(f.expectedDate).toISOString() : undefined,
-        notes: f.notes.trim() || undefined,
+        ...(editing ? {} : { poNo: poNo || undefined }),
+        supplierName: f.supplierName.trim(), siteId: f.siteId,
+        expectedDate: f.expectedDate ? new Date(f.expectedDate).toISOString() : null,
+        notes: f.notes.trim() || null,
         lines: f.lines.map((l) => ({
-          inventoryItemId: l.inventoryItemId, quantity: Number(l.quantity), unitCost: Number(l.unitCost),
+          inventoryItemId: l.inventoryItemId,
+          itemName: l.itemName || undefined,
+          quantity: Number(l.quantity),
+          unitCost: Number(l.unitCost),
         })),
       };
-      if (editing) return fetchJson(`/api/v2/retail/purchase-orders/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
-      return fetchJson("/api/v2/retail/purchase-orders", { method: "POST", body: JSON.stringify(body) });
+      if (editing) return fetchJson(`/api/v2/retail/purchasing/orders/${editing.id}`, { method: "PATCH", body: JSON.stringify(body) });
+      return fetchJson("/api/v2/retail/purchasing/orders", { method: "POST", body: JSON.stringify(body) });
     },
     onSuccess: () => {
       toast({ title: editing ? "Updated" : "Created", variant: "success" });
-      queryClient.invalidateQueries({ queryKey: ["purchase-orders"] });
+      queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
       setDialogOpen(false); setEditing(null); setForm(emptyForm());
     },
     onError: (error) => {
@@ -148,15 +159,9 @@ export default function PurchaseOrdersPage() {
   });
 
   const deleteMutation = useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/v2/retail/purchase-orders/${id}`, { method: "DELETE" }),
-    onSuccess: () => { toast({ title: "Removed", variant: "success" }); queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }); setDeleteTarget(null); },
+    mutationFn: (id: string) => fetchJson(`/api/v2/retail/purchasing/orders/${id}`, { method: "DELETE" }),
+    onSuccess: () => { toast({ title: "Removed", variant: "success" }); queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] }); setDeleteTarget(null); },
     onError: (error) => { toast({ title: "Remove failed", description: getApiErrorMessage(error), variant: "destructive" }); },
-  });
-
-  const receiveMutation = useMutation({
-    mutationFn: (id: string) => fetchJson(`/api/v2/retail/purchase-orders/${id}/receive`, { method: "POST" }),
-    onSuccess: () => { toast({ title: "Received", variant: "success" }); queryClient.invalidateQueries({ queryKey: ["purchase-orders"] }); setReceiveTarget(null); },
-    onError: (error) => { toast({ title: "Receive failed", description: getApiErrorMessage(error), variant: "destructive" }); },
   });
 
   /* chart data */
@@ -165,7 +170,7 @@ export default function PurchaseOrdersPage() {
     for (const o of orders) counts.set(o.status, (counts.get(o.status) ?? 0) + 1);
     return Array.from(counts.entries()).map(([label, value]) => ({
       id: label, label, value,
-      tone: label === "SENT" ? ("success" as const) : label === "DRAFT" ? ("warning" as const) : ("default" as const),
+      tone: label === "RECEIVED" ? ("success" as const) : label === "PARTIAL" ? ("warning" as const) : ("default" as const),
     }));
   }, [orders]);
 
@@ -190,20 +195,28 @@ export default function PurchaseOrdersPage() {
     { id: "expectedDate", header: "Expected", cell: ({ row }) => dateLabel(row.original.expectedDate) },
     { id: "actions", header: "", cell: ({ row }) => (
       <div className="flex justify-end gap-2">
-        {row.original.status === "SENT" && (
-          <Button size="sm" variant="outline" onClick={() => setReceiveTarget(row.original)}>
-            <CheckCircle2 className="h-4 w-4" />
+        {outstandingQuantity(row.original) > 0 && (
+          // Deliveries arrive short as a matter of course, so this hands the order to the
+          // goods-receipt form to be counted rather than receiving it in full unseen.
+          <Button asChild size="sm" variant="outline">
+            <Link
+              href={`/retail/purchasing/receipts?orderId=${row.original.id}`}
+              aria-label={`Receive against ${row.original.poNo}`}
+              title="Receive against this order"
+            >
+              <ReceiptLong className="h-4 w-4" />
+            </Link>
           </Button>
         )}
-        <Button size="sm" variant="outline" onClick={() => { setEditing(row.original); setForm({
+        <Button size="sm" variant="outline" aria-label={`Edit ${row.original.poNo}`} onClick={() => { setEditing(row.original); setForm({
           supplierName: row.original.supplierName, siteId: row.original.siteId,
-          expectedDate: row.original.expectedDate ? row.original.expectedDate.slice(0, 16) : "",
+          expectedDate: row.original.expectedDate ? row.original.expectedDate.slice(0, 10) : "",
           notes: row.original.notes ?? "",
           lines: row.original.lines.map((l) => ({ inventoryItemId: l.inventoryItemId ?? "", itemName: l.itemName, quantity: String(l.quantity), unitCost: String(l.unitCost) })),
         }); setDialogOpen(true); }}>
           <Pencil className="h-4 w-4" />
         </Button>
-        <Button size="sm" variant="outline" onClick={() => setDeleteTarget(row.original)}>
+        <Button size="sm" variant="outline" aria-label={`Remove ${row.original.poNo}`} onClick={() => setDeleteTarget(row.original)}>
           <Trash2 className="h-4 w-4" />
         </Button>
       </div>
@@ -227,7 +240,7 @@ export default function PurchaseOrdersPage() {
           <ReportBigNumber label="Draft orders" value={draftOrders.length.toString()} dotColor="var(--status-warning-border)" />
         </ReportChartShell>
         <ReportChartShell title="Pending" sourceTag={{ label: "PO" }}>
-          <ReportBigNumber label="Awaiting receipt" value={pendingOrders.length.toString()} dotColor="var(--status-success-border)" />
+          <ReportBigNumber label="Awaiting receipt" value={awaitingOrders.length.toString()} dotColor="var(--status-success-border)" />
         </ReportChartShell>
       </div>
 
@@ -344,24 +357,6 @@ export default function PurchaseOrdersPage() {
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setDeleteTarget(null)}>Cancel</Button>
             <Button type="button" variant="destructive" onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}>Remove</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {/* Receive Dialog */}
-      <Dialog open={Boolean(receiveTarget)} onOpenChange={(open) => !open && setReceiveTarget(null)}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader><DialogTitle>Receive order</DialogTitle></DialogHeader>
-          <div className="space-y-3 text-sm">
-            <div className="font-mono font-semibold">{receiveTarget?.poNo}</div>
-            <div>{receiveTarget?.supplierName}</div>
-            <div className="text-[var(--text-muted)]">{receiveTarget?.totalQuantity} items · {money(receiveTarget?.totalValue ?? 0)}</div>
-          </div>
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setReceiveTarget(null)}>Cancel</Button>
-            <Button type="button" onClick={() => receiveTarget && receiveMutation.mutate(receiveTarget.id)}>
-              <CheckCircle2 className="mr-1 h-4 w-4" /> Confirm receive
-            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

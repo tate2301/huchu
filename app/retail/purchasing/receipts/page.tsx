@@ -1,7 +1,8 @@
 ﻿"use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/components/ui/searchable-select";
@@ -39,12 +40,21 @@ type Receipt = {
   site: { id: string; name: string; code: string } | null;
 };
 
+type PurchaseOrderLine = {
+  inventoryItemId: string | null;
+  itemName: string;
+  quantity: number;
+  unitCost: number;
+  receivedQuantity: number;
+};
+
 type PurchaseOrder = {
   id: string;
   poNo: string;
   supplierName: string;
   siteId: string;
-  lines: Array<{ inventoryItemId: string | null; itemName: string; quantity: number; unitCost: number }>;
+  status: string;
+  lines: PurchaseOrderLine[];
 };
 
 type ReceiptLineForm = {
@@ -61,19 +71,54 @@ type ReceiptForm = {
   lines: ReceiptLineForm[];
 };
 
+function emptyLine(): ReceiptLineForm {
+  return { inventoryItemId: "", quantity: "1", unitCost: "" };
+}
+
 function emptyForm(siteId = ""): ReceiptForm {
   return {
     siteId,
     purchaseOrderId: "",
     supplierName: "",
     notes: "",
-    lines: [{ inventoryItemId: "", quantity: "1", unitCost: "" }],
+    lines: [emptyLine()],
+  };
+}
+
+function outstandingQuantity(order: PurchaseOrder) {
+  return order.lines.reduce((total, line) => total + Math.max(line.quantity - line.receivedQuantity, 0), 0);
+}
+
+/**
+ * One editable row per order line that is still owed. Quantity defaults to what is
+ * outstanding and cost to what was ordered — both are then the counter's to correct,
+ * because a delivery arriving short is the normal case, not the exception.
+ */
+function formFromOrder(order: PurchaseOrder, fallbackSiteId: string): ReceiptForm {
+  const lines = order.lines
+    .map((line) => ({ line, outstanding: line.quantity - line.receivedQuantity }))
+    .filter((entry) => entry.outstanding > 0)
+    .map(({ line, outstanding }) => ({
+      inventoryItemId: line.inventoryItemId ?? "",
+      quantity: String(outstanding),
+      unitCost: String(line.unitCost),
+    }));
+
+  return {
+    siteId: order.siteId || fallbackSiteId,
+    purchaseOrderId: order.id,
+    supplierName: order.supplierName,
+    notes: "",
+    lines: lines.length > 0 ? lines : [emptyLine()],
   };
 }
 
 export default function RetailReceiptsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderIdParam = searchParams.get("orderId");
   const [dialogOpen, setDialogOpen] = useState(false);
   const sitesQuery = useQuery({ queryKey: ["retail-receipt-sites"], queryFn: fetchSites });
   const inventoryQuery = useQuery({
@@ -119,13 +164,49 @@ export default function RetailReceiptsPage() {
   );
   const orderOptions = useMemo<SearchableOption[]>(
     () =>
-      orders.map((order) => ({
-        value: order.id,
-        label: order.poNo,
-        description: order.supplierName,
-      })),
+      orders
+        .filter((order) => outstandingQuantity(order) > 0)
+        .map((order) => ({
+          value: order.id,
+          label: order.poNo,
+          description: order.supplierName,
+        })),
     [orders],
   );
+
+  // The API needs a real stock item, a positive quantity and a non-negative cost per line.
+  const hasLineErrors =
+    form.lines.length === 0 ||
+    form.lines.some(
+      (line) => !line.inventoryItemId || !(Number(line.quantity) > 0) || !(Number(line.unitCost) >= 0),
+    );
+
+  const linkedOrder = useMemo(
+    () => orders.find((order) => order.id === form.purchaseOrderId) ?? null,
+    [orders, form.purchaseOrderId],
+  );
+
+  const closeDialog = useCallback(() => {
+    setDialogOpen(false);
+    if (orderIdParam) router.replace("/retail/purchasing/receipts");
+  }, [orderIdParam, router]);
+
+  // Arriving from the purchase orders screen: open the capture form already filled in
+  // with what that order is still owed. Adjusting state during render rather than in an
+  // effect — the prefill is derived from the URL, not synchronised with an outside system.
+  const [prefilledOrderId, setPrefilledOrderId] = useState<string | null>(null);
+  if (orderIdParam && ordersQuery.isSuccess && prefilledOrderId !== orderIdParam) {
+    setPrefilledOrderId(orderIdParam);
+    const order = orders.find((entry) => entry.id === orderIdParam);
+    if (order) {
+      setForm(formFromOrder(order, sites[0]?.id ?? ""));
+      setDialogOpen(true);
+    }
+  }
+  const unknownOrderRequested =
+    Boolean(orderIdParam) &&
+    ordersQuery.isSuccess &&
+    !orders.some((order) => order.id === orderIdParam);
 
   const saveMutation = useMutation({
     mutationFn: async (payload: ReceiptForm) =>
@@ -150,7 +231,8 @@ export default function RetailReceiptsPage() {
       queryClient.invalidateQueries({ queryKey: ["retail-purchase-orders"] });
       queryClient.invalidateQueries({ queryKey: ["inventory-items"] });
       queryClient.invalidateQueries({ queryKey: ["retail-dashboard"] });
-      setDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["retail-open-orders-for-receipts"] });
+      closeDialog();
       setForm(emptyForm(sites[0]?.id ?? ""));
     },
     onError: (error) => {
@@ -206,6 +288,7 @@ export default function RetailReceiptsPage() {
           <Button
             size="sm"
             onClick={() => {
+              if (orderIdParam) router.replace("/retail/purchasing/receipts");
               setForm(emptyForm(sites[0]?.id ?? ""));
               setDialogOpen(true);
             }}
@@ -235,14 +318,27 @@ export default function RetailReceiptsPage() {
         pagination={{ enabled: true, server: false }}
         searchPlaceholder="Search receipts"
         emptyState={receiptsQuery.isLoading ? "Loading receipts..." : "No receipts yet"}
-        toolbar={<span className="text-xs text-[var(--text-muted)]">Posted retail receipts</span>}
+        toolbar={
+          <span className="text-xs text-[var(--text-muted)]">
+            {unknownOrderRequested
+              ? "That purchase order could not be found. Capture the receipt manually."
+              : "Posted retail receipts"}
+          </span>
+        }
       />
 
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
         <DialogContent className="sm:max-w-3xl">
           <DialogHeader>
-            <DialogTitle>New receipt</DialogTitle>
-            <DialogDescription>Post received stock straight into shared inventory.</DialogDescription>
+            <DialogTitle>{form.purchaseOrderId ? `Receive against ${linkedOrder?.poNo ?? "order"}` : "New receipt"}</DialogTitle>
+            {/* DialogDescription is sr-only by default; the prefill guidance has to be seen. */}
+            <DialogDescription
+              className={form.purchaseOrderId ? "not-sr-only text-sm text-[var(--text-muted)]" : undefined}
+            >
+              {form.purchaseOrderId
+                ? "Quantities are pre-filled with what is still outstanding. Correct them to what actually arrived before posting."
+                : "Post received stock straight into shared inventory."}
+            </DialogDescription>
           </DialogHeader>
           <form
             className="space-y-4"
@@ -271,18 +367,11 @@ export default function RetailReceiptsPage() {
                 placeholder="Optional PO"
                 onValueChange={(value) => {
                   const order = orders.find((entry) => entry.id === value);
-                  setForm({
-                    siteId: order?.siteId ?? form.siteId,
-                    purchaseOrderId: value,
-                    supplierName: order?.supplierName ?? "",
-                    notes: "",
-                    lines:
-                      order?.lines.map((line) => ({
-                        inventoryItemId: line.inventoryItemId ?? "",
-                        quantity: String(Math.max(line.quantity, 1)),
-                        unitCost: String(line.unitCost),
-                      })) ?? form.lines,
-                  });
+                  setForm((current) =>
+                    order
+                      ? formFromOrder(order, current.siteId)
+                      : { ...current, purchaseOrderId: value },
+                  );
                 }}
               />
               <div className="space-y-2">
@@ -330,8 +419,8 @@ export default function RetailReceiptsPage() {
               <Textarea value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} rows={3} />
             </div>
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
-              <Button type="submit" disabled={saveMutation.isPending || !form.siteId || !form.supplierName}>Post receipt</Button>
+              <Button type="button" variant="outline" onClick={closeDialog}>Cancel</Button>
+              <Button type="submit" disabled={saveMutation.isPending || !form.siteId || !form.supplierName.trim() || hasLineErrors}>Post receipt</Button>
             </DialogFooter>
           </form>
         </DialogContent>
