@@ -217,6 +217,64 @@ Both were found by the compiler the moment the vocabulary became a type. My own 
 harvest of the vocabulary missed `RELEASED` because I grepped for values I expected
 rather than extracting every literal assigned to those columns.
 
+## 2b. Revision — 2026-08-13
+
+Three changes of direction, and a hard deadline the plan did not have when it was
+written. They reorder everything below.
+
+### The deadline is a liquor store
+
+The module is being demonstrated to a bottle-store client and then run for a **full
+working day, in their shop, by their staff**. That makes the ranking:
+
+1. the till survives a day of real trade,
+2. cashiers can do their job and cannot do the manager's,
+3. money is right and reconciles at cash-up,
+4. the screens look finished.
+
+Decisions are made for the Zimbabwean market without asking: **USD is the pricing
+currency with ZWG taken alongside it**, **EcoCash sits beside cash and card as a
+first-class tender**, and shelf prices carry **15% VAT**. Demo data reads like a
+bottle store — beers, spirits, ciders, singles and cases — not a generic shop.
+
+### Retail stops owning stock and pricing
+
+Retail grew its own stock and pricing surfaces (`/retail/stock`,
+`/retail/stock/count`, `/retail/stock/transfers`, `/retail/merchandising/pricing`)
+alongside a catalogue of its own, while the core Stores module already has stock on
+hand, locations, movements, a catalogue and price lists. Two systems counting the
+same bottles is one too many.
+
+**The capability moves into the core stock module** and is exposed to retail through
+feature keys, so a retail workspace sees it and a workspace without retail does not.
+Retail keeps the surfaces that are genuinely retail — the till, shifts, promotions,
+purchasing — and stops keeping a second stock ledger.
+
+**The editable pricing table design stays.** It is the good part of
+`/retail/merchandising/pricing` and the reason to move the function rather than
+delete it; it becomes how price lists are edited in core, for every module.
+
+### Sites are optional
+
+A single-site workspace must not be asked which branch it means. Site pickers
+disappear when a tenant has one site, and a site is resolved rather than demanded.
+This is not cosmetic: a bottle store has one shop, and the shift dialog currently
+cannot be submitted without choosing a branch from a list of one. It is also the
+trap the method doc names — *do not gate a lookup on a narrowing field* — which
+already cost the crew query on People.
+
+### Consequences for the phases below
+
+- **R-1.3/R-1.4/R-1.5 stand**, and R-1.5 (currency) is promoted: dual currency is
+  the difference between a usable till in Harare and a demo.
+- **Phase 2 (permissions) is promoted** above the UI work. Their staff use this, and
+  a cashier who can reach cost price or the trading dashboard is a problem on day
+  one, not a tidiness issue.
+- **Phase 4 gains the consolidation** above, and loses the retail stock screens it
+  was going to restyle.
+- **A liquor-store seed replaces the generic one**, and provisioning (R-5.1) has to
+  produce a shop that can trade on its first morning.
+
 ## 3. Plan
 
 Screenshots after every phase, against the `spar` tenant, per the standing

@@ -355,9 +355,41 @@ export async function getCompanyFeatureMap(companyId: string): Promise<FeatureMa
     map[normalizeFeatureKey(key)] = true;
   }
 
+  // Two flag rows can land on the same key, because `normalizeFeatureKey` folds a
+  // renamed namespace onto its canonical one — `thrift.core` onto `retail.core`,
+  // `hr.payouts` onto `settlements.core`. A tenant that has rows for both wrote
+  // whichever Prisma returned last into the map, so its entitlements depended on
+  // row order. Disabling four `thrift.*` keys on a tenant that also had `retail.*`
+  // rows silently took `retail.core`, `retail.pos`, `retail.catalog` and
+  // `retail.purchasing` down with them: the workspace lost most of its sidebar
+  // while every retail flag still read `true` in the database.
+  //
+  // Precedence is explicit now: a row whose key is *already* canonical wins, and a
+  // row that only reaches the key through an alias applies when there is no
+  // canonical row. Same answer for a legacy-only tenant, deterministic for one
+  // holding both.
+  //
+  // TODO: no data migration has been run for this. Tenants still holding both a
+  // `thrift.*` and a `retail.*` row keep working, but the duplicate legacy rows
+  // should be merged into their canonical keys and deleted, and the four
+  // `thrift.*` aliases dropped from `FEATURE_KEY_ALIASES` — AGENTS.md says remove
+  // obsolete paths rather than keep translating them.
   const explicitFlagKeys = new Set<string>();
   for (const flag of flags) {
-    const normalizedFlagKey = normalizeFeatureKey(flag.feature.key);
+    const rawKey = flag.feature.key.trim().toLowerCase();
+    const normalizedFlagKey = normalizeFeatureKey(rawKey);
+    if (normalizedFlagKey !== rawKey) continue;
+    const requested = Boolean(flag.isEnabled);
+    const isBillable = featureMeta.get(normalizedFlagKey)?.isBillable ?? Boolean(flag.feature.isBillable);
+    map[normalizedFlagKey] = requested && (!isBillable || subscriptionEntitled.has(normalizedFlagKey));
+    explicitFlagKeys.add(normalizedFlagKey);
+  }
+
+  for (const flag of flags) {
+    const rawKey = flag.feature.key.trim().toLowerCase();
+    const normalizedFlagKey = normalizeFeatureKey(rawKey);
+    if (normalizedFlagKey === rawKey) continue;
+    if (explicitFlagKeys.has(normalizedFlagKey)) continue;
     const requested = Boolean(flag.isEnabled);
     const isBillable = featureMeta.get(normalizedFlagKey)?.isBillable ?? Boolean(flag.feature.isBillable);
     map[normalizedFlagKey] = requested && (!isBillable || subscriptionEntitled.has(normalizedFlagKey));

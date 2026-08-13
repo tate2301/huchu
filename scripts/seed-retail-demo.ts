@@ -86,6 +86,9 @@ async function main() {
     select: { id: true, name: true, email: true },
   })
   if (!admin) throw new Error(`No active user on ${slug}.`)
+  // Bound after the guard: the upsert helpers below are closures, and TypeScript
+  // will not carry a narrowing of `admin` across a function boundary.
+  const actor = { id: admin.id, name: admin.name ?? admin.email }
 
   console.log(`Seeding retail into ${company.name} (${slug})`)
 
@@ -206,8 +209,8 @@ async function main() {
       registerCode: register.code,
       registerName: register.name,
       siteId: site.id,
-      cashierId: admin.id,
-      cashierName: admin.name ?? admin.email,
+      cashierId: actor.id,
+      cashierName: actor.name,
       openingFloat: money(input.openingFloat),
       expectedCash: money(input.expectedCash),
       countedCash: input.countedCash === null ? null : money(input.countedCash),
@@ -299,8 +302,8 @@ async function main() {
         saleNo: input.saleNo,
         shiftId: input.shiftId,
         siteId: site.id,
-        cashierId: admin.id,
-        cashierName: admin.name ?? admin.email,
+        cashierId: actor.id,
+        cashierName: actor.name,
         customerName: input.customerName,
         saleType: "SALE",
         status: "POSTED",
@@ -378,8 +381,8 @@ async function main() {
           shiftId: openShift.id,
           sourceSaleId: source.id,
           siteId: site.id,
-          cashierId: admin.id,
-          cashierName: admin.name ?? admin.email,
+          cashierId: actor.id,
+          cashierName: actor.name,
           customerName: source.customerName,
           saleType: "REFUND",
           status: "POSTED",
@@ -416,7 +419,7 @@ async function main() {
       companyId,
       holdNo: "H-0001",
       shiftId: openShift.id,
-      cashierId: admin.id,
+      cashierId: actor.id,
       label: "Gogo — gone to fetch her card",
       status: "HELD",
       cartSnapshot: {
@@ -453,7 +456,7 @@ async function main() {
         // status the receipts screen exists to clear.
         status: "PARTIAL",
         expectedDate: daysAgo(-4),
-        createdById: admin.id,
+        createdById: actor.id,
         lines: {
           create: [
             {
@@ -486,7 +489,7 @@ async function main() {
         siteId: site.id,
         supplierName: "Mutare Wholesalers",
         status: "POSTED",
-        receivedById: admin.id,
+        receivedById: actor.id,
         postedAt: daysAgo(1),
         lines: {
           create: [

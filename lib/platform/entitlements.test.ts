@@ -166,3 +166,81 @@ describe("grantBundleToCompany", () => {
     expect(addons).toHaveLength(1);
   });
 });
+
+/**
+ * Renamed namespaces fold onto their canonical key in `normalizeFeatureKey`:
+ * `thrift.core` is `retail.core`, `hr.payouts` is `settlements.core`. A tenant
+ * old enough to hold rows for both then had two flags landing on one map entry,
+ * and the winner was whichever Prisma happened to return last.
+ *
+ * It was not theoretical. Switching four `thrift.*` keys off on a tenant that
+ * also had `retail.*` rows took `retail.core`, `retail.pos`, `retail.catalog` and
+ * `retail.purchasing` with them. Every retail flag still read `true` in the
+ * database, the sidebar kept only the three retail keys with no thrift
+ * counterpart, and it looked for all the world like a navigation bug.
+ */
+describe("a legacy flag and its canonical flag on the same tenant", () => {
+  let legacyCompanyId: string;
+
+  beforeAll(async () => {
+    const stamp = Date.now();
+    const company = await prisma.company.create({
+      data: { name: `Alias Test ${stamp}`, slug: `alias-test-${stamp}` },
+    });
+    legacyCompanyId = company.id;
+    await grantBundleToCompany({ companyId: legacyCompanyId, bundleCode: "ADDON_RETAIL_SUITE" });
+  });
+
+  afterAll(async () => {
+    await prisma.company.delete({ where: { id: legacyCompanyId } }).catch(() => {});
+  });
+
+  it("lets the canonical row win, whichever order they are stored in", async () => {
+    const retailCore = await prisma.platformFeature.findUnique({
+      where: { key: "retail.core" },
+      select: { id: true },
+    });
+    const thriftCore = await prisma.platformFeature.findUnique({
+      where: { key: "thrift.core" },
+      select: { id: true },
+    });
+    // If `thrift.core` ever stops being a catalogue row this test is moot, and
+    // saying so beats passing vacuously.
+    expect(retailCore, "retail.core must exist").not.toBeNull();
+    if (!thriftCore) return;
+
+    await prisma.companyFeatureFlag.deleteMany({ where: { companyId: legacyCompanyId } });
+    // The legacy row is written first and says off; the canonical row says on.
+    await prisma.companyFeatureFlag.create({
+      data: { companyId: legacyCompanyId, featureId: thriftCore.id, isEnabled: false },
+    });
+    await prisma.companyFeatureFlag.create({
+      data: { companyId: legacyCompanyId, featureId: retailCore!.id, isEnabled: true },
+    });
+
+    const map = await getCompanyFeatureMap(legacyCompanyId);
+    expect(
+      map["retail.core"],
+      "an explicit retail.core row must not be overwritten by a thrift.core row",
+    ).toBe(true);
+  });
+
+  it("still honours a legacy row when there is no canonical one", async () => {
+    const thriftCore = await prisma.platformFeature.findUnique({
+      where: { key: "thrift.core" },
+      select: { id: true },
+    });
+    if (!thriftCore) return;
+
+    await prisma.companyFeatureFlag.deleteMany({ where: { companyId: legacyCompanyId } });
+    await prisma.companyFeatureFlag.create({
+      data: { companyId: legacyCompanyId, featureId: thriftCore.id, isEnabled: true },
+    });
+
+    const map = await getCompanyFeatureMap(legacyCompanyId);
+    expect(
+      map["retail.core"],
+      "a tenant holding only the legacy key must keep working",
+    ).toBe(true);
+  });
+});
