@@ -23,6 +23,7 @@ import {
   PosPanel,
   PosPanelHeader,
 } from "./pos-primitives";
+import { PosZReportPanel } from "./pos-z-report-view";
 import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
 import type { SaleRow } from "./pos-types";
@@ -53,7 +54,7 @@ function formatHour(hour: number) {
   return `${hour - 12}pm`;
 }
 
-type Period = "today" | "week";
+type Period = "today" | "week" | "zreport";
 
 type SaleWithDetail = SaleRow & {
   payments: Array<{ id: string; tenderType: string; amount: number }>;
@@ -390,9 +391,21 @@ export function PosReportsView() {
         <div className="flex gap-1 rounded-xl bg-[var(--surface-muted)] p-1">
           <PeriodTab label="Today" active={period === "today"} onClick={() => setPeriod("today")} />
           <PeriodTab label="This week" active={period === "week"} onClick={() => setPeriod("week")} />
+          <PeriodTab label="End of day" active={period === "zreport"} onClick={() => setPeriod("zreport")} />
         </div>
 
         {/* ══ ERROR / LOADING ════════════════════════════════ */}
+        {/*
+          S-7.2. The Z-report is a third view rather than a block bolted onto the
+          other two, because it is a different kind of thing: Today and This week
+          are recomputed every time you look at them and promise nothing, and the
+          end-of-day report is written down once and cannot change. One body block
+          per surface, per docs/design-system/04-composition.md.
+        */}
+        {period === "zreport" ? (
+          <PosZReportPanel />
+        ) : (
+        <>
         {salesQuery.isError ? (
           <PosPanel>
             <PosEmptyState
@@ -633,6 +646,8 @@ export function PosReportsView() {
               )}
             </>
           )
+        )}
+        </>
         )}
       </div>
     </div>

@@ -270,6 +270,7 @@ model Company {
   retailSaleLines               RetailSaleLine[]
   retailSalePayments            RetailSalePayment[]
   retailCashMovements           RetailCashMovement[]
+  retailZReports                RetailZReport[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -867,6 +868,7 @@ model Site {
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
   retailSales           RetailSale[]
+  retailZReports        RetailZReport[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -1098,6 +1100,7 @@ model User {
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
+  retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
 
   @@index([companyId])
   @@index([email])
@@ -4636,6 +4639,147 @@ model RetailCashMovement {
 
   @@index([companyId, shiftId, createdAt])
   @@index([companyId, type])
+}
+
+/// S-7.2 — one register's trading day, closed and frozen.
+///
+/// The document a Zimbabwean shop banks its takings against and the one
+/// fiscalisation will eventually attach to. Scope is **per register per trading
+/// day**, covering every shift whose drawer was opened on that date: a bottle
+/// store runs two cashiers over one till and banks once, so per shift would split
+/// the day across two documents and reconcile neither against the deposit slip.
+/// `lib/retail/z-report.ts` carries the full argument.
+///
+/// ## Why it is a table and not a query
+///
+/// "Final, can't be changed" is only true of something written down. Every figure
+/// below is **persisted at generation and never recomputed**, so a reprint a month
+/// later is identical even though a sale has since been voided, a price has moved
+/// and a register has been renamed. A view over `RetailSale` would quietly restate
+/// all three, which is the one thing this document may not do.
+///
+/// Immutability is structural rather than a flag:
+///
+///  - `@@unique([companyId, registerCode, businessDate])` — Postgres refuses the
+///    second report for a register-day, so two managers pressing the button at
+///    once get one document rather than a race.
+///  - `reportNo` is derived from those same two keys (`Z-TILL02-20260814`), so a
+///    reprint carries the original's number because no other number exists for it.
+///  - There is no update path. No route writes this table after the insert, and
+///    the row carries no status column to flip — a mutable "FINAL" flag would be
+///    the way an immutable document stops being one.
+///
+/// ## Typed columns for the figures, JSON for the tables
+///
+/// Every number a shop, an accountant or the ledger is held to is its own
+/// `Decimal(14,2)` column: they are fixed in count, summed across days in SQL, and
+/// must never round-trip through the double a `Json` column would store them as —
+/// which is the precision S-1 spent a whole ticket removing from retail.
+///
+/// The four breakdowns are `Json` because they are *repeating rows of a rendered
+/// table*: read back whole with their report, never filtered, never joined. Four
+/// child tables with their own tenants, foreign keys and indexes would buy nothing
+/// and cost four more things to keep in step. Money inside them is written as a
+/// decimal **string** for the reason above. Same bargain as
+/// `RetailCashMovement.denominations`, and the same discipline.
+model RetailZReport {
+  id        String @id @default(uuid())
+  /// This module's rule: if a query can reach a table, it carries its own tenant.
+  companyId String
+  /// `Z-<REGISTER>-<YYYYMMDD>`. Derived, not reserved — see the header.
+  reportNo  String
+  /// The trading day, as a bare `date`. A drawer belongs to the day it was opened
+  /// on, so a sale rung at 00:15 stays on the night it was taken rather than
+  /// jumping to the next report while its cash sits in last night's till.
+  businessDate DateTime @db.Date
+  /// Denormalised from `RetailShift`, which is what the shifts themselves carry —
+  /// and deliberately, not merely conveniently: a till renamed in March must not
+  /// restate a report locked in February.
+  registerCode String
+  registerName String
+  siteId       String
+  /// `AccountingSettings.baseCurrency`. Every amount below is in it, because the
+  /// day's tenders arrive in two currencies and only one of them is the drawer's.
+  currency     String @default("USD")
+
+  generatedAt     DateTime @default(now())
+  generatedById   String?
+  /// Denormalised for the same reason `RetailSale.cashierName` is: a reprint still
+  /// has to name who closed the day after that person has left.
+  generatedByName String?
+
+  shiftCount  Int @default(0)
+  saleCount   Int @default(0)
+  refundCount Int @default(0)
+  voidCount   Int @default(0)
+  /// Distinct products that moved. The "out of 184" beside the best-sellers table.
+  itemCount   Int @default(0)
+
+  /// `netSales + discountTotal` — revenue before VAT and before discount.
+  ///
+  /// Derived, not `Σ RetailSale.subtotal`. That column is ex-VAT on a sale and
+  /// VAT-inclusive on a refund (`refundRetailSaleTransaction` rebuilds it from
+  /// `quantity × unitPrice`), so summing the two mixes bases and breaks
+  /// `subtotal − discount + tax = total` on any day with a return.
+  /// `lib/retail/z-report.ts` sets out the defect and why this document declines
+  /// to read the column.
+  grossSales     Decimal @default(0) @db.Decimal(14, 2)
+  discountTotal  Decimal @default(0) @db.Decimal(14, 2)
+  /// `grossTakings − taxTotal`. What the ledger books as revenue, in one basis
+  /// whatever the document type.
+  netSales       Decimal @default(0) @db.Decimal(14, 2)
+  /// Σ `RetailSale.taxAmount` — the VAT actually charged, carved out of
+  /// tax-inclusive shelf prices line by line. Never a rate applied to a total.
+  taxTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// `taxTotal ÷ netSales`, derived back out so the header can name the rate the
+  /// day was charged at. 15%-inclusive shelf prices give 15.00. The POS prototype
+  /// prints 14.5% — Zimbabwe's rate from 2020 to 2022, restored to 15% on
+  /// 1 January 2023 — and nothing here takes a rate from it.
+  taxRatePercent Decimal @default(0) @db.Decimal(5, 2)
+  /// Σ `RetailSale.totalAmount` — what customers paid, and the figure the two
+  /// above are derived from.
+  grossTakings   Decimal @default(0) @db.Decimal(14, 2)
+  /// Positive magnitudes. The signed values are already inside the totals above.
+  refundTotal    Decimal @default(0) @db.Decimal(14, 2)
+  voidTotal      Decimal @default(0) @db.Decimal(14, 2)
+
+  openingFloat    Decimal @default(0) @db.Decimal(14, 2)
+  /// Cash across the counter, net of change, refunds already negative.
+  cashTakings     Decimal @default(0) @db.Decimal(14, 2)
+  cashDropTotal   Decimal @default(0) @db.Decimal(14, 2)
+  cashTopUpTotal  Decimal @default(0) @db.Decimal(14, 2)
+  cashPayoutTotal Decimal @default(0) @db.Decimal(14, 2)
+  /// S-7.1's signed sum, from `sumCashMovementDeltas`. A Z-report without this is
+  /// wrong in exactly the way cash-up was: short on paper by what was banked.
+  cashMovementNet Decimal @default(0) @db.Decimal(14, 2)
+  /// From `expectedCashForShift`, per drawer, summed.
+  expectedCash    Decimal @default(0) @db.Decimal(14, 2)
+  countedCash     Decimal @default(0) @db.Decimal(14, 2)
+  cashVariance    Decimal @default(0) @db.Decimal(14, 2)
+
+  /// `[{ tenderType, count, amount, share }]`. Shares sum to exactly 100.00.
+  tenderBreakdown Json
+  /// `[{ rank, itemKey, itemName, sku, quantity, amount }]`, best sellers first.
+  topItems        Json
+  /// `[{ type, reasonCode, count, amount }]` — grouped by the pair
+  /// `RetailCashMovementReason` exists to be grouped by.
+  cashMovements   Json
+  /// One row per shift on the register that day, each with its own float, takings,
+  /// movements, expected, counted and variance. This is what makes a two-cashier
+  /// day auditable per drawer without splitting the document.
+  shifts          Json
+
+  createdAt DateTime @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site        Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  generatedBy User?   @relation("RetailZReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  /// The re-run rule, in the database. One register, one day, one report.
+  @@unique([companyId, registerCode, businessDate])
+  @@unique([companyId, reportNo])
+  @@index([companyId, businessDate])
+  @@index([companyId, siteId, businessDate])
 }
 
 model RetailHeldCart {

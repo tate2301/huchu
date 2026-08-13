@@ -25,7 +25,14 @@ import {
   getCashNetFromPayments,
   totalFromDenominations,
 } from "@/lib/retail/cash-up";
+import { reversalSubtotal } from "@/lib/retail/sale-totals";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
+import {
+  buildRetailZReportFigures,
+  parseTradingDay,
+  tradingDayAsDate,
+  tradingDayWindow,
+} from "@/lib/retail/z-report";
 import {
   canManageRetailTransactions,
   ensureRetailRegisterAccess,
@@ -927,7 +934,6 @@ export async function refundRetailSaleTransaction(input: {
       return {
         sourceLine,
         quantity: requestedQuantity,
-        baseAmount: multiplyMoney(requestedQuantity, sourceLine.unitPrice),
         discountAmount: multiplyMoney(money(sourceLine.discountAmount).abs(), ratio).negated(),
         taxAmount: multiplyMoney(money(sourceLine.taxAmount).abs(), ratio).negated(),
         lineTotal: multiplyMoney(money(sourceLine.lineTotal).abs(), ratio).negated(),
@@ -936,7 +942,9 @@ export async function refundRetailSaleTransaction(input: {
       };
     });
 
-    const subtotal = sumMoney(requestedLines.map((line) => line.baseAmount)).negated();
+    // Ex-VAT, in the same basis a sale writes into this column. See
+    // `reversalSubtotal` for what it was and why that reached the ledger.
+    const subtotal = reversalSubtotal(requestedLines);
     const discountAmount = sumMoney(requestedLines.map((line) => line.discountAmount));
     const taxAmount = sumMoney(requestedLines.map((line) => line.taxAmount));
     const totalAmount = sumMoney(requestedLines.map((line) => line.lineTotal));
@@ -1310,4 +1318,304 @@ export async function voidRetailSaleTransaction(input: {
   });
 
   return { sale: reversal, accounting };
+}
+
+/**
+ * Closes one register's trading day and writes the Z-report down.
+ *
+ * S-7.2. The whole point of this function is that it happens **once**. A
+ * Z-report is the fiscal close of a register-day: the takings are banked against
+ * it, and it must read the same on a reprint a month later even though a sale has
+ * since been voided, a shelf price has moved and the till has been renamed. So the
+ * figures are computed here, from the rows as they stand right now, and persisted.
+ * Nothing recomputes them afterwards.
+ *
+ * ── The re-run rule ────────────────────────────────────────────────────────
+ *
+ * Asking twice returns the same document. That is enforced in three places and the
+ * database is the one that counts:
+ *
+ *  1. A lookup on `(companyId, registerCode, businessDate)` short-circuits before
+ *     any work is done — the ordinary case, a manager reopening the screen.
+ *  2. `RetailZReport_companyId_registerCode_businessDate_key` refuses the insert
+ *     regardless. Two managers pressing the button in the same second cannot both
+ *     win a read-then-write race, because the race is not what decides.
+ *  3. The `P2002` that (2) raises is caught and turned into a read of the row that
+ *     won, not into an error. The loser of the race gets the same document as the
+ *     winner, which is the only correct answer.
+ *
+ * `created` says which happened, so the caller can answer 200 or 201 honestly.
+ *
+ * ── An open drawer is an X-report, and this is not that ────────────────────
+ *
+ * A register with a shift still open has not finished its day, and a "final"
+ * document over an unfinished one is a lie that cannot be withdrawn. So this
+ * refuses, and names the shift. Reading a day mid-trade is what the reports screen
+ * and the cash-up screen are for — they recompute every time and promise nothing,
+ * which is exactly what an X-report is.
+ */
+export async function generateRetailZReportTransaction(input: {
+  actor: RetailActorContext;
+  registerCode: string;
+  businessDate: string;
+}) {
+  const businessDate = parseTradingDay(input.businessDate);
+  const registerCode = input.registerCode.trim();
+  if (!registerCode) {
+    throw new Error("A Z-report is taken for one register");
+  }
+
+  const existing = await prisma.retailZReport.findUnique({
+    where: {
+      companyId_registerCode_businessDate: {
+        companyId: input.actor.companyId,
+        registerCode,
+        businessDate: tradingDayAsDate(businessDate),
+      },
+    },
+    include: { site: { select: { name: true } } },
+  });
+  if (existing) {
+    return { report: existing, created: false };
+  }
+
+  const { start, end } = tradingDayWindow(businessDate);
+  // The drawer is the unit, so the drawer's opening decides the day — see
+  // `lib/retail/z-report.ts`. Filtering sales on `postedAt` instead would move a
+  // basket rung at 00:15 onto tomorrow's report while its cash sat in tonight's
+  // till.
+  const shifts = await prisma.retailShift.findMany({
+    where: {
+      companyId: input.actor.companyId,
+      registerCode,
+      openedAt: { gte: start, lt: end },
+    },
+    orderBy: { openedAt: "asc" },
+  });
+
+  if (shifts.length === 0) {
+    throw new Error(`No till was opened on ${registerCode} on ${businessDate}`);
+  }
+  const stillOpen = shifts.find((shift) => shift.status === "OPEN");
+  if (stillOpen) {
+    throw new Error(
+      `Cash up and close ${stillOpen.shiftNo} before taking the end-of-day report`,
+    );
+  }
+
+  const shiftIds = shifts.map((shift) => shift.id);
+  const [movements, sales, baseCurrency] = await Promise.all([
+    prisma.retailCashMovement.findMany({
+      where: { companyId: input.actor.companyId, shiftId: { in: shiftIds } },
+      orderBy: { createdAt: "asc" },
+    }),
+    // No `status` filter, deliberately. A sale later voided keeps `status: VOIDED`
+    // and its cancelling `VOID` row carries the negated amounts, so summing both
+    // nets to zero. Dropping the voided original and keeping the reversal would
+    // drive the day negative by the value of every cancelled basket.
+    prisma.retailSale.findMany({
+      where: { companyId: input.actor.companyId, shiftId: { in: shiftIds } },
+      include: {
+        payments: { select: { tenderType: true, baseAmount: true } },
+        lines: {
+          select: {
+            inventoryItemId: true,
+            catalogItemId: true,
+            itemName: true,
+            quantity: true,
+            lineTotal: true,
+            catalogItem: { select: { sku: true } },
+          },
+        },
+      },
+    }),
+    getCompanyBaseCurrency(input.actor.companyId),
+  ]);
+
+  const movementsByShift = new Map<string, typeof movements>();
+  for (const movement of movements) {
+    const list = movementsByShift.get(movement.shiftId) ?? [];
+    list.push(movement);
+    movementsByShift.set(movement.shiftId, list);
+  }
+  const salesByShift = new Map<string, typeof sales>();
+  for (const sale of sales) {
+    if (!sale.shiftId) continue;
+    const list = salesByShift.get(sale.shiftId) ?? [];
+    list.push(sale);
+    salesByShift.set(sale.shiftId, list);
+  }
+
+  const figures = buildRetailZReportFigures({
+    businessDate,
+    registerCode,
+    // The last shift's naming wins, and it is snapshotted here rather than joined
+    // later: a till renamed in March must not restate a report locked in February.
+    registerName: shifts[shifts.length - 1].registerName,
+    siteId: shifts[shifts.length - 1].siteId,
+    currency: baseCurrency,
+    shifts: shifts.map((shift) => ({
+      id: shift.id,
+      shiftNo: shift.shiftNo,
+      cashierName: shift.cashierName,
+      openedAt: shift.openedAt,
+      closedAt: shift.closedAt,
+      openingFloat: shift.openingFloat,
+      countedCash: shift.countedCash,
+      movements: (movementsByShift.get(shift.id) ?? []).map((movement) => ({
+        type: movement.type,
+        reasonCode: movement.reasonCode,
+        baseAmount: movement.baseAmount,
+      })),
+      sales: (salesByShift.get(shift.id) ?? []).map((sale) => ({
+        saleType: sale.saleType,
+        discountAmount: sale.discountAmount,
+        taxAmount: sale.taxAmount,
+        totalAmount: sale.totalAmount,
+        changeAmount: sale.changeAmount ?? 0,
+        exchangeRate: sale.exchangeRate,
+        payments: sale.payments,
+        lines: sale.lines.map((line) => ({
+          // A listing is the identity a shop thinks in; the stock row is the
+          // fallback for a line rung against an item with no listing behind it.
+          itemKey: line.catalogItemId ?? line.inventoryItemId,
+          itemName: line.itemName,
+          sku: line.catalogItem?.sku ?? null,
+          quantity: line.quantity,
+          lineTotal: line.lineTotal,
+        })),
+      })),
+    })),
+  });
+
+  const data = {
+    companyId: input.actor.companyId,
+    reportNo: figures.reportNo,
+    businessDate: tradingDayAsDate(figures.businessDate),
+    registerCode: figures.registerCode,
+    registerName: figures.registerName,
+    siteId: figures.siteId,
+    currency: figures.currency,
+    generatedById: input.actor.userId,
+    generatedByName: resolveCashierName(input.actor),
+    shiftCount: figures.shiftCount,
+    saleCount: figures.saleCount,
+    refundCount: figures.refundCount,
+    voidCount: figures.voidCount,
+    itemCount: figures.itemCount,
+    grossSales: figures.grossSales,
+    discountTotal: figures.discountTotal,
+    netSales: figures.netSales,
+    taxTotal: figures.taxTotal,
+    taxRatePercent: figures.taxRatePercent,
+    grossTakings: figures.grossTakings,
+    refundTotal: figures.refundTotal,
+    voidTotal: figures.voidTotal,
+    openingFloat: figures.openingFloat,
+    cashTakings: figures.cashTakings,
+    cashDropTotal: figures.cashDropTotal,
+    cashTopUpTotal: figures.cashTopUpTotal,
+    cashPayoutTotal: figures.cashPayoutTotal,
+    cashMovementNet: figures.cashMovementNet,
+    expectedCash: figures.expectedCash,
+    countedCash: figures.countedCash,
+    cashVariance: figures.cashVariance,
+    tenderBreakdown: figures.tenderBreakdown,
+    topItems: figures.topItems,
+    cashMovements: figures.cashMovements,
+    shifts: figures.shifts,
+  };
+
+  try {
+    const report = await prisma.retailZReport.create({
+      data,
+      include: { site: { select: { name: true } } },
+    });
+    return { report, created: true };
+  } catch (error) {
+    // The other manager got there first. Their document is the document.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const winner = await prisma.retailZReport.findUniqueOrThrow({
+        where: {
+          companyId_registerCode_businessDate: {
+            companyId: input.actor.companyId,
+            registerCode,
+            businessDate: tradingDayAsDate(businessDate),
+          },
+        },
+        include: { site: { select: { name: true } } },
+      });
+      return { report: winner, created: false };
+    }
+    throw error;
+  }
+}
+
+/**
+ * The registers that have a closed trading day the caller could take a report on.
+ *
+ * The till needs this to offer anything at all: a manager arriving at the
+ * end-of-day screen has a date and no idea which of the shop's registers traded.
+ * Returns one row per register-day, with the report's id when it has already been
+ * taken and null when it has not — which is the whole state the screen renders.
+ */
+export async function listRetailZReportCandidates(input: {
+  companyId: string;
+  businessDate: string;
+}) {
+  const businessDate = parseTradingDay(input.businessDate);
+  const { start, end } = tradingDayWindow(businessDate);
+
+  const [shifts, reports] = await Promise.all([
+    prisma.retailShift.findMany({
+      where: { companyId: input.companyId, openedAt: { gte: start, lt: end } },
+      orderBy: { openedAt: "asc" },
+      select: {
+        registerCode: true,
+        registerName: true,
+        shiftNo: true,
+        status: true,
+        cashierName: true,
+      },
+    }),
+    prisma.retailZReport.findMany({
+      where: { companyId: input.companyId, businessDate: tradingDayAsDate(businessDate) },
+      select: { id: true, reportNo: true, registerCode: true },
+    }),
+  ]);
+
+  const reportByRegister = new Map(reports.map((report) => [report.registerCode, report]));
+  const byRegister = new Map<
+    string,
+    {
+      registerCode: string;
+      registerName: string;
+      shiftCount: number;
+      openShiftNo: string | null;
+      cashiers: string[];
+      reportId: string | null;
+      reportNo: string | null;
+    }
+  >();
+
+  for (const shift of shifts) {
+    const entry = byRegister.get(shift.registerCode) ?? {
+      registerCode: shift.registerCode,
+      registerName: shift.registerName,
+      shiftCount: 0,
+      openShiftNo: null,
+      cashiers: [],
+      reportId: reportByRegister.get(shift.registerCode)?.id ?? null,
+      reportNo: reportByRegister.get(shift.registerCode)?.reportNo ?? null,
+    };
+    entry.registerName = shift.registerName;
+    entry.shiftCount += 1;
+    if (shift.status === "OPEN") entry.openShiftNo = shift.shiftNo;
+    if (!entry.cashiers.includes(shift.cashierName)) entry.cashiers.push(shift.cashierName);
+    byRegister.set(shift.registerCode, entry);
+  }
+
+  return [...byRegister.values()].sort((a, b) =>
+    a.registerCode.localeCompare(b.registerCode),
+  );
 }

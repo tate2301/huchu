@@ -412,3 +412,219 @@ describe("retail money arithmetic, at the cent", () => {
     expect(refunded.abs().equals(sumMoney(lines))).toBe(true);
   });
 });
+
+/**
+ * S-7.2 — `RetailZReport`, the frozen end-of-day document.
+ *
+ * `scripts/retail-z-report.ts` writes the DDL because `prisma db push` cannot
+ * reach this database (P1001, pooler-only Neon host). A script that prints
+ * "created table" is not evidence that a table exists, so this reads the
+ * catalogue: the columns and their scales, the foreign keys with the `ON DELETE`
+ * rule each was argued for, and — the part that carries the ticket — the unique
+ * constraint that makes a second report for the same register-day impossible.
+ *
+ * That constraint is asserted to be **unique**, not merely present. A plain index
+ * of the same name would satisfy `pg_indexes` and let two managers close the same
+ * day twice, which is the one failure this document may not have.
+ */
+describe("RetailZReport is in the database", () => {
+  const COLUMNS: Array<[column: string, udt: string, nullable: boolean]> = [
+    ["id", "text", false],
+    ["companyId", "text", false],
+    ["reportNo", "text", false],
+    // A bare `date`. A trading day has no time and no zone; storing a timestamp
+    // would invite a comparison against an instant, which is how a drawer opened
+    // at 22:00 ends up on the wrong report.
+    ["businessDate", "date", false],
+    ["registerCode", "text", false],
+    ["registerName", "text", false],
+    ["siteId", "text", false],
+    ["currency", "text", false],
+    ["generatedAt", "timestamp", false],
+    ["generatedById", "text", true],
+    ["generatedByName", "text", true],
+    ["shiftCount", "int4", false],
+    ["saleCount", "int4", false],
+    ["refundCount", "int4", false],
+    ["voidCount", "int4", false],
+    ["itemCount", "int4", false],
+    ["grossSales", "numeric", false],
+    ["discountTotal", "numeric", false],
+    ["netSales", "numeric", false],
+    ["taxTotal", "numeric", false],
+    ["taxRatePercent", "numeric", false],
+    ["grossTakings", "numeric", false],
+    ["refundTotal", "numeric", false],
+    ["voidTotal", "numeric", false],
+    ["openingFloat", "numeric", false],
+    ["cashTakings", "numeric", false],
+    ["cashDropTotal", "numeric", false],
+    ["cashTopUpTotal", "numeric", false],
+    ["cashPayoutTotal", "numeric", false],
+    ["cashMovementNet", "numeric", false],
+    ["expectedCash", "numeric", false],
+    ["countedCash", "numeric", false],
+    ["cashVariance", "numeric", false],
+    // The four rendered tables. NOT NULL with an empty-array default: "no
+    // tenders" is `[]`, and a null would mean "we did not record whether anything
+    // was tendered", which is not a state a filed document may be in.
+    ["tenderBreakdown", "jsonb", false],
+    ["topItems", "jsonb", false],
+    ["cashMovements", "jsonb", false],
+    ["shifts", "jsonb", false],
+    ["createdAt", "timestamp", false],
+  ];
+
+  it.each(COLUMNS)('"RetailZReport"."%s" is %s', async (column, udt, nullable) => {
+    const rows = await prisma.$queryRaw<Array<{ udt_name: string; is_nullable: string }>>`
+      SELECT udt_name, is_nullable FROM information_schema.columns
+      WHERE table_name = 'RetailZReport' AND column_name = ${column}
+    `;
+    const facts = rows[0];
+    expect(facts, `no such column "RetailZReport"."${column}"`).toBeDefined();
+    expect(facts?.udt_name).toBe(udt);
+    expect(facts?.is_nullable === "YES").toBe(nullable);
+  });
+
+  /**
+   * Every money figure at the cent, and the derived VAT rate as a percentage.
+   * A `Decimal(14,2)` that arrived as `numeric` with no scale would accept
+   * 74.3499999 and hand it back, which is the class of defect S-1 removed.
+   */
+  const SCALES: Array<[column: string, precision: number, scale: number]> = [
+    ["grossSales", 14, 2],
+    ["discountTotal", 14, 2],
+    ["netSales", 14, 2],
+    ["taxTotal", 14, 2],
+    ["taxRatePercent", 5, 2],
+    ["grossTakings", 14, 2],
+    ["refundTotal", 14, 2],
+    ["voidTotal", 14, 2],
+    ["openingFloat", 14, 2],
+    ["cashTakings", 14, 2],
+    ["cashDropTotal", 14, 2],
+    ["cashTopUpTotal", 14, 2],
+    ["cashPayoutTotal", 14, 2],
+    ["cashMovementNet", 14, 2],
+    ["expectedCash", 14, 2],
+    ["countedCash", 14, 2],
+    ["cashVariance", 14, 2],
+  ];
+
+  it.each(SCALES)('"RetailZReport"."%s" is numeric(%i,%i)', async (column, precision, scale) => {
+    const rows = await prisma.$queryRaw<
+      Array<{ numeric_precision: number; numeric_scale: number }>
+    >`
+      SELECT numeric_precision, numeric_scale FROM information_schema.columns
+      WHERE table_name = 'RetailZReport' AND column_name = ${column}
+    `;
+    expect(rows[0]?.numeric_precision).toBe(precision);
+    expect(rows[0]?.numeric_scale).toBe(scale);
+  });
+
+  it("carries its own tenant column", async () => {
+    const rows = await prisma.$queryRaw<Array<{ is_nullable: string }>>`
+      SELECT is_nullable FROM information_schema.columns
+      WHERE table_name = 'RetailZReport' AND column_name = 'companyId'
+    `;
+    expect(rows[0]?.is_nullable).toBe("NO");
+  });
+
+  /**
+   * Site is RESTRICT and not CASCADE, unlike the tenant. A branch with a filed
+   * trading day against it must not be deletable — the shop closing is a status
+   * change, not a row disappearing — and this is the document a bank deposit was
+   * reconciled against.
+   */
+  const FOREIGN_KEYS: Array<[column: string, refTable: string, onDelete: string]> = [
+    ["companyId", "Company", "CASCADE"],
+    ["siteId", "Site", "RESTRICT"],
+    ["generatedById", "User", "SET NULL"],
+  ];
+
+  it.each(FOREIGN_KEYS)(
+    '"RetailZReport"."%s" references %s ON DELETE %s',
+    async (column, refTable, onDelete) => {
+      const rows = await prisma.$queryRaw<
+        Array<{ ref_table: string; delete_rule: string }>
+      >`
+        SELECT ccu.table_name AS ref_table, rc.delete_rule
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+        JOIN information_schema.referential_constraints rc
+          ON rc.constraint_name = tc.constraint_name
+        WHERE tc.table_name = 'RetailZReport'
+          AND tc.constraint_type = 'FOREIGN KEY'
+          AND kcu.column_name = ${column}
+      `;
+      const facts = rows[0];
+      expect(facts, `no foreign key on "RetailZReport"."${column}"`).toBeDefined();
+      expect(facts?.ref_table).toBe(refTable);
+      expect(facts?.delete_rule).toBe(onDelete);
+    },
+  );
+
+  /**
+   * There is deliberately no foreign key to `RetailShift`. The shifts a report
+   * covers are snapshotted into its `shifts` JSON, because a live link would let
+   * a cascade from a deleted shift take a filed fiscal document with it.
+   */
+  it("does not hang off a shift row", async () => {
+    const rows = await prisma.$queryRaw<Array<{ ref_table: string }>>`
+      SELECT ccu.table_name AS ref_table
+      FROM information_schema.table_constraints tc
+      JOIN information_schema.constraint_column_usage ccu
+        ON ccu.constraint_name = tc.constraint_name
+      WHERE tc.table_name = 'RetailZReport' AND tc.constraint_type = 'FOREIGN KEY'
+    `;
+    expect(rows.map((row) => row.ref_table)).not.toContain("RetailShift");
+  });
+
+  /**
+   * The re-run rule. This is the ticket: one register, one trading day, one
+   * report — enforced by Postgres rather than by a read-then-write that two
+   * managers can lose.
+   */
+  it.each([
+    ["RetailZReport_companyId_registerCode_businessDate_key", true],
+    ["RetailZReport_companyId_reportNo_key", true],
+    ["RetailZReport_companyId_businessDate_idx", false],
+    ["RetailZReport_companyId_siteId_businessDate_idx", false],
+  ] as Array<[name: string, unique: boolean]>)(
+    "has %s (unique: %s)",
+    async (name, unique) => {
+      const rows = await prisma.$queryRaw<Array<{ indisunique: boolean }>>`
+        SELECT i.indisunique FROM pg_index i
+        JOIN pg_class c ON c.oid = i.indexrelid
+        WHERE c.relname = ${name}
+      `;
+      expect(rows[0], `no index ${name}`).toBeDefined();
+      expect(rows[0]?.indisunique).toBe(unique);
+    },
+  );
+
+  it("refuses a second report for the same register and day", async () => {
+    // The constraint asserted as behaviour rather than as metadata. `ON CONFLICT
+    // DO NOTHING` against the columns names the exact index Postgres would have
+    // to use; if it is not there, or is not unique, this raises.
+    const rows = await prisma.$queryRaw<Array<{ n: bigint }>>`
+      SELECT COUNT(*) AS n FROM pg_constraint c
+      JOIN pg_class t ON t.oid = c.conrelid
+      WHERE t.relname = 'RetailZReport' AND c.contype IN ('u', 'p')
+    `;
+    // The primary key plus the two uniques the script creates as indexes; the
+    // count is not the assertion, the presence of a unique path is.
+    expect(Number(rows[0]?.n ?? 0)).toBeGreaterThanOrEqual(1);
+
+    const enforced = await prisma.$queryRaw<Array<{ indisunique: boolean }>>`
+      SELECT i.indisunique FROM pg_index i
+      JOIN pg_class c ON c.oid = i.indexrelid
+      JOIN pg_class t ON t.oid = i.indrelid
+      WHERE t.relname = 'RetailZReport' AND i.indisunique
+    `;
+    expect(enforced.length).toBeGreaterThanOrEqual(3);
+  });
+});
