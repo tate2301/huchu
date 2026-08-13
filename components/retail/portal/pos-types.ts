@@ -37,6 +37,12 @@ export type CurrentShift = {
   registerName: string;
   openingFloat: number;
   expectedCash: number;
+  /**
+   * S-7.1 — what the drawer is counted in. `openingFloat` and `expectedCash` are
+   * both in it, and the cash drop screen picks its denominations off it rather than
+   * assuming USD.
+   */
+  baseCurrency?: string;
   actorRole: string;
   netSalesValue: number;
   refundValue: number;

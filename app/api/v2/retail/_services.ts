@@ -1,4 +1,9 @@
-import { Prisma, type RetailTenderType } from "@prisma/client";
+import {
+  Prisma,
+  type RetailCashMovementReason,
+  type RetailCashMovementType,
+  type RetailTenderType,
+} from "@prisma/client";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
@@ -13,6 +18,12 @@ import {
   type MoneyLike,
 } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import type { CashDenominationLine } from "@/lib/retail/cash-movements";
+import {
+  buildCashMovementAmounts,
+  cashMovementDelta,
+  totalFromDenominations,
+} from "@/lib/retail/cash-up";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import {
   canManageRetailTransactions,
@@ -381,6 +392,131 @@ export async function closeRetailShiftTransaction(input: {
         } satisfies RetailAccountingResult);
 
   return { shift: updated, accounting };
+}
+
+/**
+ * Records cash leaving or entering the drawer mid-shift, and moves `expectedCash`
+ * with it.
+ *
+ * S-7.1. This is the fix. Without it a Friday drop to the safe left `expectedCash`
+ * counting money that was no longer in the drawer, and the cashier read as short by
+ * exactly what had been banked.
+ *
+ * The row and the increment go in one `$transaction`, guarded on the shift still
+ * being `OPEN`, exactly as `createRetailSaleTransaction` does for a sale's net
+ * cash. A movement written against a shift that closed underneath it would be a
+ * movement nothing ever counts.
+ *
+ * `baseAmount` is what moves the column, not `amount`: `expectedCash` is
+ * denominated in the company's base currency because `openingFloat` is, and a
+ * bundle of ZWG notes taken to the safe at 27.5 is not 200 dollars off the drawer.
+ */
+export async function recordRetailCashMovementTransaction(input: {
+  actor: RetailActorContext;
+  shiftId: string;
+  type: RetailCashMovementType;
+  amount: number;
+  currency?: string | null;
+  exchangeRate?: number | null;
+  reasonCode: RetailCashMovementReason;
+  reason?: string | null;
+  /**
+   * The bundle as it was counted, when the till could offer a denomination set for
+   * the currency. Optional: a currency with no configured denominations is keyed as
+   * a total, which is what the till did before this ticket.
+   */
+  denominations?: CashDenominationLine[] | null;
+  /**
+   * A cashier moves their own drawer; moving somebody else's is a supervisory act.
+   * The route decides that against `lib/retail/permissions.ts` and says so here, in
+   * the same shape as `allowManagerClose` above.
+   */
+  allowOtherCashiers?: boolean;
+}) {
+  const shift = await prisma.retailShift.findFirst({
+    where: { id: input.shiftId, companyId: input.actor.companyId },
+  });
+  if (!shift) {
+    throw new Error("Shift not found");
+  }
+  if (shift.status !== "OPEN") {
+    throw new Error("Cash can only be moved on an open shift");
+  }
+  if (shift.cashierId !== input.actor.userId && !(input.allowOtherCashiers ?? false)) {
+    throw new Error("Only the shift owner can move cash on this drawer");
+  }
+
+  const reason = input.reason?.trim() || null;
+  // The named reasons stand on their own; `OTHER` is the escape hatch, and an
+  // escape hatch that lets a movement be recorded with no explanation at all is the
+  // unexplained variance this ticket exists to prevent, moved one row over.
+  if (input.reasonCode === "OTHER" && !reason) {
+    throw new Error("Say why the cash moved");
+  }
+
+  const baseCurrency = await getCompanyBaseCurrency(input.actor.companyId);
+  const currency = input.currency?.trim().toUpperCase() || baseCurrency;
+  const amounts = buildCashMovementAmounts({
+    amount: input.amount,
+    // A movement in the company's own currency converts to itself, so a
+    // single-currency shop never has to supply a rate.
+    exchangeRate: currency === baseCurrency ? 1 : (input.exchangeRate ?? 1),
+  });
+  if (amounts.amount.isZero()) {
+    throw new Error("A cash movement needs an amount");
+  }
+
+  // A breakdown that does not add up to the amount is worse than none: the safe log
+  // and the drawer would disagree and the row could not say which was right. The
+  // total is recomputed here rather than trusted, in `Decimal`, and a mismatch is
+  // refused.
+  const countedLines = (input.denominations ?? []).filter((line) => line.count > 0);
+  if (countedLines.length > 0) {
+    const counted = totalFromDenominations(countedLines);
+    if (!counted.equals(amounts.amount)) {
+      throw new Error(
+        `The notes counted come to ${counted.toFixed(2)}, not ${amounts.amount.toFixed(2)}`,
+      );
+    }
+  }
+
+  const delta = cashMovementDelta({ type: input.type, baseAmount: amounts.baseAmount });
+
+  return prisma.$transaction(async (tx) => {
+    const movement = await tx.retailCashMovement.create({
+      data: {
+        companyId: input.actor.companyId,
+        shiftId: shift.id,
+        type: input.type,
+        amount: amounts.amount,
+        currency,
+        exchangeRate: amounts.exchangeRate,
+        baseAmount: amounts.baseAmount,
+        reasonCode: input.reasonCode,
+        reason,
+        // Keyed to this row's own currency, never assumed to be the base one.
+        denominations:
+          countedLines.length > 0 ? { currency, lines: countedLines } : Prisma.DbNull,
+        recordedById: input.actor.userId,
+        recordedByName: resolveCashierName(input.actor),
+      },
+    });
+
+    const updated = await tx.retailShift.updateMany({
+      where: { id: shift.id, companyId: input.actor.companyId, status: "OPEN" },
+      data: { expectedCash: { increment: delta } },
+    });
+    if (updated.count !== 1) {
+      throw new Error("Shift is no longer open.");
+    }
+
+    const refreshed = await tx.retailShift.findFirstOrThrow({
+      where: { id: shift.id, companyId: input.actor.companyId },
+      select: { id: true, shiftNo: true, openingFloat: true, expectedCash: true },
+    });
+
+    return { movement, shift: refreshed };
+  });
 }
 
 export async function createRetailSaleTransaction(input: {

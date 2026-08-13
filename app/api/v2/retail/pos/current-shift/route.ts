@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
-import { money, sumMoney, toNumberOrZero } from "@/lib/money";
+import { money, resolveBaseCurrency, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments, requireRetailSession } from "../../_helpers";
 
@@ -27,6 +27,14 @@ export async function GET(request: NextRequest) {
     where: { id: shift.siteId, companyId: session.user.companyId },
     select: { id: true, name: true, code: true },
   });
+
+  /**
+   * S-7.1 — the currency the drawer is counted in, so the cash drop screen can
+   * offer the right denominations. `openingFloat`, `expectedCash` and `variance`
+   * are all in the company's base currency; the till was assuming USD, which is
+   * true of a Harare bottle store and is not a fact to hard-code.
+   */
+  const baseCurrency = await resolveBaseCurrency(session.user.companyId);
 
   const sales = await prisma.retailSale.findMany({
     where: { shiftId: shift.id },
@@ -69,6 +77,7 @@ export async function GET(request: NextRequest) {
     data: {
       ...shift,
       actorRole: session.user.role,
+      baseCurrency,
       site,
       saleCount: saleTickets.length,
       refundCount: refundTickets.length,

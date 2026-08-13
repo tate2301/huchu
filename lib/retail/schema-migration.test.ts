@@ -72,6 +72,10 @@ const MONEY_COLUMNS: Array<[table: string, column: string, precision: number, sc
   ["RetailSaleLine", "costUnit", 14, 2],
   ["RetailSaleLine", "costTotal", 14, 2],
   ["RetailSalePayment", "amount", 14, 2],
+  // S-7.1 — the cash that leaves the drawer mid-shift.
+  ["RetailCashMovement", "amount", 14, 2],
+  ["RetailCashMovement", "exchangeRate", 12, 4],
+  ["RetailCashMovement", "baseAmount", 14, 2],
 ];
 
 /** Every retail enum column, with the type it must carry. */
@@ -87,6 +91,8 @@ const ENUM_COLUMNS: Array<[table: string, column: string, type: string]> = [
   ["RetailPromotion", "type", "RetailPromotionType"],
   ["RetailPromotion", "status", "RetailPromotionStatus"],
   ["RetailSalePayment", "tenderType", "RetailTenderType"],
+  ["RetailCashMovement", "type", "RetailCashMovementType"],
+  ["RetailCashMovement", "reasonCode", "RetailCashMovementReason"],
 ];
 
 /**
@@ -110,6 +116,17 @@ const ENUM_LABELS: Record<string, readonly string[]> = {
   RetailPromotionType: ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"],
   RetailPromotionStatus: ["ACTIVE", "SCHEDULED", "INACTIVE"],
   RetailTenderType: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
+  RetailCashMovementType: ["DROP_TO_SAFE", "FLOAT_TOP_UP", "PAYOUT"],
+  RetailCashMovementReason: [
+    "CASH_LEVEL_TOO_HIGH",
+    "BANK_DEPOSIT",
+    "END_OF_SHIFT_SKIM",
+    "MANAGER_REQUEST",
+    "CHANGE_REQUIRED",
+    "SUPPLIER_PAYOUT",
+    "PETTY_CASH",
+    "OTHER",
+  ],
 };
 
 async function columnUdt(table: string, column: string) {
@@ -133,8 +150,8 @@ async function enumLabels(type: string) {
 describe("retail status columns are enums in the database", () => {
   it("has a column to check for every entry", () => {
     // A silent zero here would make every assertion below vacuously true.
-    expect(ENUM_COLUMNS.length).toBe(11);
-    expect(Object.keys(ENUM_LABELS).length).toBe(11);
+    expect(ENUM_COLUMNS.length).toBe(13);
+    expect(Object.keys(ENUM_LABELS).length).toBe(13);
   });
 
   it.each(ENUM_COLUMNS)('"%s"."%s" is %s', async (table, column, type) => {
@@ -197,7 +214,7 @@ describe("the database refuses what the String column used to accept", () => {
  */
 describe("retail money columns are numeric at the right scale", () => {
   it("has a column to check for every entry", () => {
-    expect(MONEY_COLUMNS.length).toBe(29);
+    expect(MONEY_COLUMNS.length).toBe(32);
   });
 
   it.each(MONEY_COLUMNS)(
@@ -224,6 +241,133 @@ describe("retail money columns are numeric at the right scale", () => {
       ORDER BY table_name, column_name
     `;
     expect(rows.map((row) => `${row.table_name}.${row.column_name}`)).toEqual([]);
+  });
+});
+
+/**
+ * S-7.1 — `RetailCashMovement`, the table that lets a drop to the safe be recorded.
+ *
+ * `scripts/retail-cash-movements.ts` writes the DDL because `prisma db push` cannot
+ * reach this database (P1001, pooler-only Neon host). A script that prints "created
+ * table" is not evidence that a table exists, so this reads the catalogue: the
+ * columns and their nullability, the two enum types, the foreign keys with the
+ * `ON DELETE` rule each one was argued for, and the indexes.
+ *
+ * The `ON DELETE` rules are asserted rather than assumed because they were the
+ * genuinely contestable decision in this model. Retail's two existing
+ * document→document links go opposite ways — `RetailHeldCart.shiftId` cascades,
+ * `RetailSale.shiftId` sets null — and a cash movement had to be argued into one of
+ * them. It is a cascade: its entire content is "this shift's expected cash is $200
+ * lower than the receipts say", which does not survive losing the shift, and
+ * orphaned it would stop being counted silently.
+ */
+describe("RetailCashMovement is in the database", () => {
+  const COLUMNS: Array<[column: string, udt: string, nullable: boolean]> = [
+    ["id", "text", false],
+    ["companyId", "text", false],
+    ["shiftId", "text", false],
+    ["type", "RetailCashMovementType", false],
+    ["amount", "numeric", false],
+    ["currency", "text", false],
+    ["exchangeRate", "numeric", false],
+    ["baseAmount", "numeric", false],
+    ["reasonCode", "RetailCashMovementReason", false],
+    ["reason", "text", true],
+    ["denominations", "jsonb", true],
+    ["recordedById", "text", true],
+    ["recordedByName", "text", true],
+    ["createdAt", "timestamp", false],
+  ];
+
+  it.each(COLUMNS)('"RetailCashMovement"."%s" is %s', async (column, udt, nullable) => {
+    const rows = await prisma.$queryRaw<Array<{ udt_name: string; is_nullable: string }>>`
+      SELECT udt_name, is_nullable FROM information_schema.columns
+      WHERE table_name = 'RetailCashMovement' AND column_name = ${column}
+    `;
+    const facts = rows[0];
+    expect(facts, `no such column "RetailCashMovement"."${column}"`).toBeDefined();
+    expect(facts?.udt_name).toBe(udt);
+    expect(facts?.is_nullable === "YES").toBe(nullable);
+  });
+
+  /**
+   * `companyId` on the row, not inherited through the shift. This module's rule: if
+   * a query can reach a table, it carries its own tenant — and cash-up reaches this
+   * one directly, filtered by shift.
+   */
+  it("carries its own tenant column", async () => {
+    const rows = await prisma.$queryRaw<Array<{ is_nullable: string }>>`
+      SELECT is_nullable FROM information_schema.columns
+      WHERE table_name = 'RetailCashMovement' AND column_name = 'companyId'
+    `;
+    expect(rows[0]?.is_nullable).toBe("NO");
+  });
+
+  const FOREIGN_KEYS: Array<[column: string, refTable: string, onDelete: string]> = [
+    ["companyId", "Company", "CASCADE"],
+    ["shiftId", "RetailShift", "CASCADE"],
+    ["recordedById", "User", "SET NULL"],
+  ];
+
+  it.each(FOREIGN_KEYS)(
+    '"RetailCashMovement"."%s" references %s ON DELETE %s',
+    async (column, refTable, onDelete) => {
+      const rows = await prisma.$queryRaw<
+        Array<{ ref_table: string; delete_rule: string }>
+      >`
+        SELECT ccu.table_name AS ref_table, rc.delete_rule
+        FROM information_schema.table_constraints tc
+        JOIN information_schema.key_column_usage kcu
+          ON kcu.constraint_name = tc.constraint_name
+        JOIN information_schema.constraint_column_usage ccu
+          ON ccu.constraint_name = tc.constraint_name
+        JOIN information_schema.referential_constraints rc
+          ON rc.constraint_name = tc.constraint_name
+        WHERE tc.table_name = 'RetailCashMovement'
+          AND tc.constraint_type = 'FOREIGN KEY'
+          AND kcu.column_name = ${column}
+      `;
+      const facts = rows[0];
+      expect(facts, `no foreign key on "RetailCashMovement"."${column}"`).toBeDefined();
+      expect(facts?.ref_table).toBe(refTable);
+      expect(facts?.delete_rule).toBe(onDelete);
+    },
+  );
+
+  it.each([
+    "RetailCashMovement_companyId_shiftId_createdAt_idx",
+    "RetailCashMovement_companyId_type_idx",
+  ])("has index %s", async (name) => {
+    const rows = await prisma.$queryRaw<Array<{ n: bigint }>>`
+      SELECT COUNT(*) AS n FROM pg_indexes
+      WHERE schemaname = 'public' AND indexname = ${name}
+    `;
+    expect(Number(rows[0]?.n ?? 0)).toBe(1);
+  });
+
+  /**
+   * The direction has to be unmistakable, which is why the labels say where the
+   * money went. "PICKUP" is the value that is *not* here: the POS prototype uses it
+   * for safe → drawer and most of the sector for drawer → safe, and a label that
+   * can be read either way on a row that moves `expectedCash` is how this defect
+   * would come back.
+   */
+  it("names the direction in every type label", async () => {
+    const labels = await enumLabels("RetailCashMovementType");
+    expect(labels).toEqual(["DROP_TO_SAFE", "FLOAT_TOP_UP", "PAYOUT"]);
+    expect(labels).not.toContain("PICKUP");
+  });
+
+  it("rejects a movement type the enum does not name", async () => {
+    await expect(
+      prisma.$executeRawUnsafe(`SELECT 'PICKUP'::"RetailCashMovementType"`),
+    ).rejects.toThrow();
+  });
+
+  it("rejects a reason the enum does not name", async () => {
+    await expect(
+      prisma.$executeRawUnsafe(`SELECT 'BecauseISaidSo'::"RetailCashMovementReason"`),
+    ).rejects.toThrow();
   });
 });
 

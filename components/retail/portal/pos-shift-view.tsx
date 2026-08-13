@@ -13,6 +13,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { CheckCircle2, Clock, Payments, TrendingDown, TrendingUp, Wallet } from "@/lib/icons";
+import {
+  PosCashMovementList,
+  PosCashMovementPanel,
+  usePosCashMovements,
+} from "./pos-cash-movement-view";
 import { PosNumericField } from "./pos-numeric-field";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";
@@ -217,6 +222,15 @@ export function PosShiftView() {
 
   const variancePreview = round(Number(countedCash || "0") - (currentShift?.expectedCash ?? 0));
 
+  /**
+   * S-7.1. The cash-up dialog shows these underneath the expected figure, because
+   * "expected $1,842.50" with no way to see the $200 that went to the safe is the
+   * variance nobody can account for that this work exists to prevent.
+   */
+  const cashMovementsQuery = usePosCashMovements(currentShift?.id);
+  const cashMovements = cashMovementsQuery.data?.data ?? [];
+  const cashMovementsNet = cashMovementsQuery.data?.summary.net ?? 0;
+
   const handleKeypadAction = (action: PosKeypadAction) => {
     if (!activeNumericTarget) return;
     if (activeNumericTarget === "opening_float") {
@@ -348,6 +362,17 @@ export function PosShiftView() {
             </Button>
           )}
         </PosPanel>
+
+        {/* ── Cash drop / pickup ────────────────────────── */}
+        {currentShift ? (
+          <PosCashMovementPanel
+            shiftId={currentShift.id}
+            shiftNo={currentShift.shiftNo}
+            openingFloat={currentShift.openingFloat}
+            expectedCash={currentShift.expectedCash}
+            currency={currentShift.baseCurrency}
+          />
+        ) : null}
       </div>
 
       {/* ══ Open Shift Dialog ══════════════════════════════════════════ */}
@@ -483,6 +508,25 @@ export function PosShiftView() {
                 tone="warning"
               />
             </div>
+
+            {/*
+              S-7.1. Why the expected figure is what it is. Without this the
+              cashier sees a number $200 below the receipts and has nothing to
+              point at — which is the shortfall-on-paper the ticket fixes.
+            */}
+            {currentShift && cashMovements.length > 0 ? (
+              <div className="rounded-xl border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-4 py-4">
+                <p className="mb-3 text-[10px] font-bold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+                  Cash moved this shift
+                </p>
+                <PosCashMovementList
+                  movements={cashMovements}
+                  net={cashMovementsNet}
+                  openingFloat={currentShift.openingFloat}
+                  expectedCash={currentShift.expectedCash}
+                />
+              </div>
+            ) : null}
 
             <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_240px]">
               <div className="space-y-4">

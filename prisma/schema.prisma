@@ -269,6 +269,7 @@ model Company {
   retailSales                   RetailSale[]
   retailSaleLines               RetailSaleLine[]
   retailSalePayments            RetailSalePayment[]
+  retailCashMovements           RetailCashMovement[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1096,6 +1097,7 @@ model User {
   retailSalesRung                   RetailSale[]                   @relation("RetailSaleCashier")
   retailShifts                      RetailShift[]                  @relation("RetailShiftCashier")
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
+  retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
 
   @@index([companyId])
   @@index([email])
@@ -4244,6 +4246,61 @@ enum RetailShiftStatus {
   CLOSED
 }
 
+/// S-7.1 — why cash left or entered the drawer between opening and cash-up.
+///
+/// Three values, and the direction is in the name on purpose. "Pickup" is the
+/// ambiguous word in this trade: `docs/design-system/portals/pos.html` uses it for
+/// safe → drawer, most of the sector uses it for drawer → safe, and a label that
+/// can be read either way on a row that changes `expectedCash` is how the defect
+/// this ticket fixes would come back.
+///
+/// - `DROP_TO_SAFE` — the manager banks part of the takings mid-shift. Ordinary
+///   practice in a bottle store on a Friday, and the case that made `variance`
+///   read as a shortfall exactly equal to what was banked.
+/// - `FLOAT_TOP_UP` — cash carried the other way, safe → drawer, because the till
+///   has run out of small notes to give change with.
+/// - `PAYOUT` — cash out of the drawer to somebody who is not the bank: a supplier
+///   paid on delivery, or a refund handed over outside a reversing sale. Kept apart
+///   from `DROP_TO_SAFE` because the money is gone rather than moved, and a Z-report
+///   (S-7.2) has to state the two separately.
+///
+/// An enum an audit row holds may gain values and must never lose one, so this is
+/// the smallest set that covers the two directions and the one destination that is
+/// not the safe. A cash-up correction is deliberately absent: correcting a count is
+/// what `variance` is, not a movement.
+enum RetailCashMovementType {
+  DROP_TO_SAFE
+  FLOAT_TOP_UP
+  PAYOUT
+}
+
+/// S-7.1 — why the cash moved, from a fixed list.
+///
+/// The list `docs/design-system/portals/pos.html` puts behind the reason field,
+/// and it is a `select` there rather than a text box for a reason worth keeping: a
+/// reason typed in a queue is a reason no Z-report can group by. "Cash level too
+/// high" three times in a week is a float that is set wrong; three rows of
+/// free text saying roughly that are three rows nobody counts.
+///
+/// `OTHER` carries the cases the list does not, and `RetailCashMovement.reason`
+/// holds the words. The API requires those words when the code is `OTHER`, so the
+/// escape hatch cannot be used to record an unexplained movement — which is the
+/// unexplained variance this ticket exists to prevent, moved one row over.
+///
+/// `SUPPLIER_PAYOUT` and `PETTY_CASH` are not in the prototype's list because the
+/// prototype has no payout; `RetailCashMovementType.PAYOUT` does, and a payout
+/// reading "Cash level too high" would be a lie.
+enum RetailCashMovementReason {
+  CASH_LEVEL_TOO_HIGH
+  BANK_DEPOSIT
+  END_OF_SHIFT_SKIM
+  MANAGER_REQUEST
+  CHANGE_REQUIRED
+  SUPPLIER_PAYOUT
+  PETTY_CASH
+  OTHER
+}
+
 /// `RELEASED` is the offline runtime's doing and is not reachable online.
 ///
 /// There is no discard route on the till: `held-carts/route.ts` lists and creates,
@@ -4504,12 +4561,81 @@ model RetailShift {
   company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
   cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  heldCarts RetailHeldCart[]
-  sales     RetailSale[]
+  heldCarts     RetailHeldCart[]
+  sales         RetailSale[]
+  cashMovements RetailCashMovement[]
 
   @@unique([companyId, shiftNo])
   @@index([companyId, siteId, status])
   @@index([cashierId, status])
+}
+
+/// S-7.1 — cash that left or entered the drawer between opening and cash-up.
+///
+/// `RetailShift` had `openingFloat`, `expectedCash`, `countedCash` and `variance`
+/// and nowhere to say that the manager banked $200 at four o'clock. `expectedCash`
+/// went on counting money that was no longer in the drawer, `countedCash` correctly
+/// did not, and the cashier was short on paper by exactly what had been banked.
+/// This is the row that explains the difference.
+///
+/// Every movement adjusts `expectedCash` when it is recorded, by
+/// `cashMovementDelta` in `lib/retail/cash-movements.ts`: `FLOAT_TOP_UP` adds,
+/// `DROP_TO_SAFE` and `PAYOUT` subtract. That is the same incremental discipline
+/// `_services.ts` already uses for a sale's net cash, so the column stays the one
+/// number the till and the back office both read.
+model RetailCashMovement {
+  id        String @id @default(uuid())
+  /// This module's rule: if a query can reach a table, it carries its own tenant.
+  /// Cash-up reads these directly, filtered by shift, so it carries its own.
+  companyId String
+  shiftId   String
+  type      RetailCashMovementType
+  /// Always positive. The direction is `type`'s job, not the sign's — a negative
+  /// `DROP_TO_SAFE` would be two ways of saying the same thing and one of them
+  /// would eventually be wrong.
+  amount    Decimal @default(0) @db.Decimal(14, 2)
+  /// R-1.5, mirroring `RetailSale` and `RetailSalePayment`. A drop can be a bundle
+  /// of ZWG notes out of a drawer the shop prices in USD, and a movement that does
+  /// not say which one it means cannot be reconciled against the count.
+  currency     String  @default("USD")
+  /// Quote units per one base unit, the same sense as `CurrencyRate.rate`: 27.5
+  /// means 27.5 ZWG buys one USD. Always 1 for the company's own currency.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  /// `amount` in `AccountingSettings.baseCurrency`. This — not `amount` — is what
+  /// moves `expectedCash`, which is denominated in the base currency because
+  /// `openingFloat` is.
+  baseAmount   Decimal @default(0) @db.Decimal(14, 2)
+  /// Why, from the fixed list. This is the column a Z-report groups by.
+  reasonCode     RetailCashMovementReason @default(OTHER)
+  /// Why, in the cashier's own words — the prototype's "Receipt # for the safe log,
+  /// etc." Optional against a named `reasonCode`, and required by the API when the
+  /// code is `OTHER`, so the escape hatch cannot record an unexplained movement.
+  reason         String?
+  /// The bundle, counted. `{ currency, lines: [{ denomination, count }] }`, holding
+  /// only the rows a cashier actually keyed.
+  ///
+  /// Persisted rather than discarded because "we banked $340" is close to useless
+  /// to a shop investigating a shortfall and "we banked 3×$100, 2×$20" is not: the
+  /// bundle in the safe can be checked against it. The API recomputes `amount` from
+  /// these lines and refuses a mismatch, so the breakdown can never drift from the
+  /// total it is supposed to explain.
+  ///
+  /// Keyed to the row's own `currency`, never assumed to be USD — a ZWG drop has
+  /// entirely different denominations. `Json?` rather than a line table because
+  /// nothing queries inside it: it is read back whole, with its movement.
+  denominations  Json?
+  recordedById   String?
+  /// Denormalised for the same reason `RetailSale.cashierName` is: the user row can
+  /// go, and a reprinted safe log still has to name who carried the money.
+  recordedByName String?
+  createdAt      DateTime @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([companyId, shiftId, createdAt])
+  @@index([companyId, type])
 }
 
 model RetailHeldCart {
