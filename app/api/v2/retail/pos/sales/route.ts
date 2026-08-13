@@ -15,8 +15,7 @@ import {
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import {
-  canManageRetailTransactions,
-  ensureSiteAccess,
+  canManageRetailTransactions,  resolveRetailSite,
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
   requireRetailPos,
@@ -52,7 +51,7 @@ const managerOverrideSchema = z
 const saleSchema = z.object({
   saleNo: z.string().min(1).max(50).optional(),
   shiftId: z.string().uuid(),
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional().nullable(),
   customerName: z.string().max(200).optional().nullable(),
   customerPhone: z.string().max(40).optional().nullable(),
@@ -330,7 +329,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = saleSchema.parse(body);
-    const site = await ensureSiteAccess(session.user.companyId, input.siteId);
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse) return siteResponse;
     if (!site) {
       return errorResponse("Invalid site", 400);
     }

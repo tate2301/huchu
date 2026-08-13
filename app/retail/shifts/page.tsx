@@ -465,15 +465,22 @@ export default function RetailShiftsPage() {
                 </p>
               ) : null}
             </div>
-            <SearchableSelect
-              label="Site"
-              value={effectiveSiteId}
-              options={siteOptions}
-              placeholder="Select site"
-              onValueChange={(value) =>
-                setForm((current) => ({ ...current, siteId: value, registerId: "" }))
-              }
-            />
+            {/*
+              A shop with one branch is not asked which branch. The site is still
+              resolved and sent — it is simply not a question worth putting to a
+              cashier who has exactly one answer.
+            */}
+            {siteOptions.length > 1 ? (
+              <SearchableSelect
+                label="Site"
+                value={effectiveSiteId}
+                options={siteOptions}
+                placeholder="Select site"
+                onValueChange={(value) =>
+                  setForm((current) => ({ ...current, siteId: value, registerId: "" }))
+                }
+              />
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
                 <SearchableSelect

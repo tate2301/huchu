@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import {
-  requireRetailSession,
-} from "../../_helpers";
+import { requireRetailSession, resolveRetailSite } from "../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { openRetailShiftTransaction } from "../../_services";
 
 const openPosShiftSchema = z.object({
   shiftNo: z.string().min(1).max(50).optional(),
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   registerId: z.string().uuid(),
   openingFloat: z.number().min(0).optional(),
   periodOverrideReason: z.string().max(500).optional().nullable(),
@@ -28,6 +26,12 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = openPosShiftSchema.parse(body);
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse || !site) return siteResponse ?? errorResponse("Invalid site", 400);
+
     const { shift, accounting } = await openRetailShiftTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -37,7 +41,7 @@ export async function POST(request: NextRequest) {
         userEmail: session.user.email,
       },
       shiftNo: input.shiftNo ?? null,
-      siteId: input.siteId,
+      siteId: site.id,
       registerId: input.registerId,
       openingFloat: input.openingFloat ?? 0,
       notes: input.notes ?? null,

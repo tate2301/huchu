@@ -5,7 +5,12 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailStock, requireRetailSession } from "../../_helpers";
+import {
+  ensureInventoryItemAccess,
+  resolveRetailSite,
+  requireRetailStock,
+  requireRetailSession,
+} from "../../_helpers";
 
 const lineSchema = z.object({
   inventoryItemId: z.string().uuid().optional().nullable(),
@@ -16,7 +21,7 @@ const lineSchema = z.object({
 
 const purchaseOrderSchema = z.object({
   poNo: z.string().min(1).max(50).optional(),
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200),
   expectedDate: z.string().datetime().optional().nullable(),
   status: z.nativeEnum(RetailPurchaseOrderStatus).optional(),
@@ -86,10 +91,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = purchaseOrderSchema.parse(body);
-    const site = await ensureSiteAccess(session.user.companyId, input.siteId);
-    if (!site) {
-      return errorResponse("Invalid site", 400);
-    }
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse || !site) return siteResponse ?? errorResponse("Invalid site", 400);
 
     const providedCode = input.poNo
       ? normalizeProvidedId(input.poNo, "RETAIL_PURCHASE_ORDER")

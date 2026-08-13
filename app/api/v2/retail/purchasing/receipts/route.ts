@@ -7,8 +7,7 @@ import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   ensureInventoryItemAccess,
-  ensureLocationAccess,
-  ensureSiteAccess,
+  ensureLocationAccess,  resolveRetailSite,
   postRetailJournal,
   recordRetailInventoryMovement,
   requireRetailStock,
@@ -25,7 +24,7 @@ const receiptLineSchema = z.object({
 const receiptSchema = z.object({
   receiptNo: z.string().min(1).max(50).optional(),
   purchaseOrderId: z.string().uuid().optional().nullable(),
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   supplierName: z.string().min(1).max(200),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
@@ -87,7 +86,11 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     const input = receiptSchema.parse(body);
-    const site = await ensureSiteAccess(session.user.companyId, input.siteId);
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse) return siteResponse;
     if (!site) {
       return errorResponse("Invalid site", 400);
     }

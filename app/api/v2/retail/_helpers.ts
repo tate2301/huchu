@@ -206,6 +206,66 @@ export async function getAccountingStatusForSource(input: {
   } satisfies RetailAccountingResult;
 }
 
+/**
+ * The site a retail request is about, asked for only when it is genuinely a
+ * question.
+ *
+ * Seven retail routes took `siteId: z.string().uuid()` as required, so a bottle
+ * store with one shop had to name its branch on every sale, shift, order and
+ * count — and the shift dialog could not be submitted until the cashier picked
+ * the single item in a list of one. That is the trap the vertical-building doc
+ * names outright: *do not gate a lookup on a narrowing field*. A site narrows a
+ * register; it is not a prerequisite for having one.
+ *
+ *  - given a site, it is validated exactly as before;
+ *  - given none, a tenant with exactly one active site gets that site;
+ *  - given none with several sites, the caller is told to choose, because now it
+ *    really is a question;
+ *  - given none with no sites at all, the caller is told to create one, which is
+ *    a setup problem and should not read as "invalid site".
+ *
+ * Returns the site, or a `NextResponse` to return as-is.
+ */
+export async function resolveRetailSite(
+  companyId: string,
+  siteId?: string | null,
+): Promise<
+  { site: Awaited<ReturnType<typeof ensureSiteAccess>>; response: null } | { site: null; response: NextResponse }
+> {
+  if (siteId) {
+    const site = await ensureSiteAccess(companyId, siteId);
+    if (!site) return { site: null, response: retailValidationError("Invalid site", 400) };
+    return { site, response: null };
+  }
+
+  const active = await prisma.site.findMany({
+    where: { companyId, isActive: true },
+    select: { id: true, companyId: true, isActive: true, name: true, code: true },
+    orderBy: { createdAt: "asc" },
+    take: 2,
+  });
+
+  if (active.length === 0) {
+    return {
+      site: null,
+      response: retailValidationError(
+        "This workspace has no active site yet. Add one in Setup before trading.",
+        400,
+      ),
+    };
+  }
+  if (active.length > 1) {
+    return {
+      site: null,
+      response: retailValidationError(
+        "This workspace has more than one site — say which one this is for.",
+        400,
+      ),
+    };
+  }
+  return { site: active[0], response: null };
+}
+
 export async function ensureSiteAccess(companyId: string, siteId: string) {
   const site = await prisma.site.findUnique({
     where: { id: siteId },

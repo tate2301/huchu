@@ -2,8 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
-  ensureInventoryItemAccess,
-  ensureSiteAccess,
+  ensureInventoryItemAccess,  resolveRetailSite,
   postRetailJournal,
   recordRetailInventoryMovement,
   requireRetailStock,
@@ -11,7 +10,7 @@ import {
 } from "../../_helpers";
 
 const stockCountSchema = z.object({
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   itemId: z.string().uuid(),
   countedStock: z.number().min(0),
   periodOverrideReason: z.string().max(500).optional().nullable(),
@@ -31,7 +30,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = stockCountSchema.parse(body);
 
-    const site = await ensureSiteAccess(session.user.companyId, input.siteId);
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse) return siteResponse;
     if (!site) {
       return errorResponse("Invalid site", 400);
     }

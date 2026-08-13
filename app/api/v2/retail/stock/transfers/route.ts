@@ -4,15 +4,14 @@ import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import {
   ensureInventoryItemAccess,
-  ensureLocationAccess,
-  ensureSiteAccess,
+  ensureLocationAccess,  resolveRetailSite,
   recordRetailInventoryMovement,
   requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
 const transferSchema = z.object({
-  siteId: z.string().uuid(),
+  siteId: z.string().uuid().optional(),
   itemId: z.string().uuid(),
   toLocationId: z.string().uuid(),
   quantity: z.number().positive(),
@@ -32,7 +31,11 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const input = transferSchema.parse(body);
 
-    const site = await ensureSiteAccess(session.user.companyId, input.siteId);
+    const { site, response: siteResponse } = await resolveRetailSite(
+      session.user.companyId,
+      input.siteId,
+    );
+    if (siteResponse) return siteResponse;
     if (!site) {
       return errorResponse("Invalid site", 400);
     }
