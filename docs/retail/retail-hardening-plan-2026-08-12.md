@@ -165,6 +165,42 @@ screenshots, and right about the order of work. The plan below follows it.
 | R-0.4 baseline screenshots | deferred — port 3000 held by another dev server |
 | R-1.2 enums | **done** — 11 columns, 2 bugs found, witness test at `lib/retail/schema-migration.test.ts` |
 | R-1.1 money → Decimal | **done** — 29 columns, 120 call sites, epsilon comparison retired |
+| R-1.5 currency | **done** — `currency`/`exchangeRate`/`baseAmount` on sale and payment; `scripts/retail-currency-columns.ts` applied |
+| Sites optional | **done** — `resolveRetailSite`, seven routes, both shift dialogs |
+| R-5.2 seed | **done** — `scripts/seed-retail-demo.ts`: a bottle store, 180 days, 5,044 sales, four staff |
+| Workspace focus | **done** — `scripts/retail-demo-focus.ts` narrows a tenant to retail |
+| Offline till | **done** — `retail-pos` was never warmed by anybody; `lib/offline/workflow-catalog.test.ts` pins it |
+| R-1.3 `companyId` on line tables | **not started** |
+| R-1.4 FK relations | **not started** |
+| Phase 2 permissions | **not started** — highest remaining value for the demo |
+| Stock/pricing into core | **not started** — the §2b consolidation |
+
+### Found while doing the above
+
+Four bugs that the demo data surfaced and three notes worth keeping:
+
+- **Aliased feature keys resolved by row order.** `normalizeFeatureKey` folds
+  `thrift.core` onto `retail.core`; `getCompanyFeatureMap` wrote whichever row Prisma
+  returned last. Disabling the four `thrift.*` keys took four `retail.*` capabilities
+  with them while every retail flag still read `true`. Fixed with an explicit
+  precedence rule. **A data migration is still owed** — merge the duplicate legacy
+  rows and drop the aliases; there is a `TODO` on the code.
+- **The POS offline runtime never ran.** `retail-pos` is a fully specified offline
+  module and no workflow-catalogue entry named it, so `resolveOfflineWorkflowCatalog`
+  returned `false` for it — for every tenant, since the module was written. A till
+  that cannot sell when the line drops is not a till. Three scrap modules are still
+  orphaned the same way and are pinned in a test rather than quietly fixed.
+- **Duplicate React keys in the charts** when a day had two shifts.
+- **`baseAmount` would have defaulted to zero** on every sale the till took, so a
+  day's takings would have read as nothing. Stated at posting now.
+- **Entitlement changes need a fresh sign-in.** The sidebar is built from the
+  session JWT, so a tenant narrowed to retail keeps showing Gold and Schools until
+  the user signs out and in. Worth knowing before the demo, not a bug.
+- **Dev-mode page loads are 4–10s** against the pooled Neon endpoint. Much of that
+  is dev compilation; it should be measured against a production build before
+  anybody concludes anything about the till's speed.
+- **`prisma db push` cannot run in this environment** (P1001, pooler-only host), so
+  every schema change ships as a script under `scripts/`.
 
 **R-1.1 notes.** `scripts/retail-money-decimal.ts` measures before it casts: it reports
 how many values each column would round and by how much, and refuses outright on an
