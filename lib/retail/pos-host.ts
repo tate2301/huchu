@@ -1,6 +1,18 @@
 import { buildPortalHost } from "@/lib/platform/portal-hosts";
 
-export const POS_PUBLIC_PATHS = ["/", "/login", "/overview", "/held", "/history", "/reports", "/shift"] as const;
+export const POS_PUBLIC_PATHS = [
+  "/",
+  "/login",
+  "/overview",
+  "/held",
+  "/history",
+  "/reports",
+  "/shift",
+  /** S-7.3 · S-7.4 · S-7.6 — the last four surfaces the POS prototype puts on the till. */
+  "/queue",
+  "/settings",
+  "/activity",
+] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
 
@@ -13,7 +25,10 @@ export type PosPortalNavKey =
   | "shift"
   | "overview"
   | "customers"
-  | "price-check";
+  | "price-check"
+  | "queue"
+  | "settings"
+  | "activity";
 
 const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; internalHref: string }> = {
   checkout: { publicHref: "/", internalHref: "/portal/pos" },
@@ -24,6 +39,9 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   overview: { publicHref: null, internalHref: "/portal/pos/overview" },
   customers: { publicHref: "/customers", internalHref: "/portal/pos/customers" },
   "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
+  queue: { publicHref: "/queue", internalHref: "/portal/pos/queue" },
+  settings: { publicHref: "/settings", internalHref: "/portal/pos/settings" },
+  activity: { publicHref: "/activity", internalHref: "/portal/pos/activity" },
 };
 
 const POS_PORTAL_ALLOWED_ROLES = new Set(["CASHIER", "POS_CASHIER"]);

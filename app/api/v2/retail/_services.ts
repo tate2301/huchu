@@ -67,7 +67,11 @@ export type RetailPaymentInput = {
 export type RetailSaleLineInput = {
   inventoryItemId: string;
   inventoryUnit: string;
-  catalogItemId?: string | null;
+  /**
+   * S-4b — what was sold, in the one item master. Was `catalogItemId`; that
+   * column is frozen and nothing writes it now.
+   */
+  productId?: string | null;
   sourceLineId?: string | null;
   itemName: string;
   quantity: number;
@@ -685,7 +689,7 @@ export async function createRetailSaleTransaction(input: {
               create: input.lines.map((line) => ({
                 companyId: input.actor.companyId,
                 inventoryItemId: line.inventoryItemId,
-                catalogItemId: line.catalogItemId ?? null,
+                productId: line.productId ?? null,
                 itemName: line.itemName,
                 quantity: line.quantity,
                 unitPrice: line.unitPrice,
@@ -1000,7 +1004,7 @@ export async function refundRetailSaleTransaction(input: {
             companyId: input.actor.companyId,
             sourceLineId: line.sourceLine.id,
             inventoryItemId: line.sourceLine.inventoryItemId,
-            catalogItemId: line.sourceLine.catalogItemId,
+            productId: line.sourceLine.productId,
             itemName: line.sourceLine.itemName,
             quantity: line.quantity,
             unitPrice: line.sourceLine.unitPrice,
@@ -1215,7 +1219,7 @@ export async function voidRetailSaleTransaction(input: {
             companyId: input.actor.companyId,
             sourceLineId: line.id,
             inventoryItemId: line.inventoryItemId,
-            catalogItemId: line.catalogItemId,
+            productId: line.productId,
             itemName: line.itemName,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
@@ -1420,11 +1424,11 @@ export async function generateRetailZReportTransaction(input: {
         lines: {
           select: {
             inventoryItemId: true,
-            catalogItemId: true,
+            productId: true,
             itemName: true,
             quantity: true,
             lineTotal: true,
-            catalogItem: { select: { sku: true } },
+            product: { select: { code: true } },
           },
         },
       },
@@ -1476,11 +1480,11 @@ export async function generateRetailZReportTransaction(input: {
         exchangeRate: sale.exchangeRate,
         payments: sale.payments,
         lines: sale.lines.map((line) => ({
-          // A listing is the identity a shop thinks in; the stock row is the
-          // fallback for a line rung against an item with no listing behind it.
-          itemKey: line.catalogItemId ?? line.inventoryItemId,
+          // The product is the identity a shop thinks in; the stock row is the
+          // fallback for a line rung against an item with no product behind it.
+          itemKey: line.productId ?? line.inventoryItemId,
           itemName: line.itemName,
-          sku: line.catalogItem?.sku ?? null,
+          sku: line.product?.code ?? null,
           quantity: line.quantity,
           lineTotal: line.lineTotal,
         })),

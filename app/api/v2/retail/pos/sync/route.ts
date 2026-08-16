@@ -311,7 +311,8 @@ async function processCreateSale(
     customerPhone?: string;
     customerEmail?: string;
     items: Array<{
-      catalogItemId: string;
+      /** S-4b — a `Product.id`, where the device used to send a listing id. */
+      productId: string;
       name?: string;
       quantity: number;
       /** What the device charged. Absent means "whatever the shelf said". */
@@ -348,26 +349,18 @@ async function processCreateSale(
       ? (ctx.resolvedIds.get(payload.customerId) ?? payload.customerId)
       : undefined;
 
-    const catalogItemIds = payload.items.map((i) => i.catalogItemId);
-    const catalogItems = await prisma.retailCatalogItem.findMany({
-      where: {
-        id: { in: catalogItemIds },
-        companyId: ctx.companyId,
-        status: "ACTIVE",
-      },
+    // S-4b. `Product` + the `InventoryItem` behind it at the branch this sale was
+    // rung at, in one query. The replay is site-scoped for the same reason the
+    // online path is: the stock that moved was the stock at that till.
+    const { products: sellable, missing } = await loadSellableProducts({
+      companyId: ctx.companyId,
+      siteId: payload.siteId,
+      productIds: payload.items.map((i) => i.productId),
     });
 
-    if (catalogItems.length !== new Set(catalogItemIds).size) {
+    if (missing.length > 0) {
       return { clientOperationId: op.clientOperationId, status: "failed", error: "One or more catalog items invalid" };
     }
-
-    // Get inventory items
-    const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { id: { in: catalogItems.map((c) => c.inventoryItemId) } },
-      select: { id: true, itemCode: true, name: true, currentStock: true, unit: true, unitCost: true },
-    });
-    const inventoryMap = new Map(inventoryItems.map((i) => [i.id, i]));
-    const catalogMap = new Map(catalogItems.map((c) => [c.id, c]));
 
     const soldAt = new Date(payload.offlineCreatedAt ?? op.offlineCreatedAt ?? Date.now());
 
@@ -378,31 +371,30 @@ async function processCreateSale(
     const shelfPrices = await resolveShelfPrices(
       ctx.companyId,
       payload.items.map((item, index) => {
-        const catalogItem = catalogMap.get(item.catalogItemId);
+        const listing = sellable.get(item.productId);
         return {
-          id: `${item.catalogItemId}:${index}`,
-          productId: catalogItem?.productId ?? null,
-          unitPrice: catalogItem?.unitPrice ?? 0,
-          taxPercent: catalogItem?.taxPercent ?? 0,
+          id: `${item.productId}:${index}`,
+          productId: item.productId,
+          unitPrice: listing?.standardPrice ?? 0,
+          taxPercent: listing?.defaultTaxRate ?? 0,
           quantity: item.quantity,
         };
       }),
     );
 
     const replayLines = payload.items.map((item, index) => {
-      const lineKey = `${item.catalogItemId}:${index}`;
-      const catalogItem = catalogMap.get(item.catalogItemId);
-      const inventoryItem = catalogItem ? inventoryMap.get(catalogItem.inventoryItemId) : null;
+      const lineKey = `${item.productId}:${index}`;
+      const listing = sellable.get(item.productId);
       const shelf = shelfPrices.get(lineKey);
-      if (!catalogItem || !inventoryItem || !shelf) {
-        throw new Error(`Inventory mapping missing for ${item.name ?? item.catalogItemId}`);
+      if (!listing || !shelf) {
+        throw new Error(`Inventory mapping missing for ${item.name ?? item.productId}`);
       }
-      return { lineKey, item, catalogItem, inventoryItem, shelf };
+      return { lineKey, item, listing, inventoryItem: listing.inventoryItem, shelf };
     });
 
     const review = reviewReplayedPrices({
       lines: replayLines.map((line) => ({
-        itemName: line.catalogItem.name,
+        itemName: line.listing.name,
         submittedUnitPrice: line.item.unitPrice,
         resolvedUnitPrice: line.shelf.unitPrice,
         priceChangedAt: line.shelf.priceChangedAt ? new Date(line.shelf.priceChangedAt) : null,
@@ -455,13 +447,13 @@ async function processCreateSale(
     const saleLines = replayLines.map((line, index) => {
       const calculated = calculatedByKey.get(line.lineKey);
       if (!calculated) {
-        throw new Error(`Unable to price ${line.catalogItem.name}`);
+        throw new Error(`Unable to price ${line.listing.name}`);
       }
       return {
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
-        catalogItemId: line.item.catalogItemId,
-        itemName: line.item.name ?? line.catalogItem.name,
+        productId: line.item.productId,
+        itemName: line.item.name ?? line.listing.name,
         quantity: line.item.quantity,
         unitPrice: review.lines[index].unitPrice,
         discountAmount: calculated.discountAmount,
@@ -608,7 +600,7 @@ async function processRefundSale(
     saleId: string;
     shiftId?: string;
     items: Array<{
-      catalogItemId: string;
+      productId: string;
       name: string;
       quantity: number;
       unitPrice: number;
@@ -653,7 +645,7 @@ async function processRefundSale(
     const requestedLines = payload.items.map((item) => {
       const sourceLine = sourceSale.lines.find(
         (line) =>
-          line.catalogItemId === item.catalogItemId ||
+          line.productId === item.productId ||
           line.itemName.toLowerCase() === item.name.toLowerCase(),
       );
       if (!sourceLine) {
@@ -715,7 +707,7 @@ async function processCreateHeldCart(
     items: Array<{
       id: string;
       name: string;
-      catalogItemId: string;
+      productId: string;
       quantity: number;
       unitPrice: number;
       taxPercent: number;

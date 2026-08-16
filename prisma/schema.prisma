@@ -271,6 +271,7 @@ model Company {
   retailSalePayments            RetailSalePayment[]
   retailCashMovements           RetailCashMovement[]
   retailZReports                RetailZReport[]
+  retailTillPins                RetailTillPin[]
 
   @@index([tenantStatus])
   @@index([isProvisioned])
@@ -1101,6 +1102,7 @@ model User {
   retailHeldCarts                   RetailHeldCart[]               @relation("RetailHeldCartCashier")
   retailCashMovements               RetailCashMovement[]           @relation("RetailCashMovementRecordedBy")
   retailZReports                    RetailZReport[]                @relation("RetailZReportGeneratedBy")
+  retailTillPin                     RetailTillPin?                 @relation("RetailTillPinUser")
 
   @@index([companyId])
   @@index([email])
@@ -4641,6 +4643,46 @@ model RetailCashMovement {
   @@index([companyId, type])
 }
 
+/// S-7.5 — the four digits that unlock a till that is already signed in.
+///
+/// Not a credential. `app/portal/pos/login` and a password are the only way into
+/// the system; this unlocks a terminal whose session is already open, so the
+/// cashier can lock the screen between customers without typing a password on a
+/// tablet in front of a queue. See `lib/retail/till-pin.ts` for the threat model
+/// and the lockout arithmetic.
+///
+/// A table of its own rather than columns on `User`, for three reasons: it is a
+/// retail concern on an enum of roles shared by every vertical, keeping it off
+/// `User` keeps a four-digit code from ever sitting beside the password column as
+/// though the two were the same kind of thing, and a shop turning the feature off
+/// deletes rows rather than nulling columns.
+model RetailTillPin {
+  id        String @id @default(uuid())
+  companyId String
+  /// One PIN per person, not per device. A cashier who works two tills types the
+  /// same four digits at both, and a device that changes hands carries nothing.
+  userId    String @unique
+  /// bcrypt, the same cost as `User.password`. The digits are never stored,
+  /// returned by any endpoint, or written to a log.
+  pinHash   String
+  /// Consecutive wrong guesses since the last correct one. Reset on success and
+  /// when a lock expires.
+  failedAttempts Int       @default(0)
+  /// Set on the fifth wrong guess. While it is in the future the unlock route
+  /// refuses without comparing the hash at all.
+  lockedUntil    DateTime?
+  /// When the terminal was last unlocked with it. Shown on the settings screen so
+  /// a cashier can tell whether a PIN they have forgotten is in use.
+  lastUnlockedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user    User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([companyId])
+}
+
 /// S-7.2 — one register's trading day, closed and frozen.
 ///
 /// The document a Zimbabwean shop banks its takings against and the one
@@ -4866,6 +4908,16 @@ model RetailSaleLine {
   saleId          String
   sourceLineId    String?
   inventoryItemId String
+  /// S-4b — what was sold, in the one item master. `inventoryItemId` stays: it is
+  /// the stock row that moved, at one site, which is not the same fact as the
+  /// product that left the shop.
+  ///
+  /// Nullable because history has lines that predate any product link and because
+  /// a product may be archived out from under a receipt; `itemName` is what a
+  /// reprint actually renders, and it is denormalised for exactly that reason.
+  productId       String?
+  /// S-4b — frozen. Backfilled `productId` from this, and nothing reads it now.
+  /// It is kept only until `scripts/retail-drop-catalog-item.ts` is run.
   catalogItemId   String?
   itemName        String
   quantity        Decimal @default(0) @db.Decimal(12, 4)
@@ -4881,6 +4933,12 @@ model RetailSaleLine {
 
   company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  /// `SetNull`, not `Restrict`, for the reason `scripts/retail-foreign-keys.ts`
+  /// gives for `cashierId`: losing the link is bad, and blocking the parent's
+  /// deletion because of it is worse. A sold-out line archived off the range must
+  /// not make six months of receipts undeletable, and the receipt still reprints
+  /// from `itemName`.
+  product       Product?           @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   catalogItem   RetailCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
@@ -4888,6 +4946,8 @@ model RetailSaleLine {
   @@index([saleId])
   @@index([sourceLineId])
   @@index([companyId, inventoryItemId])
+  /// Best-sellers and margin-by-line group on the product now, not the listing.
+  @@index([companyId, productId])
 }
 
 model RetailSalePayment {
@@ -11217,6 +11277,15 @@ model Product {
   /// model from S-3 onward, and routing numbers R-1.1 made exact back through a
   /// double would undo R-1.1 by the back door.
   standardPrice      Decimal       @default(0) @db.Decimal(14, 2)
+  /// The "was" price, shown struck through beside the shelf price.
+  ///
+  /// S-4b — a merchandising attribute of the retail profile, alongside `barcode`
+  /// and `ageRestricted`. It lived on `RetailCatalogItem.compareAtPrice`, and the
+  /// pricing screen edits it in the same row as the sell price; when the item
+  /// master moved to `Product` it had to come with it or the column would have
+  /// been deleted rather than migrated. Not on `ProductPrice`: a tenant runs one
+  /// shelf list, and a per-list was-price is generality nothing has asked for.
+  compareAtPrice     Decimal?      @db.Decimal(14, 2)
   costPrice          Decimal?      @db.Decimal(14, 2)
   /// A percentage, not money — hence the narrower scale.
   defaultTaxRate     Decimal       @default(0) @db.Decimal(5, 2)
@@ -11254,7 +11323,11 @@ model Product {
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
+  /// S-4b — the shadow. `RetailCatalogItem` is no longer read by anything; the
+  /// relation stays only so `scripts/retail-drop-catalog-item.ts` has a table to
+  /// drop, and goes with it.
   retailListings RetailCatalogItem[]
+  retailSaleLines RetailSaleLine[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive, kind])

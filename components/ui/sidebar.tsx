@@ -155,7 +155,7 @@ const Sidebar = React.forwardRef<HTMLElement, SidebarProps>(
         data-collapsible={collapsible}
         data-variant={variant}
         className={cn(
-          "peer group/sidebar relative flex h-[100dvh] min-h-[100dvh] flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width,background-color] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
+          "peer group/sidebar relative flex h-[100dvh] min-h-[100dvh] mx-0 flex-col bg-sidebar text-sidebar-foreground shadow-[inset_-1px_0_0_0_var(--sidebar-border)] transition-[width,background-color] duration-[var(--motion-duration-base)] ease-[var(--motion-ease-standard)]",
           collapsible === "icon" && state === "collapsed"
             ? "w-[var(--sidebar-width-icon)]"
             : "w-[var(--sidebar-width)]",
@@ -199,7 +199,7 @@ const SidebarHeader = React.forwardRef<
   <div
     ref={ref}
     data-sidebar="header"
-    className={cn("flex flex-col gap-2 px-3 pt-3 pb-2", className)}
+    className={cn("flex flex-col gap-2 p-1", className)}
     {...props}
   />
 ));

@@ -168,9 +168,9 @@ export function AppSidebar() {
       // `.sidebar-content`, which left the account switcher and the quick
       // actions pinned while a strip in the middle moved under them — two
       // scrollbars on one surface, and neither where the pointer expects.
-      className="sticky top-0 h-[100dvh] overflow-y-auto overscroll-contain rounded-none border-0 border-r border-[var(--border-subtle)] bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+      className="p-1 sticky top-0 h-[100dvh] m-0 border-none overflow-y-auto overscroll-contain rounded-none bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
     >
-      <SidebarHeader className="px-3 pb-2 pt-3">
+      <SidebarHeader className="p-1">
         <SidebarAccountMenu
           isCollapsed={isCollapsed}
           isMobile={isMobile}
@@ -187,7 +187,7 @@ export function AppSidebar() {
         />
       </SidebarHeader>
 
-      <SidebarContent className="gap-2.5 px-2 pb-3 pt-0 [flex:none] [overflow:visible]">
+      <SidebarContent className="gap-2.5 px-1 pt-0 [flex:none] [overflow:visible]">
         {!isCollapsed ? (
           <SidebarSectionHeading label={sidebarModel.workspaceLabel} />
         ) : null}

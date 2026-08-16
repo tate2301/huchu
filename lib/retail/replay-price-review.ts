@@ -41,6 +41,21 @@
 /** The same tolerance the online override check uses. Half a cent is not a price change. */
 export const REPLAY_PRICE_TOLERANCE = 0.009;
 
+/**
+ * The three markers this module writes into a sale's `overrideReason` and its
+ * refusal message.
+ *
+ * S-7.3 reads them back: the till's offline-queue screen has to say *what a
+ * superseded price did* rather than "synced", and a shop investigating a price
+ * has to be able to find every sale that carried one. They are constants rather
+ * than literals in two files because the alternative is a screen that quietly
+ * stops recognising a verdict the day somebody rewords a sentence.
+ */
+export const REPLAY_PRICE_SUPERSEDED_MARKER = "PRICE_SNAPSHOT_SUPERSEDED";
+export const REPLAY_PRICE_OVERRIDDEN_MARKER = "PRICE_OVERRIDE_OFFLINE";
+export const REPLAY_PRICE_UNEXPLAINED_MESSAGE =
+  "Replayed price does not match the shelf and carries no approval";
+
 export type ReplayPriceVerdict =
   /** The device and the shelf agree. */
   | "MATCHES"
@@ -176,17 +191,17 @@ export function reviewReplayedPrices(input: {
       lines,
       overrideNote: null,
       error:
-        `Replayed price does not match the shelf and carries no approval: ` +
+        `${REPLAY_PRICE_UNEXPLAINED_MESSAGE}: ` +
         `${unauthorised.join("; ")}. Re-post with a manager's approval.`,
     };
   }
 
   const notes: string[] = [];
   if (superseded.length > 0) {
-    notes.push(`PRICE_SNAPSHOT_SUPERSEDED: ${superseded.join("; ")}`);
+    notes.push(`${REPLAY_PRICE_SUPERSEDED_MARKER}: ${superseded.join("; ")}`);
   }
   if (overridden.length > 0) {
-    notes.push(`PRICE_OVERRIDE_OFFLINE: ${overridden.join("; ")}`);
+    notes.push(`${REPLAY_PRICE_OVERRIDDEN_MARKER}: ${overridden.join("; ")}`);
   }
 
   return {

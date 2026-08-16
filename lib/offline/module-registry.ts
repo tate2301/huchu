@@ -219,14 +219,34 @@ async function syncRetailCustomer(payload: Record<string, unknown>): Promise<Off
   }
 }
 
-async function syncRetailSale(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
+async function syncRetailSale(
+  operation: OfflineOutboxOperation,
+  payload: Record<string, unknown>,
+): Promise<OfflineSyncOutcome> {
   try {
     const saleNo = normalizeLegacyDocumentNumber("RSL", payload.saleNo);
+    /**
+     * S-7.3. When the till actually rang this sale.
+     *
+     * The server needs it to tell a superseded shelf price from an unexplained
+     * one — a price change cannot reach back in time, so a price rewritten after
+     * this instant did not reach the device and the device was right. Without it
+     * every offline sale whose price the shop has since edited is refused with
+     * "manager approval is required", which is approval no queue can obtain, and
+     * money the shop already took is lost from the books.
+     *
+     * The payload's own stamp wins when it has one (`lib/retail/offline-sale.ts`
+     * writes it); otherwise the outbox row's `createdAt` is the moment the sale
+     * was queued, which is the moment it was rung.
+     */
+    const offlineCreatedAt =
+      typeof payload.offlineCreatedAt === "string" ? payload.offlineCreatedAt : operation.createdAt;
     await fetchJson("/api/v2/retail/pos/sales", {
       method: "POST",
       body: JSON.stringify({
         ...payload,
         saleNo,
+        offlineCreatedAt,
       }),
     });
     return {
@@ -578,7 +598,7 @@ const retailMutationAdapters: OfflineMutationAdapter[] = [
   },
   {
     operation: "create-sale",
-    sync: ({ resolvedPayload }) => syncRetailSale(resolvedPayload),
+    sync: ({ operation, resolvedPayload }) => syncRetailSale(operation, resolvedPayload),
   },
 ];
 

@@ -1,11 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
-import { RetailAcquisitionMode, RetailCatalogItemStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { linkListingToCore, resolveShelfPrice } from "@/lib/retail/shelf-pricing";
+import {
+  archiveShelfListing,
+  loadShelfListing,
+  upsertShelfListing,
+} from "@/lib/retail/shelf-listing";
 import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../../_helpers";
 
+/**
+ * One shelf line. `{id}` is a `Product.id` from S-4b.
+ *
+ * This is the endpoint both editable screens write to: the catalogue dialog and
+ * the pricing table. It writes `Product` and the `ProductPrice` on the tenant's
+ * `RETAIL` shelf list — the same rows the till reads its price out of — so an
+ * edit here is an edit the counter charges, which is the whole point of the
+ * cutover.
+ */
 const patchSchema = z.object({
   inventoryItemId: z.string().uuid().optional(),
   name: z.string().min(1).max(200).optional(),
@@ -15,9 +27,8 @@ const patchSchema = z.object({
   unitPrice: z.number().min(0).optional(),
   compareAtPrice: z.number().min(0).optional().nullable(),
   taxPercent: z.number().min(0).max(100).optional(),
-  acquisitionMode: z.nativeEnum(RetailAcquisitionMode).optional(),
   imageUrl: z.string().url().optional().nullable(),
-  status: z.nativeEnum(RetailCatalogItemStatus).optional(),
+  status: z.enum(["ACTIVE", "INACTIVE"]).optional(),
 });
 
 function normalizeSku(value: string) {
@@ -26,12 +37,6 @@ function normalizeSku(value: string) {
     .toUpperCase()
     .replace(/[^A-Z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
-}
-
-async function getCatalogItem(companyId: string, id: string) {
-  return prisma.retailCatalogItem.findFirst({
-    where: { id, companyId },
-  });
 }
 
 export async function GET(
@@ -44,36 +49,12 @@ export async function GET(
   }
 
   const { id } = await params;
-  const item = await getCatalogItem(session.user.companyId, id);
-  if (!item) {
+  const listing = await loadShelfListing(session.user.companyId, id);
+  if (!listing) {
     return errorResponse("Catalog item not found", 404);
   }
 
-  // `InventoryItem` is tenant-scoped through its site, not by a column of its own.
-  const inventoryItem = await prisma.inventoryItem.findFirst({
-    where: { id: item.inventoryItemId, site: { companyId: session.user.companyId } },
-    select: { id: true, itemCode: true, name: true, currentStock: true, unit: true },
-  });
-
-  // S-3 — resolved through the core price engine, same as the list and the till.
-  const shelf = await resolveShelfPrice(session.user.companyId, {
-    id: item.id,
-    productId: item.productId,
-    unitPrice: item.unitPrice,
-    taxPercent: item.taxPercent,
-  });
-
-  return successResponse({
-    ...item,
-    unitPrice: shelf.unitPrice,
-    taxPercent: shelf.taxPercent,
-    taxInclusive: shelf.taxInclusive,
-    currency: shelf.currency,
-    priceListId: shelf.priceListId,
-    priceSource: shelf.priceSource,
-    pricedAt: shelf.pricedAt,
-    inventoryItem,
-  });
+  return successResponse(listing);
 }
 
 export async function PATCH(
@@ -90,7 +71,7 @@ export async function PATCH(
 
   try {
     const { id } = await params;
-    const existing = await getCatalogItem(session.user.companyId, id);
+    const existing = await loadShelfListing(session.user.companyId, id);
     if (!existing) {
       return errorResponse("Catalog item not found", 404);
     }
@@ -99,54 +80,44 @@ export async function PATCH(
     const input = patchSchema.parse(body);
 
     let inventoryItemId = existing.inventoryItemId;
-    let siteId = existing.siteId;
-
-    if (input.inventoryItemId) {
-      const inventoryItem = await ensureInventoryItemAccess(session.user.companyId, input.inventoryItemId);
+    if (input.inventoryItemId && input.inventoryItemId !== existing.inventoryItemId) {
+      const inventoryItem = await ensureInventoryItemAccess(
+        session.user.companyId,
+        input.inventoryItemId,
+      );
       if (!inventoryItem) {
         return errorResponse("Invalid inventory item", 400);
       }
+      if (inventoryItem.productId && inventoryItem.productId !== existing.productId) {
+        return errorResponse("That stock item is already ranged under another product", 409);
+      }
       inventoryItemId = inventoryItem.id;
-      siteId = inventoryItem.siteId;
+      // The line it used to sell keeps nothing pointing at it, which is what
+      // "moved to a different stock row" means.
+      await prisma.inventoryItem.updateMany({
+        where: { id: existing.inventoryItemId, productId: existing.productId },
+        data: { productId: null },
+      });
     }
 
-    const updated = await prisma.retailCatalogItem.update({
-      where: { id: existing.id },
-      data: {
-        inventoryItemId,
-        siteId,
-        name: input.name?.trim(),
-        sku: input.sku ? normalizeSku(input.sku) : undefined,
-        barcode: input.barcode?.trim() ?? input.barcode,
-        description: input.description?.trim() ?? input.description,
-        unitPrice: input.unitPrice,
-        compareAtPrice: input.compareAtPrice,
-        taxPercent: input.taxPercent,
-        acquisitionMode: input.acquisitionMode,
-        imageUrl: input.imageUrl ?? undefined,
-        status: input.status,
-      },
-    });
-
-    // S-3. The till reads its price out of core now, so an edit that stopped at
-    // `RetailCatalogItem.unitPrice` would be an edit that changed nothing at the
-    // counter — and would put the two stores out of step, which is the drift the
-    // parity suite exists to catch. Both are written, until S-4 leaves one.
-    const productId = await linkListingToCore({
+    await upsertShelfListing({
       companyId: session.user.companyId,
-      listingId: updated.id,
-      productId: updated.productId,
-      sku: updated.sku,
-      name: updated.name,
-      description: updated.description,
-      barcode: updated.barcode,
-      imageUrl: updated.imageUrl,
-      inventoryItemId: updated.inventoryItemId,
-      unitPrice: updated.unitPrice,
-      taxPercent: updated.taxPercent,
+      productId: existing.productId,
+      sku: input.sku ? normalizeSku(input.sku) : existing.sku,
+      name: input.name?.trim() || existing.name,
+      inventoryItemId,
+      // A PATCH that only moves the was-price must not reprice the shelf.
+      unitPrice: input.unitPrice ?? existing.unitPrice,
+      taxPercent: input.taxPercent ?? existing.taxPercent,
+      ...(input.description === undefined ? {} : { description: input.description?.trim() ?? null }),
+      ...(input.barcode === undefined ? {} : { barcode: input.barcode?.trim() || null }),
+      ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
+      ...(input.compareAtPrice === undefined ? {} : { compareAtPrice: input.compareAtPrice }),
+      ...(input.status === undefined ? {} : { isActive: input.status === "ACTIVE" }),
     });
 
-    return successResponse({ ...updated, productId });
+    const updated = await loadShelfListing(session.user.companyId, existing.productId);
+    return successResponse(updated ?? existing);
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
@@ -169,13 +140,16 @@ export async function DELETE(
   if (gate) return gate;
 
   const { id } = await params;
-  const existing = await getCatalogItem(session.user.companyId, id);
+  const existing = await loadShelfListing(session.user.companyId, id);
   if (!existing) {
     return errorResponse("Catalog item not found", 404);
   }
 
-  await prisma.retailCatalogItem.delete({
-    where: { id: existing.id },
+  // Archived, not deleted. See `archiveShelfListing`: sale lines point at this
+  // product and a receipt reprint is not negotiable.
+  await archiveShelfListing({
+    companyId: session.user.companyId,
+    productId: existing.productId,
   });
 
   return successResponse({ success: true });

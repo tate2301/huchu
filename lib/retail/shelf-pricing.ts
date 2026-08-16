@@ -5,7 +5,8 @@
  * authoritative shelf price and core's `PriceList` / `ProductPrice` were never
  * read by retail at all. Two stores of the same fact, one of which nobody could
  * edit from the pricing screen. This module makes core the author and the
- * listing columns a shadow — S-4 then deletes the shadow.
+ * listing columns a shadow — S-4b then stops reading and writing the shadow
+ * altogether, and `scripts/retail-drop-catalog-item.ts` removes it.
  *
  * ## The offline constraint stays satisfied
  *
@@ -71,7 +72,10 @@ export type ShelfPrice = {
 
 /** What a caller needs to hand over for one listing to be priced. */
 export type ShelfPricingListing = {
-  /** The caller's own key — a `RetailCatalogItem.id` today. */
+  /**
+   * The caller's own key. `Product.id` from S-4b, or a `productId:index` when a
+   * basket carries the same line twice at different quantities.
+   */
   id: string;
   productId: string | null;
   /** The listing's own columns, used only when core has nothing to say. */
@@ -260,128 +264,12 @@ export async function resolveShelfPrice(
   return resolved.get(listing.id) ?? fromListing(listing, new Date().toISOString());
 }
 
-/** Must match `PRICE_LIST_NAME` in `scripts/retail-catalog-to-core.ts`. */
-export const SHELF_PRICE_LIST_NAME = "Shelf prices";
-
 /**
- * Give a listing a core product, and put its price on the shelf list.
+ * Must match `PRICE_LIST_NAME` in `scripts/retail-catalog-to-core.ts`.
  *
- * Two jobs, and both are forced by the read path moving to core.
- *
- * **Edits have to reach core.** The catalogue screen and the pricing screen
- * both `PATCH /api/v2/retail/catalog/{id}`. The moment a price is *read* out of
- * the price engine, an edit that only writes `RetailCatalogItem.unitPrice` is
- * an edit that appears to do nothing — and it silently breaks the parity this
- * whole cutover rests on. So the write goes to both stores until S-4 removes
- * one of them.
- *
- * **New listings have to arrive linked.** `scripts/retail-catalog-to-core.ts`
- * did this once, for everything that existed. A listing created afterwards
- * would otherwise be priced off its own columns, invisible to the price-list
- * editor, and counted as drift by
- * `lib/inventory/retail-price-parity.test.ts`. So the API does the same thing
- * the backfill did, by the same natural keys, and is idempotent for the same
- * reason.
- *
- * `Product.standardPrice` is written alongside the list entry deliberately: it
- * is the fallback the resolver reaches for when a list entry goes missing, and
- * a fallback that has drifted degrades to the wrong number rather than the old
- * one.
- *
- * Returns the product now behind the listing.
+ * S-4b: `upsertShelfListing` in `lib/retail/shelf-listing.ts` is what writes to
+ * it now. The `linkListingToCore` that used to live here wrote a
+ * `RetailCatalogItem` row beside the product, because the till still read one;
+ * nothing reads one any more, so nothing writes one.
  */
-export async function linkListingToCore(input: {
-  companyId: string;
-  listingId: string;
-  productId: string | null;
-  sku: string;
-  name: string;
-  description?: string | null;
-  barcode?: string | null;
-  imageUrl?: string | null;
-  inventoryItemId: string;
-  unitPrice: MoneyLike;
-  taxPercent: MoneyLike;
-}): Promise<string> {
-  const unitPrice = money(input.unitPrice);
-  const taxPercent = percent(input.taxPercent);
-
-  return prisma.$transaction(async (tx) => {
-    const priceList = await tx.priceList.upsert({
-      where: { companyId_name: { companyId: input.companyId, name: SHELF_PRICE_LIST_NAME } },
-      create: {
-        companyId: input.companyId,
-        name: SHELF_PRICE_LIST_NAME,
-        kind: "RETAIL",
-        // A Zimbabwean shelf price is what the customer pays.
-        taxInclusive: true,
-        isActive: true,
-      },
-      update: {},
-      select: { id: true },
-    });
-
-    const product = input.productId
-      ? await tx.product.update({
-          where: { id: input.productId },
-          data: {
-            name: input.name,
-            standardPrice: unitPrice,
-            defaultTaxRate: taxPercent,
-            ...(input.description === undefined ? {} : { description: input.description }),
-            ...(input.barcode === undefined ? {} : { barcode: input.barcode }),
-            ...(input.imageUrl === undefined ? {} : { imageUrl: input.imageUrl }),
-          },
-          select: { id: true },
-        })
-      : await tx.product.upsert({
-          where: { companyId_code: { companyId: input.companyId, code: input.sku } },
-          create: {
-            companyId: input.companyId,
-            code: input.sku,
-            name: input.name,
-            description: input.description ?? null,
-            barcode: input.barcode ?? null,
-            imageUrl: input.imageUrl ?? null,
-            standardPrice: unitPrice,
-            defaultTaxRate: taxPercent,
-          },
-          update: { name: input.name, standardPrice: unitPrice, defaultTaxRate: taxPercent },
-          select: { id: true },
-        });
-
-    await tx.productPrice.upsert({
-      where: {
-        priceListId_productId_minQuantity: {
-          priceListId: priceList.id,
-          productId: product.id,
-          minQuantity: 1,
-        },
-      },
-      create: {
-        companyId: input.companyId,
-        priceListId: priceList.id,
-        productId: product.id,
-        minQuantity: 1,
-        unitPrice,
-      },
-      update: { unitPrice },
-    });
-
-    if (input.productId !== product.id) {
-      await tx.retailCatalogItem.update({
-        where: { id: input.listingId },
-        data: { productId: product.id },
-      });
-    }
-
-    // The third leg. A stock row left unlinked is a margin figure core cannot
-    // compute, and the parity suite checks for exactly that.
-    await tx.inventoryItem.updateMany({
-      where: { id: input.inventoryItemId, productId: null },
-      data: { productId: product.id },
-    });
-
-    return product.id;
-  });
-}
+export const SHELF_PRICE_LIST_NAME = "Shelf prices";

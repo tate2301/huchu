@@ -429,3 +429,5 @@ export const ChatCircle = createPhosphorIcon("ChatCircle", "ChatCircle");
 export const PushPin = createPhosphorIcon("PushPin", "PushPin");
 export const Repeat = createPhosphorIcon("Repeat", "Repeat");
 export const Upload = createPhosphorIcon("UploadSimple", "Upload");
+export const Keyboard = createPhosphorIcon("Keyboard", "Keyboard");
+export const Percent = createPhosphorIcon("Percent", "Percent");

@@ -62,7 +62,7 @@ export function AppShell({
             the sidebar — the boundary between navigation and work is real, and
             at `--border` on white it was invisible. Drawn here as an inset
             shadow rather than a border so it costs no layout width. */}
-        <SidebarInset className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-surface-base shadow-[inset_1px_0_0_0_var(--chrome-edge)]">
+        <SidebarInset className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-surface-base border-l border-(--chrome-edge)">
           <Navbar />
           <main
             className={

@@ -8,6 +8,13 @@ type PosNumericKeypadProps = {
   onAction: (action: PosKeypadAction) => void;
   presets?: Array<{ label: string; value: string }>;
   className?: string;
+  /**
+   * S-7.5. Off for the PIN pad. A key that does nothing on a lock screen is a key
+   * a cashier presses twice before deciding the till has frozen, and dropping it
+   * leaves the bottom row as 0 · backspace · clear, which fits the three-column
+   * grid exactly.
+   */
+  decimal?: boolean;
 };
 
 const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
@@ -76,6 +83,7 @@ export function PosNumericKeypad({
   onAction,
   presets = [],
   className,
+  decimal = true,
 }: PosNumericKeypadProps) {
   const hasPresets = presets.length > 0;
   const cols = hasPresets ? "grid-cols-4" : "grid-cols-3";
@@ -84,7 +92,7 @@ export function PosNumericKeypad({
     KEYS.slice(0, 3),
     KEYS.slice(3, 6),
     KEYS.slice(6, 9),
-    KEYS.slice(9, 11),
+    KEYS.slice(9, 11).filter((key) => decimal || key.action.type !== "decimal"),
   ];
 
   return (

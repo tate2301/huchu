@@ -15,6 +15,9 @@ import {
 import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
+import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
+import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   canManageRetailTransactions,  resolveRetailSite,
@@ -26,7 +29,11 @@ import {
 import { createRetailSaleTransaction } from "../../_services";
 
 const saleLineSchema = z.object({
-  catalogItemId: z.string().uuid(),
+  /**
+   * S-4b — a `Product.id`. It was a `RetailCatalogItem.id`; the item master moved
+   * and the till's identity moved with it.
+   */
+  productId: z.string().uuid(),
   quantity: z.number().positive(),
   unitPrice: z.number().min(0).optional(),
   discountAmount: z.number().min(0).optional(),
@@ -67,6 +74,16 @@ const saleSchema = z.object({
   promotionId: z.string().uuid().optional().nullable(),
   items: z.array(saleLineSchema).min(1),
   payments: z.array(salePaymentSchema).min(1),
+  /**
+   * S-7.3. When the till rang this sale, set only by the offline replay.
+   *
+   * Its presence is what makes a sale a *replay* rather than a sale being rung
+   * now, and that distinction decides which price rule applies — see the
+   * `reviewReplayedPrices` block below. A live till never sends it.
+   */
+  offlineCreatedAt: z.string().datetime().optional(),
+  /** S-3. When the device's price snapshot was resolved, if it carries a stamp. */
+  pricedAt: z.string().datetime().optional(),
 });
 
 type SaleListItem = Prisma.RetailSaleGetPayload<{
@@ -406,66 +423,45 @@ export async function POST(request: NextRequest) {
       return errorResponse("Promotion is not active", 400);
     }
 
-    const catalogItems = await prisma.retailCatalogItem.findMany({
-      where: {
-        companyId: session.user.companyId,
-        id: { in: input.items.map((item) => item.catalogItemId) },
-        status: "ACTIVE",
-      },
+    // S-4b. The range is `Product` + the `InventoryItem` behind it at this
+    // branch, resolved in one query. The site check that used to compare
+    // `RetailCatalogItem.siteId` is now inherent: a product with no stock row at
+    // the selected site simply does not come back.
+    const { products: sellable, missing } = await loadSellableProducts({
+      companyId: session.user.companyId,
+      siteId: site.id,
+      productIds: input.items.map((item) => item.productId),
     });
 
-    const uniqueCatalogItemCount = new Set(input.items.map((item) => item.catalogItemId)).size;
-    if (catalogItems.length !== uniqueCatalogItemCount) {
+    if (missing.length > 0) {
       return errorResponse("One or more catalog items are invalid", 400);
     }
 
-    const inventoryItems = await prisma.inventoryItem.findMany({
-      where: { id: { in: catalogItems.map((item) => item.inventoryItemId) } },
-      select: {
-        id: true,
-        itemCode: true,
-        name: true,
-        currentStock: true,
-        unit: true,
-        unitCost: true,
-        locationId: true,
-      },
-    });
-    const inventoryMap = new Map(inventoryItems.map((item) => [item.id, item]));
-    const catalogMap = new Map(catalogItems.map((item) => [item.id, item]));
-
-    // S-3. *The* resolution point. The shelf price now comes out of the core
-    // price engine rather than off `RetailCatalogItem.unitPrice`, resolved once
-    // for the whole basket — per line, because a volume break depends on how
-    // many the customer is buying.
+    // S-3. *The* resolution point. The shelf price comes out of the core price
+    // engine, resolved once for the whole basket — per line, because a volume
+    // break depends on how many the customer is buying.
     const shelfPrices = await resolveShelfPrices(
       session.user.companyId,
       input.items.map((item, index) => {
-        const catalogItem = catalogMap.get(item.catalogItemId);
+        const product = sellable.get(item.productId);
         return {
-          id: `${item.catalogItemId}:${index}`,
-          productId: catalogItem?.productId ?? null,
-          unitPrice: catalogItem?.unitPrice ?? 0,
-          taxPercent: catalogItem?.taxPercent ?? 0,
+          id: `${item.productId}:${index}`,
+          productId: item.productId,
+          unitPrice: product?.standardPrice ?? 0,
+          taxPercent: product?.defaultTaxRate ?? 0,
           quantity: item.quantity,
         };
       }),
     );
 
     const preNormalizedLines = input.items.map((item, index) => {
-      const catalogItem = catalogMap.get(item.catalogItemId)!;
-      if (catalogItem.siteId !== site.id) {
-        throw new Error(`${catalogItem.name} does not belong to the selected site.`);
-      }
-      const inventoryItem = inventoryMap.get(catalogItem.inventoryItemId);
-      if (!inventoryItem) {
-        throw new Error(`Inventory item missing for ${catalogItem.name}.`);
-      }
+      const listing = sellable.get(item.productId)!;
+      const inventoryItem = listing.inventoryItem;
 
-      const lineKey = `${catalogItem.id}:${index}`;
+      const lineKey = `${listing.productId}:${index}`;
       const shelf = shelfPrices.get(lineKey);
       if (!shelf) {
-        throw new Error(`Unable to price ${catalogItem.name}.`);
+        throw new Error(`Unable to price ${listing.name}.`);
       }
 
       // `calculateRetailCheckout` is shared with the offline till, which stores
@@ -477,12 +473,12 @@ export async function POST(request: NextRequest) {
       const unitPrice = item.unitPrice ?? shelf.unitPrice;
       const lineDiscount = item.discountAmount ?? 0;
       if (lineDiscount > round(unitPrice * item.quantity)) {
-        throw new Error(`Line discount exceeds line amount for ${catalogItem.name}.`);
+        throw new Error(`Line discount exceeds line amount for ${listing.name}.`);
       }
 
       return {
         lineKey,
-        catalogItem,
+        listing,
         inventoryItem,
         shelf,
         quantity: item.quantity,
@@ -503,7 +499,7 @@ export async function POST(request: NextRequest) {
     for (const line of preNormalizedLines) {
       const requestedQty = requestedInventoryQuantities.get(line.inventoryItem.id) ?? 0;
       if (line.inventoryItem.currentStock < requestedQty) {
-        throw new Error(`Insufficient stock for ${line.catalogItem.name}.`);
+        throw new Error(`Insufficient stock for ${line.listing.name}.`);
       }
     }
     const orderDiscountAmount = round(input.discountAmount ?? 0);
@@ -514,6 +510,51 @@ export async function POST(request: NextRequest) {
     }
 
     const hasManualDiscount = Math.max(orderDiscountAmount - loyaltyDiscountAmount, 0) > 0.009;
+
+    /**
+     * S-7.3. A sale that has already happened is judged by a different rule.
+     *
+     * The manager-password gate below is the right rule for a price being changed
+     * *now*, at the counter, with a manager on the floor. It is the wrong rule for
+     * a sale rung offline last night: there is nobody to approve it after the
+     * fact, so applying the gate to a replay refuses money the shop has already
+     * taken, loses the sale from the books and leaves the stock figure wrong.
+     *
+     * `reviewReplayedPrices` is the rule that was written for this in S-3 and
+     * until now had no caller — the client replays through this route, not through
+     * `pos/sync`, so the review never ran and a shelf price changed after an
+     * offline sale meant that sale could never be posted. It asks the narrower
+     * question: is there an innocent explanation. A price rewritten after the sale
+     * (SUPERSEDED) and a price changed by somebody entitled to change it with a
+     * reason (OVERRIDDEN) are both explained; anything else is refused, and only
+     * that last case is refused.
+     */
+    const replaySoldAt = input.offlineCreatedAt ? new Date(input.offlineCreatedAt) : null;
+    const replayReview = replaySoldAt
+      ? reviewReplayedPrices({
+          lines: preNormalizedLines.map((line) => ({
+            itemName: line.listing.name,
+            submittedUnitPrice: line.unitPrice,
+            resolvedUnitPrice: line.shelf.unitPrice,
+            priceChangedAt: line.shelf.priceChangedAt
+              ? new Date(line.shelf.priceChangedAt)
+              : null,
+          })),
+          soldAt: replaySoldAt,
+          snapshotPricedAt: input.pricedAt ? new Date(input.pricedAt) : null,
+          actorCanOverride: canManageRetailTransactions(session.user.role),
+          overrideReason: input.overrideReason?.trim() || null,
+        })
+      : null;
+
+    if (replayReview?.error) {
+      // 409 rather than 403: the caller is not forbidden, the sale is in conflict
+      // with the shelf. The offline queue reads the difference — a 403 is a
+      // permission the till could never acquire, a 409 is a thing a manager can
+      // re-post.
+      return errorResponse(replayReview.error, 409);
+    }
+
     const hasOverride =
       hasManualDiscount ||
       preNormalizedLines.some(
@@ -522,7 +563,11 @@ export async function POST(request: NextRequest) {
           // Compared against what the price engine resolved, not against the
           // listing column. Otherwise a shop that edits its shelf price on the
           // list would have every subsequent sale look like an override.
-          Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.009,
+          //
+          // A replay whose review came back clean has already had every price
+          // difference explained, so it does not go round the gate again.
+          (replayReview === null &&
+            Math.abs(line.unitPrice - line.shelf.unitPrice) > 0.009),
       );
 
     let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
@@ -568,6 +613,16 @@ export async function POST(request: NextRequest) {
       return errorResponse("Add an override reason before posting this sale", 400);
     }
 
+    // What the review found, written onto the sale. This is the record a manager
+    // reads later — and the one the till's offline-queue screen reads back to say
+    // what a superseded price actually did, rather than reporting "synced" and
+    // leaving the shop to find out from a margin report.
+    if (replayReview?.overrideNote) {
+      overrideReason = [overrideReason, replayReview.overrideNote]
+        .filter((value): value is string => Boolean(value))
+        .join(" | ");
+    }
+
     const checkout = calculateRetailCheckout({
       lines: preNormalizedLines.map((line) => ({
         id: line.lineKey,
@@ -593,7 +648,7 @@ export async function POST(request: NextRequest) {
     const normalizedLines = preNormalizedLines.map((line) => {
       const calculated = normalizedLineMap.get(line.lineKey);
       if (!calculated) {
-        throw new Error(`Unable to price ${line.catalogItem.name}.`);
+        throw new Error(`Unable to price ${line.listing.name}.`);
       }
       return {
         ...line,
@@ -746,7 +801,13 @@ export async function POST(request: NextRequest) {
 
     const loyaltyNote =
       requestedRedeemPoints > 0 ? `LOYALTY_REDEEM:${requestedRedeemPoints}` : null;
-    const normalizedNotes = [input.notes?.trim() || null, loyaltyNote]
+    // S-7.3. Marks the sale as one the till took while the line was down, so the
+    // queue screen and the audit log can tell a replay from a sale rung at the
+    // counter without guessing from timestamps.
+    const replayNote = replaySoldAt
+      ? `${OFFLINE_REPLAY_NOTE_MARKER}:${replaySoldAt.toISOString()}`
+      : null;
+    const normalizedNotes = [input.notes?.trim() || null, replayNote, loyaltyNote]
       .filter((value): value is string => Boolean(value))
       .join(" | ");
 
@@ -770,8 +831,8 @@ export async function POST(request: NextRequest) {
       lines: normalizedLines.map((line) => ({
         inventoryItemId: line.inventoryItem.id,
         inventoryUnit: line.inventoryItem.unit,
-        catalogItemId: line.catalogItem.id,
-        itemName: line.catalogItem.name,
+        productId: line.listing.productId,
+        itemName: line.listing.name,
         quantity: line.quantity,
         unitPrice: line.unitPrice,
         discountAmount: line.discountAmount,
