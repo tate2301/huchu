@@ -22,6 +22,7 @@ import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
+import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
   canManageRetailTransactions,

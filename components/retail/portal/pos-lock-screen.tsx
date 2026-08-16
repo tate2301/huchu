@@ -35,7 +35,6 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
   type PropsWithChildren,
 } from "react";
@@ -89,7 +88,21 @@ export function usePosTillLock() {
 }
 
 export function PosTillLockProvider({ children }: PropsWithChildren) {
-  const [isLocked, setIsLocked] = useState(false);
+  // Re-lock on reload, read at initialisation rather than in a mount effect.
+  //
+  // A refresh must not be the way past the lock screen. Doing it in an effect
+  // meant the till rendered unlocked for one paint and then locked — which on a
+  // tablet left the previous cashier's basket briefly on screen, and is exactly
+  // the gap the lock exists to close. A lazy initialiser locks on the first
+  // client render instead.
+  //
+  // The server has no session storage, so it renders unlocked and the client
+  // corrects on its first pass. That is unavoidable for state only the browser
+  // can know, and it is the same reason the whole POS portal sits behind a
+  // client auth guard.
+  const [isLocked, setIsLocked] = useState(
+    () => typeof window !== "undefined" && window.sessionStorage.getItem(LOCK_STORAGE_KEY) === "1",
+  );
 
   const statusQuery = useQuery({
     queryKey: ["retail-till-pin"],
@@ -98,14 +111,6 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
   });
   const pinStatus = statusQuery.data?.data ?? null;
   const pinConfigured = Boolean(pinStatus?.configured);
-
-  // Re-lock on reload rather than letting a refresh be the way past the screen.
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    if (window.sessionStorage.getItem(LOCK_STORAGE_KEY) === "1") {
-      setIsLocked(true);
-    }
-  }, []);
 
   const lock = useCallback(() => {
     if (typeof window !== "undefined") {
@@ -122,17 +127,20 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
   }, []);
 
   // ── Idle auto-lock ──────────────────────────────────────────────────────
-  const lockRef = useRef(lock);
-  lockRef.current = lock;
-
+  //
+  // `lock` is a `useCallback` with no dependencies, so it is stable for the life
+  // of the provider and the effect can simply depend on it. This held a ref that
+  // was reassigned during render to dodge the dependency — which React forbids,
+  // and which bought nothing here: a ref only earns its place when the callback
+  // it holds actually changes between renders.
   useEffect(() => {
     if (!pinConfigured || isLocked) return;
     if (typeof window === "undefined") return;
 
-    let timer = window.setTimeout(() => lockRef.current(), POS_IDLE_LOCK_MS);
+    let timer = window.setTimeout(lock, POS_IDLE_LOCK_MS);
     const bump = () => {
       window.clearTimeout(timer);
-      timer = window.setTimeout(() => lockRef.current(), POS_IDLE_LOCK_MS);
+      timer = window.setTimeout(lock, POS_IDLE_LOCK_MS);
     };
 
     const events = ["pointerdown", "keydown", "wheel", "touchstart"] as const;
@@ -141,7 +149,7 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
       window.clearTimeout(timer);
       for (const event of events) window.removeEventListener(event, bump);
     };
-  }, [pinConfigured, isLocked]);
+  }, [pinConfigured, isLocked, lock]);
 
   const value = useMemo<PosTillLockValue>(
     () => ({
