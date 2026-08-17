@@ -13,6 +13,7 @@ import {
 import {
   BarChart3,
   Clock,
+  CloudOff,
   History,
   LogOut,
   Package,
@@ -41,6 +42,10 @@ const POS_PORTAL_LINKS: PosPortalLink[] = [
   { label: "History", icon: History, publicHref: "/history", internalHref: "/portal/pos/history" },
   { label: "Reports", icon: BarChart3, publicHref: "/reports", internalHref: "/portal/pos/reports" },
   { label: "Shift", icon: Clock, publicHref: "/shift", internalHref: "/portal/pos/shift" },
+  // S-7.3. The till sells with the line down and the cashier could not see what
+  // was waiting to go up. Last in the rail because it is the one you check, not
+  // the one you work in.
+  { label: "Offline", icon: CloudOff, publicHref: "/offline", internalHref: "/portal/pos/offline" },
 ];
 
 const ROUTE_CONFIG: Record<string, { title: string; description?: string; fillHeight?: boolean }> = {
@@ -54,6 +59,11 @@ const ROUTE_CONFIG: Record<string, { title: string; description?: string; fillHe
   "/portal/pos/reports": { title: "Reports", description: "Your sales at a glance" },
   "/shift": { title: "Shift Management" },
   "/portal/pos/shift": { title: "Shift Management" },
+  "/offline": { title: "Offline queue", description: "Waiting to reach the server" },
+  "/portal/pos/offline": {
+    title: "Offline queue",
+    description: "Waiting to reach the server",
+  },
 };
 
 function BottomTabBar({
