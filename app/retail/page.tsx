@@ -99,8 +99,11 @@ type RetailDashboardPayload = {
     costBridge: {
       revenue: number;
       cogs: number;
+      grossProfit: number;
       operatingExpense: number;
       ebitda: number;
+      /** Depreciation, interest and tax as one step — `ebitda − netProfit`. */
+      belowEbitda: number;
       netProfit: number;
     };
   };
@@ -181,41 +184,71 @@ export default function RetailOverviewPage() {
     [data?.tenderMix],
   );
 
-  const bridgeRows = useMemo<WaterfallRow[]>(
-    () => [
+  /**
+   * The P&L as a walk from revenue to the bottom line.
+   *
+   * Every row is a **delta** except the ones marked `isSubtotal`, which restate
+   * where the walk has got to. Mixing the two was the bug: EBITDA and Net were
+   * passed as running totals and the chart added them like movements, so it
+   * counted the same money three times and closed at about $2,900 on a month
+   * whose net profit was $719.
+   *
+   * The steps have to reconcile or the picture lies, so `belowEbitda` — the
+   * depreciation, interest and tax between EBITDA and net — is derived on the
+   * server as `ebitda − netProfit` rather than re-summed here.
+   */
+  const bridgeRows = useMemo<WaterfallRow[]>(() => {
+    const bridge = data?.ownerMetrics.costBridge;
+    return [
       {
         id: "revenue",
         label: "Revenue",
-        value: data?.ownerMetrics.costBridge.revenue ?? 0,
+        value: bridge?.revenue ?? 0,
         tone: "success",
       },
       {
         id: "cogs",
         label: "COGS",
-        value: -(data?.ownerMetrics.costBridge.cogs ?? 0),
+        value: -(bridge?.cogs ?? 0),
         tone: "warning",
+      },
+      {
+        id: "gross-profit",
+        label: "Gross profit",
+        value: bridge?.grossProfit ?? 0,
+        tone: "default",
+        isSubtotal: true,
       },
       {
         id: "opex",
         label: "OpEx",
-        value: -(data?.ownerMetrics.costBridge.operatingExpense ?? 0),
+        value: -(bridge?.operatingExpense ?? 0),
         tone: "warning",
       },
       {
         id: "ebitda",
         label: "EBITDA",
-        value: data?.ownerMetrics.costBridge.ebitda ?? 0,
+        value: bridge?.ebitda ?? 0,
         tone: "default",
+        isSubtotal: true,
+      },
+      {
+        // Depreciation, interest and tax, as one step. Named for what it is
+        // rather than "Other", so nobody has to guess what the shop paid.
+        id: "below-ebitda",
+        label: "D&A, interest, tax",
+        value: -(bridge?.belowEbitda ?? 0),
+        tone: "warning",
       },
       {
         id: "net",
-        label: "Net",
-        value: data?.ownerMetrics.costBridge.netProfit ?? 0,
-        tone: data && data.ownerMetrics.costBridge.netProfit >= 0 ? "success" : "danger",
+        label: "Net profit",
+        value: bridge?.netProfit ?? 0,
+        tone: (bridge?.netProfit ?? 0) >= 0 ? "success" : "danger",
+        isSubtotal: true,
       },
-    ],
-    [data],
-  );
+    ];
+  }, [data]);
 
   const actions = (
     <div className="flex items-center gap-2">

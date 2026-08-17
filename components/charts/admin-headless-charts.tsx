@@ -43,6 +43,21 @@ export type WaterfallRow = {
   value: number;
   color?: string;
   tone?: ChartTone;
+  /**
+   * A running total rather than a movement.
+   *
+   * A waterfall accumulates: each row is a *delta* and the bar floats where the
+   * previous one left off. A subtotal is not a delta — EBITDA is what revenue
+   * less cost of sales less operating expense already comes to, so adding it
+   * would count the same money twice.
+   *
+   * That is precisely what the retail profit bridge did. Revenue, −COGS and
+   * −OpEx are deltas, but EBITDA and Net were passed as totals and added on top
+   * of them, so the bridge closed at about $2,900 on a month whose net profit
+   * was $719. A subtotal is drawn from the baseline to the running value and
+   * leaves that value untouched.
+   */
+  isSubtotal?: boolean;
 };
 
 export type AdminChartTarget = {
@@ -180,8 +195,24 @@ function isBarKind(kind: AdminChartSeries["kind"] | undefined) {
   return kind === "bar";
 }
 
+/**
+ * Whether this series draws a stroke and nothing beneath it.
+ *
+ * **An unspecified `kind` is a line.** It used to mean *area*, because this
+ * returned true only for the literal `"line"` — so any caller that named a
+ * series and a colour and left `kind` alone got a filled `AreaClosed` under it.
+ * With one series that is a defensible area chart. With three it is three
+ * translucent fills painted over each other, and the retail Performance chart
+ * showed exactly that: a muddy block covering February to August with the
+ * gross-profit, EBITDA and net-profit lines buried inside it.
+ *
+ * A fill is decoration; the line is the data. Decoration must be asked for, so
+ * the default is the one that cannot obscure anything. Callers wanting the fill
+ * say `kind: "area"` — which is what every chart that renders correctly today
+ * already does, the Volume chart beside it included.
+ */
 function isLineOnlyKind(kind: AdminChartSeries["kind"] | undefined) {
-  return kind === "line";
+  return kind === undefined || kind === "line";
 }
 
 function seriesStrokeWidth(series: AdminChartSeries) {
@@ -962,8 +993,10 @@ export function AdminWaterfallChart({
   const bars = useMemo(() => {
     const result = rows.reduce(
       (acc, row, index) => {
-        const start = acc.running;
-        const end = start + row.value;
+        // A subtotal restates where we are; a delta moves us. Only a delta
+        // advances the running value.
+        const start = row.isSubtotal ? 0 : acc.running;
+        const end = row.isSubtotal ? acc.running : acc.running + row.value;
         return {
           running: end,
           items: [
@@ -981,15 +1014,22 @@ export function AdminWaterfallChart({
     );
 
     const items = [...result.items];
-    items.push({
-      id: "total",
-      label: "Total",
-      value: result.running,
-      color: "var(--primary-700)",
-      tone: "default" as ChartTone,
-      start: 0,
-      end: result.running,
-    });
+
+    // Only close with a Total when the caller has not already ended on one.
+    // A bridge that finishes at Net and then repeats it as "Total" says the
+    // same number twice and invites the reader to think they are different.
+    if (!rows[rows.length - 1]?.isSubtotal) {
+      items.push({
+        id: "total",
+        label: "Total",
+        value: result.running,
+        color: "var(--primary-700)",
+        tone: "default" as ChartTone,
+        isSubtotal: true,
+        start: 0,
+        end: result.running,
+      });
+    }
     return items;
   }, [rows]);
 

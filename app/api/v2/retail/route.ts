@@ -81,15 +81,30 @@ type MonthlyProfitRow = {
   averageTicket: number;
 };
 
+/**
+ * A month's journal, by profit line — `undefined` where the ledger posted
+ * nothing to that line, which is **not** the same as posting zero.
+ *
+ * These were plain `number`s initialised to 0, and the consumers read them with
+ * `journalBucket?.cogs ?? saleCostByMonth[key] ?? …`. `??` only falls through on
+ * null or undefined, so the initialiser's zero was taken as a fact: the moment a
+ * month had *any* journal line at all — a revenue posting is enough — cost of
+ * sales, operating expense, depreciation, interest and tax were all read as
+ * zero and the fallbacks never ran.
+ *
+ * The dashboard then reported gross profit = EBITDA = net profit = revenue, at a
+ * 100% margin, for a bottle store whose real margin is about 15%. Optional
+ * fields make the absence visible so the fallback chain can do its job.
+ */
 type JournalBuckets = Record<
   string,
   {
-    income: number;
-    cogs: number;
-    operatingExpense: number;
-    depreciationAmortization: number;
-    interest: number;
-    taxExpense: number;
+    income?: number;
+    cogs?: number;
+    operatingExpense?: number;
+    depreciationAmortization?: number;
+    interest?: number;
+    taxExpense?: number;
   }
 >;
 
@@ -439,14 +454,8 @@ export async function GET(request: NextRequest) {
     const accountType = line.account.type;
     const amount =
       accountType === "INCOME" ? line.credit - line.debit : line.debit - line.credit;
-    const bucket = accumulator[key] ?? {
-      income: 0,
-      cogs: 0,
-      operatingExpense: 0,
-      depreciationAmortization: 0,
-      interest: 0,
-      taxExpense: 0,
-    };
+    // Empty, not zeroed. A line is what creates the figure.
+    const bucket = accumulator[key] ?? {};
 
     const lineAccount: AccountSignature = {
       id: line.account.id,
@@ -462,7 +471,7 @@ export async function GET(request: NextRequest) {
         ? postingRuleBuckets.revenue.has(line.account.id)
         : classifyIncomeAccount(lineAccount) === "revenue";
       if (isRevenue) {
-        bucket.income += amount;
+        bucket.income = (bucket.income ?? 0) + amount;
       }
     } else if (accountType === "EXPENSE") {
       let expenseBucket: Exclude<ProfitBucket, "revenue">;
@@ -479,15 +488,15 @@ export async function GET(request: NextRequest) {
       }
 
       if (expenseBucket === "cogs") {
-        bucket.cogs += amount;
+        bucket.cogs = (bucket.cogs ?? 0) + amount;
       } else if (expenseBucket === "depreciationAmortization") {
-        bucket.depreciationAmortization += amount;
+        bucket.depreciationAmortization = (bucket.depreciationAmortization ?? 0) + amount;
       } else if (expenseBucket === "interest") {
-        bucket.interest += amount;
+        bucket.interest = (bucket.interest ?? 0) + amount;
       } else if (expenseBucket === "taxExpense") {
-        bucket.taxExpense += amount;
+        bucket.taxExpense = (bucket.taxExpense ?? 0) + amount;
       } else {
-        bucket.operatingExpense += amount;
+        bucket.operatingExpense = (bucket.operatingExpense ?? 0) + amount;
       }
     }
 
@@ -617,7 +626,21 @@ export async function GET(request: NextRequest) {
     netProfit: 0,
   };
 
-  const runRate = current.netRevenue * 12;
+  // The monthly rate the shop is trading at, taken from the last **complete**
+  // month rather than the one in progress.
+  //
+  // This was `current.netRevenue * 12` and was surfaced as
+  // `monthlyRunRateRevenue`, labelled "a month" — so it was wrong twice over. It
+  // multiplied by twelve, which makes an annual figure, and it multiplied a
+  // *part* month: on the 17th the shop has traded about half of August, so the
+  // number was both annualised and understated, and then presented as a monthly
+  // rate. A shop reading it would have concluded it was trading at half what it
+  // actually is.
+  //
+  // The previous complete month is the honest basis. Where there is no complete
+  // month yet — a shop in its first weeks — fall back to what has been rung so
+  // far rather than reporting nothing.
+  const runRate = previous.netRevenue > 0 ? previous.netRevenue : current.netRevenue;
   const grossMargin = current.netRevenue > 0 ? (current.grossProfit / current.netRevenue) * 100 : 0;
   const ebitdaMargin = current.netRevenue > 0 ? (current.ebitda / current.netRevenue) * 100 : 0;
   const netMargin = current.netRevenue > 0 ? (current.netProfit / current.netRevenue) * 100 : 0;
@@ -734,8 +757,19 @@ export async function GET(request: NextRequest) {
       costBridge: {
         revenue: current.netRevenue,
         cogs: current.cogs,
+        grossProfit: current.grossProfit,
         operatingExpense: current.operatingExpense,
         ebitda: current.ebitda,
+        /**
+         * Everything between EBITDA and the bottom line — depreciation and
+         * amortisation, interest, tax — as one step.
+         *
+         * Without it the bridge cannot close: it walked revenue down to EBITDA
+         * and then jumped straight to net profit with nothing to explain the
+         * difference. Derived rather than re-summed so it always reconciles,
+         * whatever the three underlying figures happen to be.
+         */
+        belowEbitda: current.ebitda - current.netProfit,
         netProfit: current.netProfit,
       },
     },
