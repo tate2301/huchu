@@ -55,7 +55,13 @@ export async function POST(request: NextRequest) {
       },
       orderBy: [{ updatedAt: "asc" }],
       take: limit,
-      select: { id: true, invoiceId: true, schoolReceiptId: true },
+      select: {
+        id: true,
+        invoiceId: true,
+        schoolReceiptId: true,
+        creditNoteId: true,
+        retailSaleId: true,
+      },
     });
 
     // The never-attempted sweep, bounded by whatever the retry pass left of the
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
     let queued = 0;
     let failed = 0;
     let skipped = 0;
+    let deferred = 0;
 
     const attempt = async (run: () => Promise<{ status: string }>) => {
       try {
