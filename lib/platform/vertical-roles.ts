@@ -1,8 +1,8 @@
-import {
-  inferWorkspaceProfileFromEnabledFeatures,
-  normalizeWorkspaceProfileInput,
-} from "@/lib/workspace-products";
 import type { UserRole } from "@/lib/roles";
+import {
+  type ActiveWorkspaceProfile,
+  resolveActiveWorkspaceProfile,
+} from "@/lib/platform/vertical-defaults";
 import {
   getRegisteredRoles,
   type ManagedWorkspaceProfile,
@@ -12,24 +12,28 @@ import {
 
 export type { ManagedWorkspaceProfile };
 export { USER_ROLE_LABELS };
-export const VERTICAL_USER_ROLES: Record<ManagedWorkspaceProfile, UserRole[]> = Object.fromEntries(
+export const VERTICAL_USER_ROLES: Record<ActiveWorkspaceProfile, UserRole[]> = Object.fromEntries(
   Object.entries(VERTICAL_ROLE_REGISTRY).map(([profile, config]) => [profile, config.roles]),
-) as Record<ManagedWorkspaceProfile, UserRole[]>;
+) as Record<ActiveWorkspaceProfile, UserRole[]>;
 
+/**
+ * The module an employee's record is filed under.
+ *
+ * `SCRAP_METAL` and `CAR_SALES` are gone with their verticals (ST-1.1). An
+ * employee row still holding one of those strings is not in this union, so it
+ * misses the map below and falls through to the workspace's own profile — which
+ * for a dropped vertical is GENERAL. That is the intended degrade, not a gap.
+ */
 export type EmployeePrimaryModule =
   | "HR"
   | "GOLD"
-  | "SCRAP_METAL"
-  | "CAR_SALES"
   | "RETAIL"
   | "THRIFT"
   | "SCHOOLS";
 
-const EMPLOYEE_MODULE_PROFILE_MAP: Record<EmployeePrimaryModule, ManagedWorkspaceProfile | null> = {
+const EMPLOYEE_MODULE_PROFILE_MAP: Record<EmployeePrimaryModule, ActiveWorkspaceProfile | null> = {
   HR: null,
   GOLD: "GOLD_MINE",
-  SCRAP_METAL: "SCRAP_METAL",
-  CAR_SALES: "AUTOS",
   RETAIL: "RETAIL",
   THRIFT: "RETAIL",
   SCHOOLS: "SCHOOLS",
@@ -38,23 +42,15 @@ const EMPLOYEE_MODULE_PROFILE_MAP: Record<EmployeePrimaryModule, ManagedWorkspac
 export function resolveWorkspaceProfileForRoles(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
-}): ManagedWorkspaceProfile {
-  const inferred = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
-  const normalized = normalizeWorkspaceProfileInput(args.workspaceProfile) as ManagedWorkspaceProfile | null;
-
-  const profile =
-    normalized && normalized !== "GENERAL" && normalized in VERTICAL_USER_ROLES
-      ? normalized
-      : (inferred as ManagedWorkspaceProfile | null) ?? normalized ?? "GENERAL";
-
-  return profile;
+}): ActiveWorkspaceProfile {
+  return resolveActiveWorkspaceProfile(args);
 }
 
 export function resolveWorkspaceProfileForEmployeeModule(args: {
   primaryModule: string | null | undefined;
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
-}): ManagedWorkspaceProfile {
+}): ActiveWorkspaceProfile {
   const normalizedPrimaryModule = args.primaryModule?.trim().toUpperCase() as
     | EmployeePrimaryModule
     | undefined;

@@ -1,4 +1,4 @@
-export type PersonaDomain = "schools" | "autos" | "retail" | "portal";
+export type PersonaDomain = "schools" | "retail" | "portal";
 
 export type PersonaCode =
   | "SCHOOL_ADMIN"
@@ -9,9 +9,6 @@ export type PersonaCode =
   | "WARDEN"
   | "PARENT"
   | "STUDENT"
-  | "SALES_MANAGER"
-  | "SALES_EXEC"
-  | "LOT_MANAGER"
   | "CASHIER"
   | "STOCK_CLERK"
   | "RETAIL_MANAGER";
@@ -37,9 +34,6 @@ export const PERSONAS: PersonaDefinition[] = [
   { code: "WARDEN", domain: "schools", label: "Warden", description: "Boarding operations, bed allocations, and leave workflows." },
   { code: "PARENT", domain: "portal", label: "Parent", description: "Portal access for linked child records and fees." },
   { code: "STUDENT", domain: "portal", label: "Student", description: "Portal access for own timetable, attendance, and results." },
-  { code: "SALES_MANAGER", domain: "autos", label: "Sales Manager", description: "Car sales deals, approvals, and pipeline oversight." },
-  { code: "SALES_EXEC", domain: "autos", label: "Sales Executive", description: "Lead handling and deal progression." },
-  { code: "LOT_MANAGER", domain: "autos", label: "Lot Manager", description: "Vehicle inventory and lot control." },
   { code: "CASHIER", domain: "retail", label: "Cashier", description: "POS selling, shift open/close, and tender capture." },
   { code: "STOCK_CLERK", domain: "retail", label: "Stock Clerk", description: "Catalog upkeep, receiving coordination, and stock movement support." },
   { code: "RETAIL_MANAGER", domain: "retail", label: "Retail Manager", description: "Pricing, promotions, cash-up approvals, and retail governance." },
@@ -169,17 +163,6 @@ const PERMISSIONS_BY_PERSONA: Record<PersonaCode, PersonaPermission[]> = {
   STUDENT: [
     { resource: "schools.portal.student", actions: ["view-own-profile", "view-own-attendance", "view-own-results"] },
   ],
-  SALES_MANAGER: [
-    { resource: "autos.deals", actions: ["view", "create", "edit", "approve"] },
-    { resource: "autos.leads", actions: ["view", "assign", "convert"] },
-  ],
-  SALES_EXEC: [
-    { resource: "autos.leads", actions: ["view", "create", "edit", "convert"] },
-    { resource: "autos.deals", actions: ["view", "create", "edit"] },
-  ],
-  LOT_MANAGER: [
-    { resource: "autos.inventory", actions: ["view", "create", "edit", "transfer"] },
-  ],
   CASHIER: [
     { resource: "retail.pos", actions: ["view", "sell", "close-shift"] },
     { resource: "retail.refunds", actions: ["request"] },
@@ -228,6 +211,12 @@ export function hasPersonaPermission(
  * `SUPERADMIN` and `MANAGER` return null deliberately: they are the tenant's
  * own administrators and are not constrained by a vertical persona. Callers
  * check for them before asking here.
+ *
+ * `AUTO_MANAGER` and `SALES_EXEC` are absent since ST-1.1 dropped car sales.
+ * They map to nothing, so `personaForRole` returns null and the persona checks
+ * deny — which is the right answer for both: the deals and leads they described
+ * no longer exist, and a `SALES_EXEC` kept on for CRM has no persona grants to
+ * spend anywhere else.
  */
 const ROLE_TO_PERSONA: Record<string, PersonaCode> = {
   SCHOOL_ADMIN: "SCHOOL_ADMIN",
@@ -238,8 +227,6 @@ const ROLE_TO_PERSONA: Record<string, PersonaCode> = {
   TEACHER: "TEACHER",
   PARENT: "PARENT",
   STUDENT: "STUDENT",
-  AUTO_MANAGER: "SALES_MANAGER",
-  SALES_EXEC: "SALES_EXEC",
   SHOP_MANAGER: "RETAIL_MANAGER",
   CASHIER: "CASHIER",
   STOCK_CLERK: "STOCK_CLERK",

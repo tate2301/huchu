@@ -15,11 +15,19 @@ export const WORKSPACE_PROFILES = [
 
 export type WorkspaceProfile = (typeof WORKSPACE_PROFILES)[number];
 
+/**
+ * Profiles whose vertical was dropped (ST-1.1). Nothing resolves to them any
+ * more — `normalizeWorkspaceProfileInput` maps both to `GENERAL` — but the
+ * values stay in the union because stored tenant rows and the Prisma
+ * `WorkspaceProfile` enum still carry them, and the persona registries that key
+ * off the union are removed by ST-2.5 and ST-3.1. Retiring the value here
+ * rather than deleting it is what keeps the rest of the tree compiling.
+ */
+export const RETIRED_WORKSPACE_PROFILES: readonly WorkspaceProfile[] = ["SCRAP_METAL", "AUTOS"];
+
 export type WorkspaceModuleId =
   | "gold"
-  | "scrap-metal"
   | "schools"
-  | "car-sales"
   | "retail"
   | "crm"
   | "people"
@@ -27,19 +35,15 @@ export type WorkspaceModuleId =
   | "stores"
   | "maintenance"
   | "reporting"
-  | "cctv"
   | "accounting"
   | "management";
 
 export type VerticalProductId =
   | "gold-operations"
-  | "scrap-recycling"
   | "school-operations"
-  | "auto-sales"
   | "retail-operations"
   | "crm-sales"
   | "service-workshop"
-  | "multi-site-operations"
   | "payroll-services"
   | "general-business";
 
@@ -76,6 +80,21 @@ type ResolveWorkspaceProductArgs = {
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const GENERAL_GENERAL_PRODUCT_ID: VerticalProductId = "general-business";
 
+/**
+ * Every spelling that used to resolve to a dropped vertical, including the
+ * canonical profile codes themselves. All of them now normalise to `GENERAL`.
+ */
+const RETIRED_PROFILE_INPUTS = new Set<string>([
+  ...RETIRED_WORKSPACE_PROFILES,
+  "SCRAP",
+  "SCRAP-METAL",
+  "SCRAPMETAL",
+  "AUTO",
+  "CAR_SALES",
+  "CAR-SALES",
+  "CARSALES",
+]);
+
 const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePresentation> = {
   gold: {
     title: "Gold Operations",
@@ -92,16 +111,8 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
       reports: "Reports",
     },
   },
-  "scrap-metal": {
-    title: "Scrap & Recycling",
-    description: "",
-  },
   schools: {
     title: "School Operations",
-    description: "",
-  },
-  "car-sales": {
-    title: "Auto Sales",
     description: "",
   },
   retail: {
@@ -162,10 +173,6 @@ const DEFAULT_MODULE_PRESENTATION: Record<WorkspaceModuleId, WorkspaceModulePres
     title: "Reports",
     description: "",
   },
-  cctv: {
-    title: "CCTV & Surveillance",
-    description: "",
-  },
   accounting: {
     title: "Accounting",
     description: "",
@@ -206,25 +213,6 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     },
   },
   {
-    id: "scrap-recycling",
-    label: "Scrap & Recycling",
-    workspaceLabel: "Scrap & Recycling",
-    description: "",
-    customerExamples: ["Scrap yards", "Metal recyclers", "Industrial scrap traders"],
-    templateCodes: ["TEMPLATE_SCRAP_METAL"],
-    preferredHomeHref: "/scrap-metal",
-    primaryModules: ["scrap-metal", "reporting"],
-    foundationalModules: ["people", "payroll", "stores", "maintenance", "accounting", "management"],
-    moduleCopy: {
-      stores: {
-        description: "",
-      },
-      accounting: {
-        description: "",
-      },
-    },
-  },
-  {
     id: "school-operations",
     label: "School Operations",
     workspaceLabel: "School Operations",
@@ -245,28 +233,6 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
         description: "",
       },
       management: {
-        description: "",
-      },
-    },
-  },
-  {
-    id: "auto-sales",
-    label: "Auto Sales",
-    workspaceLabel: "Auto Sales",
-    description: "",
-    customerExamples: ["Car dealerships", "Vehicle traders", "Auto sales operators"],
-    templateCodes: ["TEMPLATE_CAR_SALES"],
-    preferredHomeHref: "/car-sales",
-    primaryModules: ["car-sales"],
-    foundationalModules: ["accounting", "management", "people", "payroll"],
-    moduleCopy: {
-      accounting: {
-        description: "",
-      },
-      people: {
-        description: "",
-      },
-      payroll: {
         description: "",
       },
     },
@@ -348,31 +314,6 @@ export const VERTICAL_PRODUCT_BUNDLES: VerticalProductBundleDefinition[] = [
     },
   },
   {
-    id: "multi-site-operations",
-    label: "Multi-Site Operations",
-    workspaceLabel: "Multi-Site Operations",
-    description: "",
-    customerExamples: ["Multi-site shops", "Security-stock operators", "Small distributed companies"],
-    templateCodes: ["TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"],
-    preferredHomeHref: "/stores/dashboard",
-    primaryModules: ["stores", "people", "payroll", "cctv"],
-    foundationalModules: ["accounting", "management", "reporting"],
-    moduleCopy: {
-      stores: {
-        description: "",
-      },
-      people: {
-        description: "",
-      },
-      payroll: {
-        description: "",
-      },
-      cctv: {
-        description: "",
-      },
-    },
-  },
-  {
     // Payroll on its own. The whole product for a client who wants nothing else:
     // HR is primary, accounting and management are foundational — and
     // `foundationalModules` is not the same as required. A payroll-only tenant
@@ -417,7 +358,13 @@ export function normalizeWorkspaceProfileInput(
   const normalized = String(value || "").trim().toUpperCase();
   if (!normalized) return null;
 
-  if (normalized === "SCRAP" || normalized === "SCRAP-METAL" || normalized === "SCRAPMETAL") return "SCRAP_METAL";
+  // Retired verticals (ST-1.1). A tenant row still holding one of these — or one
+  // of the spellings that used to reach it — lands on the general workspace
+  // rather than on a profile whose module no longer exists. Checked before the
+  // exact-match lookup below, which would otherwise still find the retired
+  // members of `WORKSPACE_PROFILES`.
+  if (RETIRED_PROFILE_INPUTS.has(normalized)) return "GENERAL";
+
   if (normalized === "GOLD" || normalized === "GOLD-MINE" || normalized === "GOLDMINE") return "GOLD_MINE";
   if (normalized === "SCHOOL" || normalized === "SCHOOLS") return "SCHOOLS";
   if (normalized === "THRIFT") return "RETAIL";
@@ -428,15 +375,6 @@ export function normalizeWorkspaceProfileInput(
     normalized === "HR"
   ) {
     return "PAYROLL";
-  }
-  if (
-    normalized === "AUTO" ||
-    normalized === "CAR_SALES" ||
-    normalized === "CAR-SALES" ||
-    normalized === "CARSALES" ||
-    normalized === "AUTOS"
-  ) {
-    return "AUTOS";
   }
 
   return WORKSPACE_PROFILES.find((profile) => profile === normalized) ?? null;
@@ -454,17 +392,7 @@ export function inferWorkspaceProfileFromEnabledFeatures(
       feature.trim().toLowerCase().startsWith(prefix),
     );
 
-  // 1. Scrap Metal (High Priority)
-  if (
-    hasFeaturePrefix("scrap-metal.") ||
-    hasTokenFeature(enabledFeatures, "scrap-metal.home") ||
-    hasTokenFeature(enabledFeatures, "scrap-metal.purchases") ||
-    hasTokenFeature(enabledFeatures, "scrap-metal.batches")
-  ) {
-    return "SCRAP_METAL";
-  }
-
-  // 2. Retail
+  // 1. Retail
   if (
     hasFeaturePrefix("retail.") ||
     hasTokenFeature(enabledFeatures, "retail.core") ||
@@ -473,22 +401,17 @@ export function inferWorkspaceProfileFromEnabledFeatures(
     return "RETAIL";
   }
 
-  // 3. Schools
+  // 2. Schools
   if (hasFeaturePrefix("schools.") || hasTokenFeature(enabledFeatures, "schools.core")) {
     return "SCHOOLS";
   }
 
-  // 4. Autos
-  if (hasFeaturePrefix("autos.") || hasTokenFeature(enabledFeatures, "autos.core")) {
-    return "AUTOS";
-  }
-
-  // 5. Gold Mine (Check last as it has generic positions often confused with General)
+  // 3. Gold Mine (Check last as it has generic positions often confused with General)
   if (hasFeaturePrefix("gold.") || hasTokenFeature(enabledFeatures, "gold.home")) {
     return "GOLD_MINE";
   }
 
-  // 6. Payroll only. Checked last on purpose: HR is foundational to every
+  // 4. Payroll only. Checked last on purpose: HR is foundational to every
   // vertical above, so `hr.payroll` alone is a payroll-only workspace but
   // `hr.payroll` beside `schools.core` is a school that also runs payroll — and
   // the ordering here is what tells them apart. Requires the statutory keys, so
@@ -507,15 +430,6 @@ export function inferWorkspaceProfileFromEnabledFeatures(
 function resolveGeneralVerticalProduct(enabledFeatures: string[] | undefined): VerticalProductId {
   if (hasTokenFeature(enabledFeatures, "crm.core")) {
     return "crm-sales";
-  }
-
-  const hasMultiSiteSignals =
-    hasTokenFeature(enabledFeatures, "cctv.overview") &&
-    hasTokenFeature(enabledFeatures, "stores.inventory") &&
-    hasTokenFeature(enabledFeatures, "hr.employees");
-
-  if (hasMultiSiteSignals) {
-    return "multi-site-operations";
   }
 
   const hasWorkshopSignals =
@@ -543,17 +457,16 @@ export function resolveWorkspaceVerticalProductBundle(
   switch (effectiveProfile) {
     case "GOLD_MINE":
       return getBundleById("gold-operations");
-    case "SCRAP_METAL":
-      return getBundleById("scrap-recycling");
     case "SCHOOLS":
       return getBundleById("school-operations");
-    case "AUTOS":
-      return getBundleById("auto-sales");
     case "RETAIL":
       return getBundleById("retail-operations");
     case "PAYROLL":
       return getBundleById("payroll-services");
     case "GENERAL":
+    // The retired profiles land here too. `normalizeWorkspaceProfile` already
+    // turns them into `GENERAL`, so this is belt and braces rather than a path
+    // anything reaches.
     default:
       return getBundleById(resolveGeneralVerticalProduct(args.enabledFeatures));
   }

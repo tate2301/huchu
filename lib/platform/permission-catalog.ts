@@ -66,8 +66,6 @@ export type PermissionGroup = {
 const DOMAIN_LABELS: Record<string, string> = {
   accounting: "Accounting",
   admin: "Administration",
-  autos: "Vehicle sales",
-  cctv: "Surveillance",
   compliance: "Compliance",
   core: "Platform",
   crm: "CRM",
@@ -80,7 +78,6 @@ const DOMAIN_LABELS: Record<string, string> = {
   reports: "Reporting",
   retail: "Retail",
   schools: "Schools",
-  "scrap-metal": "Scrap metal",
   stores: "Stores",
 };
 
@@ -92,14 +89,11 @@ const DOMAIN_ORDER = [
   "ops",
   "stores",
   "retail",
-  "autos",
   "gold",
-  "scrap-metal",
   "maintenance",
   "compliance",
   "schools",
   "portal",
-  "cctv",
   "admin",
   "core",
   "custom",

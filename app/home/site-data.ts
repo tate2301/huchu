@@ -30,6 +30,33 @@ import {
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
+import {
+  ANNUAL_DISCOUNT_LABEL,
+  ANNUAL_PREPAY_COPY,
+  MARKETING_TIERS,
+  SCHOOL_STARTING_TERM_PRICE,
+  STARTING_ANNUAL_MONTHLY_PRICE,
+  STARTING_MONTHLY_PRICE,
+  formatUsd,
+  getMarketingTier,
+  productPriceLabel,
+} from "@/lib/marketing/pricing";
+
+// Prices in copy are read from the billing catalog through
+// `lib/marketing/pricing.ts` rather than typed out, so a tier change never
+// leaves a stale figure in a headline or a meta description. Annual is the ask
+// (PR-2.1), so copy quotes the annual rate first and the monthly rate second.
+
+/** Fails the build rather than rendering a page with a missing plan in it. */
+function tierByCode(code: string) {
+  const tier = getMarketingTier(code);
+  if (!tier) throw new Error(`Marketing copy references unknown tier ${code}`);
+  return tier;
+}
+
+const fiscalTier = tierByCode("FISCAL");
+const startTier = tierByCode("START");
+const scaleTier = tierByCode("SCALE");
 
 export type SeoEntry = {
   title: string;
@@ -165,7 +192,7 @@ export const footerGroups = [
 ];
 
 const HOME_DESCRIPTION =
-  "Corelith puts sales, stock, jobs, invoices and cash on one record. Built in Zimbabwe, works offline, ZIMRA fiscalisation built in. From $29 a month.";
+  `Corelith puts sales, stock, jobs, invoices and cash on one record. Built in Zimbabwe, works offline, ZIMRA fiscalisation built in. From ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually.`;
 
 export const seoPages = {
   home: {
@@ -224,19 +251,20 @@ export const seoPages = {
   pricing: {
     title: "Corelith pricing",
     description:
-      "Priced per site, never per user. From $29 a month with every seat included up to your ceiling. Pay annually and pay for ten months. 30-day money-back guarantee.",
+      `Priced per site, never per user. From ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually, ${formatUsd(STARTING_MONTHLY_PRICE)} month to month, with every seat included up to your ceiling. Onboarding is a published one-off. 30-day money-back guarantee.`,
     path: "/home/pricing",
     keywords: [
       "Corelith pricing",
       "ERP pricing Zimbabwe",
       "business software cost Zimbabwe",
       "per site pricing software",
+      "ZIMRA fiscalisation pricing Zimbabwe",
     ],
   },
   schools: {
     title: "Corelith for schools",
     description:
-      "Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals, priced per campus per term from $249.",
+      `Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals, priced per campus per term from ${formatUsd(SCHOOL_STARTING_TERM_PRICE)}.`,
     path: "/home/schools",
     keywords: [
       "school management software Zimbabwe",
@@ -613,7 +641,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "The price is on the table before you spend an hour on a demo.",
-        copy: "Priced per site, with every cashier and clerk included up to your seat ceiling. Pay for the year and you pay for ten months. Setup is scoped and quoted separately, so you can see what you are buying.",
+        copy: `Priced per site, with every cashier and clerk included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off fee, so you can see what you are buying.`,
       },
     },
     seo: {
@@ -687,7 +715,10 @@ export const segments: MarketingSegment[] = [
       "Fiscal receipts issue from the sale itself, and ZIMRA records are clean without a second exercise.",
     ],
     proofMetrics: [
-      { value: "$29/mo", label: "Where one till and five staff accounts start" },
+      {
+        value: `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
+        label: `Where one till and ${startTier.includedUsers} staff accounts start, paid annually`,
+      },
       { value: "$0", label: "What adding another cashier costs, up to your seat ceiling" },
       { value: "Offline", label: "Keeps selling through load-shedding, syncs after" },
     ],
@@ -744,7 +775,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "You know the price before the proposal.",
-        copy: "Priced per site with staff accounts included up to your ceiling, so putting every supervisor on it costs you nothing. Pay annually and you pay for ten months.",
+        copy: `Priced per site with staff accounts included up to your ceiling, so putting every supervisor on it costs you nothing. ${ANNUAL_PREPAY_COPY} — annual is the ask.`,
       },
     },
     seo: {
@@ -874,7 +905,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced per workshop, not per technician.",
-        copy: "Put every technician, storeman and service adviser on it up to your seat ceiling and pay nothing extra. Pay for the year and you pay for ten months.",
+        copy: `Put every technician, storeman and service adviser on it up to your seat ceiling and pay nothing extra. ${ANNUAL_PREPAY_COPY}.`,
       },
     },
     seo: {
@@ -947,7 +978,10 @@ export const segments: MarketingSegment[] = [
       "Due services get chased, and repeat work stops depending on the customer remembering.",
     ],
     proofMetrics: [
-      { value: "$29/mo", label: "Where a single-bay workshop starts" },
+      {
+        value: productPriceLabel("workshops") ?? `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
+        label: "Where a single-bay workshop starts",
+      },
       { value: "One job card", label: "Parts, hours, approval and invoice on the same record" },
       { value: "30 days", label: "Scoped setup from workflow mapping to go-live" },
     ],
@@ -1004,7 +1038,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced by plant and store, not by how many people work there.",
-        copy: "Every operator, storeman and supervisor is included up to your seat ceiling. Pay annually and you pay for ten months. Setup is quoted separately against your actual lines.",
+        copy: `Every operator, storeman and supervisor is included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, scoped against your actual lines.`,
       },
     },
     seo: {
@@ -1078,7 +1112,10 @@ export const segments: MarketingSegment[] = [
     ],
     proofMetrics: [
       { value: "Per run", label: "Materials in, output and wastage out, costed" },
-      { value: "$189/mo", label: "Eight sites and 60 staff accounts on Scale" },
+      {
+        value: `${formatUsd(scaleTier.annualMonthlyPrice)}/mo`,
+        label: `${scaleTier.includedSites} sites and ${scaleTier.includedUsers} staff accounts on ${scaleTier.name}, paid annually`,
+      },
       { value: "30 days", label: "From workflow mapping to your first costed run" },
     ],
     modules: ["Core platform", "Stock", "Work", "Books", "Maintenance pack"],
@@ -1134,7 +1171,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced per site, so growing the team does not grow the bill.",
-        copy: "Add every rep up to your seat ceiling for nothing. Pay for the year and you pay for ten months. Setup is scoped and quoted before you commit.",
+        copy: `Add every rep up to your seat ceiling for nothing. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, agreed before you commit.`,
       },
     },
     seo: {
@@ -1263,7 +1300,9 @@ export const schoolsTrack = {
     "Hi Corelith, I am from a school and would like to talk about Corelith Schools.",
   icon: Building2,
   assurances: [
-    "From $249 per campus, per term",
+    // Schools stay on per-term enrolment bands; PR-4.2 reconciles them with the
+    // monthly tier ladder.
+    `From ${formatUsd(SCHOOL_STARTING_TERM_PRICE)} per campus, per term`,
     "Unlimited staff and teacher accounts",
     "Your records migrated before you open",
   ],
@@ -1524,8 +1563,8 @@ export const pricingPrinciples = [
   "The plan covers sites and capacity. It never counts heads.",
   "Add every cashier, clerk, rep and technician you need up to your seat ceiling, at no extra cost.",
   "Extra seats come in packs of five. Extra sites bill at your plan's per-site rate.",
-  "Pay for the year and you pay for ten months.",
-  "Onboarding is quoted separately, because migration and training are real work by real people.",
+  `Annual is the price we quote, and it is ${ANNUAL_DISCOUNT_LABEL}. Month to month is there if you want it.`,
+  `Onboarding is a published one-off fee — nothing on ${fiscalTier.name} or ${startTier.name} — because migration and training are real work by real people.`,
   "Start with the one pack fixing this month's problem. Add depth when it pays for itself.",
 ];
 
@@ -1611,6 +1650,25 @@ export const foundingPartnerQuestions = [
   "Will you tell us plainly when something does not work, instead of quietly going back to the notebook?",
 ];
 
+/**
+ * The plan ladder written out for the FAQ, annual first. Derived so the answer
+ * cannot drift from the catalog the invoice is cut from.
+ */
+const tierLadderCopy = MARKETING_TIERS.map((tier) => {
+  const sites =
+    tier.includedSites >= 100
+      ? "unlimited sites"
+      : `${tier.includedSites} ${tier.includedSites === 1 ? "site" : "sites"}`;
+  const users = tier.includedUsers === null ? "unlimited users" : `${tier.includedUsers} users`;
+  return `${tier.name} ${tier.isQuoted ? "from" : "at"} ${formatUsd(tier.annualMonthlyPrice)} (${sites}, ${users})`;
+}).join(", ");
+
+const onboardingLadderCopy = MARKETING_TIERS.map((tier) =>
+  tier.isQuoted
+    ? `${tier.name} scoped with you`
+    : `${tier.name} ${tier.onboardingFee > 0 ? formatUsd(tier.onboardingFee) : "nothing"}`,
+).join(", ");
+
 export const faqs = [
   {
     q: "I already have a POS. Why would I change?",
@@ -1622,7 +1680,7 @@ export const faqs = [
   },
   {
     q: "What does this cost, and do you charge per user?",
-    a: "$29 a month for one site and five users, $79 for three sites and twenty, $189 for eight sites and sixty, $449 for twenty-five sites and unlimited users. Pay annually and you pay for ten months. There is no per-user charge until you pass your seat ceiling, so adding a cashier or a technician costs nothing. Onboarding is quoted separately once we have seen your workflow.",
+    a: `Paid annually, which is what we quote: ${tierLadderCopy}. Month to month costs the full rate, so paying for the year is ${ANNUAL_DISCOUNT_LABEL}. There is no per-user charge until you pass your seat ceiling, so adding a cashier or a technician costs nothing. Onboarding is a published one-off: ${onboardingLadderCopy}.`,
   },
   {
     q: "My staff will not use it.",

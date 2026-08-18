@@ -16,14 +16,12 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/settings/branding", featureKey: "core.branding.manage" },
   { scope: "page", prefix: "/settings/templates", featureKey: "core.branding.manage" },
 
-  { scope: "page", prefix: "/cctv/live", featureKey: "cctv.live" },
-  { scope: "page", prefix: "/cctv/cameras", featureKey: "cctv.cameras" },
-  { scope: "page", prefix: "/cctv/nvrs", featureKey: "cctv.nvrs" },
-  { scope: "page", prefix: "/cctv/events", featureKey: "cctv.events" },
-  { scope: "page", prefix: "/cctv/playback", featureKey: "cctv.playback" },
-  { scope: "page", prefix: "/cctv/access-logs", featureKey: "cctv.access-logs" },
-  { scope: "page", prefix: "/cctv/overview", featureKey: "cctv.overview" },
-  { scope: "page", prefix: "/cctv", featureKey: "cctv.overview" },
+  // ST-1.3 — CCTV, vehicle sales and scrap metal were dropped from the product.
+  // Their feature keys no longer exist in the catalogue, so their entries are
+  // gone from this registry too; the pages are removed from disk in ST-2. Until
+  // then `/cctv/**`, `/autos/**` and `/car-sales/**` match no prefix at all and
+  // are answered by the platform's default policy rather than by a feature
+  // somebody's plan grants.
 
   // Longest prefix wins, so the returns page must precede the tables page it
   // sits under.
@@ -111,17 +109,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/schools", featureKey: "schools.core" },
 
-  { scope: "page", prefix: "/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "page", prefix: "/autos/leads", featureKey: "autos.leads" },
-  { scope: "page", prefix: "/autos/deals", featureKey: "autos.deals" },
-  { scope: "page", prefix: "/autos/financing", featureKey: "autos.financing" },
-  { scope: "page", prefix: "/autos", featureKey: "autos.core" },
-  { scope: "page", prefix: "/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "page", prefix: "/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "page", prefix: "/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "page", prefix: "/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "page", prefix: "/car-sales", featureKey: "autos.core" },
-
   { scope: "page", prefix: "/retail/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/catalog", featureKey: "retail.catalog" },
   { scope: "page", prefix: "/retail/purchasing", featureKey: "retail.purchasing" },
@@ -140,8 +127,13 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/portal/student", featureKey: "schools.portal.student" },
   { scope: "page", prefix: "/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/portal/schools", featureKey: "portal.schools" },
-  { scope: "page", prefix: "/portal/autos", featureKey: "portal.autos" },
-  { scope: "page", prefix: "/portal/car-sales", featureKey: "portal.autos" },
+  // ST-1.3 — `/portal/autos` and `/portal/car-sales` are gone with the vehicle
+  // sales module. Unlike the other dropped namespaces these do not become
+  // unmapped: the bare `/portal` entry below still catches them, so a portal
+  // suite customer is answered `portal.core` until ST-2 deletes the pages.
+  // Nothing in the catalogue is both known and ungranted to point them at
+  // instead, and an invented key would fail the "every route key is a catalogue
+  // key" check, so the deletion is the fix rather than a sentinel mapping.
   { scope: "page", prefix: "/portal/thrift", featureKey: "portal.pos" },
   { scope: "page", prefix: "/portal", featureKey: "portal.core" },
 
@@ -160,24 +152,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold/settlement/runs", featureKey: "settlements.gold" },
   { scope: "page", prefix: "/gold/prices", featureKey: "gold.home" },
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
-
-  { scope: "page", prefix: "/scrap-metal/tickets/held", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/tickets", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/sales/approval-requests", featureKey: "scrap-metal.sales" },
-  { scope: "page", prefix: "/scrap-metal/ticket-templates", featureKey: "core.branding.manage" },
-  { scope: "page", prefix: "/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/reports/daily-snapshot", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/reports/supplier-performance", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/reports/variance-aging", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/adjustments", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/reports", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/settlements", featureKey: "settlements.scrap" },
-  { scope: "page", prefix: "/scrap-metal/purchases/unassigned", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/batches", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/sales", featureKey: "scrap-metal.sales" },
-  { scope: "page", prefix: "/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
-  { scope: "page", prefix: "/scrap-metal", featureKey: "scrap-metal.home" },
 
   { scope: "page", prefix: "/crm/leads", featureKey: "crm.leads" },
   { scope: "page", prefix: "/crm/deals", featureKey: "crm.leads" },
@@ -209,8 +183,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
   { scope: "page", prefix: "/management/master-data/operations/gold-expense-types", featureKey: "gold.payouts" },
-  { scope: "page", prefix: "/management/master-data/operations/scrap-materials", featureKey: "scrap-metal.pricing" },
-  { scope: "page", prefix: "/management/master-data/operations/scrap-sellers", featureKey: "scrap-metal.purchases" },
+  // ST-1.3 — the scrap materials and scrap sellers master-data screens went
+  // with the module. They fall back to the bare `/management/master-data` entry
+  // below, so they answer `admin.sites-sections` until ST-2 removes the pages.
   { scope: "page", prefix: "/management/master-data", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/users/create", featureKey: "admin.user-management.create" },
   { scope: "page", prefix: "/management/users/status", featureKey: "admin.user-management.status" },
@@ -229,7 +204,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // workspaces.
   { scope: "page", prefix: "/dashboard", featureKey: "reports.plant" },
 
-  { scope: "page", prefix: "/reports/cctv-events", featureKey: "reports.cctv-events" },
+  // ST-1.3 — `/reports/cctv-events` left with the surveillance module. It falls
+  // back to the bare `/reports` entry at the end of this block, so it answers
+  // `reports.dashboard` until ST-2 removes the page.
   { scope: "page", prefix: "/reports/compliance-incidents", featureKey: "reports.compliance-incidents" },
   { scope: "page", prefix: "/reports/downtime", featureKey: "reports.downtime-analytics" },
   { scope: "page", prefix: "/reports/maintenance-work-orders", featureKey: "reports.maintenance-work-orders" },
@@ -263,14 +240,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/sites", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/sections", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/payroll/config", featureKey: "admin.payroll-config" },
-
-  { scope: "api", prefix: "/api/cctv/streams", featureKey: "cctv.streaming-control" },
-  { scope: "api", prefix: "/api/cctv/stream-token", featureKey: "cctv.streaming-control" },
-  { scope: "api", prefix: "/api/cctv/playback", featureKey: "cctv.playback" },
-  { scope: "api", prefix: "/api/cctv/access-logs", featureKey: "cctv.access-logs" },
-  { scope: "api", prefix: "/api/cctv/events", featureKey: "cctv.events" },
-  { scope: "api", prefix: "/api/cctv/cameras", featureKey: "cctv.cameras" },
-  { scope: "api", prefix: "/api/cctv/nvrs", featureKey: "cctv.nvrs" },
 
   { scope: "api", prefix: "/api/shift-reports", featureKey: "ops.shift-report.submit" },
   { scope: "api", prefix: "/api/plant-reports", featureKey: "ops.plant-report.submit" },
@@ -307,18 +276,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/expense-types", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
-
-  { scope: "api", prefix: "/api/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/ticket-context", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/batches", featureKey: "scrap-metal.batches" },
-  { scope: "api", prefix: "/api/scrap-metal/sales", featureKey: "scrap-metal.sales" },
-  { scope: "api", prefix: "/api/scrap-metal/employee-balances", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/materials", featureKey: "scrap-metal.pricing" },
-  { scope: "api", prefix: "/api/scrap-metal/sellers", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/dashboard", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/scale/last-weight", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
-  { scope: "api", prefix: "/api/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
@@ -429,27 +386,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/schools", featureKey: "schools.core" },
 
-  { scope: "api", prefix: "/api/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/autos/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/autos/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/autos/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/autos", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/car-sales", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/v2/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/v2/autos/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/v2/autos/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/v2/autos/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/v2/autos", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/v2/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/v2/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/v2/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/v2/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/v2/car-sales", featureKey: "autos.core" },
-
   { scope: "api", prefix: "/api/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/retail/purchasing", featureKey: "retail.purchasing" },
@@ -476,8 +412,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/portal/student", featureKey: "schools.portal.student" },
   { scope: "api", prefix: "/api/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/portal/schools", featureKey: "portal.schools" },
-  { scope: "api", prefix: "/api/portal/autos", featureKey: "portal.autos" },
-  { scope: "api", prefix: "/api/portal/car-sales", featureKey: "portal.autos" },
   { scope: "api", prefix: "/api/portal/thrift", featureKey: "portal.pos" },
   { scope: "api", prefix: "/api/portal", featureKey: "portal.core" },
   { scope: "api", prefix: "/api/v2/portal/parent", featureKey: "schools.portal.parent" },
@@ -487,8 +421,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/portal/teacher/me", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/portal/schools", featureKey: "portal.schools" },
-  { scope: "api", prefix: "/api/v2/portal/autos", featureKey: "portal.autos" },
-  { scope: "api", prefix: "/api/v2/portal/car-sales", featureKey: "portal.autos" },
   { scope: "api", prefix: "/api/v2/portal/thrift", featureKey: "portal.pos" },
   { scope: "api", prefix: "/api/v2/portal", featureKey: "portal.core" },
 

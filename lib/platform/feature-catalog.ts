@@ -5,14 +5,11 @@ export type FeatureDomain =
   | "operations"
   | "stores"
   | "gold"
-  | "scrap-metal"
   | "hr"
   | "accounting"
   | "maintenance"
   | "compliance"
-  | "cctv"
   | "schools"
-  | "autos"
   | "retail"
   | "crm"
   | "portal"
@@ -45,8 +42,18 @@ export interface TierDefinition {
   description: string;
   /** List price when billed month-to-month, in USD. */
   monthlyPrice: number;
-  /** Effective per-month price when billed annually (two months free). */
+  /**
+   * Effective per-month price when billed annually. Always
+   * `Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE))`.
+   */
   annualMonthlyPrice: number;
+  /**
+   * One-off setup fee charged at the start of the engagement, in USD. `0` means
+   * the tier is self-serve and onboarding costs the buyer nothing. Enterprise
+   * carries `0` because its onboarding is scoped per engagement rather than
+   * listed — the catalog states no price it cannot honour.
+   */
+  onboardingFee: number;
   includedSites: number;
   additionalSiteMonthlyPrice: number;
   /**
@@ -65,8 +72,26 @@ export interface TierDefinition {
 /** Seats per add-on user pack. */
 export const USER_PACK_SIZE = 5;
 
-/** Months charged when a subscription is billed annually (two months free). */
-export const ANNUAL_BILLING_MONTHS = 10;
+/**
+ * Discount applied when a subscription is prepaid annually. This is the single
+ * source of the annual saving: every `annualMonthlyPrice` below is
+ * `Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE))`.
+ */
+export const ANNUAL_DISCOUNT_RATE = 0.2;
+
+/**
+ * @deprecated Use {@link ANNUAL_DISCOUNT_RATE}. A whole-month multiplier cannot
+ * express 20% (10/12 is 16.7%), so this is now derived from the rate and is no
+ * longer a whole number — it is kept only so existing callers keep compiling and
+ * keep agreeing with the catalog. Copy that says "pay for N months" should move
+ * to stating the percentage.
+ */
+export const ANNUAL_BILLING_MONTHS = 9.6; // 12 * (1 - ANNUAL_DISCOUNT_RATE)
+
+/** The per-month price when a tier's monthly list price is prepaid annually. */
+function annualMonthly(monthlyPrice: number): number {
+  return Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE));
+}
 
 function f(entry: FeatureCatalogEntry): FeatureCatalogEntry {
   return entry;
@@ -104,12 +129,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "gold.exceptions", name: "Gold Exceptions", description: "Exception and anomaly tracking in gold flows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
   f({ key: "gold.audit-trail", name: "Gold Audit Trail", description: "Gold audit and traceability pages.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
   f({ key: "gold.payouts", name: "Gold Settlements", description: "Gold settlement workflows.", domain: "gold", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
-
-  f({ key: "scrap-metal.home", name: "Scrap & Recycling Overview", description: "Scrap and recycling command center, dashboards, and operational queues.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.purchases", name: "Scrap & Recycling Inbound Tickets", description: "Scrap and recycling inbound ticket intake and supplier capture.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.batches", name: "Scrap & Recycling Lots", description: "Scrap and recycling lot stock, grouping, and ready-to-sell control.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
-  f({ key: "scrap-metal.sales", name: "Scrap & Recycling Outbound Tickets", description: "Scrap and recycling outbound ticketing, approval workflows, and sale closeout.", domain: "scrap-metal", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "scrap-metal.pricing", name: "Scrap & Recycling Price Board", description: "Scrap and recycling material catalog and pricing controls.", domain: "scrap-metal", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
 
   f({ key: "hr.employees", name: "Employees", description: "Employee records and directory.", domain: "hr", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
   // Non-billable at zero, exactly like `hr.employees` and exactly like the
@@ -164,15 +183,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "compliance.incidents", name: "Compliance Incidents", description: "Compliance incident tracking.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 3 }),
   f({ key: "compliance.training-records", name: "Training Records", description: "Training records and expiries.", domain: "compliance", defaultEnabled: true, isBillable: true, monthlyPrice: 2 }),
 
-  f({ key: "cctv.overview", name: "CCTV Overview", description: "CCTV overview and site status.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
-  f({ key: "cctv.live", name: "Live Monitor", description: "Live CCTV stream viewing.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 5 }),
-  f({ key: "cctv.cameras", name: "CCTV Cameras", description: "Camera inventory and management.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "cctv.nvrs", name: "CCTV NVRs", description: "NVR inventory and management.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
-  f({ key: "cctv.events", name: "CCTV Events", description: "Event ingestion and event browsing.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 4 }),
-  f({ key: "cctv.playback", name: "CCTV Playback", description: "Playback search and review.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 4 }),
-  f({ key: "cctv.access-logs", name: "CCTV Access Logs", description: "Access logs for CCTV usage.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "cctv.streaming-control", name: "CCTV Streaming Control", description: "Streaming session APIs and stream-token flows.", domain: "cctv", defaultEnabled: false, isBillable: true, monthlyPrice: 4 }),
-
   f({ key: "schools.core", name: "Schools Core", description: "Schools module landing and shared setup.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.admissions", name: "School Admissions", description: "Admissions workflows and enrollment intake.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "schools.students", name: "Student Directory", description: "Student profile management and directory browsing.", domain: "schools", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -192,12 +202,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "settlements.core", name: "Settlements", description: "Settlement intakes, runs and payouts for quantity-based pay.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
   f({ key: "settlements.gold", name: "Gold Settlements", description: "Settling gold shift allocations by weight, valued at the price agreed upstream.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
   f({ key: "settlements.scrap", name: "Scrap Settlements", description: "Settling scrap balances by weight.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-
-  f({ key: "autos.core", name: "Auto Sales Core", description: "Auto sales module landing and shared setup.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "autos.inventory", name: "Vehicle Inventory", description: "Vehicle stock catalog and inventory lifecycle.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "autos.leads", name: "Sales Leads", description: "Lead capture and pipeline management for car sales.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "autos.deals", name: "Deals", description: "Deal progression and close-out workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "autos.financing", name: "Financing", description: "Vehicle financing and installment workflows.", domain: "autos", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "retail.core", name: "Retail Core", description: "Retail module landing and shared setup.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "retail.pos", name: "Retail POS", description: "Point-of-sale and cashier workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -220,7 +224,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
 
   f({ key: "portal.core", name: "Portal Core", description: "External/customer portal shell and shared navigation.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.schools", name: "School Portal", description: "School-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "portal.autos", name: "Auto Sales Portal", description: "Auto sales-facing portal experiences and APIs.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "portal.pos", name: "POS Portal", description: "Point-of-sale portal access for cashier surfaces.", domain: "portal", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
 
   f({ key: "reports.dashboard", name: "Reports Dashboard", description: "Top-level reports dashboard.", domain: "reports", defaultEnabled: false, isBillable: false, monthlyPrice: 0 }),
@@ -236,7 +239,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "reports.audit-trails", name: "Audit Trail Reports", description: "Audit trail reporting pages.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
   f({ key: "reports.downtime-analytics", name: "Downtime Analytics", description: "Downtime analysis reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
   f({ key: "reports.compliance-incidents", name: "Compliance Incidents Reports", description: "Compliance incident reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "reports.cctv-events", name: "CCTV Event Reports", description: "CCTV event reports.", domain: "reports", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
 
   f({ key: "admin.user-management.core", name: "User Management Core", description: "User management module access.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "admin.user-management.create", name: "User Creation", description: "Manager/clerk user creation lifecycle actions.", domain: "admin", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -324,24 +326,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "core.branding.manage",
       "core.templates",
       "core.branding.custom-domain",
-    ],
-  },
-  {
-    code: "ADDON_CCTV_SUITE",
-    name: "CCTV Suite",
-    description: "CCTV operations, streams, events and playback.",
-    monthlyPrice: 99,
-    additionalSiteMonthlyPrice: 15,
-    features: [
-      "cctv.overview",
-      "cctv.live",
-      "cctv.cameras",
-      "cctv.nvrs",
-      "cctv.events",
-      "cctv.playback",
-      "cctv.access-logs",
-      "cctv.streaming-control",
-      "reports.cctv-events",
     ],
   },
   {
@@ -524,20 +508,6 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     ],
   },
   {
-    code: "ADDON_AUTOS_SUITE",
-    name: "Auto Sales Suite",
-    description: "Lead-to-deal, vehicle inventory, financing, and dealership workflow controls.",
-    monthlyPrice: 59,
-    additionalSiteMonthlyPrice: 10,
-    features: [
-      "autos.core",
-      "autos.inventory",
-      "autos.leads",
-      "autos.deals",
-      "autos.financing",
-    ],
-  },
-  {
     code: "ADDON_RETAIL_SUITE",
     name: "Retail Suite",
     description: "Retail operations, merchandising, shifts, and POS for shop businesses.",
@@ -584,27 +554,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     features: [
       "portal.core",
       "portal.schools",
-      "portal.autos",
       "portal.pos",
-    ],
-  },
-  {
-    code: "ADDON_SCRAP_METAL_SUITE",
-    name: "Scrap Metal Suite",
-    description: "Complete scrap and recycling buying, yard, stock, and trading operations.",
-    monthlyPrice: 39,
-    additionalSiteMonthlyPrice: 10,
-    features: [
-      "scrap-metal.home",
-      "scrap-metal.purchases",
-      "scrap-metal.batches",
-      "scrap-metal.sales",
-      "scrap-metal.pricing",
-      "stores.dashboard",
-      "stores.inventory",
-      "stores.movements",
-      "stores.issue",
-      "stores.receive",
     ],
   },
 ];
@@ -630,13 +580,70 @@ const PLATFORM_BASE_BUNDLES = [
   "ADDON_WORKFORCE_CORE",
 ];
 
+/**
+ * Feature keys the platform console rides on. Carried by GROW and above, exactly
+ * as STANDARD and above carried them before the restructure — the two self-serve
+ * tiers below it are deliberately console-free.
+ */
+const PLATFORM_CONSOLE_FEATURES = [
+  "core.notifications.push",
+  "admin.feature-flags-console",
+  "admin.subscription-console",
+];
+
+/**
+ * The adopted structure (see docs/rollout/pricing-packaging-roadmap.md, PR-1.2).
+ * Ordered cheapest-first: `TIERS[0]` is the entry SKU everywhere it is used as a
+ * default. Every `annualMonthlyPrice` is `annualMonthly(monthlyPrice)` so the
+ * 20% annual discount has exactly one source.
+ */
 export const TIERS: TierDefinition[] = [
   {
-    code: "BASIC",
-    name: "Launch",
-    description: "Get one site off notebooks and spreadsheets.",
-    monthlyPrice: 29,
-    annualMonthlyPrice: 24,
+    // The wedge. Sold on one job — fiscalising invoices across tills and sites —
+    // so it carries the identity and document surface fiscalisation actually
+    // needs (customers, invoices, supplier identity, tax codes, the FDMS
+    // connector) and nothing else. Everything a retailer would also want is a
+    // reason to move up to START.
+    code: "FISCAL",
+    name: "Fiscal",
+    description: "ZIMRA fiscalisation for businesses running tills across one or more sites.",
+    monthlyPrice: 19,
+    annualMonthlyPrice: annualMonthly(19),
+    onboardingFee: 0,
+    includedSites: 1,
+    // Deliberately the cheapest site overage in the catalog: multi-site is the
+    // reason this SKU exists, so adding a site must never be the thing that
+    // stops somebody buying it.
+    additionalSiteMonthlyPrice: 9,
+    includedUsers: 3,
+    additionalUserPackMonthlyPrice: 12,
+    warningDays: 14,
+    graceDays: 7,
+    includedFeatures: [
+      ...PLATFORM_BASE_FEATURES,
+      // AR and AP as identity and documents, not as a ledger: a fiscal invoice
+      // needs a customer, an invoice and a supplier. The rest of
+      // ADDON_ACCOUNTING_ADVANCED (banking, assets, budgets, cost centers,
+      // multi-currency) stays an upsell.
+      "accounting.ar",
+      "accounting.ap",
+    ],
+    includedBundles: [
+      "ADDON_OPERATIONS_CORE",
+      "ADDON_ACCOUNTING_CORE",
+      "ADDON_ZIMRA_FISCAL",
+    ],
+  },
+  {
+    // Single-site retail, self-serve. Replaces BASIC/"Launch" at the same shape
+    // (one site, five seats) with the retail suite added, because a shop that
+    // signs up without talking to anybody needs a till on day one.
+    code: "START",
+    name: "Start",
+    description: "One shop, self-serve: till, catalog, stock, and people in one place.",
+    monthlyPrice: 39,
+    annualMonthlyPrice: annualMonthly(39),
+    onboardingFee: 0,
     includedSites: 1,
     additionalSiteMonthlyPrice: 19,
     includedUsers: 5,
@@ -644,104 +651,175 @@ export const TIERS: TierDefinition[] = [
     warningDays: 14,
     graceDays: 7,
     includedFeatures: PLATFORM_BASE_FEATURES,
-    includedBundles: PLATFORM_BASE_BUNDLES,
+    includedBundles: [
+      ...PLATFORM_BASE_BUNDLES,
+      "ADDON_RETAIL_SUITE",
+    ],
   },
   {
-    code: "STANDARD",
+    // Roughly today's STANDARD (user management + analytics on the base
+    // platform) plus the retail suite, the ledger and fiscalisation — the shape
+    // a multi-site retailer with three or more tills actually operates.
+    code: "GROW",
     name: "Grow",
-    description: "For teams adding branches, managers, and daily handoffs.",
-    monthlyPrice: 79,
-    annualMonthlyPrice: 66,
+    description: "Several branches, several tills, with books and fiscalisation connected.",
+    monthlyPrice: 99,
+    annualMonthlyPrice: annualMonthly(99),
+    onboardingFee: 250,
     includedSites: 3,
     additionalSiteMonthlyPrice: 29,
     includedUsers: 20,
     additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
-    includedFeatures: [
-      ...PLATFORM_BASE_FEATURES,
-      "core.notifications.push",
-      "admin.feature-flags-console",
-      "admin.subscription-console",
-    ],
+    includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
     includedBundles: [
       ...PLATFORM_BASE_BUNDLES,
+      "ADDON_RETAIL_SUITE",
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
+      "ADDON_ACCOUNTING_CORE",
+      "ADDON_ZIMRA_FISCAL",
     ],
   },
   {
-    code: "MEDIUM",
+    // Chains. Everything GROW has, plus the depth today's MEDIUM carried
+    // (maintenance, portals, full accounting) and the CRM suite — whose bundle
+    // dependencies on accounting core and advanced are satisfied here.
+    code: "SCALE",
     name: "Scale",
-    description: "For multi-branch groups that need finance and assets connected.",
-    monthlyPrice: 189,
-    annualMonthlyPrice: 158,
-    includedSites: 8,
-    additionalSiteMonthlyPrice: 39,
+    description: "Chains running many branches, with finance, CRM, portals, and assets connected.",
+    monthlyPrice: 199,
+    annualMonthlyPrice: annualMonthly(199),
+    onboardingFee: 250,
+    // "Unlimited sites" in the sales conversation. The schema carries a number,
+    // so the ceiling is set where no chain on this SKU reaches it and the
+    // overage is kept low rather than modelling infinity.
+    includedSites: 25,
+    additionalSiteMonthlyPrice: 19,
     includedUsers: 60,
     additionalUserPackMonthlyPrice: 12,
     warningDays: 14,
     graceDays: 7,
-    includedFeatures: [
-      ...PLATFORM_BASE_FEATURES,
-      "core.notifications.push",
-      "admin.feature-flags-console",
-      "admin.subscription-console",
-    ],
+    includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
     includedBundles: [
       ...PLATFORM_BASE_BUNDLES,
+      "ADDON_RETAIL_SUITE",
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
       "ADDON_ACCOUNTING_CORE",
+      "ADDON_ACCOUNTING_ADVANCED",
+      "ADDON_ZIMRA_FISCAL",
+      "ADDON_CRM_SUITE",
       "ADDON_MAINTENANCE_PRO",
       "ADDON_PORTAL_SUITE",
     ],
   },
   {
+    // Gold as a listed edition rather than two add-ons on an ENTERPRISE tenant.
+    // Composition: the base platform and mine daily capture, both gold bundles,
+    // commodity settlements (how a mine pays for grams), the ledger with
+    // fiscalisation, and payroll depth including the Zimbabwe statutory work.
+    code: "GOLD_EDITION",
+    name: "Gold Edition",
+    description: "Small and medium gold operations: production, settlement, controls, books, and payroll.",
+    monthlyPrice: 299,
+    annualMonthlyPrice: annualMonthly(299),
+    onboardingFee: 500,
+    includedSites: 3,
+    additionalSiteMonthlyPrice: 39,
+    includedUsers: 25,
+    additionalUserPackMonthlyPrice: 12,
+    warningDays: 14,
+    graceDays: 7,
+    includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
+    includedBundles: [
+      ...PLATFORM_BASE_BUNDLES,
+      "ADDON_MINE_DAILY_OPS",
+      "ADDON_GOLD_CORE",
+      "ADDON_GOLD_ADVANCED",
+      "ADDON_COMMODITY_SETTLEMENTS",
+      "ADDON_ACCOUNTING_CORE",
+      "ADDON_ACCOUNTING_ADVANCED",
+      "ADDON_ZIMRA_FISCAL",
+      "ADDON_ADVANCED_PAYROLL",
+      "ADDON_ZIMBABWE_PAYROLL",
+      "ADDON_USER_MANAGEMENT_PRO",
+      "ADDON_ANALYTICS_PRO",
+    ],
+  },
+  {
+    // Quoted, not listed: `monthlyPrice` is the floor a scoped quote starts from
+    // and the figure existing ENTERPRISE tenants are already on, so nobody is
+    // repriced by this restructure. `onboardingFee` is 0 because onboarding is
+    // scoped per engagement — the catalog states no setup price it cannot honour.
+    //
+    // Contents are the old ENTERPRISE bundle list (all of which survive the
+    // drop) plus everything SCALE gained, so ENTERPRISE stays a superset of the
+    // tier below it. The vertical editions — gold, schools, mining capture —
+    // are added per engagement rather than assumed.
     code: "ENTERPRISE",
     name: "Enterprise",
-    description: "For established groups with governance, finance, and compliance depth.",
+    description: "Groups with bespoke configuration, governance, finance, and compliance depth.",
     monthlyPrice: 449,
-    annualMonthlyPrice: 374,
-    includedSites: 25,
-    additionalSiteMonthlyPrice: 39,
+    annualMonthlyPrice: annualMonthly(449),
+    onboardingFee: 0,
+    // Uncapped in practice: nothing is charged beyond the ceiling.
+    includedSites: 999,
+    additionalSiteMonthlyPrice: 0,
     includedUsers: null,
     additionalUserPackMonthlyPrice: 0,
     warningDays: 21,
     graceDays: 14,
-    includedFeatures: [
-      ...PLATFORM_BASE_FEATURES,
-      "core.notifications.push",
-      "admin.feature-flags-console",
-      "admin.subscription-console",
-    ],
+    includedFeatures: [...PLATFORM_BASE_FEATURES, ...PLATFORM_CONSOLE_FEATURES],
     includedBundles: [
       ...PLATFORM_BASE_BUNDLES,
+      "ADDON_RETAIL_SUITE",
       "ADDON_USER_MANAGEMENT_PRO",
       "ADDON_ANALYTICS_PRO",
       "ADDON_ACCOUNTING_CORE",
       "ADDON_ACCOUNTING_ADVANCED",
+      "ADDON_ZIMRA_FISCAL",
+      "ADDON_CRM_SUITE",
       "ADDON_MAINTENANCE_PRO",
       "ADDON_PORTAL_SUITE",
       "ADDON_COMPLIANCE_PRO",
       "ADDON_ADVANCED_PAYROLL",
       "ADDON_CUSTOM_BRANDING",
-      "ADDON_ZIMRA_FISCAL",
     ],
   },
 ];
 
+/**
+ * Every code the platform has ever billed under, mapped onto the tier that now
+ * serves it. Legacy tenants resolve through here, so no subscription row can be
+ * left pointing at a tier that no longer exists:
+ *
+ * - BASIC/"Launch" -> START      (single site, self-serve)
+ * - STANDARD       -> GROW       (multi-site, same rung)
+ * - MEDIUM         -> SCALE      (multi-branch groups)
+ * - LARGE/BUSINESS -> ENTERPRISE (unchanged)
+ *
+ * Note that GROW and SCALE used to be aliases *for* STANDARD and MEDIUM and are
+ * now real tier codes; they resolve directly and must not be re-aliased.
+ */
 const TIER_CODE_ALIASES: Record<string, TierDefinition["code"]> = {
-  SOLO: "BASIC",
-  STARTER: "BASIC",
-  LAUNCH: "BASIC",
-  SMALL: "STANDARD",
-  GROWTH: "STANDARD",
-  GROW: "STANDARD",
-  MEDIUM: "MEDIUM",
-  SCALE: "MEDIUM",
+  // Retired tier codes.
+  BASIC: "START",
+  STANDARD: "GROW",
+  MEDIUM: "SCALE",
+  ENTERPRISE: "ENTERPRISE",
+  // Legacy display and sales aliases, carried forward.
+  SOLO: "START",
+  STARTER: "START",
+  LAUNCH: "START",
+  SMALL: "GROW",
+  GROWTH: "GROW",
   LARGE: "ENTERPRISE",
   BUSINESS: "ENTERPRISE",
+  // Gold was sold as add-ons on an ENTERPRISE tenant before it was an edition.
+  GOLD: "GOLD_EDITION",
+  GOLD_EDITION: "GOLD_EDITION",
 };
 
 export function getTierDefinition(planCode: string | null | undefined): TierDefinition | null {
