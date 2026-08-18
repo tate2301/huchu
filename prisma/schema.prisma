@@ -105,6 +105,7 @@ model Company {
   currencyRates                 CurrencyRate[]
   fiscalProviderConfigs         FiscalisationProviderConfig[]
   fiscalReceipts                FiscalReceipt[]
+  fiscalDays                    FiscalDay[]
   accountingIntegrationEvents   AccountingIntegrationEvent[]
   accountingSeedExecutions      AccountingSeedExecution[]
   documentTemplates             DocumentTemplate[]
@@ -4354,6 +4355,14 @@ model RetailSale {
   cashierName    String?
   customerName   String?
   saleType       String    @default("SALE")
+  /// FD-0.4b — the currency this sale was rung in.
+  ///
+  /// A fiscal receipt carries `receiptCurrency` and the signature is computed
+  /// over the total in that currency's minor units, so a POS sale that does not
+  /// know its own currency cannot be fiscalised. Every existing row is USD (the
+  /// platform's base currency and the only one the till has ever priced in),
+  /// which is why the default doubles as the backfill rule.
+  currency       String    @default("USD")
   subtotal       Float     @default(0)
   discountAmount Float     @default(0)
   taxAmount      Float     @default(0)
@@ -4370,8 +4379,9 @@ model RetailSale {
   createdAt      DateTime  @default(now())
   updatedAt      DateTime  @updatedAt
 
-  lines    RetailSaleLine[]
-  payments RetailSalePayment[]
+  lines         RetailSaleLine[]
+  payments      RetailSalePayment[]
+  fiscalReceipt FiscalReceipt?      @relation("RetailSaleFiscalReceipt")
 
   @@unique([companyId, saleNo])
   @@index([companyId, siteId, status, postedAt])
@@ -5005,6 +5015,16 @@ model TaxCode {
   appliesTo     String    @default("BOTH") // SALES, PURCHASE, BOTH
   vat7OutputBox String?
   vat7InputBox  String?
+  /// FD-0.2 — the numeric taxID ZIMRA uses to identify this rate.
+  ///
+  /// FDGA v7.2 never sends a rate name or a percentage on its own: every
+  /// receipt tax line is keyed by an integer taxID drawn from the device's
+  /// `getConfig` response, and the receipt signature concatenates those lines
+  /// sorted by that integer. A tax code with no mapping therefore cannot be
+  /// signed at all, which is why issuing against an unmapped code has to be
+  /// refused rather than defaulted. Nullable because every existing tenant
+  /// predates the mapping and will be filled in from `getConfig` per device.
+  zimraTaxId    Int?
   scheduleType  String    @default("NONE") // NONE, FX, RTGS, WITHHOLDING
   effectiveFrom DateTime?
   effectiveTo   DateTime?
@@ -5328,9 +5348,10 @@ model CreditNote {
 
   company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice   SalesInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
-  lines     CreditNoteLine[]
-  createdBy User?            @relation("CreditNoteCreatedBy", fields: [createdById], references: [id])
-  issuedBy  User?            @relation("CreditNoteIssuedBy", fields: [issuedById], references: [id])
+  lines         CreditNoteLine[]
+  createdBy     User?            @relation("CreditNoteCreatedBy", fields: [createdById], references: [id])
+  issuedBy      User?            @relation("CreditNoteIssuedBy", fields: [issuedById], references: [id])
+  fiscalReceipt FiscalReceipt?   @relation("CreditNoteFiscalReceipt")
 
   @@unique([companyId, noteNumber])
   @@index([companyId, status])
@@ -5896,10 +5917,58 @@ model FiscalisationProviderConfig {
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalDays FiscalDay[]
 
   @@unique([companyId, providerKey])
   @@index([companyId, isActive])
+}
+
+/// FD-2 — one ZIMRA fiscal day on one device.
+///
+/// FDGA v7.2 does not let a device submit a receipt outside an open day: the
+/// sequence is OpenDay -> receipts -> CloseDay, and CloseDay submits the day's
+/// counters aggregated by taxID together with a device signature over them.
+/// That makes the fiscal day, not the receipt, the unit ZIMRA reconciles
+/// against, so it has to be a durable row with its own counters rather than
+/// state inferred from the receipts table.
+///
+/// `lastReceiptCounter` resets to 0 on every open (it is per-day), while
+/// `lastReceiptGlobalNo` carries across days and must never repeat or skip —
+/// a gap in it is what ZIMRA reads as a missing receipt. Both are held here
+/// rather than derived with a MAX() over `FiscalReceipt` so that allocating
+/// the next number is a single row update that can be taken under a lock.
+model FiscalDay {
+  id                  String    @id @default(uuid())
+  companyId           String
+  providerConfigId    String
+  /// Denormalised from the provider config on open. The device may be
+  /// re-registered under a new ID later; a closed day must still report the
+  /// device it was actually opened and signed on.
+  deviceId            String
+  fiscalDayNo         Int
+  status              String    @default("OPENED") // OPENED, CLOSING, CLOSED
+  openedAt            DateTime  @default(now())
+  closedAt            DateTime?
+  lastReceiptCounter  Int       @default(0)
+  lastReceiptGlobalNo Int       @default(0)
+  /// The hash of the most recent receipt on this day, which the next receipt
+  /// chains onto. Null only before the day's first receipt.
+  lastReceiptHash     String?
+  closingSignature    String?
+  countersJson        String?
+  lastError           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company        Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  providerConfig FiscalisationProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  receipts       FiscalReceipt[]
+
+  /// A day number is consumed once per device and never reissued — reopening
+  /// day 12 after closing it would give ZIMRA two Z-reports for one day.
+  @@unique([providerConfigId, fiscalDayNo])
+  @@index([companyId, status, openedAt])
 }
 
 model FiscalReceipt {
@@ -5916,6 +5985,15 @@ model FiscalReceipt {
   /// of its own kind — which is what a partial unique index would do and is why
   /// one is not written out longhand here.
   schoolReceiptId       String?
+  /// FD-0.4a — the two remaining fiscal sources.
+  ///
+  /// v7.2 treats a credit note as a fiscal document in its own right (it cites
+  /// the original receipt's global number), and POS is the highest-volume
+  /// receipt surface there is. Neither could be recorded while the one-source
+  /// CHECK named only two columns, so the constraint was widened to the
+  /// numeric form over all four rather than duplicated per pair.
+  creditNoteId          String?
+  retailSaleId          String?
   receiptNumber         String?
   fiscalNumber          String?
   status                FiscalReceiptStatus @default(PENDING)
@@ -5930,16 +6008,53 @@ model FiscalReceipt {
   nextRetryAt           DateTime?
   lastSyncedAt          DateTime?
   lastError             String?
+  /// FD-2/FD-3 — the fiscal-signing state of this receipt.
+  ///
+  /// These are what ZIMRA actually verifies. `receiptCounter` is the receipt's
+  /// position within its fiscal day (resets each day); `receiptGlobalNo` is its
+  /// position on the device for all time and must be gap-free.
+  /// `previousReceiptHash` is the hash of receipt N-1 and `receiptHash` is this
+  /// receipt's own — together they are the chain, and a fork or a gap in it is
+  /// a stop-the-line defect because ZIMRA rejects every receipt after the break.
+  /// `receiptType` and `receiptCurrency` are part of the signed canonical
+  /// string, so they are stored rather than re-derived from the source document,
+  /// which could be edited after signing.
+  ///
+  /// All nullable: every row written before native fiscalisation has none of
+  /// them, and a PENDING row has none until the signer runs.
+  receiptCounter        Int?
+  receiptGlobalNo       Int?
+  previousReceiptHash   String?
+  receiptHash           String?
+  fiscalDayId           String?
+  receiptType           String?
+  receiptCurrency       String?
   createdAt             DateTime            @default(now())
   updatedAt             DateTime            @updatedAt
 
   company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice       SalesInvoice?     @relation("SalesInvoiceFiscalReceipt", fields: [invoiceId], references: [id])
   schoolReceipt SchoolFeeReceipt? @relation("SchoolFeeReceiptFiscalReceipt", fields: [schoolReceiptId], references: [id], onDelete: Cascade)
+  creditNote    CreditNote?       @relation("CreditNoteFiscalReceipt", fields: [creditNoteId], references: [id], onDelete: Cascade)
+  retailSale    RetailSale?       @relation("RetailSaleFiscalReceipt", fields: [retailSaleId], references: [id], onDelete: Cascade)
+  fiscalDay     FiscalDay?        @relation(fields: [fiscalDayId], references: [id])
 
   @@unique([invoiceId])
   @@unique([schoolReceiptId])
+  @@unique([creditNoteId])
+  @@unique([retailSaleId])
+  /// Two receipts cannot occupy the same slot in a fiscal day. Both columns are
+  /// nullable and Postgres treats NULLs as distinct, so this constrains exactly
+  /// the rows that have been counted and leaves pre-native rows alone.
+  @@unique([fiscalDayId, receiptCounter])
+  /// Global numbering is per DEVICE, and a device is one provider config, which
+  /// `FiscalisationProviderConfig` already keys as (companyId, providerKey).
+  /// Scoping this to `providerKey` alone — as the story sketched it — would put
+  /// every tenant on one number line and reject tenant B's receipt #1 because
+  /// tenant A already has one. companyId is included for that reason.
+  @@unique([companyId, providerKey, receiptGlobalNo])
   @@index([companyId, status])
+  @@index([fiscalDayId])
 }
 
 model DocumentTemplate {
