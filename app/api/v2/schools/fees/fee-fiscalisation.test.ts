@@ -683,7 +683,13 @@ describe("replay drains what did not land", () => {
       post("/api/accounting/fiscalisation/replay", { limit: 20 }),
     );
     expect(response.status).toBe(200);
-    return body<{ processed: number; queued: number; failed: number }>(response);
+    return body<{
+      processed: number;
+      queued: number;
+      failed: number;
+      skipped: number;
+      deferred: number;
+    }>(response);
   }
 
   it("re-issues a failed school receipt, which the old invoiceId filter excluded", async () => {
@@ -745,6 +751,65 @@ describe("replay drains what did not land", () => {
     expect(result.processed).toBe(0);
     expect(seen).toHaveLength(0);
     expect(await prisma.fiscalReceipt.count({ where: { companyId } })).toBe(0);
+  });
+
+  /**
+   * FD-0.4a widened `FiscalReceipt` from two source documents to four, and the
+   * drainer only knows how to re-issue two of them. The failure this pins is a
+   * silent one: a credit-note row falling into the catch-all branch would be
+   * reported as a failure with no error and no attempt, so an operator watching
+   * the replay count would see a number that never goes down and no cause for
+   * it anywhere. It is named `deferred` instead — nothing is wrong with the
+   * row, there is simply no issuer for it until FD-4.1.
+   */
+  it("names a source it cannot re-issue yet rather than reporting it as a failure", async () => {
+    const customer = await prisma.customer.create({
+      data: { companyId, name: `Payer ${stamp}-cn` },
+      select: { id: true },
+    });
+    const salesInvoice = await prisma.salesInvoice.create({
+      data: {
+        companyId,
+        customerId: customer.id,
+        invoiceNumber: `SI-${stamp}-CN`,
+        invoiceDate: new Date("2026-05-15T00:00:00.000Z"),
+        dueDate: new Date("2026-06-15T00:00:00.000Z"),
+      },
+      select: { id: true },
+    });
+    const creditNote = await prisma.creditNote.create({
+      data: {
+        companyId,
+        invoiceId: salesInvoice.id,
+        noteNumber: `CN-${stamp}`,
+        noteDate: new Date("2026-05-20T00:00:00.000Z"),
+      },
+      select: { id: true },
+    });
+
+    // Inserted past the service layer, because no service writes one yet —
+    // which is the whole point of the branch under test.
+    await prisma.fiscalReceipt.create({
+      data: {
+        companyId,
+        creditNoteId: creditNote.id,
+        status: "FAILED",
+        nextRetryAt: new Date(Date.now() - 1000),
+      },
+    });
+
+    const result = await replay();
+
+    expect(result.processed).toBe(1);
+    expect(result.deferred).toBe(1);
+    expect(result.failed).toBe(0);
+    expect(result.queued).toBe(0);
+    // Nothing was sent: a deferred row is not a half-made attempt.
+    expect(seen).toHaveLength(0);
+
+    await prisma.creditNote.delete({ where: { id: creditNote.id } });
+    await prisma.salesInvoice.delete({ where: { id: salesInvoice.id } });
+    await prisma.customer.delete({ where: { id: customer.id } });
   });
 });
 

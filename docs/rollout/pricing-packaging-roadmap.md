@@ -66,9 +66,9 @@ report, and zero pilots lose a feature they had.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| PR-1.1 | As a founder, the fiscal SKU's shape is decided and recorded | Master-plan risk #11 closed in this changelog: standalone minimal tier (just-enough invoicing + `accounting.zimra.fiscalisation`) vs `ADDON_ZIMRA_FISCAL` (which today depends on `ADDON_ACCOUNTING_CORE`). The dependency audit showed fiscalisation itself needs no journals and no tax module — only customer, invoice, supplier identity — so a minimal tier is viable | `todo` |
-| PR-1.2 | As a founder, I can quote the adopted structure from the live catalog | `TIERS` rewritten to Fiscal/Start/Grow/Scale/Gold Edition/Enterprise with the prices above; onboarding fees carried as catalog metadata; `TIER_CODE_ALIASES` extended so every legacy code (BASIC, STANDARD, MEDIUM, ENTERPRISE and their aliases) resolves to a new tier; `computeCompanyPricing` tests green across all six tiers | `todo` |
-| PR-2.1 | As a buyer, annual prepay is 20% off and the default ask | The discount mechanism decided (master-plan risk #12 — the months multiplier cannot express 20% cleanly; a rate field is the likely answer) and recorded here; an annual quote equals 12 × monthly × 0.8 in the pricing tests; annual presented first wherever a price is shown | `todo` |
+| PR-1.1 | As a founder, the fiscal SKU's shape is decided and recorded | Master-plan risk #11 closed in this changelog: standalone minimal tier (just-enough invoicing + `accounting.zimra.fiscalisation`) vs `ADDON_ZIMRA_FISCAL` (which today depends on `ADDON_ACCOUNTING_CORE`). The dependency audit showed fiscalisation itself needs no journals and no tax module — only customer, invoice, supplier identity — so a minimal tier is viable | `done` |
+| PR-1.2 | As a founder, I can quote the adopted structure from the live catalog | `TIERS` rewritten to Fiscal/Start/Grow/Scale/Gold Edition/Enterprise with the prices above; onboarding fees carried as catalog metadata; `TIER_CODE_ALIASES` extended so every legacy code (BASIC, STANDARD, MEDIUM, ENTERPRISE and their aliases) resolves to a new tier; `computeCompanyPricing` tests green across all six tiers | `done` |
+| PR-2.1 | As a buyer, annual prepay is 20% off and the default ask | The discount mechanism decided (master-plan risk #12 — the months multiplier cannot express 20% cleanly; a rate field is the likely answer) and recorded here; an annual quote equals 12 × monthly × 0.8 in the pricing tests; annual presented first wherever a price is shown | `done` |
 
 ## Iteration 2 — Existing tenants
 
@@ -97,4 +97,5 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `062aa91`, `ac67e65` | PR-1.1, PR-1.2, PR-2.1 → `done` | The six tiers exist at the adopted prices with onboarding fees, and every legacy code (BASIC, STANDARD, MEDIUM, ENTERPRISE) resolves through `TIER_CODE_ALIASES` so no subscription row points at a tier that no longer exists. PR-1.1 decided in favour of a standalone FISCAL tier: the dependency audit showed fiscalisation needs only customer, invoice and supplier identity — no journals, no tax module — so a minimal tier is viable and the addon remains for upsell. PR-2.1 replaced the whole-month multiplier with `ANNUAL_DISCOUNT_RATE = 0.2`; 10/12 could not express 20%, and the pricing page had been rendering the multiplier directly. Three defects the restructure surfaced are recorded in `ac67e65`: START dropped the fiscal wedge, six non-retail templates inherited a till, and Gold Edition is a vertical edition rather than a rung on the size ladder. |
 | 2026-08-18 | — | — | Document created; target structure and legacy-tier mapping recorded. |

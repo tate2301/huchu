@@ -72,39 +72,39 @@ its changelog row.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-0.1 | As a bookkeeper, I can transact in ZWG | ZWG seeded in `CurrencyDefinition` platform-wide (today it exists only inside `lib/hr/statutory/zimbabwe-pack.ts`); selectable on an invoice; stored and reported | `todo` |
-| FD-0.2 | As a tax admin, every tax code carries its ZIMRA taxID | New column on `TaxCode` beside `vat7OutputBox`/`vat7InputBox`; surfaced in `components/accounting/tax/tax-setup-workspace.tsx`; issuing a fiscal document with an unmapped code is refused with a named error | `todo` |
-| FD-0.3 | As an accountant, fiscal totals are exact | Decision from master-plan risk #1 recorded here; the chosen boundary implemented; a property test asserts no fiscal total ever differs from its source document total | `todo` |
-| FD-0.4 | As an engineer, a fiscal receipt can attach to a credit note, a debit note, or a POS sale | The `FiscalReceipt` one-source CHECK widened; `RetailSale.currency` added with a backfill rule (master-plan risks #2, #3); migration applies clean on a copy of staging data | `todo` |
+| FD-0.1 | As a bookkeeper, I can transact in ZWG | ZWG seeded in `CurrencyDefinition` platform-wide (today it exists only inside `lib/hr/statutory/zimbabwe-pack.ts`); selectable on an invoice; stored and reported | `done` |
+| FD-0.2 | As a tax admin, every tax code carries its ZIMRA taxID | New column on `TaxCode` beside `vat7OutputBox`/`vat7InputBox`; surfaced in `components/accounting/tax/tax-setup-workspace.tsx`; issuing a fiscal document with an unmapped code is refused with a named error | `done` |
+| FD-0.3 | As an accountant, fiscal totals are exact | Decision from master-plan risk #1 recorded here; the chosen boundary implemented; a property test asserts no fiscal total ever differs from its source document total | `wip` |
+| FD-0.4 | As an engineer, a fiscal receipt can attach to a credit note, a debit note, or a POS sale | The `FiscalReceipt` one-source CHECK widened; `RetailSale.currency` added with a backfill rule (master-plan risks #2, #3); migration applies clean on a copy of staging data | `done` |
 
 ## Iteration 1 — Device lifecycle
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-1.1 | As a tenant admin, I register my fiscal device with ZIMRA from the fiscalisation console | Keypair and CSR generated server-side, certificate issued and stored via `certificateRef` indirection, `verifyTaxpayerInformation`/`registerDevice`/`getConfig` round-trip against the ZIMRA test environment from `app/accounting/fiscalisation/page.tsx` | `todo` |
-| FD-1.2 | As an operator, I can see certificate health and renew before expiry | Expiry surfaced on the console and in `lib/notifications.ts` alerts; the rotation runbook written (master-plan risk #6) covering dev/staging/prod registration strategy | `todo` |
+| FD-1.1 | As a tenant admin, I register my fiscal device with ZIMRA from the fiscalisation console | Keypair and CSR generated server-side, certificate issued and stored via `certificateRef` indirection, `verifyTaxpayerInformation`/`registerDevice`/`getConfig` round-trip against the ZIMRA test environment from `app/accounting/fiscalisation/page.tsx` | `wip` |
+| FD-1.2 | As an operator, I can see certificate health and renew before expiry | Expiry surfaced on the console and in `lib/notifications.ts` alerts; the rotation runbook written (master-plan risk #6) covering dev/staging/prod registration strategy | `wip` |
 
 ## Iteration 2 — Fiscal day
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-2.1 | As a supervisor, I open and close a fiscal day per device | `FiscalDay` model (fiscalDayNo, status, per-taxID counters); open/close endpoints under `app/api/accounting/fiscalisation/`; a full open → receipts → close cycle produces a ZIMRA-accepted Z-report in sandbox | `todo` |
-| FD-2.2 | As a supervisor, a day that cannot close cleanly tells me why | Counter mismatches surfaced with the offending receipts; close-with-discrepancy follows the v7.2 rules and is audited | `todo` |
+| FD-2.1 | As a supervisor, I open and close a fiscal day per device | `FiscalDay` model (fiscalDayNo, status, per-taxID counters); open/close endpoints under `app/api/accounting/fiscalisation/`; a full open → receipts → close cycle produces a ZIMRA-accepted Z-report in sandbox | `wip` |
+| FD-2.2 | As a supervisor, a day that cannot close cleanly tells me why | Counter mismatches surfaced with the offending receipts; close-with-discrepancy follows the v7.2 rules and is audited | `wip` |
 
 ## Iteration 3 — The core receipt protocol
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-3.1 | As an accountant, an issued sales invoice is fiscalised natively | Client-side canonical hash + signature, previous-receipt-hash chaining, gap-free `receiptCounter`/`receiptGlobalNo` under concurrency (advisory-lock precedent from gold, master-plan risk #7); `submitReceipt` accepted by sandbox; rewires `issueFiscalDocument` in `lib/accounting/fiscalisation.ts` and the auto-issue hook in `app/api/accounting/sales/invoices/route.ts` | `todo` |
-| FD-3.2 | As a customer, the invoice I receive carries a scannable QR that validates on fdms.zimra.co.zw | QR generated (new dependency) and rendered on the invoice PDF templates via `lib/documents/source-registry.ts`; portal shows the invoice as VALID | `todo` |
+| FD-3.1 | As an accountant, an issued sales invoice is fiscalised natively | Client-side canonical hash + signature, previous-receipt-hash chaining, gap-free `receiptCounter`/`receiptGlobalNo` under concurrency (advisory-lock precedent from gold, master-plan risk #7); `submitReceipt` accepted by sandbox; rewires `issueFiscalDocument` in `lib/accounting/fiscalisation.ts` and the auto-issue hook in `app/api/accounting/sales/invoices/route.ts` | `wip` |
+| FD-3.2 | As a customer, the invoice I receive carries a scannable QR that validates on fdms.zimra.co.zw | QR generated (new dependency) and rendered on the invoice PDF templates via `lib/documents/source-registry.ts`; portal shows the invoice as VALID | `wip` |
 | FD-3.3 | As a founder, a fresh sandbox tenant reaches a validated fiscal invoice in under 30 minutes | The activation demo, timed end-to-end: provision → device registration → fiscal day open → invoice → green portal validation. **This is the day-30 exit criterion for the program** | `todo` |
 
 ## Iteration 4 — Credit and debit notes
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-4.1 | As an accountant, a credit note fiscalises referencing its original receipt | Depends FD-0.4; the credit note carries the original `receiptGlobalNo` per v7.2; sandbox-validated and visible against the original on the portal | `todo` |
-| FD-4.2 | As an accountant, a sales-side debit note exists and fiscalises | v7.2 debit notes are sales documents; the existing `DebitNote` model is purchase-side, so this story decides reuse-vs-new and implements it; sandbox-validated | `todo` |
+| FD-4.1 | As an accountant, a credit note fiscalises referencing its original receipt | Depends FD-0.4; the credit note carries the original `receiptGlobalNo` per v7.2; sandbox-validated and visible against the original on the portal | `wip` |
+| FD-4.2 | As an accountant, a sales-side debit note exists and fiscalises | v7.2 debit notes are sales documents; the existing `DebitNote` model is purchase-side, so this story decides reuse-vs-new and implements it; sandbox-validated | `wip` |
 
 ## Iteration 5 — POS fiscalisation
 
@@ -144,4 +144,5 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `a89988e`, `a304767`, `1974d15`, `abca4d2` | FD-0.1, FD-0.2, FD-0.4 → `done`; FD-1.1, FD-2.1, FD-3.1, FD-4.1 → `wip` | **The native protocol exists; nothing has met the ZIMRA test environment.** FD-0 landed as one migration: `TaxCode.zimraTaxId`, `RetailSale.currency` backfilled to USD, the one-source CHECK widened from two columns to exactly-one-of-four (credit notes and till sales can now be fiscalised), the `FiscalDay` model with a partial unique index giving one open day per device, and the signing columns on `FiscalReceipt`. Then RSA keypair + hand-built PKCS#10 CSR + certificate expiry parsing (FD-1); canonical string, SHA-256 hash, RSA signature, previous-hash chaining, gap-free counters and the QR verification URL (FD-3); and the fiscal-day service whose two races — two tills opening a day, two sales reserving a number — are closed by the database rather than by a check-then-write. The issue path now signs and chains before the network call, keeping the existing PENDING-row-first ordering that makes a crash survivable. Schools falls back to the unchained path when a tenant has no device, deliberately and with a test. 70 new tests; the money types refuse a float outright. **The four `wip` rows are code-complete but their acceptance signals name the ZIMRA sandbox, which this work has not touched — DoD item 9 is unmet until FD-8 registers a device.** |
 | 2026-08-18 | — | — | Document created against the fiscalisation-skeleton audit; native-only decision recorded (no Fiscal Harmony bridge). |

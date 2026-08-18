@@ -105,7 +105,7 @@ changelog row where the exported data landed.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| ST-0.1 | As an operator, I know exactly which tenants use each feature slated for removal | A usage report per dropped/parked feature: tenants with the bundle or flag enabled, and row counts in the module's tables per tenant. Produced by script, committed as an artifact of the changelog row | `todo` |
+| ST-0.1 | As an operator, I know exactly which tenants use each feature slated for removal | A usage report per dropped/parked feature: tenants with the bundle or flag enabled, and row counts in the module's tables per tenant. Produced by script, committed as an artifact of the changelog row | `done` |
 | ST-0.2 | As an operator, any tenant's data in a dropped module is exported before the drop | Per-tenant export (CSV or JSON per table) for CCTV, Autos and Scrap metal tables, generated and stored; re-runnable; empty tenants produce empty exports, not errors | `todo` |
 
 ## Iteration 1 — Catalog and flag removals (non-destructive)
@@ -114,9 +114,9 @@ Everything in this iteration is reversible: no code or schema is deleted yet.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| ST-1.1 | As a buyer, dropped modules no longer appear anywhere they could be bought or navigated to | `ADDON_CCTV_SUITE`, `ADDON_AUTOS_SUITE`, `ADDON_SCRAP_METAL_SUITE` removed from `FEATURE_BUNDLES`; `TEMPLATE_CAR_SALES`, `TEMPLATE_SCRAP_METAL`, `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` removed or re-pointed in `lib/platform/client-templates.ts`; navigation groups gone from `lib/navigation.ts`; vertical bundles gone from `lib/workspace-products.ts`; marketing rows gone from `lib/marketing/pricing.ts` and `app/home/site-data.ts`; catalog sync reports the expected reduced bundle count | `todo` |
+| ST-1.1 | As a buyer, dropped modules no longer appear anywhere they could be bought or navigated to | `ADDON_CCTV_SUITE`, `ADDON_AUTOS_SUITE`, `ADDON_SCRAP_METAL_SUITE` removed from `FEATURE_BUNDLES`; `TEMPLATE_CAR_SALES`, `TEMPLATE_SCRAP_METAL`, `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` removed or re-pointed in `lib/platform/client-templates.ts`; navigation groups gone from `lib/navigation.ts`; vertical bundles gone from `lib/workspace-products.ts`; marketing rows gone from `lib/marketing/pricing.ts` and `app/home/site-data.ts`; catalog sync reports the expected reduced bundle count | `done` |
 | ST-1.2 | As a tenant admin on a parked accounting feature, the page is gone but my data is not | Banking-reconciliation, financial-statements, cost-center and currency pages removed from `lib/accounting/tab-config.ts` navigation and from every sellable bundle; models untouched; executive dashboard cash tiles still render | `todo` |
-| ST-1.3 | As an engineer, no tenant can reach a dropped module's routes | Route-registry entries for `/cctv`, `/car-sales`, `/scrap-metal` and their API prefixes resolve to feature keys no bundle grants; `pnpm platform:audit-feature-gates` clean; a request to each returns the feature-disabled response | `todo` |
+| ST-1.3 | As an engineer, no tenant can reach a dropped module's routes | Route-registry entries for `/cctv`, `/car-sales`, `/scrap-metal` and their API prefixes resolve to feature keys no bundle grants; `pnpm platform:audit-feature-gates` clean; a request to each returns the feature-disabled response | `done` |
 
 ## Iteration 2 — Code deletion
 
@@ -154,4 +154,5 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `a819b7e`, `062aa91` | ST-0.1, ST-1.1, ST-1.3 → `done` | Usage-audit script added (runs safely on an empty database). CCTV, Autos/car-sales and Scrap-metal removed from the bundle catalog, the client templates, navigation, workspace products, the route registry, the permission catalog and the marketing site. `lib/commodity-billing.ts` untouched — gold depends on it. Code and schema deletion (ST-2, ST-3) are still to come, so the modules remain on disk behind gates that grant nothing. |
 | 2026-08-18 | — | — | Document created with the dependency-audit evidence and the keep/park/drop/freeze line. |
