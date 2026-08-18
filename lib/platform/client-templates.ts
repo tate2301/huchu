@@ -33,6 +33,49 @@ const MINE_DAILY_OPS_FEATURE_KEYS = [
   "reports.plant",
 ] as const;
 
+/**
+ * The till. GROW and above bundle `ADDON_RETAIL_SUITE` because that is what the
+ * tier is *for* — three tills across two branches is the shape GROW is priced
+ * against. A template inherits its recommended tier's features, so a workshop,
+ * a CRM tenant or a payroll bureau that sits on GROW would silently be handed a
+ * point-of-sale, and `inferWorkspaceProfileFromEnabledFeatures` reads `retail.*`
+ * as the strongest possible signal that a tenant is a shop — so the workspace
+ * came up as Retail for a business that has never sold anything over a counter.
+ *
+ * Non-retail templates strip these keys explicitly. Buying the tier still buys
+ * the capability; provisioning from a template that is not about selling in a
+ * shop just does not switch it on.
+ */
+const RETAIL_TILL_FEATURE_KEYS = [
+  "retail.core",
+  "retail.pos",
+  "retail.catalog",
+  "retail.purchasing",
+  "retail.promotions",
+  "retail.shifts",
+  "retail.reports",
+  "portal.pos",
+] as const;
+
+/**
+ * The sales desk. Same inheritance problem as the till: `ADDON_RETAIL_SUITE`
+ * carries `crm.customers` (the shared customer directory) and `ADDON_CRM_SUITE`
+ * rides on SCALE and ENTERPRISE, so a template on either tier inherits a CRM it
+ * never asked for. Templates that are not about selling strip these.
+ */
+const CRM_FEATURE_KEYS = [
+  "crm.customers",
+  "crm.core",
+  "crm.leads",
+  "crm.clients",
+  "crm.appointments",
+  "crm.intake",
+  "crm.documents",
+  "crm.insights",
+  "crm.commissions",
+  "crm.settings",
+] as const;
+
 export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_CORE_STARTER",
@@ -43,7 +86,14 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     bundleCodes: ["ADDON_OPERATIONS_CORE", "ADDON_STORES_CORE", "ADDON_WORKFORCE_CORE"],
     featureKeys: [],
     verticalProductId: "general-business",
-    disabledFeatureKeys: [...MINE_DAILY_OPS_FEATURE_KEYS],
+    disabledFeatureKeys: [
+      ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A general business starter is not a shop. START bundles the retail
+      // suite because START is the single-shop self-serve tier; provisioning a
+      // general business from this template does not turn the till on.
+      ...RETAIL_TILL_FEATURE_KEYS,
+      ...CRM_FEATURE_KEYS,
+    ],
   },
   {
     code: "TEMPLATE_GOLD_MINE",
@@ -64,6 +114,13 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     ],
     featureKeys: [],
     verticalProductId: "gold-operations",
+    disabledFeatureKeys: [
+      // Gold Edition and ENTERPRISE both carry the retail and CRM suites. A
+      // mine sells to Fidelity on a dispatch, not over a counter, and a
+      // point-of-sale in its sidebar is noise at best and a wrong turn at worst.
+      ...RETAIL_TILL_FEATURE_KEYS,
+      ...CRM_FEATURE_KEYS,
+    ],
   },
   {
     code: "TEMPLATE_TECH_WORKSHOP",
@@ -80,7 +137,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     ],
     featureKeys: [],
     verticalProductId: "service-workshop",
-    disabledFeatureKeys: [...MINE_DAILY_OPS_FEATURE_KEYS],
+    disabledFeatureKeys: [
+      ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A workshop takes payment on a job, not over a till.
+      ...RETAIL_TILL_FEATURE_KEYS,
+    ],
   },
   {
     code: "TEMPLATE_SCHOOLS",
@@ -95,6 +156,9 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "ops.shift-report.submit",
       "ops.attendance.mark",
       "ops.plant-report.submit",
+      // A school has guardians and students, not customers. The shared
+      // directory arrives via START's retail suite; it has no place here.
+      ...CRM_FEATURE_KEYS,
       "stores.dashboard",
       "stores.inventory",
       "stores.movements",
@@ -208,9 +272,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     verticalProductId: "crm-sales",
     disabledFeatureKeys: [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A sales desk is not a shop floor; GROW bundles the till, this template
+      // does not switch it on.
+      ...RETAIL_TILL_FEATURE_KEYS,
       "stores.fuel-ledger",
       "schools.core",
-      "retail.core",
       "gold.home",
       "gold.intake.pours",
       "gold.dispatches",
@@ -250,6 +316,8 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     verticalProductId: "payroll-services",
     disabledFeatureKeys: [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A bureau runs other people's payroll; it has no counter of its own.
+      ...RETAIL_TILL_FEATURE_KEYS,
       "stores.dashboard",
       "stores.inventory",
       "stores.movements",

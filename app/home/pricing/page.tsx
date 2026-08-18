@@ -14,7 +14,7 @@ import {
 import { onboardingCovers, pricingPrinciples, seoPages } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 import {
-  ANNUAL_BILLING_MONTHS,
+  ANNUAL_DISCOUNT_RATE,
   LAUNCH_SPRINT_DAYS,
   MARKETING_TIERS,
   MONEY_BACK_DAYS,
@@ -51,7 +51,7 @@ export default function PricingPage() {
         copy={`From ${formatUsd(STARTING_MONTHLY_PRICE)} a month. Every cashier, clerk, technician and rep is included up to your seat ceiling, so putting your whole team on it costs you nothing extra. Setup is scoped and quoted before you commit, because the human work is real and hiding it inside a subscription only makes rollouts fail.`}
       >
         <div className={styles.assuranceGrid}>
-          <span>Pay annually, pay for {ANNUAL_BILLING_MONTHS} months</span>
+          <span>Pay annually, save {Math.round(ANNUAL_DISCOUNT_RATE * 100)}%</span>
           <span>{MONEY_BACK_DAYS}-day money-back guarantee</span>
           <span>Schools from {formatUsd(SCHOOL_STARTING_TERM_PRICE)}/term</span>
         </div>

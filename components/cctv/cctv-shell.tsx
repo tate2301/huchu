@@ -14,7 +14,12 @@ import {
 } from "@/lib/icons";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
+
+// CCTV was dropped from the catalog by ST-1.1, so it no longer has a
+// `WorkspaceModuleId` and cannot be looked up in the workspace module
+// presentation registry. The heading falls back to the literal the registry
+// used to return; the module itself is deleted by ST-2, not here.
+const CCTV_MODULE_TITLE = "CCTV & Surveillance";
 
 export type CCTVTab =
   | "overview"
@@ -61,18 +66,6 @@ export function CCTVShell({
         ?.enabledFeatures,
     [session],
   );
-  const workspaceProfile = (
-    session?.user as { workspaceProfile?: string } | undefined
-  )?.workspaceProfile;
-  const modulePresentation = useMemo(
-    () =>
-      getWorkspaceModulePresentation({
-        moduleId: "cctv",
-        enabledFeatures,
-        workspaceProfile,
-      }),
-    [enabledFeatures, workspaceProfile],
-  );
   const visibleTabs = useMemo(
     () => filterHrefItemsByEnabledFeatures(cctvTabs, enabledFeatures),
     [enabledFeatures],
@@ -82,7 +75,7 @@ export function CCTVShell({
     <div className="w-full">
       <div className="flex items-center gap-2 border-b border-[var(--edge-subtle)] px-4 py-3">
         <Camera />
-        <h1 className="font-semibold text-xl">{modulePresentation.title}</h1>
+        <h1 className="font-semibold text-xl">{CCTV_MODULE_TITLE}</h1>
       </div>
       <SectionTabs
         label="CCTV navigation"

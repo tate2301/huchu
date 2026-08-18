@@ -67,6 +67,22 @@ export interface TierDefinition {
   graceDays: number;
   includedFeatures: string[];
   includedBundles: string[];
+  /**
+   * A vertical edition is sold for what a business *is*, not for how big it is.
+   *
+   * FISCAL → START → GROW → SCALE → ENTERPRISE is a size ladder: each rung adds
+   * sites, seats and add-ons, and moving up never takes anything away. Gold
+   * Edition is not a rung on it. It is priced above SCALE because a mine is
+   * worth more, not because it is bigger — a single mine has a handful of sites
+   * and no use for the retail till suite, so forcing it to be a superset of
+   * SCALE would mean selling a gold operation a point-of-sale system to keep an
+   * arithmetic invariant tidy.
+   *
+   * The ladder invariants (ascending sites, never dropping a bundle) therefore
+   * apply across `LADDER_TIERS`; a vertical edition is only held to including
+   * the wedge — accounting plus fiscalisation — and its own vertical bundles.
+   */
+  isVerticalEdition?: boolean;
 }
 
 /** Seats per add-on user pack. */
@@ -78,15 +94,6 @@ export const USER_PACK_SIZE = 5;
  * `Math.round(monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE))`.
  */
 export const ANNUAL_DISCOUNT_RATE = 0.2;
-
-/**
- * @deprecated Use {@link ANNUAL_DISCOUNT_RATE}. A whole-month multiplier cannot
- * express 20% (10/12 is 16.7%), so this is now derived from the rate and is no
- * longer a whole number — it is kept only so existing callers keep compiling and
- * keep agreeing with the catalog. Copy that says "pay for N months" should move
- * to stating the percentage.
- */
-export const ANNUAL_BILLING_MONTHS = 9.6; // 12 * (1 - ANNUAL_DISCOUNT_RATE)
 
 /** The per-month price when a tier's monthly list price is prepaid annually. */
 function annualMonthly(monthlyPrice: number): number {
@@ -654,6 +661,12 @@ export const TIERS: TierDefinition[] = [
     includedBundles: [
       ...PLATFORM_BASE_BUNDLES,
       "ADDON_RETAIL_SUITE",
+      // Fiscalisation carries up from FISCAL. The whole wedge strategy is
+      // "land on the fiscal SKU, expand into the suite", so a shop that starts
+      // at $19 and upgrades to $39 must not lose the one capability it is
+      // legally compelled to have. Every tier above FISCAL bundles these two.
+      "ADDON_ACCOUNTING_CORE",
+      "ADDON_ZIMRA_FISCAL",
     ],
   },
   {
@@ -720,6 +733,7 @@ export const TIERS: TierDefinition[] = [
     // Composition: the base platform and mine daily capture, both gold bundles,
     // commodity settlements (how a mine pays for grams), the ledger with
     // fiscalisation, and payroll depth including the Zimbabwe statutory work.
+    isVerticalEdition: true,
     code: "GOLD_EDITION",
     name: "Gold Edition",
     description: "Small and medium gold operations: production, settlement, controls, books, and payroll.",
@@ -789,6 +803,29 @@ export const TIERS: TierDefinition[] = [
     ],
   },
 ];
+
+/**
+ * The size ladder, cheapest first: the tiers a business moves up as it grows.
+ *
+ * Vertical editions are excluded — see `TierDefinition.isVerticalEdition`. The
+ * ladder is what the "more sites, never fewer bundles at each step" invariants
+ * are asserted over; an edition is held to a different, weaker promise.
+ */
+export const LADDER_TIERS: TierDefinition[] = TIERS.filter(
+  (tier) => !tier.isVerticalEdition,
+);
+
+/** Vertical editions, sold for what a business is rather than how big it is. */
+export const VERTICAL_EDITION_TIERS: TierDefinition[] = TIERS.filter(
+  (tier) => tier.isVerticalEdition,
+);
+
+/**
+ * Every tier above the wedge carries fiscalisation. Land on FISCAL, expand into
+ * the suite — an upgrade that dropped ZIMRA compliance would be a downgrade in
+ * the only dimension the market is legally compelled to care about.
+ */
+export const WEDGE_BUNDLES = ["ADDON_ACCOUNTING_CORE", "ADDON_ZIMRA_FISCAL"] as const;
 
 /**
  * Every code the platform has ever billed under, mapped onto the tier that now

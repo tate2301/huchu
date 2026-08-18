@@ -133,24 +133,33 @@ describe("vertical role registration", () => {
     expect(crmRoles).toContain("SALES_REP");
   });
 
-  it("keeps Autos sales roles registered through the Autos profile", () => {
-    expect(
-      getAllowedUserRolesForWorkspace({
-        workspaceProfile: "AUTOS",
-        enabledFeatures: [],
-      }),
-    ).toContain("SALES_EXEC");
+  // The Autos profile was dropped with the car-sales module (ST-1.1). A tenant
+  // still carrying the retired profile normalises to GENERAL, so the roles it
+  // gets are GENERAL's — asserted here so the retirement stays deliberate.
+  it("degrades a retired vertical profile to the general role set", () => {
+    const retired = getAllowedUserRolesForWorkspace({
+      workspaceProfile: "AUTOS",
+      enabledFeatures: [],
+    });
+    const general = getAllowedUserRolesForWorkspace({
+      workspaceProfile: "GENERAL",
+      enabledFeatures: [],
+    });
+    expect(retired).toEqual(general);
   });
 
 });
 
 describe("vertical product resolution", () => {
-  it("resolves multi-site operations from the multi-site template features", () => {
+  it("resolves general business from the core starter template features", () => {
+    // Was "multi-site operations", resolved from the security/stock template.
+    // Both were dropped with CCTV (ST-1.1); the core starter is what a general
+    // multi-site tenant now provisions from.
     const bundle = resolveWorkspaceVerticalProductBundle({
       workspaceProfile: "GENERAL",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
     });
-    expect(bundle.id).toBe("multi-site-operations");
+    expect(bundle.id).toBe("general-business");
   });
 
   it("resolves service workshop from the workshop template features", () => {
@@ -201,14 +210,12 @@ describe("crm template", () => {
 
 describe("primary quick actions", () => {
   const nonMiningCases: Array<[string, string | null]> = [
-    ["TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK", "GENERAL"],
     ["TEMPLATE_TECH_WORKSHOP", "GENERAL"],
     ["TEMPLATE_CORE_STARTER", "GENERAL"],
     ["TEMPLATE_SCHOOLS", "SCHOOLS"],
-    ["TEMPLATE_CAR_SALES", "AUTOS"],
     ["TEMPLATE_RETAIL", "RETAIL"],
-    ["TEMPLATE_SCRAP_METAL", "SCRAP_METAL"],
     ["TEMPLATE_CRM", "GENERAL"],
+    ["TEMPLATE_PAYROLL_BUREAU", "PAYROLL"],
   ];
 
   it.each(nonMiningCases)("%s offers no mining quick actions", (code, profile) => {
@@ -220,11 +227,11 @@ describe("primary quick actions", () => {
     expect(actions.filter((action) => isMiningHref(action.href))).toEqual([]);
   });
 
-  it("multi-site offers stores actions", () => {
+  it("a general business offers stores actions", () => {
     const actions = getPrimaryQuickActions({
       workspaceProfile: "GENERAL",
       role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
     });
     expect(actions.map((action) => action.href)).toContain("/stores/receive");
   });
@@ -249,9 +256,9 @@ describe("primary quick actions", () => {
     expect(hrefs).toContain("/gold/intake/pours/new");
   });
 
-  it("legacy multi-site tenants with leaked mining flags still see no mining quick actions", () => {
+  it("legacy general tenants with leaked mining flags still see no mining quick actions", () => {
     const leakedFeatures = [
-      ...templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      ...templateFeatures("TEMPLATE_CORE_STARTER"),
       ...MINE_DAILY_OPS_FEATURE_KEYS,
     ];
     const actions = getPrimaryQuickActions({
@@ -274,10 +281,10 @@ describe("workspace sidebar model", () => {
     expect(hrefs).toContain("/retail/customers");
   });
 
-  it("multi-site sidebar contains no mining hrefs anywhere", () => {
+  it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
       workspaceProfile: "GENERAL",
     });
     const hrefs = [

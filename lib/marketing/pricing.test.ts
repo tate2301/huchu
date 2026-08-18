@@ -1,9 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ANNUAL_BILLING_MONTHS,
+  ANNUAL_DISCOUNT_RATE,
   FEATURE_BUNDLES,
+  LADDER_TIERS,
   TIERS,
+  VERTICAL_EDITION_TIERS,
+  WEDGE_BUNDLES,
   getBundleDefinition,
 } from "@/lib/platform/feature-catalog";
 import {
@@ -24,6 +27,18 @@ import {
 
 const bundleCodes = new Set(FEATURE_BUNDLES.map((bundle) => bundle.code));
 
+/**
+ * Bundles that carry no vertical meaning — the platform floor plus the wedge.
+ * A vertical edition has to bundle something beyond these or it is not an
+ * edition, it is a price.
+ */
+const PLATFORM_SHARED_BUNDLE_CODES = new Set<string>([
+  "ADDON_OPERATIONS_CORE",
+  "ADDON_STORES_CORE",
+  "ADDON_WORKFORCE_CORE",
+  ...WEDGE_BUNDLES,
+]);
+
 describe("tier ladder", () => {
   it("exposes a marketing tier for every billable tier", () => {
     expect(MARKETING_TIERS).toHaveLength(TIERS.length);
@@ -37,16 +52,17 @@ describe("tier ladder", () => {
     expect(new Set(prices).size).toBe(prices.length);
   });
 
-  it("includes more sites at every step up", () => {
-    const sites = MARKETING_TIERS.map((tier) => tier.includedSites);
+  it("includes more sites at every step up the ladder", () => {
+    // Vertical editions are excluded: Gold Edition is priced above SCALE
+    // because a mine is worth more, not because it runs more sites.
+    const sites = LADDER_TIERS.map((tier) => tier.includedSites);
     expect(sites).toEqual([...sites].sort((a, b) => a - b));
   });
 
-  it("discounts annual billing by exactly two months", () => {
+  it("discounts annual billing by exactly 20%", () => {
     for (const tier of TIERS) {
-      const expected = Math.round((tier.monthlyPrice * ANNUAL_BILLING_MONTHS) / 12);
-      // Published annual prices are rounded to whole dollars for readability.
-      expect(Math.abs(tier.annualMonthlyPrice - expected)).toBeLessThanOrEqual(1);
+      const expected = Math.round(tier.monthlyPrice * (1 - ANNUAL_DISCOUNT_RATE));
+      expect(tier.annualMonthlyPrice).toBe(expected);
       expect(tier.annualMonthlyPrice).toBeLessThan(tier.monthlyPrice);
     }
   });
@@ -59,18 +75,50 @@ describe("tier ladder", () => {
     }
   });
 
-  it("never removes a bundled add-on when moving up a tier", () => {
-    for (let index = 1; index < TIERS.length; index += 1) {
-      const lower = new Set(TIERS[index - 1].includedBundles);
-      const higher = new Set(TIERS[index].includedBundles);
+  it("never removes a bundled add-on when moving up the ladder", () => {
+    for (let index = 1; index < LADDER_TIERS.length; index += 1) {
+      const lower = new Set(LADDER_TIERS[index - 1].includedBundles);
+      const higher = new Set(LADDER_TIERS[index].includedBundles);
       for (const code of lower) {
-        expect(higher.has(code), `${TIERS[index].code} drops ${code}`).toBe(true);
+        expect(higher.has(code), `${LADDER_TIERS[index].code} drops ${code}`).toBe(true);
       }
     }
   });
 
-  it("bundles more add-on value at each step up", () => {
-    const values = MARKETING_TIERS.map((tier) => tier.bundledAddOnValue);
+  it("carries the fiscal wedge into every tier above it", () => {
+    // The land-and-expand motion depends on this: a shop that signs up on the
+    // $19 fiscal SKU and upgrades must never lose the compliance capability it
+    // bought. Editions included — a mine needs fiscal invoicing too.
+    const wedgeIndex = TIERS.findIndex((tier) => tier.code === "FISCAL");
+    expect(wedgeIndex).toBeGreaterThanOrEqual(0);
+    for (const tier of TIERS.slice(wedgeIndex)) {
+      for (const code of WEDGE_BUNDLES) {
+        expect(
+          tier.includedBundles.includes(code),
+          `${tier.code} does not carry the fiscal wedge bundle ${code}`,
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("gives every vertical edition its own vertical bundles", () => {
+    expect(VERTICAL_EDITION_TIERS.length).toBeGreaterThan(0);
+    for (const tier of VERTICAL_EDITION_TIERS) {
+      const verticalOnly = tier.includedBundles.filter(
+        (code) => !PLATFORM_SHARED_BUNDLE_CODES.has(code),
+      );
+      expect(
+        verticalOnly.length,
+        `${tier.code} bundles nothing specific to its vertical`,
+      ).toBeGreaterThan(0);
+    }
+  });
+
+  it("bundles more add-on value at each step up the ladder", () => {
+    const ladderCodes = new Set(LADDER_TIERS.map((tier) => tier.code));
+    const values = MARKETING_TIERS.filter((tier) => ladderCodes.has(tier.code)).map(
+      (tier) => tier.bundledAddOnValue,
+    );
     expect(values).toEqual([...values].sort((a, b) => a - b));
   });
 
@@ -99,7 +147,7 @@ describe("add-on catalog", () => {
 describe("quotes", () => {
   it("charges the base price for a single-site entry plan", () => {
     const quote = buildQuote({
-      tierCode: "BASIC",
+      tierCode: TIERS[0].code,
       addOnCodes: [],
       sites: 1,
       users: 1,
@@ -107,6 +155,22 @@ describe("quotes", () => {
     });
 
     expect(quote.monthlyTotal).toBe(TIERS[0].monthlyPrice);
+  });
+
+  it("resolves a legacy plan code to the tier that now serves it", () => {
+    // A tenant row still saying BASIC must quote as START, not fall through to
+    // the entry tier by accident.
+    const legacy = buildQuote({
+      tierCode: "BASIC",
+      addOnCodes: [],
+      sites: 1,
+      users: 1,
+      period: "monthly",
+    });
+    const start = TIERS.find((tier) => tier.code === "START");
+
+    expect(start).toBeDefined();
+    expect(legacy.monthlyTotal).toBe(start?.monthlyPrice);
   });
 
   it("bills extra sites beyond the tier allowance", () => {
@@ -123,12 +187,12 @@ describe("quotes", () => {
   });
 
   it("does not charge for an add-on the tier already bundles", () => {
-    const scale = TIERS.find((tier) => tier.code === "MEDIUM");
+    const scale = TIERS.find((tier) => tier.code === "SCALE");
     const bundled = scale?.includedBundles.find((code) => (getBundleDefinition(code)?.monthlyPrice ?? 0) > 0);
     expect(bundled).toBeDefined();
 
     const quote = buildQuote({
-      tierCode: "MEDIUM",
+      tierCode: "SCALE",
       addOnCodes: [bundled as string],
       sites: 1,
       users: 1,
@@ -140,18 +204,24 @@ describe("quotes", () => {
   });
 
   it("charges an add-on the tier does not bundle", () => {
-    const addOn = getAddOn("ADDON_CCTV_SUITE");
+    const entry = TIERS[0];
+    const unbundled = FEATURE_BUNDLES.find(
+      (bundle) =>
+        bundle.monthlyPrice > 0 && !entry.includedBundles.includes(bundle.code),
+    );
+    expect(unbundled).toBeDefined();
+    const addOn = getAddOn(unbundled!.code);
     expect(addOn).not.toBeNull();
 
     const quote = buildQuote({
-      tierCode: "BASIC",
-      addOnCodes: ["ADDON_CCTV_SUITE"],
+      tierCode: entry.code,
+      addOnCodes: [unbundled!.code],
       sites: 1,
       users: 1,
       period: "monthly",
     });
 
-    expect(quote.monthlyTotal).toBe(TIERS[0].monthlyPrice + (addOn?.monthlyPrice ?? 0));
+    expect(quote.monthlyTotal).toBe(entry.monthlyPrice + (addOn?.monthlyPrice ?? 0));
   });
 
   it("quotes annual billing below monthly billing", () => {

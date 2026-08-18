@@ -22,8 +22,6 @@ import {
   ReceiptLong,
   ReportProblem,
   Users,
-  Video,
-  Wallet,
   Wrench,
 } from "@/lib/icons";
 
@@ -47,22 +45,10 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/gold/transit/dispatches/new", icon: LocalShipping, label: "Record Dispatch" },
     { href: "/gold/settlement/receipts/new", icon: ReceiptLong, label: "Record Receipt" },
   ],
-  "scrap-recycling": [
-    { href: "/scrap-metal/tickets", icon: Payments, label: "New Inbound Ticket" },
-    { href: "/scrap-metal/batches", icon: Package, label: "Open Lot", roles: ["SUPERADMIN", "MANAGER"] },
-    { href: "/scrap-metal/sales", icon: ReceiptLong, label: "New Outbound Ticket", roles: ["SUPERADMIN", "MANAGER"] },
-    { href: "/scrap-metal/tickets/held", icon: Wallet, label: "Held Tickets" },
-    { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
-  ],
   "school-operations": [
     { href: "/schools/admissions", icon: Building2, label: "Admissions" },
     { href: "/schools/attendance", icon: Calendar, label: "Attendance" },
     { href: "/schools/finance", icon: ReceiptLong, label: "Finance" },
-  ],
-  "auto-sales": [
-    { href: "/car-sales/leads", icon: Users, label: "Leads" },
-    { href: "/car-sales/inventory", icon: Package, label: "Inventory" },
-    { href: "/car-sales/deals", icon: Wallet, label: "Deals" },
   ],
   "retail-operations": [
     { href: "/portal/pos", icon: Payments, label: "Open POS", roles: ["CASHIER"] },
@@ -92,13 +78,6 @@ const PRODUCT_PRIMARY_ACTIONS: Record<VerticalProductId, NavItem[]> = {
     { href: "/maintenance/work-orders", icon: Wrench, label: "Work Orders" },
     { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
     { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
-    { href: "/people", icon: Users, label: "Employees" },
-  ],
-  "multi-site-operations": [
-    { href: "/stores/receive", icon: ArrowDownward, label: "Receive Stock" },
-    { href: "/stores/issue", icon: ArrowUpward, label: "Issue Stock" },
-    { href: "/stores/inventory", icon: Package, label: "Stock on Hand" },
-    { href: "/cctv/live", icon: Video, label: "Live Monitor", roles: ["SUPERADMIN", "MANAGER"] },
     { href: "/people", icon: Users, label: "Employees" },
   ],
   // The four things a payroll bureau actually starts from. Nothing about stock,

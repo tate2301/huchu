@@ -18,7 +18,6 @@
  */
 
 import {
-  ANNUAL_BILLING_MONTHS,
   ANNUAL_DISCOUNT_RATE,
   BUNDLE_DEPENDENCIES,
   FEATURE_BUNDLES,
@@ -30,7 +29,7 @@ import {
   type TierDefinition,
 } from "@/lib/platform/feature-catalog";
 
-export { ANNUAL_BILLING_MONTHS, ANNUAL_DISCOUNT_RATE, USER_PACK_SIZE };
+export { ANNUAL_DISCOUNT_RATE, USER_PACK_SIZE };
 
 /** Terms in a Zimbabwean school year — schools budget per term, not per month. */
 export const TERMS_PER_YEAR = 3;
