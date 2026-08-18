@@ -23,6 +23,7 @@
     "platform:accounting-replay": "tsx scripts/platform/accounting-replay.ts",
     "platform:accounting-backfill-events": "tsx scripts/platform/accounting-backfill-events.ts",
     "rollout:audit-usage": "tsx scripts/rollout/audit-feature-usage.ts",
+    "rollout:export-dropped-data": "tsx scripts/rollout/export-dropped-module-data.ts",
     "backfill:gold-valuations": "tsx scripts/backfill-gold-valuations.ts",
     "backfill:school-portal-links": "tsx scripts/backfill-school-portal-user-links.ts",
     "provision:school": "tsx scripts/provision-school.ts",
