@@ -30,6 +30,7 @@
     "backfill:gold-accounting-usd": "tsx scripts/backfill-gold-accounting-usd.ts",
     "templates:seed-defaults": "tsx scripts/seed-document-templates.ts",
     "worker:pdf": "tsx scripts/pdf-worker.ts",
+    "worker:fiscal": "tsx scripts/fiscal-worker.ts",
     "db:generate": "prisma generate",
     "db:prepare:platform": "node scripts/backfill-platform-company-slugs.js",
     "db:push": "prisma db push",
