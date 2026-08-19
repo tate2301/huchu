@@ -97,6 +97,84 @@ The graph is acyclic; keep it that way when adding stories.
 
 ## 90-day critical path
 
+Revised at day 60. The original plan is kept below the revision, because a plan that quietly
+rewrites its own history stops being a contract.
+
+### What days 0–60 actually delivered
+
+Everything that could be built without an external party, and nothing that needed one.
+
+**Shipped and demonstrable:** the whole scope trim (ST-0 through ST-4 — catalog, navigation,
+code, schema, and the freeze register in CONTRIBUTING); the pricing catalog and repricing
+(PR-1/PR-2/PR-3); FD-0 foundations; the FD-6 drainer; and roughly 300 tests, with zero
+regressions against a recorded baseline at every commit.
+
+**Built, tested, and undemonstrated:** the native FDMS protocol end to end — device registration
+and CSR, fiscal day open/close, receipt signing and hash chaining, credit and debit notes, POS
+fiscalisation, and the multi-site fiscal-day console (FD-1, FD-2, FD-3, FD-4, FD-5, FD-7.1). All
+`wip`. The code is written to the v7.2 spec and unit-tested deterministically; none of it has met
+ZIMRA's test environment, because the credentials to reach it do not exist yet.
+
+### The day-30 exit criterion was missed, and this is what it cost
+
+The criterion was a sandbox-validated fiscal invoice with a rendered QR. **It was not met.** Not
+because FD-3 is unbuilt — it is built — but because reaching the sandbox needs a taxpayer
+registered on ZIMRA's test environment and a single-use activation key per device, and neither has
+been requested. That is a procurement lead time nobody has started, not an engineering estimate
+anybody got wrong.
+
+Everything downstream of it inherits the slip: FD-3.3 (the under-30-minutes activation demo),
+FD-8 (pilot cutover), the north-star metric leaving zero, and MK-5's case studies, which need a
+customer who has issued a real fiscal document. **The 90-day outcome as originally written is no
+longer reachable on the original dates.** Saying so here is cheaper than discovering it at day 85.
+
+### Days 60–90 — Prove, then open
+
+Reordered around one fact: the program's binding constraint is now credential lead time, not
+engineering capacity. So the two things that unblock everything else go first, and they are both
+somebody picking up a phone.
+
+**Blocking, week one, not engineering work:**
+
+- **Request the ZIMRA test taxpayer and per-device activation keys** (master-plan risk #6). Until
+  this lands, six FDMS stories cannot leave `wip` no matter how much code is written.
+- **Open a merchant account and decide the payment gateway** (SS-4.1, risk #10). The adapter is
+  written against all three providers, so this is a config change once an account exists — but a
+  rail comparison is not a decision, and `PAYMENT_PROVIDER` is empty.
+- **Choose the WhatsApp provider and submit the template drafts** (risk #9). Approval is measured
+  in days and is a hard dependency for SS-5. It is submitted while SS-5 is being written, not
+  after.
+
+**Moved into this window because they were blocked, not deferred:** FD-1.1/1.2, FD-2.1/2.2,
+FD-3.1/3.2, FD-4.1/4.2, FD-5.1/5.2 and FD-7.1 demonstrating against the sandbox and a real
+two-site tenant; FD-3.3 the timed activation demo; FD-8 pilot cutover; SS-4.2's first sandbox
+payment. These are demonstration and hardening, not builds — the code is on the branch.
+
+**Moved into this window because they were not started:** SS-2.2 sample data, and SS-2.1 gaining
+a caller (`provisionTenant` exists and is tested but nothing invokes it, which is what stands
+between the platform and SS-3).
+
+**Still planned for this window, unchanged:** SS-3 public trial plus SS-6 instrumentation, SS-5
+lifecycle messaging and dunning, MK-4 CTA swap, PC-4 referral thin slice.
+
+**Newly added to this window:** PR-4 must settle whether a bundle charges for a feature nobody can
+navigate to. ST-1.2 parked four accounting surfaces out of the navigation but deliberately left
+their entitlements alone — removing them would have taken out the executive dashboard's cash tiles
+and the general-ledger APIs — so `ADDON_ACCOUNTING_ADVANCED` currently lists five features of
+which three have no entry point.
+
+**Now at risk of slipping past 90:** MK-5's mining-deadline campaign can run on the 1 January 2027
+re-registration deadline regardless, but its **case studies cannot** — those need FD-8, which
+needs the sandbox, which needs the request above. GE-4 inherits the same dependency.
+
+**Explicitly waits (post-90):** PC-1/PC-2/PC-3 (the partner platform proper), GE deep work beyond
+GE-4, the web-push send path, broader SEO/comparison-page buildout beyond the first pages, Campus
+expansion (founder cadence), and anything on the freeze register.
+
+### The original path, as written on day 0
+
+Kept for comparison, superseded by the revision above.
+
 **Days 0–30 — Unblock.**
 ST catalog/template/navigation/marketing removals plus the tenant-usage audit (cheap, and it
 shrinks everything downstream). FD-0 through FD-3 — the day-30 exit criterion is a
@@ -114,10 +192,6 @@ MK-1, MK-2 and MK-3 go live.
 FD-5 POS fiscalisation on the multi-till retail pilots. SS-3 public trial plus SS-6
 instrumentation. SS-5 lifecycle messaging and dunning. MK-4 CTA swap and MK-5 mining-deadline
 campaign. PC-4 referral thin slice.
-
-**Explicitly waits (post-90):** PC-1/PC-2/PC-3 (the partner platform proper), GE deep work beyond
-GE-4, the web-push send path, broader SEO/comparison-page buildout beyond the first pages, Campus
-expansion (founder cadence), and anything on the freeze register.
 
 ## Risk register and open technical decisions
 
@@ -179,4 +253,5 @@ Newest first. One entry per commit that changes this document.
 
 | Date | Commit | Description |
 |---|---|---|
+| 2026-08-19 | — | **Critical path revised at day 60.** The day-30 exit criterion — a sandbox-validated fiscal invoice with a rendered QR — was missed, and the revision says so rather than restating the original dates. It was missed on procurement, not engineering: FD-3 is built and unit-tested against the v7.2 spec, but reaching ZIMRA's sandbox needs a test taxpayer and a single-use activation key per device, and neither has been requested. Six FDMS stories therefore sit `wip` — code complete, undemonstrated — and everything downstream inherits the slip, including FD-3.3, FD-8, the north-star metric leaving zero, and MK-5's case studies, which need a customer who has issued a real fiscal document. **The 90-day outcome as originally written is no longer reachable on the original dates.** Days 60–90 are reordered around the fact that the binding constraint is now credential lead time rather than engineering capacity: three procurement actions (ZIMRA test registration, a payment merchant account, the WhatsApp provider and template submission) are named as week-one blockers ahead of any code, because each has a lead time measured in days that nobody has started. The blocked FDMS stories, FD-8, SS-4.2's first sandbox payment, SS-2.2 and SS-2.1's missing caller move into the window; PR-4 gains the `ADDON_ACCOUNTING_ADVANCED` question that ST-1.2 deliberately did not settle. The original path is kept below the revision — a plan that quietly rewrites its own history stops being a contract. |
 | 2026-08-18 | — | Document created: program contract for the adopted rollout, workstream index, dependencies, critical path, risk register, governance. |
