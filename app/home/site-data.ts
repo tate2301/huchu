@@ -10,6 +10,7 @@ import {
   Dashboard,
   Factory,
   FileText,
+  Gavel,
   History,
   LifeBuoy,
   LocalShipping,
@@ -19,6 +20,7 @@ import {
   PackageCheck,
   Payments,
   ReceiptLong,
+  Scale,
   ShieldCheck,
   Storefront,
   TrendingUp,
@@ -345,6 +347,43 @@ export const seoPages = {
       "ZIMRA fiscalisation software",
     ],
   },
+  tools: {
+    title: "Free ZIMRA compliance tools",
+    description:
+      "Two calculators, no sign-up: what a fiscalisation default is costing you per day, and whether your turnover has put you over the US$25,000 VAT registration threshold.",
+    path: "/home/tools",
+    keywords: [
+      "ZIMRA compliance calculator",
+      "fiscalisation penalty Zimbabwe",
+      "VAT threshold Zimbabwe",
+      "free tax tools Zimbabwe",
+    ],
+  },
+  penaltyCalculator: {
+    title: "Fiscalisation penalty calculator",
+    description:
+      "Work out what operating unfiscalised tills is costing you: US$25 per point of sale per day, capped at 181 days, after which the liability stops being a fine and becomes a criminal offence.",
+    path: "/home/tools/fiscalisation-penalty",
+    keywords: [
+      "fiscalisation penalty calculator",
+      "ZIMRA penalty per day",
+      "SI 104 of 2010 penalty",
+      "fiscal device penalty Zimbabwe",
+      "ZIMRA civil penalty US$25",
+    ],
+  },
+  vatThreshold: {
+    title: "VAT registration threshold checker",
+    description:
+      "Check your turnover against Zimbabwe's US$25,000 compulsory VAT registration threshold, measured over any rolling twelve months, and see what registering would mean.",
+    path: "/home/tools/vat-threshold",
+    keywords: [
+      "VAT registration threshold Zimbabwe",
+      "US$25000 VAT threshold",
+      "do I need to register for VAT Zimbabwe",
+      "ZIMRA VAT registration",
+    ],
+  },
   privacy: {
     title: "Privacy",
     description:
@@ -568,6 +607,102 @@ export const trustSignals = [
   { label: "ZIMRA fiscalisation built in", icon: ShieldCheck },
   { label: "Built and supported in Zimbabwe", icon: Building2 },
 ];
+
+// ---------------------------------------------------------------------------
+// The compliance layer (MK-1.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * What we are permitted to say about fiscalisation, and why.
+ *
+ * `docs/rollout/fdms-roadmap.md` has FD-1.1, FD-2.1, FD-3.1 and FD-4.1 at `wip`
+ * and FD-8 at `todo`: the native FDMS client is written and signs, chains and
+ * counts, but nothing has met ZIMRA's test environment and no pilot has issued
+ * a production fiscal document yet. So the site may say built, and may say in
+ * pilot. "Certified", "approved" and "your invoices validate on the portal" are
+ * defects until FD-8 closes — a buyer who discovers on their own that a
+ * compliance claim outran the code never buys the compliance product.
+ */
+export const FDMS_STATUS_HEADLINE = "Native FDMS integration: built, in pilot, not yet certified.";
+
+export const FDMS_STATUS_COPY =
+  "The device registration, receipt signing, hash chaining, fiscal-day counters and credit-note referencing are written against ZIMRA's FDMS specification and covered by tests. They are running with pilot businesses now. They have not been certified or approved by ZIMRA, and we will tell you exactly where that stands before you pay us anything.";
+
+export const fiscalHero = {
+  eyebrow: "ZIMRA fiscalisation, FDMS-native",
+  title: "The ZIMRA-compliant way to run a Zimbabwean business.",
+  lead:
+    "Fiscal invoicing built directly against ZIMRA's FDMS specification, sitting on top of the POS, stock, books and payroll that produce the numbers on the invoice. Not a fiscal printer bolted onto a till, and not a spreadsheet somebody retypes at month end. One record, fiscalised at the moment of sale.",
+  primaryCtaLabel: "See what fiscalising costs",
+  primaryCtaHref: "/home/pricing",
+  secondaryCtaLabel: "Work out your penalty exposure",
+  secondaryCtaHref: "/home/tools/fiscalisation-penalty",
+  whatsappMessage:
+    "Hi Corelith, I need to fiscalise. Can you tell me what is involved and where your ZIMRA integration stands?",
+} as const;
+
+/**
+ * The fiscal wedge — the four things that separate an FDMS implementation that
+ * survives a Zimbabwean trading day from one that passes a demo. Each names the
+ * mechanism, because a buyer who has already been sold a fiscal device knows
+ * exactly which of these bit them.
+ */
+export const fiscalWedge = [
+  {
+    title: "Multi-till, multi-site",
+    copy:
+      "A device registration per till, and a fiscal day per device. Ten tills across four branches is the normal case here, not the enterprise case.",
+    icon: Storefront,
+  },
+  {
+    title: "Signs offline, submits later",
+    copy:
+      "Receipts are hashed, signed and chained on your side before anything touches the network, so a dropped line delays the submission, not the sale.",
+    icon: WifiOff,
+  },
+  {
+    title: "Credit notes that reference the original",
+    copy:
+      "A refund carries the receipt global number of the sale it reverses, which is what makes the reversal acceptable rather than a second document nobody can tie back.",
+    icon: ReceiptLong,
+  },
+  {
+    title: "Fiscal days that close cleanly",
+    copy:
+      "Open and close a fiscal day per device with the counters reconciled. A day that will not close tells you which receipts are the reason.",
+    icon: History,
+  },
+] satisfies Array<{ title: string; copy: string; icon: LucideIcon }>;
+
+/**
+ * Free tools. They exist to be checked by an accountant and found correct, so
+ * every claim on them is statutory and the arithmetic is under test in
+ * `lib/marketing/penalty.ts`.
+ */
+export const freeTools = [
+  {
+    slug: "fiscalisation-penalty",
+    href: "/home/tools/fiscalisation-penalty",
+    name: "Fiscalisation penalty calculator",
+    summary:
+      "US$25 per point of sale per day in default, capped at 181 days, after which the liability converts to a criminal offence.",
+    icon: Gavel,
+  },
+  {
+    slug: "vat-threshold",
+    href: "/home/tools/vat-threshold",
+    name: "VAT threshold checker",
+    summary:
+      "Whether your taxable supplies over any rolling twelve months have passed the US$25,000 compulsory registration threshold.",
+    icon: Scale,
+  },
+] satisfies Array<{
+  slug: string;
+  href: string;
+  name: string;
+  summary: string;
+  icon: LucideIcon;
+}>;
 
 // ---------------------------------------------------------------------------
 // Segments

@@ -132,6 +132,9 @@ afterAll(async () => {
   // the tenant and pollute later runs.
   await prisma.platformAuditEvent.deleteMany({ where: { companyId: { in: companyIds } } });
   await prisma.company.deleteMany({ where: { id: { in: companyIds } } });
+  // The MEDIUM and SCALE `SubscriptionPlan` rows are left behind on purpose:
+  // the plan catalogue is global, and deleting a row a concurrently running
+  // suite may be pointing at would break it.
   await prisma.featureBundle.deleteMany({ where: { id: { in: legacyBundleIds } } });
   await prisma.$disconnect();
 });

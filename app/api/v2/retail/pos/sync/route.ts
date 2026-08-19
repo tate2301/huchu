@@ -12,6 +12,12 @@
  *
  * Conflict resolution: server-wins for all conflicts.
  * Returns: { results: Array<SyncOperationResult> }
+ *
+ * FD-5: once every operation has been applied, the sales this batch produced
+ * are fiscalised in one ordered pass (see {@link drainFiscalisation}). That
+ * pass is the only place the till reaches ZIMRA, and it is deliberately the
+ * last thing the request does — a fiscal failure must never cost the shop a
+ * sale that has already been rung.
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -31,6 +37,7 @@ import {
   refundRetailSaleTransaction,
   voidRetailSaleTransaction,
 } from "../../_services";
+import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
 
@@ -67,6 +74,18 @@ interface SyncOperationResult {
   error?: string | null;
   accountingStatus?: "POSTED" | "PENDING" | "FAILED" | null;
   accountingError?: string | null;
+  /**
+   * FD-5 — what ZIMRA was told about this sale, filled in by the fiscal drain
+   * after every write in the batch has landed. `SKIPPED` is the ordinary answer
+   * for a shop with no fiscal device; `PENDING` means the receipt is signed,
+   * numbered and durable but FDMS has not answered yet, which is still a
+   * scannable slip because the QR is derived from the signature.
+   */
+  fiscalStatus?: "SKIPPED" | "SUCCESS" | "PENDING" | "FAILED" | null;
+  fiscalReceiptId?: string | null;
+  fiscalNumber?: string | null;
+  fiscalQrCodeData?: string | null;
+  fiscalError?: string | null;
   conflicts?: Array<{ field: string; serverValue: unknown; clientValue: unknown }>;
 }
 
@@ -84,6 +103,25 @@ interface SyncContext {
   // Map of clientOperationId → result
   results: Map<string, SyncOperationResult>;
 }
+
+/**
+ * FD-5 — the sales this batch wrote, in the order the till rang them.
+ *
+ * Collected during the loop and drained after it, never inline, for two
+ * reasons. A sale that this same batch voids must never reach ZIMRA: the void
+ * arrives as a later operation, and fiscalising the sale the moment it is
+ * created would have sent a receipt for something the queue already knows was
+ * cancelled. And a refund needs its original's fiscal receipt, which exists
+ * only once the original has been through the drain — so one ordered pass over
+ * the whole batch settles both without the operations having to know about each
+ * other.
+ */
+type FiscalDrainEntry = { clientOperationId: string; saleId: string };
+
+/** Operations that produce a `RetailSale` row worth fiscalising. A void
+ *  produces one too: the reversal is a credit note whenever the sale it
+ *  reverses already reached ZIMRA. */
+const FISCALISABLE_OPERATIONS = new Set(["create-sale", "refund-sale", "void-sale"]);
 
 function round(value: number) {
   return Number(value.toFixed(2));
@@ -766,6 +804,60 @@ function topologicalSort(
   return result;
 }
 
+// ── Fiscalisation Drain (FD-5) ──────────────────────────────────────────────
+
+/**
+ * Put this batch's sales onto the ZIMRA hash chain, in queue order.
+ *
+ * Runs after every write in the batch has committed, so it never fiscalises a
+ * sale the same batch went on to void, and a refund always finds the original's
+ * receipt. `fiscaliseRetailSales` is sequential by contract — the chain cannot
+ * be signed in parallel — and it decides for itself whether a failure is about
+ * one sale (skip it, keep draining) or about the device (stop, and say so on
+ * the rest).
+ *
+ * Nothing here may fail the sync. The money is already taken, the stock is
+ * already moved and the till is standing in front of a customer: an
+ * unfiscalised sale is a durable row somebody can replay, whereas a 500 here
+ * would make the client re-queue operations that have already been applied.
+ */
+async function drainFiscalisation(
+  ctx: SyncContext,
+  drain: FiscalDrainEntry[],
+  results: SyncOperationResult[],
+) {
+  if (drain.length === 0) return;
+
+  try {
+    const outcomes = await fiscaliseRetailSales({
+      companyId: ctx.companyId,
+      saleIds: drain.map((entry) => entry.saleId),
+    });
+
+    const byClientOperationId = new Map(
+      drain.map((entry, index) => [entry.clientOperationId, outcomes[index]]),
+    );
+    for (const result of results) {
+      const fiscal = byClientOperationId.get(result.clientOperationId);
+      if (!fiscal) continue;
+      result.fiscalStatus = fiscal.fiscalStatus;
+      result.fiscalReceiptId = fiscal.fiscalReceiptId;
+      result.fiscalNumber = fiscal.fiscalNumber;
+      result.fiscalQrCodeData = fiscal.qrCodeData;
+      result.fiscalError = fiscal.fiscalError;
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Fiscalisation failed";
+    console.error("[POS Sync] Fiscalisation drain failed:", error);
+    const queued = new Set(drain.map((entry) => entry.clientOperationId));
+    for (const result of results) {
+      if (!queued.has(result.clientOperationId)) continue;
+      result.fiscalStatus = "FAILED";
+      result.fiscalError = message;
+    }
+  }
+}
+
 // ── Main Handler ────────────────────────────────────────────────────────────
 
 export async function POST(request: NextRequest) {
@@ -795,6 +887,7 @@ export async function POST(request: NextRequest) {
 
     // Process each operation
     const results: SyncOperationResult[] = [];
+    const fiscalDrain: FiscalDrainEntry[] = [];
 
     for (const op of sortedOps) {
       // Check if any dependency failed
@@ -851,7 +944,13 @@ export async function POST(request: NextRequest) {
 
       ctx.results.set(op.clientOperationId, result);
       results.push(result);
+
+      if (FISCALISABLE_OPERATIONS.has(op.operation) && result.status === "synced" && result.serverId) {
+        fiscalDrain.push({ clientOperationId: op.clientOperationId, saleId: result.serverId });
+      }
     }
+
+    await drainFiscalisation(ctx, fiscalDrain, results);
 
     return successResponse({
       results,
@@ -861,6 +960,9 @@ export async function POST(request: NextRequest) {
         conflicts: results.filter((r) => r.status === "conflict").length,
         failed: results.filter((r) => r.status === "failed").length,
         skipped: results.filter((r) => r.status === "skipped").length,
+        fiscalised: results.filter((r) => r.fiscalStatus === "SUCCESS").length,
+        fiscalPending: results.filter((r) => r.fiscalStatus === "PENDING").length,
+        fiscalFailed: results.filter((r) => r.fiscalStatus === "FAILED").length,
       },
       resolvedIds: Object.fromEntries(ctx.resolvedIds),
     });
