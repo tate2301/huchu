@@ -87,7 +87,7 @@ describe("paynow", () => {
     expect(paynowHash(["a", "b", "c"], PAYNOW_CONFIG.integrationKey)).toBe(expected);
   });
 
-  it("accepts a status update whose hash matches", () => {
+  it("accepts a status update whose hash matches", async () => {
     const adapter = createPaynowAdapter(PAYNOW_CONFIG);
     const body = encodePaynowMessage(
       {
@@ -100,9 +100,7 @@ describe("paynow", () => {
       PAYNOW_CONFIG.integrationKey,
     );
 
-    const result = adapter.verifyWebhook(body, {}) as ReturnType<typeof mapPaynowStatus> extends never
-      ? never
-      : Awaited<ReturnType<PaymentProviderAdapter["verifyWebhook"]>>;
+    const result = await adapter.verifyWebhook(body, {});
 
     expect(result.ok).toBe(true);
     expect(result.providerReference).toBe("idem-123");
