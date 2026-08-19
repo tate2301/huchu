@@ -271,7 +271,7 @@ describe("registry", () => {
 
   it("names the missing variable when the chosen provider is unconfigured", () => {
     expect(() =>
-      resolveActivePaymentAdapter({ PAYMENT_PROVIDER: "pesepay" } as NodeJS.ProcessEnv),
+      resolveActivePaymentAdapter({ PAYMENT_PROVIDER: "pesepay" } as unknown as NodeJS.ProcessEnv),
     ).toThrow(/PESEPAY_INTEGRATION_KEY/);
   });
 
