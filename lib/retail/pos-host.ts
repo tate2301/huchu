@@ -8,10 +8,20 @@ export const POS_PUBLIC_PATHS = [
   "/history",
   "/reports",
   "/shift",
-  /** S-7.3 · S-7.4 · S-7.6 — the last four surfaces the POS prototype puts on the till. */
-  "/queue",
+  /**
+   * S-7.3 · S-7.4 · S-7.6 — the last surfaces the POS prototype puts on the till.
+   *
+   * `/offline` was `/queue`, which named a route that does not exist: the page
+   * is `app/portal/pos/offline/page.tsx` and the nav rail links to `/offline`.
+   * A path missing from this list does not 404 on the POS host — it falls
+   * through to checkout, so the cashier presses Offline and lands on the sell
+   * screen with no indication anything went wrong. `/help` was missing outright
+   * and did exactly that.
+   */
+  "/offline",
   "/settings",
   "/activity",
+  "/help",
 ] as const;
 export const POS_OPTIONAL_PUBLIC_PATHS = ["/customers", "/price-check"] as const;
 export const POS_ALL_PUBLIC_PATHS = [...POS_PUBLIC_PATHS, ...POS_OPTIONAL_PUBLIC_PATHS] as const;
@@ -26,9 +36,10 @@ export type PosPortalNavKey =
   | "overview"
   | "customers"
   | "price-check"
-  | "queue"
+  | "offline"
   | "settings"
-  | "activity";
+  | "activity"
+  | "help";
 
 const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; internalHref: string }> = {
   checkout: { publicHref: "/", internalHref: "/portal/pos" },
@@ -36,12 +47,16 @@ const POS_PORTAL_HREFS: Record<PosPortalNavKey, { publicHref: string | null; int
   history: { publicHref: "/history", internalHref: "/portal/pos/history" },
   reports: { publicHref: "/reports", internalHref: "/portal/pos/reports" },
   shift: { publicHref: "/shift", internalHref: "/portal/pos/shift" },
-  overview: { publicHref: null, internalHref: "/portal/pos/overview" },
+  // `/overview` is in `POS_PUBLIC_PATHS` and the rail links to it, so a null
+  // public href here would have sent anyone using `getPosPortalHref` to the
+  // internal path on the POS host. Nothing does today; it was a trap regardless.
+  overview: { publicHref: "/overview", internalHref: "/portal/pos/overview" },
   customers: { publicHref: "/customers", internalHref: "/portal/pos/customers" },
   "price-check": { publicHref: "/price-check", internalHref: "/portal/pos/price-check" },
-  queue: { publicHref: "/queue", internalHref: "/portal/pos/queue" },
+  offline: { publicHref: "/offline", internalHref: "/portal/pos/offline" },
   settings: { publicHref: "/settings", internalHref: "/portal/pos/settings" },
   activity: { publicHref: "/activity", internalHref: "/portal/pos/activity" },
+  help: { publicHref: "/help", internalHref: "/portal/pos/help" },
 };
 
 const POS_PORTAL_ALLOWED_ROLES = new Set(["CASHIER", "POS_CASHIER"]);

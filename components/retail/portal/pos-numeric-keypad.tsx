@@ -15,6 +15,19 @@ type PosNumericKeypadProps = {
    * grid exactly.
    */
   decimal?: boolean;
+  /**
+   * Off for the checkout pad, where CLR lives beside the amount readout instead.
+   *
+   * The three-column grid holds 12 slots over four rows. The PIN pad fills them
+   * exactly — nine digits, `0`, backspace, clear — but the checkout pad also
+   * carries the decimal point, and a thirteenth key wrapped CLR onto a fifth
+   * row of its own. That cost a whole 56px row on a 768px-tall tablet to render
+   * one lonely button, and the 56px came out of the basket above it.
+   *
+   * Moving it out is also safer than shrinking it: a destructive key sitting
+   * under the digits is one a thumb reaching for `0` can catch mid-sale.
+   */
+  clear?: boolean;
 };
 
 const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
@@ -33,8 +46,18 @@ const KEYS: Array<{ label: string; action: PosKeypadAction }> = [
 
 /* ── Physical-press base class ───────────────────────────────────────── */
 
+/*
+ * Key height follows the *viewport height*, not its width.
+ *
+ * It used to grow at `sm:` — a width breakpoint — which is the wrong axis: a
+ * 1024×768 tablet is wide enough to trigger it and short enough that the taller
+ * keys pushed the Charge button off the bottom. Whether the pad fits is a
+ * question about vertical room, so that is what is measured.
+ *
+ * 48px is the floor, comfortably over the 44px touch-target minimum.
+ */
 const base =
-  "flex items-center justify-center leading-none rounded-xl border font-semibold select-none h-12 sm:h-14 3xl:h-[4.5rem] transition-all duration-75 active:translate-y-[2px]";
+  "flex items-center justify-center leading-none rounded-xl border font-semibold select-none h-12 [@media(min-height:820px)]:h-14 3xl:h-[4.5rem] transition-all duration-75 active:translate-y-[2px]";
 
 function numKeyStyle() {
   return {
@@ -84,6 +107,7 @@ export function PosNumericKeypad({
   presets = [],
   className,
   decimal = true,
+  clear = true,
 }: PosNumericKeypadProps) {
   const hasPresets = presets.length > 0;
   const cols = hasPresets ? "grid-cols-4" : "grid-cols-3";
@@ -138,9 +162,11 @@ export function PosNumericKeypad({
       <button type="button" className={base} style={backspaceKeyStyle()} onClick={() => onAction({ type: "backspace" })}>
         <Delete className="h-5 w-5" />
       </button>
-      <button type="button" className={base} style={clearKeyStyle()} onClick={() => onAction({ type: "clear" })}>
-        CLR
-      </button>
+      {clear ? (
+        <button type="button" className={base} style={clearKeyStyle()} onClick={() => onAction({ type: "clear" })}>
+          CLR
+        </button>
+      ) : null}
     </div>
   );
 }

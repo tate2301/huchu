@@ -45,6 +45,7 @@ import { randomUUID } from "node:crypto"
 import { Prisma, type RetailTenderType } from "@prisma/client"
 import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
+import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -222,6 +223,23 @@ async function main() {
     where: { companyId_code: { companyId, code: "TILL-1" } },
     update: { name: "Front till", siteId: site.id, isActive: true },
     create: { companyId, code: "TILL-1", name: "Front till", siteId: site.id },
+  })
+
+  /**
+   * Point the shop at the branch and till this script just made.
+   *
+   * The seed created both and then never said which one is the default, so
+   * `getRetailSetupProfile` returned nulls and the till's own settings screen
+   * read back "Branch: Not set · Register: Not set" on a shop with exactly one
+   * of each. Every surface that falls back to the default site — the till when
+   * no shift is open, price check, the settings screen — was working off
+   * nothing.
+   */
+  await saveRetailSetupProfile(companyId, {
+    defaultSiteId: site.id,
+    defaultRegisterId: register.id,
+    defaultRegisterName: register.name,
+    defaultRegisterCode: register.code,
   })
 
   type Stocked = { inventoryItemId: string; catalogItemId: string; unit: string }

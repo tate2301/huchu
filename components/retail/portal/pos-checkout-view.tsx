@@ -531,6 +531,27 @@ export function PosCheckoutView() {
     return "Line discount";
   })();
 
+  /**
+   * What is currently in the field the keys are pointed at.
+   *
+   * The keypad is pinned to the bottom of the rail while the field it edits
+   * scrolls with the basket, so the two can be a screen apart. This is read
+   * from the same places `applyToTarget` writes to, and echoed beside the
+   * target label. `null` means there is nothing to type into yet.
+   */
+  const activeTargetValue = (() => {
+    const numericTarget = getDefaultNumericTarget(activeTarget, cart.length);
+    if (!numericTarget) return null;
+    if (numericTarget.type === "order_discount") return orderDiscountAmount;
+    if (numericTarget.type === "redeem_points") return loyaltyRedemptionPoints;
+    if (numericTarget.type === "tender_amount") return payments[numericTarget.index]?.amount ?? "";
+    const line = selectedLine?.catalogItemId === numericTarget.lineId ? selectedLine : null;
+    if (!line) return null;
+    if (numericTarget.type === "line_qty") return String(line.quantity);
+    if (numericTarget.type === "line_price") return String(line.unitPrice);
+    return String(line.lineDiscountAmount ?? 0);
+  })();
+
   /* ── Mutations ───────────────────────────────── */
 
   const createCustomerMutation = useMutation({
@@ -727,8 +748,19 @@ export function PosCheckoutView() {
         </div>
       </div>
 
-      {/* ── Three-column layout (desktop) ─────────────── */}
-      <div className="hidden min-h-0 flex-1 overflow-hidden md:grid xl:grid-cols-[minmax(0,1.42fr)_minmax(360px,0.9fr)]">
+      {/*
+        ── Catalog + payment, side by side from tablet up ───────────────
+
+        The columns used to be declared only at `xl`, which left every width
+        between 768 and 1279 as a single-column grid: catalog first, payment
+        rail — keypad included — stacked underneath and off the bottom of the
+        screen. The till's actual device is a 1024×768 tablet, so that band was
+        not an edge case, it was the shop floor. Two columns from `md`.
+
+        320px is the narrowest the rail renders honestly: a four-across tender
+        grid and a three-across keypad with 44px keys.
+      */}
+      <div className="hidden min-h-0 flex-1 overflow-hidden md:grid md:grid-cols-[minmax(0,1fr)_minmax(320px,0.95fr)] xl:grid-cols-[minmax(0,1.42fr)_minmax(360px,0.9fr)]">
 
         {/* ┄ Column 1 — Catalog ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
         <div className="flex min-h-0 flex-col overflow-hidden border-r border-[var(--edge-subtle)] bg-[var(--surface-base)]">
@@ -836,6 +868,11 @@ export function PosCheckoutView() {
                     <button
                       key={item.id}
                       type="button"
+                      // Hooks for `e2e/retail-workflows.spec.ts`, which rings a
+                      // real sale through this grid. Named by product because
+                      // "the third card" changes with the catalogue.
+                      data-testid="pos-product"
+                      data-product-name={item.name}
                       onClick={() => handleAddCatalogItem(item)}
                       disabled={!currentShift}
                       className={cn(
@@ -1112,11 +1149,16 @@ export function PosCheckoutView() {
         </div>
 
         {/* ┄ Column 3 — Payment ┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄┄ */}
-        <div className="flex min-h-0 flex-col overflow-hidden bg-[var(--surface-base)] xl:col-start-2">
+        <div className="flex min-h-0 flex-col overflow-hidden border-l border-[var(--edge-subtle)] bg-[var(--surface-base)] md:col-start-2">
 
-          {/* Amount due header */}
+          {/*
+            Amount due header. Padding and type shrink on a short viewport for
+            the same reason the keys do — on a 768px-tall tablet this header,
+            the pinned keypad and the Charge button all have to fit at once,
+            and the header is the part that can give without costing a tap.
+          */}
           <div className={cn(
-            "shrink-0 border-b border-[var(--edge-subtle)] px-4 pt-5 pb-4 text-center",
+            "shrink-0 border-b border-[var(--edge-subtle)] px-4 pt-3 pb-3 text-center [@media(min-height:820px)]:pt-5 [@media(min-height:820px)]:pb-4",
             cart.length > 0
               ? "bg-gradient-to-b from-[color-mix(in_srgb,var(--action-primary-bg)_7%,var(--surface-base))] via-[color-mix(in_srgb,var(--action-primary-bg)_3%,var(--surface-base))] to-[var(--surface-base)]"
               : "bg-[var(--surface-base)]",
@@ -1126,7 +1168,11 @@ export function PosCheckoutView() {
             </div>
             <div className={cn(
               "mt-1 font-mono font-black leading-none tracking-tight transition-all duration-150",
-              total >= 10000 ? "text-[2.6rem]" : total >= 1000 ? "text-[3rem]" : "text-[3.5rem]",
+              total >= 10000
+                ? "text-[2.2rem] [@media(min-height:820px)]:text-[2.6rem]"
+                : total >= 1000
+                  ? "text-[2.5rem] [@media(min-height:820px)]:text-[3rem]"
+                  : "text-[2.9rem] [@media(min-height:820px)]:text-[3.5rem]",
               cart.length > 0 ? "text-[var(--text-strong)]" : "text-[var(--text-muted)]",
             )}>
               {money(total)}
@@ -1237,7 +1283,12 @@ export function PosCheckoutView() {
                   </div>
                   <div className="text-[11px] text-[var(--text-muted)]">{money(subtotal)}</div>
                 </div>
-                <div className="max-h-[15rem] overflow-y-auto">
+                {/*
+                  No inner scroller. The rail's own scroll region is short once
+                  the keypad is pinned, and a 15rem box inside it made two
+                  nested scrollers a thumb had to guess between.
+                */}
+                <div>
                   {cart.length === 0 ? (
                     <div className="flex flex-col items-center justify-center gap-2 px-4 py-8 text-center">
                       <Payments className="h-7 w-7 text-[var(--text-muted)]" />
@@ -1252,6 +1303,7 @@ export function PosCheckoutView() {
                         return (
                           <div
                             key={`compact-${item.catalogItemId}`}
+                            data-testid="pos-cart-line"
                             className={cn(
                               "grid grid-cols-[minmax(0,1fr)_auto_auto] items-center gap-2 px-3 py-2.5",
                               isSelected ? "bg-[color-mix(in_srgb,var(--action-primary-bg)_5%,white)]" : "bg-transparent",
@@ -1437,34 +1489,73 @@ export function PosCheckoutView() {
               ) : null}
             </div>
 
-            {/* Keypad area */}
-            <div className="px-3 pb-3">
-              {/* Active target label */}
-              <div className="mb-2 flex items-center justify-center">
-                <span className="inline-flex items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--action-primary-bg)]">
-                  {activeTargetLabel}
-                </span>
-              </div>
+          </div>
 
-              {/* Quick-cash presets */}
-              {keypadPresets.length > 0 &&
-              getDefaultNumericTarget(activeTarget, cart.length)?.type === "tender_amount" ? (
-                <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
-                  {keypadPresets.map((p) => (
-                    <button
-                      key={p.value}
-                      type="button"
-                      onClick={() => handleKeypadAction({ type: "preset", value: p.value })}
-                      className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 hover:border-emerald-300"
-                    >
-                      {p.label}
-                    </button>
-                  ))}
-                </div>
-              ) : null}
+          {/*
+            ── The keypad is pinned ─────────────────────────────────────
 
-              <PosNumericKeypad onAction={handleKeypadAction} />
+            It used to sit at the bottom of the scrolling payment section, so
+            how far a cashier had to scroll to reach it depended on how many
+            lines were in the basket. On the eighth beer of a round it was off
+            the screen entirely.
+
+            A till's number pad is not content. It is the input surface, and it
+            has to be in the same place on every sale — the cashier's thumb
+            should find it without their eyes leaving the customer. So the
+            basket scrolls and everything below it stays put: keypad, then
+            Charge, both `shrink-0`.
+          */}
+          <div
+            data-testid="pos-keypad-pinned"
+            className="shrink-0 border-t border-[var(--edge-subtle)] bg-[var(--surface-base)] px-3 pb-2 pt-2"
+          >
+            {/* What the keys are pointed at, what is in it, and how to empty it. */}
+            <div className="mb-2 flex items-center gap-2">
+              <span className="inline-flex shrink-0 items-center rounded-full bg-[color-mix(in_srgb,var(--action-primary-bg)_10%,var(--surface-base))] px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-[var(--action-primary-bg)]">
+                {activeTargetLabel}
+              </span>
+              {/*
+                The field being typed into can now be scrolled out of sight
+                above, so the pinned area has to echo its value. Without this
+                the cashier is typing into somewhere they cannot see.
+              */}
+              <span className="min-w-0 flex-1 truncate font-mono text-sm font-black tabular-nums text-[var(--text-strong)]">
+                {activeTargetValue === null ? "" : activeTargetValue || "0"}
+              </span>
+              {/*
+                CLR out of the key grid — see `clear` on `PosNumericKeypad`. It
+                kept a whole row to itself, and a destructive key under the
+                digits is one a thumb catches on the way to `0`.
+              */}
+              <button
+                type="button"
+                onClick={() => handleKeypadAction({ type: "clear" })}
+                disabled={activeTargetValue === null}
+                className="shrink-0 rounded-full border border-[var(--border-default)] px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-[var(--text-muted)] transition-colors hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40"
+              >
+                Clear
+              </button>
             </div>
+
+            {/* Quick-cash presets */}
+            {keypadPresets.length > 0 &&
+            getDefaultNumericTarget(activeTarget, cart.length)?.type === "tender_amount" ? (
+              <div className="mb-2 flex flex-wrap items-center justify-center gap-1.5">
+                {keypadPresets.map((p) => (
+                  <button
+                    key={p.value}
+                    type="button"
+                    data-testid="pos-cash-preset"
+                    onClick={() => handleKeypadAction({ type: "preset", value: p.value })}
+                    className="rounded-full border border-emerald-200 bg-emerald-50 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 transition-colors hover:bg-emerald-100 hover:border-emerald-300"
+                  >
+                    {p.label}
+                  </button>
+                ))}
+              </div>
+            ) : null}
+
+            <PosNumericKeypad onAction={handleKeypadAction} clear={false} />
           </div>
 
           {/* Validation + Charge button — fixed at bottom */}
@@ -1472,6 +1563,7 @@ export function PosCheckoutView() {
 
             <button
               type="button"
+              data-testid="pos-charge"
               onClick={handleCharge}
               disabled={!canCharge}
               className={cn(
@@ -1996,7 +2088,7 @@ export function PosCheckoutView() {
 
       {/* ── Sale completed ──────────────────────────────── */}
       <Dialog open={Boolean(lastCompletedSale)} onOpenChange={(open) => !open && dismissCompletedSale()}>
-        <DialogContent className="sm:max-w-[22rem] p-0 overflow-hidden">
+        <DialogContent data-testid="pos-sale-complete" className="sm:max-w-[22rem] p-0 overflow-hidden">
           {/* Change amount — the MOST important thing a cashier needs */}
           {(lastCompletedSale?.changeAmount ?? 0) > 0 ? (
             <div className="bg-gradient-to-br from-emerald-600 via-emerald-500 to-emerald-600 px-6 pt-8 pb-7 text-center text-white">

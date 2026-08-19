@@ -34,8 +34,20 @@ export function applyPosKeypadAction(
   }
   if (action.type === "digit") {
     if (!/^\d$/.test(action.value)) return current;
-    const next = `${current}${action.value}`;
-    return sanitizeNumericValue(next, maxDecimals);
+    /*
+      A leading zero is replaced, not built on.
+
+      Fields that start life at "0" — the opening float is the one a cashier
+      meets every morning — turned $200 into "0200" because the digit was
+      appended to the zero. It parses to the right number, which is why it
+      survived; it just reads like a fault on the one screen where somebody is
+      carefully counting cash into a drawer.
+
+      Only a bare "0". "0." is a number being typed and must keep its zero, or
+      0.50 becomes .50 halfway through.
+    */
+    const base = current === "0" ? "" : current;
+    return sanitizeNumericValue(`${base}${action.value}`, maxDecimals);
   }
   return current;
 }

@@ -5,6 +5,14 @@ import { usePathname } from "next/navigation";
 import { signOut, useSession } from "next-auth/react";
 import type { ReactNode } from "react";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
@@ -14,13 +22,20 @@ import {
   BarChart3,
   Clock,
   CloudOff,
+  FileText,
   History,
+  Home,
+  Keyboard,
   LogOut,
   Package,
   Payments,
+  Search,
+  Settings2,
+  Users,
   type LucideIcon,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
+import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { usePosPortalState } from "./pos-portal-state";
 
 type PosPortalLink = {
@@ -28,6 +43,16 @@ type PosPortalLink = {
   icon: LucideIcon;
   publicHref: string;
   internalHref: string;
+  /**
+   * Shown in the phone bottom bar as well as the tablet rail.
+   *
+   * The two are not the same list on purpose. The rail is vertical and takes
+   * every screen; the bottom bar divides one width between its tabs, so at nine
+   * tabs on a 390px phone each one is 43px — under the 44px minimum touch
+   * target, on a surface where the user is holding a customer's change. The
+   * tablet is the till's actual device and gets everything.
+   */
+  onPhone?: boolean;
 };
 
 type PosPortalLayoutFrameProps = {
@@ -36,16 +61,74 @@ type PosPortalLayoutFrameProps = {
   workspaceInitial: string;
 };
 
+/**
+ * In the order a cashier reaches for them, not alphabetically.
+ *
+ * Overview, Price check and Customers had routes, components and data and were
+ * in no rail at all — built and unreachable. Price check was the costly one: a
+ * customer asks what something costs and the person behind the counter had no
+ * button for it.
+ */
 const POS_PORTAL_LINKS: PosPortalLink[] = [
-  { label: "Checkout", icon: Payments, publicHref: "/", internalHref: "/portal/pos" },
-  { label: "Held", icon: Package, publicHref: "/held", internalHref: "/portal/pos/held" },
-  { label: "History", icon: History, publicHref: "/history", internalHref: "/portal/pos/history" },
+  { label: "Checkout", icon: Payments, publicHref: "/", internalHref: "/portal/pos", onPhone: true },
+  // Mid-sale, and the reason this list was wrong.
+  {
+    label: "Price",
+    icon: Search,
+    publicHref: "/price-check",
+    internalHref: "/portal/pos/price-check",
+    onPhone: true,
+  },
+  { label: "Held", icon: Package, publicHref: "/held", internalHref: "/portal/pos/held", onPhone: true },
+  {
+    label: "Customers",
+    icon: Users,
+    publicHref: "/customers",
+    internalHref: "/portal/pos/customers",
+  },
+  {
+    label: "History",
+    icon: History,
+    publicHref: "/history",
+    internalHref: "/portal/pos/history",
+    onPhone: true,
+  },
+  { label: "Shift", icon: Clock, publicHref: "/shift", internalHref: "/portal/pos/shift", onPhone: true },
   { label: "Reports", icon: BarChart3, publicHref: "/reports", internalHref: "/portal/pos/reports" },
-  { label: "Shift", icon: Clock, publicHref: "/shift", internalHref: "/portal/pos/shift" },
+  { label: "Today", icon: Home, publicHref: "/overview", internalHref: "/portal/pos/overview" },
   // S-7.3. The till sells with the line down and the cashier could not see what
-  // was waiting to go up. Last in the rail because it is the one you check, not
-  // the one you work in.
-  { label: "Offline", icon: CloudOff, publicHref: "/offline", internalHref: "/portal/pos/offline" },
+  // was waiting to go up. Last because it is the one you check, not the one you
+  // work in — but on the phone too, because a queue you cannot see is the whole
+  // problem it exists to solve.
+  {
+    label: "Offline",
+    icon: CloudOff,
+    publicHref: "/offline",
+    internalHref: "/portal/pos/offline",
+    onPhone: true,
+  },
+];
+
+/**
+ * The reference screens, behind the operator badge rather than in the rail.
+ *
+ * S-7.6 added Activity, Settings and Help — the three the contract names and
+ * the till never had — and the rail cannot hold them. It is a fixed 768px
+ * column on the till's tablet: the workspace block, twelve 44px targets, their
+ * gaps and the footer come to roughly 850px, so the last three entries sat
+ * below the fold and had to be scrolled to. Shrinking the targets was not an
+ * option; 44px is the floor for a finger.
+ *
+ * Grouping them here is the honest fit rather than a compromise. These are the
+ * screens you *consult* — what has this till done, how is it set up, how does
+ * this work — and they belong with who you are and how to sign out, which is
+ * exactly what the operator badge already stands for. The nine you work in stay
+ * one tap away in the rail, and nothing scrolls.
+ */
+const POS_PORTAL_MENU_LINKS: PosPortalLink[] = [
+  { label: "Activity", icon: FileText, publicHref: "/activity", internalHref: "/portal/pos/activity" },
+  { label: "Till settings", icon: Settings2, publicHref: "/settings", internalHref: "/portal/pos/settings" },
+  { label: "Help & shortcuts", icon: Keyboard, publicHref: "/help", internalHref: "/portal/pos/help" },
 ];
 
 const ROUTE_CONFIG: Record<string, { title: string; description?: string; fillHeight?: boolean }> = {
@@ -63,6 +146,27 @@ const ROUTE_CONFIG: Record<string, { title: string; description?: string; fillHe
   "/portal/pos/offline": {
     title: "Offline queue",
     description: "Waiting to reach the server",
+  },
+  "/price-check": { title: "Price check", description: "Scan or search for an item" },
+  "/portal/pos/price-check": {
+    title: "Price check",
+    description: "Scan or search for an item",
+  },
+  "/customers": { title: "Customers" },
+  "/portal/pos/customers": { title: "Customers" },
+  "/overview": { title: "Today", description: "Your shift so far" },
+  "/portal/pos/overview": { title: "Today", description: "Your shift so far" },
+  "/activity": { title: "Activity", description: "What this till has done" },
+  "/portal/pos/activity": { title: "Activity", description: "What this till has done" },
+  "/settings": { title: "Till settings", description: "How this terminal is set up" },
+  "/portal/pos/settings": {
+    title: "Till settings",
+    description: "How this terminal is set up",
+  },
+  "/help": { title: "Help", description: "Keys, everyday jobs, and what to do when it goes wrong" },
+  "/portal/pos/help": {
+    title: "Help",
+    description: "Keys, everyday jobs, and what to do when it goes wrong",
   },
 };
 
@@ -148,6 +252,14 @@ export function PosPortalLayoutFrame({
   const renderedLinks = isPosHost
     ? POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.publicHref }))
     : POS_PORTAL_LINKS.map((item) => ({ ...item, href: item.internalHref }));
+  // The rail takes everything; the phone bar takes the ones you touch mid-sale.
+  // See `onPhone` on `PosPortalLink` for why the two lists differ.
+  const phoneLinks = renderedLinks.filter((item) => item.onPhone);
+  // Same host-dependent href swap, for the operator menu.
+  const renderedMenuLinks = POS_PORTAL_MENU_LINKS.map((item) => ({
+    ...item,
+    href: isPosHost ? item.publicHref : item.internalHref,
+  }));
 
   return (
     <div
@@ -182,31 +294,63 @@ export function PosPortalLayoutFrame({
                 >
                   {workspaceInitial}
                 </div>
-                <TooltipProvider delayDuration={120}>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <div
-                        className="flex h-9 w-9 cursor-default items-center justify-center rounded-full border"
-                        style={{
-                          borderColor: "var(--pos-rail-border)",
-                          background: "var(--pos-amount-surface)",
-                          color: "var(--pos-amount-text)",
-                        }}
-                      >
-                        <span className="text-[13px] font-black leading-none">{operatorInitial}</span>
-                      </div>
-                    </TooltipTrigger>
-                    <TooltipContent side="right">
-                      {session?.user?.name || "Operator"} · {workspaceName}
-                    </TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                {/*
+                  The operator badge was a `cursor-default` div with a tooltip.
+                  It is now the door to the reference screens and to signing out
+                  — see `POS_PORTAL_MENU_LINKS` for why they are not in the rail.
+                  44px, because it is a real target on a touch screen now.
+                */}
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      type="button"
+                      aria-label={`${session?.user?.name || "Operator"} — till menu`}
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border transition-colors"
+                      style={{
+                        borderColor: "var(--pos-rail-border)",
+                        background: "var(--pos-amount-surface)",
+                        color: "var(--pos-amount-text)",
+                      }}
+                    >
+                      <span className="text-[13px] font-black leading-none">{operatorInitial}</span>
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent side="right" align="start" className="min-w-[15rem]">
+                    <DropdownMenuLabel className="flex flex-col gap-0.5">
+                      <span className="truncate text-sm font-semibold text-[var(--text-strong)]">
+                        {session?.user?.name || "Operator"}
+                      </span>
+                      <span className="truncate text-xs font-normal text-[var(--text-muted)]">
+                        {workspaceName}
+                      </span>
+                    </DropdownMenuLabel>
+                    <DropdownMenuSeparator />
+                    {renderedMenuLinks.map((item) => (
+                      <DropdownMenuItem key={item.href} asChild>
+                        <Link href={item.href} className="flex items-center gap-2">
+                          <item.icon className="h-4 w-4 shrink-0" />
+                          {item.label}
+                        </Link>
+                      </DropdownMenuItem>
+                    ))}
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem onSelect={handleSignOut}>
+                      <LogOut className="h-4 w-4 shrink-0" />
+                      Log out
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
 
             {/* Nav links */}
             <TooltipProvider delayDuration={120}>
-              <nav className="flex flex-1 flex-col gap-1.5 overflow-y-auto px-2.5 pb-3 pt-3">
+              {/*
+                Nine 44px targets, and the gap closes up on a short screen so
+                they all fit a 768px tablet without scrolling. The targets stay
+                44px — the gap gives, the target never does.
+              */}
+              <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-2.5 pb-3 pt-3 [@media(min-height:820px)]:gap-1.5">
                 {renderedLinks.map((item) => {
                   const isActive = pathname === item.href;
                   return (
@@ -244,31 +388,21 @@ export function PosPortalLayoutFrame({
                 })}
               </nav>
 
-              {/* Logout */}
+              {/*
+                Device sync. Log out moved up into the operator menu, where it
+                sits with the rest of "you and this terminal" — and where it is
+                one deliberate extra tap away from a thumb resting at the bottom
+                of the rail mid-sale.
+
+                The till does not use the app navbar, so the offline control
+                that now lives there needs a home here too. Tinted for the dark
+                rail; `cn` lets these classes win the conflict.
+              */}
               <div
-                className="shrink-0 px-2.5 py-3"
+                className="flex shrink-0 items-center justify-center px-2.5 py-3"
                 style={{ borderTop: "1px solid var(--pos-rail-border)" }}
               >
-                <Tooltip>
-                  <TooltipTrigger asChild>
-                    <button
-                      type="button"
-                      aria-label="Log out"
-                      onClick={handleSignOut}
-                      className="inline-flex min-h-11 w-full items-center justify-center rounded-xl transition-all duration-100"
-                      style={{ color: "var(--pos-rail-text-idle)" }}
-                      onMouseEnter={(e) =>
-                        (e.currentTarget.style.color = "var(--pos-rail-text-active)")
-                      }
-                      onMouseLeave={(e) =>
-                        (e.currentTarget.style.color = "var(--pos-rail-text-idle)")
-                      }
-                    >
-                      <LogOut className="h-[1.05rem] w-[1.05rem] shrink-0 opacity-80" />
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="right">Log out</TooltipContent>
-                </Tooltip>
+                <OfflineStatusButton className="size-11 w-full text-[var(--pos-rail-text-idle)] [--offline-dot-ring:var(--pos-rail-bg)] hover:bg-[var(--pos-rail-active-bg)] hover:text-[var(--pos-rail-text-active)]" />
               </div>
             </TooltipProvider>
           </div>
@@ -306,6 +440,8 @@ export function PosPortalLayoutFrame({
                 </div>
               </div>
             </div>
+            {/* Below `lg` the rail is gone, so the phone header carries it. */}
+            <OfflineStatusButton className="shrink-0 text-[var(--pos-amount-label)] [--offline-dot-ring:var(--pos-amount-bg)] hover:bg-[var(--pos-rail-active-bg)] hover:text-[var(--pos-amount-text)]" />
           </header>
 
           {config.fillHeight ? (
@@ -340,7 +476,7 @@ export function PosPortalLayoutFrame({
         </div>
 
         {/* Mobile bottom tab bar */}
-        <BottomTabBar links={renderedLinks} pathname={pathname} onSignOut={handleSignOut} />
+        <BottomTabBar links={phoneLinks} pathname={pathname} onSignOut={handleSignOut} />
       </div>
     </div>
   );
