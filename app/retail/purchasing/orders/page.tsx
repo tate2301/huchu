@@ -185,7 +185,15 @@ export default function PurchaseOrdersPage() {
 
   const columns = useMemo<ColumnDef<PurchaseOrder>[]>(() => [
     { id: "poNo", header: "PO", cell: ({ row }) => (
-      <div><div className="font-mono font-semibold">{row.original.poNo}</div><div className="text-xs text-[var(--text-muted)]">{row.original.supplierName}</div></div>
+      <div>
+        <Link
+          href={`/retail/purchasing/orders/${row.original.id}`}
+          className="font-mono font-semibold underline-offset-2 hover:underline"
+        >
+          {row.original.poNo}
+        </Link>
+        <div className="text-xs text-[var(--text-muted)]">{row.original.supplierName}</div>
+      </div>
     )},
     { id: "site", header: "Site", cell: ({ row }) => row.original.site?.name ?? "—" },
     { id: "status", header: "Status", cell: ({ row }) => row.original.status },

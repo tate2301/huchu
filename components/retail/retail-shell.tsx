@@ -6,12 +6,18 @@ import { usePathname } from "next/navigation";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
-import { retailRailFor } from "@/lib/retail/areas";
+import { retailRailFor, type RetailAreaId } from "@/lib/retail/areas";
 
 type RetailShellProps = {
   title: string;
   description?: string;
   actions?: ReactNode;
+  /**
+   * The area this page belongs to, for a route the rail cannot resolve on its
+   * own — `/retail/sales/{id}` and the other three detail pages. A list screen
+   * never needs it: its own path is the answer.
+   */
+  area?: RetailAreaId;
   children: ReactNode;
 };
 
@@ -50,9 +56,9 @@ type RetailShellProps = {
  * `<div>` holding six buttons. `lib/retail/areas.test.ts` counts them in the
  * source instead, where a fragment and a wrapper look the same.
  */
-export function RetailShell({ title, description, actions, children }: RetailShellProps) {
+export function RetailShell({ title, description, actions, area, children }: RetailShellProps) {
   const pathname = usePathname();
-  const rail = retailRailFor(pathname ?? "");
+  const rail = retailRailFor(pathname ?? "", area);
 
   return (
     <div className="w-full space-y-4">

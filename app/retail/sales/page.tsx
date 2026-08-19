@@ -13,6 +13,7 @@ import {
 } from "@/components/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailSaleDetailBody } from "@/components/retail/sale-detail";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -197,14 +198,22 @@ export default function RetailSalesPage() {
         id: "saleNo",
         header: "Transaction",
         cell: ({ row }) => (
-          <button
-            type="button"
-            className="text-left"
-            onClick={() => setSelectedSaleId(row.original.id)}
-          >
-            <div className="font-mono font-semibold text-[var(--text-strong)]">{row.original.saleNo}</div>
-            <div className="text-xs text-[var(--text-muted)]">{typeLabel(row.original.saleType)}</div>
-          </button>
+          <div className="text-left">
+            {/* The receipt number links; the type below it opens the dialog. */}
+            <Link
+              href={`/retail/sales/${row.original.id}`}
+              className="font-mono font-semibold text-[var(--text-strong)] underline-offset-2 hover:underline"
+            >
+              {row.original.saleNo}
+            </Link>
+            <button
+              type="button"
+              className="block text-xs text-[var(--text-muted)] underline-offset-2 hover:underline"
+              onClick={() => setSelectedSaleId(row.original.id)}
+            >
+              {typeLabel(row.original.saleType)}
+            </button>
+          </div>
         ),
       },
       {
@@ -454,86 +463,22 @@ export default function RetailSalesPage() {
               {getApiErrorMessage(detailQuery.error)}
             </Alert>
           ) : (
-            <div className="space-y-4">
-              <div className="grid gap-3 md:grid-cols-4">
-                <StatCard label="Type" value={typeLabel(detailQuery.data.data.saleType)} />
-                <StatCard label="Total" value={money(detailQuery.data.data.totalAmount)} />
-                <StatCard label="Promotion" value={detailQuery.data.data.promotionCode ?? "None"} />
-                <StatCard label="Source" value={detailQuery.data.data.sourceSale?.saleNo ?? "None"} />
-              </div>
+            /*
+              R-4.3. The same body `/retail/sales/{id}` renders.
 
-              {detailQuery.data.data.overrideReason ||
-              detailQuery.data.data.voidReason ||
-              detailQuery.data.data.notes ? (
-                <Alert tone="warn" title="Recorded against this transaction">
-                  {detailQuery.data.data.overrideReason ? (
-                    <div>Override: {detailQuery.data.data.overrideReason}</div>
-                  ) : null}
-                  {detailQuery.data.data.voidReason ? (
-                    <div>Void: {detailQuery.data.data.voidReason}</div>
-                  ) : null}
-                  {detailQuery.data.data.notes ? <div>Notes: {detailQuery.data.data.notes}</div> : null}
-                </Alert>
-              ) : null}
+              It was 90 lines of markup here and would have been 90 more on the
+              page. A receipt shown two ways that could disagree about what was
+              sold is worse than a receipt shown one way, so it moved to
+              `components/retail/sale-detail.tsx` and both call it.
 
-              <section aria-labelledby="sale-lines">
-                <h3 id="sale-lines" className="t-section t-strong">
-                  Lines
-                </h3>
-                <ul className="list-plain mt-2">
-                  {detailQuery.data.data.lines.map((line) => (
-                    <li key={line.id} className="list-item">
-                      <span className="lead" aria-hidden="true" />
-                      <div>
-                        <div className="title bold">{line.itemName}</div>
-                        <div className="sub">
-                          {line.quantity.toFixed(2)} × {money(line.unitPrice)}
-                        </div>
-                      </div>
-                      <NumericCell>{money(line.lineTotal)}</NumericCell>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              <section aria-labelledby="sale-payments">
-                <h3 id="sale-payments" className="t-section t-strong">
-                  Payments
-                </h3>
-                <ul className="list-plain mt-2">
-                  {detailQuery.data.data.payments.map((payment) => (
-                    <li key={payment.id} className="list-item">
-                      <span className="lead" aria-hidden="true" />
-                      <div>
-                        <div className="title bold">{typeLabel(payment.tenderType)}</div>
-                        <div className="sub">{payment.reference ?? "No reference"}</div>
-                      </div>
-                      <NumericCell>{money(payment.amount)}</NumericCell>
-                    </li>
-                  ))}
-                </ul>
-              </section>
-
-              {detailQuery.data.data.reversals.length > 0 ? (
-                <section aria-labelledby="sale-reversals">
-                  <h3 id="sale-reversals" className="t-section t-strong">
-                    Reversals
-                  </h3>
-                  <ul className="list-plain mt-2">
-                    {detailQuery.data.data.reversals.map((reversal) => (
-                      <li key={reversal.id} className="list-item">
-                        <span className="lead" aria-hidden="true" />
-                        <div>
-                          <div className="title bold">{reversal.saleNo}</div>
-                          <div className="sub">{typeLabel(reversal.saleType)}</div>
-                        </div>
-                        <NumericCell>{money(reversal.totalAmount)}</NumericCell>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              ) : null}
-            </div>
+              `onOpenSale` swaps which sale the dialog shows rather than
+              navigating, because the person using it is scanning a list and
+              should not lose their place to follow a reversal.
+            */
+            <RetailSaleDetailBody
+              sale={detailQuery.data.data}
+              onOpenSale={setSelectedSaleId}
+            />
           )}
         </DialogContent>
       </Dialog>

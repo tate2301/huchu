@@ -31,6 +31,44 @@ async function getOrder(companyId: string, id: string) {
   });
 }
 
+/**
+ * One purchase order, at its own address.
+ *
+ * R-4.3. `PATCH` and `DELETE` lived here and `GET` did not, so the only way to
+ * see an order was to find its row in a list and open the edit dialog — which
+ * is a form, not a record, and shows nothing about what has since been received
+ * against it.
+ *
+ * The site comes back with it because the order names a `siteId` and nothing
+ * else on the wire says which branch that is; the detail page would otherwise
+ * render a uuid or a second request.
+ */
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const { response, session } = await requireRetailSession(request);
+  if (response || !session) {
+    return response as NextResponse;
+  }
+
+  const gate = requireRetailPermission(session, "retail.purchasing", "view");
+  if (gate) return gate;
+
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+
+  const order = await prisma.retailPurchaseOrder.findFirst({
+    where: { id: path.data.id, companyId: session.user.companyId },
+    include: { lines: true, site: { select: { id: true, name: true, code: true } } },
+  });
+  if (!order) {
+    return errorResponse("Purchase order not found", 404);
+  }
+
+  return successResponse({ data: order });
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

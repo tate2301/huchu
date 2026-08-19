@@ -118,8 +118,8 @@ export const RETAIL_AREAS: readonly RetailArea[] = [
  *
  * Returns null for a path that is not a retail screen — a detail route such as
  * `/retail/sales/{id}` included. A detail page belongs to its list's area, and
- * that is resolved by the caller passing the list's href explicitly rather than
- * by guessing from a uuid in the middle of a URL.
+ * it says which by passing `area` to `RetailShell`, rather than being guessed
+ * at from a uuid in the middle of a URL.
  */
 export function resolveRetailArea(
   pathname: string,
@@ -146,8 +146,31 @@ export function resolveRetailArea(
  */
 export function retailRailFor(
   pathname: string,
+  /**
+   * The area a detail route belongs to.
+   *
+   * `/retail/sales/{id}` resolves to nothing on its own, and should still show
+   * the rail its list shows — a manager who opened a receipt from an audit link
+   * is otherwise one screen deep with no sideways move. Named by the page
+   * rather than parsed out of the path, because the segment before the uuid is
+   * not reliably the list (`/retail/merchandising/promotions` is two levels)
+   * and a wrong guess is a rail pointing at the wrong part of the shop.
+   */
+  area?: RetailAreaId,
 ): { area: RetailArea; activeHref: string } | null {
   const resolved = resolveRetailArea(pathname);
-  if (!resolved || resolved.area.screens.length < 2) return null;
-  return { area: resolved.area, activeHref: resolved.screen.href };
+  if (resolved) {
+    if (resolved.area.screens.length < 2) return null;
+    return { area: resolved.area, activeHref: resolved.screen.href };
+  }
+
+  if (!area) return null;
+  const named = RETAIL_AREAS.find((entry) => entry.id === area);
+  if (!named || named.screens.length < 2) return null;
+  /*
+    No tab is active. The detail page is not one of the screens on the rail, and
+    marking its list active would say the reader is looking at the list when
+    they are looking at one row of it.
+  */
+  return { area: named, activeHref: "" };
 }

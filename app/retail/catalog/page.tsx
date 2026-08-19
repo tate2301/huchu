@@ -250,7 +250,12 @@ export default function RetailCatalogPage() {
         header: "Item",
         cell: ({ row }) => (
           <div>
-            <div className="font-medium">{row.original.name}</div>
+            <Link
+              href={`/retail/catalog/${row.original.id}`}
+              className="font-medium underline-offset-2 hover:underline"
+            >
+              {row.original.name}
+            </Link>
             <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.sku}</div>
           </div>
         ),

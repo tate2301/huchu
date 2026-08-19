@@ -306,7 +306,12 @@ export default function RetailShiftsPage() {
         header: "Shift",
         cell: ({ row }) => (
           <div>
-            <div className="font-mono font-semibold">{row.original.shiftNo}</div>
+            <Link
+              href={`/retail/shifts/${row.original.id}`}
+              className="font-mono font-semibold underline-offset-2 hover:underline"
+            >
+              {row.original.shiftNo}
+            </Link>
             <div className="text-xs text-[var(--text-muted)]">{row.original.site?.name ?? "No site"}</div>
           </div>
         ),

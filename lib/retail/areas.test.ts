@@ -149,6 +149,66 @@ describe("which paths get a rail", () => {
 });
 
 /**
+ * A detail route resolves to no screen, and should still show its list's rail.
+ *
+ * `/retail/catalog/{uuid}` is not one of the screens on the Range rail, so
+ * `resolveRetailArea` returns null for it and the page would sit one level deep
+ * with no sideways move — which is exactly where a manager lands after
+ * following a link out of an audit row.
+ *
+ * The page names its area rather than the resolver parsing it out of the path.
+ * The segment before the uuid is not reliably the list —
+ * `/retail/merchandising/promotions/{id}` is two levels down — and a wrong
+ * guess is a rail pointing at the wrong part of the shop.
+ */
+describe("detail routes", () => {
+  it("resolve to no screen on their own", () => {
+    for (const path of [
+      "/retail/catalog/8f9c",
+      "/retail/sales/8f9c",
+      "/retail/shifts/8f9c",
+      "/retail/purchasing/orders/8f9c",
+    ]) {
+      expect(resolveRetailArea(path), path).toBeNull();
+      expect(retailRailFor(path), path).toBeNull();
+    }
+  });
+
+  it("show their list's rail when they name the area", () => {
+    const range = retailRailFor("/retail/catalog/8f9c", "range");
+    expect(range?.area.id).toBe("range");
+    expect(range?.area.screens.map((screen) => screen.href)).toContain("/retail/catalog");
+
+    const purchasing = retailRailFor("/retail/purchasing/orders/8f9c", "purchasing");
+    expect(purchasing?.area.id).toBe("purchasing");
+  });
+
+  /**
+   * No tab is active. The detail page is not one of the screens on the rail,
+   * and marking its list active would tell the reader they are looking at the
+   * list when they are looking at one row of it.
+   */
+  it("mark no tab active", () => {
+    expect(retailRailFor("/retail/catalog/8f9c", "range")?.activeHref).toBe("");
+  });
+
+  /** A single-screen area still gets nothing — one tab is not navigation. */
+  it("get no rail from a single-screen area", () => {
+    expect(retailRailFor("/retail/sales/8f9c", "sales")).toBeNull();
+    expect(retailRailFor("/retail/shifts/8f9c", "shifts")).toBeNull();
+  });
+
+  /**
+   * A named area never overrides a path that resolves on its own. Otherwise a
+   * copy-pasted `area` prop on a list page would quietly stop highlighting the
+   * tab the reader is on.
+   */
+  it("do not let a named area override a real screen", () => {
+    expect(retailRailFor("/retail/setup/pos-policy", "range")?.area.id).toBe("setup");
+  });
+});
+
+/**
  * `04-composition.md` step 2: **max 3 actions, exactly 1 primary.**
  *
  * `RetailShell` takes actions as a `ReactNode` and cannot count them —
