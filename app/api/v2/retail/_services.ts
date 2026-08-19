@@ -33,6 +33,14 @@ import {
   tradingDayAsDate,
   tradingDayWindow,
 } from "@/lib/retail/z-report";
+import { createApprovalAction } from "@/lib/workflow/approvals";
+import {
+  auditCashMoved,
+  auditSalePosted,
+  auditSaleReversed,
+  auditShiftClosed,
+  auditShiftOpened,
+} from "@/lib/retail/audit";
 import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
   ensureRetailRegisterAccess,
@@ -273,7 +281,13 @@ export async function openRetailShiftTransaction(input: {
       }));
 
     try {
-      const shift = await prisma.retailShift.create({
+      /*
+        R-3.3. The create and its audit row go in one transaction. `create`
+        alone was a bare write; wrapping it changes nothing about the shift and
+        means a drawer cannot be opened without the chain recording it.
+      */
+      const shift = await prisma.$transaction(async (tx) => {
+        const created = await tx.retailShift.create({
         data: {
           companyId: input.actor.companyId,
           shiftNo,
@@ -288,6 +302,19 @@ export async function openRetailShiftTransaction(input: {
           expectedCash: input.openingFloat ?? 0,
           ...(input.openedAt ? { openedAt: input.openedAt } : {}),
         },
+        });
+
+        await auditShiftOpened(tx, {
+          actor: input.actor,
+          shiftId: created.id,
+          shiftNo: created.shiftNo,
+          siteId: created.siteId,
+          registerCode: created.registerCode,
+          cashierId: created.cashierId,
+          openingFloat: created.openingFloat,
+        });
+
+        return created;
       });
 
       const openingFloat = money(shift.openingFloat);
@@ -369,15 +396,64 @@ export async function closeRetailShiftTransaction(input: {
   // asked to explain, and the float subtraction it replaces could put a cent on it
   // that nobody counted.
   const variance = money(input.countedCash).minus(money(existing.expectedCash));
-  const updated = await prisma.retailShift.update({
-    where: { id: existing.id },
-    data: {
-      status: "CLOSED",
-      countedCash: input.countedCash,
+  const updated = await prisma.$transaction(async (tx) => {
+    const closed = await tx.retailShift.update({
+      where: { id: existing.id },
+      data: {
+        status: "CLOSED",
+        countedCash: input.countedCash,
+        variance,
+        notes: input.notes?.trim() || existing.notes,
+        closedAt: input.closedAt ?? new Date(),
+      },
+    });
+
+    /*
+      R-3.3. The cash-up is the retail equivalent of a payroll run being
+      approved: a figure somebody counted, checked against a figure the system
+      derived, and signed off. `closedByOwner` on the event is the fact worth
+      keeping — a manager closing a cashier's drawer is routine, and is also
+      the shape of a drawer closed before its cashier could count it.
+    */
+    await auditShiftClosed(tx, {
+      actor: input.actor,
+      shiftId: closed.id,
+      shiftNo: closed.shiftNo,
+      cashierId: closed.cashierId,
+      expectedCash: existing.expectedCash,
+      countedCash: closed.countedCash ?? 0,
       variance,
-      notes: input.notes?.trim() || existing.notes,
-      closedAt: input.closedAt ?? new Date(),
-    },
+      notes: input.notes,
+    });
+
+    /*
+      And the same sign-off in the approvals table, where every other module's
+      goes.
+
+      Two records of one act, deliberately, because they answer different
+      questions. The chained event above answers "can I trust this is what the
+      system said on Friday". This answers "what has this person signed off",
+      across payroll, disbursements and now the till, in one query — which is
+      the question an owner asks about a manager, and it should not need three.
+
+      No notification comes of it: `emitWorkflowNotificationFromApprovalAction`
+      returns null for an entity type it has no copy for, which is right here.
+      A cash-up is not waiting on anybody; it is already done.
+    */
+    await createApprovalAction(tx, {
+      companyId: input.actor.companyId,
+      entityType: "RETAIL_SHIFT",
+      entityId: closed.id,
+      action: "APPROVE",
+      actedById: input.actor.userId,
+      fromStatus: "OPEN",
+      toStatus: "CLOSED",
+      note: `Counted ${money(input.countedCash).toFixed(2)} against ${money(
+        existing.expectedCash,
+      ).toFixed(2)} expected; variance ${variance.toFixed(2)}`,
+    });
+
+    return closed;
   });
 
   const accounting =
@@ -529,6 +605,20 @@ export async function recordRetailCashMovementTransaction(input: {
     const refreshed = await tx.retailShift.findFirstOrThrow({
       where: { id: shift.id, companyId: input.actor.companyId },
       select: { id: true, shiftNo: true, openingFloat: true, expectedCash: true },
+    });
+
+    // R-3.3. Cash leaving a drawer for the safe is the plainest case for a chain
+    // nobody can edit: the row itself is the only evidence the money moved.
+    await auditCashMoved(tx, {
+      actor: input.actor,
+      movementId: movement.id,
+      shiftId: shift.id,
+      type: movement.type,
+      reasonCode: movement.reasonCode,
+      amount: movement.amount,
+      currency: movement.currency,
+      baseAmount: movement.baseAmount,
+      note: movement.reason,
     });
 
     return { movement, shift: refreshed };
@@ -801,6 +891,19 @@ export async function createRetailSaleTransaction(input: {
             throw new Error("Shift is no longer open.");
           }
         }
+
+        await auditSalePosted(tx, {
+          actor: input.actor,
+          saleId: created.id,
+          saleNo: created.saleNo,
+          shiftId: created.shiftId,
+          siteId: created.siteId,
+          totalAmount: created.totalAmount,
+          currency: created.currency,
+          baseAmount: created.baseAmount,
+          lineCount: input.lines.length,
+          overrideReason: created.overrideReason,
+        });
 
         return created;
       });
@@ -1147,6 +1250,30 @@ export async function refundRetailSaleTransaction(input: {
       }
     }
 
+    /*
+      R-3.3, and the single most important audit row in the module.
+
+      A reversal is how a till is stolen from — ring the sale, take the cash,
+      refund it — and the question afterwards is always who allowed it.
+      `RUN_A_TILL` withholds `refund`, so a cashier reaches this only with a
+      manager's password verified at the counter, and `approvedBy` is that
+      manager. It already goes into `overrideReason` as free text on the sale
+      row; that row is mutable, and free text is not evidence.
+    */
+    await auditSaleReversed(tx, {
+      actor: input.actor,
+      kind: "refund",
+      saleId: created.id,
+      saleNo: created.saleNo,
+      sourceSaleId: currentSourceSale.id,
+      sourceSaleNo: currentSourceSale.saleNo,
+      shiftId: created.shiftId,
+      totalAmount: created.totalAmount,
+      currency: created.currency,
+      reason: input.reason,
+      approvedBy: input.approvedBy ?? null,
+    });
+
     return created;
   });
 
@@ -1376,6 +1503,21 @@ export async function voidRetailSaleTransaction(input: {
         status: "VOIDED",
         voidReason: input.reason.trim(),
       },
+    });
+
+    // R-3.3. Same reasoning as the refund above; a void is the other half of it.
+    await auditSaleReversed(tx, {
+      actor: input.actor,
+      kind: "void",
+      saleId: created.id,
+      saleNo: created.saleNo,
+      sourceSaleId: currentSourceSale.id,
+      sourceSaleNo: currentSourceSale.saleNo,
+      shiftId: created.shiftId,
+      totalAmount: created.totalAmount,
+      currency: created.currency,
+      reason: input.reason,
+      approvedBy: input.approvedBy ?? null,
     });
 
     return created;

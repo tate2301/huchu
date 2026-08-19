@@ -5,8 +5,10 @@
  * *Audit log* on the till: filter chips, a row per event, an actor and a signed
  * amount. `lib/retail/till-activity.ts` builds the timeline and its header
  * carries the honest caveat — this is a **derived view of domain rows**, not a
- * tamper-evident audit trail. Retail writes no `PlatformAuditEvent`, and the
- * screen says so rather than implying a guarantee it cannot make.
+ * tamper-evident audit trail. R-3.3 has since built the real trail in
+ * `lib/retail/audit.ts`; this screen still reads the domain rows, because a
+ * cashier's own week and an auditor's append-only chain are different documents
+ * and merging them would serve neither.
  *
  * ── Scope: this cashier, this week ─────────────────────────────────────────
  *

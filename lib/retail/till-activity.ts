@@ -5,33 +5,34 @@
  * (`renderAudit`): a filter chip per kind, a row per event with a timestamp, a
  * type badge, a summary, who did it, and a signed amount.
  *
- * ── This is a derived view, and it is not an audit log ─────────────────────
+ * ── This is a derived view, and it is still not the audit log ──────────────
  *
- * The plan's §1.6 said "zero audit events" and that is still true: nothing under
- * `app/api/v2/retail/**` or `lib/retail/**` calls `writePlatformAuditEvent`. The
- * hash-chained `PlatformAuditEvent` writer exists and payroll, disbursements and
- * schools use it; retail does not, and inventing a parallel trail for one screen
- * would be worse than not having one.
+ * R-3.3 has since built the real one. `lib/retail/audit.ts` writes a chained
+ * `PlatformAuditEvent` inside the same transaction as every sale, reversal,
+ * shift boundary, cash movement and goods receipt. So the caveat below is
+ * narrower than it was — but it has not gone away, and this screen is not that
+ * trail.
  *
- * So this reads the domain rows themselves — `RetailSale`, `RetailCashMovement`,
+ * This reads the domain rows themselves — `RetailSale`, `RetailCashMovement`,
  * `RetailShift` — each of which already carries an actor and a timestamp, and
- * arranges them into one timeline. The difference matters and the screen says so
- * out loud:
+ * arranges them into one timeline. It stays that way on purpose: the till screen
+ * wants a cashier's own week in the vocabulary of a shop, and the chain is
+ * append-only evidence in the vocabulary of an auditor. Rendering the chain here
+ * would give a cashier a worse version of the same information.
+ *
+ * Three differences, and the screen says them out loud:
  *
  *  - **It only sees what leaves a row.** A sale, a refund, a void, a cash
  *    movement and a shift boundary each write a durable record, so they appear. A
  *    failed PIN attempt, a cart discarded before tender, a manager override that
  *    was refused, a price *looked at* — none of those write anything, so none of
- *    them can appear here however much a shop would want them to.
- *  - **It is not tamper-evident.** `PlatformAuditEvent` chains each row's hash to
- *    the one before it, so a deletion is detectable. A `RetailSale` deleted
- *    straight out of the database leaves this timeline shorter and no wiser.
+ *    them can appear here however much a shop would want them to. That is still
+ *    true after R-3.3: the chain records the same acts, not more of them.
+ *  - **It is not tamper-evident.** A `RetailSale` deleted straight out of the
+ *    database leaves this timeline shorter and no wiser. The chain is where that
+ *    deletion shows, because every event after it stops verifying.
  *  - **It is reconstructed, not recorded.** If the shape of a sale changes, this
- *    view changes retroactively. A real audit event is frozen at write time.
- *
- * Making it an audit log is a separate, larger ticket: `writeRetailAuditEvent`
- * alongside `lib/schools/audit.ts`, called inside the same transaction as each
- * write in `_services.ts`, plus the non-row events above gaining a call site.
+ *    view changes retroactively. The audit event is frozen at write time.
  *
  * ── Two sign traps, both pinned by the tests ───────────────────────────────
  *

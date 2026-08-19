@@ -6,6 +6,7 @@ import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { auditGoodsReceived } from "@/lib/retail/audit";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
@@ -248,6 +249,29 @@ export async function POST(request: NextRequest) {
               data: { status: allReceived ? "RECEIVED" : "PARTIAL" },
             });
           }
+
+          /*
+            R-3.3. Receiving is where stock and cost enter the shop, and where
+            the cost side of every margin figure is set — the receipt overwrites
+            `InventoryItem.unitCost` wholesale. A clerk who books in a delivery
+            at the wrong price moves the margin on everything sold afterwards,
+            and this is the row that says who booked it and at what value.
+          */
+          await auditGoodsReceived(tx, {
+            actor: {
+              companyId: session.user.companyId,
+              userId: session.user.id,
+              userName: session.user.name ?? null,
+              userRole: session.user.role ?? null,
+            },
+            receiptId: created.id,
+            receiptNo: created.receiptNo,
+            purchaseOrderId: created.purchaseOrderId,
+            siteId: created.siteId,
+            supplier: created.supplierName,
+            totalValue: sumMoney(created.lines.map((line) => line.lineTotal)),
+            lineCount: created.lines.length,
+          });
 
           return created;
         });

@@ -2623,6 +2623,16 @@ enum ApprovalTargetType {
   SETTLEMENT_BATCH
   LEAVE_REQUEST
 
+  /// R-3.3. A retail cash-up. Cash control is the retail payroll run — a figure
+  /// somebody counted, checked against one the system derived, and signed off,
+  /// often by a manager standing over a drawer that is not theirs. It belongs in
+  /// the same table as every other sign-off so "what did this person approve"
+  /// has one answer rather than one per module.
+  ///
+  /// Added by `scripts/retail-shift-approval-target.ts`; `prisma db push` cannot
+  /// reach this database.
+  RETAIL_SHIFT
+
   /// Retired, and deliberately still here. `IrregularPayoutBatch` was replaced by
   /// the settlement tables in P-1, and nothing has written this value since — but
   /// approvals recorded before that are real, and any database holding one refuses

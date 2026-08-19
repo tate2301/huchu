@@ -2,9 +2,8 @@
  * The till's activity timeline, worked by hand.
  *
  * S-7.6. This is a derived view over `RetailSale`, `RetailCashMovement` and
- * `RetailShift` — retail writes no `PlatformAuditEvent` and this file does not
- * pretend otherwise. What it does assert is that the derivation cannot lie about
- * money or about who did what.
+ * `RetailShift`, not the chained trail R-3.3 added beside it. What it asserts is
+ * that the derivation cannot lie about money or about who did what.
  *
  * Two traps have their own describes, because both are ways the prototype's
  * `logAudit` would be wrong if it were ported literally:
