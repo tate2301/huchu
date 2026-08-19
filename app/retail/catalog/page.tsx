@@ -8,7 +8,6 @@ import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { FieldHelp } from "@/components/shared/field-help";
 import { CatalogImageField } from "@/components/retail/catalog-image-field";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -146,7 +145,6 @@ export default function RetailCatalogPage() {
       })),
     [inventoryItems],
   );
-  const selectedInventory = inventoryItems.find((item) => item.id === form.inventoryItemId);
   const priceIsInvalid = form.unitPrice !== "" && (isNaN(Number(form.unitPrice)) || Number(form.unitPrice) <= 0);
   const saveMutation = useMutation({
     mutationFn: async (payload: CatalogForm) => {

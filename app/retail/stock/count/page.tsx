@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Card } from "@corelithzw/react";
+import { Alert, Card, EmptyState, Skeleton } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -207,19 +207,39 @@ export default function RetailStockCountPage() {
         </div>
       </Card>
 
-      <DataTable
-        data={itemsQuery.data?.data ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search inventory items"
-        emptyState={
-          itemsQuery.isPending
-            ? "Fetching stock lines…"
-            : "No stock lines at this branch — add one under Stores & Inventory first."
-        }
-        toolbar={<span className="t-body-sm t-muted">Lines you can count</span>}
-      />
+      {itemsQuery.isPending ? (
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching stock lines…</span>
+          <Skeleton height={360} />
+        </div>
+      ) : itemsQuery.isError ? (
+        /*
+          R-4.4. An error is not an empty list.
+
+          This table used to fold loading into `emptyState` and have no error
+          branch at all. `data ?? []` on a failed query is an empty array, so a
+          500 rendered as "No orders" — a statement about the shop's business,
+          made because the server fell over. The three states are separate now,
+          and only the third says anything about the data.
+        */
+        <Alert tone="danger" title="The stock lines would not load">
+          {getApiErrorMessage(itemsQuery.error)}
+        </Alert>
+      ) : (itemsQuery.data?.data ?? []).length === 0 ? (
+        <EmptyState
+          title="Nothing to count at this branch"
+          body="A count checks what is on the shelf against what the system thinks. Add a stock line under Stores & Inventory first, or pick another branch."
+        />
+      ) : (
+        <DataTable
+          data={itemsQuery.data?.data ?? []}
+          columns={columns}
+          features={{ sorting: true, globalFilter: true, pagination: true }}
+          pagination={{ enabled: true, server: false }}
+          searchPlaceholder="Search inventory items"
+          toolbar={<span className="t-body-sm t-muted">Lines you can count</span>}
+        />
+      )}
     </RetailShell>
   );
 }

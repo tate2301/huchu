@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -253,14 +254,38 @@ export default function PurchaseOrdersPage() {
         </ReportChartShell>
       </div>
 
-      <DataTable
-        data={orders}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search orders"
-        emptyState={ordersQuery.isLoading ? "Loading..." : "No orders"}
-      />
+      {ordersQuery.isPending ? (
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching purchase orders…</span>
+          <Skeleton height={360} />
+        </div>
+      ) : ordersQuery.isError ? (
+        /*
+          R-4.4. An error is not an empty list.
+
+          This table used to fold loading into `emptyState` and have no error
+          branch at all. `data ?? []` on a failed query is an empty array, so a
+          500 rendered as "No orders" — a statement about the shop's business,
+          made because the server fell over. The three states are separate now,
+          and only the third says anything about the data.
+        */
+        <Alert tone="danger" title="Purchase orders would not load">
+          {getApiErrorMessage(ordersQuery.error)}
+        </Alert>
+      ) : orders.length === 0 ? (
+        <EmptyState
+          title="No purchase orders yet"
+          body="A purchase order is what a delivery is received against, so the shop knows what it ordered and at what price. Raise the first one before the next drop-off."
+        />
+      ) : (
+        <DataTable
+          data={orders}
+          columns={columns}
+          features={{ sorting: true, globalFilter: true, pagination: true }}
+          pagination={{ enabled: true, server: false }}
+          searchPlaceholder="Search orders"
+        />
+      )}
 
       {/* Edit/Create Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>

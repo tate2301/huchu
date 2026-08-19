@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
+import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
@@ -311,21 +312,45 @@ export default function RetailReceiptsPage() {
         </div>
       }
     >
-      <DataTable
-        data={receiptsQuery.data?.data ?? []}
-        columns={columns}
-        features={{ sorting: true, globalFilter: true, pagination: true }}
-        pagination={{ enabled: true, server: false }}
-        searchPlaceholder="Search receipts"
-        emptyState={receiptsQuery.isLoading ? "Loading receipts..." : "No receipts yet"}
-        toolbar={
-          <span className="text-xs text-[var(--text-muted)]">
-            {unknownOrderRequested
-              ? "That purchase order could not be found. Capture the receipt manually."
-              : "Posted retail receipts"}
-          </span>
-        }
-      />
+      {receiptsQuery.isPending ? (
+        <div aria-busy="true" aria-live="polite" className="space-y-4">
+          <span className="sr-only">Fetching goods receipts…</span>
+          <Skeleton height={360} />
+        </div>
+      ) : receiptsQuery.isError ? (
+        /*
+          R-4.4. An error is not an empty list.
+
+          This table used to fold loading into `emptyState` and have no error
+          branch at all. `data ?? []` on a failed query is an empty array, so a
+          500 rendered as "No orders" — a statement about the shop's business,
+          made because the server fell over. The three states are separate now,
+          and only the third says anything about the data.
+        */
+        <Alert tone="danger" title="Goods receipts would not load">
+          {getApiErrorMessage(receiptsQuery.error)}
+        </Alert>
+      ) : (receiptsQuery.data?.data ?? []).length === 0 ? (
+        <EmptyState
+          title="Nothing has been booked in yet"
+          body="A goods receipt is what puts stock on the shelf and sets what it cost. Book the first delivery in and the stock figures start moving."
+        />
+      ) : (
+        <DataTable
+          data={receiptsQuery.data?.data ?? []}
+          columns={columns}
+          features={{ sorting: true, globalFilter: true, pagination: true }}
+          pagination={{ enabled: true, server: false }}
+          searchPlaceholder="Search receipts"
+          toolbar={
+            <span className="text-xs text-[var(--text-muted)]">
+              {unknownOrderRequested
+                ? "That purchase order could not be found. Capture the receipt manually."
+                : "Posted retail receipts"}
+            </span>
+          }
+        />
+      )}
 
       <Dialog open={dialogOpen} onOpenChange={(open) => (open ? setDialogOpen(true) : closeDialog())}>
         <DialogContent className="sm:max-w-3xl">
