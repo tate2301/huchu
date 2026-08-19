@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { requireRetailManager, requireRetailSession } from "../../_helpers";
+import { requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_TENDER_POLICY,
   getRetailTenderPolicy,
@@ -37,7 +37,7 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.setup", "update");
   if (gate) return gate;
 
   try {

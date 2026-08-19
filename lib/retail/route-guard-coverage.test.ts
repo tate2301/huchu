@@ -21,14 +21,19 @@
  *
  * ## Why the canonical gate list lives here
  *
- * Retail's gates are spread across two modules under five names. Auditing them by
- * grepping for the names schools and HR use returned "1 of 34 routes guarded" — an
- * alarming finding that was simply wrong. Correcting for one name gave 23, then a
- * second gave 25, and going per-handler gave a different answer again.
+ * Retail's gates used to be spread across two modules under five names. Auditing
+ * them by grepping for the names schools and HR use returned "1 of 34 routes
+ * guarded" — an alarming finding that was simply wrong. Correcting for one name
+ * gave 23, then a second gave 25, and going per-handler gave a different answer
+ * again.
  *
  * The lesson is not "grep more carefully". It is that the canonical list has to
  * live somewhere a new gate has to be added deliberately, rather than being
  * reinvented by whoever is looking. That is this file.
+ *
+ * R-2.4 has since collapsed the five names to one matrix, which is what makes
+ * the list short enough to read — but the reason it lives here has not changed,
+ * and `RETIRED_GATES` below now guards the collapse itself.
  */
 
 import { describe, expect, it } from "vitest";
@@ -47,86 +52,70 @@ const RETAIL_API = join(process.cwd(), "app/api/v2/retail");
 const POS_API = join(process.cwd(), "app/api/v2/pos");
 
 /**
- * The five names that answer "may this person". Adding a sixth is a deliberate
- * act: it goes here, or the handler that uses it fails this test.
+ * The names that answer "may this person". Adding one is a deliberate act: it
+ * goes here, or the handler that uses it fails this test.
  *
- * These are role-set gates, not a resource × action matrix. A role set can answer
- * "is this person a stock person"; it cannot express "a cashier may read the
- * catalogue but not its cost price". Replacing them with a matrix is R-2.1 of
- * `docs/retail/retail-hardening-plan-2026-08-12.md`; until then this list is what
- * there is, and pinning it stops the number drifting while that work is in flight.
+ * R-2.4 cut this list from eight to three. What went were the role sets —
+ * `requireRetailManager`, `requireRetailStock`, `requireRetailPos` and
+ * `canManageRetailTransactions` — which could answer "is this person a stock
+ * person" and could not answer "may a cashier read the catalogue but not its
+ * cost price". Every retail handler now names `lib/retail/permissions.ts`.
  */
 const GUARD_MARKERS = [
-  /** `app/api/v2/retail/_helpers.ts` — SUPERADMIN, MANAGER, SHOP_MANAGER. */
-  "requireRetailManager",
-  /** The manager set plus STOCK_CLERK. */
-  "requireRetailStock",
-  /** The manager set plus CASHIER. */
-  "requireRetailPos",
-  /** The manager set, as a boolean rather than a response. */
-  "canManageRetailTransactions",
-  /** `lib/retail/pos-host.ts` — the POS-capable roles, used by the till routes. */
-  "canAccessPosPortal",
   /**
-   * R-2.3. `lib/retail/permissions.ts` — the resource × action × role matrix
-   * that is replacing the five role sets above. A handler naming this is gated,
-   * and the six reads it now stands in front of have left the allowlist below.
+   * The matrix, as a door. `requireRetailPermission(session, resource, action)`
+   * returns the 403 to hand back, or null.
    */
   "requireRetailPermission",
   /**
-   * S-7.7. The same matrix read as a boolean, for handlers that answer "may
-   * this caller do it *or* has a manager approved it here" rather than simply
-   * refusing. The two reversal endpoints need that shape: the POS portal admits
-   * only cashiers, and `RUN_A_TILL` withholds `refund` and `void`, so a flat
-   * refusal would put reversals out of reach of the shop floor entirely.
+   * The same matrix read as a boolean, for handlers that answer "may this caller
+   * do it *or* has a manager approved it here" rather than simply refusing. The
+   * two reversal endpoints need that shape: the POS portal admits only cashiers,
+   * and `RUN_A_TILL` withholds `refund` and `void`, so a flat refusal would put
+   * reversals out of reach of the shop floor entirely.
    */
   "canRetailRoleDo",
+  /**
+   * `lib/retail/pos-host.ts` — which portal you may sign into. Deliberately not
+   * folded into the matrix: it is a question about hosts and sessions, not about
+   * resources, and the till routes ask it *as well as* the matrix rather than
+   * instead of it.
+   */
+  "canAccessPosPortal",
 ];
 
 /**
- * Reads that no gate stands in front of — 22 of the module's 24 `GET` handlers.
- * Only `pos/context` and `shifts/context` check a role before answering.
+ * The gates R-2.4 deleted. Naming one is now a regression, not a style choice —
+ * they no longer exist, so a handler that reintroduces one has either brought
+ * back a role set or copied a stale example.
+ */
+const RETIRED_GATES = [
+  "requireRetailManager",
+  "requireRetailStock",
+  "requireRetailPos",
+  "canManageRetailTransactions",
+];
+
+/**
+ * Reads with no gate in front of them. **Empty, and it stays empty.**
  *
- * Every one of these still authenticates and scopes its queries to
- * `session.user.companyId`, so none is a tenant leak. But each is readable by any
- * role in a retail tenant, which is a product decision nobody has made: a stock
- * clerk can currently pull the trading dashboard, and a cashier can read cost
+ * It held sixteen entries — 22 of retail's 24 `GET` handlers when this file was
+ * written. Every one authenticated and scoped to `session.user.companyId`, so
+ * none was a tenant leak, but each was readable by any role in a retail tenant:
+ * a stock clerk could pull the trading dashboard, and a cashier could read cost
  * price off the catalogue.
  *
- * R-2.3 decides each one — grant it in the permissions matrix, or gate it. They
- * are not to be gated blind: `pos/catalog` being open to a cashier is correct, and
- * `setup/overview` being open to one probably is not.
+ * R-2.3 decided them one at a time rather than gating them blind, because the
+ * right answer differed: `pos/catalog` stays open to a cashier — a till that
+ * cannot list its stock cannot sell — while what it *returns* drops the cost
+ * column, and `purchasing/orders` closed to the counter entirely.
  *
- * This list is asserted to be exact, not merely permissive. An entry that gains a
- * gate fails the test until it is deleted from here, so the allowlist cannot
- * outlive the work; an entry naming a handler that no longer exists fails too.
+ * The object is kept rather than deleted so the assertions below still have
+ * something to hold: an entry added back here fails the "must stay empty" test,
+ * which is a louder way of saying "somebody decided a read needs no gate" than a
+ * missing gate would be.
  */
-const UNGATED_READS: Record<string, string> = {
-  "app/api/v2/retail/catalog/route.ts GET": "The admin catalogue list. Carries cost and margin.",
-  "app/api/v2/retail/catalog/[id]/route.ts GET": "One catalogue item, with its inventory position.",
-  "app/api/v2/retail/customers/route.ts GET": "The customer list.",
-  "app/api/v2/retail/customers/search/route.ts GET":
-    "Customer lookup for the till. A cashier needs it; the question is what it returns.",
-  "app/api/v2/retail/customers/[id]/loyalty/route.ts GET":
-    "One customer's loyalty balance and history, read at the point of sale.",
-  "app/api/v2/retail/promotions/route.ts GET": "Active and scheduled promotions.",
-  "app/api/v2/retail/purchasing/orders/route.ts GET":
-    "Purchase orders, with supplier and unit cost. The GET a dead import made look covered.",
-  "app/api/v2/retail/purchasing/receipts/route.ts GET": "Goods receipts, with unit cost.",
-  "app/api/v2/retail/pos/catalog/route.ts GET":
-    "The sellable catalogue. Open to a cashier is correct — but it carries cost price.",
-  "app/api/v2/retail/pos/catalog/categories/route.ts GET":
-    "Category list for the till's filter rail. Names only.",
-  "app/api/v2/retail/pos/current-shift/route.ts GET":
-    "The caller's own open shift. Arguably self-scoped already.",
-  "app/api/v2/retail/pos/held-carts/route.ts GET": "Carts parked at the till.",
-  "app/api/v2/retail/pos/sales/route.ts GET": "The sales list, with line-level cost.",
-  "app/api/v2/retail/pos/sales/[id]/route.ts GET":
-    "One posted sale, with its lines, payments and unit cost.",
-  "app/api/v2/retail/pos/sync/route.ts GET": "Offline queue state for the till.",
-  "app/api/v2/pos/route.ts GET":
-    "A stub. Delegates to buildV2CollectionResponse and returns an empty collection.",
-};
+const UNGATED_READS: Record<string, string> = {};
 
 type Handler = { file: string; method: string; key: string; body: string; source: string };
 
@@ -180,6 +169,18 @@ function isDelegate(source: string): boolean {
   return forwards && !source.includes("prisma.");
 }
 
+/**
+ * Source with its comments removed.
+ *
+ * Several handlers explain in a comment what they used to be gated on, and the
+ * retired gate names appear there. Asserting against raw source would read the
+ * explanation as the thing it warns about.
+ */
+function stripComments(body: string): string {
+  return body
+    .replace(new RegExp("\\/\\*[\\s\\S]*?\\*\\/", "g"), " ")
+    .replace(new RegExp("\\/\\/[^\\n]*", "g"), " ");
+}
 const files = [...routeFiles(RETAIL_API), ...routeFiles(POS_API)];
 const allHandlers = files.flatMap(handlers);
 const WRITE_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
@@ -197,6 +198,25 @@ describe("retail API handler guards", () => {
   });
 
   /**
+   * The allowlist reaching zero is R-2.4's definition of done, and leaving the
+   * object in place with nothing in it is what makes that a test rather than a
+   * claim in a commit message.
+   */
+  it("has no ungated reads left", () => {
+    expect(Object.keys(UNGATED_READS)).toEqual([]);
+  });
+
+  it.each(allHandlers.map((h) => [h.key, h] as const))(
+    "%s names no retired gate",
+    (_key, h) => {
+      // Comments explain what the handlers used to be gated on, and those
+      // explanations name the retired gates. Read the code, not the prose.
+      const source = stripComments(h.body);
+      expect(RETIRED_GATES.filter((gate) => source.includes(gate))).toEqual([]);
+    },
+  );
+
+  /**
    * The line that must not move. Reads are a product decision still being made;
    * a write reachable by any signed-in user in the tenant is not.
    */
@@ -209,36 +229,6 @@ describe("retail API handler guards", () => {
     expect(ungatedWrites).toEqual([]);
   });
 
-  describe("the ungated reads", () => {
-    it("are all still there", () => {
-      const present = new Set(allHandlers.map((h) => h.key));
-      expect(Object.keys(UNGATED_READS).filter((key) => !present.has(key))).toEqual([]);
-    });
-
-    it("are all still reads", () => {
-      // The allowlist is for reads nobody has classified yet. It must never become
-      // somewhere a write can hide.
-      const notReads = Object.keys(UNGATED_READS).filter((key) => !key.endsWith(" GET"));
-      expect(notReads).toEqual([]);
-    });
-
-    it("are still ungated — an entry that gains a gate leaves this list", () => {
-      const byKey = new Map(allHandlers.map((h) => [h.key, h]));
-      const nowGated = Object.keys(UNGATED_READS).filter((key) => {
-        const h = byKey.get(key);
-        return h ? GUARD_MARKERS.some((marker) => h.body.includes(marker)) : false;
-      });
-      expect(nowGated).toEqual([]);
-    });
-
-    it.each(Object.keys(UNGATED_READS))("%s authenticates and scopes to a tenant", (key) => {
-      const h = allHandlers.find((candidate) => candidate.key === key);
-      expect(h).toBeDefined();
-      if (!h || isDelegate(h.source)) return;
-      expect(h.source).toMatch(/requireRetailSession|validateSession|requireApiAuth/);
-      expect(h.source).toContain("companyId");
-    });
-  });
 });
 
 /**
@@ -262,19 +252,6 @@ describe("reversing a sale is a manager act", () => {
     { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
   ];
 
-  /**
-   * Code only.
-   *
-   * The two handlers explain in a comment what they used to be gated on, and
-   * the words `requireRetailPos` appear there. Asserting against raw source
-   * would read the explanation as the thing it warns about.
-   */
-  function code(body: string) {
-    return body
-      .replace(/\/\*[\s\S]*?\*\//g, " ")
-      .replace(/\/\/[^\n]*/g, " ");
-  }
-
   /** `label()` normalises to forward slashes, so the tail matches as written. */
   function findHandler(key: string) {
     return allHandlers.find((candidate) => candidate.key.endsWith(key));
@@ -285,7 +262,7 @@ describe("reversing a sale is a manager act", () => {
     expect(handler, `no handler found for ${key}`).toBeDefined();
     if (!handler) return;
 
-    const source = code(handler.body);
+    const source = stripComments(handler.body);
     // The caller is measured against the matrix for this exact action …
     expect(source).toContain("canRetailRoleDo");
     expect(source).toContain(`"retail.sell", "${action}"`);
@@ -298,7 +275,7 @@ describe("reversing a sale is a manager act", () => {
     const handler = findHandler(key);
     expect(handler).toBeDefined();
     // `requireRetailPos` here is the exact regression this block exists for.
-    expect(code(handler?.body ?? "")).not.toContain("requireRetailPos");
+    expect(stripComments(handler?.body ?? "")).not.toContain("requireRetailPos");
   });
 
   it("the matrix itself still withholds both from a cashier", () => {

@@ -3,7 +3,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPos, requireRetailSession } from "../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../_helpers";
 
 function getLoyaltyTier(points: number) {
   if (points >= 2_000) return "GOLD";
@@ -16,6 +17,12 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. The customer list is a selling tool: loyalty is applied mid-sale, so
+  // a cashier needs it. A stock clerk does not — knowing who shops here is not
+  // part of counting what is on the shelf.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim().toLowerCase() ?? "";
@@ -133,7 +140,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
   try {

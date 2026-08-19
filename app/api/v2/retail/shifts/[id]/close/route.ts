@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { requireRetailPos, requireRetailSession } from "../../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../../_helpers";
 import { closeRetailShiftTransaction } from "../../../_services";
 
 const closeShiftSchema = z.object({
@@ -19,7 +20,10 @@ export async function POST(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  // R-2.4. Cashing up is `close-shift`, the action the matrix carved out of
+  // `update` precisely because a shift is a cash drawer rather than a record.
+  // Whose drawer it is stays a row-level question, enforced below.
+  const gate = requireRetailPermission(session, "retail.sell", "close-shift");
   if (gate) return gate;
 
   try {

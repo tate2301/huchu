@@ -3,7 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
-import { requireRetailManager, requireRetailSession } from "../../_helpers";
+import { requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_POS_POLICY,
   getRetailPosPolicy,
@@ -56,7 +56,7 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.setup", "update");
   if (gate) return gate;
 
   try {

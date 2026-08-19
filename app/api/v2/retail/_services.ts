@@ -33,8 +33,8 @@ import {
   tradingDayAsDate,
   tradingDayWindow,
 } from "@/lib/retail/z-report";
+import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
-  canManageRetailTransactions,
   ensureRetailRegisterAccess,
   ensureSiteAccess,
   postRetailJournal,
@@ -355,7 +355,12 @@ export async function closeRetailShiftTransaction(input: {
 
   const allowManagerClose = input.allowManagerClose ?? true;
   if (existing.cashierId !== input.actor.userId) {
-    if (!allowManagerClose || !canManageRetailTransactions(input.actor.userRole)) {
+    if (
+      !allowManagerClose ||
+      // R-2.4. Somebody else's drawer is `retail.cash-control`, which is the
+      // resource the matrix defines as "the back-office half of a shift".
+      !canRetailRoleDo(input.actor.userRole, "retail.cash-control", "close-shift")
+    ) {
       throw new Error("Only the shift owner or a manager can close this shift");
     }
   }
@@ -879,7 +884,7 @@ export async function refundRetailSaleTransaction(input: {
     actor was still the cashier — a 400 reading "Only retail managers can
     process refunds" on a refund a manager had just authorised.
   */
-  if (!canManageRetailTransactions(input.actor.userRole) && !input.approvedBy) {
+  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "refund") && !input.approvedBy) {
     throw new Error("Only retail managers can process refunds");
   }
 
@@ -1166,7 +1171,7 @@ export async function voidRetailSaleTransaction(input: {
   /** A manager who approved this at the counter. See the refund above. */
   approvedBy?: { id: string; name: string } | null;
 }) {
-  if (!canManageRetailTransactions(input.actor.userRole) && !input.approvedBy) {
+  if (!canRetailRoleDo(input.actor.userRole, "retail.sell", "void") && !input.approvedBy) {
     throw new Error("Only retail managers can void sales");
   }
 

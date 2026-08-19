@@ -4,7 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { requireRetailManager, requireRetailSession } from "../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../_helpers";
 
 const promotionSchema = z.object({
   promoCode: z.string().min(1).max(50).optional(),
@@ -22,6 +23,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. A promotion is a price, so it is the shelf's question, not its own.
+  // The till has to know what is on offer before it can apply one.
+  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
@@ -68,7 +74,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "create");
   if (gate) return gate;
 
   try {

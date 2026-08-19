@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
 /**
@@ -16,6 +17,10 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Names only, but it is the range, so it answers to the range's gate.
+  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const siteId = searchParams.get("siteId")?.trim();

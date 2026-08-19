@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -9,6 +10,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. The lookup the counter runs mid-sale. Same gate as the list it
+  // searches, because it is the same data reached a faster way.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const q = searchParams.get("q")?.trim() ?? "";

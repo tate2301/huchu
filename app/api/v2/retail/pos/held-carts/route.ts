@@ -4,7 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPos, requireRetailSession } from "../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../_helpers";
 
 const heldCartSchema = z.object({
   holdNo: z.string().min(1).max(50).optional(),
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. A parked cart is a sale in progress.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const shiftId = searchParams.get("shiftId")?.trim();
@@ -44,7 +49,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
   try {

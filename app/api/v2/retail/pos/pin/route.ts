@@ -28,7 +28,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { isTillPinLocked, tillPinDenial } from "@/lib/retail/till-pin";
-import { requireRetailPos, requireRetailSession } from "../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../_helpers";
 
 /** The same cost factor the platform hashes passwords at. */
 const PIN_HASH_ROUNDS = 10;
@@ -67,7 +68,19 @@ export async function GET(request: NextRequest) {
   }
 
   // Only people who stand at a till have one.
-  const gate = requireRetailPos(session);
+  /*
+    R-2.4. `retail.sell` `view`, on all three methods, and that is not a
+    slip.
+
+    The matrix answers one question here — may this person be at a till at all —
+    and there is no second, row-level question to ask, because the row is always
+    the caller's own: every query below is keyed on `session.user.id`. What
+    authorises the change is the account password compared with bcrypt a few
+    lines down, which is the rule this file exists to enforce. Gating the write
+    on `update` would have read as stricter and been meaningless: no role that
+    may work a till holds it, so the feature would simply have stopped working.
+  */
+  const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
   const record = await prisma.retailTillPin.findFirst({
@@ -100,7 +113,19 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  /*
+    R-2.4. `retail.sell` `view`, on all three methods, and that is not a
+    slip.
+
+    The matrix answers one question here — may this person be at a till at all —
+    and there is no second, row-level question to ask, because the row is always
+    the caller's own: every query below is keyed on `session.user.id`. What
+    authorises the change is the account password compared with bcrypt a few
+    lines down, which is the rule this file exists to enforce. Gating the write
+    on `update` would have read as stricter and been meaningless: no role that
+    may work a till holds it, so the feature would simply have stopped working.
+  */
+  const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
   try {
@@ -143,7 +168,19 @@ export async function DELETE(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  /*
+    R-2.4. `retail.sell` `view`, on all three methods, and that is not a
+    slip.
+
+    The matrix answers one question here — may this person be at a till at all —
+    and there is no second, row-level question to ask, because the row is always
+    the caller's own: every query below is keyed on `session.user.id`. What
+    authorises the change is the account password compared with bcrypt a few
+    lines down, which is the rule this file exists to enforce. Gating the write
+    on `update` would have read as stricter and been meaningless: no role that
+    may work a till holds it, so the feature would simply have stopped working.
+  */
+  const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
   try {

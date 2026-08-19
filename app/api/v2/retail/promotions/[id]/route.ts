@@ -3,7 +3,8 @@ import { RetailPromotionStatus } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailManager, requireRetailSession } from "../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../_helpers";
 
 const patchSchema = z.object({
   name: z.string().min(1).max(200).optional(),
@@ -30,7 +31,7 @@ export async function PATCH(
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "update");
   if (gate) return gate;
 
   try {
@@ -75,7 +76,7 @@ export async function DELETE(
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "delete");
   if (gate) return gate;
 
   const { id } = await params;

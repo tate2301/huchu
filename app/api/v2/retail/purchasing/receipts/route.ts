@@ -6,11 +6,12 @@ import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
-  ensureLocationAccess,  resolveRetailSite,
+  ensureLocationAccess,
+  resolveRetailSite,
   postRetailJournal,
-  requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -36,6 +37,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Goods received, with unit cost. Same audience as the orders they
+  // settle.
+  const gate = requireRetailPermission(session, "retail.purchasing", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
@@ -80,7 +86,10 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailStock(session);
+  // R-2.4. Booking a delivery in *is* the clerk's job — `receive`, not
+  // `create`, which is the distinction the matrix draws and the role set could
+  // not.
+  const gate = requireRetailPermission(session, "retail.purchasing", "receive");
   if (gate) return gate;
 
   try {

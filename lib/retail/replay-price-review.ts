@@ -25,7 +25,7 @@
  *    `pricedAt` / `priceListId` exist for.
  * 2. **An override.** The price was changed at the till by somebody entitled to
  *    change it, with a reason. That is the same rule the online path applies:
- *    a user who `canManageRetailTransactions` needs a reason; anybody else
+ *    a user the matrix grants `retail.sell` `approve` needs a reason; anybody else
  *    needs a manager's password.
  *
  * If neither holds, the difference is unexplained. Sync cannot check a manager

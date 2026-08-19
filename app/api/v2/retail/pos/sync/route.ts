@@ -21,13 +21,12 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
+import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
 import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
-  canManageRetailTransactions,
   getPosSupportedPromotionTypes,
-  requireRetailPos,
   requireRetailSession,
 } from "../../_helpers";
 import {
@@ -409,7 +408,7 @@ async function processCreateSale(
       })),
       soldAt,
       snapshotPricedAt: payload.pricedAt ? new Date(payload.pricedAt) : null,
-      actorCanOverride: canManageRetailTransactions(ctx.session.user.role),
+      actorCanOverride: canRetailRoleDo(ctx.session.user.role, "retail.sell", "approve"),
       overrideReason: payload.overrideReason?.trim() || null,
     });
 
@@ -891,7 +890,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
   try {
@@ -1000,6 +999,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Whether the queue this till is holding has landed. Reading it is part
+  // of selling; it says nothing about anybody else's drawer.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const tempIds = searchParams.getAll("tempId");

@@ -12,7 +12,7 @@ import {
   LOYALTY_REDEEM_POINTS_PER_USD,
   parseLoyaltyRedeemPoints,
 } from "@/lib/retail/loyalty";
-import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
+import { canRetailRoleDo, canSeeRetailCostPrice, requireRetailPermission } from "@/lib/retail/permissions";
 import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
@@ -20,10 +20,9 @@ import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
 import { loadSellableProducts } from "@/lib/retail/shelf-listing";
 import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
 import {
-  canManageRetailTransactions,  resolveRetailSite,
+  resolveRetailSite,
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
-  requireRetailPos,
   requireRetailSession,
 } from "../../_helpers";
 import { createRetailSaleTransaction } from "../../_services";
@@ -212,6 +211,11 @@ export async function GET(request: NextRequest) {
     return response as NextResponse;
   }
 
+  // R-2.3. The sales list. `showCost` below is the field-level half — a cashier
+  // may see what a receipt totalled and not what the shop paid for it.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const shiftId = searchParams.get("shiftId")?.trim();
   const siteId = searchParams.get("siteId")?.trim();
@@ -372,7 +376,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
   try {
@@ -551,7 +555,7 @@ export async function POST(request: NextRequest) {
           })),
           soldAt: replaySoldAt,
           snapshotPricedAt: input.pricedAt ? new Date(input.pricedAt) : null,
-          actorCanOverride: canManageRetailTransactions(session.user.role),
+          actorCanOverride: canRetailRoleDo(session.user.role, "retail.sell", "approve"),
           overrideReason: input.overrideReason?.trim() || null,
         })
       : null;
@@ -581,7 +585,7 @@ export async function POST(request: NextRequest) {
 
     let overrideReason = input.overrideReason?.trim() || input.managerOverride?.reason?.trim() || null;
 
-    if (hasOverride && !canManageRetailTransactions(session.user.role)) {
+    if (hasOverride && !canRetailRoleDo(session.user.role, "retail.sell", "approve")) {
       if (!input.managerOverride) {
         return errorResponse("Manager approval is required for price or discount overrides", 403);
       }
@@ -601,7 +605,7 @@ export async function POST(request: NextRequest) {
         },
         select: { id: true, name: true, email: true, password: true, role: true },
       });
-      if (!manager || !canManageRetailTransactions(manager.role)) {
+      if (!manager || !canRetailRoleDo(manager.role, "retail.sell", "approve")) {
         return errorResponse("Manager approval is invalid", 403);
       }
       if (!manager.password) {

@@ -4,7 +4,6 @@ import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { errorResponse, validateSession } from "@/lib/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
-import { hasRole, type UserRole } from "@/lib/roles";
 
 export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult
   ? TResult extends NextResponse
@@ -22,35 +21,34 @@ export async function requireRetailSession(request: NextRequest) {
   return { response: null, session: sessionResult.session as RetailSession };
 }
 
-export const RETAIL_MANAGER_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "SHOP_MANAGER"];
-export const RETAIL_STOCK_ROLES: UserRole[] = [...RETAIL_MANAGER_ROLES, "STOCK_CLERK"];
-export const RETAIL_POS_ROLES: UserRole[] = [...RETAIL_MANAGER_ROLES, "CASHIER"];
+/*
+  R-2.4. Four gates used to live here, and they are gone.
+
+  `RETAIL_MANAGER_ROLES`, `RETAIL_STOCK_ROLES` and `RETAIL_POS_ROLES` were role
+  sets, and `requireRetailManager`, `requireRetailStock`, `requireRetailPos` and
+  `canManageRetailTransactions` asked them "is this person a manager / a stock
+  person / a till person". Every retail route now asks `lib/retail/permissions.ts`
+  a different question — may this person do *this*, to *that* — and the difference
+  is not cosmetic:
+
+   - A role set cannot say `view` without `view-cost`, so the catalogue handed a
+     cashier the buying price alongside the shelf price.
+   - It cannot separate raising a purchase order from receiving against one, so
+     `requireRetailStock` let a stock clerk decide what the shop buys.
+   - It refused with "Insufficient permissions", which tells the person at the
+     counter nothing. The matrix refuses with the verb and the noun.
+   - And `requireRetailPos` admitted CASHIER to the two reversal endpoints while
+     the matrix, the UI and the shop's own rules all said no. That one was a live
+     privilege gap, closed in S-7.7 and the reason this ticket stopped being
+     tidying.
+
+  `canAccessPosPortal` in `lib/retail/pos-host.ts` is deliberately not folded in.
+  It answers "which portal may you sign into", which is a question about hosts and
+  sessions rather than about resources, and collapsing it here would confuse two
+  different doors.
+*/
+
 const POS_SUPPORTED_PROMOTION_TYPES = ["PERCENT", "AMOUNT"] as const;
-
-export function canManageRetailTransactions(role: string | null | undefined) {
-  return hasRole(role, RETAIL_MANAGER_ROLES);
-}
-
-export function requireRetailManager(session: RetailSession): NextResponse | null {
-  if (!hasRole(session.user.role, RETAIL_MANAGER_ROLES)) {
-    return errorResponse("Insufficient permissions", 403);
-  }
-  return null;
-}
-
-export function requireRetailStock(session: RetailSession): NextResponse | null {
-  if (!hasRole(session.user.role, RETAIL_STOCK_ROLES)) {
-    return errorResponse("Insufficient permissions", 403);
-  }
-  return null;
-}
-
-export function requireRetailPos(session: RetailSession): NextResponse | null {
-  if (!hasRole(session.user.role, RETAIL_POS_ROLES)) {
-    return errorResponse("Insufficient permissions", 403);
-  }
-  return null;
-}
 
 export function isPosSupportedPromotionType(type: string | null | undefined) {
   return POS_SUPPORTED_PROMOTION_TYPES.includes((type ?? "") as (typeof POS_SUPPORTED_PROMOTION_TYPES)[number]);

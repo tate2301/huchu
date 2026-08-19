@@ -5,7 +5,6 @@ import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
-  requireRetailPos,
   requireRetailSession,
   resolveRetailSite,
 } from "../_helpers";
@@ -76,7 +75,8 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  // R-2.4. Opening a drawer, with its float. `open-shift`, not `create`.
+  const gate = requireRetailPermission(session, "retail.sell", "open-shift");
   if (gate) return gate;
 
   try {

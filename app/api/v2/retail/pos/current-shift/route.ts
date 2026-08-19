@@ -9,6 +9,7 @@ import {
 } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { getCashNetFromPayments } from "@/lib/retail/cash-up";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
@@ -16,6 +17,11 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. The caller's own open drawer. Self-scoped by the query below, but a
+  // person with no business at a till has no business asking.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const shift = await prisma.retailShift.findFirst({
     where: {

@@ -4,7 +4,6 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureRetailRegisterAccess,
-  requireRetailManager,
   requireRetailSession,
   ensureSiteAccess,
   upsertRetailRegister,
@@ -57,7 +56,7 @@ export async function PUT(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.setup", "update");
   if (gate) return gate;
 
   try {

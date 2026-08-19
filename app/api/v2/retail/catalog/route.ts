@@ -4,7 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
-import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
 
 /**
  * The back-office range.
@@ -43,6 +44,11 @@ export async function GET(request: NextRequest) {
     return response as NextResponse;
   }
 
+  // R-2.3. A cashier reads the range — a till that cannot list its stock cannot
+  // sell — and a stock clerk reads it to count against. Nobody else does.
+  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  if (gate) return gate;
+
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();
   const siteId = searchParams.get("siteId")?.trim();
@@ -67,7 +73,7 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "create");
   if (gate) return gate;
 
   try {

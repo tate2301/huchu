@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { requireRetailPos, requireRetailSession } from "../../../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../../../_helpers";
 
 export async function POST(
   request: NextRequest,
@@ -12,7 +13,7 @@ export async function POST(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  const gate = requireRetailPermission(session, "retail.sell", "create");
   if (gate) return gate;
 
   const { id } = await params;

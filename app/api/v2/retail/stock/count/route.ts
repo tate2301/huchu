@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
-  ensureInventoryItemAccess,  resolveRetailSite,
+  ensureInventoryItemAccess,
+  resolveRetailSite,
   postRetailJournal,
-  requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -23,7 +24,10 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailStock(session);
+  // R-2.4. Posting a counted-vs-system variance is an `ADJUSTMENT` on the stock
+  // ledger — `create` on `retail.stock`, which is what `MOVE_STOCK` grants a
+  // clerk and withholds from everybody at a till.
+  const gate = requireRetailPermission(session, "retail.stock", "create");
   if (gate) return gate;
 
   try {

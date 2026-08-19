@@ -3,6 +3,7 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
 export async function GET(
@@ -13,6 +14,10 @@ export async function GET(
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. One posted receipt, with its lines and tenders.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
+  if (gate) return gate;
 
   const showCost = canSeeRetailCostPrice(session.user.role);
 

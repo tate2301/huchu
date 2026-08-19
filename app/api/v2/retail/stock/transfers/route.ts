@@ -3,9 +3,10 @@ import { z } from "zod";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
-  ensureInventoryItemAccess,  resolveRetailSite,
-  requireRetailStock,
+  ensureInventoryItemAccess,
+  resolveRetailSite,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -23,7 +24,8 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailStock(session);
+  // R-2.4. A transfer moves stock between locations. Same grant as a count.
+  const gate = requireRetailPermission(session, "retail.stock", "create");
   if (gate) return gate;
 
   try {

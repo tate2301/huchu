@@ -71,7 +71,7 @@ import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
 import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
-import { canManageRetailTransactions, requireRetailSession } from "../../_helpers";
+import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -210,7 +210,7 @@ export async function GET(request: NextRequest) {
            * as "25%" would be a comforting lie on the one screen whose job is to
            * tell a cashier what they are allowed to do.
            */
-          discountsNeedApproval: !canManageRetailTransactions(session.user.role),
+          discountsNeedApproval: !canRetailRoleDo(session.user.role, "retail.sell", "approve"),
           refundRequiresReason: posPolicy.refundRequiresReason,
           voidRequiresReason: posPolicy.voidRequiresReason,
           requireSupervisorForRefunds: posPolicy.requireSupervisorForRefunds,

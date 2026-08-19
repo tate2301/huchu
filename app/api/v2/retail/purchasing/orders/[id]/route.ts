@@ -4,7 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { money, multiplyMoney } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
-import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailManager, requireRetailStock, requireRetailSession } from "../../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailSession } from "../../../_helpers";
 
 const lineSchema = z.object({
   inventoryItemId: z.string().uuid().optional().nullable(),
@@ -38,7 +39,10 @@ export async function PATCH(
     return response as NextResponse;
   }
 
-  const gate = requireRetailStock(session);
+  // R-2.4. Amending an order — quantities, prices, the supplier — is the same
+  // decision as raising one, and the matrix puts both behind `retail.purchasing`
+  // rather than behind "is this person a stock person".
+  const gate = requireRetailPermission(session, "retail.purchasing", "update");
   if (gate) return gate;
 
   try {
@@ -138,7 +142,7 @@ export async function DELETE(
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.purchasing", "delete");
   if (gate) return gate;
 
   const { id } = await params;

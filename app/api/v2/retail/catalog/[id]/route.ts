@@ -7,7 +7,8 @@ import {
   loadShelfListing,
   upsertShelfListing,
 } from "@/lib/retail/shelf-listing";
-import { ensureInventoryItemAccess, requireRetailManager, requireRetailSession } from "../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { ensureInventoryItemAccess, requireRetailSession } from "../../_helpers";
 
 /**
  * One shelf line. `{id}` is a `Product.id` from S-4b.
@@ -48,6 +49,10 @@ export async function GET(
     return response as NextResponse;
   }
 
+  // R-2.3. One line off the range. Same gate as the list it came from.
+  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  if (gate) return gate;
+
   const { id } = await params;
   const listing = await loadShelfListing(session.user.companyId, id);
   if (!listing) {
@@ -66,7 +71,7 @@ export async function PATCH(
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "update");
   if (gate) return gate;
 
   try {
@@ -136,7 +141,7 @@ export async function DELETE(
     return response as NextResponse;
   }
 
-  const gate = requireRetailManager(session);
+  const gate = requireRetailPermission(session, "retail.catalog", "delete");
   if (gate) return gate;
 
   const { id } = await params;

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@/lib/api-utils";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 /**
@@ -20,6 +21,12 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Open to a cashier on purpose, and this is the case the matrix was
+  // built for: `view` without `view-cost`. What ships below is shelf price and
+  // tax only — the buying price is the owner's business and never leaves here.
+  const gate = requireRetailPermission(session, "retail.catalog", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const search = searchParams.get("search")?.trim();

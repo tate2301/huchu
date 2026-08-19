@@ -24,7 +24,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { evaluateTillPinAttempt } from "@/lib/retail/till-pin";
-import { requireRetailPos, requireRetailSession } from "../../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../../_helpers";
 
 const unlockSchema = z.object({
   pin: z.string().min(1).max(12),
@@ -36,7 +37,10 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
+  // R-2.4. Same reasoning as `../route.ts`: the lock is a screen over an
+  // already-authenticated terminal, the row is the caller's own, and the four
+  // digits are what is actually being checked.
+  const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
   try {

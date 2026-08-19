@@ -75,7 +75,8 @@ describe("the cashier", () => {
 
   it("cannot reverse a posted sale", () => {
     // Reversal is how a till is stolen from: ring the sale, take the cash, void
-    // it. Today `requireRetailPos` lets a cashier do both; this is the change.
+    // it. `requireRetailPos` let a cashier do both until S-7.7; the endpoints
+    // now ask this, and `route-guard-coverage.test.ts` holds them to it.
     expect(canRetailRoleDo("CASHIER", "retail.sell", "refund")).toBe(false);
     expect(canRetailRoleDo("CASHIER", "retail.sell", "void")).toBe(false);
   });
@@ -129,8 +130,9 @@ describe("the stock clerk", () => {
   it("books a delivery in against an order it cannot raise", () => {
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "view")).toBe(true);
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "receive")).toBe(true);
-    // `purchasing/orders` POST is gated on `requireRetailStock` today, so this is
-    // a narrowing: deciding what the shop buys, and at what price, is not theirs.
+    // `purchasing/orders` POST was gated on `requireRetailStock`, which admits a
+    // clerk. R-2.4 moved it onto this line — a real narrowing, and the intended
+    // one: deciding what the shop buys, and at what price, is not theirs.
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "create")).toBe(false);
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "update")).toBe(false);
     expect(canRetailRoleDo("STOCK_CLERK", "retail.purchasing", "approve")).toBe(false);
@@ -291,5 +293,56 @@ describe("canSeeRetailCostPrice", () => {
     expect(canSeeRetailCostPrice("CASHIER")).toBe(false);
     expect(canSeeRetailCostPrice("STOCK_CLERK")).toBe(false);
     expect(canSeeRetailCostPrice(null)).toBe(false);
+  });
+});
+
+/**
+ * R-2.3, pinned.
+ *
+ * Sixteen reads had no gate in front of them, and the work was deciding each one
+ * rather than gating them all. The decisions are in the route files as
+ * `requireRetailPermission(session, resource, action)` calls, and
+ * `route-guard-coverage.test.ts` proves each handler names *a* gate — but not
+ * *which*. These are the ones a wrong answer would be expensive, stated as the
+ * question the route now asks.
+ */
+describe("the reads R-2.3 decided", () => {
+  const CAN: Array<[string, RetailResource, RetailAction, string]> = [
+    ["CASHIER", "retail.catalog", "view", "pos/catalog — a till that cannot list its stock cannot sell"],
+    ["CASHIER", "retail.sell", "view", "pos/sales, held-carts, current-shift, sync"],
+    ["STOCK_CLERK", "retail.catalog", "view", "the range, to count against"],
+    ["STOCK_CLERK", "retail.purchasing", "view", "cannot receive against an order they cannot see"],
+  ];
+
+  it.each(CAN)("%s may %s %s — %s", (role, resource, action) => {
+    expect(canRetailRoleDo(role, resource, action)).toBe(true);
+  });
+
+  const CANNOT: Array<[string, RetailResource, RetailAction, string]> = [
+    ["CASHIER", "retail.purchasing", "view", "what the shop pays Delta is not the counter's business"],
+    ["CASHIER", "retail.reports", "view", "the trading dashboard carries the day's margin"],
+    ["CASHIER", "retail.cash-control", "view", "every cashier's drawer, not your own"],
+    ["CASHIER", "retail.setup", "view", "registers, trading hours, tender policy"],
+    ["CASHIER", "retail.catalog", "view-cost", "the shelf price is public, the buying price is not"],
+    ["STOCK_CLERK", "retail.sell", "view", "customers, loyalty and the sales list are the counter's"],
+    ["STOCK_CLERK", "retail.reports", "view", "the trading dashboard"],
+    ["STOCK_CLERK", "retail.cash-control", "view", "cash-up"],
+  ];
+
+  it.each(CANNOT)("%s may not %s %s — %s", (role, resource, action) => {
+    expect(canRetailRoleDo(role, resource, action)).toBe(false);
+  });
+
+  /**
+   * The till PIN routes gate on `retail.sell` `view` rather than `update`, and
+   * this is the assertion that keeps that from looking like an oversight: a
+   * cashier holds `view` and does not hold `update`, so gating the write on
+   * `update` would have silently taken the feature away from the only people who
+   * use it. What authorises the change is the account password, checked in the
+   * handler; the row is always the caller's own.
+   */
+  it("lets a cashier reach their own till PIN, which `update` would not have", () => {
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "view")).toBe(true);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "update")).toBe(false);
   });
 });

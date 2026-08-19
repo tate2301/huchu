@@ -5,10 +5,10 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
+import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
   resolveRetailSite,
-  requireRetailStock,
   requireRetailSession,
 } from "../../_helpers";
 
@@ -34,6 +34,12 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
+
+  // R-2.3. Purchase orders carry supplier and unit cost. A stock clerk sees them
+  // because they cannot book a delivery in against an order they cannot see; a
+  // cashier has no business knowing what the shop pays Delta.
+  const gate = requireRetailPermission(session, "retail.purchasing", "view");
+  if (gate) return gate;
 
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status")?.trim();
@@ -85,7 +91,16 @@ export async function POST(request: NextRequest) {
     return response as NextResponse;
   }
 
-  const gate = requireRetailStock(session);
+  /*
+    R-2.4, and a deliberate narrowing.
+
+    This was `requireRetailStock`, which admits STOCK_CLERK. The matrix does
+    not: `BOOK_A_DELIVERY_IN` is `view` and `receive`, and the note beside it
+    says why — deciding what the shop buys, and at what price, is not the
+    clerk's. Raising an order is now a manager's act, which is what the matrix
+    has said since R-2.1 and what the route has been contradicting.
+  */
+  const gate = requireRetailPermission(session, "retail.purchasing", "create");
   if (gate) return gate;
 
   try {

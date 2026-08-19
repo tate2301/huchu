@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { canManageRetailTransactions, requireRetailSession } from "../../_helpers";
+import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailSession } from "../../_helpers";
 import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
 
 export async function GET(request: NextRequest) {
@@ -9,9 +10,9 @@ export async function GET(request: NextRequest) {
   if (response || !session) {
     return response as NextResponse;
   }
-  if (!canManageRetailTransactions(session.user.role)) {
-    return errorResponse("Retail shift access denied", 403);
-  }
+  // R-2.4. The back-office shift screen: every cashier's drawer, not your own.
+  const gate = requireRetailPermission(session, "retail.cash-control", "view");
+  if (gate) return gate;
 
   const [sites, registers, setupProfile] = await Promise.all([
     prisma.site.findMany({
