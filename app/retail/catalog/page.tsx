@@ -9,6 +9,7 @@ import { SearchableSelect } from "@/components/ui/searchable-select";
 import type { SearchableOption } from "@/components/ui/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { FieldHelp } from "@/components/shared/field-help";
+import { CatalogImageField } from "@/components/retail/catalog-image-field";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import {
@@ -53,6 +54,7 @@ type CatalogItem = {
   unitPrice: number;
   compareAtPrice: number | null;
   taxPercent: number;
+  imageUrl: string | null;
   status: string;
   inventoryItem: {
     id: string;
@@ -77,6 +79,8 @@ type CatalogForm = {
   unitPrice: string;
   compareAtPrice: string;
   taxPercent: string;
+  /** The uploaded shelf photo's URL, or an empty string for none. */
+  imageUrl: string;
   status: string;
 };
 
@@ -90,6 +94,7 @@ function emptyForm(): CatalogForm {
     unitPrice: "",
     compareAtPrice: "",
     taxPercent: "0",
+    imageUrl: "",
     status: "ACTIVE",
   };
 }
@@ -103,6 +108,13 @@ export default function RetailCatalogPage() {
   const [deleteTarget, setDeleteTarget] = useState<CatalogItem | null>(null);
   const [form, setForm] = useState<CatalogForm>(emptyForm);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  /*
+    Held while a shelf photo is on its way up. The preview appears the moment
+    a file is picked and the upload runs behind it, so without this a
+    shopkeeper who picks a photo and saves straight away stores an item with
+    no photo and no warning — the form still had an empty `imageUrl`.
+  */
+  const [imageUploading, setImageUploading] = useState(false);
 
   // Quick-create stock item sub-dialog
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
@@ -160,6 +172,8 @@ export default function RetailCatalogPage() {
         unitPrice: Number(payload.unitPrice || 0),
         compareAtPrice: payload.compareAtPrice ? Number(payload.compareAtPrice) : undefined,
         taxPercent: Number(payload.taxPercent || 0),
+        // Null clears the photo; the API leaves it alone when undefined.
+        imageUrl: payload.imageUrl.trim() || null,
         status: payload.status,
       };
 
@@ -308,6 +322,7 @@ export default function RetailCatalogPage() {
                   unitPrice: String(row.original.unitPrice),
                   compareAtPrice: row.original.compareAtPrice ? String(row.original.compareAtPrice) : "",
                   taxPercent: String(row.original.taxPercent),
+                  imageUrl: row.original.imageUrl ?? "",
                   status: row.original.status,
                 });
                 setDialogOpen(true);
@@ -489,6 +504,21 @@ export default function RetailCatalogPage() {
               ) : null}
             </div>
 
+            {/*
+              Above the fold, not under "Advanced options".
+
+              A shelf photo is the single most visible attribute an item has —
+              it is what a cashier navigates the till grid by. Filing it behind
+              a collapsed toggle would mean the range stays a wall of grey
+              boxes because nobody found the control.
+            */}
+            <CatalogImageField
+              value={form.imageUrl}
+              onChange={(next) => setForm((current) => ({ ...current, imageUrl: next }))}
+              productId={editing?.id}
+              onUploadingChange={setImageUploading}
+            />
+
             <button
               type="button"
               onClick={() => setAdvancedOpen((prev) => !prev)}
@@ -551,7 +581,7 @@ export default function RetailCatalogPage() {
                 <Button
                   type="submit"
                   variant="outline"
-                  disabled={saveMutation.isPending || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
+                  disabled={saveMutation.isPending || imageUploading || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
                   onClick={() => setAddAnother(true)}
                 >
                   Save and add another
@@ -559,7 +589,7 @@ export default function RetailCatalogPage() {
               ) : null}
               <Button
                 type="submit"
-                disabled={saveMutation.isPending || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
+                disabled={saveMutation.isPending || imageUploading || !form.inventoryItemId || !form.unitPrice || Number(form.unitPrice) <= 0}
                 onClick={() => setAddAnother(false)}
               >
                 {editing ? "Save changes" : "Create item"}

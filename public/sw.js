@@ -147,7 +147,55 @@ self.addEventListener("fetch", (event) => {
   const request = event.request;
   const url = new URL(request.url);
 
-  if (request.method !== "GET" || url.origin !== self.location.origin) {
+  if (request.method !== "GET") {
+    return;
+  }
+
+  /**
+   * Shelf photographs, which live on a blob host rather than this origin.
+   *
+   * S-7.8. Everything below this point is same-origin only, and for API and
+   * page traffic that is right. Product images are the exception: the POS
+   * renders `Product.imageUrl` in its item grid, the bytes are served from
+   * blob storage, and a till that drops off the line would lose every picture
+   * at once — turning the grid a cashier navigates by shape and colour back
+   * into a wall of grey boxes at the exact moment the shop is most stressed.
+   *
+   * Narrow on purpose: GET, an image destination, and a path ending in an
+   * image extension. The response is opaque (no CORS on a plain `<img>`), which
+   * is fine — an opaque response caches and replays into an `<img>` perfectly
+   * well, it simply cannot be read by script, which is what we want anyway.
+   */
+  const isRemoteImage =
+    url.origin !== self.location.origin &&
+    request.destination === "image" &&
+    /\.(png|jpe?g|webp|svg)$/i.test(url.pathname);
+
+  if (isRemoteImage) {
+    event.respondWith(
+      caches.match(request, { ignoreSearch: true }).then(async (cached) => {
+        if (cached) return cached;
+        try {
+          const response = await fetch(request);
+          // `response.ok` is false for opaque responses, so status 0 counts.
+          if (response && (response.ok || response.type === "opaque")) {
+            const cache = await caches.open(STATIC_CACHE);
+            cache.put(request, response.clone());
+          }
+          return response;
+        } catch {
+          const fallback = await caches.match(request, { ignoreSearch: true });
+          if (fallback) return fallback;
+          // Let the `<img>` fall back to its own broken state rather than
+          // failing the whole page.
+          return Response.error();
+        }
+      }),
+    );
+    return;
+  }
+
+  if (url.origin !== self.location.origin) {
     return;
   }
 
