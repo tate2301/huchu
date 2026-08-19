@@ -61,8 +61,6 @@ const PORTAL_HOME_BY_ROLE = {
 // prefix here so a school teacher signing into a tenant that also runs payroll
 // cannot reach the salary bill by typing the URL.
 const WORKFORCE_MODULE_ALLOWED_ROLES = new Set(["SUPERADMIN", "MANAGER", "CLERK"]);
-const SCRAP_LOTS_ONLY_ROLES = new Set(["OPERATOR", "CLERK"]);
-const SCRAP_OPERATOR_RESTRICTED_PATHS = ["/scrap-metal/purchases/unassigned", "/scrap-metal/adjustments"] as const;
 
 type PlatformToken = {
   companyId?: string;
@@ -149,14 +147,6 @@ function getPortalHomeForRole(role: string | undefined | null) {
   }
 
   return null;
-}
-
-function isScrapLotsOnlyRole(role: string | undefined | null) {
-  return SCRAP_LOTS_ONLY_ROLES.has(role ?? "");
-}
-
-function isScrapOperatorRestrictedPath(pathname: string) {
-  return SCRAP_OPERATOR_RESTRICTED_PATHS.some((path) => isPathWithinRoute(pathname, path));
 }
 
 function redirectToPath(request: NextRequestWithAuth, pathname: string) {
@@ -485,8 +475,8 @@ export default withAuth(
 
     // SALES_REP is pinned to the CRM. Pages outside the allowlist redirect to
     // /crm; API requests get a hard 403 here as well — resolveAccessContext
-    // covers validateSession routes, but matcher-covered legacy APIs (cctv,
-    // gold, payroll, compliance) authenticate with bare getServerSession and
+    // covers validateSession routes, but matcher-covered legacy APIs (gold,
+    // payroll, compliance) authenticate with bare getServerSession and
     // would otherwise never see the allowlist.
     if (token && isRoleRouteRestricted(token.role) && !isRouteAllowedForRole(token.role, pathname)) {
       if (isApiRequest) {
@@ -509,10 +499,6 @@ export default withAuth(
       }
     }
 
-    if (token && isScrapLotsOnlyRole(token.role) && isScrapOperatorRestrictedPath(pathname)) {
-      return denyAccess(request, "This route is restricted for this role");
-    }
-
     const tenantHostEnforcementDecision = canAccessCapabilityWithToken(
       "core.multitenancy.host-enforcement",
       token?.enabledFeatures,
@@ -520,11 +506,6 @@ export default withAuth(
     const tenantHostEnforcementEnabled = tenantHostEnforcementDecision.allowed;
 
     if (isApiRequest) {
-      // Whitelist internal CCTV endpoints that use GATEWAY_KEY for internal authentication
-      if (pathname === "/api/cctv/streams/config") {
-        return NextResponse.next();
-      }
-
       if (!token?.companyId) {
         return NextResponse.json(
           { error: "Missing tenant context", code: token ? "MISSING_TENANT_CONTEXT" : "UNAUTHORIZED", path: pathname },
@@ -594,10 +575,6 @@ export default withAuth(
           return true;
         }
 
-        if (pathname === "/api/cctv/streams/config") {
-          return true;
-        }
-
         if (pathname === LOGIN_PATH || pathname === ACCESS_BLOCKED_PATH) {
           return true;
         }
@@ -645,7 +622,6 @@ export const config = {
   matcher: [
     "/((?!api/auth|api|_next/static|_next/image|favicon.ico|manifest.json|manifest.webmanifest|sw.js|.*\\.(?:svg|png|jpg|jpeg|gif|webp|avif|ico|woff|woff2|ttf|otf|eot|js|json|webmanifest|txt|xml)).*)",
     "/api/platform-admin/:path*",
-    "/api/cctv/:path*",
     "/api/gold/:path*",
     "/api/payroll/:path*",
     "/api/compliance/:path*",

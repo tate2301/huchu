@@ -57,16 +57,16 @@ new public page carries metadata and JSON-LD via `lib/marketing/seo.ts`, is list
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| MK-1.1 | As a VAT-registered buyer, the homepage tells me this product fiscalises | Homepage rewritten around the compliance-layer claim; ZIMRA/FDMS named above the fold; the fiscal wedge (multi-till, offline, credit notes, fiscal-day management) is the lead story | `todo` |
-| MK-1.2 | As a buyer, the pricing page shows the six new tiers with the fiscal SKU first | Depends PR-1; `app/home/pricing/page.tsx` renders the new structure from `MARKETING_TIERS`; onboarding fees and the 20% annual default stated plainly; payment methods published | `todo` |
+| MK-1.1 | As a VAT-registered buyer, the homepage tells me this product fiscalises | Homepage rewritten around the compliance-layer claim; ZIMRA/FDMS named above the fold; the fiscal wedge (multi-till, offline, credit notes, fiscal-day management) is the lead story | `done` |
+| MK-1.2 | As a buyer, the pricing page shows the six new tiers with the fiscal SKU first | Depends PR-1; `app/home/pricing/page.tsx` renders the new structure from `MARKETING_TIERS`; onboarding fees and the 20% annual default stated plainly; payment methods published | `done` |
 | MK-1.3 | As a buyer comparing options, honest comparison pages exist | Comparison pages positioned at multi-till/multi-site — explicitly not competing with US$3 single-shop products; every capability claim cross-checked against shipped status | `todo` |
 
 ## Iteration 2 — Free tools
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| MK-2.1 | As a shop owner, I can compute my fiscalisation penalty exposure | Penalty calculator page: tills × days × US$25 with the 181-day cap under test; WhatsApp CTA; lead capture; indexed in `app/sitemap.ts` | `todo` |
-| MK-2.2 | As a business owner, I can check whether I must register for VAT | VAT threshold checker with current thresholds; same CTA and capture pattern | `todo` |
+| MK-2.1 | As a shop owner, I can compute my fiscalisation penalty exposure | Penalty calculator page: tills × days × US$25 with the 181-day cap under test; WhatsApp CTA; lead capture; indexed in `app/sitemap.ts` | `done` |
+| MK-2.2 | As a business owner, I can check whether I must register for VAT | VAT threshold checker with current thresholds; same CTA and capture pattern | `done` |
 
 ## Iteration 3 — Leads that persist
 
@@ -94,4 +94,5 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `ee1c6ec` | MK-1.1, MK-1.2, MK-2.1, MK-2.2 → `done` | The homepage and pricing page lead with the fiscal SKU and the obligation it answers; every figure is read from the billing catalog rather than typed into the page. The penalty calculator caps at 181 days and reports the uncapped figure separately as a contrast, never as somebody's exposure — tested across the whole input range, because the first accountant who finds an uncapped number stops trusting the tool that exists to win accountants. One correction on the way in: the drafted status panel claimed FDMS was "in pilot" and "running with pilot businesses now", and neither is true — FD-8 is `todo` and no customer issues a fiscal invoice through us. It now says built and tested, not validated against ZIMRA's environment, not live with anyone. |
 | 2026-08-18 | — | — | Document created; zero-ZIMRA-mentions baseline and webhook-only lead path recorded. |

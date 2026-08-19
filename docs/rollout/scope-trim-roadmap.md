@@ -106,7 +106,7 @@ changelog row where the exported data landed.
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
 | ST-0.1 | As an operator, I know exactly which tenants use each feature slated for removal | A usage report per dropped/parked feature: tenants with the bundle or flag enabled, and row counts in the module's tables per tenant. Produced by script, committed as an artifact of the changelog row | `done` |
-| ST-0.2 | As an operator, any tenant's data in a dropped module is exported before the drop | Per-tenant export (CSV or JSON per table) for CCTV, Autos and Scrap metal tables, generated and stored; re-runnable; empty tenants produce empty exports, not errors | `todo` |
+| ST-0.2 | As an operator, any tenant's data in a dropped module is exported before the drop | Per-tenant export (CSV or JSON per table) for CCTV, Autos and Scrap metal tables, generated and stored; re-runnable; empty tenants produce empty exports, not errors | `done` |
 
 ## Iteration 1 — Catalog and flag removals (non-destructive)
 
@@ -122,11 +122,11 @@ Everything in this iteration is reversible: no code or schema is deleted yet.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| ST-2.1 | As an engineer, the CCTV module and its server are gone | `app/cctv`, `app/api/cctv`, `components/cctv`, `lib/cctv-playback.ts` and related lib files, `cctv-server/`, and `app/reports/cctv-events` deleted; `hls.js` dependency removed if nothing else uses it; build green | `todo` |
-| ST-2.2 | As an engineer, Autos/car-sales is gone | `app/car-sales`, `app/api/v2/autos`, `app/api/v2/car-sales` (re-export shims), `lib/autos`, `components/car-sales`, `app/portal/autos` and the `portal.autos` feature deleted; build green | `todo` |
-| ST-2.3 | As an engineer, Scrap metal is gone but gold still bills | `app/scrap-metal`, `app/api/scrap-metal`, `lib/scrap-metal.ts`, `lib/scrap-metal/`, `components/scrap-metal` deleted; `lib/commodity-billing.ts` untouched and gold purchase/receipt posting tests green | `todo` |
-| ST-2.4 | As an engineer, dead accounting features are gone | `app/accounting/assets`, `app/accounting/budgets`, `app/api/accounting/assets`, `app/api/accounting/budgets` deleted; the thrift redirect stub `app/thrift/page.tsx` removed alongside its route-registry entry | `todo` |
-| ST-2.5 | As an engineer, the workspace and persona registries no longer know the dropped verticals | `SCRAP_METAL` and `AUTOS` handling removed from `lib/platform/vertical-defaults.ts`, `lib/platform/vertical-role-registry.ts` and workspace profile resolution, with a documented mapping for any existing tenant on those profiles (re-point to `GENERAL`); tests updated | `todo` |
+| ST-2.1 | As an engineer, the CCTV module and its server are gone | `app/cctv`, `app/api/cctv`, `components/cctv`, `lib/cctv-playback.ts` and related lib files, `cctv-server/`, and `app/reports/cctv-events` deleted; `hls.js` dependency removed if nothing else uses it; build green | `done` |
+| ST-2.2 | As an engineer, Autos/car-sales is gone | `app/car-sales`, `app/api/v2/autos`, `app/api/v2/car-sales` (re-export shims), `lib/autos`, `components/car-sales`, `app/portal/autos` and the `portal.autos` feature deleted; build green | `done` |
+| ST-2.3 | As an engineer, Scrap metal is gone but gold still bills | `app/scrap-metal`, `app/api/scrap-metal`, `lib/scrap-metal.ts`, `lib/scrap-metal/`, `components/scrap-metal` deleted; `lib/commodity-billing.ts` untouched and gold purchase/receipt posting tests green | `done` |
+| ST-2.4 | As an engineer, dead accounting features are gone | `app/accounting/assets`, `app/accounting/budgets`, `app/api/accounting/assets`, `app/api/accounting/budgets` deleted; the thrift redirect stub `app/thrift/page.tsx` removed alongside its route-registry entry | `done` |
+| ST-2.5 | As an engineer, the workspace and persona registries no longer know the dropped verticals | `SCRAP_METAL` and `AUTOS` handling removed from `lib/platform/vertical-defaults.ts`, `lib/platform/vertical-role-registry.ts` and workspace profile resolution, with a documented mapping for any existing tenant on those profiles (re-point to `GENERAL`); tests updated | `done` |
 
 ## Iteration 3 — Schema deletion
 
@@ -154,5 +154,6 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `fbc6100`, `a08925d` | ST-0.2, ST-2.1 – ST-2.5 → `done` | The export exists (per company, every row of the CCTV/autos/scrap tables, plus the surviving accounting documents scrap rows pointed at — and StreamSession/PlaybackRecord, which this roadmap missed: both carry a required FK to Camera and could not have survived its drop). Then the code went: pages, APIs, components, libs, the CCTV gateway server, the dead fixed-asset and budget registers, the thrift stub, and the retired workspace-profile handling. `lib/commodity-billing.ts` survived, as the standing instruction requires. **ST-3 remains `todo` on purpose** — the tables still hold their data, the export has only been proven against an empty local database, and dropping ScrapMetal* severs FKs into SalesInvoice, PurchaseBill and Vendor. That step wants a real export against real data first. |
 | 2026-08-18 | `a819b7e`, `062aa91` | ST-0.1, ST-1.1, ST-1.3 → `done` | Usage-audit script added (runs safely on an empty database). CCTV, Autos/car-sales and Scrap-metal removed from the bundle catalog, the client templates, navigation, workspace products, the route registry, the permission catalog and the marketing site. `lib/commodity-billing.ts` untouched — gold depends on it. Code and schema deletion (ST-2, ST-3) are still to come, so the modules remain on disk behind gates that grant nothing. |
 | 2026-08-18 | — | — | Document created with the dependency-audit evidence and the keep/park/drop/freeze line. |

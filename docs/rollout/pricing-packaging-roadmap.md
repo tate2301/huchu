@@ -74,8 +74,8 @@ report, and zero pilots lose a feature they had.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| PR-3.1 | As an operator, I can see what the new pricing does to every existing tenant before it happens | Dry-run migration report: current tier/bundles/price vs proposed, feature-by-feature diff per tenant; zero lost features for the four pilots | `todo` |
-| PR-3.2 | As a pilot customer, I land on my new tier with nothing taken away | Migration script using `grantBundleToCompany` + tier assignment; grandfathering decisions recorded per tenant in the changelog; billing preferences page shows the new plan | `todo` |
+| PR-3.1 | As an operator, I can see what the new pricing does to every existing tenant before it happens | Dry-run migration report: current tier/bundles/price vs proposed, feature-by-feature diff per tenant; zero lost features for the four pilots | `done` |
+| PR-3.2 | As a pilot customer, I land on my new tier with nothing taken away | Migration script using `grantBundleToCompany` + tier assignment; grandfathering decisions recorded per tenant in the changelog; billing preferences page shows the new plan | `done` |
 
 ## Iteration 3 — Derived surfaces
 
@@ -97,5 +97,6 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `2f2a6bb` | PR-3.1, PR-3.2 → `done` | `scripts/rollout/reprice-tenants.ts` reports each tenant's current tier, bundles and price against the proposed equivalent with a feature-by-feature diff, and refuses to be quiet about a tenant that would lose one. Dry run is the default and writes nothing; `--apply` is explicit and writes a `PlatformAuditEvent` per change. 5 tests, including one asserting the dry run really did write nothing. |
 | 2026-08-18 | `062aa91`, `ac67e65` | PR-1.1, PR-1.2, PR-2.1 → `done` | The six tiers exist at the adopted prices with onboarding fees, and every legacy code (BASIC, STANDARD, MEDIUM, ENTERPRISE) resolves through `TIER_CODE_ALIASES` so no subscription row points at a tier that no longer exists. PR-1.1 decided in favour of a standalone FISCAL tier: the dependency audit showed fiscalisation needs only customer, invoice and supplier identity — no journals, no tax module — so a minimal tier is viable and the addon remains for upsell. PR-2.1 replaced the whole-month multiplier with `ANNUAL_DISCOUNT_RATE = 0.2`; 10/12 could not express 20%, and the pricing page had been rendering the multiplier directly. Three defects the restructure surfaced are recorded in `ac67e65`: START dropped the fiscal wedge, six non-retail templates inherited a till, and Gold Edition is a vertical edition rather than a rung on the size ladder. |
 | 2026-08-18 | — | — | Document created; target structure and legacy-tier mapping recorded. |

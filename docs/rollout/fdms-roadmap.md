@@ -112,15 +112,15 @@ The US$19 SKU's core promise, and the highest-volume surface.
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-5.1 | As a till operator, my sale fiscalises without me doing anything | Fiscal relation on `RetailSale`; fiscalise-on-drain in `app/api/v2/retail/pos/sync/route.ts`; receipt print (`lib/retail/offline-receipt.ts`) carries the fiscal number and QR block | `todo` |
-| FD-5.2 | As a till operator, load-shedding does not stop me trading | Kill the network mid-shift, ring 10 sales, reconnect: all 10 fiscalised in order, chain intact, within ZIMRA's permitted offline window (master-plan risk #8). Rides `lib/retail/pos-offline-queue.ts` and the `lib/offline/` outbox/sync-engine | `todo` |
+| FD-5.1 | As a till operator, my sale fiscalises without me doing anything | Fiscal relation on `RetailSale`; fiscalise-on-drain in `app/api/v2/retail/pos/sync/route.ts`; receipt print (`lib/retail/offline-receipt.ts`) carries the fiscal number and QR block | `wip` |
+| FD-5.2 | As a till operator, load-shedding does not stop me trading | Kill the network mid-shift, ring 10 sales, reconnect: all 10 fiscalised in order, chain intact, within ZIMRA's permitted offline window (master-plan risk #8). Rides `lib/retail/pos-offline-queue.ts` and the `lib/offline/` outbox/sync-engine | `wip` |
 
 ## Iteration 6 — Worker and operations
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| FD-6.1 | As an operator, pending and failed receipts retry without a human | A new fiscal worker script (on the `scripts/pdf-worker.ts` precedent) drains `FiscalReceipt.nextRetryAt`; an induced FDGA outage self-heals with zero uses of the manual replay route | `todo` |
-| FD-6.2 | As an operator, I am told when fiscalisation is failing | Sustained failure emits notifications via `lib/notifications.ts`; the console page shows queue depth and oldest-pending age | `todo` |
+| FD-6.1 | As an operator, pending and failed receipts retry without a human | A new fiscal worker script (on the `scripts/pdf-worker.ts` precedent) drains `FiscalReceipt.nextRetryAt`; an induced FDGA outage self-heals with zero uses of the manual replay route | `done` |
+| FD-6.2 | As an operator, I am told when fiscalisation is failing | Sustained failure emits notifications via `lib/notifications.ts`; the console page shows queue depth and oldest-pending age | `done` |
 
 ## Iteration 7 — Multi-site, multi-till
 
@@ -144,5 +144,6 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-18 | `fbc6100`, `36f1ae5` | FD-6.1, FD-6.2 → `done`; FD-5.1, FD-5.2 → `wip` | The drainer claims a row with a conditional update before working it, so two workers cannot double-submit one receipt, and a receipt past its attempt ceiling stops rather than spinning. POS fiscalisation builds the payload from a `RetailSale`, fiscalises a sync batch sequentially so receipt N carries receipt N-1's hash, treats a REFUND as a credit note, and refuses — rather than guesses — an unmapped tax rate or an amount finer than a cent. 67 tests against a mocked connector. FD-5 stays `wip`: its acceptance signal is a real kill-the-network-mid-shift run, and this is unit coverage. |
 | 2026-08-18 | `a89988e`, `a304767`, `1974d15`, `abca4d2` | FD-0.1, FD-0.2, FD-0.4 → `done`; FD-1.1, FD-2.1, FD-3.1, FD-4.1 → `wip` | **The native protocol exists; nothing has met the ZIMRA test environment.** FD-0 landed as one migration: `TaxCode.zimraTaxId`, `RetailSale.currency` backfilled to USD, the one-source CHECK widened from two columns to exactly-one-of-four (credit notes and till sales can now be fiscalised), the `FiscalDay` model with a partial unique index giving one open day per device, and the signing columns on `FiscalReceipt`. Then RSA keypair + hand-built PKCS#10 CSR + certificate expiry parsing (FD-1); canonical string, SHA-256 hash, RSA signature, previous-hash chaining, gap-free counters and the QR verification URL (FD-3); and the fiscal-day service whose two races — two tills opening a day, two sales reserving a number — are closed by the database rather than by a check-then-write. The issue path now signs and chains before the network call, keeping the existing PENDING-row-first ordering that makes a crash survivable. Schools falls back to the unchained path when a tenant has no device, deliberately and with a test. 70 new tests; the money types refuse a float outright. **The four `wip` rows are code-complete but their acceptance signals name the ZIMRA sandbox, which this work has not touched — DoD item 9 is unmet until FD-8 registers a device.** |
 | 2026-08-18 | — | — | Document created against the fiscalisation-skeleton audit; native-only decision recorded (no Fiscal Harmony bridge). |
