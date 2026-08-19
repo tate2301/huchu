@@ -72,7 +72,7 @@ new public page carries metadata and JSON-LD via `lib/marketing/seo.ts`, is list
 
 | ID | Story | Acceptance signal | Status |
 |---|---|---|---|
-| MK-3.1 | As a founder, a lead is never lost | A lead/demo-request table replaces the webhook-else-`console.error` path in `app/api/marketing/demo-request/route.ts`; tool submissions and demo requests land in it; surfaced in the admin portal or CRM; a submission with the webhook down is still visible in-app | `todo` |
+| MK-3.1 | As a founder, a lead is never lost | A lead/demo-request table replaces the webhook-else-`console.error` path in `app/api/marketing/demo-request/route.ts`; tool submissions and demo requests land in it; surfaced in the admin portal or CRM; a submission with the webhook down is still visible in-app | `wip` |
 
 ## Iteration 4 — Conversion surface swap
 
@@ -94,5 +94,6 @@ Newest first. One entry per commit that changes implementation status.
 
 | Date | Commit | Stories | Description |
 |---|---|---|---|
+| 2026-08-19 | — | MK-3.1 → `wip` | **A lead now survives the webhook being down.** `MarketingLead` is the record and the webhook is a side effect fired after the row is written, which is the whole inversion: the old path was webhook-else-`console.error`, so an unset or unreachable webhook meant a lead existed only in a log line nobody reads. `recordMarketingLead` throws if the row cannot be written, so a lost lead is a visible failure rather than a silent one. Both the demo-request route and a new `/api/marketing/leads` route (for the free tools) write through it, carrying UTM and referer context so a submission can be attributed to the page that produced it. `wip`, not `done`: the acceptance signal also asks for the leads to be *surfaced* in the admin portal or CRM, and nothing reads the table yet — a lead that is only in the database is better than one only in a log, but it is still not in front of anyone. |
 | 2026-08-18 | `ee1c6ec` | MK-1.1, MK-1.2, MK-2.1, MK-2.2 → `done` | The homepage and pricing page lead with the fiscal SKU and the obligation it answers; every figure is read from the billing catalog rather than typed into the page. The penalty calculator caps at 181 days and reports the uncapped figure separately as a contrast, never as somebody's exposure — tested across the whole input range, because the first accountant who finds an uncapped number stops trusting the tool that exists to win accountants. One correction on the way in: the drafted status panel claimed FDMS was "in pilot" and "running with pilot businesses now", and neither is true — FD-8 is `todo` and no customer issues a fiscal invoice through us. It now says built and tested, not validated against ZIMRA's environment, not live with anyone. |
 | 2026-08-18 | — | — | Document created; zero-ZIMRA-mentions baseline and webhook-only lead path recorded. |

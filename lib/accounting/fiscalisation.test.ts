@@ -730,6 +730,92 @@ describe("the Float boundary (FD-0.3)", () => {
     expect(() => centsFromAccountingAmount(Number.NaN, "total")).toThrow(/finite/);
   });
 
+  /**
+   * FD-0.3's acceptance signal: *no fiscal total ever differs from its source
+   * document total.*
+   *
+   * Generated rather than enumerated, because the failure this guards against
+   * is not a value anybody would think to write down — it is whichever
+   * combination of line amounts happens to accumulate float error past half a
+   * cent. The generator is a seeded LCG rather than `fast-check` so the suite
+   * gains no dependency and CI cannot go red on a draw nobody can reproduce: a
+   * failure here names the exact seed and invoice that produced it.
+   *
+   * The property is deliberately two-sided. "Equal or throws" is the whole
+   * guarantee — the boundary is allowed to refuse an invoice, and is never
+   * allowed to sign a total that is not the document's own. A one-sided
+   * assertion would pass on a boundary that quietly rounded.
+   */
+  it("signs the document's own total, or refuses — never something in between", () => {
+    // Numerical Recipes LCG. Deterministic, so a failure is reproducible.
+    let seed = 0x9e3779b9;
+    const next = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+
+    let refusals = 0;
+
+    for (let trial = 0; trial < 5000; trial += 1) {
+      const lineCount = 1 + Math.floor(next() * 40);
+      // Whole cents, spanning a tuckshop line item to a bullion invoice.
+      const lineCents = Array.from({ length: lineCount }, () =>
+        Math.floor(next() * 5_000_000) - 1_000_000,
+      );
+
+      // The exact answer, computed in integers and never through a double.
+      const exact = lineCents.reduce((sum, cents) => sum + BigInt(cents), BigInt(0));
+
+      // What the accounting layer actually holds: major-unit Floats, summed as
+      // Floats. This is the accumulation the boundary exists to catch.
+      const floatTotal = lineCents.reduce((sum, cents) => sum + cents / 100, 0);
+
+      let signed: bigint | null = null;
+      try {
+        signed = centsFromAccountingAmount(floatTotal, "total");
+      } catch (error) {
+        refusals += 1;
+        expect(
+          (error as Error).message,
+          `seed trial ${trial} refused for the wrong reason`,
+        ).toMatch(/finer than one cent|finite/);
+        continue;
+      }
+
+      expect(
+        signed,
+        `trial ${trial}: signed total disagrees with the document total for lines ${JSON.stringify(lineCents)}`,
+      ).toBe(exact);
+    }
+
+    // Not an assertion about correctness — a guard on the test itself. If the
+    // boundary began refusing a large share of ordinary invoices the property
+    // above would still pass vacuously, and the first anyone would hear of it
+    // is a tenant unable to fiscalise.
+    expect(refusals, "the boundary refused an implausible share of ordinary invoices").toBeLessThan(
+      50,
+    );
+  });
+
+  it("holds the same property per line, not just on the total", () => {
+    // The total is not the only amount that gets signed: every tax line crosses
+    // the same boundary, and a per-line disagreement would leave a receipt
+    // whose parts do not add up to its own total.
+    let seed = 0x85ebca6b;
+    const next = () => {
+      seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+      return seed / 0x100000000;
+    };
+
+    for (let trial = 0; trial < 5000; trial += 1) {
+      const cents = Math.floor(next() * 100_000_000) - 20_000_000;
+      expect(
+        centsFromAccountingAmount(cents / 100, "line"),
+        `trial ${trial}: ${cents} cents did not round-trip`,
+      ).toBe(BigInt(cents));
+    }
+  });
+
   it("aggregates invoice tax by ZIMRA taxID and refuses two rates under one", () => {
     const mapped = buildInvoiceSigningInput({
       currency: "USD",

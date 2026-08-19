@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 
 import { getMarketingDemoWebhookUrl, getMarketingSchedulerUrl } from "@/lib/marketing-site";
+import {
+  MARKETING_LEAD_SOURCES,
+  deliverLeadWebhook,
+  readRefererContext,
+  readUtmFields,
+  recordMarketingLead,
+} from "@/lib/marketing/leads";
 
 const demoRequestSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -21,6 +28,10 @@ const demoRequestSchema = z.object({
   // Plan, product, or route context captured from the page the visitor came from.
   interest: z.string().trim().max(200).optional(),
   website: z.string().trim().max(200).optional(),
+  pagePath: z.string().trim().max(300).optional(),
+  utmSource: z.string().trim().max(200).optional(),
+  utmMedium: z.string().trim().max(200).optional(),
+  utmCampaign: z.string().trim().max(200).optional(),
 });
 
 export async function POST(request: Request) {
@@ -48,30 +59,48 @@ export async function POST(request: Request) {
       });
     }
 
-    const webhookUrl = getMarketingDemoWebhookUrl();
+    // MK-3. The row comes first and the webhook second, always. The previous
+    // order had no row at all: with `MARKETING_DEMO_WEBHOOK_URL` unset or the
+    // endpoint down, a completed form ended in `console.error` on a server
+    // nobody reads, and the visitor was told it had been received.
+    const referer = readRefererContext(request.headers.get("referer"));
+    const posted = readUtmFields(parsed.data as Record<string, unknown>);
 
-    if (webhookUrl) {
-      const webhookResponse = await fetch(webhookUrl, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload),
-      });
+    const lead = await recordMarketingLead({
+      source: parsed.data.source ?? MARKETING_LEAD_SOURCES.DEMO_REQUEST,
+      name: parsed.data.name,
+      email: parsed.data.email,
+      phone: parsed.data.phone,
+      companyName: parsed.data.company,
+      message: parsed.data.message,
+      // The questionnaire answers are what makes the first call specific, so
+      // they are kept whole rather than flattened into the message body.
+      payload: {
+        industry: parsed.data.industry,
+        teamSize: parsed.data.teamSize,
+        city: parsed.data.city ?? null,
+        locations: parsed.data.locations ?? null,
+        currentTools: parsed.data.currentTools ?? null,
+        problemArea: parsed.data.problemArea ?? null,
+        timeline: parsed.data.timeline ?? null,
+        preferredChannel: parsed.data.preferredChannel ?? null,
+        interest: parsed.data.interest ?? null,
+      },
+      pagePath: parsed.data.pagePath ?? referer.pagePath,
+      utmSource: posted.utmSource ?? referer.utmSource,
+      utmMedium: posted.utmMedium ?? referer.utmMedium,
+      utmCampaign: posted.utmCampaign ?? referer.utmCampaign,
+    });
 
-      if (!webhookResponse.ok) {
-        console.error("[marketing] demo webhook failed", {
-          status: webhookResponse.status,
-        });
-
-        return NextResponse.json(
-          { ok: false, error: "We could not deliver the demo request. Please try again." },
-          { status: 502 },
-        );
-      }
-    } else {
-      console.info("[marketing] demo request", payload);
-    }
+    // Delivery is a convenience for whoever watches the CRM. It cannot fail the
+    // request, because failing it would ask the visitor to submit a lead that
+    // has already been captured — and the second copy is the one that gets
+    // called twice.
+    await deliverLeadWebhook({
+      url: getMarketingDemoWebhookUrl(),
+      payload: { ...payload, leadId: lead.id },
+      leadId: lead.id,
+    });
 
     return NextResponse.json({
       ok: true,
