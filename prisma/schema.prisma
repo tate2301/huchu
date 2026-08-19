@@ -68,6 +68,7 @@ model Company {
   contractEnforcementEvents     ContractEnforcementEvent[]
   auditLedgerEvents             PlatformAuditEvent[]
   subscriptionAddons            CompanySubscriptionAddon[]
+  subscriptionPayments          SubscriptionPayment[]
   accountingSettings            AccountingSettings?
   chartOfAccounts               ChartOfAccount[]
   accountingPeriods             AccountingPeriod[]
@@ -355,8 +356,9 @@ model CompanySubscription {
   createdAt              DateTime           @default(now())
   updatedAt              DateTime           @updatedAt
 
-  company Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  plan    SubscriptionPlan @relation(fields: [planId], references: [id])
+  company  Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  plan     SubscriptionPlan      @relation(fields: [planId], references: [id])
+  payments SubscriptionPayment[]
 
   @@index([companyId, status])
   @@index([planId])
@@ -484,6 +486,99 @@ model CompanySubscriptionAddon {
 
   @@unique([companyId, bundleId])
   @@index([bundleId, isEnabled])
+}
+
+/// One attempt to pay for a subscription, whichever gateway takes the money.
+/// `provider` is the adapter key ("paynow", "pesepay", …) rather than an enum,
+/// because SS-4.1 has not picked the gateway yet and a tenant that migrates
+/// between gateways must keep its old payment rows readable — an enum would
+/// force a migration on every provider added or dropped.
+model SubscriptionPayment {
+  id                String    @id @default(uuid())
+  companyId         String
+  subscriptionId    String?
+  provider          String
+  /// The gateway's own id for the transaction. Ours is `id`; theirs is this.
+  providerReference String
+  /// Money is Decimal at money's scale. A float subscription charge rounds
+  /// somebody's payment into a mismatch with what the gateway settled.
+  amount            Decimal   @db.Decimal(14, 2)
+  currency          String    @default("USD")
+  /// INITIATED | PENDING | PAID | FAILED | CANCELLED
+  status            String
+  /// 1 | 3 | 12 — monthly, quarterly, annual. Stored rather than derived from
+  /// the dates because the annual discount (PR-2.1) is applied against the term
+  /// that was actually bought, and the term is what the receipt has to state.
+  periodMonths      Int
+  idempotencyKey    String    @unique
+  rawPayloadJson    String?
+  paidAt            DateTime?
+  failureReason     String?
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  company      Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  /// SetNull, not Cascade: the payment ledger outlives the subscription row it
+  /// paid for. A tenant that cancels and re-subscribes must not lose the record
+  /// of money it already sent.
+  subscription CompanySubscription? @relation(fields: [subscriptionId], references: [id], onDelete: SetNull)
+
+  /// A replayed webhook carries the same gateway reference, so it collides here
+  /// instead of creating a second payment for one transaction.
+  @@unique([provider, providerReference])
+  @@index([companyId, status, createdAt])
+  @@index([subscriptionId])
+}
+
+/// Every webhook delivery a gateway makes, recorded before it is acted on.
+/// Gateways retry until they see a 2xx and re-deliver on their own schedule, so
+/// "did I already process this?" cannot be answered from the payment table
+/// alone — a delivery that failed mid-processing left no payment row to find.
+model PaymentWebhookEvent {
+  id                String    @id @default(uuid())
+  provider          String
+  providerEventId   String
+  /// Recorded, not assumed: an unverified delivery is stored and refused rather
+  /// than dropped silently, so a signing-key rotation is visible as a run of
+  /// false rows instead of as payments that never arrived.
+  signatureVerified Boolean   @default(false)
+  payloadJson       String
+  processedAt       DateTime?
+  error             String?
+  createdAt         DateTime  @default(now())
+
+  /// The whole point of this table: the second delivery of one event fails the
+  /// insert and is answered 200 without re-applying the transition.
+  @@unique([provider, providerEventId])
+  @@index([provider, processedAt])
+}
+
+/// A stranger who raised their hand on the marketing site. Deliberately NOT
+/// tenant-scoped and with no required contact field: a lead has no Company yet,
+/// and a calculator submission that reaches us with only a phone number is
+/// still worth more than the `console.error` it used to become (MK-3.1).
+model MarketingLead {
+  id          String   @id @default(uuid())
+  /// DEMO_REQUEST | PENALTY_CALCULATOR | VAT_THRESHOLD | OTHER
+  source      String
+  name        String?
+  email       String?
+  phone       String?
+  companyName String?
+  message     String?
+  /// The tool's own inputs — the calculator's till count and days are the sales
+  /// context that makes the follow-up call specific instead of generic.
+  payloadJson String?
+  pagePath    String?
+  utmSource   String?
+  utmMedium   String?
+  utmCampaign String?
+  status      String   @default("NEW")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([status, createdAt])
+  @@index([source, createdAt])
 }
 
 model ProvisioningEvent {
