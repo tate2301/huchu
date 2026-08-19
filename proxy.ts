@@ -24,6 +24,12 @@ import {
   getPortalHostPrefixes,
 } from "@/lib/platform/portal-hosts";
 import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+import {
+  SUBSCRIPTION_READ_ONLY_CODE,
+  isReadOnlyHttpMethod,
+  isSubscriptionOnlyTenantStatus,
+  isSubscriptionReadOnly,
+} from "@/lib/platform/subscription";
 import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
 import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
 import { isAuthExpired } from "@/lib/auth-core/session-policy";
@@ -66,6 +72,7 @@ type PlatformToken = {
   companyId?: string;
   companySlug?: string;
   tenantStatus?: string;
+  subscriptionHealth?: string;
   enabledFeatures?: string[];
   allowedHosts?: string[];
   role?: string;
@@ -117,6 +124,25 @@ function denyFeature(request: NextRequestWithAuth, decision: { message?: string;
     );
   }
   return redirectToAccessBlocked(request);
+}
+
+/**
+ * SS-1.2 — the answer to a write from a workspace whose subscription has lapsed.
+ *
+ * A named code rather than the generic access denial because the app shell has
+ * to be able to tell "you did not pay" apart from "you may not do this" and show
+ * the renewal banner over data the merchant can still read.
+ */
+function denySubscriptionWrite(request: NextRequestWithAuth, state: string | null) {
+  return NextResponse.json(
+    {
+      error: "This workspace is read-only until the subscription is renewed.",
+      code: SUBSCRIPTION_READ_ONLY_CODE,
+      state,
+      path: request.nextUrl.pathname,
+    },
+    { status: 403 },
+  );
 }
 
 function getRootDomain() {
@@ -499,11 +525,39 @@ export default withAuth(
       }
     }
 
+    // SS-1.2 — read-only degradation, and never anything harder than that.
+    //
+    // `getSubscriptionHealth().shouldBlock` decided this at sign-in and rides on
+    // the token as `subscriptionHealth`; the proxy runs before any database is
+    // reachable, so reading the claim is how the computed value gets enforced at
+    // all rather than being computed and dropped. GET and HEAD are untouched — a
+    // merchant whose card failed can still read the ledger, print yesterday's
+    // invoice, and find the number to call. Only the mutating verbs are refused,
+    // and they are refused by name. A merchant locked out of their own books on
+    // a market day does not renew; they tell the market what happened.
+    //
+    // Placed after the login and portal branches on purpose: signing in has to
+    // keep working, because paying is on the other side of it.
+    const subscriptionReadOnly = isSubscriptionReadOnly({
+      subscriptionHealth: token?.subscriptionHealth,
+      tenantStatus: token?.tenantStatus,
+    });
+    if (subscriptionReadOnly && !isReadOnlyHttpMethod(request.method)) {
+      return denySubscriptionWrite(request, token?.subscriptionHealth ?? token?.tenantStatus ?? null);
+    }
+
     const tenantHostEnforcementDecision = canAccessCapabilityWithToken(
       "core.multitenancy.host-enforcement",
       token?.enabledFeatures,
     );
-    const tenantHostEnforcementEnabled = tenantHostEnforcementDecision.allowed;
+    // Host pinning is the one gate here whose failure is cross-tenant rather than
+    // commercial, so it does not inherit deny-by-default: a token carrying no
+    // entitlement list at all would otherwise un-pin the tenant from its host,
+    // which is the opposite of what hardening the gates is for. An explicit list
+    // that omits the key still turns it off — that is a real configuration for a
+    // tenant on a custom domain.
+    const tenantHostEnforcementEnabled =
+      (token?.enabledFeatures?.length ?? 0) === 0 ? true : tenantHostEnforcementDecision.allowed;
 
     if (isApiRequest) {
       if (!token?.companyId) {
@@ -512,7 +566,12 @@ export default withAuth(
           { status: 401 },
         );
       }
-      if (!isTenantStatusActive(token.tenantStatus)) {
+      // A lapsed subscription reaches here as `SUBSCRIPTION_INACTIVE`, which this
+      // check used to treat exactly like a tenant an operator had switched off:
+      // a 403 on every read as well as every write. That is the wall SS-1.2
+      // exists to remove, so non-payment falls through to the read-only
+      // degradation above and only an operator-set status still closes the door.
+      if (!isTenantStatusActive(token.tenantStatus) && !isSubscriptionOnlyTenantStatus(token.tenantStatus)) {
         return denyAccess(request, "Tenant is inactive");
       }
       if (tenantHostEnforcementEnabled && hostContext.strictTenantEnforcement) {
@@ -547,7 +606,8 @@ export default withAuth(
       return denyAccess(request, "Tenant host mismatch");
     }
 
-    if (!isTenantStatusActive(token.tenantStatus)) {
+    // Same reason as the API branch: unpaid is read-only, not shut.
+    if (!isTenantStatusActive(token.tenantStatus) && !isSubscriptionOnlyTenantStatus(token.tenantStatus)) {
       return denyAccess(request, "Tenant is inactive");
     }
 

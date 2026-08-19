@@ -333,3 +333,75 @@ export async function hasActiveSubscription(companyId: string): Promise<boolean>
   return !health.shouldBlock;
 }
 
+/**
+ * The tenant status a lapsed subscription produces.
+ *
+ * `enrichTokenClaims` stamps this on the JWT when `getSubscriptionHealth` comes
+ * back with `shouldBlock`, and it is the ONLY non-ACTIVE status that means "the
+ * bill is unpaid" rather than "an operator turned this tenant off". The proxy
+ * has to tell those two apart: one is degraded, the other is closed.
+ */
+export const SUBSCRIPTION_INACTIVE_TENANT_STATUS = "SUBSCRIPTION_INACTIVE";
+
+/** The error code a write refused for non-payment carries. */
+export const SUBSCRIPTION_READ_ONLY_CODE = "SUBSCRIPTION_READ_ONLY";
+
+/**
+ * The health states `getSubscriptionHealth` returns with `shouldBlock: true`.
+ *
+ * Kept as a set because the enforcement point is the proxy, which runs before
+ * any database is reachable and can only see the `subscriptionHealth` state
+ * already on the token. `lib/platform/gating/enforcement.test.ts` pins this set
+ * against `getSubscriptionHealth` itself so the two cannot drift in silence.
+ *
+ * `MISSING_SUBSCRIPTION` is in here on purpose: a workspace with no subscription
+ * row is a workspace nobody is billing, and the state machine has always treated
+ * it as blocked. Under SS-1.2 that costs it its writes, not its data.
+ */
+const BLOCKING_HEALTH_STATES: ReadonlySet<string> = new Set<SubscriptionHealthState>([
+  "MISSING_SUBSCRIPTION",
+  "EXPIRED_BLOCKED",
+]);
+
+/** Whether a `SubscriptionHealth.state` value is one that blocks. */
+export function isBlockingSubscriptionState(state: string | null | undefined): boolean {
+  const normalized = normalizedStatus(state);
+  return normalized ? BLOCKING_HEALTH_STATES.has(normalized) : false;
+}
+
+/** Whether a tenant status says "unpaid" rather than "switched off". */
+export function isSubscriptionOnlyTenantStatus(status: string | null | undefined): boolean {
+  return normalizedStatus(status) === SUBSCRIPTION_INACTIVE_TENANT_STATUS;
+}
+
+/**
+ * Whether this session's workspace is degraded to read-only.
+ *
+ * Both signals are consulted because they are written at different moments: the
+ * state is the richer one, and the tenant status is what an older token that
+ * predates the `subscriptionHealth` claim still carries. Either one saying
+ * "blocked" is enough — a workspace does not become writable again because half
+ * of the claim is stale.
+ */
+export function isSubscriptionReadOnly(claims: {
+  subscriptionHealth?: string | null;
+  tenantStatus?: string | null;
+}): boolean {
+  return (
+    isBlockingSubscriptionState(claims.subscriptionHealth) ||
+    isSubscriptionOnlyTenantStatus(claims.tenantStatus)
+  );
+}
+
+/**
+ * Methods that only read.
+ *
+ * The list is the safe-method list from the HTTP spec, minus nothing and plus
+ * nothing: this is the line between "can still run their shop" and "cannot".
+ */
+const READ_ONLY_METHODS: ReadonlySet<string> = new Set(["GET", "HEAD", "OPTIONS"]);
+
+export function isReadOnlyHttpMethod(method: string | null | undefined): boolean {
+  return READ_ONLY_METHODS.has((method ?? "GET").trim().toUpperCase());
+}
+

@@ -197,6 +197,10 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // The production dashboard is built entirely on plant reports; gate it with
   // the same mining reporting feature so it never fail-opens into non-mining
   // workspaces.
+  // Reads as the workspace landing page and is not: `/dashboard` charts plant
+  // reports (`fetchPlantReports`), so `reports.plant` is the right gate and a
+  // non-mining tenant is correctly refused. Tenants land on their vertical's
+  // `preferredHomeHref` — /gold, /schools, /retail — never here.
   { scope: "page", prefix: "/dashboard", featureKey: "reports.plant" },
 
   // ST-1.3 — `/reports/cctv-events` left with the surveillance module. It falls
@@ -246,6 +250,11 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/disbursements", featureKey: "hr.disbursements" },
   { scope: "api", prefix: "/api/compensation", featureKey: "hr.compensation-rules" },
   { scope: "api", prefix: "/api/employee-payments", featureKey: "hr.salaries" },
+  // SS-1.1 — adjustment approve/reject/submit already ask
+  // `hrPermissionDenial(session, "hr.payroll", ...)` inside the handler; without
+  // an entry here the route itself was ungated, so the module gate ran only
+  // where somebody remembered to write it. Same key, one layer earlier.
+  { scope: "api", prefix: "/api/adjustments", featureKey: "hr.payroll" },
   { scope: "api", prefix: "/api/approvals/history", featureKey: "hr.approvals-history" },
   { scope: "api", prefix: "/api/people/leave", featureKey: "hr.leave" },
   { scope: "api", prefix: "/api/people/attendance", featureKey: "hr.attendance" },
@@ -271,6 +280,14 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/expense-types", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
+  // SS-1.1 — the module fallback, deliberately last of the gold block (longest
+  // prefix wins). Before this entry `/api/gold/imports`, `/api/gold/summary`,
+  // `/api/gold/period-close`, `/api/gold/shift-output` and `/api/gold/reports/*`
+  // matched nothing and so were reachable by any signed-in user in any tenant,
+  // gold or not. `gold.home` rather than a per-screen key because every other
+  // `gold.*` feature declares it as a dependency, so no tenant that holds any
+  // gold entitlement can fail this gate.
+  { scope: "api", prefix: "/api/gold", featureKey: "gold.home" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
@@ -391,6 +408,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/inventory/products", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/inventory/price-lists", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/inventory/stock-items", featureKey: "stores.inventory" },
+  // SS-1.1 — "what is in this store" reads the same stock the three entries
+  // above gate; it was the one sibling with no entry.
+  { scope: "api", prefix: "/api/v2/inventory/locations", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/v2/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/purchasing", featureKey: "retail.purchasing" },
@@ -400,6 +420,10 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/reports", featureKey: "retail.reports" },
   { scope: "api", prefix: "/api/v2/retail", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/v2/thrift", featureKey: "retail.core" },
+  // SS-1.1 — the till's own v2 collection endpoint, which sits outside the
+  // `/api/v2/retail` tree and so matched nothing. `/api/v2/portal` does not
+  // collide with it: prefix matching is literal, and "por" is not "pos".
+  { scope: "api", prefix: "/api/v2/pos", featureKey: "retail.pos" },
 
   { scope: "api", prefix: "/api/portal/parent", featureKey: "schools.portal.parent" },
   { scope: "api", prefix: "/api/portal/student", featureKey: "schools.portal.student" },
@@ -471,6 +495,18 @@ function sortByPrefixLength<T extends { prefix: string }>(rows: T[]): T[] {
 const PAGE_PREFIX_SORTED = sortByPrefixLength(PAGE_FEATURE_ROUTES);
 const API_PREFIX_SORTED = sortByPrefixLength(API_FEATURE_ROUTES);
 
+/**
+ * The feature a path is gated on, or null for a path that is not a gated surface.
+ *
+ * SS-1.1 — null is load-bearing now that the policy denies by default. "No entry
+ * here" cannot mean "denied": this registry is a hand-maintained list against a
+ * router with 900-odd routes, and the day it forgets one, that route would go
+ * dark in production for every tenant at once. So the two failure modes are
+ * deliberately asymmetric — unmapped means ungated and passes; mapped-but-not-
+ * entitled is refused. Forgetting an entry leaves a route open, which is the
+ * pre-existing state and is caught by review and by the coverage audit, rather
+ * than taking a paying workspace off the air.
+ */
 export function resolveFeatureKeyForPath(pathname: string): string | null {
   const normalizedPath = normalizePath(pathname).toLowerCase();
   const prefixes = normalizedPath.startsWith("/api/") ? API_PREFIX_SORTED : PAGE_PREFIX_SORTED;
