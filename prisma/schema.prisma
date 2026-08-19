@@ -258,7 +258,6 @@ model Company {
   priceLists                    PriceList[]
   productPrices                 ProductPrice[]
   retailRegisters               RetailRegister[]
-  retailCatalogItems            RetailCatalogItem[]
   retailPromotions              RetailPromotion[]
   retailPurchaseOrders          RetailPurchaseOrder[]
   retailPurchaseOrderLines      RetailPurchaseOrderLine[]
@@ -864,7 +863,6 @@ model Site {
   goldLedgerImports     GoldLedgerImport[]
   goldPeriodCloses      GoldPeriodClose[]
   retailRegisters       RetailRegister[]
-  retailCatalogItems    RetailCatalogItem[]
   retailPurchaseOrders  RetailPurchaseOrder[]
   retailGoodsReceipts   RetailGoodsReceipt[]
   retailShifts          RetailShift[]
@@ -4158,7 +4156,6 @@ model InventoryItem {
   movements StockMovement[]
   product   Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
 
-  retailCatalogItems       RetailCatalogItem[]
   retailPurchaseOrderLines RetailPurchaseOrderLine[]
   retailGoodsReceiptLines  RetailGoodsReceiptLine[]
   retailSaleLines          RetailSaleLine[]
@@ -4336,18 +4333,6 @@ enum RetailGoodsReceiptStatus {
   POSTED
 }
 
-enum RetailCatalogItemStatus {
-  ACTIVE
-  INACTIVE
-}
-
-/// How the shop came by the stock it is selling. Only `PURCHASE` is reachable
-/// today; consignment and trade-in are real retail models but nothing writes them
-/// yet, and a speculative value is a value that can never be removed.
-enum RetailAcquisitionMode {
-  PURCHASE
-}
-
 /// `PERCENT` and `AMOUNT` are the two the till can apply offline —
 /// `getPosSupportedPromotionTypes()` filters to exactly these. The other two are
 /// accepted by the admin API and are not yet honoured at the point of sale.
@@ -4390,44 +4375,6 @@ model RetailRegister {
 
   @@unique([companyId, code])
   @@index([companyId, siteId, isActive])
-}
-
-model RetailCatalogItem {
-  id              String   @id @default(uuid())
-  companyId       String
-  catalogCode     String
-  inventoryItemId String
-  siteId          String
-  name            String
-  sku             String
-  barcode         String?
-  description     String?
-  unitPrice       Decimal @default(0) @db.Decimal(14, 2)
-  compareAtPrice  Decimal? @db.Decimal(14, 2)
-  taxPercent      Decimal @default(0) @db.Decimal(5, 2)
-  acquisitionMode RetailAcquisitionMode @default(PURCHASE)
-  imageUrl        String?
-  status          RetailCatalogItemStatus @default(ACTIVE)
-  /// The shared catalogue item this listing sells. Optional so existing
-  /// listings keep working untouched. `unitPrice`/`taxPercent` above stay
-  /// authoritative for the till — offline POS reads them literally and must
-  /// not have to resolve a price list with no network.
-  productId       String?
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
-
-  product Product? @relation(fields: [productId], references: [id], onDelete: SetNull)
-
-  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  site          Site          @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
-  saleLines     RetailSaleLine[]
-
-  @@unique([companyId, catalogCode])
-  @@unique([companyId, sku])
-  @@index([companyId, siteId, status])
-  @@index([inventoryItemId])
-  @@index([companyId, productId])
 }
 
 model RetailPromotion {
@@ -4929,9 +4876,6 @@ model RetailSaleLine {
   /// a product may be archived out from under a receipt; `itemName` is what a
   /// reprint actually renders, and it is denormalised for exactly that reason.
   productId       String?
-  /// S-4b — frozen. Backfilled `productId` from this, and nothing reads it now.
-  /// It is kept only until `scripts/retail-drop-catalog-item.ts` is run.
-  catalogItemId   String?
   itemName        String
   quantity        Decimal @default(0) @db.Decimal(12, 4)
   unitPrice       Decimal @default(0) @db.Decimal(14, 2)
@@ -4952,7 +4896,6 @@ model RetailSaleLine {
   /// not make six months of receipts undeletable, and the receipt still reprints
   /// from `itemName`.
   product       Product?           @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: Cascade)
-  catalogItem   RetailCatalogItem? @relation(fields: [catalogItemId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
   reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
 
@@ -11305,14 +11248,13 @@ model Product {
   currency           String        @default("USD")
   /// The most a seller may discount without approval. Null means no ceiling.
   maxDiscountPercent Decimal?      @db.Decimal(5, 2)
-  /// S-1 — the retail profile. These attributes live on `RetailCatalogItem`
-  /// today, or nowhere at all; `Product` becomes the one item master in S-4 and
-  /// has to be able to hold them first.
+  /// Scanned at the till.
   ///
-  /// Scanned at the till. Indexed and deliberately *not* unique per company:
-  /// `RetailCatalogItem` already holds distinct SKUs sharing a barcode inside one
-  /// company and one site, so a unique constraint would pass on today's empty
-  /// column and then block the S-4 backfill that fills it.
+  /// S-1 added it here so `Product` could become the one item master in S-4;
+  /// S-4 dropped the listing table it used to live on. Indexed and deliberately
+  /// *not* unique per company: the range it was backfilled from held distinct
+  /// SKUs sharing a barcode inside one company and one site, and a shop that
+  /// prices two sizes off one manufacturer's code is doing something ordinary.
   barcode            String?
   /// A liquor licence is not optional, and a bottle store's range is mostly
   /// things it applies to. The counter has to be told to check.
@@ -11336,10 +11278,6 @@ model Product {
   createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
   prices         ProductPrice[]
   inventoryItems InventoryItem[]
-  /// S-4b — the shadow. `RetailCatalogItem` is no longer read by anything; the
-  /// relation stays only so `scripts/retail-drop-catalog-item.ts` has a table to
-  /// drop, and goes with it.
-  retailListings RetailCatalogItem[]
   retailSaleLines RetailSaleLine[]
 
   @@unique([companyId, code])

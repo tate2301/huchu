@@ -20,6 +20,10 @@
  *     constraint — the constraint would have passed on an empty table and
  *     failed the moment this data was copied across.
  *
+ * S-4 dropped `RetailCatalogItem`, so this reads the range the way everything
+ * else does now: a `Product` with a `sku` that matches, and the stock row that
+ * claims it. Nothing else about what it does or refuses to do has changed.
+ *
  * All eight have **zero sale lines** against them, which is what makes deleting
  * them safe rather than merely tidy: nothing in six months of trade refers to
  * them, so no receipt can be reprinted wrong and no report can lose a row. The
@@ -71,9 +75,9 @@ async function main() {
     process.exit(1)
   }
 
-  const items = await prisma.retailCatalogItem.findMany({
-    where: { companyId: company.id, sku: { in: [...LEFTOVER_SKUS] } },
-    select: { id: true, sku: true, name: true, barcode: true, productId: true },
+  const items = await prisma.product.findMany({
+    where: { companyId: company.id, code: { in: [...LEFTOVER_SKUS] } },
+    select: { id: true, code: true, name: true, barcode: true },
   })
 
   if (items.length === 0) {
@@ -86,12 +90,12 @@ async function main() {
   // reprinted.
   const blocked: string[] = []
   for (const item of items) {
-    const lines = await prisma.retailSaleLine.count({ where: { catalogItemId: item.id } })
+    const lines = await prisma.retailSaleLine.count({ where: { productId: item.id } })
     console.log(
-      `  ${(item.sku ?? "?").padEnd(12)} ${(item.barcode ?? "-").padEnd(14)} ` +
+      `  ${item.code.padEnd(12)} ${(item.barcode ?? "-").padEnd(14)} ` +
         `${String(lines).padStart(5)} sale line(s)  ${item.name}`,
     )
-    if (lines > 0) blocked.push(`${item.sku} (${lines} lines)`)
+    if (lines > 0) blocked.push(`${item.code} (${lines} lines)`)
   }
 
   if (blocked.length > 0) {
@@ -108,34 +112,37 @@ async function main() {
     return
   }
 
-  const productIds = items.map((item) => item.productId).filter((id): id is string => Boolean(id))
+  const productIds = items.map((item) => item.id)
 
-  // Order matters. `RetailCatalogItem.productId` is SET NULL and
-  // `ProductPrice.productId` cascades, but doing it explicitly means the counts
-  // below are real rather than inferred from a cascade nobody watched.
+  // Order matters. `InventoryItem.productId` is SET NULL and
+  // `ProductPrice.productId` cascades, but doing each explicitly means the
+  // counts below are real rather than inferred from a cascade nobody watched.
+  // The stock rows themselves stay: an `InventoryItem` is a quantity at a site,
+  // and unranging a line is not the same as saying the shop never had any.
   const removed = await prisma.$transaction(async (tx) => {
-    const listings = await tx.retailCatalogItem.deleteMany({
-      where: { id: { in: items.map((item) => item.id) } },
+    const unranged = await tx.inventoryItem.updateMany({
+      where: { productId: { in: productIds } },
+      data: { productId: null },
     })
     const prices = await tx.productPrice.deleteMany({ where: { productId: { in: productIds } } })
     const products = await tx.product.deleteMany({ where: { id: { in: productIds } } })
-    return { listings: listings.count, prices: prices.count, products: products.count }
+    return { unranged: unranged.count, prices: prices.count, products: products.count }
   })
 
   console.log(
-    `Removed ${removed.listings} listing(s), ${removed.prices} price(s), ` +
-      `${removed.products} product(s).`,
+    `Removed ${removed.products} product(s) and ${removed.prices} price(s); ` +
+      `${removed.unranged} stock row(s) left in place, unranged.`,
   )
 
   // Read the range back, and prove the collision is gone.
-  const remaining = await prisma.retailCatalogItem.findMany({
-    where: { companyId: company.id },
-    select: { sku: true, barcode: true },
+  const remaining = await prisma.product.findMany({
+    where: { companyId: company.id, isActive: true, archivedAt: null },
+    select: { code: true, barcode: true },
   })
   const seen = new Map<string, string[]>()
   for (const item of remaining) {
     if (!item.barcode) continue
-    seen.set(item.barcode, [...(seen.get(item.barcode) ?? []), item.sku ?? "?"])
+    seen.set(item.barcode, [...(seen.get(item.barcode) ?? []), item.code])
   }
   const collisions = [...seen.entries()].filter(([, skus]) => skus.length > 1)
 

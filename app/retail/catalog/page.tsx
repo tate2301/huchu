@@ -40,11 +40,9 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ChevronDown, Grid3x3, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
-import { useReservedId } from "@/hooks/use-reserved-id";
 
 type CatalogItem = {
   id: string;
-  catalogCode: string;
   inventoryItemId: string;
   siteId: string;
   name: string;
@@ -150,20 +148,9 @@ export default function RetailCatalogPage() {
   );
   const selectedInventory = inventoryItems.find((item) => item.id === form.inventoryItemId);
   const priceIsInvalid = form.unitPrice !== "" && (isNaN(Number(form.unitPrice)) || Number(form.unitPrice) <= 0);
-  const {
-    reservedId: catalogCode,
-    isReserving,
-    error: reserveError,
-  } = useReservedId({
-    entity: "RETAIL_CATALOG_ITEM",
-    enabled: dialogOpen && !editing && Boolean(selectedInventory?.siteId),
-    siteId: selectedInventory?.siteId,
-  });
-
   const saveMutation = useMutation({
     mutationFn: async (payload: CatalogForm) => {
       const body = {
-        catalogCode: editing ? undefined : catalogCode || undefined,
         inventoryItemId: payload.inventoryItemId,
         name: payload.name.trim() || undefined,
         sku: payload.sku.trim() || undefined,
@@ -261,12 +248,12 @@ export default function RetailCatalogPage() {
   const columns = useMemo<ColumnDef<CatalogItem>[]>(
     () => [
       {
-        id: "catalogCode",
+        id: "item",
         header: "Item",
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.name}</div>
-            <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.catalogCode}</div>
+            <div className="font-mono text-xs text-[var(--text-muted)]">{row.original.sku}</div>
           </div>
         ),
       },
@@ -531,11 +518,6 @@ export default function RetailCatalogPage() {
             {advancedOpen ? (
               <div className="grid gap-4 md:grid-cols-2">
                 <div className="space-y-2">
-                  <label className="block text-sm font-semibold">Catalog code</label>
-                  <Input value={editing ? editing.catalogCode : catalogCode} readOnly disabled={isReserving && !editing} />
-                  <FieldHelp error={reserveError ?? undefined} hint={reserveError ? undefined : "Generated automatically."} />
-                </div>
-                <div className="space-y-2">
                   <label className="block text-sm font-semibold">Display name</label>
                   <Input value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
                 </div>
@@ -709,7 +691,7 @@ export default function RetailCatalogPage() {
           <DialogHeader>
             <DialogTitle>Remove {deleteTarget?.name ?? "catalogue item"}</DialogTitle>
             <DialogDescription>
-              {deleteTarget?.catalogCode} stops appearing on the till. The stock line behind it is
+              {deleteTarget?.sku} stops appearing on the till. The stock line behind it is
               left alone.
             </DialogDescription>
           </DialogHeader>
@@ -720,7 +702,7 @@ export default function RetailCatalogPage() {
               variant="destructive"
               onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
             >
-              Remove {deleteTarget?.catalogCode ?? ""}
+              Remove {deleteTarget?.sku ?? ""}
             </Button>
           </DialogFooter>
         </DialogContent>

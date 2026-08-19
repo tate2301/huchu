@@ -243,7 +243,7 @@ export async function GET(request: NextRequest) {
     allSales,
     receipts,
     openShifts,
-    catalogItems,
+    rangedLines,
     promotions,
     purchaseOrders,
     inventoryItems,
@@ -271,9 +271,23 @@ export async function GET(request: NextRequest) {
       orderBy: { openedAt: "asc" },
       take: 8,
     }),
-    prisma.retailCatalogItem.findMany({
-      where: { companyId, status: "ACTIVE" },
-      orderBy: { updatedAt: "desc" },
+    /*
+      What is ranged, out of the one item master.
+
+      S-4. This was `retailCatalogItem.findMany` — the last read of the shadow
+      table anywhere in the application. A line is ranged when an
+      `InventoryItem` at one of this company's sites names a live `Product`,
+      which is the condition `lib/retail/shelf-listing.ts` uses to decide what
+      the till may sell. Only the inventory id is needed: the two figures this
+      feeds are a count and a set-membership test.
+    */
+    prisma.inventoryItem.findMany({
+      where: {
+        site: { companyId },
+        productId: { not: null },
+        product: { isActive: true, archivedAt: null },
+      },
+      select: { id: true },
     }),
     prisma.retailPromotion.findMany({
       where: { companyId, status: "ACTIVE" },
@@ -346,7 +360,7 @@ export async function GET(request: NextRequest) {
   ]);
 
   const sales = allSales.filter((sale) => (sale.postedAt ?? sale.createdAt) >= monthStart);
-  const retailInventoryIds = new Set(catalogItems.map((item) => item.inventoryItemId));
+  const retailInventoryIds = new Set(rangedLines.map((line) => line.id));
   const retailInventory = inventoryItems.filter((item) => retailInventoryIds.has(item.id));
   const lowStock = retailInventory.filter(
     (item) => item.minStock !== null && item.currentStock <= (item.minStock ?? 0),
@@ -645,7 +659,7 @@ export async function GET(request: NextRequest) {
   const ebitdaMargin = current.netRevenue > 0 ? (current.ebitda / current.netRevenue) * 100 : 0;
   const netMargin = current.netRevenue > 0 ? (current.netProfit / current.netRevenue) * 100 : 0;
   const inventoryPressurePct =
-    catalogItems.length > 0 ? (lowStock.length / catalogItems.length) * 100 : 0;
+    rangedLines.length > 0 ? (lowStock.length / rangedLines.length) * 100 : 0;
 
   const profitModel: ProfitModel = hasJournalProfitData
     ? "ACCOUNTING_POSTED"
@@ -703,7 +717,7 @@ export async function GET(request: NextRequest) {
       taxValue,
       goodsReceivedValue,
       openOrderValue,
-      activeCatalogCount: catalogItems.length,
+      activeCatalogCount: rangedLines.length,
       activePromotionCount: promotions.length,
       openShiftCount: openShifts.length,
       lowStockCount: lowStock.length,

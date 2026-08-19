@@ -84,7 +84,7 @@ export async function POST(request: NextRequest) {
 
     // A stock row already sold under another product cannot be re-pointed here:
     // `InventoryItem.productId` names exactly one, and moving it would move the
-    // other line's stock. `scripts/retail-catalog-to-core.ts` refuses on the same
+    // other line's stock. The S-4a migration refused on the same
     // condition, for the same reason.
     if (inventoryItem.productId) {
       const claimed = await prisma.product.findFirst({

@@ -43,9 +43,6 @@ import { money, multiplyMoney, rate, sumMoney, taxOn } from "@/lib/money";
  * rates as a percentage rather than money.
  */
 const MONEY_COLUMNS: Array<[table: string, column: string, precision: number, scale: number]> = [
-  ["RetailCatalogItem", "unitPrice", 14, 2],
-  ["RetailCatalogItem", "compareAtPrice", 14, 2],
-  ["RetailCatalogItem", "taxPercent", 5, 2],
   ["RetailPromotion", "value", 14, 2],
   ["RetailPurchaseOrderLine", "quantity", 12, 4],
   ["RetailPurchaseOrderLine", "unitCost", 14, 2],
@@ -86,8 +83,6 @@ const ENUM_COLUMNS: Array<[table: string, column: string, type: string]> = [
   ["RetailHeldCart", "status", "RetailHeldCartStatus"],
   ["RetailPurchaseOrder", "status", "RetailPurchaseOrderStatus"],
   ["RetailGoodsReceipt", "status", "RetailGoodsReceiptStatus"],
-  ["RetailCatalogItem", "status", "RetailCatalogItemStatus"],
-  ["RetailCatalogItem", "acquisitionMode", "RetailAcquisitionMode"],
   ["RetailPromotion", "type", "RetailPromotionType"],
   ["RetailPromotion", "status", "RetailPromotionStatus"],
   ["RetailSalePayment", "tenderType", "RetailTenderType"],
@@ -111,8 +106,6 @@ const ENUM_LABELS: Record<string, readonly string[]> = {
   RetailHeldCartStatus: ["HELD", "RECALLED", "RELEASED"],
   RetailPurchaseOrderStatus: ["DRAFT", "PARTIAL", "RECEIVED"],
   RetailGoodsReceiptStatus: ["POSTED"],
-  RetailCatalogItemStatus: ["ACTIVE", "INACTIVE"],
-  RetailAcquisitionMode: ["PURCHASE"],
   RetailPromotionType: ["PERCENT", "AMOUNT", "BUY_X_GET_Y", "BUNDLE"],
   RetailPromotionStatus: ["ACTIVE", "SCHEDULED", "INACTIVE"],
   RetailTenderType: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
@@ -150,8 +143,9 @@ async function enumLabels(type: string) {
 describe("retail status columns are enums in the database", () => {
   it("has a column to check for every entry", () => {
     // A silent zero here would make every assertion below vacuously true.
-    expect(ENUM_COLUMNS.length).toBe(13);
-    expect(Object.keys(ENUM_LABELS).length).toBe(13);
+    // 13 until S-4 dropped `RetailCatalogItem` and its two enums with it.
+    expect(ENUM_COLUMNS.length).toBe(11);
+    expect(Object.keys(ENUM_LABELS).length).toBe(11);
   });
 
   it.each(ENUM_COLUMNS)('"%s"."%s" is %s', async (table, column, type) => {
@@ -214,7 +208,8 @@ describe("the database refuses what the String column used to accept", () => {
  */
 describe("retail money columns are numeric at the right scale", () => {
   it("has a column to check for every entry", () => {
-    expect(MONEY_COLUMNS.length).toBe(32);
+    // 32 until S-4 dropped `RetailCatalogItem`, which carried three of them.
+    expect(MONEY_COLUMNS.length).toBe(29);
   });
 
   it.each(MONEY_COLUMNS)(

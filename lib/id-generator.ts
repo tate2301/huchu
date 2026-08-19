@@ -32,7 +32,6 @@ export type ReservableIdEntity =
   | "SCRAP_METAL_BATCH"
   | "SCRAP_METAL_SALE"
   | "RETAIL_REGISTER"
-  | "RETAIL_CATALOG_ITEM"
   | "RETAIL_PURCHASE_ORDER"
   | "RETAIL_GOODS_RECEIPT"
   | "RETAIL_SHIFT"
@@ -94,7 +93,6 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: false },
   SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: false },
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
-  RETAIL_CATALOG_ITEM: { prefix: "RTL", requiresSiteId: true },
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
   RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
   RETAIL_SHIFT: { prefix: "RSH", requiresSiteId: true },
@@ -439,14 +437,6 @@ async function findEntityMaxExistingCode(
         select: { code: true },
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
-    }
-    case "RETAIL_CATALOG_ITEM": {
-      if (!siteId) return 0;
-      const records = await db.retailCatalogItem.findMany({
-        where: { companyId, siteId },
-        select: { catalogCode: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.catalogCode), prefix);
     }
     case "RETAIL_PURCHASE_ORDER": {
       if (!siteId) return 0;

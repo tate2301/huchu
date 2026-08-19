@@ -34,7 +34,6 @@ const reserveSchema = z.object({
     "SCRAP_METAL_BATCH",
     "SCRAP_METAL_SALE",
     "RETAIL_REGISTER",
-    "RETAIL_CATALOG_ITEM",
     "RETAIL_PURCHASE_ORDER",
     "RETAIL_GOODS_RECEIPT",
     "RETAIL_SHIFT",

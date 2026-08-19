@@ -17,8 +17,7 @@
  * `currentStock` and `unitCost` — the three facts the counter needs and the
  * product does not have. Ranging a line is therefore exactly:
  * `InventoryItem.productId` is set. That is the same condition
- * `scripts/retail-catalog-to-core.ts` established when it linked the three rows
- * to each other.
+ * S-4a established when it linked the three rows to each other.
  *
  * ## The identity the till uses
  *
@@ -109,7 +108,7 @@ const listingSelect = {
  * One query for the products, one for the stock rows behind them, and one batch
  * through the price engine — which is itself three queries whatever the size of
  * the batch. The stock rows are fetched separately rather than with a nested
- * `include` for the reason `scripts/retail-catalog-to-core.ts` gives: a required
+ * `include` for the reason S-4a's migration gave: a required
  * relation that has lost its row makes Prisma throw on the whole query, and a
  * shop with one bad row should still be able to open its catalogue.
  */

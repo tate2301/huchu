@@ -46,6 +46,7 @@ import { Prisma, type RetailTenderType } from "@prisma/client"
 import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
+import { upsertShelfListing } from "@/lib/retail/shelf-listing"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`
@@ -242,7 +243,7 @@ async function main() {
     defaultRegisterCode: register.code,
   })
 
-  type Stocked = { inventoryItemId: string; catalogItemId: string; unit: string }
+  type Stocked = { inventoryItemId: string; productId: string; unit: string }
   const stocked = new Map<string, Stocked>()
 
   for (const entry of CATALOGUE) {
@@ -271,34 +272,32 @@ async function main() {
           select: { id: true, unit: true },
         })
 
-    const catalogItem = await prisma.retailCatalogItem.upsert({
-      where: { companyId_catalogCode: { companyId, catalogCode: `CAT-${entry.code}` } },
-      update: {
-        name: entry.name,
-        unitPrice: money(entry.price),
-        taxPercent: money(VAT_PERCENT),
-        inventoryItemId: item.id,
-        siteId: site.id,
-        status: "ACTIVE",
-      },
-      create: {
-        companyId,
-        catalogCode: `CAT-${entry.code}`,
-        inventoryItemId: item.id,
-        siteId: site.id,
-        name: entry.name,
-        sku: entry.code,
-        barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
-        unitPrice: money(entry.price),
-        taxPercent: money(VAT_PERCENT),
-        status: "ACTIVE",
-      },
-      select: { id: true },
+    /*
+      Ranged through the one writer, not by hand.
+
+      S-4. This block used to upsert a `RetailCatalogItem` — a second item
+      master the till stopped reading at S-4b, which left this seed building a
+      tenant whose shelves were empty on every surface that matters.
+      `upsertShelfListing` is what the back-office catalogue screen calls, so
+      the demo tenant is now assembled by exactly the path a shopkeeper's own
+      first morning goes through: a `Product`, a "Shelf prices" entry against
+      it, and the site's `InventoryItem` claimed by it.
+    */
+    const productId = await upsertShelfListing({
+      companyId,
+      productId: null,
+      sku: entry.code,
+      name: entry.name,
+      inventoryItemId: item.id,
+      unitPrice: money(entry.price),
+      taxPercent: money(VAT_PERCENT),
+      barcode: `600${String(Math.abs(hashCode(entry.code))).padStart(9, "0").slice(0, 9)}`,
+      isActive: true,
     })
 
     stocked.set(entry.code, {
       inventoryItemId: item.id,
-      catalogItemId: catalogItem.id,
+      productId,
       unit: item.unit,
     })
   }
@@ -430,7 +429,7 @@ async function main() {
             companyId,
             saleId,
             inventoryItemId: target.inventoryItemId,
-            catalogItemId: target.catalogItemId,
+            productId: target.productId,
             itemName: product.name,
             quantity,
             unitPrice: money(product.price),
@@ -562,7 +561,7 @@ async function main() {
             saleId: refundId,
             sourceLineId: source.id as string,
             inventoryItemId: source.inventoryItemId,
-            catalogItemId: source.catalogItemId,
+            productId: source.productId as string | null,
             itemName: source.itemName,
             quantity: money(source.quantity as Prisma.Decimal).negated(),
             unitPrice: source.unitPrice,
@@ -668,7 +667,7 @@ async function main() {
         cartSnapshot: {
           items: [
             {
-              catalogItemId: castle.catalogItemId,
+              productId: castle.productId,
               inventoryItemId: castle.inventoryItemId,
               name: "Castle Lager case of 24",
               quantity: 1,

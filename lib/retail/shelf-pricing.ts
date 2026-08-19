@@ -265,7 +265,9 @@ export async function resolveShelfPrice(
 }
 
 /**
- * Must match `PRICE_LIST_NAME` in `scripts/retail-catalog-to-core.ts`.
+ * The name S-4a's migration gave the list, and the name `upsertShelfListing`
+ * upserts by. Changing it strands every tenant's shelf prices on a list nothing
+ * looks for, and the till falls back to `Product.standardPrice` without saying so.
  *
  * S-4b: `upsertShelfListing` in `lib/retail/shelf-listing.ts` is what writes to
  * it now. The `linkListingToCore` that used to live here wrote a
