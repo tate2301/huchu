@@ -3,12 +3,12 @@
  *
  * Quotations, invoices, and receipts are created here but the records live in
  * the accounting module (SalesQuotation / SalesInvoice / SalesReceipt). Each
- * CRM document is linked back through a CrmLeadDocument row (scrap-metal
- * "Pattern B"). Invoices and receipts post journals via
+ * CRM document is linked back through a CrmLeadDocument row ("Pattern B",
+ * the convention the older commodity modules established). Invoices and receipts post journals via
  * `createJournalEntryFromSource`, which is idempotent and outbox-backed.
  *
  * A CrmClient is lazily linked to an accounting Customer the first time it
- * needs one (find-or-create by name, matching the gold/scrap convention).
+ * needs one (find-or-create by name, matching the gold convention).
  */
 import type { Prisma } from "@prisma/client";
 

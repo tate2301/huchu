@@ -146,6 +146,45 @@ function jsonReplacer(_key: string, value: unknown) {
 }
 
 /**
+ * A dropped table, read through raw SQL rather than the Prisma client.
+ *
+ * ST-3 removes these models from `prisma/schema.prisma`, so `prisma.nVR` and
+ * its siblings stop existing the moment the client is regenerated and a typed
+ * read here would no longer compile. Deleting this script alongside them was
+ * the alternative, and it is the wrong one: the export is the undo for an
+ * irreversible step, and the database an operator restores in order to hand a
+ * tenant its rows back is precisely a database that still has these tables.
+ * Raw SQL is what lets the script outlive the schema it reads.
+ *
+ * The `to_regclass` guard is what keeps it honest on a database that has
+ * already been migrated: an absent table exports as zero rows rather than
+ * aborting the whole run, so a mixed estate — some environments migrated, some
+ * not — still produces one complete manifest.
+ *
+ * `$queryRawUnsafe` is safe here because nothing user-supplied reaches the SQL
+ * text: `model` and `whereSql` are literals in this file, and the only runtime
+ * value, the company id, is bound as `$1`.
+ */
+function droppedTable(model: string, whereSql: string): ExportTable {
+  return table(model, async (companyId) => {
+    const [{ present }] = await prisma.$queryRawUnsafe<{ present: boolean }[]>(
+      `SELECT to_regclass($1) IS NOT NULL AS present`,
+      `public."${model}"`,
+    );
+    if (!present) return [];
+    return prisma.$queryRawUnsafe<unknown[]>(
+      `SELECT t.* FROM "${model}" t WHERE ${whereSql} ORDER BY t."id" ASC`,
+      companyId,
+    );
+  });
+}
+
+/** Rows scoped to a company only through the site they were installed at. */
+const SITE_OF_COMPANY = `(SELECT s."id" FROM "Site" s WHERE s."companyId" = $1)`;
+const CAMERA_OF_COMPANY = `(SELECT c."id" FROM "Camera" c WHERE c."siteId" IN ${SITE_OF_COMPANY})`;
+const OWN_COMPANY = `t."companyId" = $1`;
+
+/**
  * The accounting documents scrap rows point at. These rows SURVIVE the drop
  * (ST-3.1 drops from the dependent side precisely so they do), which is why the
  * pairing is worth exporting: after the scrap tables are gone, a bill or an
@@ -264,36 +303,20 @@ const EXPORT_MODULES: ExportModule[] = [
     stories: ["ST-2.1", "ST-3.1"],
     tables: [
       // CCTV hangs off Site, not Company: scope through the site.
-      table("NVR", (companyId) =>
-        prisma.nVR.findMany({ where: { site: { companyId } }, orderBy: { id: "asc" } }),
+      droppedTable("NVR", `t."siteId" IN ${SITE_OF_COMPANY}`),
+      droppedTable("Camera", `t."siteId" IN ${SITE_OF_COMPANY}`),
+      // An event names an NVR, a camera, or both — either one places it.
+      droppedTable(
+        "CCTVEvent",
+        `(t."nvrId" IN (SELECT n."id" FROM "NVR" n WHERE n."siteId" IN ${SITE_OF_COMPANY})
+          OR t."cameraId" IN ${CAMERA_OF_COMPANY})`,
       ),
-      table("Camera", (companyId) =>
-        prisma.camera.findMany({ where: { site: { companyId } }, orderBy: { id: "asc" } }),
-      ),
-      table("CCTVEvent", (companyId) =>
-        prisma.cCTVEvent.findMany({
-          where: { OR: [{ nvr: { site: { companyId } } }, { camera: { site: { companyId } } }] },
-          orderBy: { id: "asc" },
-        }),
-      ),
-      table("CameraAccessLog", (companyId) =>
-        prisma.cameraAccessLog.findMany({
-          where: { camera: { site: { companyId } } },
-          orderBy: { id: "asc" },
-        }),
-      ),
+      droppedTable("CameraAccessLog", `t."cameraId" IN ${CAMERA_OF_COMPANY}`),
       // StreamSession and PlaybackRecord are not named in ST-3.1, but they hold
       // a required FK to Camera and cannot outlive it. Exporting them here is
       // what keeps the drop from losing rows nobody listed.
-      table("StreamSession", (companyId) =>
-        prisma.streamSession.findMany({ where: { site: { companyId } }, orderBy: { id: "asc" } }),
-      ),
-      table("PlaybackRecord", (companyId) =>
-        prisma.playbackRecord.findMany({
-          where: { camera: { site: { companyId } } },
-          orderBy: { id: "asc" },
-        }),
-      ),
+      droppedTable("StreamSession", `t."siteId" IN ${SITE_OF_COMPANY}`),
+      droppedTable("PlaybackRecord", `t."cameraId" IN ${CAMERA_OF_COMPANY}`),
     ],
     documentLinks: [],
   },
@@ -302,18 +325,10 @@ const EXPORT_MODULES: ExportModule[] = [
     label: "Autos / car sales",
     stories: ["ST-2.2", "ST-2.5", "ST-3.1"],
     tables: [
-      table("CarSalesVehicle", (companyId) =>
-        prisma.carSalesVehicle.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("CarSalesLead", (companyId) =>
-        prisma.carSalesLead.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("CarSalesDeal", (companyId) =>
-        prisma.carSalesDeal.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("CarSalesPayment", (companyId) =>
-        prisma.carSalesPayment.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
+      droppedTable("CarSalesVehicle", OWN_COMPANY),
+      droppedTable("CarSalesLead", OWN_COMPANY),
+      droppedTable("CarSalesDeal", OWN_COMPANY),
+      droppedTable("CarSalesPayment", OWN_COMPANY),
     ],
     // Car sales never posted to the ledger: deals and payments reference only
     // other CarSales rows and users, all of which are in this export already.
@@ -324,40 +339,20 @@ const EXPORT_MODULES: ExportModule[] = [
     label: "Scrap metal",
     stories: ["ST-2.3", "ST-2.5", "ST-3.1", "ST-3.3"],
     tables: [
-      table("ScrapMaterial", (companyId) =>
-        prisma.scrapMaterial.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapSellerProfile", (companyId) =>
-        prisma.scrapSellerProfile.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapMetalPrice", (companyId) =>
-        prisma.scrapMetalPrice.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapMetalPurchase", (companyId) =>
-        prisma.scrapMetalPurchase.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapMetalBatch", (companyId) =>
-        prisma.scrapMetalBatch.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
+      droppedTable("ScrapMaterial", OWN_COMPANY),
+      droppedTable("ScrapSellerProfile", OWN_COMPANY),
+      droppedTable("ScrapMetalPrice", OWN_COMPANY),
+      droppedTable("ScrapMetalPurchase", OWN_COMPANY),
+      droppedTable("ScrapMetalBatch", OWN_COMPANY),
       // Batch items carry no companyId of their own; scope through the batch.
-      table("ScrapMetalBatchItem", (companyId) =>
-        prisma.scrapMetalBatchItem.findMany({
-          where: { batch: { companyId } },
-          orderBy: { id: "asc" },
-        }),
+      droppedTable(
+        "ScrapMetalBatchItem",
+        `t."batchId" IN (SELECT b."id" FROM "ScrapMetalBatch" b WHERE b."companyId" = $1)`,
       ),
-      table("ScrapMetalSale", (companyId) =>
-        prisma.scrapMetalSale.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapMetalEmployeeBalance", (companyId) =>
-        prisma.scrapMetalEmployeeBalance.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapMetalBalanceEntry", (companyId) =>
-        prisma.scrapMetalBalanceEntry.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
-      table("ScrapTicketComplianceRule", (companyId) =>
-        prisma.scrapTicketComplianceRule.findMany({ where: { companyId }, orderBy: { id: "asc" } }),
-      ),
+      droppedTable("ScrapMetalSale", OWN_COMPANY),
+      droppedTable("ScrapMetalEmployeeBalance", OWN_COMPANY),
+      droppedTable("ScrapMetalBalanceEntry", OWN_COMPANY),
+      droppedTable("ScrapTicketComplianceRule", OWN_COMPANY),
     ],
     documentLinks: SCRAP_DOCUMENT_LINKS,
   },

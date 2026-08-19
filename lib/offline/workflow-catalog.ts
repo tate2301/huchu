@@ -1,5 +1,4 @@
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
-import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 import type {
   OfflineMutationPolicy,
   OfflineWorkflowCatalogEntry,
@@ -19,24 +18,9 @@ function warmRouteMatches(pathname: string, candidate: string) {
 
 const OFFLINE_EXCLUDED_ROUTE_REASONS: Record<string, string> = {
   "/accounting": "Accounting workflows are intentionally excluded from the current offline scope.",
-  "/scrap-metal/settlements":
-    "Scrap settlement workflows require tighter server coordination and are excluded.",
   "/gold/settlement/approvals":
     "Settlement approvals need tighter server coordination and are excluded.",
 };
-
-const SCRAP_OPERATOR_ROUTES = SCRAP_TABS.filter((tab) =>
-  tab.roles?.includes("OPERATOR"),
-)
-  .map((tab) => tab.href)
-  .filter((href) => href !== "/scrap-metal/settlements");
-
-const SCRAP_REPORT_ROUTES = [
-  "/scrap-metal/reports",
-  "/scrap-metal/reports/daily-snapshot",
-  "/scrap-metal/reports/supplier-performance",
-  "/scrap-metal/reports/variance-aging",
-];
 
 const PEOPLE_MINIMAL_ROUTES = PEOPLE_TABS.filter((tab) =>
   ["/people", "/people/rosters", "/people/incidents"].includes(
@@ -45,49 +29,6 @@ const PEOPLE_MINIMAL_ROUTES = PEOPLE_TABS.filter((tab) =>
 ).map((tab) => tab.href);
 
 export const OFFLINE_WORKFLOW_CATALOG: OfflineWorkflowCatalogEntry[] = [
-  {
-    workflowId: "scrap-operator-core",
-    vertical: "SCRAP_METAL",
-    audience: "OPERATOR",
-    warmupScope: "required",
-    routes: SCRAP_OPERATOR_ROUTES.filter((route) => !SCRAP_REPORT_ROUTES.includes(route)),
-    queryKeys: [
-      "sites",
-      "employees",
-      "scrap-materials",
-      "scrap-sellers",
-      "scrap-prices",
-      "scrap-batches",
-      "scrap-held-inbound-total",
-      "scrap-held-outbound-total",
-      "scrap-held-inbound-tickets",
-      "scrap-held-outbound-tickets",
-      "scrap-metal-purchases",
-      "scrap-metal-sales",
-      "scrap-ready-batches",
-      "scrap-unassigned-purchases-page",
-      "scrap-adjustment-register",
-    ],
-    moduleIds: ["scrap-metal", "scrap-lots"],
-    excludedRoutes: ["/scrap-metal/settlements", "/scrap-metal/sales/approval-requests"],
-  },
-  {
-    workflowId: "scrap-operator-reports",
-    vertical: "SCRAP_METAL",
-    audience: "OPERATOR",
-    warmupScope: "snapshot",
-    routes: SCRAP_REPORT_ROUTES,
-    queryKeys: [
-      "scrap-home-daily-snapshot",
-      "scrap-dashboard-reporting",
-      "scrap-daily-snapshot",
-      "scrap-supplier-performance",
-      "scrap-variance-report",
-      "scrap-aging-report",
-    ],
-    moduleIds: ["scrap-reports-snapshot"],
-    excludedRoutes: ["/scrap-metal/settlements"],
-  },
   {
     workflowId: "hr-workforce-minimal",
     vertical: "HR",
@@ -107,10 +48,6 @@ export const OFFLINE_WORKFLOW_CATALOG: OfflineWorkflowCatalogEntry[] = [
   },
 ];
 
-function hasScrapFeature(features: Set<string>) {
-  return [...features].some((feature) => feature.startsWith("scrap-metal."));
-}
-
 function hasHrMinimalFeature(features: Set<string>) {
   return (
     features.has("hr.employees") ||
@@ -123,9 +60,6 @@ function hasHrMinimalFeature(features: Set<string>) {
 export function resolveOfflineWorkflowCatalog(enabledFeatures?: string[]) {
   const features = new Set(enabledFeatures ?? []);
   return OFFLINE_WORKFLOW_CATALOG.filter((entry) => {
-    if (entry.vertical === "SCRAP_METAL") {
-      return hasScrapFeature(features);
-    }
     if (entry.vertical === "HR") {
       return hasHrMinimalFeature(features);
     }
@@ -170,19 +104,17 @@ export function isRouteWarmedForOffline(pathname: string, enabledFeatures?: stri
   );
 }
 
+/**
+ * ST-2.3. Scrap ticketing was the one route family that answered "offline-safe"
+ * here; with the vertical gone nothing in the warmed scope accepts a write while
+ * disconnected, so every route that is not outright excluded is online-only.
+ * The excluded check stays first because "excluded" and "online-only" mean
+ * different things to the caller: excluded is a deliberate refusal it explains
+ * to the user, online-only is merely the absence of a warmed write path.
+ */
 export function getRouteOfflineMutationPolicy(pathname: string): OfflineMutationPolicy {
   if (isRouteExcludedFromOffline(pathname)) {
     return "excluded";
-  }
-  if (routeMatches(pathname, "/scrap-metal/tickets")) {
-    return "offline-safe";
-  }
-  if (
-    pathname.startsWith("/scrap-metal") ||
-    pathname.startsWith("/people") ||
-    pathname.startsWith("/payroll")
-  ) {
-    return "online-only";
   }
   return "online-only";
 }
@@ -206,11 +138,7 @@ export function getOfflineRouteAvailability(
     };
   }
 
-  if (
-    pathname.startsWith("/scrap-metal") ||
-    pathname.startsWith("/people") ||
-    pathname.startsWith("/payroll")
-  ) {
+  if (pathname.startsWith("/people") || pathname.startsWith("/payroll")) {
     return {
       availability: "online-only" as const,
       reason: "This workflow is available online only and is not part of the warmed offline scope for this user.",

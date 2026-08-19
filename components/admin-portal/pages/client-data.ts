@@ -17,11 +17,10 @@ export type EnrichedClient = CompanyWorkspace & {
 const STATUS_ORDER: ClientStatus[] = ["ACTIVE", "EXPIRING_SOON", "IN_GRACE", "PAST_DUE", "CANCELED"];
 // Placeholder enrichment rotation for the demo client list. Only
 // cross-vertical bundles belong here: rotating vertical suites (gold,
-// schools, autos, retail, scrap) onto arbitrary companies implies a
-// workspace vertical the company does not have.
+// schools, retail) onto arbitrary companies implies a workspace vertical
+// the company does not have.
 const ADDON_ROTATION: FeatureBundleDefinition["code"][] = [
   "ADDON_CUSTOM_BRANDING",
-  "ADDON_CCTV_SUITE",
   "ADDON_ADVANCED_PAYROLL",
   "ADDON_COMPLIANCE_PRO",
   "ADDON_MAINTENANCE_PRO",

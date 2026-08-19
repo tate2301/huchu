@@ -37,8 +37,6 @@ export function AppShell({
   // showed them a navigation they cannot use and a tenant name that is none of
   // their business.
   const isPublicRoute = isPublicPath(pathname);
-  const isCctvRoute = pathname.startsWith("/cctv");
-  const isScrapRoute = pathname.startsWith("/scrap-metal");
   // The preview host control page. Drawing a workspace sidebar around it would
   // be drawing the workspace whose routing you are there to correct.
   const isPreviewHostRoute = pathname === "/preview-host";
@@ -67,13 +65,11 @@ export function AppShell({
         <SidebarInset className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-surface-base shadow-[inset_1px_0_0_0_var(--chrome-edge)]">
           <Navbar />
           <main
-            className={
-              isCctvRoute
-                ? "min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] py-0"
-                : isScrapRoute
-                  ? "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
-                  : "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
-            }
+            // One padding rule for every route now. The two exceptions were
+            // CCTV (a full-bleed video wall, hence no vertical padding) and
+            // scrap ticketing (a thumb-reachable bottom bar, hence a tighter
+            // bottom inset); both modules are gone (ST-2.1, ST-2.3).
+            className="content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
           >
             {/* Both live above `main` rather than inside a page: the trail has
                 to survive the navigation it is recording, and the peek has to

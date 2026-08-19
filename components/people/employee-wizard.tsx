@@ -83,24 +83,19 @@ const moduleOptions = [
     featureMatcher: (feature: string) => feature === "gold.payouts" || feature.startsWith("gold."),
   },
   {
-    value: "SCRAP_METAL",
-    label: "Scrap & Recycling",
-    description: "Scrap buying, yard, and trading assignment.",
-    featureMatcher: (feature: string) => feature.startsWith("scrap-metal."),
-  },
-  {
-    value: "CAR_SALES",
-    label: "Car Sales",
-    description: "Auto inventory, leads, and deal workflows.",
-    featureMatcher: (feature: string) => feature.startsWith("autos."),
-  },
-  {
     value: "RETAIL",
     label: "Retail",
     description: "Retail merchandising, purchasing, cash-up, and POS operations.",
     featureMatcher: (feature: string) => feature.startsWith("retail."),
   },
 ] as const
+/**
+ * SCRAP_METAL and CAR_SALES are absent even though the `EmployeeModule` enum
+ * still carries them: their verticals were dropped (ST-2.2, ST-2.3), so no
+ * feature can match and the option would offer a filing cabinet with no
+ * drawers. Existing assignments still read back — `getModuleLabel` falls
+ * through to the raw value rather than rendering nothing.
+ */
 
 type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
@@ -109,8 +104,6 @@ type PayoutPath = (typeof payoutPaths)[number]["value"]
 
 const MODULE_WORKSPACE_PROFILE_MAP: Partial<Record<EmployeeModule, ManagedWorkspaceProfile>> = {
   GOLD: "GOLD_MINE",
-  SCRAP_METAL: "SCRAP_METAL",
-  CAR_SALES: "AUTOS",
   RETAIL: "RETAIL",
 }
 
@@ -230,10 +223,10 @@ function getPreferredPrimaryModule(
   sessionWorkspaceProfile: ManagedWorkspaceProfile | null | undefined,
   availableModules: readonly (typeof moduleOptions)[number][],
 ): EmployeeModule {
+  // A tenant still stored on a retired profile (SCRAP_METAL, AUTOS) has no
+  // entry and falls through to the same choice a general workspace gets.
   const preferredByWorkspace: Partial<Record<ManagedWorkspaceProfile, EmployeeModule>> = {
     GOLD_MINE: "GOLD",
-    SCRAP_METAL: "SCRAP_METAL",
-    AUTOS: "CAR_SALES",
     RETAIL: "RETAIL",
     SCHOOLS: "HR",
   }

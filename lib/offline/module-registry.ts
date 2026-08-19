@@ -2,16 +2,12 @@ import {
   fetchDisciplinaryActions,
   fetchEmployees,
   fetchHrIncidents,
-  fetchScrapTicketContext,
   fetchShiftGroups,
   fetchShiftGroupSchedules,
   fetchSites,
 } from "@/lib/api";
 import { fetchJson } from "@/lib/api-client";
-import { getOfflineAttachmentRecord } from "@/lib/offline/attachment-store";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
-import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
-import { removePendingTicketCache } from "@/lib/scrap-metal/offline-ticket";
 import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
 import {
   markOfflineOperationBlockingFailure,
@@ -28,13 +24,6 @@ import type {
   OfflineSyncOutcome,
 } from "@/lib/offline/types";
 
-type UploadResponse = {
-  url: string;
-  pathname?: string;
-  contentType: "image/jpeg" | "image/png" | "image/webp";
-  size: number;
-};
-
 function isLikelyNetworkFailure(message: string) {
   return /network|failed to fetch|load failed|networkerror/i.test(message);
 }
@@ -45,7 +34,7 @@ function asErrorMessage(error: unknown) {
 }
 
 function normalizeLegacyDocumentNumber(
-  prefix: "SCPUR" | "SCSAL" | "RSL",
+  prefix: "RSL",
   rawValue: unknown,
 ) {
   if (typeof rawValue !== "string") return undefined;
@@ -57,147 +46,6 @@ function normalizeLegacyDocumentNumber(
   const digits = trimmed.replace(/\D/g, "");
   if (!digits) return undefined;
   return `${prefix}-${digits.slice(-12)}`;
-}
-
-async function uploadOfflineAttachments(
-  operation: OfflineOutboxOperation,
-  existing: unknown,
-) {
-  const alreadyUploaded = Array.isArray(existing) ? existing : [];
-  if (!operation.attachments || operation.attachments.length === 0) {
-    return alreadyUploaded;
-  }
-
-  const uploaded = [];
-  for (const attachment of operation.attachments) {
-    const record = await getOfflineAttachmentRecord(
-      attachment.attachmentId,
-      operation.tenantKey,
-    );
-    if (!record) {
-      continue;
-    }
-    const body = new FormData();
-    body.append("context", attachment.context);
-    body.append(
-      "file",
-      new File([record.blob], record.fileName, {
-        type: record.contentType,
-      }),
-    );
-    const response = await fetch("/api/uploads", {
-      method: "POST",
-      credentials: "include",
-      body,
-    });
-    const payload = (await response.json().catch(() => null)) as UploadResponse | { error?: string } | null;
-    if (!response.ok || !payload || !("url" in payload)) {
-      throw new Error(
-        payload && "error" in payload && payload.error
-          ? payload.error
-          : `Attachment upload failed (${response.status})`,
-      );
-    }
-    uploaded.push({
-      url: payload.url,
-      pathname: payload.pathname,
-      contentType: payload.contentType,
-      size: payload.size,
-      context: attachment.context,
-      uploadedAt: new Date().toISOString(),
-    });
-  }
-
-  return [...alreadyUploaded, ...uploaded];
-}
-
-async function syncScrapSeller(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
-  try {
-    const created = await fetchJson<{ id: string }>("/api/scrap-metal/sellers", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    return {
-      status: "synced",
-      serverEntityId: created.id,
-      invalidateQueryKeys: [["scrap-sellers", "tickets"]],
-    };
-  } catch (error) {
-    const message = asErrorMessage(error);
-    return isLikelyNetworkFailure(message)
-      ? { status: "retryable", message }
-      : { status: "blocking", message };
-  }
-}
-
-async function syncScrapInboundTicket(
-  operation: OfflineOutboxOperation,
-  payload: Record<string, unknown>,
-): Promise<OfflineSyncOutcome> {
-  try {
-    const purchaseNumber = normalizeLegacyDocumentNumber(
-      "SCPUR",
-      payload.purchaseNumber,
-    );
-    const attachments = await uploadOfflineAttachments(operation, payload.attachments);
-    const created = await fetchJson<{ id: string }>("/api/scrap-metal/purchases", {
-      method: "POST",
-      body: JSON.stringify({
-        ...payload,
-        purchaseNumber,
-        attachments,
-      }),
-    });
-    await removePendingTicketCache("purchase", operation.clientRequestId);
-    return {
-      status: "synced",
-      serverEntityId: created.id,
-      invalidateQueryKeys: [
-        ["scrap-held-inbound-total"],
-        ["scrap-metal-purchases"],
-      ],
-    };
-  } catch (error) {
-    const message = asErrorMessage(error);
-    return isLikelyNetworkFailure(message)
-      ? { status: "retryable", message }
-      : { status: "blocking", message };
-  }
-}
-
-async function syncScrapOutboundTicket(
-  operation: OfflineOutboxOperation,
-  payload: Record<string, unknown>,
-): Promise<OfflineSyncOutcome> {
-  try {
-    const saleNumber = normalizeLegacyDocumentNumber(
-      "SCSAL",
-      payload.saleNumber,
-    );
-    const attachments = await uploadOfflineAttachments(operation, payload.attachments);
-    const created = await fetchJson<{ id: string }>("/api/scrap-metal/sales", {
-      method: "POST",
-      body: JSON.stringify({
-        ...payload,
-        saleNumber,
-        attachments,
-      }),
-    });
-    await removePendingTicketCache("sale", operation.clientRequestId);
-    return {
-      status: "synced",
-      serverEntityId: created.id,
-      invalidateQueryKeys: [
-        ["scrap-held-outbound-total"],
-        ["scrap-metal-sales"],
-      ],
-    };
-  } catch (error) {
-    const message = asErrorMessage(error);
-    return isLikelyNetworkFailure(message)
-      ? { status: "retryable", message }
-      : { status: "blocking", message };
-  }
 }
 
 async function syncRetailCustomer(payload: Record<string, unknown>): Promise<OfflineSyncOutcome> {
@@ -245,125 +93,6 @@ async function syncRetailSale(payload: Record<string, unknown>): Promise<Offline
   }
 }
 
-const scrapTicketingPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-ticket-context",
-    queryKey: ["scrap-ticket-context"],
-    fetcher: async () => fetchScrapTicketContext(),
-  },
-  {
-    key: "scrap-materials",
-    queryKey: ["scrap-materials", "tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
-  },
-  {
-    key: "scrap-sellers",
-    queryKey: ["scrap-sellers", "tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sellers?active=true&limit=500"),
-  },
-  {
-    key: "scrap-prices",
-    queryKey: ["scrap-prices", "tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/pricing?limit=500"),
-  },
-  {
-    key: "scrap-batches",
-    queryKey: ["scrap-batches", "tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/batches?limit=500"),
-  },
-  {
-    key: "scrap-held-inbound-total",
-    queryKey: ["scrap-held-inbound-total"],
-    fetcher: async () => fetchJson("/api/scrap-metal/purchases?status=DRAFT&limit=1"),
-  },
-  {
-    key: "scrap-held-outbound-total",
-    queryKey: ["scrap-held-outbound-total"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=1"),
-  },
-  {
-    key: "scrap-held-inbound-tickets",
-    queryKey: ["scrap-held-inbound-tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/purchases?status=DRAFT&limit=500"),
-  },
-  {
-    key: "scrap-held-outbound-tickets",
-    queryKey: ["scrap-held-outbound-tickets"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sales?status=DRAFT&limit=500"),
-  },
-  {
-    key: "scrap-purchases-register",
-    queryKey: ["scrap-metal-purchases"],
-    fetcher: async () => fetchJson("/api/scrap-metal/purchases?limit=500"),
-  },
-  {
-    key: "scrap-sales-register",
-    queryKey: ["scrap-metal-sales"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sales?limit=500"),
-  },
-  {
-    key: "scrap-ready-batches",
-    queryKey: ["scrap-ready-batches"],
-    fetcher: async () => fetchJson("/api/scrap-metal/batches?status=READY&limit=500"),
-  },
-];
-
-const scrapLotsPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-metal-batches",
-    queryKey: ["scrap-metal-batches"],
-    fetcher: async () => fetchJson("/api/scrap-metal/batches?limit=200"),
-  },
-  {
-    key: "scrap-sites-batches",
-    queryKey: ["sites", "scrap-batches"],
-    fetcher: async () => fetchSites(),
-  },
-  {
-    key: "scrap-materials-batch-form",
-    queryKey: ["scrap-materials", "batch-form"],
-    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
-  },
-  {
-    key: "scrap-unassigned-purchases-page",
-    queryKey: ["scrap-unassigned-purchases-page"],
-    fetcher: async () => fetchJson("/api/scrap-metal/purchases?limit=500&unbatched=true"),
-  },
-];
-
-const scrapReportsSnapshotPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-home-daily-snapshot",
-    queryKey: ["scrap-home-daily-snapshot"],
-    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
-  },
-  {
-    key: "scrap-dashboard-reporting",
-    queryKey: ["scrap-dashboard-reporting"],
-    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
-  },
-  {
-    key: "scrap-daily-snapshot",
-    queryKey: ["scrap-daily-snapshot"],
-    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
-  },
-  {
-    key: "scrap-supplier-performance",
-    queryKey: ["scrap-supplier-performance"],
-    fetcher: async () => fetchJson("/api/scrap-metal/dashboard"),
-  },
-  {
-    key: "scrap-variance-report",
-    queryKey: ["scrap-variance-report"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sales?limit=400"),
-  },
-  {
-    key: "scrap-aging-report",
-    queryKey: ["scrap-aging-report"],
-    fetcher: async () => fetchJson("/api/scrap-metal/batches?limit=400"),
-  },
-];
-
 const hrWorkforceCorePreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "hr-employees-active",
@@ -404,60 +133,6 @@ const hrWorkforceCorePreloadQueries: OfflinePreloadQuery[] = [
     key: "hr-disciplinary-actions-default",
     queryKey: ["disciplinary-actions", "", "ALL"],
     fetcher: async () => fetchDisciplinaryActions({ limit: 300 }),
-  },
-];
-
-const scrapMasterDataPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-master-materials",
-    queryKey: ["management", "master-data", "scrap-materials", ""],
-    fetcher: async () => fetchJson("/api/scrap-metal/materials?limit=500"),
-  },
-  {
-    key: "scrap-master-sellers",
-    queryKey: ["management", "master-data", "scrap-sellers", ""],
-    fetcher: async () => fetchJson("/api/scrap-metal/sellers?limit=500"),
-  },
-  {
-    key: "scrap-materials-selector",
-    queryKey: ["scrap-materials"],
-    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
-  },
-  {
-    key: "scrap-sellers-selector",
-    queryKey: ["scrap-seller-profiles"],
-    fetcher: async () => fetchJson("/api/scrap-metal/sellers?active=true&limit=500"),
-  },
-];
-
-const scrapPriceBoardPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-pricing-board",
-    queryKey: ["scrap-pricing"],
-    fetcher: async () => fetchJson("/api/scrap-metal/pricing?limit=500"),
-  },
-  {
-    key: "scrap-materials-for-pricing",
-    queryKey: ["scrap-materials-for-pricing"],
-    fetcher: async () => fetchJson("/api/scrap-metal/materials?active=true&limit=500"),
-  },
-];
-
-const scrapStaffSettlementsPreloadQueries: OfflinePreloadQuery[] = [
-  {
-    key: "scrap-balances",
-    queryKey: ["scrap-balances"],
-    fetcher: async () => fetchJson("/api/scrap-metal/employee-balances?limit=500&nonZero=true"),
-  },
-  {
-    key: "scrap-settlement-intakes",
-    queryKey: ["scrap-settlement-intakes"],
-    fetcher: async () => fetchJson("/api/settlements/intakes?source=SCRAP&limit=500"),
-  },
-  {
-    key: "scrap-settlement-employees",
-    queryKey: ["employees", "scrap-settlements"],
-    fetcher: async () => fetchJson("/api/employees?active=true&limit=500"),
   },
 ];
 
@@ -556,21 +231,6 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   },
 ];
 
-const scrapMutationAdapters: OfflineMutationAdapter[] = [
-  {
-    operation: "create-seller",
-    sync: ({ resolvedPayload }) => syncScrapSeller(resolvedPayload),
-  },
-  {
-    operation: "create-inbound-ticket",
-    sync: ({ operation, resolvedPayload }) => syncScrapInboundTicket(operation, resolvedPayload),
-  },
-  {
-    operation: "create-outbound-ticket",
-    sync: ({ operation, resolvedPayload }) => syncScrapOutboundTicket(operation, resolvedPayload),
-  },
-];
-
 const retailMutationAdapters: OfflineMutationAdapter[] = [
   {
     operation: "create-customer",
@@ -595,26 +255,6 @@ function createWarmupRoutes(
   }));
 }
 
-const scrapTicketingRoutes = [
-  "/scrap-metal",
-  "/scrap-metal/tickets",
-  "/scrap-metal/purchases",
-  "/scrap-metal/sales",
-  "/scrap-metal/tickets/held",
-];
-const scrapLotsRoutes = Array.from(new Set(SCRAP_OPERATIONS_SECTIONS.lots));
-const scrapMasterDataRoutes = [
-  "/management/master-data/operations/scrap-materials",
-  "/management/master-data/operations/scrap-sellers",
-];
-const scrapPriceBoardRoutes = ["/scrap-metal/pricing"];
-const scrapStaffSettlementRoutes = ["/scrap-metal/settlements"];
-const scrapReportSnapshotRoutes = [
-  "/scrap-metal/reports",
-  "/scrap-metal/reports/daily-snapshot",
-  "/scrap-metal/reports/supplier-performance",
-  "/scrap-metal/reports/variance-aging",
-];
 const hrWorkforceCoreRoutes = [
   "/people",
   "/people/rosters",
@@ -622,89 +262,6 @@ const hrWorkforceCoreRoutes = [
 ];
 
 export const OFFLINE_MODULES: OfflineModuleDefinition[] = [
-  {
-    moduleId: "scrap-metal",
-    syncPriority: 10,
-    bootstrapPriority: 10,
-    primaryFlowLabel: "Scrap ticketing",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapTicketingRoutes,
-    routes: createWarmupRoutes(scrapTicketingRoutes),
-    shellAssets: ["/icon-192.svg", "/icon-512.svg"],
-    preloadQueries: scrapTicketingPreloadQueries,
-    entityAdapters: [
-      {
-        entityType: "seller",
-        displayLabel: (payload) => String(payload.fullName ?? "Supplier"),
-        searchableText: (payload) =>
-          [payload.fullName, payload.phone, payload.nationalId].filter(Boolean).join(" "),
-      },
-    ],
-    mutationAdapters: scrapMutationAdapters,
-  },
-  {
-    moduleId: "scrap-lots",
-    syncPriority: 11,
-    bootstrapPriority: 11,
-    primaryFlowLabel: "Scrap lots",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapLotsRoutes,
-    routes: createWarmupRoutes(scrapLotsRoutes),
-    preloadQueries: scrapLotsPreloadQueries,
-    entityAdapters: [],
-    mutationAdapters: [],
-  },
-  {
-    moduleId: "scrap-master-data",
-    syncPriority: 12,
-    bootstrapPriority: 12,
-    primaryFlowLabel: "Scrap master data",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapMasterDataRoutes,
-    routes: createWarmupRoutes(scrapMasterDataRoutes),
-    preloadQueries: scrapMasterDataPreloadQueries,
-    entityAdapters: [],
-    mutationAdapters: [],
-  },
-  {
-    moduleId: "scrap-price-board",
-    syncPriority: 13,
-    bootstrapPriority: 13,
-    primaryFlowLabel: "Scrap price board",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapPriceBoardRoutes,
-    routes: createWarmupRoutes(scrapPriceBoardRoutes),
-    preloadQueries: scrapPriceBoardPreloadQueries,
-    entityAdapters: [],
-    mutationAdapters: [],
-  },
-  {
-    moduleId: "scrap-staff-settlements",
-    syncPriority: 14,
-    bootstrapPriority: 14,
-    primaryFlowLabel: "Scrap staff settlements",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapStaffSettlementRoutes,
-    routes: createWarmupRoutes(scrapStaffSettlementRoutes),
-    preloadQueries: scrapStaffSettlementsPreloadQueries,
-    entityAdapters: [],
-    mutationAdapters: [],
-  },
-  {
-    moduleId: "scrap-reports-snapshot",
-    syncPriority: 15,
-    bootstrapPriority: 15,
-    primaryFlowLabel: "Scrap reporting snapshots",
-    warmupBudget: "aggressive",
-    criticalRoutes: scrapReportSnapshotRoutes,
-    routes: createWarmupRoutes(scrapReportSnapshotRoutes, [
-      "/scrap-metal/reports",
-      "/scrap-metal/reports/daily-snapshot",
-    ]),
-    preloadQueries: scrapReportsSnapshotPreloadQueries,
-    entityAdapters: [],
-    mutationAdapters: [],
-  },
   {
     moduleId: "hr-workforce-core",
     syncPriority: 16,

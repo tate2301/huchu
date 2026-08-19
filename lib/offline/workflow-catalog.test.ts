@@ -8,43 +8,47 @@ import {
   resolveOfflineWorkflowCatalog,
 } from "@/lib/offline/workflow-catalog";
 
-describe("offline workflow catalog", () => {
-  const enabledFeatures = [
-    "scrap-metal.tickets",
-    "hr.employees",
-    "hr.incidents",
-  ];
+/**
+ * ST-2.3. This file used to be about scrap, because scrap was the only vertical
+ * with a warmed offline scope. The vertical is gone; the invariants it was
+ * written to protect are not, and they are what is asserted here against the
+ * People workflow that remains:
+ *
+ *  - a workflow is warmed only for a tenant that bought its features, so a
+ *    tenant on some other module never pays for a warmup it cannot use;
+ *  - a route named in the exclusion list is refused with a reason rather than
+ *    silently warmed, because a half-cached settlement screen is worse than one
+ *    that says it needs the network.
+ */
 
-  it("resolves scrap operator + minimal hr catalog entries", () => {
+describe("offline workflow catalog", () => {
+  const enabledFeatures = ["hr.employees", "hr.incidents"];
+
+  it("resolves the minimal hr catalog entry", () => {
     const entries = resolveOfflineWorkflowCatalog(enabledFeatures);
-    expect(entries.map((entry) => entry.workflowId)).toEqual(
-      expect.arrayContaining([
-        "scrap-operator-core",
-        "scrap-operator-reports",
-        "hr-workforce-minimal",
-      ]),
-    );
+    expect(entries.map((entry) => entry.workflowId)).toEqual(["hr-workforce-minimal"]);
+  });
+
+  it("warms nothing for a tenant with none of the features", () => {
+    expect(resolveOfflineWorkflowCatalog(["retail.pos"])).toEqual([]);
+    expect(getOfflineWarmupModuleIds(["retail.pos"])).toEqual([]);
   });
 
   it("warms only configured modules and excludes settlements/accounting", () => {
-    const moduleIds = getOfflineWarmupModuleIds(enabledFeatures);
-    expect(moduleIds).toEqual(
-      expect.arrayContaining(["scrap-metal", "scrap-lots", "scrap-reports-snapshot", "hr-workforce-core"]),
-    );
-    expect(moduleIds).not.toContain("scrap-staff-settlements");
+    expect(getOfflineWarmupModuleIds(enabledFeatures)).toEqual(["hr-workforce-core"]);
 
     const warmRoutes = getOfflineWarmupRoutes(enabledFeatures);
-    expect(warmRoutes).not.toContain("/scrap-metal/settlements");
+    expect(warmRoutes).toContain("/people");
     expect(warmRoutes).not.toContain("/gold/settlement/approvals");
     expect(warmRoutes).not.toContain("/accounting");
   });
 
   it("reports offline availability and mutation policy", () => {
-    expect(isRouteWarmedForOffline("/scrap-metal/tickets", enabledFeatures)).toBe(true);
-    expect(getRouteOfflineMutationPolicy("/scrap-metal/tickets")).toBe("offline-safe");
+    expect(isRouteWarmedForOffline("/people", enabledFeatures)).toBe(true);
+    expect(getRouteOfflineMutationPolicy("/people")).toBe("online-only");
 
-    expect(getOfflineExcludedRouteReason("/scrap-metal/settlements")).toMatch(/excluded/i);
-    expect(getRouteOfflineMutationPolicy("/scrap-metal/settlements")).toBe("excluded");
+    expect(getOfflineExcludedRouteReason("/accounting/journals")).toMatch(/excluded/i);
+    expect(getRouteOfflineMutationPolicy("/accounting/journals")).toBe("excluded");
 
     const availability = getOfflineRouteAvailability("/payroll/runs", enabledFeatures);
     expect(availability.availability).toBe("online-only");

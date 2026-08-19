@@ -4,7 +4,7 @@ const syncSpy = vi.fn();
 const listPendingSpy = vi.fn();
 
 vi.mock("@/lib/offline/module-registry", () => ({
-  getEnabledOfflineModules: vi.fn(() => [{ moduleId: "scrap-metal" }]),
+  getEnabledOfflineModules: vi.fn(() => [{ moduleId: "retail-pos" }]),
   syncOfflineOperation: (operation: OfflineOutboxOperation) => syncSpy(operation),
 }));
 
@@ -24,10 +24,10 @@ describe("syncOfflineRuntime", () => {
     const op1: OfflineOutboxOperation = {
       operationId: "op-1",
       tenantKey: "tenant-a",
-      moduleId: "scrap-metal",
+      moduleId: "retail-pos",
       clientRequestId: "req-1",
-      entityType: "seller",
-      operation: "create-seller",
+      entityType: "customer",
+      operation: "create-customer",
       dependsOn: [],
       payload: {},
       syncPriority: 10,
@@ -40,7 +40,7 @@ describe("syncOfflineRuntime", () => {
       ...op1,
       operationId: "op-2",
       clientRequestId: "req-2",
-      operation: "create-inbound-ticket",
+      operation: "create-sale",
       dependsOn: ["op-1"],
       createdAt: new Date(2).toISOString(),
       updatedAt: new Date(2).toISOString(),
@@ -49,14 +49,14 @@ describe("syncOfflineRuntime", () => {
     listPendingSpy.mockResolvedValue([op1, op2]);
     syncSpy
       .mockResolvedValueOnce({
-        moduleId: "scrap-metal",
+        moduleId: "retail-pos",
         outcome: "synced",
-        invalidateQueryKeys: [["scrap-sellers"]],
+        invalidateQueryKeys: [["retail-pos-customer-search"]],
       })
       .mockResolvedValueOnce({
-        moduleId: "scrap-metal",
+        moduleId: "retail-pos",
         outcome: "synced",
-        invalidateQueryKeys: [["scrap-metal-purchases"]],
+        invalidateQueryKeys: [["retail-pos-sales"]],
       });
 
     const result = await syncOfflineRuntime({ tenantKey: "tenant-a" });
@@ -64,8 +64,8 @@ describe("syncOfflineRuntime", () => {
     expect(syncSpy).toHaveBeenCalledTimes(2);
     expect(result.syncedCount).toBe(2);
     expect(result.invalidateQueryKeys).toEqual([
-      ["scrap-sellers"],
-      ["scrap-metal-purchases"],
+      ["retail-pos-customer-search"],
+      ["retail-pos-sales"],
     ]);
   });
 
@@ -74,10 +74,10 @@ describe("syncOfflineRuntime", () => {
     const pending: OfflineOutboxOperation = {
       operationId: "op-1",
       tenantKey: "tenant-a",
-      moduleId: "scrap-metal",
+      moduleId: "retail-pos",
       clientRequestId: "req-1",
-      entityType: "seller",
-      operation: "create-seller",
+      entityType: "customer",
+      operation: "create-customer",
       dependsOn: [],
       payload: {},
       syncPriority: 10,

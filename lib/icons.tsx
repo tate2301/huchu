@@ -203,7 +203,6 @@ export const CalendarIcon = createPhosphorIcon(
   "CalendarIcon",
 );
 export const Camera = createPhosphorIcon("VideoCamera", "Camera");
-export const Nvr = createPhosphorIcon("HardDrives", "Nvr");
 export const ChartLine = createPhosphorIcon("ChartLineUp", "ChartLine");
 export const Check = createPhosphorIcon("Check", "Check");
 export const CheckCircle = createPhosphorIcon("CheckCircle", "CheckCircle");

@@ -341,13 +341,7 @@ function isStaticAsset(url: URL): boolean {
 }
 
 function isCatalogEndpoint(url: URL): boolean {
-  const catalogPatterns = [
-    "/api/scrap-metal/materials",
-    "/api/scrap-metal/sellers",
-    "/api/scrap-metal/pricing",
-    "/api/v2/retail/pos/catalog",
-    "/api/scrap-metal/batches",
-  ];
+  const catalogPatterns = ["/api/v2/retail/pos/catalog"];
   return catalogPatterns.some((pattern) =>
     url.pathname.startsWith(pattern),
   );

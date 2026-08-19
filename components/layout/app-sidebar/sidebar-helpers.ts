@@ -21,9 +21,7 @@ import {
   MedusaIdBadgeIcon,
   Package,
   ReceiptLong,
-  Recycle,
   Scale,
-  Video,
   Wallet,
   Wrench,
   type LucideIcon,
@@ -32,14 +30,11 @@ import {
 const sectionIcons: Record<string, LucideIcon> = {
   reporting: MedusaChartBarIcon,
   gold: Gem,
-  "scrap-metal": Recycle,
   stores: MedusaHandTruckIcon,
   maintenance: Wrench,
   hr: MedusaIdBadgeIcon,
-  cctv: Video,
   settings: MedusaCogSixToothIcon,
   schools: MedusaAcademicCapIcon,
-  "car-sales": MedusaDirectionsIcon,
   retail: MedusaBuildingStorefrontIcon,
   accounting: Scale,
   management: MedusaCircleSlidersIcon,
@@ -49,16 +44,9 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "gold-operations": Gem,
   "gold-chain": LocalShipping,
   "gold-control": MedusaChartBarIcon,
-  "scrap-ticketing": ReceiptLong,
-  "scrap-lots": MedusaCircleStackIcon,
-  "scrap-cash": MedusaCashIcon,
-  "scrap-reports": MedusaChartBarIcon,
-  "scrap-setup": MedusaCogSixToothIcon,
   "schools-campus": MedusaBuildingsIcon,
   "schools-academics": MedusaBookOpenIcon,
   "schools-admin": MedusaIdBadgeIcon,
-  "autos-pipeline": MedusaDirectionsIcon,
-  "autos-stock": Package,
   "retail-floor": ReceiptLong,
   "retail-range": MedusaGridListIcon,
   "retail-buy": LocalShipping,
@@ -91,7 +79,7 @@ const sectionKeywordIcons: Array<{ keyword: string; icon: LucideIcon }> = [
   { keyword: "pipeline", icon: MedusaDirectionsIcon },
 ];
 
-const FLAT_SECTION_IDS = new Set(["schools", "car-sales", "retail"]);
+const FLAT_SECTION_IDS = new Set(["schools", "retail"]);
 
 export function matchesNavHref(href: string, pathname: string, view: string | null) {
   if (href === "/") return pathname === "/";

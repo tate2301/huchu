@@ -1,5 +1,4 @@
 import {
-  EventSeverity,
   PayrollRunStatus,
   PostingDirection,
   WorkOrderStatus,
@@ -62,7 +61,6 @@ export type ExecutiveDashboardMetrics = {
   lowStockItems: number;
   openComplianceIncidents: number;
   permitsExpiring30Days: number;
-  criticalUnackedCctvEvents: number;
   totalRiskItems: number;
 };
 
@@ -212,7 +210,6 @@ export async function getExecutiveDashboardAggregations({
     lowStockRows,
     openIncidents,
     permitsExpiring,
-    criticalUnackedEvents,
     pendingDispatches,
   ] = await Promise.all([
     prisma.bankAccount.findMany({
@@ -491,14 +488,6 @@ export async function getExecutiveDashboardAggregations({
         ],
       },
     }),
-    prisma.cCTVEvent.count({
-      where: {
-        eventTime: currentRange,
-        isAcknowledged: false,
-        severity: { in: [EventSeverity.HIGH, EventSeverity.CRITICAL] },
-        OR: [{ camera: { site: siteScope } }, { nvr: { site: siteScope } }],
-      },
-    }),
     prisma.goldDispatch.count({
       where: {
         buyerReceipts: { none: {} },
@@ -579,7 +568,6 @@ export async function getExecutiveDashboardAggregations({
     openWorkOrders +
     openIncidents +
     permitsExpiring +
-    criticalUnackedEvents +
     pendingApprovals +
     lowStockItems;
 
@@ -637,7 +625,6 @@ export async function getExecutiveDashboardAggregations({
   const riskBreakdown: ExecutiveBreakdownPoint[] = [
     { label: "Maintenance", value: openWorkOrders },
     { label: "Compliance", value: openIncidents + permitsExpiring },
-    { label: "Security", value: criticalUnackedEvents },
     { label: "Approvals", value: pendingApprovals },
     { label: "Inventory", value: lowStockItems },
   ];
@@ -665,7 +652,6 @@ export async function getExecutiveDashboardAggregations({
     lowStockItems,
     openComplianceIncidents: openIncidents,
     permitsExpiring30Days: permitsExpiring,
-    criticalUnackedCctvEvents: criticalUnackedEvents,
     totalRiskItems,
   };
 
@@ -688,8 +674,6 @@ export async function getExecutiveDashboardAggregations({
       label: "Open incidents",
     },
     "/compliance": { count: openIncidents + permitsExpiring, label: "Risk items" },
-    "/cctv/events": { count: criticalUnackedEvents, label: "Unack events" },
-    "/reports/cctv-events": { count: criticalUnackedEvents, label: "Unack events" },
     "/stores/inventory": { count: lowStockItems, label: "Low stock" },
     "/reports/downtime": {
       count: Math.max(0, Math.round(riskBreakdown.find((row) => row.label === "Maintenance")?.value ?? 0)),

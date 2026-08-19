@@ -2,14 +2,12 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 
 import { groupSearchResults, SEARCH_TYPE_ORDER } from "./search-result";
 import { searchRecords, type SearchScope } from "./search";
-import { searchAutos } from "@/lib/autos/search";
 import { searchCrm } from "@/lib/crm/search";
 import { searchGold } from "@/lib/gold/search";
 import { searchOperations } from "@/lib/operations/search";
 import { searchPeople } from "@/lib/people/search";
 import { searchRetail } from "@/lib/retail/search";
 import { searchSchools } from "@/lib/schools/search";
-import { searchScrapMetal } from "@/lib/scrap-metal/search";
 
 /**
  * S-4.5 — one search across whichever modules a tenant has.
@@ -25,8 +23,6 @@ vi.mock("@/lib/crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
 vi.mock("@/lib/schools/search", () => ({ searchSchools: vi.fn(async () => []) }));
 vi.mock("@/lib/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
 vi.mock("@/lib/gold/search", () => ({ searchGold: vi.fn(async () => []) }));
-vi.mock("@/lib/scrap-metal/search", () => ({ searchScrapMetal: vi.fn(async () => []) }));
-vi.mock("@/lib/autos/search", () => ({ searchAutos: vi.fn(async () => []) }));
 vi.mock("@/lib/retail/search", () => ({ searchRetail: vi.fn(async () => []) }));
 vi.mock("@/lib/operations/search", () => ({ searchOperations: vi.fn(async () => []) }));
 
@@ -37,8 +33,6 @@ const ARMS = {
   schools: searchSchools,
   people: searchPeople,
   gold: searchGold,
-  scrap: searchScrapMetal,
-  autos: searchAutos,
   retail: searchRetail,
   operations: searchOperations,
 } as const;
@@ -46,8 +40,8 @@ const ARMS = {
 /**
  * A scope with nothing switched on but what the case is about.
  *
- * Written out in full at every call site, this file was eight empty arrays of
- * noise per test and the interesting field was the ninth.
+ * Written out in full at every call site, this file was an empty array per arm
+ * of noise per test and the interesting field was the last one.
  */
 function scope(granted: Partial<SearchScope> = {}): SearchScope {
   return {
@@ -55,8 +49,6 @@ function scope(granted: Partial<SearchScope> = {}): SearchScope {
     schools: [],
     people: [],
     gold: [],
-    scrap: [],
-    autos: [],
     retail: [],
     operations: [],
     ...granted,
@@ -151,16 +143,14 @@ describe("searchRecords", () => {
   });
 
   it("runs each vertical's arm only when its types were granted", async () => {
-    // The eight `if (types.length > 0)` blocks became one `arm()` helper in a
-    // loop, and the thing that helper must not do is call an arm the caller was
+    // The per-module `if (types.length > 0)` blocks became one `arm()` helper in
+    // a loop, and the thing that helper must not do is call an arm the caller was
     // not given: an unentitled type leaks through a group heading and a result
     // count even when the rows are empty. One case per arm, granted alone.
     const granted: Array<[keyof typeof ARMS, Partial<SearchScope>]> = [
       ["schools", { schools: ["STUDENT"] }],
       ["people", { people: ["EMPLOYEE"] }],
       ["gold", { gold: ["GOLD_POUR"] }],
-      ["scrap", { scrap: ["SCRAP_TICKET"] }],
-      ["autos", { autos: ["VEHICLE"] }],
       ["retail", { retail: ["RETAIL_SALE"] }],
       ["operations", { operations: ["WORK_ORDER"] }],
     ];
@@ -188,7 +178,7 @@ describe("searchRecords", () => {
       scope: scope({
         crm: true,
         gold: ["GOLD_DISPATCH"],
-        autos: ["VEHICLE"],
+        retail: ["RETAIL_SALE"],
         operations: ["EQUIPMENT"],
       }),
     });
@@ -200,7 +190,7 @@ describe("searchRecords", () => {
     });
     expect(searchCrm).toHaveBeenCalledWith(db, expected);
     expect(searchGold).toHaveBeenCalledWith(db, expected);
-    expect(searchAutos).toHaveBeenCalledWith(db, expected);
+    expect(searchRetail).toHaveBeenCalledWith(db, expected);
     expect(searchOperations).toHaveBeenCalledWith(db, expected);
   });
 });

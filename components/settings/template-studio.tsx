@@ -46,7 +46,6 @@ type VersionRow = {
 const GROUPS: Array<{ id: string; title: string; match: (sourceKey: string) => boolean }> = [
   { id: "sales", title: "Sales Documents", match: (key) => key.startsWith("accounting.sales.") },
   { id: "reports", title: "Reports & Dashboards", match: (key) => key.startsWith("reports.") || key.startsWith("dashboard.") },
-  { id: "scrap", title: "Scrap Tickets", match: (key) => key.startsWith("scrap-metal.") },
 ];
 
 function groupEntries(): Array<{ id: string; title: string; entries: DefaultTemplateCatalogEntry[] }> {

@@ -36,9 +36,9 @@ import {
  * Those colours are applied as utility classes rather than inline styles so
  * that a caller's `className` / `dotClassName` still wins: Tailwind's layer
  * sits above `@layer corelith`, and `cn()`'s tailwind-merge drops the tone
- * colour when a caller supplies its own. `app/cctv/views/live.tsx` relies on
- * exactly that, combining `hideLabel` + `dotClassName="h-2 w-2"` +
- * `className="text-white"`.
+ * colour when a caller supplies its own — a caller drawing a dot over a dark
+ * surface combines `hideLabel` + `dotClassName="h-2 w-2"` +
+ * `className="text-white"` and gets white, not the tone.
  *
  * No `"use client"`: `Status` is a plain `forwardRef` with no hooks, so this
  * stays renderable from a server component, as the local copy was.

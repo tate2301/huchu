@@ -46,13 +46,6 @@ export type SearchResultType =
   | "GOLD_POUR"
   | "GOLD_PURCHASE"
   | "GOLD_DISPATCH"
-  // Scrap metal
-  | "SCRAP_TICKET"
-  | "SCRAP_SELLER"
-  // Vehicle sales
-  | "VEHICLE"
-  | "VEHICLE_DEAL"
-  | "VEHICLE_LEAD"
   // Retail
   | "RETAIL_SALE"
   // Stores and maintenance — the plant every vertical runs on
@@ -117,13 +110,6 @@ export const SEARCH_TYPE_LABELS: Record<SearchResultType, string> = {
   // group with a bare "Purchases" heading beside a stock item is a guess.
   GOLD_PURCHASE: "Gold purchases",
   GOLD_DISPATCH: "Dispatches",
-  SCRAP_TICKET: "Scrap tickets",
-  SCRAP_SELLER: "Scrap sellers",
-  VEHICLE: "Vehicles",
-  // Qualified, because the CRM's own DEAL and LEAD groups can be on the same
-  // tenant and "Deals" twice in one list tells you nothing.
-  VEHICLE_DEAL: "Vehicle deals",
-  VEHICLE_LEAD: "Vehicle enquiries",
   RETAIL_SALE: "Sales",
   INVENTORY_ITEM: "Stock",
   EQUIPMENT: "Equipment",
@@ -135,10 +121,10 @@ export const SEARCH_TYPE_LABELS: Record<SearchResultType, string> = {
  *
  * Unlike the two-module version of this list, the order now does real work. A
  * gold mine runs gold, stores, maintenance and People at once, so a pour has to
- * sit above a spare part and a work order; an auto lot runs autos beside the
- * CRM, so a Hilux on the forecourt has to sit above a deal that mentions one.
- * The rule is: the tenant's own vertical first, then the plant it runs on, then
- * the CRM and the ledgers, which are the same on every tenant.
+ * sit above a spare part and a work order; a shop runs the till beside the CRM,
+ * so a receipt has to sit above a deal that mentions one. The rule is: the
+ * tenant's own vertical first, then the plant it runs on, then the CRM and the
+ * ledgers, which are the same on every tenant.
  */
 export const SEARCH_TYPE_ORDER: SearchResultType[] = [
   // Staff first. Every vertical has a workforce — it is the one group that
@@ -156,11 +142,6 @@ export const SEARCH_TYPE_ORDER: SearchResultType[] = [
   "GOLD_POUR",
   "GOLD_PURCHASE",
   "GOLD_DISPATCH",
-  "SCRAP_TICKET",
-  "SCRAP_SELLER",
-  "VEHICLE",
-  "VEHICLE_DEAL",
-  "VEHICLE_LEAD",
   "RETAIL_SALE",
   // The plant underneath them. Below the vertical records deliberately: a mine
   // searching "435" wants the pour, not the pump with 435 in its code.

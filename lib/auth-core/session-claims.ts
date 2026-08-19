@@ -22,13 +22,6 @@ function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boole
   return subscriptionActive ? "ACTIVE" : "SUBSCRIPTION_INACTIVE";
 }
 
-function isLegacyScrapClerkRole(role: string | undefined, enabledFeatures: string[]) {
-  if (role?.trim().toUpperCase() !== "CLERK") return false;
-  return enabledFeatures.some((feature) =>
-    feature.trim().toLowerCase().startsWith("scrap-metal."),
-  );
-}
-
 function resolveWorkspaceProfileClaim(args: {
   claimedWorkspaceProfile: string | undefined;
   role: string | undefined;
@@ -98,9 +91,10 @@ export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<Platf
 
   token.companySlug = tenantClaims.companySlug;
   token.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
-  if (isLegacyScrapClerkRole(token.role, enabledFeatures)) {
-    token.role = "OPERATOR";
-  }
+  // A CLERK on a scrap tenant used to be promoted to OPERATOR here so the
+  // yard screens would open for them. Scrap is gone (ST-2.3) and no surviving
+  // feature justifies rewriting a signed-in user's role, so the claim is now
+  // whatever the database says it is.
   token.workspaceProfile = resolveWorkspaceProfileClaim({
     claimedWorkspaceProfile: tenantClaims.workspaceProfile ?? undefined,
     role: token.role,

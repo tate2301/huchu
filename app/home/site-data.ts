@@ -632,10 +632,11 @@ export const trustSignals = [
  * `docs/rollout/fdms-roadmap.md` has FD-1.1, FD-2.1, FD-3.1 and FD-4.1 at `wip`
  * and FD-8 at `todo`: the native FDMS client is written and signs, chains and
  * counts, but nothing has met ZIMRA's test environment and no pilot has issued
- * a production fiscal document yet. So the site may say built, and may say in
- * pilot. "Certified", "approved" and "your invoices validate on the portal" are
- * defects until FD-8 closes — a buyer who discovers on their own that a
- * compliance claim outran the code never buys the compliance product.
+ * a production fiscal document yet. So the site may say built, and may say
+ * tested. "In pilot", "live", "certified", "approved" and "your invoices
+ * validate on the portal" are all defects until FD-8 closes — a buyer who
+ * discovers on their own that a compliance claim outran the code never buys the
+ * compliance product.
  */
 export const FDMS_STATUS_HEADLINE = "Native FDMS integration: built and tested, not yet live with a customer.";
 
@@ -654,8 +655,6 @@ export const fiscalHero = {
     "Fiscal invoicing built directly against ZIMRA's FDMS specification, sitting on top of the POS, stock, books and payroll that produce the numbers on the invoice. Not a fiscal printer bolted onto a till, and not a spreadsheet somebody retypes at month end. One record, fiscalised at the moment of sale.",
   primaryCtaLabel: "See what fiscalising costs",
   primaryCtaHref: "/home/pricing",
-  secondaryCtaLabel: "Work out your penalty exposure",
-  secondaryCtaHref: "/home/tools/fiscalisation-penalty",
   whatsappMessage:
     "Hi Corelith, I need to fiscalise. Can you tell me what is involved and where your ZIMRA integration stands?",
 } as const;

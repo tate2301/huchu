@@ -138,6 +138,52 @@ function table(
 }
 
 /**
+ * A table this audit is about to see deleted, counted through raw SQL.
+ *
+ * ST-3 removes these models from `prisma/schema.prisma`, so `prisma.nVR` and
+ * its siblings stop existing the moment the client is regenerated. The audit is
+ * the tool an operator reaches for when deciding whether a drop is safe, and it
+ * has to keep working against a database that has not been migrated yet — which
+ * is the only database on which those counts are anything but zero. Raw SQL is
+ * what lets it outlive the schema it reports on.
+ *
+ * `to_regclass` returning NULL means the table is already gone on this
+ * database, which is a count of zero and not a failure: a migrated environment
+ * must still produce a complete report rather than aborting on its first
+ * dropped module.
+ *
+ * `$queryRawUnsafe` is safe here because nothing user-supplied reaches the SQL
+ * text: `model` and `whereSql` are literals in this file, and the company id is
+ * bound as `$1`.
+ */
+async function countDropped(model: string, whereSql: string, params: unknown[]) {
+  const [{ present }] = await prisma.$queryRawUnsafe<{ present: boolean }[]>(
+    `SELECT to_regclass($1) IS NOT NULL AS present`,
+    `public."${model}"`,
+  );
+  if (!present) return 0;
+  const [{ count }] = await prisma.$queryRawUnsafe<{ count: bigint }[]>(
+    `SELECT count(*)::bigint AS count FROM "${model}" t${whereSql ? ` WHERE ${whereSql}` : ""}`,
+    ...params,
+  );
+  return Number(count);
+}
+
+/** A dropped table, wired into the module list the same way `table` is. */
+function droppedTable(model: string, whereSql: string): ModuleTable {
+  return table(
+    model,
+    (companyId) => countDropped(model, whereSql, [companyId]),
+    () => countDropped(model, "", []),
+  );
+}
+
+/** Rows scoped to a company only through the site they were installed at. */
+const SITE_OF_COMPANY = `(SELECT s."id" FROM "Site" s WHERE s."companyId" = $1)`;
+const CAMERA_OF_COMPANY = `(SELECT c."id" FROM "Camera" c WHERE c."siteId" IN ${SITE_OF_COMPANY})`;
+const OWN_COMPANY = `t."companyId" = $1`;
+
+/**
  * The removal set, straight from `docs/rollout/scope-trim-roadmap.md`.
  *
  * `lib/commodity-billing.ts` is deliberately absent: it is gold billing, not
@@ -164,31 +210,14 @@ const AUDIT_MODULES: AuditModule[] = [
     workspaceProfiles: [],
     tables: [
       // CCTV hangs off Site, not Company: scope through the site.
-      table(
-        "NVR",
-        (companyId) => prisma.nVR.count({ where: { site: { companyId } } }),
-        () => prisma.nVR.count(),
-      ),
-      table(
-        "Camera",
-        (companyId) => prisma.camera.count({ where: { site: { companyId } } }),
-        () => prisma.camera.count(),
-      ),
-      table(
+      droppedTable("NVR", `t."siteId" IN ${SITE_OF_COMPANY}`),
+      droppedTable("Camera", `t."siteId" IN ${SITE_OF_COMPANY}`),
+      droppedTable(
         "CCTVEvent",
-        (companyId) =>
-          prisma.cCTVEvent.count({
-            where: {
-              OR: [{ nvr: { site: { companyId } } }, { camera: { site: { companyId } } }],
-            },
-          }),
-        () => prisma.cCTVEvent.count(),
+        `(t."nvrId" IN (SELECT n."id" FROM "NVR" n WHERE n."siteId" IN ${SITE_OF_COMPANY})
+          OR t."cameraId" IN ${CAMERA_OF_COMPANY})`,
       ),
-      table(
-        "CameraAccessLog",
-        (companyId) => prisma.cameraAccessLog.count({ where: { camera: { site: { companyId } } } }),
-        () => prisma.cameraAccessLog.count(),
-      ),
+      droppedTable("CameraAccessLog", `t."cameraId" IN ${CAMERA_OF_COMPANY}`),
     ],
   },
   {
@@ -207,26 +236,10 @@ const AUDIT_MODULES: AuditModule[] = [
     ],
     workspaceProfiles: ["AUTOS"],
     tables: [
-      table(
-        "CarSalesVehicle",
-        (companyId) => prisma.carSalesVehicle.count({ where: { companyId } }),
-        () => prisma.carSalesVehicle.count(),
-      ),
-      table(
-        "CarSalesLead",
-        (companyId) => prisma.carSalesLead.count({ where: { companyId } }),
-        () => prisma.carSalesLead.count(),
-      ),
-      table(
-        "CarSalesDeal",
-        (companyId) => prisma.carSalesDeal.count({ where: { companyId } }),
-        () => prisma.carSalesDeal.count(),
-      ),
-      table(
-        "CarSalesPayment",
-        (companyId) => prisma.carSalesPayment.count({ where: { companyId } }),
-        () => prisma.carSalesPayment.count(),
-      ),
+      droppedTable("CarSalesVehicle", OWN_COMPANY),
+      droppedTable("CarSalesLead", OWN_COMPANY),
+      droppedTable("CarSalesDeal", OWN_COMPANY),
+      droppedTable("CarSalesPayment", OWN_COMPANY),
     ],
   },
   {
@@ -247,56 +260,19 @@ const AUDIT_MODULES: AuditModule[] = [
     ],
     workspaceProfiles: ["SCRAP_METAL"],
     tables: [
-      table(
-        "ScrapMaterial",
-        (companyId) => prisma.scrapMaterial.count({ where: { companyId } }),
-        () => prisma.scrapMaterial.count(),
-      ),
-      table(
-        "ScrapSellerProfile",
-        (companyId) => prisma.scrapSellerProfile.count({ where: { companyId } }),
-        () => prisma.scrapSellerProfile.count(),
-      ),
-      table(
-        "ScrapMetalPrice",
-        (companyId) => prisma.scrapMetalPrice.count({ where: { companyId } }),
-        () => prisma.scrapMetalPrice.count(),
-      ),
-      table(
-        "ScrapMetalPurchase",
-        (companyId) => prisma.scrapMetalPurchase.count({ where: { companyId } }),
-        () => prisma.scrapMetalPurchase.count(),
-      ),
-      table(
-        "ScrapMetalBatch",
-        (companyId) => prisma.scrapMetalBatch.count({ where: { companyId } }),
-        () => prisma.scrapMetalBatch.count(),
-      ),
-      table(
+      droppedTable("ScrapMaterial", OWN_COMPANY),
+      droppedTable("ScrapSellerProfile", OWN_COMPANY),
+      droppedTable("ScrapMetalPrice", OWN_COMPANY),
+      droppedTable("ScrapMetalPurchase", OWN_COMPANY),
+      droppedTable("ScrapMetalBatch", OWN_COMPANY),
+      droppedTable(
         "ScrapMetalBatchItem",
-        (companyId) => prisma.scrapMetalBatchItem.count({ where: { batch: { companyId } } }),
-        () => prisma.scrapMetalBatchItem.count(),
+        `t."batchId" IN (SELECT b."id" FROM "ScrapMetalBatch" b WHERE b."companyId" = $1)`,
       ),
-      table(
-        "ScrapMetalSale",
-        (companyId) => prisma.scrapMetalSale.count({ where: { companyId } }),
-        () => prisma.scrapMetalSale.count(),
-      ),
-      table(
-        "ScrapMetalEmployeeBalance",
-        (companyId) => prisma.scrapMetalEmployeeBalance.count({ where: { companyId } }),
-        () => prisma.scrapMetalEmployeeBalance.count(),
-      ),
-      table(
-        "ScrapMetalBalanceEntry",
-        (companyId) => prisma.scrapMetalBalanceEntry.count({ where: { companyId } }),
-        () => prisma.scrapMetalBalanceEntry.count(),
-      ),
-      table(
-        "ScrapTicketComplianceRule",
-        (companyId) => prisma.scrapTicketComplianceRule.count({ where: { companyId } }),
-        () => prisma.scrapTicketComplianceRule.count(),
-      ),
+      droppedTable("ScrapMetalSale", OWN_COMPANY),
+      droppedTable("ScrapMetalEmployeeBalance", OWN_COMPANY),
+      droppedTable("ScrapMetalBalanceEntry", OWN_COMPANY),
+      droppedTable("ScrapTicketComplianceRule", OWN_COMPANY),
     ],
   },
   {
@@ -310,11 +286,7 @@ const AUDIT_MODULES: AuditModule[] = [
     featureKeys: ["accounting.fixed-assets"],
     workspaceProfiles: [],
     tables: [
-      table(
-        "FixedAsset",
-        (companyId) => prisma.fixedAsset.count({ where: { companyId } }),
-        () => prisma.fixedAsset.count(),
-      ),
+      droppedTable("FixedAsset", OWN_COMPANY),
     ],
   },
   {
@@ -326,16 +298,8 @@ const AUDIT_MODULES: AuditModule[] = [
     featureKeys: ["accounting.budgets"],
     workspaceProfiles: [],
     tables: [
-      table(
-        "Budget",
-        (companyId) => prisma.budget.count({ where: { companyId } }),
-        () => prisma.budget.count(),
-      ),
-      table(
-        "BudgetLine",
-        (companyId) => prisma.budgetLine.count({ where: { companyId } }),
-        () => prisma.budgetLine.count(),
-      ),
+      droppedTable("Budget", OWN_COMPANY),
+      droppedTable("BudgetLine", OWN_COMPANY),
     ],
   },
 ];

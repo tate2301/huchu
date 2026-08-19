@@ -93,8 +93,15 @@ export function parseSettlementSource(
 /**
  * Which source a workspace settles, given what it has enabled.
  *
- * Reads feature keys rather than the workspace profile: a company can run gold
- * and scrap side by side, and the profile only names one of them.
+ * Reads feature keys rather than the workspace profile, because a company can
+ * run more than one settling module and the profile only names one of them.
+ *
+ * ST-2.3 / ST-2.2 removed the branches that answered SCRAP and COMMISSION: no
+ * surviving feature key implies either. The enum values themselves are kept —
+ * see `SETTLEMENT_SOURCES` — because settlements already recorded against a
+ * scrap or commission source are real payments to real people, and a run that
+ * cannot name its own source is a run nobody can audit. What is gone is the
+ * ability to *default* a new workspace onto one.
  */
 export function resolveDefaultSettlementSource(
   enabledFeatures?: string[] | null,
@@ -103,10 +110,6 @@ export function resolveDefaultSettlementSource(
     (enabledFeatures ?? []).map((feature) => feature.trim().toLowerCase()),
   )
   if (enabled.has("gold.payouts") || enabled.has("gold.home")) return "GOLD"
-  if (enabled.has("scrap-metal.home") || enabled.has("scrap-metal.purchases")) {
-    return "SCRAP"
-  }
-  if (enabled.has("autos.core")) return "COMMISSION"
   return "OTHER"
 }
 

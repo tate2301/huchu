@@ -15,7 +15,6 @@ import {
   ShieldCheck,
   TrendingDown,
   TrendingUp,
-  Video,
   Wallet,
   Wrench,
 } from "@/lib/icons";
@@ -40,7 +39,6 @@ const EXECUTIVE_MODULE_ORDER: ExecutiveModuleSummary["module"][] = [
   "stores",
   "maintenance",
   "compliance",
-  "security",
   "reports",
 ];
 
@@ -58,7 +56,6 @@ const MODULE_META: Record<
   stores: { label: "Stores", icon: PackageCheck },
   maintenance: { label: "Maintenance", icon: Wrench },
   compliance: { label: "Compliance", icon: ShieldCheck },
-  security: { label: "Security", icon: Video },
   reports: { label: "Reports", icon: FileCheck },
 };
 

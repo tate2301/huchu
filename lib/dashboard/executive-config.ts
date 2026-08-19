@@ -15,7 +15,6 @@ export type ExecutiveQuickLinkModule =
   | "operations"
   | "maintenance"
   | "compliance"
-  | "security"
   | "reports"
   | "general";
 
@@ -29,8 +28,6 @@ export const EXECUTIVE_QUICK_LINK_BASE_PRIORITY: Record<string, number> = {
   "/maintenance/work-orders": 84,
   "/reports/compliance-incidents": 83,
   "/compliance": 81,
-  "/cctv/events": 80,
-  "/reports/cctv-events": 79,
   "/stores/inventory": 76,
   "/reports/downtime": 75,
   "/reports/stores-movements": 72,
@@ -54,8 +51,6 @@ export const EXECUTIVE_QUICK_LINK_BADGE_LABELS: Record<string, string> = {
   "/maintenance/work-orders": "Open work orders",
   "/reports/compliance-incidents": "Open incidents",
   "/compliance": "Risk items",
-  "/cctv/events": "Unack events",
-  "/reports/cctv-events": "Unack events",
   "/stores/inventory": "Low stock",
   "/reports/downtime": "Downtime hrs",
   "/reports/stores-movements": "Movements",
@@ -96,7 +91,6 @@ export function getQuickLinkModule(href: string): ExecutiveQuickLinkModule {
   if (href.startsWith("/people")) return "workforce";
   if (href.startsWith("/maintenance")) return "maintenance";
   if (href.startsWith("/compliance")) return "compliance";
-  if (href.startsWith("/cctv")) return "security";
   if (href.startsWith("/shift-report") || href.startsWith("/plant-report") || href.startsWith("/people/attendance")) {
     return "operations";
   }

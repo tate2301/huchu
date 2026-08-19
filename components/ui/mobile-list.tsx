@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
  *
  * Every row primitive now lives in `@corelithzw/react`
  * (`src/primitives/MobileList.tsx`) with the same `data-slot` attributes this
- * file used to emit, so the one importer (`app/scrap-metal/settlements`, which
+ * file used to emit, so the one importer (the settlements list, which
  * uses 9 of these including `MobileListIcon variant="brand"`) is unchanged. The
  * Tailwind strings are now `.mobile-list*` rules in the DS's `mobile.css`.
  *

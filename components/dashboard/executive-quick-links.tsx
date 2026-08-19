@@ -23,7 +23,6 @@ import {
   ReceiptLong,
   ShieldCheck,
   UserCheck,
-  Video,
   Wallet,
   Wrench,
 } from "@/lib/icons";
@@ -47,7 +46,6 @@ const MODULE_ORDER: ExecutiveQuickLink["module"][] = [
   "stores",
   "maintenance",
   "compliance",
-  "security",
   "reports",
   "general",
 ];
@@ -60,7 +58,6 @@ type IconKey =
   | "finance"
   | "maintenance"
   | "compliance"
-  | "security"
   | "reports"
   | "general"
   | "shift-report"
@@ -82,7 +79,6 @@ const MODULE_META: Record<
   finance: { label: "Finance", icon: "finance" },
   maintenance: { label: "Maintenance", icon: "maintenance" },
   compliance: { label: "Compliance", icon: "compliance" },
-  security: { label: "Security", icon: "security" },
   reports: { label: "Reports", icon: "reports" },
   general: { label: "General", icon: "general" },
 };
@@ -105,7 +101,6 @@ const LINK_ICON_BY_HREF_PREFIX: Array<{ prefix: string; icon: IconKey }> = [
   { prefix: "/accounting", icon: "finance" },
   { prefix: "/maintenance", icon: "maintenance" },
   { prefix: "/compliance", icon: "compliance" },
-  { prefix: "/cctv", icon: "security" },
   { prefix: "/reports", icon: "reports" },
 ];
 
@@ -152,8 +147,6 @@ function renderIcon(icon: IconKey, className: string) {
       return <Wrench className={className} />;
     case "compliance":
       return <ShieldCheck className={className} />;
-    case "security":
-      return <Video className={className} />;
     case "reports":
       return <FileCheck className={className} />;
     case "shift-report":

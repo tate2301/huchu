@@ -14,12 +14,13 @@
  * them; a tenant with none gets an empty list rather than an error, because a
  * search box that refuses is worse than one that finds nothing.
  *
- * Eight arms now — `searchCrm`, `searchSchools`, `searchPeople`, `searchGold`,
- * `searchScrapMetal`, `searchAutos`, `searchRetail`, `searchOperations` — which
- * is every module that has records worth typing at. That was the point of the
- * shape: adding the gold, scrap, vehicle, till and plant arms touched this file
- * for eight lines and the command bar, the ⌘K palette and the mention picker not
- * at all. None of them knows how many modules exist.
+ * Six arms now — `searchCrm`, `searchSchools`, `searchPeople`, `searchGold`,
+ * `searchRetail`, `searchOperations` — which is every module that has records
+ * worth typing at. That was the point of the shape: adding the gold, till and
+ * plant arms touched this file for a line each, and *removing* the scrap and
+ * vehicle arms with their verticals (ST-2.2, ST-2.3) cost the same. The command
+ * bar, the ⌘K palette and the mention picker were not touched either way —
+ * none of them knows how many modules exist.
  *
  * Entitlement is resolved by the caller — `app/api/v2/records/search/route.ts` —
  * because it holds the session, and a library that reads features from a global
@@ -27,7 +28,6 @@
  */
 import type { Prisma } from "@prisma/client";
 
-import { searchAutos, type AutosSearchType } from "@/lib/autos/search";
 import { searchCrm } from "@/lib/crm/search";
 import { searchGold, type GoldSearchType } from "@/lib/gold/search";
 import { searchOperations, type OperationsSearchType } from "@/lib/operations/search";
@@ -35,7 +35,6 @@ import { searchPeople, type PeopleSearchType } from "@/lib/people/search";
 import { groupSearchResults, type SearchResult } from "@/lib/records/search-result";
 import { searchRetail, type RetailSearchType } from "@/lib/retail/search";
 import { searchSchools, type SchoolSearchType } from "@/lib/schools/search";
-import { searchScrapMetal, type ScrapSearchType } from "@/lib/scrap-metal/search";
 
 type Tx = Prisma.TransactionClient;
 
@@ -48,10 +47,6 @@ export type SearchScope = {
   people: readonly PeopleSearchType[];
   /** The gold arms this caller may run — empty means no gold search. */
   gold: readonly GoldSearchType[];
-  /** The scrap arms this caller may run — empty means no scrap search. */
-  scrap: readonly ScrapSearchType[];
-  /** The vehicle-sales arms this caller may run. */
-  autos: readonly AutosSearchType[];
   /** The till-receipt arm, if this caller has the point of sale. */
   retail: readonly RetailSearchType[];
   /** Stores and maintenance — stock, plant and work orders. */
@@ -71,10 +66,10 @@ export async function searchRecords(
   /**
    * Queue one module's arm, if the caller was given any of its types.
    *
-   * Written as a helper because there are eight of these now and the shape of
-   * each was identical: the version with eight expanded `if` blocks was thirty
-   * lines in which the only thing that varied was a name, and the eighth was
-   * pasted from the seventh. An arm with an empty type list is not called at all
+   * Written as a helper because the shape of each was identical: the version
+   * with an expanded `if` block per module was thirty lines in which the only
+   * thing that varied was a name, and the last was pasted from the one before.
+   * An arm with an empty type list is not called at all
    * — that is what stops an unentitled type leaking through a group heading or a
    * result count.
    */
@@ -95,8 +90,6 @@ export async function searchRecords(
   arm(input.scope.schools, searchSchools);
   arm(input.scope.people, searchPeople);
   arm(input.scope.gold, searchGold);
-  arm(input.scope.scrap, searchScrapMetal);
-  arm(input.scope.autos, searchAutos);
   arm(input.scope.retail, searchRetail);
   arm(input.scope.operations, searchOperations);
 
