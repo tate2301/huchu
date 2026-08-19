@@ -306,7 +306,7 @@ function printFeaturesHelp() {
   console.log("\nHelp: Features");
   console.log("  - Read action: list features.");
   console.log("  - Write action: set feature flag.");
-  console.log("  - Command hint: pnpm manage-platform feature set --company-id <uuid> --feature cctv-live --enable --actor <email>");
+  console.log("  - Command hint: pnpm manage-platform feature set --company-id <uuid> --feature gold-home --enable --actor <email>");
 }
 
 function printAdminsHelp() {
@@ -1683,7 +1683,7 @@ async function runFeaturesMenu(rl, actor) {
           continue;
         }
         const companyId = await ask(rl, "Company id: ");
-        console.log("Tip: feature keys are slug-like, for example: cctv-live, advanced-payroll");
+        console.log("Tip: feature keys are slug-like, for example: gold-home, advanced-payroll");
         const featureKey = await ask(rl, "Feature key: ");
         const value = await ask(rl, "Set value (enable/disable): ");
         const normalized = value.trim().toLowerCase();

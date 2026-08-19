@@ -16,12 +16,11 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/settings/branding", featureKey: "core.branding.manage" },
   { scope: "page", prefix: "/settings/templates", featureKey: "core.branding.manage" },
 
-  // ST-1.3 — CCTV, vehicle sales and scrap metal were dropped from the product.
-  // Their feature keys no longer exist in the catalogue, so their entries are
-  // gone from this registry too; the pages are removed from disk in ST-2. Until
-  // then `/cctv/**`, `/autos/**` and `/car-sales/**` match no prefix at all and
-  // are answered by the platform's default policy rather than by a feature
-  // somebody's plan grants.
+  // ST-1.3 / ST-2 — CCTV, vehicle sales and scrap metal were dropped from the
+  // product. Their feature keys left the catalogue and their pages have now
+  // left the disk, so there is nothing here to gate: a request for one of those
+  // prefixes is a 404 from the router, which is the right answer and does not
+  // need a registry entry to produce it.
 
   // Longest prefix wins, so the returns page must precede the tables page it
   // sits under.
@@ -73,8 +72,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/accounting/sales", featureKey: "accounting.ar" },
   { scope: "page", prefix: "/accounting/purchases", featureKey: "accounting.ap" },
   { scope: "page", prefix: "/accounting/banking", featureKey: "accounting.banking" },
-  { scope: "page", prefix: "/accounting/assets", featureKey: "accounting.fixed-assets" },
-  { scope: "page", prefix: "/accounting/budgets", featureKey: "accounting.budgets" },
   { scope: "page", prefix: "/accounting/cost-centers", featureKey: "accounting.cost-centers" },
   { scope: "page", prefix: "/accounting/currency", featureKey: "accounting.multi-currency" },
   { scope: "page", prefix: "/accounting/tax", featureKey: "accounting.tax" },
@@ -119,7 +116,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail/pos", featureKey: "retail.pos" },
   { scope: "page", prefix: "/retail", featureKey: "retail.core" },
-  { scope: "page", prefix: "/thrift", featureKey: "retail.core" },
 
   { scope: "page", prefix: "/portal/pos/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/portal/pos", featureKey: "retail.pos" },
@@ -127,14 +123,13 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/portal/student", featureKey: "schools.portal.student" },
   { scope: "page", prefix: "/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/portal/schools", featureKey: "portal.schools" },
-  // ST-1.3 — `/portal/autos` and `/portal/car-sales` are gone with the vehicle
-  // sales module. Unlike the other dropped namespaces these do not become
-  // unmapped: the bare `/portal` entry below still catches them, so a portal
-  // suite customer is answered `portal.core` until ST-2 deletes the pages.
-  // Nothing in the catalogue is both known and ungranted to point them at
-  // instead, and an invented key would fail the "every route key is a catalogue
-  // key" check, so the deletion is the fix rather than a sentinel mapping.
-  { scope: "page", prefix: "/portal/thrift", featureKey: "portal.pos" },
+  // ST-1.3 / ST-2 — `/portal/autos`, `/portal/car-sales` and `/portal/thrift`
+  // are gone with the modules that owned them, pages and all. The bare
+  // `/portal` entry below would still have caught those prefixes, which is why
+  // deleting the pages rather than inventing a sentinel key was the fix: a key
+  // that is not in the catalogue fails the "every route key is a catalogue key"
+  // check, and a router 404 is the honest answer for a page that no longer
+  // exists.
   { scope: "page", prefix: "/portal", featureKey: "portal.core" },
 
   { scope: "page", prefix: "/gold/intake/pours", featureKey: "gold.intake.pours" },
@@ -308,8 +303,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/accounting/sales/quotations", featureKey: "accounting.ar" },
   { scope: "api", prefix: "/api/accounting/purchases", featureKey: "accounting.ap" },
   { scope: "api", prefix: "/api/accounting/banking", featureKey: "accounting.banking" },
-  { scope: "api", prefix: "/api/accounting/assets", featureKey: "accounting.fixed-assets" },
-  { scope: "api", prefix: "/api/accounting/budgets", featureKey: "accounting.budgets" },
   { scope: "api", prefix: "/api/accounting/cost-centers", featureKey: "accounting.cost-centers" },
   { scope: "api", prefix: "/api/accounting/currency", featureKey: "accounting.multi-currency" },
   { scope: "api", prefix: "/api/accounting/tax", featureKey: "accounting.tax" },

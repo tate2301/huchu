@@ -98,9 +98,6 @@ model Company {
   vatReturns                    VatReturn[]
   periodCloseVouchers           PeriodCloseVoucher[]
   openingBalanceImports         OpeningBalanceImport[]
-  fixedAssets                   FixedAsset[]
-  budgets                       Budget[]
-  budgetLines                   BudgetLine[]
   costCenters                   CostCenter[]
   currencyRates                 CurrencyRate[]
   fiscalProviderConfigs         FiscalisationProviderConfig[]
@@ -177,10 +174,6 @@ model Company {
   schoolImportJobs              SchoolImportJob[]
   schoolImportRows              SchoolImportRow[]
   schoolImportArtifacts         SchoolImportArtifact[]
-  carSalesLeads                 CarSalesLead[]
-  carSalesVehicles              CarSalesVehicle[]
-  carSalesDeals                 CarSalesDeal[]
-  carSalesPayments              CarSalesPayment[]
   goldPurchases                 GoldPurchase[]
   goldPrices                    GoldPrice[]
   goldExpenseTypes              GoldExpenseType[]
@@ -192,15 +185,6 @@ model Company {
   settlementRuns                SettlementRun[]
   settlementBatches             SettlementBatch[]
   settlementPayments            SettlementPayment[]
-  scrapMaterials                ScrapMaterial[]
-  scrapMetalPrices              ScrapMetalPrice[]
-  scrapSellerProfiles           ScrapSellerProfile[]
-  scrapMetalEmployeeBalances    ScrapMetalEmployeeBalance[]
-  scrapMetalBalanceEntries      ScrapMetalBalanceEntry[]
-  scrapMetalPurchases           ScrapMetalPurchase[]
-  scrapMetalBatches             ScrapMetalBatch[]
-  scrapMetalSales               ScrapMetalSale[]
-  scrapTicketComplianceRules    ScrapTicketComplianceRule[]
   goldInventoryEvents           GoldInventoryEvent[]
   goldExceptions                GoldException[]
   goldLedgerImports             GoldLedgerImport[]
@@ -300,8 +284,21 @@ enum TenantStatus {
 
 enum WorkspaceProfile {
   GOLD_MINE
+  /// Retired with the scrap-metal module (ST-1.1 / ST-2.3), retained on purpose.
+  ///
+  /// `Company.workspaceProfile` is NOT NULL, so a tenant stored on this profile
+  /// keeps holding the value until somebody migrates it deliberately. Dropping
+  /// the value would fail the migration outright on any database with such a
+  /// tenant, and rewriting those companies to GENERAL inside a schema migration
+  /// would be a silent tenant reconfiguration nobody asked for.
+  ///
+  /// Nothing crashes on it: `RETIRED_WORKSPACE_PROFILES` in
+  /// `lib/workspace-products.ts` lists both retired values and
+  /// `toActiveWorkspaceProfile` degrades them to GENERAL at every lookup, which
+  /// is what keeps a stale profile from indexing an empty record.
   SCRAP_METAL
   SCHOOLS
+  /// Retired with the car-sales module (ST-1.1 / ST-2.2). See SCRAP_METAL above.
   AUTOS
   RETAIL      @map("THRIFT")
   /// A workspace that bought payroll and nothing else. Must exist here as well
@@ -828,9 +825,6 @@ model Site {
   goldPours             GoldPour[]
   goldPurchases         GoldPurchase[]
   goldShiftAllocations  GoldShiftAllocation[]
-  scrapMetalPurchases   ScrapMetalPurchase[]
-  scrapMetalBatches     ScrapMetalBatch[]
-  scrapMetalSales       ScrapMetalSale[]
   attendance            Attendance[]
   equipment             Equipment[]
   inventory             InventoryItem[]
@@ -840,9 +834,6 @@ model Site {
   inspections           Inspection[]
   stockLocations        StockLocation[]
   downtimeCodes         DowntimeCode[]
-  nvrs                  NVR[]
-  cameras               Camera[]
-  streamSessions        StreamSession[]
   postingRules          PostingRule[]          @relation("PostingRuleSite")
   tenderAccountMappings TenderAccountMapping[]
   goldInventoryEvents   GoldInventoryEvent[]
@@ -925,7 +916,6 @@ model User {
   approvedDisciplinaryActions       DisciplinaryAction[]           @relation("DisciplinaryActionApprovedBy")
   appliedDisciplinaryActions        DisciplinaryAction[]           @relation("DisciplinaryActionAppliedBy")
   employeePayments                  EmployeePayment[]
-  streamSessions                    StreamSession[]
   createdCompensationProfiles       CompensationProfile[]          @relation("CompProfileCreatedBy")
   submittedCompensationProfiles     CompensationProfile[]          @relation("CompProfileSubmittedBy")
   approvedCompensationProfiles      CompensationProfile[]          @relation("CompProfileApprovedBy")
@@ -991,15 +981,6 @@ model User {
   schoolLeaveRequestsCheckedIn      SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCheckedInBy")
   schoolLeaveRequestsCreated        SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCreatedBy")
   schoolBoardingMovementsRecorded   SchoolBoardingMovementLog[]    @relation("SchoolBoardingMovementRecordedBy")
-  carSalesAssignedLeads             CarSalesLead[]                 @relation("CarSalesLeadAssignedTo")
-  carSalesDeals                     CarSalesDeal[]                 @relation("CarSalesDealSalesperson")
-  carSalesPaymentsReceived          CarSalesPayment[]              @relation("CarSalesPaymentReceivedBy")
-  createdScrapMetalPurchases        ScrapMetalPurchase[]           @relation("ScrapMetalPurchaseCreatedBy")
-  createdScrapMetalBatches          ScrapMetalBatch[]              @relation("ScrapMetalBatchCreatedBy")
-  createdScrapMetalSales            ScrapMetalSale[]               @relation("ScrapMetalSaleCreatedBy")
-  approvedScrapMetalSales           ScrapMetalSale[]               @relation("ScrapMetalSaleApprovedBy")
-  createdScrapMetalBalanceEntries   ScrapMetalBalanceEntry[]       @relation("ScrapMetalBalanceEntryCreatedBy")
-  createdScrapTicketComplianceRules ScrapTicketComplianceRule[]    @relation("ScrapTicketComplianceRuleCreatedBy")
   createdLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestCreatedBy")
   decidedLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestDecidedBy")
   createdSettlementIntakes          SettlementIntake[]             @relation("SettlementIntakeCreatedBy")
@@ -1154,9 +1135,6 @@ model Employee {
   receivedGoldPurchases1    GoldPurchase[]             @relation("GoldPurchaseReceiver1")
   receivedGoldPurchases2    GoldPurchase[]             @relation("GoldPurchaseReceiver2")
   goldShiftWorkerShares     GoldShiftWorkerShare[]
-  scrapMetalPurchases       ScrapMetalPurchase[]       @relation("ScrapMetalPurchaseEmployee")
-  scrapMetalBalance         ScrapMetalEmployeeBalance?
-  scrapMetalBalanceEntries  ScrapMetalBalanceEntry[]
   moduleAssignments         EmployeeModuleAssignment[]
   leaveEntitlements         LeaveEntitlement[]
   leaveRequests             LeaveRequest[]                @relation("LeaveRequestEmployee")
@@ -3774,318 +3752,6 @@ model GoldPeriodClose {
 }
 
 // ============================================
-// SCRAP METAL OPERATIONS
-// ============================================
-
-enum ScrapMetalCategory {
-  BATTERIES
-  COPPER
-  ALUMINUM
-  STEEL
-  BRASS
-  MIXED
-  OTHER
-}
-
-enum ScrapMetalSaleStatus {
-  DRAFT
-  PENDING_APPROVAL
-  APPROVED
-  COMPLETED
-  CANCELLED
-}
-
-enum ScrapMetalPurchaseStatus {
-  DRAFT
-  POSTED
-  CANCELLED
-  REVERSED
-}
-
-enum ScrapMetalBalanceEntryType {
-  PURCHASE
-  SETTLEMENT
-  ADJUSTMENT
-  REVERSAL
-}
-
-model ScrapMaterial {
-  id                String             @id @default(uuid())
-  companyId         String
-  code              String
-  name              String
-  category          ScrapMetalCategory
-  defaultPricePerKg Float
-  currency          String             @default("USD")
-  isActive          Boolean            @default(true)
-  notes             String?
-  createdAt         DateTime           @default(now())
-  updatedAt         DateTime           @updatedAt
-
-  company               Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  prices                ScrapMetalPrice[]
-  purchases             ScrapMetalPurchase[]
-  batches               ScrapMetalBatch[]
-  sales                 ScrapMetalSale[]
-  ticketComplianceRules ScrapTicketComplianceRule[]
-
-  @@unique([companyId, code])
-  @@index([companyId, isActive])
-  @@index([companyId, category])
-}
-
-model ScrapSellerProfile {
-  id         String   @id @default(uuid())
-  companyId  String
-  fullName   String
-  phone      String
-  nationalId String
-  address    String?
-  notes      String?
-  isActive   Boolean  @default(true)
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
-
-  company   Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  purchases ScrapMetalPurchase[]
-
-  @@index([companyId, isActive])
-  @@index([companyId, fullName])
-  @@index([companyId, nationalId])
-}
-
-model ScrapMetalPrice {
-  id            String             @id @default(uuid())
-  companyId     String
-  materialId    String?
-  category      ScrapMetalCategory
-  effectiveDate DateTime
-  pricePerKg    Float
-  currency      String             @default("USD")
-  note          String?
-  createdById   String
-  createdAt     DateTime           @default(now())
-  updatedAt     DateTime           @updatedAt
-
-  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  material ScrapMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
-
-  @@unique([companyId, materialId, category, effectiveDate])
-  @@index([companyId, category, effectiveDate])
-  @@index([companyId, materialId, effectiveDate])
-}
-
-model ScrapMetalEmployeeBalance {
-  id          String   @id @default(uuid())
-  companyId   String
-  employeeId  String   @unique
-  balance     Float    @default(0) // Positive = employee owes company, Negative = company owes employee
-  lastUpdated DateTime @updatedAt
-  createdAt   DateTime @default(now())
-
-  company  Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  employee Employee                 @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  entries  ScrapMetalBalanceEntry[]
-
-  @@unique([companyId, employeeId])
-  @@index([companyId, employeeId])
-}
-
-model ScrapMetalBalanceEntry {
-  id           String                     @id @default(uuid())
-  companyId    String
-  balanceId    String
-  employeeId   String
-  entryType    ScrapMetalBalanceEntryType
-  amountDelta  Float
-  balanceAfter Float
-  sourceId     String?
-  note         String?
-  createdById  String?
-  createdAt    DateTime                   @default(now())
-
-  company   Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  balance   ScrapMetalEmployeeBalance @relation(fields: [balanceId], references: [id], onDelete: Cascade)
-  employee  Employee                  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
-  createdBy User?                     @relation("ScrapMetalBalanceEntryCreatedBy", fields: [createdById], references: [id])
-
-  @@index([companyId, employeeId, createdAt])
-  @@index([balanceId, createdAt])
-}
-
-model ScrapMetalPurchase {
-  id                String                   @id @default(uuid())
-  purchaseNumber    String
-  companyId         String
-  siteId            String
-  employeeId        String // Employee who made the purchase
-  materialId        String?
-  sellerProfileId   String?
-  vendorId          String?
-  purchaseDate      DateTime
-  category          ScrapMetalCategory
-  weight            Float // in kg
-  pricePerKg        Float
-  totalAmount       Float
-  currency          String                   @default("USD")
-  paymentMethod     String?
-  paymentReference  String?
-  attachmentsJson   String?
-  lastPrintedAt     DateTime?
-  printCount        Int                      @default(0)
-  printedById       String?
-  sellerName        String?
-  sellerPhone       String?
-  notes             String?
-  status            ScrapMetalPurchaseStatus @default(DRAFT)
-  purchaseBillId    String?
-  purchasePaymentId String?
-  createdById       String
-  createdAt         DateTime                 @default(now())
-  updatedAt         DateTime                 @updatedAt
-
-  company         Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site            Site                  @relation(fields: [siteId], references: [id])
-  employee        Employee              @relation("ScrapMetalPurchaseEmployee", fields: [employeeId], references: [id])
-  material        ScrapMaterial?        @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  sellerProfile   ScrapSellerProfile?   @relation(fields: [sellerProfileId], references: [id], onDelete: SetNull)
-  vendor          Vendor?               @relation(fields: [vendorId], references: [id], onDelete: SetNull)
-  purchaseBill    PurchaseBill?         @relation("ScrapMetalPurchaseBill", fields: [purchaseBillId], references: [id], onDelete: SetNull)
-  purchasePayment PurchasePayment?      @relation("ScrapMetalPurchasePayment", fields: [purchasePaymentId], references: [id], onDelete: SetNull)
-  createdBy       User                  @relation("ScrapMetalPurchaseCreatedBy", fields: [createdById], references: [id])
-  batchItems      ScrapMetalBatchItem[]
-
-  @@unique([companyId, purchaseNumber])
-  @@index([companyId, purchaseDate])
-  @@index([siteId, purchaseDate])
-  @@index([employeeId])
-  @@index([materialId])
-  @@index([sellerProfileId])
-  @@index([vendorId])
-  @@index([status])
-}
-
-model ScrapMetalBatch {
-  id                  String             @id @default(uuid())
-  batchNumber         String
-  companyId           String
-  siteId              String
-  materialId          String?
-  category            ScrapMetalCategory
-  status              String             @default("COLLECTING") // COLLECTING, READY, SOLD
-  totalWeight         Float              @default(0) // in kg
-  collectionStartDate DateTime
-  collectionEndDate   DateTime?
-  notes               String?
-  createdById         String
-  createdAt           DateTime           @default(now())
-  updatedAt           DateTime           @updatedAt
-
-  company   Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site      Site                  @relation(fields: [siteId], references: [id])
-  material  ScrapMaterial?        @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  createdBy User                  @relation("ScrapMetalBatchCreatedBy", fields: [createdById], references: [id])
-  items     ScrapMetalBatchItem[]
-  sales     ScrapMetalSale[]
-
-  @@unique([companyId, batchNumber])
-  @@index([companyId, siteId])
-  @@index([status])
-}
-
-model ScrapMetalBatchItem {
-  id         String   @id @default(uuid())
-  batchId    String
-  purchaseId String
-  weight     Float
-  addedAt    DateTime @default(now())
-
-  batch    ScrapMetalBatch    @relation(fields: [batchId], references: [id], onDelete: Cascade)
-  purchase ScrapMetalPurchase @relation(fields: [purchaseId], references: [id])
-
-  @@unique([batchId, purchaseId])
-  @@index([batchId])
-  @@index([purchaseId])
-}
-
-model ScrapMetalSale {
-  id                String               @id @default(uuid())
-  saleNumber        String
-  companyId         String
-  siteId            String
-  batchId           String
-  materialId        String?
-  customerId        String?
-  saleDate          DateTime
-  buyerName         String
-  buyerContact      String?
-  recordedWeight    Float // Weight when batch was sold
-  soldWeight        Float // Actual weight accepted by buyer
-  weightDiscrepancy Float // recordedWeight - soldWeight
-  pricePerKg        Float
-  totalAmount       Float
-  currency          String               @default("USD")
-  paymentMethod     String?
-  paymentReference  String?
-  attachmentsJson   String?
-  lastPrintedAt     DateTime?
-  printCount        Int                  @default(0)
-  printedById       String?
-  status            ScrapMetalSaleStatus @default(DRAFT)
-  approvedById      String?
-  approvedAt        DateTime?
-  notes             String?
-  salesInvoiceId    String?
-  salesReceiptId    String?
-  createdById       String
-  createdAt         DateTime             @default(now())
-  updatedAt         DateTime             @updatedAt
-
-  company      Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  site         Site            @relation(fields: [siteId], references: [id])
-  batch        ScrapMetalBatch @relation(fields: [batchId], references: [id])
-  material     ScrapMaterial?  @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  customer     Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
-  salesInvoice SalesInvoice?   @relation("ScrapMetalSaleInvoice", fields: [salesInvoiceId], references: [id], onDelete: SetNull)
-  salesReceipt SalesReceipt?   @relation("ScrapMetalSaleReceipt", fields: [salesReceiptId], references: [id], onDelete: SetNull)
-  approvedBy   User?           @relation("ScrapMetalSaleApprovedBy", fields: [approvedById], references: [id])
-  createdBy    User            @relation("ScrapMetalSaleCreatedBy", fields: [createdById], references: [id])
-
-  @@unique([companyId, saleNumber])
-  @@index([companyId, saleDate])
-  @@index([siteId, saleDate])
-  @@index([batchId])
-  @@index([status])
-  @@index([materialId])
-  @@index([customerId])
-}
-
-model ScrapTicketComplianceRule {
-  id                      String              @id @default(uuid())
-  companyId               String
-  name                    String
-  scope                   String              @default("BOTH") // INBOUND | OUTBOUND | BOTH
-  materialId              String?
-  category                ScrapMetalCategory?
-  requirePhotos           Boolean             @default(false)
-  requirePaymentMethod    Boolean             @default(false)
-  requirePaymentReference Boolean             @default(false)
-  requireNotes            Boolean             @default(false)
-  isActive                Boolean             @default(true)
-  createdById             String?
-  createdAt               DateTime            @default(now())
-  updatedAt               DateTime            @updatedAt
-
-  company   Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  material  ScrapMaterial? @relation(fields: [materialId], references: [id], onDelete: SetNull)
-  createdBy User?          @relation("ScrapTicketComplianceRuleCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
-
-  @@index([companyId, scope, isActive])
-  @@index([companyId, category, isActive])
-  @@index([companyId, materialId, isActive])
-}
-
-// ============================================
 // PHASE 4: STORES & MAINTENANCE
 // ============================================
 
@@ -4567,10 +4233,22 @@ enum AccountingSourceType {
   PURCHASE_WRITE_OFF
   BANK_TRANSACTION
   MAINTENANCE_COMPLETION
+  /// Retired with `IrregularPayoutBatch` in P-1, kept so old rows stay readable.
+  ///
+  /// Same rule as `ApprovalTargetType.IRREGULAR_PAYOUT_BATCH`, and pinned by the
+  /// same test: Postgres refuses to drop a value any row still holds, and the
+  /// two ways round that are both worse than the dead value. Nothing writes it —
+  /// settlements post as `PAYROLL_DISBURSEMENT` — but a disbursement that posted
+  /// under this name really did post under it, and rewriting a ledger row to say
+  /// otherwise is a lie the trial balance cannot detect.
+  ///
+  /// ST-3.3 dropped `SCRAP_METAL_PURCHASE`, `SCRAP_METAL_BATCH` and
+  /// `SCRAP_METAL_SALE` from this enum. Those three were safe to drop and this
+  /// one is not, for one reason: scrap had no seeded posting rule, so its events
+  /// were always breadcrumbs on the nullable `AccountingIntegrationEvent`
+  /// column and could never reach a `JournalEntry`. This one was captured with
+  /// status PENDING and could.
   IRREGULAR_PAYOUT_DISBURSEMENT
-  SCRAP_METAL_PURCHASE
-  SCRAP_METAL_BATCH
-  SCRAP_METAL_SALE
   RETAIL_SHIFT_OPEN
   RETAIL_GOODS_RECEIPT
   RETAIL_SALE
@@ -4675,12 +4353,6 @@ enum FiscalReceiptStatus {
   SUCCESS
   FAILED
   VOIDED
-}
-
-enum BudgetStatus {
-  DRAFT
-  ACTIVE
-  CLOSED
 }
 
 enum NoteStatus {
@@ -4805,7 +4477,6 @@ model ChartOfAccount {
   postingLines           PostingRuleLine[]
   tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
   tenderOffsetMappings   TenderAccountMapping[] @relation("TenderOffsetAccount")
-  budgetLines            BudgetLine[]
 
   @@unique([companyId, code])
   @@index([companyId, type])
@@ -5162,7 +4833,6 @@ model Customer {
   taxCategory     TaxCategory?     @relation(fields: [taxCategoryId], references: [id])
   invoices        SalesInvoice[]
   quotations      SalesQuotation[]
-  scrapMetalSales ScrapMetalSale[]
   crmClients      CrmClient[]
 
   @@index([companyId, isActive])
@@ -5186,7 +4856,6 @@ model Vendor {
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   taxCategory         TaxCategory?         @relation(fields: [taxCategoryId], references: [id])
   bills               PurchaseBill[]
-  scrapMetalPurchases ScrapMetalPurchase[]
 
   @@index([companyId, isActive])
 }
@@ -5222,7 +4891,6 @@ model SalesInvoice {
   customer         Customer           @relation(fields: [customerId], references: [id])
   lines            SalesInvoiceLine[]
   receipts         SalesReceipt[]
-  scrapMetalSales  ScrapMetalSale[]   @relation("ScrapMetalSaleInvoice")
   fiscalReceipt    FiscalReceipt?     @relation("SalesInvoiceFiscalReceipt")
   creditNotes      CreditNote[]
   writeOffs        SalesWriteOff[]
@@ -5320,7 +4988,6 @@ model SalesReceipt {
 
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   invoice          SalesInvoice?     @relation(fields: [invoiceId], references: [id])
-  scrapMetalSales  ScrapMetalSale[]  @relation("ScrapMetalSaleReceipt")
   bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
   createdBy        User?             @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
   crmLeadDocuments CrmLeadDocument[] @relation("CrmLeadDocReceipt")
@@ -5418,7 +5085,6 @@ model PurchaseBill {
   vendor              Vendor               @relation(fields: [vendorId], references: [id])
   lines               PurchaseBillLine[]
   payments            PurchasePayment[]
-  scrapMetalPurchases ScrapMetalPurchase[] @relation("ScrapMetalPurchaseBill")
   debitNotes          DebitNote[]
   writeOffs           PurchaseWriteOff[]
   createdBy           User?                @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
@@ -5463,7 +5129,6 @@ model PurchasePayment {
 
   company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
   bill                PurchaseBill?        @relation(fields: [billId], references: [id])
-  scrapMetalPurchases ScrapMetalPurchase[] @relation("ScrapMetalPurchasePayment")
   bankAccount         BankAccount?         @relation(fields: [bankAccountId], references: [id])
   createdBy           User?                @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
 
@@ -5784,67 +5449,6 @@ model PeriodCloseVoucher {
   @@index([companyId, closingDate])
 }
 
-enum DepreciationMethod {
-  STRAIGHT_LINE
-}
-
-model FixedAsset {
-  id                 String             @id @default(uuid())
-  companyId          String
-  assetCode          String
-  name               String
-  category           String?
-  acquisitionDate    DateTime
-  cost               Float
-  salvageValue       Float              @default(0)
-  usefulLifeMonths   Int                @default(36)
-  depreciationMethod DepreciationMethod @default(STRAIGHT_LINE)
-  isActive           Boolean            @default(true)
-  createdAt          DateTime           @default(now())
-  updatedAt          DateTime           @updatedAt
-
-  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
-
-  @@unique([companyId, assetCode])
-  @@index([companyId, isActive])
-}
-
-model Budget {
-  id          String       @id @default(uuid())
-  companyId   String
-  name        String
-  startDate   DateTime
-  endDate     DateTime
-  status      BudgetStatus @default(DRAFT)
-  totalAmount Float        @default(0)
-  notes       String?
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
-
-  company Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  lines   BudgetLine[]
-
-  @@index([companyId, status])
-}
-
-model BudgetLine {
-  id           String   @id @default(uuid())
-  companyId    String
-  budgetId     String
-  accountId    String
-  costCenterId String?
-  amount       Float
-  createdAt    DateTime @default(now())
-
-  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  budget     Budget         @relation(fields: [budgetId], references: [id], onDelete: Cascade)
-  account    ChartOfAccount @relation(fields: [accountId], references: [id])
-  costCenter CostCenter?    @relation(fields: [costCenterId], references: [id])
-
-  @@index([companyId])
-  @@index([budgetId])
-}
-
 model CostCenter {
   id        String   @id @default(uuid())
   companyId String
@@ -5856,7 +5460,6 @@ model CostCenter {
 
   company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
   journalLines     JournalLine[]
-  budgetLines      BudgetLine[]
   postingRuleLines PostingRuleLine[]
 
   @@unique([companyId, code])
@@ -8683,157 +8286,6 @@ enum SchoolImportRowStatus {
   FAILED
 }
 
-enum CarSalesLeadStatus {
-  NEW
-  QUALIFIED
-  NEGOTIATION
-  WON
-  LOST
-  CANCELED
-}
-
-enum CarSalesVehicleStatus {
-  IN_STOCK
-  RESERVED
-  SOLD
-  DELIVERED
-}
-
-enum CarSalesDealStatus {
-  DRAFT
-  QUOTED
-  RESERVED
-  CONTRACTED
-  DELIVERY_READY
-  DELIVERED
-  CANCELED
-  VOIDED
-}
-
-enum CarSalesPaymentMethod {
-  CASH
-  BANK_TRANSFER
-  CARD
-  MOBILE_MONEY
-}
-
-enum CarSalesPaymentStatus {
-  POSTED
-  VOIDED
-  REFUNDED
-}
-
-model CarSalesLead {
-  id              String             @id @default(uuid())
-  companyId       String
-  leadNo          String
-  customerName    String
-  phone           String
-  email           String?
-  source          String             @default("WALK_IN")
-  vehicleInterest String?
-  budgetMin       Float?
-  budgetMax       Float?
-  status          CarSalesLeadStatus @default(NEW)
-  assignedToId    String?
-  notes           String?
-  createdAt       DateTime           @default(now())
-  updatedAt       DateTime           @updatedAt
-
-  company    Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  assignedTo User?          @relation("CarSalesLeadAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
-  deals      CarSalesDeal[]
-
-  @@unique([companyId, leadNo])
-  @@index([companyId, status, createdAt])
-  @@index([companyId, assignedToId])
-}
-
-model CarSalesVehicle {
-  id               String                @id @default(uuid())
-  companyId        String
-  stockNo          String
-  vin              String
-  make             String
-  model            String
-  year             Int
-  color            String?
-  mileageKm        Int?
-  acquisitionDate  DateTime?
-  acquisitionCost  Float                 @default(0)
-  listingPrice     Float
-  minApprovalPrice Float
-  currency         String                @default("USD")
-  status           CarSalesVehicleStatus @default(IN_STOCK)
-  createdAt        DateTime              @default(now())
-  updatedAt        DateTime              @updatedAt
-
-  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  deals   CarSalesDeal[]
-
-  @@unique([companyId, stockNo])
-  @@unique([companyId, vin])
-  @@index([companyId, status, updatedAt])
-}
-
-model CarSalesDeal {
-  id             String             @id @default(uuid())
-  companyId      String
-  dealNo         String
-  leadId         String?
-  vehicleId      String
-  customerName   String
-  customerPhone  String
-  salespersonId  String
-  status         CarSalesDealStatus @default(DRAFT)
-  quoteAmount    Float
-  discountAmount Float              @default(0)
-  taxAmount      Float              @default(0)
-  netAmount      Float
-  paidAmount     Float              @default(0)
-  balanceAmount  Float
-  reservedUntil  DateTime?
-  contractedAt   DateTime?
-  deliveredAt    DateTime?
-  notes          String?
-  createdAt      DateTime           @default(now())
-  updatedAt      DateTime           @updatedAt
-
-  company     Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  lead        CarSalesLead?     @relation(fields: [leadId], references: [id], onDelete: SetNull)
-  vehicle     CarSalesVehicle   @relation(fields: [vehicleId], references: [id], onDelete: Restrict)
-  salesperson User              @relation("CarSalesDealSalesperson", fields: [salespersonId], references: [id], onDelete: Restrict)
-  payments    CarSalesPayment[]
-
-  @@unique([companyId, dealNo])
-  @@index([companyId, status, updatedAt])
-  @@index([companyId, vehicleId, status])
-}
-
-model CarSalesPayment {
-  id            String                @id @default(uuid())
-  companyId     String
-  paymentNo     String
-  dealId        String
-  paymentDate   DateTime
-  paymentMethod CarSalesPaymentMethod
-  status        CarSalesPaymentStatus @default(POSTED)
-  amount        Float
-  reference     String?
-  notes         String?
-  receivedById  String?
-  createdAt     DateTime              @default(now())
-  updatedAt     DateTime              @updatedAt
-
-  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
-  deal       CarSalesDeal @relation(fields: [dealId], references: [id], onDelete: Cascade)
-  receivedBy User?        @relation("CarSalesPaymentReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull)
-
-  @@unique([companyId, paymentNo])
-  @@index([companyId, paymentDate])
-  @@index([companyId, dealId, status])
-}
-
 // ============================================
 // CRM MODULE
 
@@ -9678,229 +9130,6 @@ model VerificationToken {
   expires    DateTime
 
   @@unique([identifier, token])
-}
-
-// ============================================
-// CCTV / SURVEILLANCE INTEGRATION
-// ============================================
-
-model NVR {
-  id            String    @id @default(uuid())
-  name          String
-  ipAddress     String
-  port          Int       @default(554) // RTSP port
-  httpPort      Int       @default(80) // ISAPI port
-  username      String
-  password      String // Encrypted in production
-  siteId        String
-  manufacturer  String    @default("Hikvision")
-  model         String?
-  firmware      String?
-  isActive      Boolean   @default(true)
-  isOnline      Boolean   @default(false)
-  lastHeartbeat DateTime?
-
-  // Network settings
-  rtspPort     Int     @default(554)
-  isapiEnabled Boolean @default(true)
-  onvifEnabled Boolean @default(false)
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  site    Site        @relation(fields: [siteId], references: [id])
-  cameras Camera[]
-  events  CCTVEvent[]
-
-  @@index([siteId])
-  @@index([ipAddress])
-}
-
-model Camera {
-  id            String @id @default(uuid())
-  name          String
-  channelNumber Int
-  nvrId         String
-  siteId        String
-
-  // Location/Area
-  area        String // "Gate", "Gold Room", "Crusher", "Processing"
-  description String?
-
-  // Stream configuration
-  mainStreamId String? // e.g., "101" for channel 1 main
-  subStreamId  String? // e.g., "102" for channel 1 sub
-
-  // Camera capabilities
-  hasPTZ          Boolean @default(false)
-  hasAudio        Boolean @default(false)
-  hasMotionDetect Boolean @default(true)
-  hasLineDetect   Boolean @default(false)
-  isActive        Boolean @default(true)
-
-  // Status
-  isOnline    Boolean   @default(false)
-  isRecording Boolean   @default(true)
-  lastSeen    DateTime?
-
-  // Business context
-  isHighSecurity Boolean @default(false) // e.g., gold room cameras
-  requiredUptime Float? // percentage
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  nvr             NVR               @relation(fields: [nvrId], references: [id])
-  site            Site              @relation(fields: [siteId], references: [id])
-  events          CCTVEvent[]
-  streamSessions  StreamSession[]
-  playbackRecords PlaybackRecord[]
-  accessLogs      CameraAccessLog[]
-
-  @@unique([nvrId, channelNumber])
-  @@index([siteId])
-  @@index([nvrId])
-  @@index([area])
-}
-
-enum CCTVEventType {
-  MOTION_DETECTION
-  LINE_CROSSING
-  INTRUSION
-  VIDEO_LOSS
-  DISK_FULL
-  DISK_ERROR
-  NETWORK_DISCONNECTED
-  ILLEGAL_ACCESS
-  ALARM_INPUT
-  TAMPERING
-}
-
-enum EventSeverity {
-  LOW
-  MEDIUM
-  HIGH
-  CRITICAL
-}
-
-enum StreamProtocol {
-  WEBRTC
-  HLS
-}
-
-enum StreamSessionStatus {
-  ACTIVE
-  STOPPED
-  FAILED
-}
-
-model CCTVEvent {
-  id        String        @id @default(uuid())
-  nvrId     String?
-  cameraId  String?
-  eventType CCTVEventType
-  severity  EventSeverity @default(MEDIUM)
-  eventTime DateTime
-
-  // Event details
-  title       String
-  description String?
-  snapshotUrl String? // URL to event snapshot
-
-  // Context
-  linkedIncidentId String? // Link to Incident model if escalated
-
-  // Status
-  isAcknowledged Boolean   @default(false)
-  acknowledgedBy String?
-  acknowledgedAt DateTime?
-  notes          String?
-
-  createdAt DateTime @default(now())
-
-  nvr    NVR?    @relation(fields: [nvrId], references: [id])
-  camera Camera? @relation(fields: [cameraId], references: [id])
-
-  @@index([eventTime])
-  @@index([cameraId])
-  @@index([eventType])
-  @@index([isAcknowledged])
-}
-
-model StreamSession {
-  id         String              @id @default(uuid())
-  cameraId   String
-  siteId     String
-  userId     String
-  streamType String              @default("sub")
-  protocol   StreamProtocol
-  status     StreamSessionStatus @default(ACTIVE)
-  playUrl    String?
-  purpose    String?
-  clientMeta String?
-  startedAt  DateTime            @default(now())
-  endedAt    DateTime?
-  createdAt  DateTime            @default(now())
-  updatedAt  DateTime            @updatedAt
-
-  camera Camera @relation(fields: [cameraId], references: [id])
-  site   Site   @relation(fields: [siteId], references: [id])
-  user   User   @relation(fields: [userId], references: [id])
-
-  @@index([cameraId, status])
-  @@index([siteId, startedAt])
-  @@index([userId, startedAt])
-}
-
-model PlaybackRecord {
-  id        String   @id @default(uuid())
-  cameraId  String
-  startTime DateTime
-  endTime   DateTime
-  fileSize  Int? // in MB
-
-  // Playback access
-  playbackUri   String? // RTSP URI for playback
-  recordingType String  @default("CONTINUOUS") // CONTINUOUS, EVENT, MANUAL
-
-  // Metadata
-  duration   Int? // in seconds
-  hasAudio   Boolean @default(false)
-  resolution String? // e.g., "1920x1080"
-
-  // Access tracking
-  requestedBy String? // User who requested playback
-  purpose     String? // "Incident review", "Audit", etc.
-
-  createdAt DateTime @default(now())
-
-  camera Camera @relation(fields: [cameraId], references: [id])
-
-  @@index([cameraId])
-  @@index([startTime, endTime])
-}
-
-model CameraAccessLog {
-  id         String    @id @default(uuid())
-  cameraId   String
-  userId     String?
-  accessType String // "LIVE_VIEW", "PLAYBACK", "PTZ_CONTROL"
-  startTime  DateTime
-  endTime    DateTime?
-  duration   Int? // in seconds
-  ipAddress  String?
-
-  // Business context
-  purpose String?
-  notes   String?
-
-  createdAt DateTime @default(now())
-
-  camera Camera @relation(fields: [cameraId], references: [id])
-
-  @@index([cameraId])
-  @@index([userId])
-  @@index([startTime])
 }
 
 // ---------------------------------------------------------------------------

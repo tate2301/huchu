@@ -10,7 +10,6 @@ type V2CollectionResource =
   | "schools"
   | "schools-boarding"
   | "schools-results"
-  | "autos"
   | "pos"
   | "thrift"
   | "retail"

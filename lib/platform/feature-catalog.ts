@@ -171,8 +171,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   f({ key: "accounting.ar", name: "Accounts Receivable", description: "Sales customers, invoices, and receipts.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.ap", name: "Accounts Payable", description: "Vendors, bills, and payments.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.banking", name: "Banking", description: "Bank accounts and transactions.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.fixed-assets", name: "Fixed Assets", description: "Asset register and depreciation schedule.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
-  f({ key: "accounting.budgets", name: "Budgets", description: "Budgeting and allocation planning.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.cost-centers", name: "Cost Centers", description: "Cost center setup and allocation.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.multi-currency", name: "Multi-currency", description: "Currency rates and multi-currency support.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "accounting.tax", name: "Tax", description: "Tax codes and VAT configuration.", domain: "accounting", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -208,7 +206,6 @@ export const FEATURE_CATALOG: FeatureCatalogEntry[] = [
   // manager who approves a settlement has no business in the salary bill.
   f({ key: "settlements.core", name: "Settlements", description: "Settlement intakes, runs and payouts for quantity-based pay.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 3 }),
   f({ key: "settlements.gold", name: "Gold Settlements", description: "Settling gold shift allocations by weight, valued at the price agreed upstream.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
-  f({ key: "settlements.scrap", name: "Scrap Settlements", description: "Settling scrap balances by weight.", domain: "settlements", defaultEnabled: false, isBillable: true, monthlyPrice: 2 }),
 
   f({ key: "retail.core", name: "Retail Core", description: "Retail module landing and shared setup.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
   f({ key: "retail.pos", name: "Retail POS", description: "Point-of-sale and cashier workflows.", domain: "retail", defaultEnabled: false, isBillable: true, monthlyPrice: 0 }),
@@ -388,7 +385,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
       "Settling gold, scrap, commission and other quantity-based pay, with its own approval chain and payouts.",
     monthlyPrice: 29,
     additionalSiteMonthlyPrice: 5,
-    features: ["settlements.core", "settlements.gold", "settlements.scrap"],
+    features: ["settlements.core", "settlements.gold"],
   },
   {
     code: "ADDON_GOLD_ADVANCED",
@@ -465,15 +462,13 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   {
     code: "ADDON_ACCOUNTING_ADVANCED",
     name: "Accounting Advanced",
-    description: "AR/AP, banking, assets, budgets, and multi-currency.",
+    description: "AR/AP, banking, cost centers, and multi-currency.",
     monthlyPrice: 49,
     additionalSiteMonthlyPrice: 10,
     features: [
       "accounting.ar",
       "accounting.ap",
       "accounting.banking",
-      "accounting.fixed-assets",
-      "accounting.budgets",
       "accounting.cost-centers",
       "accounting.multi-currency",
     ],
@@ -630,8 +625,8 @@ export const TIERS: TierDefinition[] = [
       ...PLATFORM_BASE_FEATURES,
       // AR and AP as identity and documents, not as a ledger: a fiscal invoice
       // needs a customer, an invoice and a supplier. The rest of
-      // ADDON_ACCOUNTING_ADVANCED (banking, assets, budgets, cost centers,
-      // multi-currency) stays an upsell.
+      // ADDON_ACCOUNTING_ADVANCED (banking, cost centers, multi-currency)
+      // stays an upsell.
       "accounting.ar",
       "accounting.ap",
     ],

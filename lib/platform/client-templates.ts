@@ -182,12 +182,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       // A school that wants to pay its teachers from the same `Employee` rows
       // the timetable already uses now can, by buying the addon.
       //
-      // The settlement keys are different and stay blocked: they are the gold and
-      // scrap payout surface, which a school has no use for and which would render
-      // payout screens for commodities it does not handle.
+      // The settlement keys are different and stay blocked: they are the gold
+      // payout surface, which a school has no use for and which would render
+      // payout screens for a commodity it does not handle.
       "settlements.core",
       "settlements.gold",
-      "settlements.scrap",
       "maintenance.dashboard",
       "maintenance.equipment",
       "maintenance.work-orders",
@@ -340,7 +339,6 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       // would be empty tabs.
       "settlements.core",
       "settlements.gold",
-      "settlements.scrap",
       "schools.core",
       "retail.core",
       "retail.pos",

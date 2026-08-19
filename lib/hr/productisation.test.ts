@@ -252,17 +252,20 @@ describe("the addon path", () => {
   });
 
   it("still blocks the settlement surface a school has no use for", () => {
-    // The settlement keys are the gold and scrap payout screens. Unblocking them
-    // along with the rest of HR would give a school empty tabs for commodities it
+    // The settlement keys are the gold payout screens. Unblocking them along
+    // with the rest of HR would give a school empty tabs for a commodity it
     // does not handle.
     //
     // These used to be one key, `hr.settlements` — a mining concept in the HR
-    // namespace, which is why `/scrap-metal/settlements` was gated on an HR key
+    // namespace, which is why the scrap settlements page was gated on an HR key
     // and why every Advanced Payroll customer was sold a gold payout screen.
+    // `settlements.scrap` was a third key and is gone with its vertical
+    // (ST-3.4): a template cannot disable a feature the catalogue no longer
+    // sells, and listing one here would assert against a key nobody can hold.
     const disabled = getClientTemplateDisabledFeatureKeys("TEMPLATE_SCHOOLS");
     expect(disabled).toContain("settlements.core");
     expect(disabled).toContain("settlements.gold");
-    expect(disabled).toContain("settlements.scrap");
+    expect(disabled).not.toContain("settlements.scrap");
   });
 });
 

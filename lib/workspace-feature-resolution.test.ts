@@ -83,6 +83,46 @@ describe("feature catalog bundles", () => {
     const retail = FEATURE_BUNDLES.find((bundle) => bundle.code === "ADDON_RETAIL_SUITE");
     expect(retail?.features).toContain("crm.customers");
   });
+
+  /**
+   * ST-3.4 — a dropped module leaves no sellable trace.
+   *
+   * The catalogue is what the platform charges for, and a key that survives a
+   * deletion is a key an operator can still switch on. That buys a tenant a
+   * sidebar entry, a route gate that passes, and a 404 — which reads as a
+   * broken product rather than one we stopped selling. Asserted by prefix
+   * rather than by listing the individual keys, so re-adding *any* of them
+   * fails here instead of only the ones somebody remembered to enumerate.
+   */
+  it("sells no feature key from a dropped module", () => {
+    const droppedPrefixes = ["cctv.", "autos.", "scrap-metal."];
+    const droppedKeys = [
+      "reports.cctv-events",
+      "portal.autos",
+      "settlements.scrap",
+      "accounting.fixed-assets",
+      "accounting.budgets",
+    ];
+
+    const catalogueKeys = FEATURE_CATALOG.map((feature) => feature.key);
+    const bundledKeys = FEATURE_BUNDLES.flatMap((bundle) => bundle.features);
+
+    for (const keys of [catalogueKeys, bundledKeys]) {
+      for (const prefix of droppedPrefixes) {
+        expect(keys.filter((key) => key.startsWith(prefix))).toEqual([]);
+      }
+      for (const key of droppedKeys) {
+        expect(keys).not.toContain(key);
+      }
+    }
+  });
+
+  it("sells no bundle for a dropped module", () => {
+    const codes = FEATURE_BUNDLES.map((bundle) => bundle.code);
+    expect(codes).not.toContain("ADDON_CCTV_SUITE");
+    expect(codes).not.toContain("ADDON_AUTOS_SUITE");
+    expect(codes).not.toContain("ADDON_SCRAP_METAL_SUITE");
+  });
 });
 
 describe("client templates", () => {
@@ -361,5 +401,40 @@ describe("route gating", () => {
     expect(resolveFeatureKeyForPath("/retail/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/portal/pos/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/api/v2/retail/customers/search")).toBe("crm.customers");
+  });
+
+  /**
+   * ST-2 / ST-3 — the dropped modules' paths resolve to nothing at all.
+   *
+   * Null here is the correct answer, not a gap: the pages and API handlers are
+   * off disk, so the router answers 404 and there is no request left to gate.
+   * A key coming back would mean somebody re-registered a prefix for routes
+   * that do not exist, which is how a dead module gets half-resurrected.
+   *
+   * `/accounting/assets` is the one to watch, because unlike the others it sits
+   * under a live prefix: if its own entry is ever re-added it will resolve, and
+   * if the bare `/accounting` fallback ever moves ahead of the specific entries
+   * this returns `accounting.core` instead of null.
+   */
+  it("gates nothing for a dropped module's routes", () => {
+    for (const path of [
+      "/cctv",
+      "/cctv/live",
+      "/api/cctv/cameras",
+      "/car-sales",
+      "/api/v2/autos/deals",
+      "/scrap-metal",
+      "/scrap-metal/tickets",
+      "/api/scrap-metal/purchases",
+      "/thrift",
+    ]) {
+      expect(resolveFeatureKeyForPath(path), path).toBeNull();
+    }
+
+    // Under `/accounting`, so they fall to the module's own key rather than to
+    // null. That is still correct — there is no page behind either — but it is
+    // a different assertion and worth spelling out.
+    expect(resolveFeatureKeyForPath("/accounting/assets")).toBe("accounting.core");
+    expect(resolveFeatureKeyForPath("/accounting/budgets")).toBe("accounting.core");
   });
 });

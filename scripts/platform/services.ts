@@ -322,14 +322,6 @@ const WORKSPACE_RESET_GROUPS: WorkspaceResetGroupDefinition[] = [
     featureDomains: ["operations"],
   },
   {
-    id: "scrap-metal",
-    label: "Scrap & Recycling",
-    description: "Scrap intake, yard, balances, lots, and sales data.",
-    kind: "module",
-    featureDomains: ["scrap-metal"],
-    workspaceProfiles: ["SCRAP_METAL"],
-  },
-  {
     id: "gold",
     label: "Gold",
     description: "Gold intake, dispatch, settlement, and payout data.",
@@ -374,14 +366,6 @@ const WORKSPACE_RESET_GROUPS: WorkspaceResetGroupDefinition[] = [
     workspaceProfiles: ["SCHOOLS"],
   },
   {
-    id: "car-sales",
-    label: "Auto Sales",
-    description: "Vehicle, lead, deal, and payment data.",
-    kind: "module",
-    featureDomains: ["autos"],
-    workspaceProfiles: ["AUTOS"],
-  },
-  {
     id: "retail",
     label: "Retail",
     description: "POS, catalog, purchasing, stock, and shift data.",
@@ -395,13 +379,6 @@ const WORKSPACE_RESET_GROUPS: WorkspaceResetGroupDefinition[] = [
     description: "Permit, inspection, incident, and training data.",
     kind: "module",
     featureDomains: ["compliance"],
-  },
-  {
-    id: "cctv",
-    label: "CCTV",
-    description: "NVR, camera, and streaming session data.",
-    kind: "module",
-    featureDomains: ["cctv"],
   },
   {
     id: "people-access",
@@ -495,9 +472,6 @@ const WORKSPACE_RESET_EXACT_GROUPS: Record<string, string> = {
   VatReturn: "accounting",
   OpeningBalanceImport: "accounting",
   PeriodCloseVoucher: "accounting",
-  FixedAsset: "accounting",
-  Budget: "accounting",
-  BudgetLine: "accounting",
   CostCenter: "accounting",
   AccountingSeedExecution: "accounting",
   CurrencyRate: "accounting",
@@ -507,9 +481,6 @@ const WORKSPACE_RESET_EXACT_GROUPS: Record<string, string> = {
   Inspection: "compliance",
   Incident: "compliance",
   TrainingRecord: "compliance",
-  NVR: "cctv",
-  Camera: "cctv",
-  StreamSession: "cctv",
   User: "people-access",
   UserFeatureFlag: "people-access",
   Account: "people-access",
@@ -538,10 +509,8 @@ function resolveWorkspaceResetGroupId(tableName: string): string {
     return exactGroup;
   }
 
-  if (tableName.startsWith("Scrap")) return "scrap-metal";
   if (tableName.startsWith("Gold")) return "gold";
   if (tableName.startsWith("School")) return "schools";
-  if (tableName.startsWith("CarSales")) return "car-sales";
   if (tableName.startsWith("Retail")) return "retail";
 
   return "other-workspace-data";

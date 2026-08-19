@@ -3041,31 +3041,6 @@ export type BankReconciliationRecord = {
   bankAccount?: { id: string; name: string; currency: string } | null;
 };
 
-export type FixedAssetRecord = {
-  id: string;
-  companyId: string;
-  assetCode: string;
-  name: string;
-  category?: string | null;
-  acquisitionDate: string;
-  cost: number;
-  salvageValue: number;
-  usefulLifeMonths: number;
-  depreciationMethod: string;
-  isActive: boolean;
-};
-
-export type BudgetRecord = {
-  id: string;
-  companyId: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: "DRAFT" | "ACTIVE" | "CLOSED";
-  totalAmount: number;
-  notes?: string | null;
-};
-
 export type CostCenterRecord = {
   id: string;
   companyId: string;
@@ -3656,20 +3631,6 @@ export async function fetchBankReconciliations(
   return fetchJson<Pagination<BankReconciliationRecord>>(
     `/api/accounting/banking/reconciliations${query}`,
   );
-}
-
-export async function fetchAssets(
-  params: { active?: boolean; page?: number; limit?: number } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<FixedAssetRecord>>(`/api/accounting/assets${query}`);
-}
-
-export async function fetchBudgets(
-  params: { status?: string; page?: number; limit?: number } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<BudgetRecord>>(`/api/accounting/budgets${query}`);
 }
 
 export async function fetchCostCenters(
