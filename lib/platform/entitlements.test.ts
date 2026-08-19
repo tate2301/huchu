@@ -27,6 +27,7 @@ import {
   grantBundleToCompany,
   syncEntitlementCatalog,
 } from "./entitlements";
+import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 
 const SCHOOLS_BUNDLE = "ADDON_SCHOOLS_SUITE";
 
@@ -169,18 +170,29 @@ describe("grantBundleToCompany", () => {
 
 /**
  * Renamed namespaces fold onto their canonical key in `normalizeFeatureKey`:
- * `thrift.core` is `retail.core`, `hr.payouts` is `settlements.core`. A tenant
- * old enough to hold rows for both then had two flags landing on one map entry,
- * and the winner was whichever Prisma happened to return last.
+ * `hr.payouts` is `settlements.core`. A tenant old enough to hold rows for both
+ * then had two flags landing on one map entry, and the winner was whichever
+ * Prisma happened to return last.
  *
- * It was not theoretical. Switching four `thrift.*` keys off on a tenant that
- * also had `retail.*` rows took `retail.core`, `retail.pos`, `retail.catalog` and
- * `retail.purchasing` with them. Every retail flag still read `true` in the
- * database, the sidebar kept only the three retail keys with no thrift
- * counterpart, and it looked for all the world like a navigation bug.
+ * It was not theoretical, and the case that proved it was retail. Switching four
+ * `thrift.*` keys off on a tenant that also had `retail.*` rows took
+ * `retail.core`, `retail.pos`, `retail.catalog` and `retail.purchasing` with
+ * them. Every retail flag still read `true` in the database, the sidebar kept
+ * only the three retail keys with no thrift counterpart, and it looked for all
+ * the world like a navigation bug.
+ *
+ * Those five aliases are gone — `scripts/retire-thrift-feature-aliases.ts`
+ * merged the surviving rows onto their retail keys and deleted them. This is
+ * re-pointed at the settlements aliases, which are still live and can still
+ * collide the same way. Re-pointing rather than deleting matters: the rule is
+ * what stopped the bug, and a rule with no test is a rule until somebody
+ * simplifies it.
  */
 describe("a legacy flag and its canonical flag on the same tenant", () => {
   let legacyCompanyId: string;
+  /** The alias under test, and the key it folds onto. */
+  const LEGACY_KEY = "hr.payouts";
+  const CANONICAL_KEY = "settlements.core";
 
   beforeAll(async () => {
     const stamp = Date.now();
@@ -188,59 +200,82 @@ describe("a legacy flag and its canonical flag on the same tenant", () => {
       data: { name: `Alias Test ${stamp}`, slug: `alias-test-${stamp}` },
     });
     legacyCompanyId = company.id;
-    await grantBundleToCompany({ companyId: legacyCompanyId, bundleCode: "ADDON_RETAIL_SUITE" });
   });
 
   afterAll(async () => {
     await prisma.company.delete({ where: { id: legacyCompanyId } }).catch(() => {});
   });
 
+  async function featureId(key: string) {
+    const row = await prisma.platformFeature.findUnique({ where: { key }, select: { id: true } });
+    return row?.id ?? null;
+  }
+
   it("lets the canonical row win, whichever order they are stored in", async () => {
-    const retailCore = await prisma.platformFeature.findUnique({
-      where: { key: "retail.core" },
-      select: { id: true },
-    });
-    const thriftCore = await prisma.platformFeature.findUnique({
-      where: { key: "thrift.core" },
-      select: { id: true },
-    });
-    // If `thrift.core` ever stops being a catalogue row this test is moot, and
-    // saying so beats passing vacuously.
-    expect(retailCore, "retail.core must exist").not.toBeNull();
-    if (!thriftCore) return;
+    const canonical = await featureId(CANONICAL_KEY);
+    const legacy = await featureId(LEGACY_KEY);
+    // Saying so beats passing vacuously if either stops being a catalogue row.
+    expect(canonical, `${CANONICAL_KEY} must exist`).not.toBeNull();
+    if (!legacy || !canonical) return;
 
     await prisma.companyFeatureFlag.deleteMany({ where: { companyId: legacyCompanyId } });
     // The legacy row is written first and says off; the canonical row says on.
     await prisma.companyFeatureFlag.create({
-      data: { companyId: legacyCompanyId, featureId: thriftCore.id, isEnabled: false },
+      data: { companyId: legacyCompanyId, featureId: legacy, isEnabled: false },
     });
     await prisma.companyFeatureFlag.create({
-      data: { companyId: legacyCompanyId, featureId: retailCore!.id, isEnabled: true },
+      data: { companyId: legacyCompanyId, featureId: canonical, isEnabled: true },
     });
 
     const map = await getCompanyFeatureMap(legacyCompanyId);
     expect(
-      map["retail.core"],
-      "an explicit retail.core row must not be overwritten by a thrift.core row",
+      map[CANONICAL_KEY],
+      `an explicit ${CANONICAL_KEY} row must not be overwritten by a ${LEGACY_KEY} row`,
     ).toBe(true);
   });
 
   it("still honours a legacy row when there is no canonical one", async () => {
-    const thriftCore = await prisma.platformFeature.findUnique({
-      where: { key: "thrift.core" },
-      select: { id: true },
-    });
-    if (!thriftCore) return;
+    const legacy = await featureId(LEGACY_KEY);
+    if (!legacy) return;
 
     await prisma.companyFeatureFlag.deleteMany({ where: { companyId: legacyCompanyId } });
     await prisma.companyFeatureFlag.create({
-      data: { companyId: legacyCompanyId, featureId: thriftCore.id, isEnabled: true },
+      data: { companyId: legacyCompanyId, featureId: legacy, isEnabled: true },
     });
 
     const map = await getCompanyFeatureMap(legacyCompanyId);
     expect(
-      map["retail.core"],
+      map[CANONICAL_KEY],
       "a tenant holding only the legacy key must keep working",
     ).toBe(true);
+  });
+});
+
+/**
+ * The retirement, asserted so it stays retired.
+ *
+ * An alias is a translation the platform carries forever, so the list should
+ * only ever shrink — and the way it grows back is somebody hitting a
+ * `thrift.core` row in an old fixture and "fixing" it by adding the line back.
+ * There are no such rows left; this is what says so.
+ */
+describe("the thrift aliases are gone, and stay gone", () => {
+  it("translates no thrift key", () => {
+    for (const key of [
+      "thrift.core",
+      "thrift.catalog",
+      "thrift.checkout",
+      "thrift.intake",
+      "portal.thrift",
+    ]) {
+      expect(normalizeFeatureKey(key), key).toBe(key);
+    }
+  });
+
+  it("leaves no tenant holding one", async () => {
+    const rows = await prisma.companyFeatureFlag.count({
+      where: { feature: { key: { in: ["thrift.core", "thrift.catalog", "thrift.checkout", "thrift.intake", "portal.thrift"] } } },
+    });
+    expect(rows, "run scripts/retire-thrift-feature-aliases.ts --apply").toBe(0);
   });
 });

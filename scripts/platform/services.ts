@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 
 import { prisma, disconnectPrisma } from "./prisma";
 import { provisionSchool } from "../../lib/schools/provision";
+import { provisionRetail } from "../../lib/retail/provision";
 import {
   getSubdomainReservation as getOrgSubdomainReservation,
   previewProvisionBundle,
@@ -1994,6 +1995,29 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
     schoolProvisioning = await provisionSchool({ companyId: input.companyId });
   }
 
+  /*
+    R-5.1. The same hole, on the retail side, and a worse one.
+
+    A retail template left the tenant with no site and no register, and
+    `openRetailShiftTransaction` needs both — so the first thing a cashier does
+    on their first morning failed with *Invalid site*. A school at least renders
+    its empty screens; a till that cannot open a drawer cannot do anything at
+    all.
+
+    No starter range: `provisionRetail` can lay one down and deliberately does
+    not by default. What a shop sells is the one thing in that module a
+    shopkeeper certainly has their own version of, and fifteen invented products
+    are fifteen rows somebody has to find and delete before they trust the
+    screen.
+
+    Idempotent, so re-applying the template does not disturb a shop that is
+    already trading.
+  */
+  let retailProvisioning: Awaited<ReturnType<typeof provisionRetail>> | null = null;
+  if (workspaceProfile === "RETAIL") {
+    retailProvisioning = await provisionRetail({ companyId: input.companyId });
+  }
+
   const audit = await appendAuditEvent({
     actor: input.actor,
     action: "SUBSCRIPTION_APPLY_TEMPLATE",
@@ -2020,6 +2044,17 @@ async function applyClientTemplate(input: ApplySubscriptionTemplateInput): Promi
             schoolTermsOpened: schoolProvisioning.terms.length,
             schoolClassesCreated: schoolProvisioning.classesCreated,
             schoolSubjectsCreated: schoolProvisioning.subjectsCreated,
+          }
+        : {}),
+      ...(retailProvisioning
+        ? {
+            retailSiteCode: retailProvisioning.site.code,
+            retailRegisterCode: retailProvisioning.register.code,
+            retailProductsRanged: retailProvisioning.productsRanged,
+            // On the audit row on purpose. If a tenant is handed over unable to
+            // trade, the record should say so at the moment it was handed over
+            // rather than leave it to be discovered at a counter.
+            retailBlockers: retailProvisioning.blockers,
           }
         : {}),
     },
