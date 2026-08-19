@@ -23,6 +23,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { SidebarTrigger } from "@/components/ui/sidebar";
 import { usePageChrome } from "@/components/layout/page-chrome";
 import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
+import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { NotificationCenter } from "@/components/notifications/notification-center";
 import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@/lib/icons";
@@ -98,6 +99,7 @@ export function Navbar() {
               <h1 className="truncate text-sm font-semibold text-foreground">{title}</h1>
             </div>
             <GlobalCommandBar />
+            <OfflineStatusButton />
             {showNotificationCenter ? <NotificationCenter /> : null}
             <MobileNavbarActions actions={actions} />
           </div>
@@ -128,6 +130,7 @@ export function Navbar() {
             <div className="flex shrink-0 items-center gap-2">
               {showMembers ? <CrmMembers className="mr-1" /> : null}
               <GlobalCommandBar />
+              <OfflineStatusButton />
               {showNotificationCenter ? <NotificationCenter /> : null}
               {actions ? (
                 <div className="flex items-center gap-2">{actions}</div>

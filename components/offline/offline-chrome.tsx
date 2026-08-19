@@ -3,8 +3,6 @@
 import { usePathname } from "next/navigation";
 
 import { OfflineBanner } from "@/components/offline/offline-banner";
-import { OfflineStatusIndicator } from "@/components/offline/offline-status-indicator";
-import { OfflineRuntimeBanner } from "@/components/layout/offline-runtime-banner";
 
 function shouldHideOfflineChrome(pathname: string) {
   return (
@@ -28,13 +26,20 @@ export function OfflineChrome() {
     return null;
   }
 
-  return (
-    <>
-      <OfflineRuntimeBanner />
-      <OfflineBanner />
-      <div className="pointer-events-none fixed bottom-4 right-4 z-[70] sm:bottom-5 sm:right-5">
-        <OfflineStatusIndicator className="pointer-events-auto" />
-      </div>
-    </>
-  );
+  /*
+    Two of the three pieces that used to live here are gone product-wide.
+
+    The runtime banner was a ~120px block in the document flow reporting the
+    progress of a cache warm nobody can hurry, and the floating pill was pinned
+    bottom-right at `z-70` — on the POS terminal, directly over the keypad's
+    backspace key. Both now live behind `OfflineStatusButton` in the navbar,
+    which opens the full `OfflineRuntimePanel`: same information, plus queued
+    counts and Sync now, none of it in the way.
+
+    The connectivity strip stays. It is 40px, it appears only when the line is
+    actually down, and unlike the other two it is the one thing a person needs
+    interrupting for — an icon alone is too quiet to carry "you are offline" to
+    somebody mid-task who is about to keep typing.
+  */
+  return <OfflineBanner />;
 }

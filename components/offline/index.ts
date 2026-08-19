@@ -10,8 +10,13 @@
 // Core Offline UI
 // ---------------------------------------------------------------------------
 
-export { OfflineStatusIndicator } from "./offline-status-indicator";
-export type { OfflineStatusIndicatorProps } from "./offline-status-indicator";
+/*
+ * `OfflineStatusIndicator` is gone. It was a floating pill pinned bottom-right
+ * over every page, and on the POS terminal it covered the keypad's backspace
+ * key. Offline state now lives behind `OfflineStatusButton` in the navbar
+ * (`components/layout/offline-status-button.tsx`), which opens the full
+ * `OfflineRuntimePanel`.
+ */
 
 export { SyncPanel } from "./sync-panel";
 export type { SyncPanelProps } from "./sync-panel";
