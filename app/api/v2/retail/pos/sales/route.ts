@@ -3,7 +3,7 @@ import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
+import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   getCustomerLoyaltyBalance,
@@ -537,7 +537,14 @@ export async function POST(request: NextRequest) {
     );
     for (const line of preNormalizedLines) {
       const requestedQty = requestedInventoryQuantities.get(line.inventoryItem.id) ?? 0;
-      if (line.inventoryItem.currentStock < requestedQty) {
+      /*
+        This one was correct by accident: `currentStock` is a `Decimal` and
+        `requestedQty` a `number`, and a mixed comparison coerces back to
+        numbers. It is written explicitly anyway — the accident is one
+        refactor away from being a till that refuses to sell 2 bottles out of
+        14 because "14" < "2" is true.
+      */
+      if (!atLeast(line.inventoryItem.currentStock, requestedQty)) {
         throw new Error(`Insufficient stock for ${line.listing.name}.`);
       }
     }

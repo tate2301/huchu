@@ -22,8 +22,10 @@ import {
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
+  ArrowDownward,
   BarChart3,
   ChevronDown,
+  ClipboardList,
   Grid3x3,
   LocalShipping,
   Package,
@@ -31,6 +33,11 @@ import {
   Scale,
   TableRows,
 } from "@/lib/icons";
+import {
+  MobileListCard,
+  MobileListCardHeader,
+  MobileListMetricStrip,
+} from "@/components/ui/mobile-list-card";
 
 type RetailDashboardPayload = {
   summary: {
@@ -292,6 +299,41 @@ export default function RetailStockPage() {
             searchPlaceholder="Search low stock items"
             emptyState="No low-stock lines match that search."
             toolbar={<span className="t-body-sm t-muted">Low-stock watchlist</span>}
+            /*
+              R-4.5. Below `md`, the row becomes a card.
+
+              Retail had none of these — twelve tables, zero
+              `mobileCardRenderer`, while ten scrap-metal screens had used the
+              pattern for months. A shopkeeper checking stock is doing it on a
+              phone in the storeroom, which is the one place a horizontally
+              scrolling eight-column table is worst.
+            */
+            mobileCardRenderer={({ row }) => (
+              <MobileListCard>
+                <MobileListCardHeader title={row.name} subtitle={row.itemCode} />
+                <MobileListMetricStrip
+                  items={[
+                    {
+                      icon: Package,
+                      value: `${row.currentStock.toFixed(2)} ${row.unit}`,
+                      srLabel: "On hand",
+                    },
+                    {
+                      icon: ArrowDownward,
+                      value: `${row.minStock.toFixed(2)} ${row.unit}`,
+                      srLabel: "Reorder point",
+                    },
+                    {
+                      // The figure the storeroom is actually reading: how many
+                      // to order to get back above the minimum.
+                      icon: ClipboardList,
+                      value: `${(row.minStock - row.currentStock).toFixed(2)} ${row.unit} short`,
+                      srLabel: "Gap to the reorder point",
+                    },
+                  ]}
+                />
+              </MobileListCard>
+            )}
           />
         </>
       )}

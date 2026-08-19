@@ -320,14 +320,31 @@ trade at a Harare bottle store; everything is ranked against that.
 
 | Ticket | State |
 |---|---|
+| S-0 broken purchasing page | **done** — every route `app/retail/purchasing/orders/page.tsx` calls exists |
+| S-1 core money → Decimal | **done** — all eleven columns. The six pricing ones first, the five quantity ones in the second pass; see the scope cut below, which is now history rather than a deferral |
 | S-2 one movement service | **done** — `lib/inventory/stock-movements.ts`; `TRANSFER` moves stock; receipt transactional; `sourceType`/`sourceId` persisted |
-| S-1 core money → Decimal | **in flight** — scoped to the six *pricing* columns; see the scope cut below |
-| S-0 broken purchasing page | in flight |
-| S-6 bespoke cards | in flight |
-| R-4.6 one nav (blocks S-5) | in flight |
-| S-3 price engine | not started |
-| S-4 retire `RetailCatalogItem` | not started |
+| S-3 price engine | **done** — `PriceListKind.RETAIL`, `taxInclusive`, the resolver in `lib/retail/shelf-pricing.ts`, snapshot cached for the till with `pricedAt` |
+| S-4 retire `RetailCatalogItem` | **done** — the table and `RetailSaleLine.catalogItemId` are dropped; 12,358 lines back-filled and all 12,393 intact |
 | S-5 nav: Range & Stock as the one door | **done** — see the scope note below |
+| S-6 bespoke cards | **mostly** — `KpiCard` and `SectionCard` are gone from `app/retail/page.tsx` and the surfaces compose with the shared `Card`. The POS primitives stay; see below |
+| R-4.6 one nav (blocks S-5) | **done** — `RETAIL_TABS` deleted, the items live on the real paths in `lib/navigation.ts` |
+
+### Where S-6 stopped, and why that is the answer
+
+`KpiCard` and `SectionCard` are deleted and the back-office surfaces compose
+with `@corelithzw/react`. What §0.2 also listed — `PosMetricCard`, `PosPanel`,
+`PosPanelHeader` in `components/retail/portal/pos-primitives.tsx`, 25 call sites
+across 6 views — is **kept**, and that is a decision rather than an unfinished
+sweep.
+
+Those are not bespoke duplicates of `Card`. They are a dark, touch-first
+terminal built to `docs/design-system/portals/pos.html`, sized for a finger and
+painted from `--pos-*` tokens on a host of its own. Replacing them with the
+light back-office card would not be a migration; it would be a regression on
+the one surface a cashier uses for eight hours.
+
+R-4.7's rail and R-4.4's state surfaces are the part of §0.2 that was genuinely
+owed — "honour `04-composition.md`" — and both have landed.
 
 **The stock half of the instruction is already satisfied.** "Purchasing feeds stock,
 sales subtract, stock takes and stock transfers affect the stock module" is true as
@@ -390,7 +407,7 @@ Both would have shown as dead links, which is what R-4.6 exists to prevent.
 (`portal.schools → schools.core`, `portal.autos → autos.core`,
 `portal.pos → retail.pos`). Pre-existing, out of this ticket, unfixed.
 
-### Scope cut on S-1, and why
+### Scope cut on S-1, and how it closed
 
 §1.4 lists eleven `Float` columns. Only **six** are being converted — the pricing
 ones on `Product` and `ProductPrice`. The five quantity columns
@@ -407,6 +424,15 @@ a regression in modules that are not being tested this week.
 The deferred five are a named ticket, not an oversight. They must land before any
 module starts doing money arithmetic on `unitCost`, because that column *is* money
 and it is what feeds `costUnit` and therefore every margin figure retail reports.
+
+**They landed.** `scripts/inventory-quantity-decimal.ts` converted all five with
+no value changes under the cast. The measured cascade was 30 type errors across
+11 files, not the 38-file spread this section feared — most of those files read
+the columns through serialisers that already converted at the boundary. What the
+errors did surface was arithmetic nobody had looked at since it was written: an
+epsilon comparison in `recordStockMovement`, a stock-count variance rounded to
+two places and compared with `=== 0`, and store valuation accumulated with `+=`
+on two doubles and rendered to an owner as money.
 
 ### Found while doing the above
 

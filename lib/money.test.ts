@@ -12,6 +12,8 @@ import { describe, it, expect } from "vitest";
 import { Prisma } from "@prisma/client";
 import {
   apportionBase,
+  atLeast,
+  atMost,
   clampAtZero,
   exceeds,
   isPositive,
@@ -195,5 +197,101 @@ describe("apportionBase", () => {
 
   it("refuses a rate that would make the split undefined", () => {
     expect(() => apportionBase({ amount: "100", part: "50", exchangeRate: 0 })).toThrow(RangeError);
+  });
+});
+
+/**
+ * The comparison that reads correctly and is not.
+ *
+ * `<=` between two `Prisma.Decimal`s is a **string** comparison. JavaScript
+ * coerces both sides with `valueOf`, `Decimal.prototype.valueOf` returns a
+ * string, and two strings compare lexicographically — so
+ * `new Decimal(14) <= new Decimal(6)` is `true`.
+ *
+ * TypeScript is worse than silent. Relational operators are allowed between two
+ * values of the same object type, so `Decimal <= Decimal` compiles — while
+ * `Decimal <= number`, which is the form that actually works, is a type error.
+ * The compiler refuses the safe comparison and permits the broken one. Seven
+ * hundred unit tests and a desktop screenshot passed over four filters written
+ * the compiling way.
+ *
+ * It was found on a phone. S-1 converted `InventoryItem.currentStock` and
+ * `minStock` off `Float`, and the low-stock watchlist started listing Amarula
+ * Cream with 14 bottles on hand against a reorder point of 6, describing it as
+ * "8.00 bottle short".
+ *
+ * These tests assert the wrong answer as well as the right one. Pinning the
+ * trap is the point: a reader who deletes `atMost` in favour of the operator
+ * should see exactly why they cannot.
+ */
+describe("comparing two Decimals", () => {
+  const fourteen = new Prisma.Decimal(14);
+  const six = new Prisma.Decimal(6);
+
+  it("is lexicographic with the operator — this is the bug", () => {
+    // Not an endorsement. This is what the language does, recorded so the
+    // helpers below have something to be better than.
+    expect(fourteen <= six).toBe(true);
+    expect(fourteen > six).toBe(false);
+  });
+
+  it("is numeric with atMost and atLeast", () => {
+    expect(atMost(fourteen, six)).toBe(false);
+    expect(atLeast(fourteen, six)).toBe(true);
+    expect(exceeds(fourteen, six)).toBe(true);
+  });
+
+  /**
+   * Why this survived every check, and the part that should worry you.
+   *
+   * A `Decimal` against a plain `number` coerces the string back to a number,
+   * so the mixed case is right by accident. **And TypeScript rejects it** —
+   * "Operator '<=' cannot be applied to types 'Decimal' and 'number'". The
+   * two lines below only compile behind a cast.
+   *
+   * So the compiler refuses the comparison that works and waves through the
+   * one that does not. That is the whole reason four filters shipped: every
+   * call site TypeScript could have flagged was already correct, and the
+   * incorrect ones looked like the tidiest code in the file.
+   */
+  it("is already numeric when only one side is a Decimal", () => {
+    const loose = fourteen as unknown as number;
+    expect(loose <= 6).toBe(false);
+    expect(14 <= (six as unknown as number)).toBe(false);
+  });
+
+  it("agrees with the operator wherever the operator happens to be right", () => {
+    for (const [a, b] of [
+      [1, 2],
+      [2, 1],
+      [5, 5],
+      [0, 0],
+      [-3, 2],
+      [2, -3],
+    ] as const) {
+      expect(atMost(a, b), `${a} <= ${b}`).toBe(a <= b);
+      expect(atLeast(a, b), `${a} >= ${b}`).toBe(a >= b);
+    }
+  });
+
+  it("handles the boundary, which is the whole point of a reorder point", () => {
+    // At the reorder point *is* low stock. An off-by-one here is a shop that
+    // never reorders until it has run out.
+    expect(atMost(six, six)).toBe(true);
+    expect(atLeast(six, six)).toBe(true);
+    expect(exceeds(six, six)).toBe(false);
+  });
+
+  it("compares at the quantity scale rather than by string length", () => {
+    expect(atMost("9", "10")).toBe(true);
+    expect(atMost("10", "9")).toBe(false);
+    expect(atMost("0.5", "0.25")).toBe(false);
+    expect(atMost("100", "99.99")).toBe(false);
+  });
+
+  it("treats null and undefined as zero, like the rest of this module", () => {
+    expect(atMost(null, 0)).toBe(true);
+    expect(atLeast(undefined, 0)).toBe(true);
+    expect(atMost(null, -1)).toBe(false);
   });
 });

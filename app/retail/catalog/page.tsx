@@ -26,6 +26,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { retailMoney } from "@/components/retail/sale-detail";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
   Select,
@@ -38,7 +40,12 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Grid3x3, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Grid3x3, Package, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
+import {
+  MobileListCard,
+  MobileListCardHeader,
+  MobileListMetricStrip,
+} from "@/components/ui/mobile-list-card";
 
 type CatalogItem = {
   id: string;
@@ -435,6 +442,39 @@ export default function RetailCatalogPage() {
             searchPlaceholder="Search catalog"
             emptyState="No catalogue lines match that search."
             toolbar={<span className="t-body-sm t-muted">Sellable retail items</span>}
+            /*
+              R-4.5. Below `md`, the row becomes a card.
+
+              Retail had none of these — twelve tables, zero
+              `mobileCardRenderer`, while ten scrap-metal screens had used the
+              pattern for months. A shopkeeper checking stock is doing it on a
+              phone in the storeroom, which is the one place a horizontally
+              scrolling eight-column table is worst.
+            */
+            mobileCardRenderer={({ row }) => (
+              <MobileListCard>
+                <MobileListCardHeader
+                  title={row.name}
+                  subtitle={row.sku}
+                  aside={
+                    <Badge variant={row.status === "ACTIVE" ? "default" : "outline"}>
+                      {row.status}
+                    </Badge>
+                  }
+                />
+                <MobileListMetricStrip
+                  items={[
+                    { icon: Wallet, value: retailMoney(row.unitPrice), srLabel: "Shelf price" },
+                    {
+                      icon: Package,
+                      value: `${row.inventoryItem?.currentStock?.toFixed(2) ?? "0.00"} ${row.inventoryItem?.unit ?? ""}`,
+                      srLabel: "On hand",
+                    },
+                    { icon: ReceiptLong, value: `${row.taxPercent.toFixed(2)}%`, srLabel: "Tax rate" },
+                  ]}
+                />
+              </MobileListCard>
+            )}
           />
         </>
       )}

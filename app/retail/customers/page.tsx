@@ -13,7 +13,15 @@ import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Badge } from "@/components/ui/badge";
+import { retailMoney } from "@/components/retail/sale-detail";
+import {
+  MobileListCard,
+  MobileListCardHeader,
+  MobileListMetricStrip,
+} from "@/components/ui/mobile-list-card";
 import { NumericCell } from "@/components/ui/numeric-cell";
+import { Payments, ReceiptLong, Users } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type CustomerRow = {
@@ -253,6 +261,31 @@ export default function RetailCustomersPage() {
             pagination={{ enabled: true, server: false }}
             searchPlaceholder="Search customers"
             emptyState="No customers match that search."
+            /*
+              R-4.5. Below `md`, the row becomes a card.
+
+              Retail had none of these — twelve tables, zero
+              `mobileCardRenderer`, while ten scrap-metal screens had used the
+              pattern for months. A shopkeeper checking stock is doing it on a
+              phone in the storeroom, which is the one place a horizontally
+              scrolling eight-column table is worst.
+            */
+            mobileCardRenderer={({ row }) => (
+              <MobileListCard>
+                <MobileListCardHeader
+                  title={row.customerName}
+                  subtitle={row.lastSaleNo}
+                  aside={<Badge variant="outline">{row.loyaltyTier}</Badge>}
+                />
+                <MobileListMetricStrip
+                  items={[
+                    { icon: Payments, value: retailMoney(row.totalSpend), srLabel: "Total spend" },
+                    { icon: ReceiptLong, value: `${row.visits} visit(s)`, srLabel: "Visits" },
+                    { icon: Users, value: `${row.loyaltyPoints} pts`, srLabel: "Loyalty points" },
+                  ]}
+                />
+              </MobileListCard>
+            )}
           />
         </>
       )}

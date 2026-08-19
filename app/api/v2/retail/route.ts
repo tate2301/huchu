@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { RetailPurchaseOrderStatus, type PostingBasis } from "@prisma/client";
 import { startOfMonth, subDays } from "date-fns";
 import { successResponse } from "@/lib/api-utils";
-import { money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { atMost, money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "./_helpers";
@@ -362,8 +362,14 @@ export async function GET(request: NextRequest) {
   const sales = allSales.filter((sale) => (sale.postedAt ?? sale.createdAt) >= monthStart);
   const retailInventoryIds = new Set(rangedLines.map((line) => line.id));
   const retailInventory = inventoryItems.filter((item) => retailInventoryIds.has(item.id));
+  /*
+    `atMost`, not `<=`. Both operands are `Decimal` since S-1, and `<=` between
+    two of those compares their string forms — this filter was putting every
+    line with a two-digit stock figure and a single-digit reorder point on the
+    watchlist, because "14" <= "6". See `lib/money.ts`.
+  */
   const lowStock = retailInventory.filter(
-    (item) => item.minStock !== null && item.currentStock <= (item.minStock ?? 0),
+    (item) => item.minStock !== null && atMost(item.currentStock, item.minStock),
   );
 
   const postedSales = sales.filter((sale) => sale.saleType === "SALE" && sale.status === "POSTED");

@@ -172,6 +172,39 @@ export function exceeds(a: MoneyLike, b: MoneyLike): boolean {
 }
 
 /**
+ * `a <= b`, exactly — and the reason it exists is nastier than it looks.
+ *
+ * **`<=` between two `Decimal`s is a string comparison.** JavaScript coerces
+ * both sides with `valueOf`, `Decimal.prototype.valueOf` returns a string, and
+ * two strings compare lexicographically. So `new Decimal(14) <= new Decimal(6)`
+ * is `true`, because `"14" <= "6"` is true.
+ *
+ * TypeScript does not object — it does something worse. Relational operators
+ * are allowed between two values of the same object type, so `Decimal <=
+ * Decimal` compiles; `Decimal <= number`, which is the form that actually
+ * works, is a type error. The compiler refuses the safe comparison and
+ * permits the broken one.
+ *
+ * S-1 converted `InventoryItem.currentStock` and `minStock` from `Float` to
+ * `Decimal`, and four low-stock filters written as `currentStock <= minStock`
+ * silently became lexicographic. It was found on a phone: the watchlist listed
+ * Amarula Cream with 14 bottles on hand against a reorder point of 6, and
+ * described it as "8.00 bottle short".
+ *
+ * Mixed operands are safe — `Decimal <= number` coerces the string back to a
+ * number — which is why this survived typecheck, 700 unit tests and a desktop
+ * screenshot. Anything comparing two columns is the case to worry about.
+ */
+export function atMost(a: MoneyLike, b: MoneyLike): boolean {
+  return !money(a).greaterThan(money(b));
+}
+
+/** `a >= b`, exactly. See `atMost` for why the operator will not do. */
+export function atLeast(a: MoneyLike, b: MoneyLike): boolean {
+  return !money(a).lessThan(money(b));
+}
+
+/**
  * Coerce to `number`. Null and undefined stay null.
  *
  * Post S-2.1 Float→Decimal: use this only at a boundary that genuinely takes a

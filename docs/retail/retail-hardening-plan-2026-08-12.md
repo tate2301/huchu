@@ -162,7 +162,7 @@ screenshots, and right about the order of work. The plan below follows it.
 | R-0.1 guard coverage | **done** — `lib/retail/route-guard-coverage.test.ts`, 77 assertions |
 | R-0.2 lint | **done** — 42 problems to zero |
 | R-0.3 tenant scoping | **done** — three unscoped queries closed |
-| R-0.4 baseline screenshots | deferred — port 3000 held by another dev server |
+| R-0.4 baseline screenshots | **superseded** — R-6.1's `e2e/retail-shots.spec.ts` photographs 17 retail and 12 POS screens at three viewports, which is what this ticket wanted and more of it |
 | R-1.2 enums | **done** — 11 columns, 2 bugs found, witness test at `lib/retail/schema-migration.test.ts` |
 | R-1.1 money → Decimal | **done** — 29 columns, 120 call sites, epsilon comparison retired |
 | R-1.5 currency | **done** — `currency`/`exchangeRate`/`baseAmount` on sale and payment; `scripts/retail-currency-columns.ts` applied |
@@ -173,9 +173,69 @@ screenshots, and right about the order of work. The plan below follows it.
 | R-1.3 `companyId` on line tables | **done** — 4 tables, backfilled from parent, indexed; `scripts/retail-line-company-id.ts` |
 | R-2.1/R-2.2 permissions matrix | **done** — `lib/retail/permissions.ts` + 42 tests, 1,771 decisions swept |
 | R-4.6 one nav | **done** — `RETAIL_TABS` deleted, the items live on the real paths in `lib/navigation.ts`, eight alias routes removed |
-| R-1.4 FK relations | **not started** — deferred behind S-4; the FKs land once `RetailCatalogItem` retires |
-| R-2.3/R-2.4 wiring | **not started** — the matrix exists, the routes do not consult it yet |
-| Stock/pricing into core | **specified** — see `retail-stock-consolidation-plan-2026-08-13.md` |
+| R-1.4 FK relations | **done** — 46 constraints across the twelve models, applied by `scripts/retail-foreign-keys.ts`. This row said "not started, deferred behind S-4" long after the constraints were in the database; the entry was stale, not the work |
+| R-2.3/R-2.4 wiring | **done** — the sixteen ungated reads are each decided, the five role-set gates are deleted, and `UNGATED_READS` is empty and asserted empty |
+| R-3.1 zod | **done** — `lib/retail/request.ts`; every input a retail route accepts is parsed by a schema, path ids included |
+| R-3.2 pagination | **done** — sales and shifts page by cursor, customers by offset over its aggregate, the back-office catalogue is bounded at all |
+| R-3.3 audit events | **done** — `lib/retail/audit.ts`, seven event types written inside the transaction that performs the act; cash-up also writes the `ApprovalAction` triple under a new `RETAIL_SHIFT` target |
+| R-4.3 detail routes | **done** — sales, shifts, purchase orders and catalogue items each have an address |
+| R-4.4 empty/loading/error | **done** — four list surfaces were folding loading into `emptyState` and had no error branch, so a 500 rendered as "No orders" |
+| R-4.7 `RetailShell` earns its name | **done** — a section rail derived from `lib/navigation.ts`, not a second nav |
+| R-5.1 provisioning | **done** — `lib/retail/provision.ts`; a retail template used to hand over a tenant with no site and no register, so the first drawer of the first morning failed with *Invalid site* |
+| R-4.5 mobile | **partly** — the three lists a shopkeeper opens on a phone become cards; the other nine tables do not. See below |
+| R-6.2 composition audit | **partly** — the state surfaces and the action budget are now asserted in `lib/retail/areas.test.ts`; a card-in-card sweep of all 16 directories is not |
+| Stock/pricing into core | **done** — see `retail-stock-consolidation-plan-2026-08-13.md` |
+
+### What is left
+
+Four things, named rather than implied.
+
+**R-4.2, thinning the pages.** Nine `page.tsx` files are over 400 lines, the
+largest 715. The ticket asks for each to become a server component composing
+from `components/retail/<area>/`. Nothing has been extracted; the detail routes
+added in R-4.3 pulled one shared body out (`components/retail/sale-detail.tsx`)
+and that is the only piece so far. This is a refactor with no user-visible
+change and real regression risk, and it should be done deliberately rather than
+at the end of a long session.
+
+**R-4.5, the other nine tables.** `DataTable` has taken a `mobileCardRenderer`
+all along and twelve screens elsewhere use it; retail used it nowhere.
+`stock`, `catalog` and `customers` have cards now — the three a shopkeeper
+opens on a phone. The rest (pricing, promotions, purchasing ×2, stock count,
+stock transfers, sales, shifts, and the five report tables) still fall back to
+a horizontally scrolling table below `md`.
+
+**R-6.2, the composition sweep.** The mechanical half is pinned: every list
+surface has its four states, and no page declares more than three header
+actions. Reading all 16 screen directories against `04-composition.md` by eye —
+card-in-card, one body block, a stat grid that should not be in a card — is a
+design review and has not been done.
+
+**Fiscalisation.** Still out of scope, still the thing that decides whether
+"production ready" is true for a Zimbabwean shop. §5 below has not changed.
+
+### Two defects the phone found
+
+Both were invisible on a laptop, which is the argument for R-4.5 rather than a
+footnote to it.
+
+1. **`Decimal <= Decimal` is a string comparison.** S-1 moved
+   `InventoryItem.currentStock` and `minStock` off `Float`, and four low-stock
+   filters written as `currentStock <= minStock` silently became lexicographic
+   — `"14" <= "6"` is true. TypeScript permits it between two values of the
+   same object type while *rejecting* `Decimal <= number`, which is the form
+   that works: the compiler refuses the safe comparison and waves through the
+   broken one. Found by reading a card that said "Amarula Cream · 14.00 bottle ·
+   6.00 bottle · −8.00 bottle short". `atMost`/`atLeast` in `lib/money.ts`, and
+   `lib/money.test.ts` pins the trap by asserting the wrong answer too.
+2. **The provisioning test was littering the shared database.** Its teardown was
+   `company.delete(...).catch(() => {})`, and R-1.4's `Site → Restrict` made
+   that delete fail every time. Forty tenants accumulated in an afternoon, the
+   ranged set went from thirty to eighty, and
+   `shelf-price-integrity.test.ts` began failing with *timeout exceeded when
+   trying to connect* — an error about the network caused by a swallowed
+   `catch`. Cleaned up by `scripts/clean-provision-test-tenants.ts`; the
+   teardown now unwinds in order and throws if a tenant survives.
 
 ### Found while doing the above
 

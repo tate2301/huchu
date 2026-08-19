@@ -4,6 +4,7 @@ import {
   PostingDirection,
   WorkOrderStatus,
 } from "@prisma/client";
+import { atMost } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import type { ExecutiveDashboardRange } from "@/lib/dashboard/executive-config";
 import { getExecutiveDashboardRangeDays } from "@/lib/dashboard/executive-config";
@@ -571,8 +572,10 @@ export async function getExecutiveDashboardAggregations({
 
   const pendingApprovals = payrollSubmitted + disbursementSubmitted;
 
+  // `atMost`, not `<=`: both are `Decimal` and the operator compares strings.
+  // See `lib/money.ts`.
   const lowStockItems = lowStockRows.filter(
-    (row) => row.minStock !== null && row.currentStock <= row.minStock,
+    (row) => row.minStock !== null && atMost(row.currentStock, row.minStock),
   ).length;
 
   const totalRiskItems =

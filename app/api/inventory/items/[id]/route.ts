@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 import { reserveIdentifier } from "@/lib/id-generator"
-import { multiplyMoney, quantity, ZERO } from "@/lib/money"
+import { exceeds, multiplyMoney, quantity, ZERO } from "@/lib/money"
 
 const inventoryItemUpdateSchema = z
   .object({
@@ -86,7 +86,13 @@ export async function PATCH(
       validated.maxStock === undefined ? existing.maxStock : validated.maxStock
 
     if (minStock !== null && maxStock !== null && minStock !== undefined && maxStock !== undefined) {
-      if (minStock > maxStock) {
+      /*
+        Either side can be a typed-in `number` or the stored `Decimal`, and when
+        both come from storage `>` compares their string forms — "9" > "10" is
+        true, so a valid pair would be refused with a message about the opposite
+        problem. `exceeds` handles every combination.
+      */
+      if (exceeds(minStock, maxStock)) {
         return errorResponse("minStock must be less than or equal to maxStock", 400)
       }
     }

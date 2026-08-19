@@ -20,9 +20,32 @@
  *
  * So the assertions are grouped by what they need rather than by what reads
  * neatly: one tenant provisioned once for everything read-only, one bare tenant
- * for the blockers, and one for the idempotency run that has to mutate. The
- * cost is shared state, and the guard against it is that the read-only block
- * genuinely only reads.
+ * for the blockers, one for the idempotency run that has to mutate, and one
+ * told to call itself something else. The cost is shared state, and the guard
+ * against it is that the read-only blocks genuinely only read.
+ *
+ * Every tenant is created in a `beforeAll`, never inside an `it`. A
+ * `beforeAll` gets the long hook timeout; a test body gets the test timeout,
+ * and putting the slowest work of the run there is how the last one failed
+ * with a connection error that said nothing about what it was testing.
+ *
+ * ## This is the heaviest file in the suite, and it is honest about it
+ *
+ * Four tenants, four `ensureAccountingDefaults` runs, about six minutes
+ * against the pooled Neon this project develops on. On a busy pooler it does
+ * not merely run slowly — it fails, with `timeout exceeded when trying to
+ * connect`, at a different point each time.
+ *
+ * That failure is worth recognising rather than chasing: it names the pool,
+ * not an assertion, and no test in this file has ever failed on what it
+ * asserts. If a run goes red that way, check the error is a connect timeout,
+ * run `scripts/clean-provision-test-tenants.ts --apply` to clear whatever the
+ * aborted run left, and try again when the database is quiet.
+ *
+ * The obvious cure — mocking the accounting bootstrap — is refused. What this
+ * file is for is the claim that a provisioned tenant can trade on the first
+ * morning, and a sale with no chart of accounts to post to fails at the
+ * counter. Proving that against a fake would prove nothing.
  *
  * Prerequisites: a real Postgres `DATABASE_URL` with the migrations applied.
  */
@@ -46,12 +69,95 @@ async function freshCompany(label: string): Promise<string> {
   return company.id;
 }
 
+/**
+ * Put every throwaway tenant back, and **say so** if one will not go.
+ *
+ * This was `company.delete(...).catch(() => {})`, and the swallow was written
+ * to stop a cleanup failure turning a green run red. It hid the fact that the
+ * delete always failed: R-1.4 made `Site` `onDelete: Restrict` — a branch with
+ * sales against it must not vanish — so a provisioned company cannot be
+ * deleted in one call, and every run left its tenants behind. Forty
+ * accumulated on a shared database in an afternoon.
+ *
+ * What made it visible was somewhere else entirely.
+ * `lib/inventory/shelf-price-integrity.test.ts` prices every ranged line in
+ * the database through the resolver, in parallel; the ranged set went from
+ * about thirty to eighty, the fan-out exhausted the connection pool, and that
+ * suite began failing with *timeout exceeded when trying to connect*. An error
+ * about the network, caused by this `catch`.
+ *
+ * So the unwinding is explicit and ordered, and a failure is reported rather
+ * than eaten. `scripts/clean-provision-test-tenants.ts` is the same teardown
+ * as a command, for the tenants written before this was fixed.
+ */
+async function removeCompany(companyId: string) {
+  await prisma.$transaction(async (tx) => {
+    await tx.productPrice.deleteMany({ where: { companyId } });
+    await tx.priceList.deleteMany({ where: { companyId } });
+
+    const sites = await tx.site.findMany({ where: { companyId }, select: { id: true } });
+    const siteIds = sites.map((site) => site.id);
+    if (siteIds.length > 0) {
+      await tx.stockMovement.deleteMany({ where: { item: { siteId: { in: siteIds } } } });
+      await tx.inventoryItem.deleteMany({ where: { siteId: { in: siteIds } } });
+      await tx.stockLocation.deleteMany({ where: { siteId: { in: siteIds } } });
+    }
+
+    await tx.product.deleteMany({ where: { companyId } });
+    await tx.retailRegister.deleteMany({ where: { companyId } });
+    await tx.site.deleteMany({ where: { companyId } });
+
+    // Thirteen accounting models, innermost first. See the script for why the
+    // refusals name things like `TaxRule_templateId_fkey`.
+    await tx.taxRule.deleteMany({ where: { template: { companyId } } });
+    await tx.taxTemplateLine.deleteMany({ where: { template: { companyId } } });
+    await tx.taxTemplate.deleteMany({ where: { companyId } });
+    await tx.taxCode.deleteMany({ where: { companyId } });
+    await tx.taxCategory.deleteMany({ where: { companyId } });
+    await tx.tenderAccountMapping.deleteMany({ where: { companyId } });
+    await tx.postingRule.deleteMany({ where: { companyId } });
+    await tx.bankAccount.deleteMany({ where: { companyId } });
+    await tx.accountingPeriod.deleteMany({ where: { companyId } });
+    await tx.accountingSettings.deleteMany({ where: { companyId } });
+    await tx.accountingSeedExecution.deleteMany({ where: { companyId } });
+    await tx.currencyRate.deleteMany({ where: { companyId } });
+    await tx.currencyDefinition.deleteMany({ where: { companyId } });
+    await tx.chartOfAccount.deleteMany({ where: { companyId } });
+    await tx.fiscalisationProviderConfig.deleteMany({ where: { companyId } });
+
+    /*
+      `deleteMany`, so an already-removed company is a no-op rather than a
+      throw. `delete` raises "No record was found for a delete", which is a
+      loud failure describing the state teardown was trying to reach — and it
+      fires whenever anything else has cleaned up first, including
+      `scripts/clean-provision-test-tenants.ts` run in another terminal.
+      Whether the tenant is really gone is checked below, on its own.
+    */
+    await tx.company.deleteMany({ where: { id: companyId } });
+  });
+}
+
 afterAll(async () => {
+  const stubborn: string[] = [];
   for (const id of created) {
-    await prisma.company.delete({ where: { id } }).catch(() => {});
+    try {
+      await removeCompany(id);
+    } catch (error) {
+      stubborn.push(`${id}: ${error instanceof Error ? error.message : String(error)}`);
+    }
   }
   await prisma.$disconnect();
-});
+
+  // Loud. A tenant left on a shared database is somebody else's failing suite
+  // tomorrow, and the whole point of this rewrite is that it stops being
+  // silent.
+  if (stubborn.length > 0) {
+    throw new Error(
+      `${stubborn.length} throwaway tenant(s) survived teardown. Run ` +
+        `scripts/clean-provision-test-tenants.ts --apply.\n  ${stubborn.join("\n  ")}`,
+    );
+  }
+}, SLOW);
 
 /* ── One shop, provisioned once, read many times ──────────────────────── */
 
@@ -264,18 +370,38 @@ describe("running it twice", () => {
     expect(profile.defaultRegisterCode).toBe("REG-002");
   }, SLOW);
 
-  it("takes the branch and till names it is given", async () => {
-    const named = await provisionRetail({
+});
+
+/* ── A shop that is told what to call itself ──────────────────────────── */
+
+/**
+ * Its own `describe` with its own `beforeAll`, like the three above, rather
+ * than a `freshCompany` inside the test body.
+ *
+ * The difference is not style. This is the fourth accounting bootstrap in the
+ * file, each about a minute against a pooled Neon, and creating the tenant
+ * inside an `it` put the slowest work of the run under the test timeout while
+ * the pool was at its most contended. It failed with *timeout exceeded when
+ * trying to connect* — an error about the connection, describing nothing about
+ * branch names.
+ */
+describe("a shop that is told what to call itself", () => {
+  let named: ProvisionRetailResult;
+
+  beforeAll(async () => {
+    named = await provisionRetail({
       companyId: await freshCompany("named"),
       siteCode: "AVONDALE",
       siteName: "Avondale Shops",
       registerName: "Front counter",
       registerCode: "REG-FRONT",
     });
+  }, SLOW);
 
+  it("takes the branch and till names it is given", () => {
     expect(named.site.code).toBe("AVONDALE");
     expect(named.site.name).toBe("Avondale Shops");
     expect(named.register.name).toBe("Front counter");
     expect(named.register.code).toBe("REG-FRONT");
-  }, SLOW);
+  });
 });

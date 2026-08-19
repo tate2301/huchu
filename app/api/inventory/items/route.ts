@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { atMost } from '@/lib/money';
 import { prisma } from '@/lib/prisma';
 import { Prisma } from '@prisma/client';
 import { z } from 'zod';
@@ -55,8 +56,10 @@ export async function GET(request: NextRequest) {
         orderBy: { name: 'asc' },
       });
 
+      // `atMost`, not `<=`: both are `Decimal` and the operator compares
+      // strings. See `lib/money.ts`.
       const filtered = items.filter(
-        (item) => item.minStock !== null && item.currentStock <= (item.minStock ?? 0)
+        (item) => item.minStock !== null && atMost(item.currentStock, item.minStock)
       );
       const paged = filtered.slice(skip, skip + limit);
 
