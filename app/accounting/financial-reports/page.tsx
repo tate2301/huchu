@@ -13,7 +13,7 @@ import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { BarChart3, Scale } from "@/lib/icons";
+import { Scale } from "@/lib/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -122,13 +122,8 @@ export default function FinancialReportsHomePage() {
             href: "/accounting/trial-balance",
             tag: "Core",
           },
-          {
-            id: "financials",
-            label: "Financial Statements",
-            description: "Profit and loss, balance sheet, and cash flow views.",
-            href: "/accounting/financial-statements",
-            tag: "Core",
-          },
+          // Financial statements parked in ST-1.2 — the route and its report
+          // APIs are untouched, it is simply no longer linked.
           {
             id: "vat",
             label: "VAT Summary",
@@ -184,7 +179,6 @@ export default function FinancialReportsHomePage() {
           label="Open"
           items={[
             { label: "Trial Balance", icon: Scale, href: "/accounting/trial-balance" },
-            { label: "Financial Statements", icon: BarChart3, href: "/accounting/financial-statements" },
           ]}
         />
       }

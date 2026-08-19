@@ -163,12 +163,40 @@ Use existing primitives from `components/ui` and existing domain shells before c
 - Workflow routes should only expose valid next actions.
 - Avoid adding "approve now, fix later" paths that bypass existing state machines.
 
-## Offline, Documents, CCTV, And Integrations
+## Offline, Documents, And Integrations
 
 - Offline workflows must be wired into the offline catalog/runtime and tested; do not mark a screen offline-ready because it stores temporary client state.
 - Document/PDF work should use the document template/render-job system in `lib/documents` and `app/api/documents`.
-- CCTV changes should account for app APIs and the gateway/conversion docs in `cctv-server/`.
 - External integrations should read credentials from environment variables or database-backed provider config, never hardcoded values.
+
+## Scope: Dropped, Parked, And Frozen Modules
+
+The platform deliberately narrowed its scope. Three states, and they mean
+different things in review. The register is
+`docs/rollout/scope-trim-roadmap.md` — it is the source of truth, and this
+section points at it rather than duplicating it.
+
+**Dropped** — code and schema removed, SKU retired. CCTV (including
+`cctv-server/`), Autos/car-sales, and scrap metal. Do not reintroduce them, and
+do not restore a removed feature key or bundle to make an old test or doc pass;
+fix the test or the doc.
+
+**Parked** — the UI is out of the navigation, everything underneath it stays.
+Banking reconciliation, financial statements, cost centers and currency rates
+(ST-1.2). Their routes, APIs, models and feature keys are intact and are read by
+things that are not parked: `accounting.banking` gates the executive dashboard's
+cash tiles, `accounting.financial-statements` gates the general-ledger and
+cash-flow report APIs, and the posting engine still writes `costCenterId`.
+Removing a parked feature's *entitlement* is therefore not the same as parking
+it, and breaks surfaces the trim never intended to touch.
+
+**Frozen** — still shipping, still release-blocking, no new stories.
+Maintenance (`app/maintenance`, `app/api/work-orders`, `app/api/equipment`)
+is frozen: bug fixes only. It stays in the gold and retail bundles and its
+`MAINTENANCE_COMPLETION` posting keeps working, so a regression there blocks a
+release exactly as it did before — freezing a module retires its roadmap, not
+its users. A PR adding a feature to a frozen module should be sent back with a
+pointer here.
 
 ## Documentation Expectations
 

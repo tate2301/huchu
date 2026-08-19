@@ -771,7 +771,8 @@ function buildModuleSections(
       ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
       ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
       ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.banking,
+      // The banking section went with the ST-1.2 parking; the route and its
+      // model are untouched, it is simply not a sidebar entry point.
       ...ACCOUNTING_OPERATIONS_SECTIONS.master,
     ];
 

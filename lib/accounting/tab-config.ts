@@ -1,6 +1,5 @@
 import {
   type LucideIcon,
-  ArrowRightLeft,
   BarChart3,
   Calendar,
   Checklist,
@@ -74,6 +73,30 @@ export const ACCOUNTING_CATEGORIES: AccountingCategory[] = [
   { id: "reports", label: "Reports", icon: BarChart3, order: 8 },
 ];
 
+/**
+ * The accounting navigation, after the ST-1.2 trim.
+ *
+ * Four surfaces are **parked, not deleted**: banking reconciliation, currency
+ * rates, cost centers and financial statements. They are gone from here, so
+ * nobody navigates to them, while their pages, APIs, models and feature keys
+ * stay exactly as they were.
+ *
+ * The distinction is load-bearing rather than cautious. `accounting.banking`
+ * gates the executive dashboard's cash tiles and its cash trend
+ * (`app/api/dashboard/executive-overview/route.ts`), and
+ * `accounting.financial-statements` gates the general-ledger and cash-flow
+ * report APIs as well as the reporting hub — so retiring either *entitlement*
+ * would take out surfaces the trim was never meant to touch, including the one
+ * ST-1.2's own acceptance signal says must keep rendering. Parking is
+ * navigation, not entitlement.
+ *
+ * Their ids stay in `AccountingTab` because the parked pages still pass them to
+ * `AccountingShell`; a tab id with no entry here simply highlights nothing,
+ * which is the correct behaviour for a page reachable only by direct URL.
+ *
+ * Whether the bundles should still *charge* for a parked feature is a pricing
+ * question, not a navigation one — it belongs to PR-4 and is recorded there.
+ */
 export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "overview",
@@ -147,30 +170,9 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
     featureKey: "accounting.ap",
     categoryId: "payables",
   },
-  {
-    id: "banking",
-    label: "Banking",
-    href: "/accounting/banking",
-    icon: Wallet,
-    featureKey: "accounting.banking",
-    categoryId: "treasury",
-  },
-  {
-    id: "currency",
-    label: "Currency",
-    href: "/accounting/currency",
-    icon: ArrowRightLeft,
-    featureKey: "accounting.multi-currency",
-    categoryId: "treasury",
-  },
-  {
-    id: "cost-centers",
-    label: "Cost Centers",
-    href: "/accounting/cost-centers",
-    icon: ManageAccounts,
-    featureKey: "accounting.cost-centers",
-    categoryId: "controls",
-  },
+  // ST-1.2 — banking, currency and cost centers are parked: not in the
+  // navigation, models and routes untouched. See the note above
+  // ACCOUNTING_TABS.
   {
     id: "tax",
     label: "Tax",
@@ -203,33 +205,18 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
     featureKey: "accounting.trial-balance",
     categoryId: "reports",
   },
-  {
-    id: "financials",
-    label: "Financial Statements",
-    href: "/accounting/financial-statements",
-    icon: BarChart3,
-    featureKey: "accounting.financial-statements",
-    categoryId: "reports",
-  },
 ];
 
 export const ACCOUNTING_OPERATIONS_SECTIONS = {
   overview: ["/accounting"],
   receivables: ["/accounting/receivables", "/accounting/sales"],
   payables: ["/accounting/payables", "/accounting/purchases"],
-  reporting: [
-    "/accounting/financial-reports",
-    "/accounting/trial-balance",
-    "/accounting/financial-statements",
-  ],
-  banking: ["/accounting/banking"],
+  reporting: ["/accounting/financial-reports", "/accounting/trial-balance"],
   master: [
     "/accounting/chart-of-accounts",
     "/accounting/periods",
     "/accounting/journals",
     "/accounting/posting-rules",
-    "/accounting/cost-centers",
-    "/accounting/currency",
     "/accounting/tax",
     "/accounting/fiscalisation",
   ],
