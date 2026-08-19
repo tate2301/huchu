@@ -5,6 +5,7 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailQuery } from "@/lib/retail/request";
 import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
 
 /**
@@ -17,6 +18,25 @@ import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
  * sequence and shown beside the SKU it duplicated), and `acquisitionMode`, a
  * single-valued enum nothing has ever written anything but `PURCHASE` to.
  */
+/**
+ * R-3.1. What the range list accepts.
+ *
+ * `status` took a hand-written three-way comparison, and `"all"` was accepted
+ * as a synonym for absent — kept, because the catalogue screen sends it.
+ *
+ * R-3.2. `limit` is new, and so is the fact that there is one. This read was
+ * the unbounded one: `loadShelfListings` with no `take`, one price resolution
+ * per row, and a shop that ranges 4,000 lines got all 4,000 on every keystroke
+ * of the search box. The cap is generous because a shopkeeper scrolling their
+ * own range is the normal case and paging it would be a worse screen.
+ */
+const catalogQuery = z.object({
+  search: z.string().trim().max(200).optional(),
+  siteId: z.string().uuid().optional(),
+  status: z.enum(["all", "ACTIVE", "INACTIVE"]).optional(),
+  limit: z.coerce.number().int().min(1).max(2_000).optional(),
+});
+
 const catalogItemSchema = z.object({
   inventoryItemId: z.string().uuid(),
   name: z.string().min(1).max(200).optional(),
@@ -49,19 +69,14 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.catalog", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search")?.trim();
-  const siteId = searchParams.get("siteId")?.trim();
-  const status = searchParams.get("status")?.trim();
-
-  if (status && status !== "all" && status !== "ACTIVE" && status !== "INACTIVE") {
-    return errorResponse(`Unknown status "${status}"`, 400);
-  }
+  const query = parseRetailQuery(request, catalogQuery);
+  if (query.response) return query.response;
 
   const data = await loadShelfListings(session.user.companyId, {
-    siteId: siteId || null,
-    search: search || null,
-    status: status === "ACTIVE" || status === "INACTIVE" ? status : null,
+    siteId: query.data.siteId ?? null,
+    search: query.data.search || null,
+    status: query.data.status === "all" ? null : (query.data.status ?? null),
+    take: query.data.limit ?? 1_000,
   });
 
   return successResponse({ data });

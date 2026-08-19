@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { money, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canSeeRetailCostPrice } from "@/lib/retail/permissions";
@@ -21,7 +22,16 @@ export async function GET(
 
   const showCost = canSeeRetailCostPrice(session.user.role);
 
-  const { id } = await params;
+  /*
+    R-3.1. The segment, through a schema.
+
+    Prisma is not injectable, so this is not a security fix. It is the
+    difference between a 400 naming the parameter and a 404 that reads, to a
+    shopkeeper, as "the receipt you are holding is not in the system".
+  */
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
   const sale = await prisma.retailSale.findFirst({
     where: { id, companyId: session.user.companyId },
     include: {

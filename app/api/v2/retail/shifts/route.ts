@@ -4,6 +4,7 @@ import { errorResponse, successResponse } from "@/lib/api-utils";
 import { sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@/lib/retail/request";
 import {
   requireRetailSession,
   resolveRetailSite,
@@ -31,11 +32,20 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.cash-control", "view");
   if (gate) return gate;
 
-  const shifts = await prisma.retailShift.findMany({
+  // R-3.2. Was a flat `take: 100`. A shop running two tills six days a week
+  // passes a hundred shifts in two months, and the list simply stopped with
+  // nothing saying it had.
+  const query = parseRetailQuery(request, retailPageQuery);
+  if (query.response) return query.response;
+  const args = pageArgs(query.data, 100);
+
+  const found = await prisma.retailShift.findMany({
     where: { companyId: session.user.companyId },
-    orderBy: [{ status: "asc" }, { openedAt: "desc" }],
-    take: 100,
+    orderBy: [{ status: "asc" }, { openedAt: "desc" }, { id: "desc" }],
+    take: args.take,
+    ...(args.cursor ? { cursor: args.cursor, skip: args.skip } : {}),
   });
+  const { rows: shifts, nextCursor, hasMore } = pageResult(found, args.limit);
 
   const sites = await prisma.site.findMany({
     where: { id: { in: shifts.map((shift) => shift.siteId) } },
@@ -66,6 +76,7 @@ export async function GET(request: NextRequest) {
         ),
       };
     }),
+    page: { limit: args.limit, cursor: query.data.cursor ?? null, nextCursor, hasMore },
   });
 }
 

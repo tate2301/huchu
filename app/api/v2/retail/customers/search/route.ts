@@ -1,9 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailQuery } from "@/lib/retail/request";
 import { requireRetailSession } from "../../_helpers";
+
+/**
+ * R-3.1. The lookup the counter runs mid-sale.
+ *
+ * The hand-rolled version was
+ * `Math.min(Math.max(Number(searchParams.get("limit") ?? "10"), 1), 30)`, which
+ * turns `limit=abc` into `NaN` and hands Prisma `take: NaN`.
+ */
+const customerSearchQuery = z.object({
+  q: z.string().trim().max(120).optional(),
+  limit: z.coerce.number().int().min(1).max(30).optional(),
+});
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
@@ -16,9 +30,11 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const q = searchParams.get("q")?.trim() ?? "";
-  const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? "10"), 1), 30);
+  const query = parseRetailQuery(request, customerSearchQuery);
+  if (query.response) return query.response;
+
+  const q = query.data.q ?? "";
+  const limit = query.data.limit ?? 10;
   if (!q) return successResponse({ data: [] });
 
   const customers = await prisma.customer.findMany({

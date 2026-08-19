@@ -28,12 +28,16 @@
  */
 
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { parseRetailParams, parseRetailQuery, retailIdParams } from "@/lib/retail/request";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { retailZReportToCsv, serializeRetailZReport } from "@/lib/retail/z-report";
 import { requireRetailSession } from "../../_helpers";
+
+const zReportQuery = z.object({ format: z.enum(["csv"]).optional() });
 
 export async function GET(
   request: NextRequest,
@@ -47,7 +51,16 @@ export async function GET(
   const gate = requireRetailPermission(session, "retail.cash-control", "view");
   if (gate) return gate;
 
-  const { id } = await params;
+  /*
+    R-3.1. The segment, through a schema.
+
+    Prisma is not injectable, so this is not a security fix. It is the
+    difference between a 400 naming the parameter and a 404 that reads, to a
+    shopkeeper, as "the receipt you are holding is not in the system".
+  */
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
   const report = await prisma.retailZReport.findFirst({
     where: { id, companyId: session.user.companyId },
     include: { site: { select: { name: true } } },
@@ -57,7 +70,12 @@ export async function GET(
   }
 
   const payload = serializeRetailZReport(report, report.site?.name ?? null);
-  const format = new URL(request.url).searchParams.get("format");
+
+  // R-3.1. Two renderings of one report, and `?format=pdf` should say so rather
+  // than quietly hand back JSON.
+  const query = parseRetailQuery(request, zReportQuery);
+  if (query.response) return query.response;
+  const format = query.data.format ?? null;
 
   if (format === "csv") {
     return new NextResponse(retailZReportToCsv(payload), {

@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { successResponse } from "@/lib/api-utils";
 import { loadShelfListings } from "@/lib/retail/shelf-listing";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailQuery } from "@/lib/retail/request";
 import { requireRetailSession } from "../../_helpers";
 
 /**
@@ -16,6 +18,20 @@ import { requireRetailSession } from "../../_helpers";
  * `id` is a `Product.id` now, where it used to be a `RetailCatalogItem.id`. That
  * is the identity the cart, the sale line and the sync payload all carry.
  */
+/**
+ * R-3.1. The till sends three filters and nothing else.
+ *
+ * No `limit`: the 120 below is the offline snapshot's size, decided here rather
+ * than by the caller, because the till caches whatever comes back and a cashier
+ * asking for 5,000 rows over a shop's connection is not a request worth
+ * honouring.
+ */
+const tillCatalogQuery = z.object({
+  search: z.string().trim().max(200).optional(),
+  siteId: z.string().uuid().optional(),
+  category: z.string().trim().max(120).optional(),
+});
+
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
@@ -28,15 +44,13 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.catalog", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search")?.trim();
-  const siteId = searchParams.get("siteId")?.trim();
-  const category = searchParams.get("category")?.trim();
+  const query = parseRetailQuery(request, tillCatalogQuery);
+  if (query.response) return query.response;
 
   const listings = await loadShelfListings(session.user.companyId, {
-    siteId: siteId || null,
-    search: search || null,
-    category: category || null,
+    siteId: query.data.siteId ?? null,
+    search: query.data.search || null,
+    category: query.data.category || null,
     activeOnly: true,
     take: 120,
   });

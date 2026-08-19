@@ -227,6 +227,17 @@ export async function GET(request: NextRequest) {
   const from = searchParams.get("from")?.trim();
   const to = searchParams.get("to")?.trim();
   const limit = Math.min(Math.max(Number(searchParams.get("limit") ?? "60"), 1), 200);
+  /*
+    R-3.2. The id of the last receipt already seen, not an offset.
+
+    An offset shifts under a till that is still selling: page two skips a
+    receipt page one already showed, or misses one entirely, and the shop reads
+    that as the system losing sales. A cursor on `id` moves with the rows.
+  */
+  const cursor = searchParams.get("cursor")?.trim() || undefined;
+  if (cursor && !/^[0-9a-f-]{36}$/i.test(cursor)) {
+    return errorResponse("Invalid cursor", 400);
+  }
   const fromDate = from ? new Date(from) : null;
   const toDate = to ? new Date(to) : null;
   if (fromDate && Number.isNaN(fromDate.getTime())) {
@@ -290,12 +301,19 @@ export async function GET(request: NextRequest) {
     ];
   }
 
-  const sales = await prisma.retailSale.findMany({
+  // One more than asked for, so `hasMore` is answered without a second
+  // `count()` — a count against a table the till is writing to is both an extra
+  // round trip and a number that can disagree with the rows beside it.
+  const page = await prisma.retailSale.findMany({
     where,
     include: { lines: true, payments: true },
-    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-    take: limit,
+    orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }, { id: "desc" }],
+    take: limit + 1,
+    ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}),
   });
+  const hasMore = page.length > limit;
+  const sales = hasMore ? page.slice(0, limit) : page;
+  const nextCursor = hasMore ? (sales[sales.length - 1]?.id ?? null) : null;
 
   const sourceIds = [...new Set(sales.map((sale) => sale.sourceSaleId).filter((value): value is string => Boolean(value)))];
   const sourceSales = sourceIds.length
@@ -332,6 +350,7 @@ export async function GET(request: NextRequest) {
 
   return successResponse({
     data: mapped,
+    page: { limit, cursor: cursor ?? null, nextCursor, hasMore },
     filters: {
       shiftId: shiftId ?? null,
       siteId: siteId ?? null,
@@ -343,6 +362,13 @@ export async function GET(request: NextRequest) {
       to: toDate?.toISOString() ?? null,
       limit,
     },
+    /*
+      Over the rows returned, not over everything the filter matches.
+
+      That was already true when this was capped at 60 and nothing said so. It
+      is stated now because a caller that pages will otherwise add four pages of
+      "gross sales" together and get one day's takings counted four times.
+    */
     summary: {
       grossSales: toNumberOrZero(
         sumMoney(

@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { prisma } from "@/lib/prisma";
 import {
   archiveShelfListing,
@@ -53,7 +54,16 @@ export async function GET(
   const gate = requireRetailPermission(session, "retail.catalog", "view");
   if (gate) return gate;
 
-  const { id } = await params;
+  /*
+    R-3.1. The segment, through a schema.
+
+    Prisma is not injectable, so this is not a security fix. It is the
+    difference between a 400 naming the parameter and a 404 that reads, to a
+    shopkeeper, as "the receipt you are holding is not in the system".
+  */
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
   const listing = await loadShelfListing(session.user.companyId, id);
   if (!listing) {
     return errorResponse("Catalog item not found", 404);
@@ -75,7 +85,9 @@ export async function PATCH(
   if (gate) return gate;
 
   try {
-    const { id } = await params;
+    const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
     const existing = await loadShelfListing(session.user.companyId, id);
     if (!existing) {
       return errorResponse("Catalog item not found", 404);
@@ -144,7 +156,9 @@ export async function DELETE(
   const gate = requireRetailPermission(session, "retail.catalog", "delete");
   if (gate) return gate;
 
-  const { id } = await params;
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
   const existing = await loadShelfListing(session.user.companyId, id);
   if (!existing) {
     return errorResponse("Catalog item not found", 404);

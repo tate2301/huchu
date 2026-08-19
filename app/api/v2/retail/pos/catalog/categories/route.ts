@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
+import { z } from "zod";
 import { successResponse } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailQuery } from "@/lib/retail/request";
 import { requireRetailSession } from "../../../_helpers";
 
 /**
@@ -12,6 +14,9 @@ import { requireRetailSession } from "../../../_helpers";
  * `RetailCatalogItem` to collect inventory ids and a second read to get their
  * categories.
  */
+/** R-3.1. One optional branch. */
+const categoriesQuery = z.object({ siteId: z.string().uuid().optional() });
+
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);
   if (response || !session) {
@@ -22,13 +27,13 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.catalog", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const siteId = searchParams.get("siteId")?.trim();
+  const query = parseRetailQuery(request, categoriesQuery);
+  if (query.response) return query.response;
 
   const rows = await prisma.inventoryItem.findMany({
     where: {
       site: { companyId: session.user.companyId },
-      ...(siteId ? { siteId } : {}),
+      ...(query.data.siteId ? { siteId: query.data.siteId } : {}),
       product: { companyId: session.user.companyId, isActive: true, archivedAt: null },
     },
     select: { category: true },

@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
-import { toNumberOrZero } from "@/lib/money";
+import { money, sumMoney, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
 import { requireRetailSession } from "../_helpers";
+
+/**
+ * R-3.1/R-3.2. The list is an aggregate over sales, not a table.
+ *
+ * So it pages by offset rather than by cursor: there is no row id to cursor on,
+ * because the rows do not exist until this handler has built them. `scanLimit`
+ * is the window it aggregates over, and it is reported back — a shop looking at
+ * page four should be able to tell whether it is seeing the tail of the list or
+ * the edge of the scan.
+ */
+const customerListQuery = retailOffsetQuery.extend({
+  search: z.string().trim().max(120).optional(),
+  scanLimit: z.coerce.number().int().min(100).max(20_000).optional(),
+});
 
 function getLoyaltyTier(points: number) {
   if (points >= 2_000) return "GOLD";
@@ -24,8 +40,10 @@ export async function GET(request: NextRequest) {
   const gate = requireRetailPermission(session, "retail.sell", "view");
   if (gate) return gate;
 
-  const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search")?.trim().toLowerCase() ?? "";
+  const query = parseRetailQuery(request, customerListQuery);
+  if (query.response) return query.response;
+  const search = query.data.search?.toLowerCase() ?? "";
+  const scanLimit = query.data.scanLimit ?? 2_500;
 
   const sales = await prisma.retailSale.findMany({
     where: {
@@ -42,16 +60,27 @@ export async function GET(request: NextRequest) {
       createdAt: true,
     },
     orderBy: [{ postedAt: "desc" }, { createdAt: "desc" }],
-    take: 2_500,
+    take: scanLimit,
   });
 
+  /*
+    R-1.1, arriving late.
+
+    `totalSpend` was a `number` accumulated with `+=` and rendered with
+    `Number(x.toFixed(2))` — the exact helper R-1.1 deleted from `_helpers.ts`,
+    reintroduced here where nobody looked. A regular's spend is a sum of
+    hundreds of receipts, which is where float drift shows first, and it feeds
+    `loyaltyPoints` and therefore the tier the counter offers them.
+
+    `Prisma.Decimal` throughout; it becomes a number once, on the way out.
+  */
   const buckets = new Map<
     string,
     {
       customerId: string | null;
       customerName: string;
       visits: number;
-      totalSpend: number;
+      amounts: Prisma.Decimal[];
       lastPurchaseAt: Date;
       lastSaleNo: string;
     }
@@ -65,19 +94,20 @@ export async function GET(request: NextRequest) {
 
     const postedAt = sale.postedAt ?? sale.createdAt;
     const current = buckets.get(key);
-    const netDelta = toNumberOrZero(sale.totalAmount);
+    // A reversal already carries a negative `totalAmount`, so netting is a sum.
+    const netDelta = money(sale.totalAmount);
     if (!current) {
       buckets.set(key, {
         customerId: null,
         customerName: name,
         visits: sale.saleType === "SALE" ? 1 : 0,
-        totalSpend: netDelta,
+        amounts: [netDelta],
         lastPurchaseAt: postedAt,
         lastSaleNo: sale.saleNo,
       });
       continue;
     }
-    current.totalSpend += netDelta;
+    current.amounts.push(netDelta);
     if (sale.saleType === "SALE") {
       current.visits += 1;
     }
@@ -103,14 +133,17 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  const data = [...buckets.values()]
+  const all = [...buckets.values()]
     .map((row) => {
-      const loyaltyPoints = Math.max(Math.floor(row.totalSpend), 0);
+      const totalSpend = sumMoney(row.amounts);
+      // A point per whole dollar netted. Floored on the Decimal, so a customer
+      // sitting on 499.995 does not round into SILVER on a rendering artefact.
+      const loyaltyPoints = Math.max(Number(totalSpend.floor()), 0);
       return {
         customerId: row.customerId,
         customerName: row.customerName,
         visits: row.visits,
-        totalSpend: Number(row.totalSpend.toFixed(2)),
+        totalSpend: toNumberOrZero(totalSpend),
         lastPurchaseAt: row.lastPurchaseAt,
         lastSaleNo: row.lastSaleNo,
         loyaltyPoints,
@@ -119,11 +152,25 @@ export async function GET(request: NextRequest) {
     })
     .sort((a, b) => b.totalSpend - a.totalSpend);
 
+  const page = slicePage(all, query.data, 100);
+
   return successResponse({
-    data,
+    data: page.rows,
+    page: {
+      limit: page.limit,
+      offset: page.offset,
+      total: page.total,
+      hasMore: page.hasMore,
+      // What the aggregate was built from. `scanned === scanLimit` means the
+      // window is full and there may be older custom this list has not seen.
+      scanned: sales.length,
+      scanLimit,
+    },
     summary: {
-      namedCustomerCount: data.length,
-      totalLoyaltyPoints: data.reduce((sum, row) => sum + row.loyaltyPoints, 0),
+      // Across every customer found, not just this page — the count of a shop's
+      // regulars should not change when somebody turns to page two.
+      namedCustomerCount: all.length,
+      totalLoyaltyPoints: all.reduce((sum, row) => sum + row.loyaltyPoints, 0),
     },
   });
 }

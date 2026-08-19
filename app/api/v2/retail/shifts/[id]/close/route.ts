@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";
 import { closeRetailShiftTransaction } from "../../../_services";
@@ -27,7 +28,16 @@ export async function POST(
   if (gate) return gate;
 
   try {
-    const { id } = await params;
+    /*
+    R-3.1. The segment, through a schema.
+
+    Prisma is not injectable, so this is not a security fix. It is the
+    difference between a 400 naming the parameter and a 404 that reads, to a
+    shopkeeper, as "the receipt you are holding is not in the system".
+  */
+  const path = await parseRetailParams(params, retailIdParams);
+  if (path.response) return path.response;
+  const { id } = path.data;
     const body = await request.json();
     const input = closeShiftSchema.parse(body);
     const { shift, accounting } = await closeRetailShiftTransaction({
