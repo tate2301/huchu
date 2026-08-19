@@ -90,7 +90,20 @@ describe("syncEntitlementCatalog", () => {
     // unlike a feature (company flags) or a bundle (company addons).
     await syncEntitlementCatalog();
 
+    // The victim has to belong to a bundle the CODE still defines. Sync is an
+    // upsert from the code catalog, so a row whose bundle has been retired —
+    // ADDON_CCTV_SUITE and friends, dropped in ST-1.1 — is one sync can never
+    // restore, and picking one at random turned this into a coin toss the day
+    // the first bundle was removed. Those orphans are a real gap and ST-3.4
+    // owns pruning them; what this test is about is whether sync writes.
+    const liveBundle = await prisma.featureBundle.findFirst({
+      where: { code: { in: FEATURE_BUNDLES.map((bundle) => bundle.code) } },
+      select: { id: true },
+    });
+    expect(liveBundle, "no code-defined bundle exists — sync never wrote").not.toBeNull();
+
     const victim = await prisma.featureBundleItem.findFirst({
+      where: { bundleId: liveBundle!.id },
       select: { id: true, bundleId: true, featureId: true },
     });
     expect(victim, "no bundle items exist at all — sync never wrote").not.toBeNull();
