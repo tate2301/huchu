@@ -193,15 +193,22 @@ export const footerGroups = [
   },
 ];
 
+// The homepage sells the compliance layer first (MK-1.1): a VAT-registered
+// buyer is under an obligation with a daily price on it, so the meta
+// description names the regulation before it names a benefit.
 const HOME_DESCRIPTION =
-  `Corelith puts sales, stock, jobs, invoices and cash on one record. Built in Zimbabwe, works offline, ZIMRA fiscalisation built in. From ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually.`;
+  `The ZIMRA-compliant way to run a Zimbabwean business: fiscal invoicing built against ZIMRA's FDMS specification, on top of the POS, stock, books and payroll that produce the numbers on the invoice. Works offline, priced per site from ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually.`;
 
 export const seoPages = {
   home: {
-    title: "Find the money your business is losing",
+    title: "The ZIMRA-compliant way to run a Zimbabwean business",
     description: HOME_DESCRIPTION,
     path: "/home",
     keywords: [
+      "ZIMRA fiscalisation software",
+      "FDMS Zimbabwe",
+      "fiscal invoicing Zimbabwe",
+      "fiscalisation POS Zimbabwe",
       "business software Zimbabwe",
       "stock control software Zimbabwe",
       "invoicing and inventory software Zimbabwe",
@@ -210,14 +217,16 @@ export const seoPages = {
       "sales CRM Zimbabwe",
       "POS system Zimbabwe",
       "bottle store software Zimbabwe",
-      "ZIMRA fiscalisation software",
     ],
   },
   root: {
-    title: "Find the money your business is losing",
+    title: "The ZIMRA-compliant way to run a Zimbabwean business",
     description: HOME_DESCRIPTION,
     path: "/",
     keywords: [
+      "ZIMRA fiscalisation software",
+      "FDMS Zimbabwe",
+      "fiscal invoicing Zimbabwe",
       "business software Zimbabwe",
       "stock control software Zimbabwe",
       "invoicing software Zimbabwe",
@@ -600,11 +609,16 @@ export const COUNTER_TRADE = {
   ],
 } as const;
 
-/** Honest, checkable claims. No logos, no invented testimonials. */
+/**
+ * Honest, checkable claims. No logos, no invented testimonials. Fiscalisation
+ * leads because that is the obligation the buyer arrived with — and the label
+ * says "built against" rather than "certified", which is all the FDMS roadmap
+ * currently permits.
+ */
 export const trustSignals = [
+  { label: "Built against ZIMRA's FDMS specification", icon: ShieldCheck },
+  { label: "Keeps selling and signing when the line drops", icon: WifiOff },
   { label: "Priced per site, never per user", icon: Users },
-  { label: "Keeps selling when the internet drops", icon: WifiOff },
-  { label: "ZIMRA fiscalisation built in", icon: ShieldCheck },
   { label: "Built and supported in Zimbabwe", icon: Building2 },
 ];
 
@@ -623,10 +637,15 @@ export const trustSignals = [
  * defects until FD-8 closes — a buyer who discovers on their own that a
  * compliance claim outran the code never buys the compliance product.
  */
-export const FDMS_STATUS_HEADLINE = "Native FDMS integration: built, in pilot, not yet certified.";
+export const FDMS_STATUS_HEADLINE = "Native FDMS integration: built and tested, not yet live with a customer.";
 
 export const FDMS_STATUS_COPY =
-  "The device registration, receipt signing, hash chaining, fiscal-day counters and credit-note referencing are written against ZIMRA's FDMS specification and covered by tests. They are running with pilot businesses now. They have not been certified or approved by ZIMRA, and we will tell you exactly where that stands before you pay us anything.";
+  // Every clause here is checked against docs/rollout/fdms-roadmap.md. The
+  // stories that would let us say "live" or "validated" — FD-8, and the sandbox
+  // signals on FD-1 through FD-4 — are not `done`. In a market this small one
+  // ZIMRA rejection at a customer site ends the referral network, so this panel
+  // states the weaker true thing rather than the stronger sellable one.
+  "Device registration, receipt signing, hash chaining, fiscal-day counters and credit-note referencing are written against ZIMRA's FDMS specification and covered by tests. They have not yet been validated against ZIMRA's own test environment, no customer is issuing fiscal invoices through us today, and nothing here is certified or approved by ZIMRA. We will tell you exactly where that stands before you pay us anything.";
 
 export const fiscalHero = {
   eyebrow: "ZIMRA fiscalisation, FDMS-native",
@@ -673,6 +692,30 @@ export const fiscalWedge = [
     icon: History,
   },
 ] satisfies Array<{ title: string; copy: string; icon: LucideIcon }>;
+
+/**
+ * How money actually reaches us today (MK-1.2). A self-serve card checkout is
+ * on the roadmap and not live, so this list says invoice-and-transfer plainly
+ * rather than implying a gateway that does not exist yet.
+ */
+export const paymentMethods = [
+  {
+    title: "Invoiced in US dollars",
+    copy: "Every plan, add-on and onboarding fee is quoted and invoiced in USD, so the figure on the pricing page is the figure on the invoice.",
+  },
+  {
+    title: "Bank transfer or mobile money",
+    copy: "USD bank transfer for annual prepay, bank transfer or EcoCash month to month. No card is required and no card is stored.",
+  },
+  {
+    title: "Annual is the default ask",
+    copy: `Paying for the year up front is ${ANNUAL_DISCOUNT_LABEL.replace(" off", "")} cheaper than paying monthly, and the monthly rate stays available with no commitment.`,
+  },
+  {
+    title: "Card and self-checkout are not live yet",
+    copy: "We are choosing a payment gateway on settlement time and recurring-billing support, not on headline rate. Until it ships, billing runs on invoices.",
+  },
+] as const;
 
 /**
  * Free tools. They exist to be checked by an accountant and found correct, so
