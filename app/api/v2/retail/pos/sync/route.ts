@@ -304,7 +304,14 @@ async function processCreateSale(
   ctx: SyncContext
 ): Promise<SyncOperationResult> {
   const payload = op.payload as {
-    saleNo: string;
+    /**
+     * S-7.7 — optional now. A device that queued a sale before the split still
+     * has one and it is honoured; anything queued since sends `clientRef` and
+     * lets the server number the receipt.
+     */
+    saleNo?: string;
+    /** The till's key for the attempt. This is what makes a replay safe. */
+    clientRef?: string;
     shiftId: string;
     siteId: string;
     customerId?: string;
@@ -505,6 +512,13 @@ async function processCreateSale(
         userEmail: ctx.session.user.email,
       },
       saleNo: payload.saleNo,
+      /*
+        The replay's whole safety rests on this. `createRetailSaleTransaction`
+        looks for a sale already carrying it and returns that one, so a queue
+        that fires twice — or a response lost on the first attempt — cannot post
+        the same basket to the ledger a second time.
+      */
+      clientRef: payload.clientRef ?? payload.saleNo ?? null,
       shiftId: resolvedShiftId,
       siteId: payload.siteId,
       customerName,
@@ -523,7 +537,13 @@ async function processCreateSale(
     });
 
     ctx.resolvedIds.set(op.clientOperationId, sale.id);
-    ctx.resolvedIds.set(payload.saleNo, sale.id);
+    /*
+      Whatever the device called this sale, later operations in the same batch —
+      a refund against it, say — reference it by that name. Post-S-7.7 that is
+      `clientRef`; an entry queued before the split still says `saleNo`.
+    */
+    const clientKey = payload.clientRef ?? payload.saleNo;
+    if (clientKey) ctx.resolvedIds.set(clientKey, sale.id);
 
     return {
       clientOperationId: op.clientOperationId,

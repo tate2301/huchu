@@ -71,11 +71,10 @@ type CustomerLookupResult = {
   loyaltyTier: string;
 };
 
-type TenderPolicyPayload = {
-  data: {
-    requiredReferenceTenders: Array<PaymentRow["tenderType"]>;
-    minReferenceLength: number;
-  };
+/** The tender rules the checkout screen enforces, carried on `pos/context`. */
+type TillRules = {
+  requiredReferenceTenders: Array<PaymentRow["tenderType"]>;
+  minReferenceLength: number;
 };
 
 type PosQueuedSale = OfflineOutboxOperation<PosSaleQueuePayload>;
@@ -156,7 +155,28 @@ type PosPortalStateValue = {
 
 const PosPortalStateContext = createContext<PosPortalStateValue | null>(null);
 
-function createQueuedSaleNo() {
+/**
+ * A key for one checkout attempt. Never shown to anybody.
+ *
+ * S-7.7. This used to be sent as the sale's `saleNo`, which is why receipts
+ * read `RSL-1787005857220984` instead of `S-005080`: the till was naming the
+ * receipt when all it needed was to identify the attempt. It now travels as
+ * `clientRef` and the server allocates the number a customer actually sees.
+ *
+ * `crypto.randomUUID` where it exists, with the old timestamp form behind it.
+ *
+ * The fallback is not decoration. `randomUUID` is only exposed in a **secure
+ * context**, and the till's own dev host — `http://pos.<tenant>.…:3000` — is
+ * neither HTTPS nor localhost, so it is genuinely undefined there: the first
+ * sale rung after this change came through carrying the timestamp form. In
+ * production behind TLS the uuid is used. Either way one device generating one
+ * key per sale will not collide, and a collision would be caught by
+ * `@@unique([companyId, clientRef])` rather than charging anybody twice.
+ */
+function createSaleClientRef() {
+  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
+    return crypto.randomUUID();
+  }
   return `RSL-${Date.now()}${Math.floor(Math.random() * 1000)}`;
 }
 
@@ -197,6 +217,7 @@ export function PosPortalProvider({
           defaultSiteId: string | null;
           defaultRegisterId: string | null;
           sites: PosSite[];
+          rules: TillRules;
         };
       }>("/api/v2/retail/pos/context"),
   });
@@ -260,11 +281,16 @@ export function PosPortalProvider({
       fetchJson<{ data: Promotion[] }>("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
     enabled: Boolean(siteId),
   });
-  const tenderPolicyQuery = useQuery({
-    queryKey: ["retail-pos-tender-policy"],
-    queryFn: () =>
-      fetchJson<TenderPolicyPayload>("/api/v2/retail/setup/tender-policy"),
-  });
+  /*
+    Tender rules now ride on `pos/context` above — see the comment on that
+    route. There used to be a separate query here against
+    `/api/v2/retail/setup/tender-policy`, which is gated on `retail.setup`
+    `view`, a permission no cashier holds. It returned 403 on every till on
+    every load, failed silently, and left checkout on the hard-coded defaults —
+    so a shop's configured reference requirements were accepted in the back
+    office and then quietly ignored at the counter. It surfaced only from
+    dev-server logs during a screenshot run.
+  */
   const customerSearchQuery = useQuery({
     queryKey: ["retail-pos-customer-search", customerName],
     queryFn: () =>
@@ -369,7 +395,8 @@ export function PosPortalProvider({
   const buildSalePayload = (): PosSaleQueuePayload | null => {
     if (!currentShift?.id || !siteId) return null;
     return {
-      saleNo: createQueuedSaleNo(),
+      // Not `saleNo`. See `createSaleClientRef`.
+      clientRef: createSaleClientRef(),
       shiftId: currentShift.id,
       siteId,
       customerId: selectedCustomerId ?? undefined,
@@ -380,8 +407,31 @@ export function PosPortalProvider({
       discountAmount: Number(orderDiscountAmount || "0") || undefined,
       overrideReason: overrideReason.trim() || undefined,
       promotionId: selectedPromotionId || undefined,
+      /**
+       * `productId`, not `catalogItemId`. S-4b, finished.
+       *
+       * The item master moved from `RetailCatalogItem` to `Product` and the
+       * API moved with it — `saleLineSchema` in `app/api/v2/retail/pos/sales/route.ts`
+       * requires `productId: z.string().uuid()`. This call site was never
+       * updated, so **every sale the till posted came back 400 and the POS
+       * could not sell at all.**
+       *
+       * Nothing caught it. Typecheck could not: the payload is assembled as an
+       * object literal and posted as JSON, so the contract between the two
+       * halves is only checked at runtime, by zod, in production. 466 unit
+       * tests could not: none of them post a sale. It took ringing one through
+       * the UI — `e2e/retail-workflows.spec.ts` — which is exactly the gate
+       * `docs/retail/pos-production-readiness-2026-08-17.md` §4A said was
+       * missing and why it said it mattered more than anything else on the list.
+       *
+       * The cart's own field keeps its name: `catalogItemId` is the React key
+       * for a line and renaming it touches thirty call sites for no gain. What
+       * it holds *is* a `Product.id` — `addToCart` sets it from
+       * `PosCatalogItem.id`, which `loadSellableProducts` sets from
+       * `product.id`. Only the wire name was wrong.
+       */
       items: cart.map((item) => ({
-        catalogItemId: item.catalogItemId,
+        productId: item.catalogItemId,
         quantity: item.quantity,
         unitPrice: item.unitPrice,
         discountAmount: item.lineDiscountAmount ?? 0,
@@ -636,9 +686,12 @@ export function PosPortalProvider({
       void syncOfflineSales();
     },
     syncOfflineSalesPending,
+    // A genuine fallback now, for the moments before context lands — not the
+    // permanent state it was while the old endpoint 403'd. Kept in step with
+    // `DEFAULT_RETAIL_TENDER_POLICY` in `lib/retail/tender-policy.ts`.
     requiredReferenceTenders:
-      tenderPolicyQuery.data?.data.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
-    minReferenceLength: tenderPolicyQuery.data?.data.minReferenceLength ?? 4,
+      posContextQuery.data?.data.rules?.requiredReferenceTenders ?? ["CARD", "MOBILE_MONEY"],
+    minReferenceLength: posContextQuery.data?.data.rules?.minReferenceLength ?? 4,
     lastCompletedSale,
     dismissCompletedSale: () => setLastCompletedSale(null),
   };

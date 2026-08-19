@@ -35,6 +35,8 @@ import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
+import { canRetailRoleDo } from "./permissions";
+
 const RETAIL_API = join(process.cwd(), "app/api/v2/retail");
 
 /**
@@ -71,6 +73,14 @@ const GUARD_MARKERS = [
    * and the six reads it now stands in front of have left the allowlist below.
    */
   "requireRetailPermission",
+  /**
+   * S-7.7. The same matrix read as a boolean, for handlers that answer "may
+   * this caller do it *or* has a manager approved it here" rather than simply
+   * refusing. The two reversal endpoints need that shape: the POS portal admits
+   * only cashiers, and `RUN_A_TILL` withholds `refund` and `void`, so a flat
+   * refusal would put reversals out of reach of the shop floor entirely.
+   */
+  "canRetailRoleDo",
 ];
 
 /**
@@ -228,5 +238,75 @@ describe("retail API handler guards", () => {
       expect(h.source).toMatch(/requireRetailSession|validateSession|requireApiAuth/);
       expect(h.source).toContain("companyId");
     });
+  });
+});
+
+/**
+ * Reversals are gated on the matrix, never on the role list.
+ *
+ * S-7.7. `requireRetailPos` admits `RETAIL_MANAGER_ROLES` **plus `CASHIER`**,
+ * and `pos/sales/[id]/refund` and `.../void` both used it — so a cashier could
+ * POST either endpoint and reverse a posted sale. `RUN_A_TILL` in
+ * `lib/retail/permissions.ts` grants `view`, `create`, `open-shift` and
+ * `close-shift` and deliberately withholds `refund` and `void`; the till's own
+ * history screen hides both buttons accordingly. The endpoints were the only
+ * thing that disagreed.
+ *
+ * The suite above could not catch it, and that is the point of this block: it
+ * asks "is there a gate?", and there was one — the wrong one. These two
+ * handlers are held to the specific gate rather than to any gate.
+ */
+describe("reversing a sale is a manager act", () => {
+  const REVERSALS: Array<{ key: string; action: "refund" | "void" }> = [
+    { key: "pos/sales/[id]/refund/route.ts POST", action: "refund" },
+    { key: "pos/sales/[id]/void/route.ts POST", action: "void" },
+  ];
+
+  /**
+   * Code only.
+   *
+   * The two handlers explain in a comment what they used to be gated on, and
+   * the words `requireRetailPos` appear there. Asserting against raw source
+   * would read the explanation as the thing it warns about.
+   */
+  function code(body: string) {
+    return body
+      .replace(/\/\*[\s\S]*?\*\//g, " ")
+      .replace(/\/\/[^\n]*/g, " ");
+  }
+
+  /** `label()` normalises to forward slashes, so the tail matches as written. */
+  function findHandler(key: string) {
+    return allHandlers.find((candidate) => candidate.key.endsWith(key));
+  }
+
+  it.each(REVERSALS)("$key gates on retail.sell $action", ({ key, action }) => {
+    const handler = findHandler(key);
+    expect(handler, `no handler found for ${key}`).toBeDefined();
+    if (!handler) return;
+
+    const source = code(handler.body);
+    // The caller is measured against the matrix for this exact action …
+    expect(source).toContain("canRetailRoleDo");
+    expect(source).toContain(`"retail.sell", "${action}"`);
+    // … and the only way past a refusal is a verified manager approval.
+    expect(source).toContain("verifyManagerOverride");
+    expect(source).toContain(`action: "${action}"`);
+  });
+
+  it.each(REVERSALS)("$key does not fall back to the role list", ({ key }) => {
+    const handler = findHandler(key);
+    expect(handler).toBeDefined();
+    // `requireRetailPos` here is the exact regression this block exists for.
+    expect(code(handler?.body ?? "")).not.toContain("requireRetailPos");
+  });
+
+  it("the matrix itself still withholds both from a cashier", () => {
+    // If this ever flips, the gates above stop meaning what they are here for.
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "refund")).toBe(false);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "void")).toBe(false);
+    expect(canRetailRoleDo("CASHIER", "retail.sell", "create")).toBe(true);
+    expect(canRetailRoleDo("MANAGER", "retail.sell", "refund")).toBe(true);
+    expect(canRetailRoleDo("MANAGER", "retail.sell", "void")).toBe(true);
   });
 });

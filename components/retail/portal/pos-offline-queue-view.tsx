@@ -57,6 +57,7 @@ import {
   classifyReplayedSale,
   type QueuedSaleVerdict,
 } from "@/lib/retail/offline-queue-verdict";
+import { queuedSaleLabel } from "@/lib/retail/pos-offline-queue";
 import {
   PosEmptyState,
   PosMetricCard,
@@ -295,7 +296,7 @@ export function PosOfflineQueueView() {
               <VerdictRow
                 key={operation.operationId}
                 verdict={verdict}
-                title={operation.payload.saleNo}
+                title={queuedSaleLabel(operation.payload)}
                 meta={`${lineCount} ${lineCount === 1 ? "line" : "lines"} · rung ${formatTime(operation.createdAt)}${
                   operation.payload.customerName ? ` · ${operation.payload.customerName}` : ""
                 }`}
@@ -328,7 +329,7 @@ export function PosOfflineQueueView() {
                         onClick={() => {
                           if (
                             window.confirm(
-                              `Drop ${operation.payload.saleNo} from the queue? The money is already in the drawer and this sale will never reach the system.`,
+                              `Drop ${queuedSaleLabel(operation.payload)} from the queue? The money is already in the drawer and this sale will never reach the system.`,
                             )
                           ) {
                             removeOfflineSale(operation.operationId);

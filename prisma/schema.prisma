@@ -4848,6 +4848,18 @@ model RetailSale {
   id             String    @id @default(uuid())
   companyId      String
   saleNo         String
+  /// S-7.7 — the till's key for one checkout attempt, and the only thing between
+  /// a lost response and a customer charged twice.
+  ///
+  /// The POS used to send its generated key as `saleNo` itself, so every receipt
+  /// carried a 19-digit `RSL-1787005857220984` where `reserveIdentifier` would
+  /// have allocated `S-005080`. Splitting the two lets the server number the
+  /// receipt for the human and the till key the attempt for the machine.
+  ///
+  /// Null on every sale rung before the split and on anything the back office
+  /// posts. Postgres treats NULLs as distinct in a unique index, so any number
+  /// of them coexist.
+  clientRef      String?
   shiftId        String?
   sourceSaleId   String?
   siteId         String
@@ -4895,6 +4907,7 @@ model RetailSale {
   reversals  RetailSale[] @relation("RetailSaleSource")
 
   @@unique([companyId, saleNo])
+  @@unique([companyId, clientRef])
   @@index([companyId, siteId, status, postedAt])
   @@index([shiftId])
 }

@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
-  requireRetailPos,
-  requireRetailSession,
-} from "../../../../_helpers";
+  managerOverrideSchema,
+  verifyManagerOverride,
+  withApprover,
+} from "@/lib/retail/manager-override";
+import { requireRetailSession } from "../../../../_helpers";
 import { voidRetailSaleTransaction } from "../../../../_services";
 
 const voidSchema = z.object({
@@ -12,6 +15,8 @@ const voidSchema = z.object({
   reason: z.string().min(3).max(240),
   periodOverrideReason: z.string().max(500).optional().nullable(),
   notes: z.string().max(500).optional().nullable(),
+  /** A manager approving this at the till. See the refund route beside this one. */
+  managerOverride: managerOverrideSchema.optional(),
 });
 
 export async function POST(
@@ -23,13 +28,38 @@ export async function POST(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
-  if (gate) return gate;
-
+  /*
+    The matrix, not the role list — `requireRetailPos` admitted a cashier, who
+    `RUN_A_TILL` deliberately does not grant `void`. See the refund route beside
+    this one for the full reasoning.
+  */
   try {
     const { id } = await params;
     const body = await request.json();
     const input = voidSchema.parse(body);
+
+    /*
+      The matrix, or a manager standing here. `requireRetailPos` used to admit a
+      cashier, who `RUN_A_TILL` deliberately does not grant `void`; the override
+      is what keeps voids reachable at a till the portal admits only cashiers
+      to. See the refund route beside this one for the full reasoning.
+    */
+    let reason = input.reason.trim();
+    let approvedBy: { id: string; name: string } | null = null;
+    if (!canRetailRoleDo(session.user.role, "retail.sell", "void")) {
+      if (!input.managerOverride) {
+        return errorResponse("A manager must approve this void", 403);
+      }
+      const approval = await verifyManagerOverride({
+        companyId: session.user.companyId,
+        override: input.managerOverride,
+        action: "void",
+      });
+      if (!approval.ok) return errorResponse(approval.error, 403);
+      reason = withApprover(reason, approval.approver.name);
+      approvedBy = approval.approver;
+    }
+
     const { sale, accounting } = await voidRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -40,7 +70,10 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      reason: input.reason,
+      // Carries the approver's name when a manager signed this off at the counter.
+      reason,
+      // And the approval itself, so the service's own role guard knows about it.
+      approvedBy,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
     });

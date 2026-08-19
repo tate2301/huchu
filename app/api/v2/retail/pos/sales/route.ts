@@ -59,6 +59,15 @@ const managerOverrideSchema = z
 
 const saleSchema = z.object({
   saleNo: z.string().min(1).max(50).optional(),
+  /**
+   * S-7.7 — the till's key for one checkout attempt.
+   *
+   * The POS sends this and *not* `saleNo`, so the receipt gets a readable
+   * `S-005080` off `reserveIdentifier` while a replay of the same attempt still
+   * returns the existing sale instead of charging twice. `saleNo` stays
+   * accepted for callers that genuinely want to name a sale.
+   */
+  clientRef: z.string().min(1).max(80).optional(),
   shiftId: z.string().uuid(),
   siteId: z.string().uuid().optional(),
   customerId: z.string().uuid().optional().nullable(),
@@ -820,6 +829,7 @@ export async function POST(request: NextRequest) {
         userEmail: session.user.email,
       },
       saleNo: input.saleNo ?? null,
+      clientRef: input.clientRef ?? null,
       shiftId: shift.id,
       siteId: site.id,
       customerName: resolvedCustomerName,

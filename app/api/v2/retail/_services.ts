@@ -535,6 +535,15 @@ export async function createRetailSaleTransaction(input: {
   shiftId: string;
   siteId: string;
   saleNo?: string | null;
+  /**
+   * S-7.7 — the caller's key for this one checkout attempt.
+   *
+   * Supply this instead of `saleNo` and the sale gets a readable number off
+   * `reserveIdentifier` while retries stay safe: a replay of the same attempt
+   * collides on `@@unique([companyId, clientRef])` and returns the sale that
+   * already exists rather than charging the customer a second time.
+   */
+  clientRef?: string | null;
   customerName?: string | null;
   subtotal: number;
   discountAmount: number;
@@ -607,6 +616,33 @@ export async function createRetailSaleTransaction(input: {
   const providedCode = input.saleNo
     ? normalizeProvidedId(input.saleNo, "RETAIL_SALE")
     : null;
+  const clientRef = input.clientRef?.trim() || null;
+
+  /**
+   * The same attempt, arriving twice.
+   *
+   * Checked before doing any work rather than only in the `P2002` handler
+   * below. The exception path is the backstop for a genuine race; this is the
+   * ordinary case — the till posted, the response was lost, the sale was queued
+   * and `pos/sync` is now replaying it minutes later. Letting that reach the
+   * insert would allocate a second receipt number and post a second set of
+   * journal lines before the constraint threw them away.
+   */
+  if (clientRef) {
+    const alreadyPosted = await prisma.retailSale.findFirst({
+      where: { companyId: input.actor.companyId, clientRef },
+      include: { lines: true, payments: true },
+    });
+    if (alreadyPosted) {
+      const accounting = await ensureRetailSaleAccountingPosted({
+        actor: input.actor,
+        sale: alreadyPosted,
+        registerCode: shift.registerCode,
+        periodOverrideReason: input.periodOverrideReason ?? null,
+      });
+      return { sale: alreadyPosted, accounting };
+    }
+  }
 
   for (let attempt = 0; attempt < 5; attempt += 1) {
     const saleNo =
@@ -660,6 +696,7 @@ export async function createRetailSaleTransaction(input: {
           data: {
             companyId: input.actor.companyId,
             saleNo,
+            clientRef,
             shiftId: shift.id,
             siteId: site.id,
             cashierId: input.actor.userId,
@@ -775,12 +812,18 @@ export async function createRetailSaleTransaction(input: {
       if (
         error instanceof Prisma.PrismaClientKnownRequestError &&
         error.code === "P2002" &&
-        providedCode
+        (providedCode || clientRef)
       ) {
+        /*
+          Two attempts raced and the constraint caught the loser. Whichever key
+          the caller supplied is the one to look the winner up by — `clientRef`
+          first, because a caller that sends both means the attempt, not the
+          number.
+        */
         const existing = await prisma.retailSale.findFirst({
           where: {
             companyId: input.actor.companyId,
-            saleNo: providedCode,
+            ...(clientRef ? { clientRef } : { saleNo: providedCode as string }),
           },
           include: { lines: true, payments: true },
         });
@@ -818,8 +861,25 @@ export async function refundRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /**
+   * S-7.7 — a manager who approved this at the counter, already verified.
+   *
+   * The actor stays the cashier: they rang it, the drawer is theirs, and the
+   * shift it lands against is theirs. This says somebody with the authority
+   * stood there and said yes. Only `lib/retail/manager-override.ts` produces
+   * one, and only after checking the approver's role against the matrix and
+   * their password with bcrypt.
+   */
+  approvedBy?: { id: string; name: string } | null;
 }) {
-  if (!canManageRetailTransactions(input.actor.userRole)) {
+  /*
+    Defence in depth, and it has to know about the approval or it is simply a
+    fourth opinion. This guard fired on the first refund driven end to end: the
+    route had verified a manager, and the service refused anyway because the
+    actor was still the cashier — a 400 reading "Only retail managers can
+    process refunds" on a refund a manager had just authorised.
+  */
+  if (!canManageRetailTransactions(input.actor.userRole) && !input.approvedBy) {
     throw new Error("Only retail managers can process refunds");
   }
 
@@ -1103,8 +1163,10 @@ export async function voidRetailSaleTransaction(input: {
   notes?: string | null;
   periodOverrideReason?: string | null;
   postedAt?: Date;
+  /** A manager who approved this at the counter. See the refund above. */
+  approvedBy?: { id: string; name: string } | null;
 }) {
-  if (!canManageRetailTransactions(input.actor.userRole)) {
+  if (!canManageRetailTransactions(input.actor.userRole) && !input.approvedBy) {
     throw new Error("Only retail managers can void sales");
   }
 

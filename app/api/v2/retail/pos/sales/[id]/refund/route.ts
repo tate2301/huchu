@@ -1,10 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
+import { canRetailRoleDo } from "@/lib/retail/permissions";
 import {
-  requireRetailPos,
-  requireRetailSession,
-} from "../../../../_helpers";
+  managerOverrideSchema,
+  verifyManagerOverride,
+  withApprover,
+} from "@/lib/retail/manager-override";
+import { requireRetailSession } from "../../../../_helpers";
 import { refundRetailSaleTransaction } from "../../../../_services";
 
 const refundLineSchema = z.object({
@@ -25,6 +28,15 @@ const refundSchema = z.object({
   notes: z.string().max(500).optional().nullable(),
   lines: z.array(refundLineSchema).min(1),
   payments: z.array(refundPaymentSchema).min(1),
+  /**
+   * A manager approving this at the till, when the cashier may not.
+   *
+   * The refund has to be rung at a till because the cash comes out of a real
+   * drawer and lands against `shiftId` at cash-up — a manager in the back
+   * office has no drawer to take it from. So the manager comes to the counter
+   * and approves the one act. See `lib/retail/manager-override.ts`.
+   */
+  managerOverride: managerOverrideSchema.optional(),
 });
 
 export async function POST(
@@ -36,13 +48,44 @@ export async function POST(
     return response as NextResponse;
   }
 
-  const gate = requireRetailPos(session);
-  if (gate) return gate;
-
   try {
     const { id } = await params;
     const body = await request.json();
     const input = refundSchema.parse(body);
+
+    /**
+     * S-7.7 — the matrix, or a manager standing here.
+     *
+     * This used to be `requireRetailPos`, which admits `RETAIL_MANAGER_ROLES`
+     * **plus `CASHIER`** — so a cashier could POST a refund straight at this
+     * endpoint and reverse a posted sale that the till's own history screen
+     * would never have offered them a button for. `RUN_A_TILL` in
+     * `lib/retail/permissions.ts` withholds `refund` deliberately. The endpoint
+     * being the only thing that disagreed is what made it a hole rather than a
+     * difference of opinion, and `route-guard-coverage.test.ts` could not see
+     * it because there *was* a gate here — just the wrong one.
+     *
+     * The override is the other half. Withholding `refund` from a cashier left
+     * reversals unreachable from the shop floor entirely, because the portal
+     * admits nobody else. A manager approves the one act at the counter, and
+     * their name goes onto the reversal.
+     */
+    let reason = input.reason.trim();
+    let approvedBy: { id: string; name: string } | null = null;
+    if (!canRetailRoleDo(session.user.role, "retail.sell", "refund")) {
+      if (!input.managerOverride) {
+        return errorResponse("A manager must approve this refund", 403);
+      }
+      const approval = await verifyManagerOverride({
+        companyId: session.user.companyId,
+        override: input.managerOverride,
+        action: "refund",
+      });
+      if (!approval.ok) return errorResponse(approval.error, 403);
+      reason = withApprover(reason, approval.approver.name);
+      approvedBy = approval.approver;
+    }
+
     const { sale, accounting } = await refundRetailSaleTransaction({
       actor: {
         companyId: session.user.companyId,
@@ -53,7 +96,10 @@ export async function POST(
       },
       saleId: id,
       shiftId: input.shiftId,
-      reason: input.reason,
+      // Carries the approver's name when a manager signed this off at the counter.
+      reason,
+      // And the approval itself, so the service's own role guard knows about it.
+      approvedBy,
       notes: input.notes ?? null,
       periodOverrideReason: input.periodOverrideReason ?? null,
       lines: input.lines,

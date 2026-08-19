@@ -44,6 +44,98 @@ export function PosHistoryView() {
   const [voidReason, setVoidReason] = useState("");
   const [voidNotes, setVoidNotes] = useState("");
 
+  /**
+   * S-7.7 — the manager standing at the counter.
+   *
+   * Refund and Void used to render only when `canOverride`, which is
+   * `isManagerRole(currentShift?.actorRole)`. The POS portal admits `CASHIER`
+   * and `POS_CASHIER` and nobody else, so that condition could never be true
+   * at a till: **both buttons were unreachable by every user who can reach this
+   * screen.** The contract lists refunding and voiding as POS surfaces and they
+   * were, in practice, not there at all.
+   *
+   * They render now for whoever has the shift open, and a cashier is asked for
+   * a manager's approval inside the dialog — verified server-side against the
+   * same matrix, with the approver's name written onto the reversal. Kept in
+   * component state and cleared the moment the dialog closes: this is one
+   * approval for one act, never a session.
+   */
+  const [approverEmail, setApproverEmail] = useState("");
+  const [approverPassword, setApproverPassword] = useState("");
+
+  /**
+   * The two fields a manager fills in at the counter.
+   *
+   * Deliberately plain: no "remember me", no autofill hint, `autoComplete` off,
+   * and the value never leaves component state. A till is a shared device on a
+   * shop floor, and a manager's password lingering in it — in a form, in a
+   * password manager, in the next cashier's session — is a worse outcome than
+   * the refund being slightly slower to key.
+   *
+   * An element, not a component. Declaring `const ManagerApproval = () => …`
+   * inside the render and mounting it as `<ManagerApproval />` makes a fresh
+   * component *type* every render, so React unmounts and remounts the subtree —
+   * and the manager loses the caret after each character they type.
+   */
+  const managerApproval = (
+    <div
+      className="space-y-3 rounded-xl px-4 py-4 ring-1"
+      style={{
+        background: "var(--pos-status-warning-bg)",
+        boxShadow: `inset 0 0 0 1px var(--pos-status-warning-ring)`,
+      }}
+    >
+      <div>
+        <div className="text-sm font-semibold text-[var(--pos-status-warning-text)]">
+          A manager has to approve this
+        </div>
+        <p className="mt-1 text-xs leading-5 text-[var(--text-muted)]">
+          Reversing a sale is not a till permission. Ask the manager to key their own
+          login here — it approves this one reversal and nothing else, and their name
+          is recorded against it.
+        </p>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        <Input
+          type="email"
+          autoComplete="off"
+          value={approverEmail}
+          onChange={(event) => setApproverEmail(event.target.value)}
+          placeholder="Manager email"
+          className="h-11"
+        />
+        <Input
+          type="password"
+          autoComplete="new-password"
+          value={approverPassword}
+          onChange={(event) => setApproverPassword(event.target.value)}
+          placeholder="Manager password"
+          className="h-11"
+        />
+      </div>
+    </div>
+  );
+
+  const needsApproval = !canOverride;
+  const approvalReady =
+    !needsApproval || (approverEmail.trim().length > 0 && approverPassword.length > 0);
+
+  const forgetApproval = () => {
+    setApproverEmail("");
+    setApproverPassword("");
+  };
+
+  /** The `managerOverride` body field, or nothing when the caller may act alone. */
+  const approvalPayload = () =>
+    needsApproval
+      ? {
+          managerOverride: {
+            managerEmail: approverEmail.trim(),
+            managerPassword: approverPassword,
+          },
+        }
+      : {};
+
   const salesQuery = useQuery({
     queryKey: ["retail-pos-sales", search],
     queryFn: () =>
@@ -98,11 +190,13 @@ export function PosHistoryView() {
               amount: payment.amountValue,
               reference: payment.reference.trim() || undefined,
             })),
+          ...approvalPayload(),
         }),
       }),
     onSuccess: () => {
       toast({ title: "Refund posted", variant: "success" });
       setRefundDialog(false);
+      forgetApproval();
       setRefundReason("");
       setRefundNotes("");
       setRefundAmounts({});
@@ -127,11 +221,13 @@ export function PosHistoryView() {
           shiftId: currentShift?.id,
           reason: voidReason.trim(),
           notes: voidNotes.trim() || undefined,
+          ...approvalPayload(),
         }),
       }),
     onSuccess: () => {
       toast({ title: "Sale voided", variant: "success" });
       setVoidDialog(false);
+      forgetApproval();
       setVoidReason("");
       setVoidNotes("");
       queryClient.invalidateQueries({ queryKey: ["retail-pos-sales"] });
@@ -477,7 +573,15 @@ export function PosHistoryView() {
                         </div>
                       )}
 
-                      {canOverride && currentShift && selectedSale.saleType === "SALE" && selectedSale.status === "POSTED" ? (
+                      {/*
+                        `canOverride` no longer gates this. It is
+                        `isManagerRole(shift.actorRole)`, and the POS portal
+                        admits only cashiers — so gating on it hid both buttons
+                        from every user who can open this screen. A cashier sees
+                        them now and is asked for a manager's approval inside
+                        the dialog; the server verifies it.
+                      */}
+                      {currentShift && selectedSale.saleType === "SALE" && selectedSale.status === "POSTED" ? (
                         <div className="flex gap-2">
                           <Button
                             type="button"
@@ -738,9 +842,18 @@ export function PosHistoryView() {
                 </div>
               </div>
             </div>
+
+            {needsApproval ? managerApproval : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setRefundDialog(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setRefundDialog(false);
+                forgetApproval();
+              }}
+            >
               Cancel
             </Button>
             <Button
@@ -750,7 +863,8 @@ export function PosHistoryView() {
                 refundMutation.isPending ||
                 refundTotal <= 0 ||
                 !refundReason.trim() ||
-                Math.abs(refundPaymentSummary.tenderedTotal - refundTotal) > 0.01
+                Math.abs(refundPaymentSummary.tenderedTotal - refundTotal) > 0.01 ||
+                !approvalReady
               }
             >
               Post refund
@@ -818,16 +932,25 @@ export function PosHistoryView() {
                 placeholder="Optional context for the audit trail"
               />
             </div>
+
+            {needsApproval ? managerApproval : null}
           </div>
           <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setVoidDialog(false)}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                setVoidDialog(false);
+                forgetApproval();
+              }}
+            >
               Cancel
             </Button>
             <Button
               type="button"
               variant="destructive"
               onClick={() => voidMutation.mutate()}
-              disabled={voidMutation.isPending || !voidReason.trim()}
+              disabled={voidMutation.isPending || !voidReason.trim() || !approvalReady}
             >
               Void sale
             </Button>
