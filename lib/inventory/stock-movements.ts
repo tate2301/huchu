@@ -17,6 +17,7 @@
 import type { AccountingSourceType, Prisma, StockMovement } from "@prisma/client";
 
 import { reserveIdentifier } from "@/lib/id-generator";
+import { money, quantity as toQuantity, type MoneyLike, ZERO } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
 export type StockMovementType = "RECEIPT" | "ISSUE" | "ADJUSTMENT" | "TRANSFER";
@@ -39,11 +40,19 @@ export type RecordStockMovementInput = {
   userId: string;
   itemId: string;
   movementType: StockMovementType;
-  /** Signed for `ADJUSTMENT`; magnitude is used for everything else. */
-  quantity: number;
+  /**
+   * Signed for `ADJUSTMENT`; magnitude is used for everything else.
+   *
+   * S-1 — `MoneyLike`, not `number`. Callers hold on-hand as `Decimal` now, and
+   * a signature that took `number` forced every one of them to convert on the
+   * way in and back on the way out. Two conversions per call is two chances to
+   * put a double between a count and the column it lands in.
+   */
+  quantity: MoneyLike;
   /** Must match the item's unit — a movement in the wrong unit is a wrong count. */
   unit: string;
-  unitCost?: number | null;
+  /** Money, at `Decimal(14,2)`. What the shop paid for one of these. */
+  unitCost?: MoneyLike;
   notes?: string | null;
   /** Required for `TRANSFER`, recorded but inert for the rest. */
   toLocationId?: string | null;
@@ -68,16 +77,27 @@ export type RecordStockMovementInput = {
 
 export type RecordStockMovementResult = {
   movement: StockMovement;
-  previousStock: number;
-  nextStock: number;
+  /*
+    S-1 — `Decimal`, matching the column.
+
+    These were `number`, which meant every caller that reported an on-hand
+    figure took it back out of a double after the row had gone in as `numeric`.
+    A caller that wants a number says so with `toNumberOrZero`; a caller that
+    is about to do arithmetic no longer has to.
+  */
+  previousStock: Prisma.Decimal;
+  nextStock: Prisma.Decimal;
   /** Where the line sits afterwards. Only a `TRANSFER` changes it. */
   locationId: string;
 };
 
-/** Float on-hand against a typed-in decimal: compare at a sane precision. */
-function sameQuantity(a: number, b: number) {
-  return Number(a.toFixed(6)) === Number(b.toFixed(6));
-}
+/*
+  S-1. This was `Number(a.toFixed(6)) === Number(b.toFixed(6))` — an epsilon
+  comparison, the exact pattern R-1.1 retired from retail, surviving here because
+  on-hand was a double and `===` on two doubles is a coin toss. With both sides
+  `Decimal` the comparison is exact and the helper is gone; `.equals()` says it
+  better than a named function could.
+*/
 
 export async function recordStockMovement(
   input: RecordStockMovementInput,
@@ -97,8 +117,9 @@ export async function recordStockMovement(
     throw new Error("Stock unit mismatch.");
   }
 
-  const absoluteQuantity = Math.abs(input.quantity);
-  if (input.movementType === "ISSUE" && item.currentStock < absoluteQuantity) {
+  const requested = toQuantity(input.quantity);
+  const absoluteQuantity = requested.abs();
+  if (input.movementType === "ISSUE" && item.currentStock.lessThan(absoluteQuantity)) {
     throw new Error("Insufficient stock.");
   }
 
@@ -106,11 +127,13 @@ export async function recordStockMovement(
   let nextLocationId = item.locationId;
 
   if (input.movementType === "RECEIPT") {
-    nextStock += absoluteQuantity;
+    nextStock = nextStock.plus(absoluteQuantity);
   } else if (input.movementType === "ISSUE") {
-    nextStock -= absoluteQuantity;
+    nextStock = nextStock.minus(absoluteQuantity);
   } else if (input.movementType === "ADJUSTMENT") {
-    nextStock += input.quantity;
+    // Signed on purpose: an adjustment is the one movement that can go either
+    // way, and `requested` keeps the sign `absoluteQuantity` threw away.
+    nextStock = nextStock.plus(requested);
   } else {
     // TRANSFER — the one movement that changes a location and not a quantity.
     //
@@ -159,7 +182,7 @@ export async function recordStockMovement(
     if (destination.id === item.locationId) {
       throw new Error("Transfer destination must differ from the source location.");
     }
-    if (!sameQuantity(absoluteQuantity, item.currentStock)) {
+    if (!absoluteQuantity.equals(item.currentStock)) {
       throw new Error(
         `A transfer moves the whole stock line, because on-hand is held per site and not ` +
           `per location: ${item.currentStock} ${item.unit} on hand, ${absoluteQuantity} requested.`,
@@ -169,7 +192,7 @@ export async function recordStockMovement(
     nextLocationId = destination.id;
   }
 
-  if (nextStock < 0) {
+  if (nextStock.lessThan(ZERO)) {
     throw new Error("Stock cannot be negative.");
   }
 
@@ -195,7 +218,9 @@ export async function recordStockMovement(
         itemId: input.itemId,
         toLocationId: input.toLocationId ?? undefined,
         movementType: input.movementType,
-        quantity: input.movementType === "ADJUSTMENT" ? input.quantity : absoluteQuantity,
+        // `requested` is `input.quantity` already through `quantity()`, so the row
+        // and the on-hand figure it moves are rounded by the same rule.
+        quantity: input.movementType === "ADJUSTMENT" ? requested : absoluteQuantity,
         unit: input.unit,
         notes: input.notes ?? undefined,
         issuedTo: input.issuedTo ?? undefined,
@@ -214,7 +239,9 @@ export async function recordStockMovement(
       data: {
         currentStock: nextStock,
         ...(nextLocationId !== item.locationId ? { locationId: nextLocationId } : {}),
-        ...(input.unitCost !== undefined && input.unitCost !== null ? { unitCost: input.unitCost } : {}),
+        ...(input.unitCost !== undefined && input.unitCost !== null
+          ? { unitCost: money(input.unitCost) }
+          : {}),
       },
     });
 

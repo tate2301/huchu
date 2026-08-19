@@ -19,6 +19,8 @@
  */
 import type { Prisma } from "@prisma/client";
 
+import { quantity, type MoneyLike } from "@/lib/money";
+
 import {
   facts,
   SEARCH_PER_TYPE_LIMIT,
@@ -45,13 +47,24 @@ export const OPERATIONS_SEARCH_FEATURES: Record<OperationsSearchType, string> = 
 };
 
 /** Stock on hand, with its unit, and the shortfall said plainly. */
+/**
+ * S-1 — takes `MoneyLike` rather than `number`.
+ *
+ * `currentStock` and `minStock` are `Decimal(12,4)` now, and the comparison
+ * below is what decides whether a searcher is told to raise a requisition.
+ * Coercing both to numbers to compare them would put a float back in the one
+ * place in this function that matters.
+ */
 function stockLevel(item: {
-  currentStock: number;
-  minStock: number | null;
+  currentStock: MoneyLike;
+  minStock: MoneyLike;
   unit: string;
 }): string {
-  const level = `${item.currentStock} ${item.unit}`;
-  return item.minStock !== null && item.currentStock < item.minStock
+  const onHand = quantity(item.currentStock);
+  const level = `${onHand.toString()} ${item.unit}`;
+  return item.minStock !== null &&
+    item.minStock !== undefined &&
+    onHand.lessThan(quantity(item.minStock))
     ? `${level} — below minimum`
     : level;
 }

@@ -240,7 +240,11 @@ export async function loadShelfListings(
         id: stock.id,
         itemCode: stock.itemCode,
         name: stock.name,
-        currentStock: stock.currentStock,
+        // S-1 — the column is `Decimal(12,4)` now. `ShelfListing` is a wire
+        // type and stays `number`: it crosses JSON to a till that has no
+        // Decimal, and a bottle count is not a figure anything downstream does
+        // money arithmetic on.
+        currentStock: toNumberOrZero(stock.currentStock),
         unit: stock.unit,
         locationId: stock.locationId,
       },
@@ -323,9 +327,12 @@ export async function loadSellableProducts(input: {
         id: row.id,
         itemCode: row.itemCode,
         name: row.name,
-        currentStock: row.currentStock,
+        currentStock: toNumberOrZero(row.currentStock),
         unit: row.unit,
-        unitCost: row.unitCost,
+        // `unitCost` is money and this one keeps its null: an item with no cost
+        // recorded is not an item that cost nothing, and the margin column has
+        // to be able to say so.
+        unitCost: row.unitCost === null ? null : toNumberOrZero(row.unitCost),
         locationId: row.locationId,
       },
     });

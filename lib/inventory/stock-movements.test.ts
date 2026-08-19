@@ -6,10 +6,22 @@
  * or a rule that was written nowhere at all. `TRANSFER` is the second kind: it
  * fell through every branch, so a transfer wrote a movement row, posted an
  * accounting event, and moved nothing.
+ *
+ * ## Quantities are `Decimal`, and the assertions say so
+ *
+ * S-1 moved `InventoryItem.currentStock` and `StockMovement.quantity` off
+ * `Float`. Every assertion below reads through `qty()`, which compares with
+ * `Decimal.equals` and renders both sides at four places on failure.
+ *
+ * `toBe(36)` would not merely fail — it would fail *misleadingly*, printing
+ * "expected 36 to be 36" beside a Decimal object. Worse, `toEqual` on a Decimal
+ * and a number passes for the wrong reason on some shapes. An exact comparison
+ * is the point of the conversion; the test has to make it.
  */
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
+import { quantity, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 
 import { recordStockMovement } from "./stock-movements";
@@ -26,6 +38,16 @@ let otherSiteLocationId: string;
 let itemId: string;
 
 const UNIT = "EACH";
+
+/**
+ * A quantity, at four places, as a string.
+ *
+ * Both sides go through the same rounding, so the comparison is exact and a
+ * failure prints two readable numbers rather than two Decimal internals.
+ */
+function qty(value: MoneyLike): string {
+  return quantity(value).toFixed(4);
+}
 
 async function onHand(id: string) {
   const item = await prisma.inventoryItem.findUniqueOrThrow({
@@ -150,10 +172,10 @@ describe("recordStockMovement", () => {
       sourceId: "receipt-1",
     });
 
-    expect(previousStock).toBe(24);
-    expect(nextStock).toBe(36);
-    expect(movement.quantity).toBe(12);
-    expect((await onHand(itemId)).currentStock).toBe(36);
+    expect(qty(previousStock)).toBe(qty(24));
+    expect(qty(nextStock)).toBe(qty(36));
+    expect(qty(movement.quantity)).toBe(qty(12));
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(36));
   });
 
   it("lowers on-hand for an issue", async () => {
@@ -170,8 +192,8 @@ describe("recordStockMovement", () => {
       sourceId: "sale-1",
     });
 
-    expect(nextStock).toBe(30);
-    expect((await onHand(itemId)).currentStock).toBe(30);
+    expect(qty(nextStock)).toBe(qty(30));
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
   it("refuses to issue more than is on the shelf", async () => {
@@ -190,7 +212,7 @@ describe("recordStockMovement", () => {
       }),
     ).rejects.toThrow("Insufficient stock.");
 
-    expect((await onHand(itemId)).currentStock).toBe(30);
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
   it("moves a same-site transfer's location and leaves the count alone", async () => {
@@ -211,8 +233,8 @@ describe("recordStockMovement", () => {
     });
 
     const after = await onHand(itemId);
-    expect(nextStock).toBe(30);
-    expect(after.currentStock).toBe(30);
+    expect(qty(nextStock)).toBe(qty(30));
+    expect(qty(after.currentStock)).toBe(qty(30));
     expect(locationId).toBe(shopFloorId);
     expect(after.locationId).toBe(shopFloorId);
     expect(movement.toLocationId).toBe(shopFloorId);
@@ -257,7 +279,7 @@ describe("recordStockMovement", () => {
 
     const after = await onHand(itemId);
     expect(after.locationId).toBe(storeroomId);
-    expect(after.currentStock).toBe(30);
+    expect(qty(after.currentStock)).toBe(qty(30));
   });
 
   it("refuses a movement in the wrong unit", async () => {
@@ -276,7 +298,7 @@ describe("recordStockMovement", () => {
       }),
     ).rejects.toThrow("Stock unit mismatch.");
 
-    expect((await onHand(itemId)).currentStock).toBe(30);
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
   it("refuses to touch another tenant's stock", async () => {
@@ -295,7 +317,7 @@ describe("recordStockMovement", () => {
       }),
     ).rejects.toThrow("Invalid inventory item.");
 
-    expect((await onHand(itemId)).currentStock).toBe(30);
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(30));
   });
 
   it("writes what caused the movement onto the row", async () => {
@@ -321,7 +343,7 @@ describe("recordStockMovement", () => {
     expect(stored.sourceType).toBe("RETAIL_STOCK_ADJUSTMENT");
     expect(stored.sourceId).toBe("stock-count-1");
     // An adjustment keeps its sign: a count that came up short is a negative.
-    expect(stored.quantity).toBe(-2);
-    expect((await onHand(itemId)).currentStock).toBe(28);
+    expect(qty(stored.quantity)).toBe(qty(-2));
+    expect(qty((await onHand(itemId)).currentStock)).toBe(qty(28));
   });
 });

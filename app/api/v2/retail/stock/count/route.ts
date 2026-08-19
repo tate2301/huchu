@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { money, multiplyMoney, quantity, toNumberOrZero, ZERO } from "@/lib/money";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
@@ -48,8 +49,17 @@ export async function POST(request: NextRequest) {
       return errorResponse("Invalid inventory item for the selected site", 400);
     }
 
-    const variance = Number((input.countedStock - item.currentStock).toFixed(2));
-    if (variance === 0) {
+    /*
+      S-1. This was `Number((counted - onHand).toFixed(2))` — a subtraction of
+      two doubles rounded to two places, then compared with `=== 0`. Two of
+      those three steps were wrong: the rounding threw away the two further
+      places the column actually holds, and `=== 0` on a float difference is the
+      comparison R-1.1 exists to end. A count that matched to four places and
+      differed at the fifth reported "no adjustment needed" or posted a
+      phantom one, depending on which way the double fell.
+    */
+    const variance = quantity(input.countedStock).minus(quantity(item.currentStock));
+    if (variance.isZero()) {
       return errorResponse("Counted stock matches current stock; no adjustment needed", 400);
     }
 
@@ -66,36 +76,36 @@ export async function POST(request: NextRequest) {
       sourceId: `stock-adjustment:${item.id}:${Date.now()}`,
     });
 
-    const adjustmentValue = Math.abs(variance) * Math.abs(item.unitCost ?? 0);
+    const adjustmentValue = multiplyMoney(variance.abs(), money(item.unitCost ?? 0).abs());
     const accounting =
-      adjustmentValue > 0
+      adjustmentValue.greaterThan(ZERO)
         ? await postRetailJournal({
             companyId: session.user.companyId,
             sourceType: "RETAIL_STOCK_ADJUSTMENT",
             sourceId: movement.id,
-            sourceSubtype: variance < 0 ? "LOSS" : "GAIN",
+            sourceSubtype: variance.isNegative() ? "LOSS" : "GAIN",
             siteId: site.id,
             entryDate: new Date(),
             description: `Retail stock adjustment ${movement.referenceId}`,
             createdById: session.user.id,
             actorRole: session.user.role,
             periodOverrideReason: input.periodOverrideReason ?? null,
-            amount: adjustmentValue,
-            netAmount: adjustmentValue,
+            amount: toNumberOrZero(adjustmentValue),
+            netAmount: toNumberOrZero(adjustmentValue),
             taxAmount: 0,
-            grossAmount: adjustmentValue,
-            invertDirection: variance < 0,
+            grossAmount: toNumberOrZero(adjustmentValue),
+            invertDirection: variance.isNegative(),
             inventory: {
               lines: [
                 {
                   inventoryItemId: item.id,
                   itemName: item.name,
-                  quantity: Math.abs(variance),
-                  unitCost: Math.abs(item.unitCost ?? 0),
-                  totalCost: adjustmentValue,
+                  quantity: toNumberOrZero(variance.abs()),
+                  unitCost: toNumberOrZero(money(item.unitCost ?? 0).abs()),
+                  totalCost: toNumberOrZero(adjustmentValue),
                 },
               ],
-              totalCost: adjustmentValue,
+              totalCost: toNumberOrZero(adjustmentValue),
             },
           })
         : { accountingStatus: "POSTED", accountingError: null };

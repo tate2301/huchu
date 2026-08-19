@@ -4150,10 +4150,20 @@ model InventoryItem {
   unit         String // litres, kg, pieces, etc.
   siteId       String
   locationId   String
-  currentStock Float   @default(0)
-  minStock     Float?
-  maxStock     Float?
-  unitCost     Float?
+  /// S-1 — `Decimal`, not `Float`. These four were the last of the eleven
+  /// columns §1.4 named, deferred while the pricing six went first because 38
+  /// files read them. Quantities are `Decimal(12,4)`: this column holds whole
+  /// bottles in a bottle store, litres of diesel at a mine and grams of gold in
+  /// a pour, and four places is what the last two need.
+  currentStock Decimal @default(0) @db.Decimal(12, 4)
+  minStock     Decimal? @db.Decimal(12, 4)
+  maxStock     Decimal? @db.Decimal(12, 4)
+  /// The odd one out, and the reason this ticket mattered: `unitCost` **is
+  /// money**. A goods receipt writes it, `RetailSaleLine.costUnit` is copied
+  /// from it, and every margin figure retail reports is computed against it —
+  /// summed across thousands of lines before anybody looks, which is exactly
+  /// where a double's drift stops being invisible.
+  unitCost     Decimal? @db.Decimal(14, 2)
   /// The catalogue item this stock is of. Optional: plenty of stock (fuel,
   /// consumables) is never sold and needs no catalogue entry at all.
   productId    String?
@@ -4188,7 +4198,10 @@ model StockMovement {
   itemId       String
   toLocationId String?
   movementType MovementType
-  quantity     Float
+  /// S-1 — `Decimal(12,4)`, the quantity scale. Applied by
+  /// `scripts/inventory-quantity-decimal.ts`; `prisma db push` cannot reach this
+  /// database.
+  quantity     Decimal @db.Decimal(12, 4)
   unit         String
   issuedTo     String? // section/equipment/cost code
   requestedBy  String?

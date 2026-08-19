@@ -92,6 +92,20 @@ export function rate(value: MoneyLike): Prisma.Decimal {
   return decimalise(value).toDecimalPlaces(RATE_SCALE, HALF_UP);
 }
 
+/**
+ * A quantity, at four places. The same scale as `rate`, under the name the
+ * caller means.
+ *
+ * S-1. `InventoryItem.currentStock` and `StockMovement.quantity` became
+ * `Decimal(12,4)`, and the code that moves stock now has to say so. It could
+ * call `rate()` — the scale is identical — but `rate(input.quantity)` reads as
+ * a mistake at every call site, and a helper whose name lies is how the next
+ * person routes a quantity through an exchange-rate code path.
+ */
+export function quantity(value: MoneyLike): Prisma.Decimal {
+  return decimalise(value).toDecimalPlaces(RATE_SCALE, HALF_UP);
+}
+
 /** A tax rate, at two places. */
 export function percent(value: MoneyLike): Prisma.Decimal {
   return decimalise(value).toDecimalPlaces(PERCENT_SCALE, HALF_UP);

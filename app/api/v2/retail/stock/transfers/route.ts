@@ -3,6 +3,7 @@ import { z } from "zod";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { errorResponse, successResponse } from "@/lib/api-utils";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { multiplyMoney, toNumberOrZero } from "@/lib/money";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,
@@ -74,7 +75,9 @@ export async function POST(request: NextRequest) {
       siteId: site.id,
       entryDate: new Date(),
       description: `Retail stock transfer ${movement.referenceId}`,
-      amount: Math.abs(input.quantity * (item.unitCost ?? 0)),
+      // S-1. `unitCost` is `Decimal(14,2)`; this is the value posted to the
+      // ledger for the move.
+      amount: toNumberOrZero(multiplyMoney(input.quantity, item.unitCost ?? 0).abs()),
       payload: {
         movementId: movement.id,
         movementReference: movement.referenceId,

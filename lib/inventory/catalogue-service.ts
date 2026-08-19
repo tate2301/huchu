@@ -8,7 +8,7 @@
  */
 import type { Prisma, ProductKind } from "@prisma/client";
 
-import { toNumber, toNumberOrZero } from "@/lib/money";
+import { quantity, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   choosePriceList,
@@ -142,18 +142,27 @@ export async function priceProducts(
     entriesByProduct.set(entry.productId, list);
   }
 
+  /*
+    S-1. `onHand` was accumulated with `+=` on a double. Summed across every
+    site holding a line, that is the drift `lib/money.ts` exists to end — and
+    an on-hand total that is 0.30000000000000004 renders as a stock figure
+    nobody typed.
+
+    Collected as `Decimal` and totalled once at the end. The map's values stay
+    `number` because this is a serialiser and its output crosses JSON.
+  */
   const stockByProduct = new Map<
     string,
-    { onHand: number; sites: { siteId: string; siteName: string; onHand: number }[] }
+    { amounts: Prisma.Decimal[]; sites: { siteId: string; siteName: string; onHand: number }[] }
   >();
   for (const row of stockRows) {
     if (!row.productId) continue;
-    const current = stockByProduct.get(row.productId) ?? { onHand: 0, sites: [] };
-    current.onHand += row.currentStock;
+    const current = stockByProduct.get(row.productId) ?? { amounts: [], sites: [] };
+    current.amounts.push(quantity(row.currentStock));
     current.sites.push({
       siteId: row.site.id,
       siteName: row.site.name,
-      onHand: row.currentStock,
+      onHand: toNumberOrZero(row.currentStock),
     });
     stockByProduct.set(row.productId, current);
   }
@@ -188,7 +197,13 @@ export async function priceProducts(
         }),
         // Null rather than zero for a service: "no stock record" and "none left"
         // are different facts and must not render the same.
-        stock: stockByProduct.get(product.id) ?? null,
+        stock: (() => {
+          const held = stockByProduct.get(product.id);
+          if (!held) return null;
+          // Totalled once, in Decimal, and turned into a number here at the
+          // wire boundary rather than accumulated as one.
+          return { onHand: toNumberOrZero(sumMoney(held.amounts)), sites: held.sites };
+        })(),
       };
     }),
   };

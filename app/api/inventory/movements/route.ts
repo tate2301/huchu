@@ -6,6 +6,7 @@ import { Prisma } from '@prisma/client';
 import { z } from 'zod';
 import { normalizeProvidedId } from '@/lib/id-generator';
 import { recordStockMovement } from '@/lib/inventory/stock-movements';
+import { multiplyMoney, ZERO } from '@/lib/money';
 
 const stockMovementSchema = z.object({
   referenceId: z.string().min(1).max(50).optional(),
@@ -188,9 +189,11 @@ export async function POST(request: NextRequest) {
 
     const { movement, nextStock } = result;
     const resolvedUnitCost = validated.unitCost ?? item.unitCost ?? 0;
-    const movementAmount = Math.abs(quantity) * resolvedUnitCost;
+    // S-1. `unitCost` is `Decimal(14,2)` now, and this product is what the
+    // journal entry is posted for.
+    const movementAmount = multiplyMoney(Math.abs(quantity), resolvedUnitCost);
 
-    if (movementAmount > 0) {
+    if (movementAmount.greaterThan(ZERO)) {
       try {
         await createJournalEntryFromSource({
           companyId: session.user.companyId,

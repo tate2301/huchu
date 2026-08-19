@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { multiplyMoney, quantity, sumMoney, toNumberOrZero, ZERO } from "@/lib/money";
 
 /**
  * Where stock is kept, and what is in each place.
@@ -44,14 +46,27 @@ export async function GET(request: NextRequest) {
       let value = 0;
       let low = 0;
       let holding = 0;
+      /*
+        S-1. `value` was `+= currentStock * unitCost` on two doubles, summed
+        across every line in a store, and it is rendered as "what is sitting in
+        this store" — a figure an owner reads as money. Both operands are
+        `Decimal` now and the multiply-then-sum happens in Decimal.
+      */
+      const values: Prisma.Decimal[] = [];
       for (const item of location.items) {
         // An item with no cost recorded contributes nothing rather than
         // silently valuing at zero — the difference matters when the total is
         // read as "what is sitting in this store".
-        if (item.unitCost !== null) value += item.currentStock * item.unitCost;
-        if (item.currentStock > 0) holding += 1;
-        if (item.minStock !== null && item.currentStock <= item.minStock) low += 1;
+        if (item.unitCost !== null) values.push(multiplyMoney(item.currentStock, item.unitCost));
+        if (quantity(item.currentStock).greaterThan(ZERO)) holding += 1;
+        if (
+          item.minStock !== null &&
+          !quantity(item.currentStock).greaterThan(quantity(item.minStock))
+        ) {
+          low += 1;
+        }
       }
+      value = toNumberOrZero(sumMoney(values));
       return {
         id: location.id,
         code: location.code,

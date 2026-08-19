@@ -16,18 +16,20 @@
  * `pg_enum`, `pg_indexes` — and never the schema file. A green `prisma validate`
  * says the schema file parses; it is not evidence the database changed, and
  * `prisma db push` cannot cast a float column to `numeric` or add an enum label
- * at all. The scripts that did the work are `scripts/inventory-money-decimal.ts`
- * and `scripts/retail-price-engine-schema.ts`.
+ * at all. The scripts that did the work are `scripts/inventory-money-decimal.ts`,
+ * `scripts/inventory-quantity-decimal.ts` and
+ * `scripts/retail-price-engine-schema.ts`.
  *
- * ## What is deliberately absent
+ * ## All eleven, in two passes
  *
- * `InventoryItem.currentStock` / `minStock` / `maxStock` / `unitCost` and
- * `StockMovement.quantity` are the other five `Float` columns §1.4 names. They
- * are **not** asserted here because they were **not** converted: that is a
- * recorded decision, not an oversight. Those five are read by 38 files across
- * gold, schools and the dashboards, and the client demo would not survive the
- * cascade. They convert with S-2, which is the ticket that already touches the
- * movement service.
+ * §1.4 named eleven `Float` columns. The six *pricing* ones converted first and
+ * the five *quantity* ones were deferred, with the reason recorded here: they
+ * are read by 38 files across four modules and the cascade was not worth taking
+ * days before a Harare bottle store traded on this for a day.
+ *
+ * The deferral was a named ticket and this is the other half of it. All eleven
+ * are asserted below, and the split is kept — two lists, two describes —
+ * because the scales differ and so does the reason for each.
  */
 
 import { describe, expect, it } from "vitest";
@@ -90,6 +92,60 @@ async function enumLabels(type: string) {
   `;
   return rows.map((row) => row.enumlabel);
 }
+
+/**
+ * The five deferred columns, converted by `scripts/inventory-quantity-decimal.ts`.
+ *
+ * Four are quantities at `numeric(12,4)`. `unitCost` is **money** at
+ * `numeric(14,2)`, and that difference is the reason the ticket mattered: it is
+ * what a goods receipt writes, what `RetailSaleLine.costUnit` is copied from,
+ * and therefore what every margin figure retail reports is computed against.
+ */
+const QUANTITY_COLUMNS: Array<[table: string, column: string, precision: number, scale: number]> = [
+  ["InventoryItem", "currentStock", 12, 4],
+  ["InventoryItem", "minStock", 12, 4],
+  ["InventoryItem", "maxStock", 12, 4],
+  ["InventoryItem", "unitCost", 14, 2],
+  ["StockMovement", "quantity", 12, 4],
+];
+
+describe("core quantity columns are numeric at the right scale", () => {
+  it("has a column to check for every entry", () => {
+    // A silent zero here would make every assertion below vacuously true.
+    expect(QUANTITY_COLUMNS.length).toBe(5);
+  });
+
+  it.each(QUANTITY_COLUMNS)(
+    '"%s"."%s" is numeric(%i,%i)',
+    async (table, column, precision, scale) => {
+      const facts = await columnFacts(table, column);
+      expect(facts, `${table}.${column} does not exist`).not.toBeNull();
+      expect(facts?.data_type).toBe("numeric");
+      expect(facts?.numeric_precision).toBe(precision);
+      expect(facts?.numeric_scale).toBe(scale);
+    },
+  );
+
+  /**
+   * On-hand is the one that must not be nullable. "No stock" is zero; a null
+   * would be "nobody has said", and every consumer would have to pick a meaning
+   * for it. The other three are genuinely optional — an item with no minimum
+   * has no minimum, and an item with no cost recorded did not cost nothing.
+   */
+  it("keeps on-hand not-null and defaulted to zero", async () => {
+    const facts = await columnFacts("InventoryItem", "currentStock");
+    expect(facts?.is_nullable).toBe("NO");
+    expect(Number(facts?.column_default?.replace(/::.*$/, ""))).toBe(0);
+  });
+
+  it.each([
+    ["minStock"],
+    ["maxStock"],
+    ["unitCost"],
+  ])('"InventoryItem"."%s" stays nullable', async (column) => {
+    expect((await columnFacts("InventoryItem", column))?.is_nullable).toBe("YES");
+  });
+});
 
 describe("core pricing columns are numeric at the right scale", () => {
   it("has a column to check for every entry", () => {

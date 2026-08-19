@@ -1212,8 +1212,9 @@ export async function refundRetailSaleTransaction(input: {
         userId: input.actor.userId,
         itemId: item.id,
         movementType: "RECEIPT",
-        // The inventory movement table is still `Float`; the crossing happens here.
-        quantity: toNumberOrZero(line.quantity),
+        // S-1. `StockMovement.quantity` is `Decimal(12,4)` now, so the quantity
+        // that was carefully kept exact through the refund arrives exact.
+        quantity: line.quantity,
         unit: item.unit,
         unitCost: item.unitCost ?? 0,
         notes: `Retail refund ${created.saleNo}`,
@@ -1459,8 +1460,7 @@ export async function voidRetailSaleTransaction(input: {
         userId: input.actor.userId,
         itemId: item.id,
         movementType: "RECEIPT",
-        // The inventory movement table is still `Float`; the crossing happens here.
-        quantity: toNumberOrZero(line.quantity),
+        quantity: line.quantity,
         unit: item.unit,
         unitCost: item.unitCost ?? 0,
         notes: `Retail sale void ${created.saleNo}`,

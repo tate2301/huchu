@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
 import { reserveIdentifier } from "@/lib/id-generator"
+import { multiplyMoney, quantity, ZERO } from "@/lib/money"
 
 const inventoryItemUpdateSchema = z
   .object({
@@ -131,12 +132,16 @@ export async function PATCH(
       }
     }
 
+    // S-1. `existing.currentStock` is `Decimal` now; the typed-in figure is a
+    // number off the wire. Subtracting them as Decimals is what makes an
+    // adjustment of 0.1 against 0.3 on hand come out as -0.2 rather than
+    // -0.19999999999999998.
     const stockDelta =
       validated.currentStock === undefined
-        ? 0
-        : validated.currentStock - existing.currentStock
+        ? ZERO
+        : quantity(validated.currentStock).minus(quantity(existing.currentStock))
     const adjustmentReferenceId =
-      stockDelta !== 0
+      !stockDelta.isZero()
         ? await reserveIdentifier(prisma, {
             companyId: session.user.companyId,
             entity: "STOCK_MOVEMENT",
@@ -164,7 +169,7 @@ export async function PATCH(
       })
 
       let movement: { id: string; createdAt: Date } | null = null
-      if (stockDelta !== 0) {
+      if (!stockDelta.isZero()) {
         movement = await tx.stockMovement.create({
           data: {
             referenceId: adjustmentReferenceId!,
@@ -187,8 +192,8 @@ export async function PATCH(
 
     if (adjustmentMovement) {
       const resolvedUnitCost = validated.unitCost ?? existing.unitCost ?? 0
-      const movementAmount = Math.abs(stockDelta) * resolvedUnitCost
-      if (movementAmount > 0) {
+      const movementAmount = multiplyMoney(stockDelta.abs(), resolvedUnitCost)
+      if (movementAmount.greaterThan(ZERO)) {
         try {
           await createJournalEntryFromSource({
             companyId: session.user.companyId,
