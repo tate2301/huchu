@@ -108,7 +108,7 @@ export function usePosCashMovements(shiftId: string | null | undefined) {
   return useQuery({
     queryKey: ["retail-cash-movements", shiftId],
     queryFn: () =>
-      fetchJson<CashMovementPayload>(`/api/v2/retail/shifts/${shiftId}/cash-movements`),
+      fetchJson<CashMovementPayload>(`/api/v2/retail/pos/shifts/${shiftId}/cash-movements`),
     enabled: Boolean(shiftId),
   });
 }
@@ -359,7 +359,7 @@ export function PosCashMovementPanel({
   const recordMutation = useMutation({
     mutationFn: () =>
       fetchJson<{ data: PosCashMovement; shift: { expectedCash: number } }>(
-        `/api/v2/retail/shifts/${shiftId}/cash-movements`,
+        `/api/v2/retail/pos/shifts/${shiftId}/cash-movements`,
         {
           method: "POST",
           body: JSON.stringify({
