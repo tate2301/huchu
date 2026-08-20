@@ -233,27 +233,31 @@ those scripts touched. On this database that is invisible, because the scripts
 have run. On a database built from `migrate deploy` alone it is not: the schema
 Prisma produces would be missing them, and the till would fail on its first sale.
 
-Two ways out, and they are a real choice rather than a formality:
+**Resolved on 2026-08-20, the same day, by option 1** —
+`prisma/migrations/20260820130000_script_applied_schema_catchup`.
 
-1. **One catch-up migration** that reproduces what the scripts applied, guarded
-   with `IF NOT EXISTS` so it is a no-op here and correct on a fresh database.
-   Cheap to write, and it puts the schema back under one mechanism.
-2. **Keep the scripts as the mechanism** and say so — a documented bootstrap
-   order, `migrate deploy` then the retail scripts in sequence. Honest, but it
-   means every new environment needs a runbook rather than one command.
+Not written from memory. The file is `prisma migrate diff --from-migrations
+--to-schema` against a scratch shadow database on the Neon instance — the
+migrations replayed for real, then diffed against the schema — and it came out
+at 1,600 lines because the drift was never only retail: HR's tax tables, leave,
+the settlements module and the schools messaging surface had all accumulated the
+same way. Verified by construction: with the file in place, the same replay
+diffs **empty**, so 62 migrations now produce exactly `schema.prisma`.
 
-Nobody has decided. Until somebody does, a fresh environment needs the scripts
-run by hand after `migrate deploy`, and that is not written down anywhere a
-person setting one up would look.
+The one subtlety is recorded in the migration's own header: it must **never
+execute** on a database the scripts have already built — its `DROP COLUMN` /
+`ADD COLUMN` pairs would destroy data there — so the shared development
+database was baselined with `prisma migrate resolve --applied` instead, which
+records it as done without running it. Fresh databases execute it for real.
+`migrate status` on the shared database now shows only the three genuinely
+pending migrations.
 
-**`RetailSale.clientOperationId` is dead and still there.** An abandoned first
-attempt at the idempotency key `clientRef` now provides — not in
-`prisma/schema.prisma`, so Prisma cannot write it, and null on all 5,102 sale
-rows. It carries a unique index on `(companyId, clientOperationId)`. Dropping it
-is safe and is one small migration; it is listed here rather than done because
-the drift above should be settled first, and the column costs nothing while it
-waits. See `prisma/migrations/20260818090000_retail_sale_client_operation_id/README.md`
-for how it got there.
+**`RetailSale.clientOperationId` is gone everywhere.** The catch-up drops it on
+fresh databases; on the shared database — where the catch-up never runs — it was
+dropped directly the same day, after re-verifying it was still null on every
+row. Live and fresh-built schemas now agree exactly. See
+`prisma/migrations/20260818090000_retail_sale_client_operation_id/README.md`
+for how the column came to exist.
 
 ### Two defects the phone found
 

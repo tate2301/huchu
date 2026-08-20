@@ -43,11 +43,18 @@ idempotency key — the thing that stops a bad line double-charging a customer w
 a POST lands and the response does not. S-7.7 solved the same problem with
 `clientRef` a day later, without knowing this column existed, and `clientRef` is
 what the code writes. `clientOperationId` is not in `prisma/schema.prisma`, so
-Prisma cannot write it, and it is null on all 5,102 sale rows. The name
+Prisma cannot write it, and it was null on all 5,102 sale rows. The name
 `clientOperationId` does still appear in `app/api/v2/retail/pos/sync/route.ts`,
 54 times — but as a **wire field** correlating an operation in a sync batch to
-its result. It never reaches a column. Dropping the column is a separate,
-deliberate change; see the note in the retail hardening plan.
+its result. It never reaches a column.
+
+The column and its unique index were dropped on 2026-08-20:
+`20260820130000_script_applied_schema_catchup` drops them on any database built
+from migrations, and the shared development database — where that migration is
+baselined rather than run — had them dropped directly the same day, after
+re-verifying the column was still empty. What survives of this migration's
+first half is nothing; the `IdSequence` seeding below is why the file still
+matters.
 
 **The `IdSequence` seeding is not dead, and matters.** The till used to mint its
 own sale numbers — `RSL-1787005374335700`, a timestamp with three random digits.
