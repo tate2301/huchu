@@ -188,7 +188,7 @@ screenshots, and right about the order of work. The plan below follows it.
 
 ### What is left
 
-Four things, named rather than implied.
+Four tickets and a structural one, named rather than implied.
 
 **R-4.2, thinning the pages.** Nine `page.tsx` files are over 400 lines, the
 largest 715. The ticket asks for each to become a server component composing
@@ -213,6 +213,47 @@ design review and has not been done.
 
 **Fiscalisation.** Still out of scope, still the thing that decides whether
 "production ready" is true for a Zimbabwean shop. §5 below has not changed.
+
+### The migration history and the retail scripts have drifted apart
+
+Found on 2026-08-20 while clearing an orphan that was blocking `migrate deploy`,
+and worth writing down because it is structural rather than a one-off.
+
+Retail's schema changes ship as idempotent scripts under `scripts/` — R-1.1
+money, R-1.2 enums, R-1.3 `companyId`, R-1.5 currency, S-1 quantities, S-4's
+drop, R-3.3's enum label, `clientRef`. That convention exists for a good reason:
+`prisma db push` cannot reach this database (P1001 — only a Neon pooler host is
+configured), and a measure-then-cast script refuses on overflow where a push
+would fail halfway.
+
+The cost is that **`prisma/migrations/` does not describe the retail schema**.
+`clientRef` and its unique index are in the database and in
+`prisma/schema.prisma`, and in no migration; the same is true of every column
+those scripts touched. On this database that is invisible, because the scripts
+have run. On a database built from `migrate deploy` alone it is not: the schema
+Prisma produces would be missing them, and the till would fail on its first sale.
+
+Two ways out, and they are a real choice rather than a formality:
+
+1. **One catch-up migration** that reproduces what the scripts applied, guarded
+   with `IF NOT EXISTS` so it is a no-op here and correct on a fresh database.
+   Cheap to write, and it puts the schema back under one mechanism.
+2. **Keep the scripts as the mechanism** and say so — a documented bootstrap
+   order, `migrate deploy` then the retail scripts in sequence. Honest, but it
+   means every new environment needs a runbook rather than one command.
+
+Nobody has decided. Until somebody does, a fresh environment needs the scripts
+run by hand after `migrate deploy`, and that is not written down anywhere a
+person setting one up would look.
+
+**`RetailSale.clientOperationId` is dead and still there.** An abandoned first
+attempt at the idempotency key `clientRef` now provides — not in
+`prisma/schema.prisma`, so Prisma cannot write it, and null on all 5,102 sale
+rows. It carries a unique index on `(companyId, clientOperationId)`. Dropping it
+is safe and is one small migration; it is listed here rather than done because
+the drift above should be settled first, and the column costs nothing while it
+waits. See `prisma/migrations/20260818090000_retail_sale_client_operation_id/README.md`
+for how it got there.
 
 ### Two defects the phone found
 
