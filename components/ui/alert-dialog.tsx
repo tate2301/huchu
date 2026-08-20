@@ -63,9 +63,9 @@ function AlertDialogOverlay({
       className={cn(
         // `fixed inset-0` restates what `.modal-scrim` already does, so the
         // overlay does not depend on which of the package's two `.modal-scrim`
-        // rules lands last; `z-50` pins it to the app's overlay layer rather
-        // than the DS's own `z-index: 1100`.
-        "modal-scrim fixed inset-0 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
+        // rules lands last. The z-index comes from the app's one overlay scale
+        // (see `globals.css`) rather than the DS's own 1100.
+        "modal-scrim fixed inset-0 z-[var(--z-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0",
         className
       )}
       {...props}
@@ -87,7 +87,7 @@ function AlertDialogContent({
         data-slot="alert-dialog-content"
         data-size={size}
         className={cn(
-          "modal-card group/alert-dialog-content fixed left-[50%] top-[50%] z-50 grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[size=sm]:max-w-sm data-[size=default]:sm:max-w-lg",
+          "modal-card group/alert-dialog-content fixed left-[50%] top-[50%] z-[var(--z-overlay)] grid w-full max-w-[calc(100%-2rem)] translate-x-[-50%] translate-y-[-50%] gap-5 overflow-y-auto p-6 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95 data-[size=sm]:max-w-sm data-[size=default]:sm:max-w-lg",
           className
         )}
         {...props}

@@ -13,7 +13,7 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { CheckIcon, ChevronDown, Plus } from "@/lib/icons";
 
 /**
@@ -80,7 +80,7 @@ export function SearchableSelect({
   return (
     <div className="field">
       {label ? <label className="field-label">{label}</label> : null}
-      <Popover
+      <ResponsivePopover
         open={open}
         onOpenChange={(next) => {
           setOpen(next);
@@ -88,8 +88,9 @@ export function SearchableSelect({
             setQuery("");
           }
         }}
-      >
-        <PopoverTrigger asChild>
+        title={label ?? placeholder}
+        className="w-[var(--radix-popover-trigger-width)] p-0"
+        trigger={
           <Button
             type="button"
             variant="outline"
@@ -107,8 +108,8 @@ export function SearchableSelect({
             </span>
             <ChevronDown className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />
           </Button>
-        </PopoverTrigger>
-        <PopoverContent className="w-[var(--radix-popover-trigger-width)] p-0" align="start">
+        }
+      >
           <Command shouldFilter={false}>
             <CommandInput
               value={query}
@@ -193,8 +194,7 @@ export function SearchableSelect({
               ) : null}
             </CommandList>
           </Command>
-        </PopoverContent>
-      </Popover>
+      </ResponsivePopover>
     </div>
   );
 }

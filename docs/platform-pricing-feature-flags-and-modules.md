@@ -1,5 +1,13 @@
 # Platform Pricing, Feature Bundles, Subscriptions, and Feature Flags
 
+> **Supersession notice (2026-08-18).** The pricing figures in this document (tier prices, the
+> annual-billing multiplier, and the bundle price list) are superseded by the rollout program —
+> see `docs/rollout/master-rollout-plan.md` and `docs/rollout/pricing-packaging-roadmap.md` for
+> the adopted target structure. Until story PR-6.1 rewrites this document, the catalog in
+> `lib/platform/feature-catalog.ts` remains what the platform actually charges, and this
+> document's **mechanism** content — the pricing formula, feature-flag behavior, and the
+> checklist for adding a feature, module, or bundle — remains normative and in force.
+
 ## Scope
 
 This document is the current source of truth for:

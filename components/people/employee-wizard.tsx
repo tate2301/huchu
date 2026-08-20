@@ -1643,13 +1643,19 @@ export function EmployeeWizard({
         size="full"
         tabletBehavior="fullscreen"
         inset={false}
+        // The header below draws the close, so the popup's own is off. Both
+        // rendered before this, one on top of the other.
+        showClose={false}
         className="flex h-[100dvh] max-h-[100dvh] flex-col !rounded-none"
       >
         <div className="flex shrink-0 items-center justify-between gap-4 border-b border-[var(--edge-subtle)] px-5 py-3 sm:px-6">
           <DialogHeader className="min-w-0 flex-1">
             <DialogTitle className="text-[15px]">New employee</DialogTitle>
           </DialogHeader>
-          <DialogClose className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--surface-subtle)] text-muted-foreground transition-colors hover:bg-[var(--surface-soft)] hover:text-foreground">
+          <DialogClose
+            aria-label="Close"
+            className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-[var(--surface-subtle)] text-muted-foreground transition-colors hover:bg-[var(--surface-soft)] hover:text-foreground"
+          >
             <X className="h-4 w-4" />
           </DialogClose>
         </div>

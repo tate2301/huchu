@@ -81,21 +81,30 @@ type DialogContentProps = React.ComponentPropsWithoutRef<typeof DialogPrimitive.
   size?: ResponsiveSurfaceSize
   tabletBehavior?: DialogTabletBehavior
   inset?: boolean
+  /**
+   * Off for a surface that draws its own close.
+   *
+   * The built-in one is absolutely positioned at the popup's top-right corner
+   * and knows nothing about what the caller put there. The employee wizard has
+   * a close in its own header bar, so both rendered — two X glyphs overlapping
+   * in one 32px circle, which is what a phone screenshot of the wizard showed.
+   */
+  showClose?: boolean
 }
 
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Popup>,
   DialogContentProps
->(({ className, children, size = "md", tabletBehavior = "adaptive", inset = true, ...props }, ref) => (
+>(({ className, children, size = "md", tabletBehavior = "adaptive", inset = true, showClose = true, ...props }, ref) => (
   <DialogPortal>
     {/* `fixed inset-0` restates what `.modal-scrim` already does, so the
         backdrop does not depend on which of the package's two `.modal-scrim`
-        rules lands last; `z-50` pins it to the app's overlay layer rather than
-        the DS's own `z-index: 1100`. */}
-    <DialogPrimitive.Backdrop className="modal-scrim fixed inset-0 z-50 motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200" />
+        rules lands last. The z-index comes from the app's one overlay scale
+        (see `globals.css`) rather than the DS's own 1100. */}
+    <DialogPrimitive.Backdrop className="modal-scrim fixed inset-0 z-[var(--z-overlay)] motion-safe:animate-in motion-safe:fade-in-0 motion-safe:duration-200" />
     <DialogPrimitive.Viewport
       className={cn(
-        "fixed inset-0 z-50 flex justify-center overflow-y-auto overscroll-contain",
+        "fixed inset-0 z-[var(--z-overlay)] flex justify-center overflow-y-auto overscroll-contain",
         DIALOG_TABLET_VIEWPORT_CLASSNAMES[tabletBehavior],
         DIALOG_INSET_VIEWPORT_CLASSNAMES[inset ? "true" : "false"]
       )}
@@ -113,13 +122,15 @@ const DialogContent = React.forwardRef<
         {/* `.modal-card .x` styles this; it only binds because the button is
             inside the popup. Placement stays absolute — the DS puts its close
             in the header, which this compound API cannot guarantee exists. */}
-        <DialogClose
-          data-slot="dialog-close"
-          className="x absolute right-3 top-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-soft)] disabled:pointer-events-none"
-        >
-          <X className="h-4 w-4" />
-          <span className="sr-only">Close</span>
-        </DialogClose>
+        {showClose ? (
+          <DialogClose
+            data-slot="dialog-close"
+            className="x absolute right-3 top-3 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--focus-ring-soft)] disabled:pointer-events-none"
+          >
+            <X className="h-4 w-4" />
+            <span className="sr-only">Close</span>
+          </DialogClose>
+        ) : null}
       </DialogPrimitive.Popup>
     </DialogPrimitive.Viewport>
   </DialogPortal>

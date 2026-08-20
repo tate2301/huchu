@@ -30,7 +30,10 @@ export async function autoAssignLead(
     where: {
       companyId,
       assignedToId: { in: users.map((user) => user.id) },
-      convertedAt: null,
+      // Archived, not merely unconverted: a lead somebody put away by hand is
+      // as much off their plate as one that became a deal, and counting it as
+      // load sends the next enquiry to whoever tidied up least.
+      archivedAt: null,
       stage: { notIn: ["WON", "LOST"] },
     },
     _count: { _all: true },

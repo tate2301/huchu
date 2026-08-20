@@ -36,6 +36,12 @@ export const leadViewFiltersSchema = z.object({
   createdTo: z.string().datetime().optional(),
   /** Only leads with a pending follow-up already past due. */
   overdueOnly: z.boolean().optional(),
+  /**
+   * Show archived leads instead of live ones. Archiving is not a filter people
+   * combine with others — it is a different question ("what did we put away")
+   * — so it swaps the set rather than narrowing it.
+   */
+  archived: z.boolean().optional(),
 });
 
 export type LeadViewFilters = z.infer<typeof leadViewFiltersSchema>;
@@ -89,6 +95,7 @@ export function parseLeadFiltersFromParams(searchParams: URLSearchParams): LeadV
     createdFrom: searchParams.get("createdFrom") || undefined,
     createdTo: searchParams.get("createdTo") || undefined,
     overdueOnly: bool("overdueOnly"),
+    archived: bool("archived"),
   };
 
   const parsed = leadViewFiltersSchema.safeParse(candidate);
@@ -105,6 +112,12 @@ export function buildLeadWhere(
   userId: string,
 ): Prisma.CrmLeadWhereInput {
   const and: Prisma.CrmLeadWhereInput[] = [];
+
+  // Archived leads are out of every list, board and count unless they are what
+  // was asked for. This is also what stops a converted lead and the deal it
+  // became appearing as two live opportunities: conversion archives the lead,
+  // so the pipeline stops counting the same piece of business twice.
+  and.push(filters.archived ? { archivedAt: { not: null } } : { archivedAt: null });
 
   if (filters.stages?.length) {
     and.push({ stage: { in: filters.stages } });

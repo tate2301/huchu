@@ -87,7 +87,11 @@ export function CollectionsContent({ currency = "USD" }: { currency?: string }) 
         <Skeleton height={128} />
       ) : (
         <>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
+          {/* Two-up on a phone. Stacked, these seven ageing bands were seven
+              screens of "USD 0.00" before the chase list itself came into
+              view — the tiles are the summary of the list, not a page of
+              their own. */}
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
             <StatCard
               label="Outstanding"
               value={formatMoney(report.totalOutstanding, currency)}

@@ -38,7 +38,10 @@
       "mcp__Claude_Browser__resize_window",
       "mcp__Claude_Browser__read_console_messages",
       "mcp__Claude_Browser__read_network_requests",
-      "mcp__Claude_Browser__javascript_tool"
+      "mcp__Claude_Browser__javascript_tool",
+      "mcp__Claude_Code_Remote__send_later",
+      "mcp__Claude_Code_Remote__list_triggers",
+      "mcp__Claude_Code_Remote__delete_trigger"
     ]
   }
 }

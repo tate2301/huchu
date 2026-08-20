@@ -68,7 +68,14 @@ export function RepsContent() {
           </Badge>
         ),
         facts: [
-          { label: "Open pipeline", value: formatMoney(pipeline, "USD"), mono: true },
+          {
+            label: "Open pipeline",
+            value: formatMoney(pipeline, "USD"),
+            mono: true,
+            // What a rep's row is about, and the one figure worth the width
+            // on a phone.
+            primary: true,
+          },
           // A dash, not a zero: "not shown to you" and "sold nothing" are
           // different facts and must not look the same.
           {

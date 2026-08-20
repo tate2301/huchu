@@ -4,7 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { scoreLead } from "@/lib/crm/lead-scoring";
 import { prisma } from "@/lib/prisma";
 import { recordFieldChanges } from "@/lib/crm/history";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
 import { crmLeadChannelSchema } from "@/lib/crm/views";
 import {
   buildCustomFieldValues,
@@ -48,7 +48,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         documents: {
           orderBy: { createdAt: "desc" },
           include: {
-            approval: { select: { token: true, status: true, respondedAt: true } },
+            approval: {
+              select: {
+                token: true,
+                status: true,
+                respondedAt: true,
+                // What the customer actually said, and whether they have so
+                // much as opened it. All four have been stored since the
+                // approval link shipped; none of them were ever read back.
+                responseNote: true,
+                responderName: true,
+                firstViewedAt: true,
+              },
+            },
             // The document list needs the underlying record's own status and
             // balance — a CrmLeadDocument only knows the amount it was cut for,
             // not what has since been paid against it.
@@ -224,5 +236,54 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
     if (error instanceof z.ZodError) return errorResponse("Validation failed", 400, error.issues);
     console.error("[API] PATCH /api/v2/crm/leads/[id] error:", error);
     return errorResponse("Failed to update lead");
+  }
+}
+
+/**
+ * Destroy a lead and everything hanging off it.
+ *
+ * Leads had no removal of any kind: a duplicate typed twice, a test row, a
+ * number somebody entered wrong stayed in the pipeline for good. Archiving
+ * covers almost every one of those and is what the record page offers first —
+ * this is the other case, where the row should never have existed and keeping
+ * it is worse than losing it.
+ *
+ * Activities, follow-ups, appointments, comments and files go with it; the
+ * schema cascades them. A converted lead is refused, because a deal points
+ * back at it for attribution and the whole reason the lead is kept after
+ * conversion is that source reporting reads it.
+ */
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+    const { id } = await params;
+
+    const existing = await prisma.crmLead.findFirst({
+      where: { id, companyId: session.user.companyId },
+      select: { id: true, assignedToId: true, convertedAt: true, convertedDealId: true },
+    });
+    if (!existing) return errorResponse("Lead not found", 404);
+    if (!(await canEditRecord(session, existing.assignedToId))) {
+      return errorResponse("You can only delete leads assigned to you", 403);
+    }
+    // Owning a record and being allowed to destroy it are separate decisions.
+    if (!(await canUser(session, "records.delete"))) {
+      return errorResponse(denialMessage("records.delete"), 403);
+    }
+
+    if (existing.convertedAt) {
+      return errorResponse(
+        "This lead became a deal, and the deal still credits it for where the business came from. It is already archived.",
+        409,
+      );
+    }
+
+    await prisma.crmLead.delete({ where: { id } });
+    return successResponse({ id, deleted: true });
+  } catch (error) {
+    console.error("[API] DELETE /api/v2/crm/leads/[id] error:", error);
+    return errorResponse("Failed to delete lead");
   }
 }

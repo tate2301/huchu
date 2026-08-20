@@ -1,17 +1,25 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-import { CommentThread } from "@/components/crm/collaboration/comment-thread";
 import { RecordTasksTab } from "@/components/crm/tasks/record-tasks-tab";
-import { ActivityComposer, type ActivityTarget } from "@/components/crm/lead-detail/activity-composer";
+import {
+  ConversationComposer,
+  type ConversationTarget,
+} from "@/components/crm/collaboration/conversation-composer";
+import { SubSections } from "@/components/records/sub-sections";
 import { RecordStory, type StoryEvent } from "./record-story";
 import { MentionsTab } from "./mentions-tab";
 import { AutomationTab } from "./automation-tab";
+import { FieldHistoryTab } from "./field-history-tab";
 import { FilesTab } from "./files-tab";
+import { RecordHistoryTab } from "./record-history-tab";
 import type { FileOwnerKind } from "@/lib/crm/record-files";
 import type { CollabEntity } from "@/lib/crm/collaboration";
-import type { CrmTaskRecordRef } from "@/lib/crm/crm-v2";
+import { fetchCrmComments, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
+
+import { Checklist, Clock, FileText, FlowArrow, History } from "@/lib/icons";
 
 import type { RecordTab } from "@/components/records/record-page-shell";
 
@@ -57,27 +65,52 @@ export function taskRef(ref: RecordRef): CrmTaskRecordRef {
 }
 
 /**
- * Which records somebody can write an activity against. A site is a place,
- * not a correspondent — what happened there is logged on the visit or the
- * deal, so its timeline reads without a composer rather than offering one
- * that posts nowhere.
+ * Every record can be talked about, including a site — the composer decides
+ * for itself which kinds it can offer. A site is a place rather than a
+ * correspondent, so it takes comments and not logged calls.
  */
-function activityTarget(ref: RecordRef): ActivityTarget | null {
-  switch (ref.kind) {
-    case "lead":
-      return { kind: "lead", id: ref.id };
-    case "deal":
-      return { kind: "deal", id: ref.id };
-    case "person":
-      return { kind: "person", id: ref.id };
-    case "company":
-      return { kind: "company", id: ref.id };
-    case "site":
-      return null;
-  }
+function conversationTarget(ref: RecordRef): ConversationTarget {
+  return { kind: ref.kind, id: ref.id };
 }
 
-export function timelineTab({
+/**
+ * The record's one feed: what was said and what happened, in one order.
+ *
+ * Comments used to be a section of their own, seven rows along the rail, while
+ * notes and calls were at the top of the timeline — so a record's conversation
+ * was split across two screens by a distinction (internal or not) that the
+ * reader does not have in their head when they are looking for what somebody
+ * said. `buildStory` has always taken comments; nothing ever passed them.
+ */
+/**
+ * This record's comments, shaped for `buildStory`.
+ *
+ * A hook rather than something `conversationTab` does for itself, because the
+ * tab builders are plain functions called during a page's render and a hook
+ * hidden inside one is a rules-of-hooks bug waiting for the first conditional
+ * tab. The page calls this, then hands the result to `buildStory` alongside
+ * the activities.
+ */
+export function useRecordComments(ref: RecordRef) {
+  const entity = COLLAB[ref.kind];
+  const { data } = useQuery({
+    queryKey: ["crm-comments", entity, ref.id],
+    queryFn: () => fetchCrmComments(entity, ref.id),
+  });
+
+  return useMemo(
+    () =>
+      (data ?? []).map((comment) => ({
+        id: comment.id,
+        body: comment.body,
+        createdAt: comment.createdAt,
+        author: { id: comment.createdBy.id, name: comment.createdBy.name },
+      })),
+    [data],
+  );
+}
+
+export function conversationTab({
   ref,
   events,
   emptyMessage,
@@ -86,13 +119,13 @@ export function timelineTab({
   events: StoryEvent[];
   emptyMessage?: string;
 }): RecordTab {
-  const target = activityTarget(ref);
   return {
     value: "timeline",
-    label: "Timeline",
+    label: "Conversation",
+    icon: Clock,
     content: (
       <div className="space-y-4">
-        {target ? <ActivityComposer target={target} /> : null}
+        <ConversationComposer target={conversationTarget(ref)} />
         <RecordStory events={events} emptyMessage={emptyMessage} />
       </div>
     ),
@@ -109,40 +142,62 @@ export function tasksTab({
   return {
     value: "tasks",
     label: "Tasks",
+    icon: Checklist,
     content: <RecordTasksTab record={taskRef(ref)} currentUserId={currentUserId} />,
   };
 }
 
-export function commentsTab({
+/**
+ * The audit trail, in one section.
+ *
+ * Three rows in the rail — History, Field history, Mentions — for one
+ * question: what has this record been through, and where else does it come up.
+ * They are genuinely different lists, which is why they were separate; they
+ * are not different *destinations*, which is why they no longer are.
+ */
+export function historyTab({
   ref,
-  currentUserId,
+  entity,
+  activities,
 }: {
   ref: RecordRef;
-  currentUserId?: string;
+  /** The field-history layer's name for this record. */
+  entity: string;
+  /** Omitted where the record has no activity feed of its own — a site. */
+  activities?: Parameters<typeof RecordHistoryTab>[0]["activities"];
 }): RecordTab {
   return {
-    value: "comments",
-    label: "Comments",
+    value: "history",
+    label: "History",
+    icon: History,
     content: (
-      <CommentThread
-        entity={COLLAB[ref.kind]}
-        recordId={ref.id}
-        currentUserId={currentUserId}
+      <SubSections
+        label="History"
+        sections={[
+          ...(activities
+            ? [
+                {
+                  value: "activity",
+                  label: "Activity",
+                  content: <RecordHistoryTab activities={activities} />,
+                },
+              ]
+            : []),
+          {
+            value: "changes",
+            label: "Field changes",
+            content: <FieldHistoryTab entity={entity} recordId={ref.id} />,
+          },
+          {
+            // The other half of a link: a reference to this site in a note on
+            // a deal is exactly the connection that was invisible before.
+            value: "mentions",
+            label: "Mentions",
+            content: <MentionsTab recordId={ref.id} />,
+          },
+        ]}
       />
     ),
-  };
-}
-
-/**
- * Where this record has been written about elsewhere. Every kind gets it,
- * because a reference to a site in a note on a deal is exactly the connection
- * that was invisible before.
- */
-export function mentionsTab({ ref }: { ref: RecordRef }): RecordTab {
-  return {
-    value: "mentions",
-    label: "Mentions",
-    content: <MentionsTab recordId={ref.id} />,
   };
 }
 
@@ -167,23 +222,59 @@ export function automationTab({ ref }: { ref: RecordRef }): RecordTab {
   return {
     value: "automation",
     label: "Workflows",
+    icon: FlowArrow,
     content: <AutomationTab entity={AUTOMATION_ENTITY[ref.kind]} recordId={ref.id} />,
   };
 }
 
 /**
- * Files that arrived from outside, on every kind.
+ * All the paperwork on a record, in one section.
  *
- * Separate from Documents, which is what the system raised and numbered. A
- * signed contract and a quotation are both "a document" to a reader, but only
- * one of them has a total and a status, and mixing them makes the register
- * useless for either question.
+ * A quotation and an uploaded contract are not the same object — only one of
+ * them has a total, a status and a version chain — which is why the two lists
+ * stay separate. But "what paperwork is on this record" is one question, and
+ * it was two rows in the rail. The segmented control keeps the lists apart
+ * without keeping the destinations apart.
+ *
+ * `documents` is the register the system raised and numbered; pass it where
+ * the record has one. Files alone still render, without a control.
  */
-export function filesTab({ ref }: { ref: RecordRef }): RecordTab {
+export function paperworkTab({
+  ref,
+  documents,
+  documentCount,
+}: {
+  ref: RecordRef;
+  documents?: ReactNode;
+  documentCount?: number;
+}): RecordTab {
   return {
-    value: "files",
-    label: "Files",
-    content: <FilesTab owner={FILE_OWNER[ref.kind]} ownerId={ref.id} />,
+    value: "documents",
+    label: "Documents",
+    icon: FileText,
+    count: documentCount,
+    content: (
+      <SubSections
+        label="Paperwork"
+        sections={[
+          ...(documents
+            ? [
+                {
+                  value: "documents",
+                  label: "Issued",
+                  count: documentCount,
+                  content: documents,
+                },
+              ]
+            : []),
+          {
+            value: "files",
+            label: "Uploads",
+            content: <FilesTab owner={FILE_OWNER[ref.kind]} ownerId={ref.id} />,
+          },
+        ]}
+      />
+    ),
   };
 }
 
@@ -197,11 +288,6 @@ const FILE_OWNER: Record<RecordKind, FileOwnerKind> = {
 };
 
 /** A tab a single record type adds to the shared set. */
-export function extraTab(tab: {
-  value: string;
-  label: string;
-  count?: number;
-  content: ReactNode;
-}): RecordTab {
+export function extraTab(tab: RecordTab): RecordTab {
   return tab;
 }

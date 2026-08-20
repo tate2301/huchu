@@ -19,6 +19,7 @@ import {
   TableRow,
 } from "@corelithzw/react";
 
+import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -49,7 +50,19 @@ const KIND_FILTERS = [
  * stock beside price is the point: it is the same screen whether you are
  * pricing a service that is never held anywhere or a pump sitting in a yard.
  */
-export function CataloguePanel() {
+export function CataloguePanel({
+  /**
+   * Put "New item" in the top app bar instead of above the table.
+   *
+   * On its own page in Stock & Inventory that is where a primary action goes,
+   * the same as "New person" on the people list. The panel is also embedded in
+   * CRM settings, where the bar belongs to that page — so this is opt-in, and
+   * the button stays in the body by default.
+   */
+  actionInBar = false,
+}: {
+  actionInBar?: boolean;
+} = {}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [search, setSearch] = useState("");
@@ -81,8 +94,21 @@ export function CataloguePanel() {
     onError: (err) => toast({ title: getApiErrorMessage(err), variant: "destructive" }),
   });
 
+  const newItem = (
+    <Button
+      variant="primary"
+      size="sm"
+      startIcon={<Plus className="size-4" />}
+      onClick={() => setCreating(true)}
+    >
+      New item
+    </Button>
+  );
+
   return (
     <div className="space-y-4">
+      {actionInBar ? <PageActions>{newItem}</PageActions> : null}
+
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h2 className="text-sm font-semibold">What the business sells</h2>
@@ -92,9 +118,7 @@ export function CataloguePanel() {
             {priceList ? ` Prices shown from the ${priceList.name} list.` : null}
           </p>
         </div>
-        <Button variant="primary" size="sm" startIcon={<Plus className="size-4" />} onClick={() => setCreating(true)}>
-          New item
-        </Button>
+        {actionInBar ? null : newItem}
       </div>
 
       <div className="flex flex-wrap items-center gap-2">

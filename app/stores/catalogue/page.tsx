@@ -19,7 +19,7 @@ export default async function StoresCataloguePage() {
 
   return (
     <StoresShell activeTab="catalogue">
-      <CataloguePanel />
+      <CataloguePanel actionInBar />
     </StoresShell>
   );
 }

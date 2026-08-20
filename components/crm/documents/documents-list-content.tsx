@@ -132,6 +132,8 @@ export function DocumentsListContent({
               : []),
             {
               label: "Total",
+              // The figure a phone keeps: what the document is for.
+              primary: true,
               value: formatMoney(document.total, document.currency),
               mono: true,
             },

@@ -44,9 +44,31 @@ const DropdownMenuSub = DropdownMenuPrimitive.Sub
 
 const DropdownMenuRadioGroup = DropdownMenuPrimitive.RadioGroup
 
-/** Shared by every row: the DS item, unpicked from its grid. See the note above. */
+/**
+ * Shared by every row: the DS item, unpicked from its grid. See the note above.
+ *
+ * The icon rules are here rather than at each call site because they were at
+ * each call site, and drifted: `h-4 w-4` in one menu, `size-4` in another,
+ * inherited black in a third and muted grey in a fourth, with the gap between
+ * mark and label set independently every time. A menu is a column of rows that
+ * have to scan as one thing. Any icon a caller passes is now sized, spaced and
+ * muted the same, and a toned item tints its own mark to match its label —
+ * which is what makes a destructive row read as destructive at a glance rather
+ * than after reading the verb.
+ */
 const MENU_ITEM_BASE =
-  "menu-item flex w-full min-w-0 select-none items-center outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50"
+  "menu-item flex w-full min-w-0 select-none items-center gap-2 outline-none data-[disabled]:pointer-events-none data-[disabled]:opacity-50 [&_svg]:size-4 [&_svg]:shrink-0 [&_svg:not([class*='text-'])]:text-[var(--text-subtle)]"
+
+/** What a row means, drawn on the label and its mark together. */
+const MENU_ITEM_TONE = {
+  default: "",
+  /** Removes something, or cannot be undone. */
+  destructive: "danger [&_svg]:text-[var(--status-error-text)]",
+  /** Completes something — settling an invoice, accepting a quote. */
+  positive: "text-[var(--status-success-text)] [&_svg]:text-[var(--status-success-text)]",
+  /** The one thing this menu is mostly opened to do. */
+  primary: "[&_svg]:text-[var(--action-primary-bg)]",
+} as const
 
 const DropdownMenuGroup = React.forwardRef<
   React.ElementRef<typeof DropdownMenuPrimitive.Group>,
@@ -87,7 +109,7 @@ const DropdownMenuSubContent = React.forwardRef<
     ref={ref}
     data-slot="dropdown-menu-sub-content"
     className={cn(
-      "menu z-50 data-[state=open]:animate-in data-[state=closed]:animate-out",
+      "menu z-[var(--z-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out",
       className,
     )}
     {...props}
@@ -105,7 +127,7 @@ const DropdownMenuContent = React.forwardRef<
       data-slot="dropdown-menu-content"
       sideOffset={sideOffset}
       className={cn(
-        "menu z-50 data-[state=open]:animate-in data-[state=closed]:animate-out",
+        "menu z-[var(--z-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out",
         className,
       )}
       {...props}
@@ -118,8 +140,8 @@ type DropdownMenuItemProps = React.ComponentPropsWithoutRef<
   typeof DropdownMenuPrimitive.Item
 > & {
   inset?: boolean
-  /** Additive; maps onto the DS's `.danger` item treatment. */
-  variant?: "default" | "destructive"
+  /** Additive; `destructive` maps onto the DS's `.danger` item treatment. */
+  variant?: keyof typeof MENU_ITEM_TONE
 }
 
 const DropdownMenuItem = React.forwardRef<
@@ -132,7 +154,7 @@ const DropdownMenuItem = React.forwardRef<
     data-variant={variant}
     className={cn(
       MENU_ITEM_BASE,
-      variant === "destructive" && "danger",
+      MENU_ITEM_TONE[variant],
       inset && "pl-8",
       className,
     )}

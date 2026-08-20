@@ -7,6 +7,7 @@ import { Badge, Stack } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { ClientDate } from "@/components/ui/client-date";
 import { EntityLink } from "@/components/records/entity-link";
+import { eventKindStyle, type EventKind } from "@/components/crm/records/event-kind";
 import { richTextToPlain } from "@/lib/crm/rich-text";
 import { fileMark, formatFileSize, meetingPlace, timeToStart } from "@/lib/crm/panels";
 import {
@@ -14,7 +15,6 @@ import {
   Download,
   Mail,
   MapPin,
-  Phone,
   Video,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
@@ -108,45 +108,6 @@ export function MeetingCard({
   );
 }
 
-export type ActivityCount = { label: string; count: number; icon?: ReactNode };
-
-/**
- * How much has been going on, at a glance.
- *
- * A strip rather than a chart: the question is "has anybody spoken to these
- * people" and the answer is a handful of small numbers, which a chart would
- * spend two hundred pixels failing to say more clearly.
- */
-export function ActivityStrip({ counts }: { counts: ActivityCount[] }) {
-  const total = counts.reduce((sum, entry) => sum + entry.count, 0);
-
-  if (total === 0) {
-    return <p className="text-sm text-[var(--text-muted)]">Nothing logged yet.</p>;
-  }
-
-  // Figures, not chips. A chip draws a bordered box around each number, so
-  // four kinds of contact became four boxes inside a fifth — five frames to
-  // say "three calls". The numbers are the content; they only need to be
-  // bigger than their labels to read as figures.
-  return (
-    <dl className="flex flex-wrap gap-x-5 gap-y-1">
-      {counts
-        .filter((entry) => entry.count > 0)
-        .map((entry) => (
-          <div key={entry.label} className="flex items-baseline gap-1.5">
-            <dt className="sr-only">{entry.label}</dt>
-            <dd className="font-mono text-base tabular-nums text-[var(--text-strong)]">
-              {entry.count}
-            </dd>
-            <span aria-hidden="true" className="text-sm text-[var(--text-muted)]">
-              {entry.label}
-            </span>
-          </div>
-        ))}
-    </dl>
-  );
-}
-
 export type PanelAttachment = {
   id: string;
   name: string;
@@ -160,7 +121,8 @@ export type PanelAttachment = {
  *
  * The coloured mark is doing real work: a rail of eleven attachments is
  * searched for "the PDF" or "the photo", and colour answers that without
- * reading a single filename.
+ * reading a single filename. Solid, like every other mark in a record — a
+ * tint reads as a disabled or draft state next to a column of filled discs.
  */
 export function AttachmentsPanel({
   attachments,
@@ -189,7 +151,7 @@ export function AttachmentsPanel({
               <span
                 data-accent={mark.accent}
                 aria-hidden="true"
-                className="flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-bg)] font-mono text-sm font-medium text-[var(--accent-fg)]"
+                className="solid-mark flex size-8 shrink-0 items-center justify-center rounded-[var(--radius-sm)] font-mono text-sm font-semibold"
               >
                 {mark.label}
               </span>
@@ -349,9 +311,11 @@ export function EmailPreview({
   );
 }
 
-export type PanelCall = {
+export type PanelContact = {
   id: string;
   at: string;
+  /** Call, email, meeting — what actually happened. */
+  kind: EventKind;
   actorName?: string | null;
   summary?: string | null;
   /** Somebody rang and nobody answered — worth showing differently. */
@@ -359,52 +323,77 @@ export type PanelCall = {
 };
 
 /**
- * Who has rung, and when.
+ * The last few times anybody dealt with these people, and how.
  *
  * Separated from the timeline because "when did we last actually speak to
  * them" is the question that decides whether to ring now, and answering it
- * from a mixed feed means scrolling past every note and stage change.
+ * from a mixed feed means scrolling past every stage change and raised
+ * document.
+ *
+ * It used to be calls only, under a strip counting four kinds — so a record
+ * whose last three contacts were emails read as "nobody has logged a call"
+ * beside a figure saying four emails. Every kind of contact belongs here; the
+ * glyph and its colour, shared with the timeline, are what keep them apart.
+ *
+ * And it is the list alone. The counts that sat above it — "2 calls · 4 emails
+ * · 2 notes" — were a second, coarser answer to the question the list below
+ * them was already answering better: five rows say how much has been going on
+ * *and* what was said, in the order it happened. Two readings of one set of
+ * facts, stacked, is how a narrow column runs out of room.
  */
-export function CallList({
-  calls,
-  emptyMessage = "Nobody has logged a call.",
+export function ContactList({
+  contacts,
+  emptyMessage = "Nobody has logged any contact.",
 }: {
-  calls: PanelCall[];
+  contacts: PanelContact[];
   emptyMessage?: string;
 }) {
-  if (calls.length === 0) {
+  if (contacts.length === 0) {
     return <p className="text-sm text-[var(--text-muted)]">{emptyMessage}</p>;
   }
 
   return (
-    <Stack as="ul" gap="xs">
-      {calls.map((call) => (
-        <li key={call.id} className="flex items-start gap-2">
-          <Phone
-            className={cn(
-              "mt-0.5 size-4 shrink-0",
-              call.missed ? "text-[var(--status-error-text)]" : "text-[var(--text-subtle)]",
-            )}
-            aria-hidden="true"
-          />
-          <span className="min-w-0 flex-1">
-            <span className="flex items-baseline justify-between gap-2">
-              <span className="truncate text-sm text-[var(--text-strong)]">
-                {call.actorName ?? "Someone"}
-                {call.missed ? " · no answer" : ""}
-              </span>
-              <span className="shrink-0 text-sm text-[var(--text-muted)]">
-                <ClientDate value={call.at} />
-              </span>
+    // Each row is two lines of its own, so the gap between rows has to beat the
+    // gap inside one or the list reads as one paragraph with coloured dots in
+    // it. `xs` was tuned for single-line rows and did not.
+    <ul className="flex flex-col gap-3">
+      {contacts.map((contact) => {
+        const { icon: KindIcon, accent, label } = eventKindStyle(contact.kind);
+        return (
+          <li key={contact.id} className="flex items-start gap-2.5">
+            {/* Solid, like the chip on the timeline: this is the same coding
+                doing the same job, and at 20px a tint has nothing left to
+                spend. `.solid-mark` carries the fill-and-glyph pairing. */}
+            <span
+              data-accent={contact.missed ? "red" : accent}
+              title={label}
+              className="solid-mark mt-px flex size-5 shrink-0 items-center justify-center rounded-full"
+            >
+              <KindIcon className="size-3" aria-hidden="true" />
             </span>
-            {call.summary ? (
-              <span className="block truncate text-sm text-[var(--text-muted)]">
-                {richTextToPlain(call.summary, 120)}
+            <span className="min-w-0 flex-1">
+              <span className="flex items-baseline justify-between gap-2">
+                <span className="truncate text-sm font-medium text-[var(--text-strong)]">
+                  {contact.actorName ?? "Someone"}
+                  {contact.missed ? " · no answer" : ""}
+                </span>
+                {/* The day, not the second. This is a three-line "when did we
+                    last speak" summary in a narrow column, and a full
+                    "8/4/2026, 9:06:53 PM" both wraps and answers a question
+                    nobody asked. The exact time is on the timeline. */}
+                <span className="shrink-0 text-sm tabular-nums text-[var(--text-muted)]">
+                  <ClientDate value={contact.at} mode="date" />
+                </span>
               </span>
-            ) : null}
-          </span>
-        </li>
-      ))}
-    </Stack>
+              {contact.summary ? (
+                <span className="mt-0.5 block truncate text-sm text-[var(--text-muted)]">
+                  {richTextToPlain(contact.summary, 120)}
+                </span>
+              ) : null}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
   );
 }

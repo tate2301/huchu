@@ -15,7 +15,9 @@ import { cn } from "@/lib/utils";
  *
  * Two local utilities survive on purpose:
  *
- *   - `z-50`. `.popover` sets no stacking context of its own.
+ *   - The popover rung of the app's overlay scale. `.popover` sets no
+ *     stacking context of its own, and a popover opened from inside a sheet or
+ *     a dialog has to paint above it — see the scale in `globals.css`.
  *   - `max-w-none`. `.popover` caps itself at 320px, but five call sites are
  *     wider than that — four pass `w-[var(--radix-popover-trigger-width)]` to
  *     match a full-width trigger and one asks for `w-[min(23rem,…)]`. Those set
@@ -54,7 +56,7 @@ function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          "popover z-50 w-72 max-w-none outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
+          "popover z-[var(--z-overlay)] w-72 max-w-none outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
           className,
         )}
         {...props}

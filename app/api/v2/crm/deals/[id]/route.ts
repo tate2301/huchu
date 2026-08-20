@@ -69,7 +69,19 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
         documents: {
           orderBy: { createdAt: "desc" },
           include: {
-            approval: { select: { token: true, status: true, respondedAt: true } },
+            approval: {
+              select: {
+                token: true,
+                status: true,
+                respondedAt: true,
+                // What the customer actually said, and whether they have so
+                // much as opened it. All four have been stored since the
+                // approval link shipped; none of them were ever read back.
+                responseNote: true,
+                responderName: true,
+                firstViewedAt: true,
+              },
+            },
             // The document list needs the underlying record's own status and
             // balance — a CrmLeadDocument only knows the amount it was cut for,
             // not what has since been paid against it.

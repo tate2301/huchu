@@ -2,11 +2,12 @@
 
 import { useMemo, type ReactNode } from "react";
 
-import { Alert, Button, Input } from "@corelithzw/react";
+import { Alert, Button } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
+import { ListSearch } from "./list-search";
 import { ViewToolbar } from "./view-toolbar";
 import { getApiErrorMessage } from "@/lib/api-client";
 
@@ -26,6 +27,8 @@ export function RecordListShell({
   search,
   onSearchChange,
   searchPlaceholder,
+  searchNoun,
+  layout,
   filters,
   display,
   createLabel,
@@ -38,6 +41,18 @@ export function RecordListShell({
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder: string;
+  /**
+   * What the phone's placeholder says after "Search". Defaults to the page's
+   * own title, which is the right noun on every list here — pass one only
+   * where the title is not what the rows are ("Collections" holding invoices).
+   */
+  searchNoun?: string;
+  /**
+   * The layout switch — `LayoutSwitch`, on every list that has more than one
+   * arrangement. Separate from `filters` so the toolbar can put the rule in the
+   * right place without a page having to remember to.
+   */
+  layout?: ReactNode;
   filters?: ReactNode;
   /** Display controls — column picker, card fields — right-aligned with search. */
   display?: ReactNode;
@@ -73,14 +88,14 @@ export function RecordListShell({
       <PageChrome title={title}>{actions}</PageChrome>
 
       <ViewToolbar
+        layout={layout}
         start={filters}
         search={
-          <Input
+          <ListSearch
             value={search}
-            onChange={(event) => onSearchChange(event.target.value)}
+            onChange={onSearchChange}
             placeholder={searchPlaceholder}
-            className="w-full sm:w-64"
-            aria-label={searchPlaceholder}
+            noun={searchNoun ?? title.toLowerCase()}
           />
         }
         end={display}

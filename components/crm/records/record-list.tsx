@@ -30,6 +30,16 @@ export type RecordListFact = {
   value: ReactNode;
   /** Numerals line up when this is set — codes, money, counts. */
   mono?: boolean;
+  /**
+   * The one fact worth keeping when the row has no room for labels — a deal's
+   * value, an invoice's balance. A phone shows this and nothing else.
+   *
+   * Left off on purpose for counts and owners: stripped of its label, "Deals:
+   * 0" renders as a bare "0" at the end of a person's name, which reads as a
+   * figure about them without saying which. A row that says less is better
+   * than one that says something ambiguous.
+   */
+  primary?: boolean;
 };
 
 export type RecordListRow = {
@@ -105,7 +115,9 @@ export function RecordList({
       // anything to look at, and the rows stop reading as a ruled ledger.
       className={cn("space-y-1", className)}
     >
-      {rows.map((row) => (
+      {rows.map((row) => {
+        const primaryFact = row.facts?.find((fact) => fact.primary);
+        return (
         <li
           key={row.id}
           className={cn(
@@ -151,20 +163,20 @@ export function RecordList({
             </span>
 
             {/* Facts are supporting detail, so they are the first thing to go
-                when the row runs out of room — but not all of them. On a phone
-                the leading fact survives and its label does not: callers put
-                the number the row is about first (a balance, a pipeline, a
-                count), and a row that drops it entirely says less than the
-                card it replaced. Two and three go; three labelled columns
-                will not fit beside a title at 390px. */}
-            {row.facts?.length ? (
+                when the row runs out of room. On a phone the one marked
+                `primary` survives without its label — a value, a balance, the
+                figure the row is about — and the rest go, because three
+                labelled columns will not fit beside a title at 390px. A row
+                with nothing marked shows no facts on a phone at all: an
+                unlabelled number is worse than a missing one. */}
+            {primaryFact ? (
               <span
                 className={cn(
                   "flex-none text-right text-sm text-[var(--text-body)] sm:hidden",
-                  row.facts[0].mono ? "font-mono tabular-nums" : "",
+                  primaryFact.mono ? "font-mono tabular-nums" : "",
                 )}
               >
-                {row.facts[0].value}
+                {primaryFact.value}
               </span>
             ) : null}
 
@@ -195,7 +207,8 @@ export function RecordList({
 
           {row.actions ? <span className="flex-none">{row.actions}</span> : null}
         </li>
-      ))}
+        );
+      })}
     </ul>
 
     {selection && selectedIds.length > 0 ? (

@@ -42,12 +42,27 @@ function getIconComponent(iconName: string) {
 const STROKE_WEIGHT_PREFIX = /^Caret/;
 const STROKE_WEIGHT_EXACT = new Set(["X", "Plus", "Minus", "Check", "Checks", "Equals"]);
 
+/**
+ * Marks drawn as outlines rather than solids.
+ *
+ * A filled magnifier is a black lollipop: the lens, which is the part that
+ * says "search", is exactly the part the fill removes. It reads as heavier
+ * than everything around it in a toolbar of quiet controls — and search is
+ * the quietest thing in a toolbar, not the loudest.
+ *
+ * `regular` rather than `bold`: these are shapes with an interior, so they
+ * want an outline weight, not a thickened stroke.
+ */
+const OUTLINE_WEIGHT_EXACT = new Set(["MagnifyingGlass"]);
+
 function createPhosphorIcon(iconName: string, displayName: string): LucideIcon {
   const IconComponent = getIconComponent(iconName);
   const defaultWeight: PhosphorIconProps["weight"] =
     STROKE_WEIGHT_PREFIX.test(iconName) || STROKE_WEIGHT_EXACT.has(iconName)
       ? "bold"
-      : "fill";
+      : OUTLINE_WEIGHT_EXACT.has(iconName)
+        ? "regular"
+        : "fill";
 
   const Icon = ({
     className,
@@ -431,3 +446,9 @@ export const Repeat = createPhosphorIcon("Repeat", "Repeat");
 export const Upload = createPhosphorIcon("UploadSimple", "Upload");
 export const Keyboard = createPhosphorIcon("Keyboard", "Keyboard");
 export const Percent = createPhosphorIcon("Percent", "Percent");
+
+/** Marks for a record's sections — the tab strip and the phone's section list. */
+export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
+export const At = createPhosphorIcon("At", "At");
+export const FlowArrow = createPhosphorIcon("FlowArrow", "FlowArrow");
+export const Archive = createPhosphorIcon("Archive", "Archive");

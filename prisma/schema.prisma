@@ -1073,6 +1073,7 @@ model User {
   crmPipelinesCreated               CrmPipeline[]                  @relation("CrmPipelineCreatedBy")
   crmFieldDefinitionsCreated        CrmFieldDefinition[]           @relation("CrmFieldDefinitionCreatedBy")
   crmLeadsConverted                 CrmLead[]                      @relation("CrmLeadConvertedBy")
+  crmLeadsArchived                  CrmLead[]                      @relation("CrmLeadArchivedBy")
   crmListsCreated                   CrmList[]                      @relation("CrmListCreatedBy")
   crmOverviewLayouts                CrmOverviewLayout[]            @relation("CrmOverviewLayoutUser")
   crmCustomWidgetsCreated           CrmCustomWidget[]              @relation("CrmCustomWidgetCreatedBy")
@@ -9487,6 +9488,13 @@ model CrmLead {
   convertedDealId   String?
   convertedPersonId String?
   convertedClientId String?
+  /// Out of the working set, but not gone. Archiving is how a lead stops
+  /// appearing in lists, boards and counts without destroying the record of
+  /// where the enquiry came from — which is what source reporting is built on.
+  /// Conversion sets this too: a converted lead and the deal it became are the
+  /// same opportunity, and showing both is how a pipeline gets counted twice.
+  archivedAt        DateTime?
+  archivedById      String?
   createdAt         DateTime       @default(now())
   updatedAt         DateTime       @updatedAt
 
@@ -9503,6 +9511,7 @@ model CrmLead {
   convertedDeal     CrmDeal?              @relation("CrmLeadConvertedDeal", fields: [convertedDealId], references: [id], onDelete: SetNull)
   convertedPerson   CrmPerson?            @relation("CrmLeadConvertedPerson", fields: [convertedPersonId], references: [id], onDelete: SetNull)
   convertedBy       User?                 @relation("CrmLeadConvertedBy", fields: [convertedById], references: [id])
+  archivedBy        User?                 @relation("CrmLeadArchivedBy", fields: [archivedById], references: [id])
   tasks             CrmTask[]
   comments          CrmComment[]
   files             CrmRecordFile[]

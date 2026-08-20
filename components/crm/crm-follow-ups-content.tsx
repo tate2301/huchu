@@ -106,7 +106,10 @@ export function CrmFollowUpsContent() {
 
   return (
     <div className="max-w-3xl space-y-4">
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* Three counts read as one triptych, so they stay three-up at every
+          width — stacked they cost the whole first screen and the queue
+          underneath started below the fold. */}
+      <div className="grid grid-cols-3 gap-2 sm:gap-3">
         {HEADLINE_QUEUES.map((value, index) => {
           const count = headline[index]?.data?.pagination?.total ?? 0;
           return (

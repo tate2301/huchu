@@ -432,6 +432,19 @@ export function LeadsFilters({
           >
             Overdue
           </Button>
+
+          {/* Without this, archiving is a one-way trip: the lead leaves every
+              list and there is no door back to it. Not counted as an active
+              filter, because it swaps which set is being looked at rather than
+              narrowing the live one — and "Clear all" should not silently drag
+              somebody out of the archive they went to on purpose. */}
+          <Button
+            variant={filters.archived ? "default" : "outline"}
+            size="sm"
+            onClick={() => patch({ archived: filters.archived ? undefined : true })}
+          >
+            Archived
+          </Button>
         </div>
 
         {activeCount > 0 ? (

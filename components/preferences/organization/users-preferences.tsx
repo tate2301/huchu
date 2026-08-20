@@ -16,6 +16,7 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
@@ -373,6 +374,23 @@ export function UsersPreferences() {
         </Alert>
       ) : null}
 
+      {/* Only for somebody who can actually create one: a manager browsing a
+          read-only directory gets a bar with nothing in it rather than a
+          button that refuses. */}
+      {canMutate ? (
+        <PageActions>
+          <Button
+            type="button"
+            variant="primary"
+            size="sm"
+            startIcon={<Plus className="size-4" aria-hidden="true" />}
+            onClick={() => setCreateOpen(true)}
+          >
+            New user
+          </Button>
+        </PageActions>
+      ) : null}
+
       <DsDataTable
         ariaLabel="Users"
         rows={users}
@@ -406,19 +424,6 @@ export function UsersPreferences() {
               <option value="INACTIVE">Inactive</option>
             </Select>
           </div>
-        }
-        actions={
-          canMutate ? (
-            <Button
-              type="button"
-              variant="primary"
-              size="sm"
-              startIcon={<Plus className="size-4" aria-hidden="true" />}
-              onClick={() => setCreateOpen(true)}
-            >
-              New user
-            </Button>
-          ) : null
         }
         isLoading={usersQuery.isLoading}
         loadingLabel="Fetching users"

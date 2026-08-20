@@ -1,28 +1,44 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
 import { Avatar } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
+import { ChevronDown, ChevronRight, FileText } from "@/lib/icons";
 import {
-  ArrowRight,
-  Calendar,
-  Checklist,
-  ChatCircle,
-  FileText,
-  Mail,
-  MapPin,
-  NoteAdd,
-  Payments,
-  Phone,
-  Send,
-  User,
-} from "@/lib/icons";
+  QUIET_KINDS,
+  type EventKind,
+  eventKindStyle,
+} from "@/components/crm/records/event-kind";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import { cn } from "@/lib/utils";
 
 const PAGE_SIZE = 25;
+
+/**
+ * The time of day, and nothing else.
+ *
+ * Same hydration contract as `ClientDate`: the first paint is a slice of the
+ * raw ISO string, so the server bytes and the first client render are
+ * identical, and only afterwards does the reader's locale come into it.
+ * `ClientDate` has no time-only mode, hence the dozen lines.
+ */
+const NO_RESUBSCRIBE = () => () => {};
+
+function ClientTime({ value }: { value: string }) {
+  // useSyncExternalStore rather than a mount effect: the server snapshot and
+  // the client's first snapshot are both `false`, so hydration matches without
+  // a render-triggering setState.
+  const hydrated = useSyncExternalStore(
+    NO_RESUBSCRIBE,
+    () => true,
+    () => false,
+  );
+
+  const date = new Date(value);
+  if (!hydrated || Number.isNaN(date.getTime())) return <>{value.slice(11, 16)}</>;
+  return <>{date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}</>;
+}
 
 /**
  * One thing that happened, whatever kind of thing it was.
@@ -34,20 +50,7 @@ const PAGE_SIZE = 25;
  */
 export type StoryEvent = {
   id: string;
-  kind:
-    | "note"
-    | "call"
-    | "email"
-    | "whatsapp"
-    | "meeting"
-    | "stage"
-    | "document"
-    | "payment"
-    | "task"
-    | "visit"
-    | "comment"
-    | "intake"
-    | "system";
+  kind: EventKind;
   /** The sentence: "Nicolas Sharp created a task". */
   title: string;
   /** What was said, if anything was. */
@@ -63,43 +66,40 @@ export type StoryEvent = {
   href?: string;
 };
 
-const KIND_ICON: Record<StoryEvent["kind"], typeof NoteAdd> = {
-  note: NoteAdd,
-  call: Phone,
-  email: Mail,
-  whatsapp: Send,
-  meeting: Calendar,
-  stage: ArrowRight,
-  document: FileText,
-  payment: Payments,
-  task: Checklist,
-  visit: MapPin,
-  comment: ChatCircle,
-  intake: User,
-  system: ArrowRight,
-};
-
 /**
- * Which events are context and which are news.
+ * Events that carry a body worth boxing rather than running as one line.
  *
- * A stage change is worth knowing and worth passing over quickly; a note
- * somebody wrote is the thing you came to read. The quiet ones keep their
- * place in the order but not the reader's attention.
+ * Every kind somebody *writes prose into*, not a hand-picked few. With only
+ * email boxed, a feed alternated between a framed paragraph and an unframed one
+ * for two things that are the same thing — a message — and the frame stopped
+ * meaning "somebody said this" and started meaning "this one happened to be an
+ * email". The accent on the box's leading edge is what tells the kinds apart;
+ * the box itself only says there are words in here.
  */
-const QUIET: ReadonlySet<StoryEvent["kind"]> = new Set([
-  "stage",
-  "system",
-  "document",
-  "payment",
-]);
-
-/** Events that carry a body worth boxing rather than running as one line. */
-const BOXED: ReadonlySet<StoryEvent["kind"]> = new Set([
+const BOXED: ReadonlySet<EventKind> = new Set([
   "email",
   "note",
   "comment",
   "visit",
+  "call",
+  "whatsapp",
+  "meeting",
 ]);
+
+/**
+ * The kinds that fold away.
+ *
+ * Deliberately narrower than `QUIET_KINDS`. Quiet means "read this second";
+ * this means "you do not have to read it at all unless you ask", and only two
+ * kinds earn that: a stage move and a system line. A raised quotation is quiet
+ * *and* it is the reason somebody opened the record — hiding it behind a
+ * disclosure would answer "what happened here" with a button.
+ *
+ * A run of one is left alone. Replacing a single grey line with a single grey
+ * control that reveals it is not a saving.
+ */
+const FOLDABLE: ReadonlySet<EventKind> = new Set(["stage", "system"]);
+const FOLD_FROM = 2;
 
 function dayKey(iso: string): string {
   return new Date(iso).toISOString().slice(0, 10);
@@ -118,30 +118,110 @@ function dayLabel(iso: string, now: Date): string {
   });
 }
 
+/**
+ * The rail and the mark, which every row in the feed shares.
+ *
+ * `data-accent` is how the design system swaps a hue — it rebinds `--accent-*`
+ * on this element, so the classes stay static and only the attribute changes.
+ *
+ * Solid, not a tint inside a ring. A 24px disc has room for one thing, and a
+ * pale wash behind a pale glyph inside a pale outline spends all three on the
+ * same weak signal — at arm's length the whole rail read as one grey column
+ * again. `.solid-mark` owns the fill-and-glyph pairing for every mark in the
+ * product; see `globals.css` for why three of the thirteen hues are darkened
+ * rather than reversed.
+ */
+function StoryMark({
+  accent,
+  title,
+  children,
+}: {
+  accent: string;
+  title?: string;
+  children: ReactNode;
+}) {
+  return (
+    <span
+      data-accent={accent}
+      title={title}
+      className="solid-mark relative z-10 mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full"
+    >
+      {children}
+    </span>
+  );
+}
+
+/** The vertical line behind the marks, drawn per row so the last one stops. */
+function StoryRail() {
+  return (
+    <span
+      aria-hidden="true"
+      className="absolute bottom-0 left-[11px] top-6 w-px bg-[var(--border-subtle)]"
+    />
+  );
+}
+
 function StoryRow({ event }: { event: StoryEvent }) {
-  const Icon = KIND_ICON[event.kind];
-  const quiet = QUIET.has(event.kind);
+  const { icon: Icon, accent, label } = eventKindStyle(event.kind);
+  const quiet = QUIET_KINDS.has(event.kind);
   const boxed = BOXED.has(event.kind) && Boolean(event.body);
+
+  /**
+   * Who, what and when, on one line above whatever they wrote.
+   *
+   * This used to run inline with the body: avatar, then the sentence, then the
+   * time, then the prose underneath, all in one paragraph-shaped block. Which
+   * meant the two facts a reader scans a feed for — who is talking and when —
+   * were mixed into the same visual run as the thing they said, and finding
+   * "the last time the client emailed" meant reading every row.
+   *
+   * Split out, the header is a fixed shape that repeats down the feed and the
+   * body is free to be any length without moving it.
+   */
+  const header = (
+    <div className="flex items-center gap-2">
+      {event.actorName ? (
+        // Coloured by who wrote it, not by what kind of event it is — that
+        // second channel is the mark on the rail. The design system hashes the
+        // name for us, so two colleagues in one day's worth of rows come out as
+        // two colours rather than two identical discs.
+        <Avatar size="sm" name={event.actorName} solid />
+      ) : null}
+
+      <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
+        {event.actorName ? (
+          <span className="text-sm font-medium text-[var(--text-strong)]">{event.actorName}</span>
+        ) : null}
+        {/* With an author beside it the title is the *kind* — "Email", "Note" —
+            so it reads as a label rather than repeating the name the avatar
+            already carries. Without one it is the whole sentence. */}
+        <span
+          className={cn(
+            "min-w-0 text-sm",
+            event.actorName || quiet
+              ? "text-[var(--text-muted)]"
+              : "font-medium text-[var(--text-strong)]",
+          )}
+        >
+          {event.title}
+        </span>
+      </span>
+
+      {/* The day is already the section heading, so the row only needs the
+          time of day — a full "8/4/2026, 9:06:53 PM" on every one of a hundred
+          rows repeats the heading and adds a second nobody reads. */}
+      <span className="shrink-0 text-sm tabular-nums text-[var(--text-subtle)]">
+        <ClientTime value={event.occurredAt} />
+      </span>
+    </div>
+  );
 
   const content = (
     <>
-      <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
-        {event.actorName ? (
-          <Avatar size="sm" name={event.actorName} className="translate-y-1" />
-        ) : null}
-        <span className={cn("text-sm", quiet && "text-[var(--text-muted)]")}>{event.title}</span>
-        {/* The day is already the section heading, so the row only needs the
-            time — but ClientDate is what keeps the server and first client
-            render identical, so it stays rather than a bare toLocaleTimeString. */}
-        <span className="text-sm text-[var(--text-subtle)]">
-          <ClientDate value={event.occurredAt} mode="datetime" />
-        </span>
-      </div>
+      {header}
 
       {event.participants && event.participants.length > 0 ? (
-        <p className="mt-0.5 text-sm text-[var(--text-muted)]">
-          {event.participants.join(", ")}
-        </p>
+        <p className="mt-1 text-sm text-[var(--text-muted)]">{event.participants.join(", ")}</p>
       ) : null}
 
       {event.body ? (
@@ -150,7 +230,7 @@ function StoryRow({ event }: { event: StoryEvent }) {
         // it does in the comment thread it might have been written in.
         <RichTextRenderer
           body={event.body}
-          className={cn("mt-1", quiet && "text-[var(--text-muted)]")}
+          className={cn("mt-1.5", quiet && "text-[var(--text-muted)]")}
         />
       ) : null}
 
@@ -179,36 +259,113 @@ function StoryRow({ event }: { event: StoryEvent }) {
   );
 
   return (
-    <li className="relative flex gap-3 pb-4 last:pb-0">
-      {/* The rail. Drawn per row rather than once behind the list so the last
-          row's line stops at its own icon instead of running into the gap. */}
-      <span
-        aria-hidden="true"
-        className="absolute bottom-0 left-[11px] top-6 w-px bg-[var(--border-subtle)] last:hidden"
-      />
-
-      <span
-        className={cn(
-          "relative z-10 mt-0.5 flex size-6 shrink-0 items-center justify-center rounded-full",
-          quiet
-            ? "bg-[var(--surface-muted)] text-[var(--text-muted)]"
-            : "bg-[var(--surface-subtle)] text-[var(--text)]",
-        )}
-      >
+    <li className="relative flex gap-3 pb-3 last:pb-0">
+      <StoryRail />
+      <StoryMark accent={accent} title={label}>
         <Icon className="size-3.5" />
-      </span>
+      </StoryMark>
 
       <div className="min-w-0 flex-1">
         {boxed ? (
-          <div className="rounded-[var(--card-radius)] border border-[var(--border)] p-3">
+          // What somebody actually wrote gets a box, and the box takes the
+          // event's colour on its leading edge — so a scrolled feed shows at a
+          // glance which paragraphs are the client's and which are ours,
+          // without reading a word of any of them.
+          <div
+            data-accent={accent}
+            className="rounded-[var(--card-radius)] border border-[var(--border)] border-l-2 border-l-[var(--accent-solid)] bg-[var(--surface-base)] p-3"
+          >
             {content}
           </div>
         ) : (
-          content
+          <div className="py-0.5">{content}</div>
         )}
       </div>
     </li>
   );
+}
+
+/**
+ * A run of mechanical changes, folded into one line.
+ *
+ * A record worked for a year carries hundreds of "Stage changed to Quoted"
+ * rows, and they sit between the things somebody actually said. Each one is
+ * worth having and none of them is worth a row of its own on the way past —
+ * which is exactly what a disclosure is for. Closed it says how many; open it
+ * is the same rows it always was, in the same order, on the same rail.
+ */
+function FoldedRun({ events }: { events: StoryEvent[] }) {
+  const [open, setOpen] = useState(false);
+
+  if (open) {
+    return (
+      <>
+        {events.map((event) => (
+          <StoryRow key={`${event.kind}-${event.id}`} event={event} />
+        ))}
+        <li className="relative flex gap-3 pb-3">
+          <StoryRail />
+          <span className="w-6 shrink-0" aria-hidden="true" />
+          <button
+            type="button"
+            onClick={() => setOpen(false)}
+            className="inline-flex items-center gap-1 text-sm text-[var(--text-muted)] hover:text-[var(--text)]"
+          >
+            <ChevronDown className="size-3.5" aria-hidden="true" />
+            Hide {events.length} changes
+          </button>
+        </li>
+      </>
+    );
+  }
+
+  return (
+    <li className="relative flex gap-3 pb-3 last:pb-0">
+      <StoryRail />
+      {/* The same 24px disc the rows use, so the fold sits on the rail rather
+          than beside it — a gap in the line reads as a gap in the record. */}
+      <StoryMark accent="gray">
+        <ChevronRight className="size-3.5" />
+      </StoryMark>
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        className="min-w-0 flex-1 py-0.5 text-left text-sm text-[var(--text-muted)] hover:text-[var(--text)] hover:underline"
+      >
+        View {events.length} changes
+      </button>
+    </li>
+  );
+}
+
+/**
+ * A day's events, with runs of mechanical ones folded.
+ *
+ * Folding within the day rather than across it, because the day heading is what
+ * gives every row its date — a run that spanned midnight would be one control
+ * hiding two different days.
+ */
+function foldRuns(events: StoryEvent[]): Array<StoryEvent | StoryEvent[]> {
+  const out: Array<StoryEvent | StoryEvent[]> = [];
+  let run: StoryEvent[] = [];
+
+  const flush = () => {
+    if (run.length >= FOLD_FROM) out.push(run);
+    else out.push(...run);
+    run = [];
+  };
+
+  for (const event of events) {
+    if (FOLDABLE.has(event.kind)) {
+      run.push(event);
+      continue;
+    }
+    flush();
+    out.push(event);
+  }
+  flush();
+
+  return out;
 }
 
 /**
@@ -241,7 +398,11 @@ export function RecordStory({
       if (bucket) bucket.push(event);
       else map.set(key, [event]);
     }
-    return [...map.entries()];
+    return [...map.entries()].map(([key, entries]) => ({
+      key,
+      entries,
+      items: foldRuns(entries),
+    }));
   }, [events, visible]);
 
   if (events.length === 0) {
@@ -256,13 +417,24 @@ export function RecordStory({
     <div className="space-y-5">
       {header}
 
-      {groups.map(([key, entries]) => (
-        <section key={key} className="space-y-2">
-          <h4 className="text-sm font-semibold">{dayLabel(entries[0].occurredAt, now)}</h4>
+      {groups.map((group) => (
+        <section key={group.key} className="space-y-2">
+          {/* The date, with the rule running off to the right of it. A bare
+              bold word between two runs of rows reads as another row; a rule
+              says "everything below me is this day" without shouting it. */}
+          <h4 className="flex items-center gap-3 text-sm font-semibold text-[var(--text-strong)]">
+            {dayLabel(group.entries[0].occurredAt, now)}
+            <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden="true" />
+          </h4>
+
           <ul className="relative">
-            {entries.map((event) => (
-              <StoryRow key={`${event.kind}-${event.id}`} event={event} />
-            ))}
+            {group.items.map((item, index) =>
+              Array.isArray(item) ? (
+                <FoldedRun key={`fold-${group.key}-${index}`} events={item} />
+              ) : (
+                <StoryRow key={`${item.kind}-${item.id}`} event={item} />
+              ),
+            )}
           </ul>
         </section>
       ))}

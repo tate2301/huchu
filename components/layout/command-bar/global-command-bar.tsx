@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
+import { IconButton } from "@/components/ui/icon-button";
 import { useSidebar } from "@/components/ui/sidebar";
 import { fetchJson } from "@/lib/api-client";
 import { navSections } from "@/lib/navigation";
@@ -547,25 +548,38 @@ export function GlobalCommandBar() {
   return (
     <>
       {/*
+        A phone gets the icon, everything else gets the box.
+        ===================================================
+        The comment here used to claim "on mobile the icon alone opens the bar",
+        but the input rendered at every width — 144px of it, plus a bell and a
+        primary action, on a 390px bar. What gave way was the page title, which
+        is the one thing in that bar nothing else on the screen says: every CRM
+        page with a "New …" button showed "C…" where its name should be.
+
+        So there are two triggers into one bar. Which is not the same as two
+        searches: both hand their text to the `CommandBar` below, so there is
+        one query, one result shape and one keyboard contract.
+      */}
+      <IconButton
+        aria-label="Search records and actions"
+        size="lg"
+        className="md:hidden"
+        onClick={() => changeOpen(true)}
+      >
+        <Search />
+      </IconButton>
+
+      {/*
         A real input, not a button dressed as one.
         =========================================
         It used to be a `<button>`, which meant the app bar advertised a search
         box and then asked you to open a dialog before you could type into it —
         two gestures for the thing people do most. Now the first keystroke lands
         where you aimed it.
-
-        What it is *not* is a second search. Typing hands the text straight to
-        the same `CommandBar` this file already renders, seeded with what you
-        typed, so there is one query, one result shape and one keyboard contract.
-        A separate suggestions dropdown here would have been a second engine to
-        keep in step with the first.
-
-        Kept narrow on purpose: on mobile the app bar has no room, so the icon
-        alone opens the bar.
       */}
-      <div className="relative flex items-center">
+      <div className="relative hidden items-center md:flex">
         <Search
-          className="pointer-events-none absolute left-2.5 size-4 text-[var(--text-subtle)] md:left-2.5"
+          className="pointer-events-none absolute left-2.5 size-4 text-[var(--text-subtle)]"
           aria-hidden="true"
         />
         <input

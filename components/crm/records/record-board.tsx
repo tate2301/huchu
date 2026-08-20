@@ -167,6 +167,7 @@ export function RecordBoard({
   cards,
   isLoading,
   emptyLabel = "Drop one here",
+  noun,
   onMove,
   className,
 }: {
@@ -174,6 +175,8 @@ export function RecordBoard({
   cards: RecordBoardCard[];
   isLoading?: boolean;
   emptyLabel?: string;
+  /** What the cards are, for the phone board's summary line. */
+  noun?: { one: string; many: string };
   /** Called when a card lands in a different column. */
   onMove?: (cardId: string, columnId: string) => void;
   className?: string;
@@ -241,6 +244,7 @@ export function RecordBoard({
     <>
     <MobileBoard
       className="lg:hidden"
+      noun={noun}
       emptyTitle={emptyLabel}
       stages={columns.map((column) => ({
         id: column.id,

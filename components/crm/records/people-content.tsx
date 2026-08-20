@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { EntityLink } from "@/components/records/entity-link";
+import { Building2, Coins, Funnel, Mail, UserRound, Users } from "@/lib/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -19,6 +20,8 @@ import { useDebounced } from "@/hooks/use-debounced";
 
 import { PersonFormSheet } from "./person-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
@@ -60,14 +63,24 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
 
   const peopleQuery = useQuery({
     queryKey: ["crm", "people", debouncedSearch, page],
-    queryFn: () => fetchCrmPeople({ filters: { q: debouncedSearch }, page, limit: PAGE_SIZE }),
+    queryFn: () =>
+      fetchCrmPeople({
+        filters: { q: debouncedSearch },
+        // By name, because the page below groups by first letter. On the
+        // default `updatedAt` order the headings came out A, S, C, N, F — an
+        // alphabet applied to a list that was not in alphabetical order, which
+        // is worse than no headings at all. Sort first, then group.
+        sort: { field: "fullName", direction: "asc" },
+        page,
+        limit: PAGE_SIZE,
+      }),
     placeholderData: (previous) => previous,
   });
 
   const people = useMemo(() => peopleQuery.data?.data ?? [], [peopleQuery.data]);
   const total = peopleQuery.data?.pagination?.total ?? people.length;
 
-  const [layout, setLayout] = useState<"LIST" | "BOARD">("LIST");
+  const [layout, setLayout] = useState<RecordLayout>("TABLE");
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
@@ -243,6 +256,130 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       }),
   });
 
+  /**
+   * The same people, arranged as columns.
+   *
+   * The picker's fields drive both arrangements, so hiding "Owner" hides it in
+   * the table and in the rows — otherwise the control means one thing on one
+   * view and nothing on the other. The name column is never hidden; a table of
+   * anonymous rows is not a table.
+   */
+  const columns = useMemo<RecordTableColumn<(typeof people)[number]>[]>(
+    () => [
+      {
+        id: "name",
+        label: "Name",
+        icon: UserRound,
+        cell: (person) => (
+          <RecordTableName
+            leading={
+              <RecordMark
+                kind="person"
+                name={person.fullName}
+                emoji={person.emoji}
+                avatarUrl={person.avatarUrl}
+                size="sm"
+              />
+            }
+            title={person.fullName}
+            subtitle={fields.isVisible("role") ? person.jobTitle : null}
+          />
+        ),
+      },
+      ...(fields.isVisible("role")
+        ? [
+            {
+              id: "company",
+              label: "Company",
+              icon: Building2,
+              width: "13rem",
+              cell: (person: (typeof people)[number]) => (
+                // `block truncate` on the cell rather than the link: a long
+                // company name wrapped to two lines and made its row twice as
+                // tall as its neighbours.
+                <span className="block truncate">
+                  {person.client ? (
+                    // A related record, so it peeks rather than navigates: the
+                    // point of a directory is to stay in it while you check who
+                    // somebody works for.
+                    <EntityLink href={`/crm/companies/${person.client.id}`}>
+                      {person.client.name}
+                    </EntityLink>
+                  ) : (
+                    <span className="text-[var(--text-subtle)]">—</span>
+                  )}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("contact")
+        ? [
+            {
+              id: "contact",
+              label: "Contact",
+              icon: Mail,
+              width: "14rem",
+              cell: (person: (typeof people)[number]) => (
+                <span className="block truncate text-[var(--text-body)]">
+                  {person.email ?? person.phone ?? "—"}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("type")
+        ? [
+            {
+              id: "type",
+              label: "Type",
+              icon: Funnel,
+              width: "10rem",
+              cell: (person: (typeof people)[number]) => (
+                <Badge tone="neutral" size="sm">
+                  {CONTACT_TYPE_LABELS[person.contactType] ?? person.contactType}
+                </Badge>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("deals")
+        ? [
+            {
+              id: "deals",
+              label: "Deals",
+              icon: Coins,
+              width: "6rem",
+              align: "end" as const,
+              cell: (person: (typeof people)[number]) => (
+                <span className="font-mono tabular-nums">
+                  {person._count?.dealContacts ?? 0}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("owner")
+        ? [
+            {
+              id: "owner",
+              label: "Owner",
+              icon: Users,
+              width: "11rem",
+              cell: (person: (typeof people)[number]) => (
+                <span className="block truncate">
+                  {person.assignedTo?.name ?? (
+                    <span className="text-[var(--text-subtle)]">Unassigned</span>
+                  )}
+                </span>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [fields],
+  );
+
   const sections = useMemo<RecordListSection[]>(
     () =>
       bucketByLetter(rows, (row) => String(row.title ?? "")).map((bucket) => ({
@@ -251,6 +388,61 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
         rows: bucket.items,
       })),
     [rows],
+  );
+
+  // One selection, whichever way the records are arranged. Written once here
+  // rather than inline in each branch, because two copies of a bulk action are
+  // two chances for the table's version to keep working after the list's has
+  // been changed.
+  const selection = {
+    selectedIds,
+    onChange: setSelectedIds,
+    actions: ({ ids, clear }: { ids: string[]; clear: () => void }) => (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button variant="secondary" size="sm">
+            Assign owner
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+          {owners.map((owner) => (
+            <DropdownMenuItem
+              key={owner.id}
+              onClick={() => assign.mutate({ ids, assignedToId: owner.id, clear })}
+            >
+              {owner.name ?? "Unnamed"}
+            </DropdownMenuItem>
+          ))}
+          <DropdownMenuItem onClick={() => assign.mutate({ ids, assignedToId: null, clear })}>
+            Leave unassigned
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    ),
+  };
+
+  // The rows arrangement, which is also what the table falls back to on a
+  // phone — so it is written once and used twice rather than diverging.
+  const directory = (
+    <GroupedRecordList
+      selection={selection}
+      sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
+      showJumpStrip={!debouncedSearch && rows.length >= 30}
+      isLoading={peopleQuery.isLoading}
+      emptyTitle={debouncedSearch ? "No people match that search" : "No people yet"}
+      emptyBody={
+        debouncedSearch
+          ? undefined
+          : "Add someone, or convert a lead and its contact comes with it."
+      }
+      emptyAction={
+        debouncedSearch ? undefined : (
+          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+            Add the first person
+          </Button>
+        )
+      }
+    />
   );
 
   return (
@@ -272,18 +464,8 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           label={layout === "BOARD" ? "Fields" : "Columns"}
         />
       }
-      filters={
-        <>
-          <SegmentedControl
-            value={layout}
-            onValueChange={(value) => setLayout(value as typeof layout)}
-            ariaLabel="List or board"
-            options={[
-              { value: "LIST", label: "List" },
-              { value: "BOARD", label: "Board" },
-            ]}
-          />
-        </>
+      layout={
+        <LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST", "BOARD"]} />
       }
     >
       {layout === "BOARD" ? (
@@ -291,63 +473,33 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           columns={boardColumns}
           cards={boardCards}
           isLoading={peopleQuery.isLoading}
+          noun={{ one: "person", many: "people" }}
           emptyLabel="No one of this kind"
           onMove={(id, contactType) => moveContactType.mutate({ id, contactType })}
           className="min-h-[24rem]"
         />
+      ) : layout === "TABLE" ? (
+        <RecordTable
+          rows={people}
+          columns={columns}
+          rowHref={(person) => `/crm/people/${person.id}`}
+          isLoading={peopleQuery.isLoading}
+          selection={selection}
+          emptyTitle={debouncedSearch ? "No people match that search" : "No people yet"}
+          emptyBody={
+            debouncedSearch
+              ? undefined
+              : "Add someone, or convert a lead and its contact comes with it."
+          }
+          mobile={directory}
+        />
       ) : (
-      <GroupedRecordList
-        selection={{
-          selectedIds,
-          onChange: setSelectedIds,
-          actions: ({ ids, clear }) => (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="secondary" size="sm">
-                  Assign owner
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
-                {owners.map((owner) => (
-                  <DropdownMenuItem
-                    key={owner.id}
-                    onClick={() => assign.mutate({ ids, assignedToId: owner.id, clear })}
-                  >
-                    {owner.name ?? "Unnamed"}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuItem
-                  onClick={() => assign.mutate({ ids, assignedToId: null, clear })}
-                >
-                  Leave unassigned
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          ),
-        }}
-        sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
-        showJumpStrip={!debouncedSearch && rows.length >= 30}
-        isLoading={peopleQuery.isLoading}
-        emptyTitle={debouncedSearch ? "No people match that search" : "No people yet"}
-        emptyBody={
-          debouncedSearch
-            ? undefined
-            : "Add someone, or convert a lead and its contact comes with it."
-        }
-        emptyAction={
-          debouncedSearch ? undefined : (
-            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-              Add the first person
-            </Button>
-          )
-        }
-      />
-
+        directory
       )}
 
-      {layout === "LIST" ? (
+      {layout === "BOARD" ? null : (
         <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-      ) : null}
+      )}
 
       <PersonFormSheet open={createOpen} onOpenChange={setCreateOpen} />
     </RecordListShell>

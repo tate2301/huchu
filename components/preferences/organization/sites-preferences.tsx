@@ -14,6 +14,7 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import {
@@ -289,6 +290,21 @@ export function SitesPreferences() {
 
   return (
     <>
+      {/* The page's one verb, in the app bar — where every other module puts
+          it. In the table's controls row it sat below the title, the
+          description and the search box. */}
+      <PageActions>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          startIcon={<Plus className="size-4" aria-hidden="true" />}
+          onClick={openCreateForm}
+        >
+          New site
+        </Button>
+      </PageActions>
+
       <DsDataTable
         ariaLabel="Sites"
         rows={pageRows}
@@ -298,17 +314,6 @@ export function SitesPreferences() {
         searchPlaceholder="Search sites"
         onSearchChange={setSearch}
         onSearchSubmit={() => setSubmittedSearch(search)}
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            startIcon={<Plus className="size-4" aria-hidden="true" />}
-            onClick={openCreateForm}
-          >
-            New site
-          </Button>
-        }
         isLoading={sitesQuery.isLoading}
         loadingLabel="Fetching sites"
         error={loadErrorMessage}

@@ -17,7 +17,16 @@ export type LeadDocument = {
   supersedesId: string | null;
   revisionNote: string | null;
   createdAt: string;
-  approval: { token: string; status: string; respondedAt: string | null } | null;
+  approval: {
+    token: string;
+    status: string;
+    respondedAt: string | null;
+    /** What the customer wrote when they accepted or declined. */
+    responseNote?: string | null;
+    responderName?: string | null;
+    /** Whether they have opened it at all — the answer to "have they seen it?". */
+    firstViewedAt?: string | null;
+  } | null;
   quotation: {
     id: string;
     quotationNumber: string;

@@ -5,12 +5,15 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { ClientDate } from "@/components/ui/client-date";
 import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
-import { Building2, MapPin, UserRound } from "@/lib/icons";
+import { Building2, CalendarCheck, Clock, Funnel, MapPin, UserRound } from "@/lib/icons";
+import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
+import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
@@ -18,13 +21,19 @@ import { formatMoney } from "@/components/crm/documents/document-types";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
 import { RecordMark } from "@/components/records/record-mark";
-import { automationTab, commentsTab, filesTab, mentionsTab, tasksTab } from "./record-tabs";
+import {
+  automationTab,
+  historyTab,
+  paperworkTab,
+  tasksTab,
+} from "./record-tabs";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { RelationAttribute } from "./relation-attribute";
+import { useToast } from "@/components/ui/use-toast";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
-import { FieldHistoryTab } from "@/components/crm/records/field-history-tab";
 import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
+import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { SiteFormSheet } from "./site-form-sheet";
 
 import { Stack } from "@corelithzw/react";
@@ -73,11 +82,13 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
   const { data: session } = useSession();
   const [tab, setTab] = useState("visits");
   const [editOpen, setEditOpen] = useState(false);
+  const [scheduleOpen, setScheduleOpen] = useState(false);
 
   const siteQuery = useQuery({
     queryKey: ["crm", "site", siteId],
     queryFn: () => fetchJson<SiteDetail>(`/api/v2/crm/sites/${siteId}`),
   });
+  const { toast } = useToast();
   const edit = useAttributeEditor({
     path: `/api/v2/crm/sites/${siteId}`,
     invalidate: [["crm", "site", siteId], ["crm", "sites"]],
@@ -86,7 +97,14 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
     queryKey: ["crm", "field-definitions", "SITE"],
     queryFn: () => fetchCrmFieldDefinitions("SITE"),
   });
+  // Who a visit can be given to. Shared cache key with the rest of the module,
+  // so opening the sheet costs nothing the page has not already paid.
+  const teamQuery = useQuery({
+    queryKey: ["crm", "team"],
+    queryFn: () => fetchJson<{ data: LeadFilterOwner[] }>("/api/v2/crm/team"),
+  });
 
+  const owners = teamQuery.data?.data ?? [];
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const site = siteQuery.data;
 
@@ -129,11 +147,51 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       ? `https://www.google.com/maps?q=${site.latitude},${site.longitude}`
       : null;
 
+  /**
+   * What the rail has left to say once the properties are at the top.
+   *
+   * It used to open with Address, Access and Primary contact — all three of
+   * which are property rows a few centimetres above it. On a phone that is
+   * the whole Overview tab spent repeating the screen you scrolled down from.
+   * What is genuinely not a property is kept: the map link, which comes out of
+   * the coordinates rather than being them, the site's own conditions, and the
+   * administrator's fields.
+   */
+  const railSections = [
+    mapsHref ? (
+      <RailSection key="directions" title="Getting there">
+        <a href={mapsHref} target="_blank" rel="noreferrer" className="text-sm hover:underline">
+          Open in maps
+        </a>
+      </RailSection>
+    ) : null,
+    site.siteConditions ? (
+      <RailSection key="conditions" title="Conditions">
+        <p className="whitespace-pre-wrap text-sm">{site.siteConditions}</p>
+      </RailSection>
+    ) : null,
+    definitions.length > 0 ? (
+      <CustomFieldDisplay key="custom" definitions={definitions} values={site.customFields} />
+    ) : null,
+  ].filter(Boolean);
+
+  const rail = railSections.length > 0 ? <>{railSections}</> : undefined;
+
   return (
     <>
       <RecordPageShell
       icon={MapPin}
       backHref="/crm/sites"
+      primaryAction={
+        // A site is a place somebody has to go to. Every other verb on this
+        // record — edit the address, repoint the company — is maintenance;
+        // arranging the visit is the work, which is why Visits is also the
+        // tab this page opens on.
+        <Button size="sm" className="gap-1.5" onClick={() => setScheduleOpen(true)}>
+          <CalendarCheck className="h-3.5 w-3.5" />
+          Schedule a visit
+        </Button>
+      }
       actions={[{ label: "Edit", onSelect: () => setEditOpen(true) }]}
       backLabel="All sites"
       leading={
@@ -146,6 +204,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
         />
       }
       title={site.name}
+      onTitleCommit={(next) => edit.save.mutate({ name: next })}
       reference={site.siteNo}
       subtitle={subtitle}
       activeTab={tab}
@@ -191,27 +250,61 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
               placeholder: "Not recorded",
               ...edit.text("addressLine", site.addressLine),
             },
+            // City and country were one read-only row reading "Chiredzi,
+            // Zimbabwe". They are two columns, so they are two rows: joined,
+            // there was no way to say which half you were correcting.
             {
-              id: "location",
+              id: "city",
               label: "City",
-              value: [site.city, site.country].filter(Boolean).join(", ") || null,
               placeholder: "Not recorded",
+              ...edit.text("city", site.city),
+            },
+            {
+              id: "country",
+              label: "Country",
+              placeholder: "Not recorded",
+              ...edit.text("country", site.country),
             },
             {
               id: "coordinates",
               label: "Coordinates",
+              placeholder: "Not pinned",
+              mono: true,
+              // One row, because a pin is one fact and nobody holds a latitude
+              // in their head without the longitude next to it. Typed as the
+              // pair it is copied as — out of Maps, off a handset — and split
+              // here rather than made into two boxes.
               value:
+                site.latitude !== null && site.longitude !== null
+                  ? `${site.latitude}, ${site.longitude}`
+                  : null,
+              formatted:
                 site.latitude !== null && site.longitude !== null
                   ? `${site.latitude.toFixed(5)}, ${site.longitude.toFixed(5)}`
                   : null,
-              placeholder: "Not pinned",
-              mono: true,
+              onCommit: (next) => {
+                const trimmed = next.trim();
+                if (trimmed === "") {
+                  edit.save.mutate({ latitude: null, longitude: null });
+                  return;
+                }
+                const [lat, lng] = trimmed.split(/[,\s]+/).map(Number);
+                if (!Number.isFinite(lat) || !Number.isFinite(lng)) {
+                  toast({
+                    title: "That is not a pin",
+                    description: "Two numbers, latitude first — for example -20.19, 30.93.",
+                    variant: "destructive",
+                  });
+                  return;
+                }
+                edit.save.mutate({ latitude: lat, longitude: lng });
+              },
             },
             {
               id: "access",
               label: "Access",
-              value: site.accessInstructions,
               placeholder: "No instructions",
+              ...edit.text("accessInstructions", site.accessInstructions),
             },
             ...customFieldAttributes({
               definitions,
@@ -225,9 +318,16 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       onTabChange={setTab}
       tabs={[
         {
+          // A site's own story is its visits — it has no activity feed of its
+          // own, so this is the record's overview.
           value: "visits",
           label: "Visits",
+          icon: CalendarCheck,
           count: site.appointments.length,
+          attention: site.appointments.some(
+            (visit) =>
+              visit.status === "SCHEDULED" && new Date(visit.scheduledStart) < new Date(),
+          ),
           content:
             site.appointments.length === 0 ? (
               <p className="py-6 text-center text-sm text-[var(--text-muted)]">
@@ -262,8 +362,15 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
             ),
         },
         {
+          value: "conversation",
+          label: "Conversation",
+          icon: Clock,
+          content: <ConversationComposer target={{ kind: "site", id: siteId }} />,
+        },
+        {
           value: "deals",
           label: "Deals",
+          icon: Funnel,
           count: site.deals.length,
           content: (
             <RelatedList
@@ -279,70 +386,13 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
           ),
         },
         tasksTab({ ref: { kind: "site", id: siteId }, currentUserId: session?.user?.id }),
-        commentsTab({ ref: { kind: "site", id: siteId }, currentUserId: session?.user?.id }),
-        mentionsTab({ ref: { kind: "site", id: siteId } }),
-        filesTab({ ref: { kind: "site", id: siteId } }),
+        paperworkTab({ ref: { kind: "site", id: siteId } }),
         automationTab({ ref: { kind: "site", id: siteId } }),
-        {
-          // Was a History tab rendering an empty array, permanently: a site
-          // has no activity foreign key, so nothing could ever appear in it.
-          // A tab kept "for consistency" that can never answer its own
-          // question is worse than one that is absent. Field history is the
-          // history a site genuinely has — its edits are recorded.
-          value: "changes",
-          label: "Field history",
-          content: <FieldHistoryTab entity="SITE" recordId={siteId} />,
-        },
+        // No activity list: a site has no activity foreign key, so its history
+        // is the edits made to it and the places it gets referred to.
+        historyTab({ ref: { kind: "site", id: siteId }, entity: "SITE" }),
       ]}
-      rail={
-        <>
-          <RailSection title="Address">
-            {site.addressLine ? <p className="text-sm">{site.addressLine}</p> : null}
-            <p className="text-sm text-[var(--text-muted)]">
-              {[site.city, site.country].filter(Boolean).join(", ") || "No address recorded"}
-            </p>
-            {mapsHref ? (
-              <a
-                href={mapsHref}
-                target="_blank"
-                rel="noreferrer"
-                className="mt-1 inline-block text-sm hover:underline"
-              >
-                Open in maps
-              </a>
-            ) : null}
-          </RailSection>
-
-          <RailSection title="Access">
-            {site.accessInstructions ? (
-              <p className="whitespace-pre-wrap text-sm">{site.accessInstructions}</p>
-            ) : (
-              <p className="text-sm text-[var(--text-muted)]">No access notes yet.</p>
-            )}
-          </RailSection>
-
-          {site.siteConditions ? (
-            <RailSection title="Conditions">
-              <p className="whitespace-pre-wrap text-sm">{site.siteConditions}</p>
-            </RailSection>
-          ) : null}
-
-          <RailSection title="Primary contact">
-            {site.primaryContact ? (
-              <>
-                <p className="text-sm">{site.primaryContact.fullName}</p>
-                {site.primaryContact.phone ? (
-                  <p className="text-sm text-[var(--text-muted)]">{site.primaryContact.phone}</p>
-                ) : null}
-              </>
-            ) : (
-              <p className="text-sm text-[var(--text-muted)]">Nobody named yet.</p>
-            )}
-          </RailSection>
-
-          <CustomFieldDisplay definitions={definitions} values={site.customFields} />
-        </>
-      }
+      rail={rail}
       />
 
       <SiteFormSheet
@@ -366,6 +416,18 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
           siteConditions: site.siteConditions ?? "",
         }}
         onSaved={() => siteQuery.refetch()}
+      />
+
+      <VisitScheduleSheet
+        open={scheduleOpen}
+        onOpenChange={setScheduleOpen}
+        subject={{ siteId, clientId: site.client?.id ?? null }}
+        defaultLocation={
+          [site.addressLine, site.city].filter(Boolean).join(", ") || null
+        }
+        owners={owners}
+        currentUserId={session?.user?.id}
+        onScheduled={() => siteQuery.refetch()}
       />
     </>
   );

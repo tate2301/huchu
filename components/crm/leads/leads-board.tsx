@@ -232,6 +232,7 @@ export function LeadsBoard({
           so restaging stays reachable without dragging anything. */}
       <MobileBoard
         className="lg:hidden"
+        noun={{ one: "lead", many: "leads" }}
         emptyTitle="No leads in this stage"
         stages={columns.map((column) => ({
           id: column.stage,
@@ -253,7 +254,11 @@ export function LeadsBoard({
               .filter(Boolean)
               .join(" · "),
             facts: [
-              { value: formatLeadValue(lead.estimatedValue, lead.currency ?? currency), mono: true },
+              {
+                value: formatLeadValue(lead.estimatedValue, lead.currency ?? currency),
+                mono: true,
+                primary: true,
+              },
             ],
           })),
         }))}

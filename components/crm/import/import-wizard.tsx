@@ -121,11 +121,15 @@ export function ImportWizard() {
 
       <section className="space-y-3 rounded-[var(--card-radius)] border border-[var(--border)] p-4">
         <h2 className="text-base font-semibold text-[var(--text-strong)]">1. What are you importing?</h2>
-        <div className="flex flex-wrap items-end gap-3">
+        {/* Both controls fill the width on a phone. `items-end` on a wrapping
+            row left the file picker hanging off the end of a half-width select
+            with a native "No file chosen" beside it, which at 390px is a
+            control you have to aim at. */}
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
           <div className="space-y-1.5">
             <Label>Record type</Label>
             <Select value={entity} onValueChange={(value) => changeEntity(value as ImportEntity)}>
-              <SelectTrigger className="w-48">
+              <SelectTrigger className="w-full sm:w-48">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -144,7 +148,7 @@ export function ImportWizard() {
               id="import-file"
               type="file"
               accept=".csv,text/csv"
-              className="block text-sm file:mr-3 file:rounded-[var(--radius-sm)] file:border file:border-[var(--border)] file:bg-[var(--surface-subtle)] file:px-3 file:py-1.5 file:text-sm"
+              className="block w-full text-sm file:mr-3 file:min-h-9 file:rounded-[var(--radius-sm)] file:border file:border-[var(--border)] file:bg-[var(--surface-subtle)] file:px-3 file:text-sm"
               onChange={(event) => {
                 const file = event.target.files?.[0];
                 if (file) void readFile(file);

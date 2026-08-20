@@ -10,9 +10,11 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Funnel, Plus } from "@/lib/icons";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { LayoutSwitch } from "@/components/crm/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
+import { ListSearch } from "@/components/crm/records/list-search";
 import { ViewToolbar } from "@/components/crm/records/view-toolbar";
+import { useDebounced } from "@/hooks/use-debounced";
 import {
   bulkUpdateCrmLeads,
   fetchCrmLeads,
@@ -71,8 +73,13 @@ export function LeadsWorkspace({
   const tableColumns = useVisibleColumns("crm.leads.table", LEAD_TABLE_COLUMNS);
   const boardFields = useVisibleColumns("crm.leads.board", LEAD_CARD_FIELDS);
   const [filters, setFilters] = useState<LeadViewFilters>(initialFilters);
+  // Held apart from `filters` so typing does not re-key the board query on
+  // every keystroke, and debounced at the 300ms every other list here uses.
+  const [search, setSearch] = useState(initialFilters.q ?? "");
+  const debouncedSearch = useDebounced(search, 300);
   const [sort, setSort] = useState<LeadSort>(DEFAULT_LEAD_SORT);
   const [page, setPage] = useState(1);
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [activeViewKey, setActiveViewKey] = useState<string>(
     initialViewId ?? BUILT_IN_VIEWS[0].key,
   );
@@ -97,9 +104,20 @@ export function LeadsWorkspace({
     queryFn: () => fetchCrmSavedViews(),
   });
 
+  // The text box is a filter like any other by the time a query sees it — it
+  // is only held apart in state so that typing does not re-key the board on
+  // every keystroke. `q` is dropped rather than sent empty so a saved view
+  // that carries its own text is not silently overwritten by a blank box.
+  const activeFilters = useMemo<LeadViewFilters>(() => {
+    const trimmed = debouncedSearch.trim();
+    const rest = { ...filters };
+    delete rest.q;
+    return trimmed ? { ...rest, q: trimmed } : rest;
+  }, [filters, debouncedSearch]);
+
   const leadsQuery = useQuery({
-    queryKey: ["crm", "leads", filters, sort, page],
-    queryFn: () => fetchCrmLeads({ filters, sort, page, limit: PAGE_SIZE }),
+    queryKey: ["crm", "leads", activeFilters, sort, page],
+    queryFn: () => fetchCrmLeads({ filters: activeFilters, sort, page, limit: PAGE_SIZE }),
     enabled: viewType === "TABLE",
     placeholderData: (previous) => previous,
   });
@@ -130,6 +148,7 @@ export function LeadsWorkspace({
       setActiveViewKey(linked.key);
       setViewType(linked.layout);
       setFilters(linked.filters);
+      setSearch(linked.filters.q ?? "");
       setSort(linked.sort ?? DEFAULT_LEAD_SORT);
     }
   }
@@ -184,6 +203,13 @@ export function LeadsWorkspace({
     [bulk],
   );
 
+  const handleBulkArchive = useCallback(
+    (ids: string[], archived: boolean, done: () => void) => {
+      bulk.mutate({ action: "archive", ids, archived }, { onSuccess: done });
+    },
+    [bulk],
+  );
+
   const leads = leadsQuery.data?.data ?? [];
   const total = leadsQuery.data?.pagination?.total ?? leads.length;
 
@@ -211,6 +237,17 @@ export function LeadsWorkspace({
           Table/Board switch to contradict it. Stage sits with the filters
           because on a board it decides which columns exist. */}
       <ViewToolbar
+        // The same first control, in the same place, as every other CRM list.
+        // It used to sit on the right of the row beside the column picker, so
+        // leads was the one page in the module where "which arrangement am I
+        // looking at" was answered at the far end of the toolbar.
+        layout={
+          <LayoutSwitch
+            value={viewType}
+            onChange={setViewType}
+            options={["BOARD", "TABLE"]}
+          />
+        }
         start={
           <>
             <ViewPicker
@@ -222,6 +259,7 @@ export function LeadsWorkspace({
                 setActiveViewKey(view.key);
                 setViewType(view.layout);
                 setFilters(view.filters);
+                setSearch(view.filters.q ?? "");
                 setSort(view.sort ?? DEFAULT_LEAD_SORT);
                 setPage(1);
               }}
@@ -255,17 +293,19 @@ export function LeadsWorkspace({
             ) : null}
           </>
         }
+        search={
+          <ListSearch
+            value={search}
+            onChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            placeholder="Search leads by title, number or contact"
+            noun="leads"
+          />
+        }
         end={
           <>
-            <SegmentedControl
-              value={viewType}
-              onValueChange={(value) => setViewType(value as "TABLE" | "BOARD")}
-              ariaLabel="Board or list"
-              options={[
-                { value: "BOARD", label: "Board" },
-                { value: "TABLE", label: "List" },
-              ]}
-            />
             <ColumnPicker
               columns={viewType === "TABLE" ? LEAD_TABLE_COLUMNS : LEAD_CARD_FIELDS}
               state={viewType === "TABLE" ? tableColumns : boardFields}
@@ -288,21 +328,23 @@ export function LeadsWorkspace({
           total={total}
           page={page}
           pageSize={PAGE_SIZE}
-          sort={sort}
           isLoading={leadsQuery.isLoading}
           owners={owners}
           onPageChange={setPage}
-          onSortChange={(next) => {
-            setSort(next);
-            setPage(1);
-          }}
           onBulkAssign={handleBulkAssign}
           onBulkStage={handleBulkStage}
+          onBulkArchive={handleBulkArchive}
+          showingArchived={Boolean(activeFilters.archived)}
           hiddenColumns={tableColumns.hidden}
+          // Selection is held by the workspace, not the table: a bulk assign
+          // refetches the list, and a table that owned its own ticked rows
+          // would come back with them cleared halfway through the job.
+          selectedIds={selectedIds}
+          onSelectionChange={setSelectedIds}
         />
       ) : (
         <BoardFieldsProvider hidden={boardFields.hidden}>
-          <LeadsBoard filters={filters} className="min-h-0 flex-1" />
+          <LeadsBoard filters={activeFilters} className="min-h-0 flex-1" />
         </BoardFieldsProvider>
       )}
 

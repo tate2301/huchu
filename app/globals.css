@@ -205,7 +205,126 @@
   }
 }
 
+/* ── Overlay stacking order ─────────────────────────────────────────────────
+   One scale, declared once, read by every overlay in the app.
+
+   Before this, every overlay primitive in `components/ui` carried a bare
+   `z-50` — sheet, dialog, alert dialog, popover, menu, select — while the
+   design system painted its own drawer at 1100 and its toast viewport at 1200.
+   With six surfaces tied at 50 the winner was whichever portal happened to
+   mount last, and against the DS's 1100 they simply lost: opening the sidebar
+   on a phone and then tapping the workspace switcher put the menu *behind* the
+   sidebar, which is what a screenshot of it showed.
+
+   `docs/design-system/05-rules.md` publishes a rung per overlay kind — drawer
+   80, popover 90, modal 100. Every fixed order of those three is wrong in one
+   direction or the other, because this product nests them both ways: a filter
+   sheet made of popovers and a form dialog whose client picker is a sheet say
+   popover-and-drawer-over-modal, while a "discard these changes?" dialog
+   raised from inside a form sheet says the opposite. Measured, not reasoned
+   about: with drawers pinned below modals the client picker opened *behind*
+   the dialog that asked for it.
+
+   So every dismissable overlay shares one rung and **open order decides**,
+   which is the only rule that is right in both directions — a portal mounts
+   when it opens, so the newest layer is last in the DOM and paints on top.
+   Within a single overlay the scrim is written before its panel, so the panel
+   still covers its own scrim.
+
+   What keeps its own rung is the chrome that is never nested: the sidebar and
+   the app bar below, toasts above (they have to be readable over a modal). */
+:root {
+  --z-sidebar: 50;
+  --z-nav: 60;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
 @layer app {
+  /* The design system's own drawer and toast, brought onto the scale. Its
+     `Sidebar` shell renders a `p-drawer` on mobile, so this is the rule that
+     decides whether a menu opened inside the sidebar can be seen at all.
+
+     `!important` because the package writes `zIndex: 1100` as an *inline
+     style* on the overlay (`src/primitives/Drawer.tsx`), and an inline style
+     outranks every layer. Verified in the browser: with a plain rule the
+     workspace menu still painted behind the sidebar. */
+  .p-drawer-overlay {
+    z-index: var(--z-overlay) !important;
+  }
+
+  .p-drawer {
+    z-index: var(--z-overlay);
+  }
+
+  .toast-viewport {
+    z-index: var(--z-toast);
+  }
+
+  /* No desktop rail on a phone, not even for one frame.
+
+     The design system's `Sidebar` decides between a pinned `<aside>` and a
+     drawer with `useMediaQuery`, which cannot know the answer during server
+     rendering or before hydration — so the first paint of every cold load on a
+     phone was the desktop rail with the page squeezed into what was left
+     beside it. Caught on `/crm/clients`, which redirects and so paints that
+     frame for long enough to photograph.
+
+     The drawer keeps its copy: the same `<aside>` renders inside `.p-drawer`
+     when the sidebar is opened, and that one is the phone's sidebar. */
+  @media (max-width: 767.98px) {
+    .sidebar:not(.p-drawer .sidebar) {
+      display: none;
+    }
+  }
+
+  /* ── Bottom sheets ───────────────────────────────────────────────────────
+     A bottom sheet is as tall as what is in it.
+
+     `.drawer-bottom` takes a fixed `height: var(--drawer-size)` from the
+     design system, so every bottom sheet in the product opened at exactly
+     420px whatever it held — half a phone screen, with the controls in the top
+     third and dead space under them. That is the "modals launch in half
+     screen" this fixes. The size now bounds the sheet rather than fixing it:
+     short content hugs, long content scrolls at the cap.
+
+     The rounded top corners and the safe-area padding come with it. A sheet
+     that meets the bottom edge of the screen with square corners reads as a
+     panel that failed to finish, and on a phone with a home indicator its last
+     row sits under the bar. */
+  .drawer.drawer-bottom {
+    height: auto;
+    max-height: min(var(--drawer-size, 420px), calc(100dvh - 3rem));
+    border-top-left-radius: var(--radius-2xl);
+    border-top-right-radius: var(--radius-2xl);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .drawer.drawer-top {
+    height: auto;
+    max-height: min(var(--drawer-size, 420px), calc(100dvh - 3rem));
+    border-bottom-left-radius: var(--radius-2xl);
+    border-bottom-right-radius: var(--radius-2xl);
+  }
+
+  /* The grabber. Not draggable — it is the standing convention for "this came
+     up from the bottom edge and goes back down", and a sheet without one reads
+     as a page that half-loaded. Drawn on the sheet rather than added to every
+     call site's markup. */
+  .drawer.drawer-bottom::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: block;
+    width: 2.25rem;
+    height: 0.25rem;
+    margin: 0.5rem auto 0.25rem;
+    flex: none;
+    border-radius: var(--radius-full);
+    background: var(--border-strong);
+  }
+
   body {
     position: relative;
     background-image: var(--app-canvas-wash);
@@ -246,6 +365,54 @@
     }
   }
 
+  /* A stat tile is half a phone wide, and its number has to fit in it.
+
+     `.stat-tile .val` and `.b-sh-lead .v` ship at 32px and 40px with no media
+     query, which is right for a tile on a desk and wrong for one at 173px:
+     "USD 108,500" overflowed its own box, which is why every stat grid in this
+     repo used to stack one-per-row on a phone and spend three screens saying
+     six numbers. The tiles are two-up now, so the numerals come down to the
+     size that fits. Padding follows — 18px of it either side of a 137px
+     column is a quarter of the tile spent on air.
+
+     Nothing else about the tile changes: same label, same delta, same tone. */
+  @media (max-width: 639.98px) {
+    .stat-tile {
+      padding: 12px 14px;
+    }
+
+    .stat-tile .val {
+      font-size: 24px;
+    }
+
+    /* `StatHero` is drawn with inline styles rather than classes, so its 24px
+       padding and its change/subtitle row can only be reached from here — and
+       only with `!important`, which is what an inline style costs. The row
+       holds a delta and a sentence side by side with no wrap, which at 390px
+       becomes two ~170px columns of two-word lines. Wrapping puts the sentence
+       back on its own line. */
+    .b-stat-hero {
+      padding: 16px !important;
+    }
+
+    .b-stat-hero > div:last-child {
+      flex-wrap: wrap;
+    }
+
+    /* The same trade for the KPI cell, which is what a metric widget on the
+       CRM overview is made of. Two-up at 390px gives it ~165px; a display-sm
+       numeral needs more than that for anything with a thousands separator
+       in it. */
+    .kpi-cell {
+      padding: var(--space-3);
+      gap: var(--space-1);
+    }
+
+    .kpi-cell-val {
+      font: var(--type-section-title);
+    }
+  }
+
   /* --- Control geometry -------------------------------------------------
      Everything that reads as a button is built like one: same height, same
      gap, same radius. Three places where that had drifted.
@@ -269,16 +436,42 @@
   /*    A button stretched to full width is a row, not a centred label: a
         sheet of stacked controls, a form field filling its column. The words
         start at the left edge and a trailing caret goes to the *right* edge,
-        which is where the eye looks for it and where a thumb reaches. Only a
-        trailing `svg` is pushed over — a button whose last child is text
-        keeps its label beside the rest of the label. */
+        which is where the eye looks for it and where a thumb reaches.
+
+        `:not(:only-child)` is doing real work. `:last-child` counts elements
+        only, so in `<span class="btn-label"><svg/>Filter</span>` — an icon
+        followed by a text node, which is how ~200 call sites pass an icon —
+        the icon is both the first and the last *element*, and the auto margin
+        shoved the icon and its label together against the right edge. A
+        genuine trailing caret has a sibling element before it. */
   .btn:where(.w-full) {
     justify-content: flex-start;
   }
   .btn:where(.w-full) > .btn-label {
     flex: 1 1 auto;
   }
-  .btn:where(.w-full) > .btn-label > svg:last-child {
+  .btn:where(.w-full) > .btn-label > svg:last-child:not(:only-child) {
+    margin-inline-start: auto;
+  }
+
+  /*    The same grammar for a column of controls a parent stretches, where
+        the class lands on nothing the parent owns. A sheet of filters is the
+        case: it stacks components it was handed, so it can set their width
+        but cannot put `w-full` on the button inside each one — which is why
+        that sheet rendered six centred labels where it meant to render six
+        rows. Named rather than repeated inline so the two stay in step. */
+  .stacked-controls > *,
+  .stacked-controls .btn,
+  .stacked-controls .segmented {
+    width: 100%;
+  }
+  .stacked-controls .btn {
+    justify-content: flex-start;
+  }
+  .stacked-controls .btn > .btn-label {
+    flex: 1 1 auto;
+  }
+  .stacked-controls .btn > .btn-label > svg:last-child:not(:only-child) {
     margin-inline-start: auto;
   }
 
@@ -406,6 +599,56 @@
     --shell-max: 1536px;
   }
 
+  /* ── Avatars get their colour back ──────────────────────────────────────
+     The package hashes a name onto one of thirteen hues, stamps it on the
+     element as `data-accent`, and paints it with `.avatar-accent`. It then
+     emits its plain `.avatar` rule — `background: var(--surface-sunken)` —
+     twenty thousand characters *later* in the same bundle. Two single-class
+     selectors of equal specificity in one layer: the last one wins, so every
+     avatar in the product came out the same grey, and a timeline or a comment
+     thread showed four colleagues as four identical discs.
+
+     `@layer app` outranks `corelith` whatever the order inside it, and the
+     two-class selector keeps this above the package's own rule if the bundle
+     is ever fixed. `data-accent` sits on the avatar itself, so the hue is its
+     own and not inherited from a tinted ancestor. */
+  .avatar.avatar-accent {
+    background: var(--accent-bg);
+    color: var(--accent-fg);
+  }
+
+  /* ── Solid marks ────────────────────────────────────────────────────────
+     The filled discs that carry a colour code: a record's timeline chips, the
+     mark beside each row of "contact so far", and any avatar filled solid.
+
+     `--accent-solid` reverses white on ten of the thirteen hues. On orange,
+     amber and yellow it does not — white lands at 3.4, 2.9 and 2.5 to one —
+     which is why the package pairs those three with a near-black `--accent-on`
+     instead. That pairing passes as a *number* and fails as a *mark*: a 14px
+     stroked glyph in #3D2800 on #D08A05 is mud, and two initials in it are
+     worse, because thin strokes need far more separation than the body text
+     those ratios were derived for.
+
+     So those three take `--accent-fg` — the same hue, darkened to the value the
+     package already uses for text — and reverse white out of it at 5.5 to one,
+     better than the teal and red solids already in service. Every mark in the
+     product is now a white glyph on a solid fill, and no hue is dropped to get
+     there. */
+  .solid-mark,
+  .avatar.avatar-accent.avatar-accent-solid {
+    background: var(--accent-solid);
+    color: var(--accent-on);
+  }
+  [data-accent="orange"].solid-mark,
+  [data-accent="amber"].solid-mark,
+  [data-accent="yellow"].solid-mark,
+  .avatar[data-accent="orange"].avatar-accent-solid,
+  .avatar[data-accent="amber"].avatar-accent-solid,
+  .avatar[data-accent="yellow"].avatar-accent-solid {
+    background: var(--accent-fg);
+    color: #fff;
+  }
+
   .settings-layout {
     display: grid;
     grid-template-columns: var(--rail-w, 220px) minmax(0, 1fr);
@@ -468,17 +711,40 @@
       color var(--motion-duration-fast, 120ms) var(--motion-ease-standard, ease);
   }
 
+  /* Hover and active must not be the same paint.
+
+     Both were `--surface-muted`, so pointing at a rail put a second row in
+     exactly the selected state — two items that look chosen, and no way to
+     tell which one you are actually on. Hover is now the lighter tint, and
+     selection is carried by a sunken ground plus a brand bar down the leading
+     edge, which is a mark hovering never produces. */
   .settings-rail .rail-item:hover,
   .nav-rail .rail-item:hover {
-    background: var(--surface-muted);
+    background: var(--surface-subtle, var(--surface-muted));
     color: var(--text-strong);
   }
 
   .settings-rail .rail-item.active,
-  .nav-rail .rail-item.active {
+  .nav-rail .rail-item.active,
+  .settings-rail .rail-item[aria-current="page"],
+  .nav-rail .rail-item[aria-current="page"] {
+    position: relative;
     background: var(--surface-muted);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .settings-rail .rail-item.active::before,
+  .nav-rail .rail-item.active::before,
+  .settings-rail .rail-item[aria-current="page"]::before,
+  .nav-rail .rail-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 6px;
+    inset-inline-start: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--action-primary-bg, var(--brand));
   }
 
   .settings-rail .rail-item:disabled,
@@ -548,6 +814,43 @@
   .nav-rail[data-orientation="responsive"] .rail-item-label { overflow: visible; }
   /* A group heading only reads as one once the rail is a column again. */
   .nav-rail[data-orientation="responsive"] > .group-label { display: none; }
+
+  /* On a phone the strip runs to the edges of the screen. Cut short of the
+     gutter, the last tab looked clipped by a bug; cut by the screen itself, a
+     half-visible tab is the platform's own way of saying "this scrolls". Snap
+     so a swipe lands on a tab rather than halfway through one. */
+  @media (max-width: 639.98px) {
+    .nav-rail[data-orientation="responsive"] {
+      margin-inline: calc(var(--content-gutter-x) * -1);
+      padding-inline: var(--content-gutter-x);
+      scroll-padding-inline: var(--content-gutter-x);
+      scroll-snap-type: x proximity;
+    }
+    .nav-rail[data-orientation="responsive"] .rail-item { scroll-snap-align: start; }
+  }
+
+  /* ── Segmented control ───────────────────────────────────────────────────
+     `.segmented` is an equal-columns grid at `width: 100%`, which is right
+     until the labels stop fitting: six segments on a 390px screen gave each
+     62px, and "On site" wrapped to two lines *inside its own pill* while the
+     strip still ran off the right of the page. Both halves of that are fixed
+     here — a label never wraps, and a strip that cannot fit scrolls instead of
+     squashing. `minmax(max-content, 1fr)` keeps the equal widths whenever
+     there is room for them, so nothing changes on a desktop. */
+  .segmented {
+    grid-auto-columns: minmax(max-content, 1fr);
+    overflow-x: auto;
+    /* Stated, not left to the spec's default: a single `overflow-x` makes the
+       other axis compute to `auto`, which is a vertical scrollbar waiting to
+       appear on a 34px-tall control. */
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .segmented::-webkit-scrollbar { display: none; }
+
+  .segmented-item { white-space: nowrap; }
 
   @media (min-width: 1024px) {
     .nav-rail[data-orientation="responsive"] {

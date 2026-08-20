@@ -1,18 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import type { CrmLeadStage } from "@prisma/client";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   ArrowRight,
   Building2,
+  CalendarCheck,
+  Clock,
   Funnel,
   Payments,
   TrendingUp,
@@ -37,22 +42,26 @@ import {
   CRM_STAGE_STATUS,
   formatLeadValue,
 } from "@/components/crm/leads/stage-config";
+import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { ConvertLeadSheet } from "@/components/crm/leads/convert-lead-sheet";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 
-import { ActivityComposer } from "./activity-composer";
-import { automationTab, commentsTab, filesTab, mentionsTab, tasksTab } from "@/components/crm/records/record-tabs";
-import { FieldHistoryTab } from "@/components/crm/records/field-history-tab";
-import { RecordHistoryTab } from "@/components/crm/records/record-history-tab";
 import {
-  ActivityStrip,
-  CallList,
+  automationTab,
+  historyTab,
+  paperworkTab,
+  tasksTab,
+  useRecordComments,
+} from "@/components/crm/records/record-tabs";
+import {
+  ContactList,
   EmailPreview,
   MeetingCard,
   NextInteractionCard,
   type NextInteraction,
 } from "@/components/crm/records/record-panels";
+import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { RecordAttributes } from "@/components/records/record-attributes";
@@ -87,6 +96,7 @@ function draftsToLines(drafts: MeasurementDraft[]): CrmDocumentLineInput[] {
 
 export function LeadDetailPage({ leadId }: { leadId: string }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { toast } = useToast();
   const { data: session } = useSession();
   const currentUserId = session?.user?.id;
@@ -119,8 +129,65 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
   });
 
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
+  // Comments join the story rather than sitting in a section of their own.
+  const comments = useRecordComments({ kind: "lead", id: leadId });
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const lead = leadQuery.data;
+
+  const archive = useMutation({
+    mutationFn: (archived: boolean) =>
+      fetchJson(`/api/v2/crm/leads/${leadId}/archive`, {
+        method: "POST",
+        body: JSON.stringify({ archived }),
+      }),
+    onSuccess: (_result, archived) => {
+      queryClient.invalidateQueries({ queryKey: ["crm-lead", leadId] });
+      queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
+      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
+      toast({
+        title: archived ? "Archived" : "Back in the pipeline",
+        description: archived
+          ? "It is out of the lists and the board. Restore it from this menu."
+          : undefined,
+      });
+    },
+    onError: (error) =>
+      toast({
+        title: "Could not archive that lead",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => fetchJson(`/api/v2/crm/leads/${leadId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["crm", "leads"] });
+      queryClient.invalidateQueries({ queryKey: ["crm", "board"] });
+      toast({ title: "Deleted" });
+      // Nothing left to look at — the record this page is about is gone.
+      router.push("/crm/leads");
+    },
+    onError: (error) =>
+      toast({
+        title: "Could not delete that lead",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const setArchived = (archived: boolean) => archive.mutate(archived);
+
+  const confirmDelete = async () => {
+    const confirmed = await dsConfirm({
+      title: "Delete this lead for good?",
+      description:
+        "Its calls, notes, visits, tasks and files go with it, and none of it comes back. Archiving keeps the record and takes it out of the pipeline.",
+      confirmLabel: "Delete",
+      variant: "danger",
+    });
+    if (confirmed) remove.mutate();
+  };
 
   const changeStage = useMutation({
     mutationFn: ({ stage, lostReason }: { stage: CrmLeadStage; lostReason?: string }) =>
@@ -179,19 +246,19 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     );
   })();
 
-  const activityCounts = [
-    { label: "calls", count: lead.activities.filter((a) => a.type === "CALL").length },
-    { label: "emails", count: lead.activities.filter((a) => a.type === "EMAIL").length },
-    { label: "notes", count: lead.activities.filter((a) => a.type === "NOTE").length },
-    { label: "meetings", count: lead.activities.filter((a) => a.type === "MEETING").length },
-  ];
-
-  const recentCalls = lead.activities
-    .filter((activity) => activity.type === "CALL")
-    .slice(0, 3)
+  // Every kind of contact, newest first — not calls only. The panel is titled
+  // "contact so far", and showing three calls under a strip that counts five
+  // kinds made a record whose last month was all email read as silent.
+  const recentContact = lead.activities
+    .filter((activity) => activity.type in CONTACT_ACTIVITY_KIND)
+    .slice(0, 6)
     .map((activity) => ({
       id: activity.id,
       at: activity.occurredAt,
+      kind: CONTACT_ACTIVITY_KIND[activity.type],
+      // The API has always included who logged it; the panel just never asked,
+      // so every row in the summary was attributed to "Someone".
+      actorName: activity.createdBy?.name ?? null,
       summary: activity.body ?? activity.subject,
     }));
 
@@ -216,8 +283,16 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
       backHref="/crm/leads"
       backLabel="All leads"
       title={lead.title ?? lead.leadNo}
+      onTitleCommit={(next) => edit.save.mutate({ title: next })}
       reference={lead.leadNo}
-      status={{ status: CRM_STAGE_STATUS[lead.stage], label: CRM_STAGE_LABELS[lead.stage] }}
+      // An archived lead that looks exactly like a live one is how somebody
+      // spends ten minutes working a record that is not in anybody's pipeline.
+      // The chip is the first thing read on the page, so it says so there.
+      status={
+        lead.archivedAt
+          ? { status: "inactive", label: lead.convertedAt ? "Converted" : "Archived" }
+          : { status: CRM_STAGE_STATUS[lead.stage], label: CRM_STAGE_LABELS[lead.stage] }
+      }
       subtitle={
         <>
           <EntityLink href={lead.clientId ? `/crm/companies/${lead.clientId}` : null} muted>
@@ -230,15 +305,39 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         </>
       }
       primaryAction={
-        // Converting is the one thing a qualified lead exists to do.
-        <Button size="sm" className="gap-1.5" onClick={() => setConvertOpen(true)}>
-          <ArrowRight className="h-3.5 w-3.5" />
-          Convert to deal
-        </Button>
+        // Converting is the one thing a qualified lead exists to do — until it
+        // has done it. A converted lead is history, and the useful move from
+        // here is following the business to where it went, so the bar offers
+        // that instead of a verb that would now fail.
+        lead.convertedDealId ? (
+          <Button asChild size="sm" variant="secondary" className="gap-1.5">
+            <Link href={`/crm/deals/${lead.convertedDealId}`}>
+              Open the deal
+              <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
+          </Button>
+        ) : (
+          <Button size="sm" className="gap-1.5" onClick={() => setConvertOpen(true)}>
+            <ArrowRight className="h-3.5 w-3.5" />
+            Convert to deal
+          </Button>
+        )
       }
       actions={[
         { label: "Edit", onSelect: () => setEditOpen(true) },
         { label: "Schedule a visit", onSelect: () => setScheduleOpen(true) },
+        // A lead had no ending short of dragging it to Lost, which is a claim
+        // about the business. A duplicate or a wrong number is not lost, it is
+        // just not wanted — so archiving is offered first, and deleting sits
+        // under it for the row that should never have existed.
+        lead.archivedAt
+          ? { label: "Restore from archive", onSelect: () => setArchived(false) }
+          : { label: "Archive", onSelect: () => setArchived(true) },
+        {
+          label: "Delete",
+          destructive: true,
+          onSelect: () => confirmDelete(),
+        },
       ]}
       attributes={
         // A lead had no property list at all, which is why nothing on it
@@ -252,14 +351,24 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               mono: true,
               placeholder: "Not sized",
               ...edit.numeric("estimatedValue", lead.estimatedValue),
+              // With its currency, through the same helper the board and the
+              // list use, so one lead's value never reads two ways.
+              formatted:
+                lead.estimatedValue == null
+                  ? null
+                  : formatLeadValue(lead.estimatedValue, lead.currency),
             },
             {
               id: "probability",
               label: "Likelihood",
               icon: TrendingUp,
               mono: true,
-              placeholder: "0",
+              placeholder: "Not scored",
               ...edit.numeric("probability", lead.probability),
+              // A bare "0" beside the word Likelihood is not a percentage,
+              // it is a number nobody can act on — the same rule that makes
+              // money carry its currency. Editing still opens on the number.
+              formatted: lead.probability == null ? null : `${lead.probability}%`,
             },
             {
               id: "company",
@@ -329,11 +438,15 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
       onTabChange={setTab}
       tabs={[
         {
+          // Named Overview, because on a phone the summary is rendered above
+          // it and the two read as one thing: what this lead is worth and what
+          // is next, then what has actually happened to it.
           value: "timeline",
-          label: "Timeline",
+          label: "Conversation",
+          icon: Clock,
           content: (
             <div className="space-y-4">
-              <ActivityComposer target={{ kind: "lead", id: leadId }} />
+              <ConversationComposer target={{ kind: "lead", id: leadId }} />
               {/* The whole story, not just the activity table: visits, tasks,
                   documents and the day it arrived, in one order. */}
               <RecordStory
@@ -342,6 +455,9 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
                   tasks: lead.followUps,
                   visits: lead.appointments,
                   documents: lead.documents,
+                  // What people said belongs in the same order as what
+                  // happened. `buildStory` has always taken comments.
+                  comments,
                   createdAt: lead.createdAt,
                   createdLabel: `Lead ${lead.leadNo} came in`,
                 })}
@@ -350,11 +466,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </div>
           ),
         },
-        {
-          value: "documents",
-          label: "Documents",
-          count: lead.documents.length,
-          content: (
+        paperworkTab({
+          ref: { kind: "lead", id: leadId },
+          documentCount: lead.documents.length,
+          documents: (
             <DocumentList
               basePath={`/api/v2/crm/leads/${leadId}`}
               currency={lead.currency}
@@ -366,11 +481,17 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               onPrefillConsumed={() => setQuotationPrefill(undefined)}
             />
           ),
-        },
+        }),
         {
           value: "visits",
           label: "Visits",
+          icon: CalendarCheck,
           count: lead.appointments.length,
+          // A visit that has happened and has not been written up is the thing
+          // on a lead most likely to be forgotten.
+          attention: lead.appointments.some(
+            (visit) => visit.status === "SCHEDULED" && new Date(visit.scheduledStart) < new Date(),
+          ),
           content: (
             <VisitsTab
               appointments={lead.appointments}
@@ -379,24 +500,19 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             />
           ),
         },
-        tasksTab({ ref: { kind: "lead", id: leadId }, currentUserId }),
-        commentsTab({ ref: { kind: "lead", id: leadId }, currentUserId }),
-        mentionsTab({ ref: { kind: "lead", id: leadId } }),
-        filesTab({ ref: { kind: "lead", id: leadId } }),
+        {
+          ...tasksTab({ ref: { kind: "lead", id: leadId }, currentUserId }),
+          count: lead.followUps.filter((task) => task.status === "PENDING").length,
+          attention: lead.followUps.some(
+            (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
+          ),
+        },
         automationTab({ ref: { kind: "lead", id: leadId } }),
-        {
-          // Leads had neither history tab, while deals, companies, people and
-          // sites had both. The record type people open most was the one with
-          // no answer to "who changed this".
-          value: "history",
-          label: "History",
-          content: <RecordHistoryTab activities={lead.activities} />,
-        },
-        {
-          value: "changes",
-          label: "Field history",
-          content: <FieldHistoryTab entity="LEAD" recordId={leadId} />,
-        },
+        historyTab({
+          ref: { kind: "lead", id: leadId },
+          entity: "LEAD",
+          activities: lead.activities,
+        }),
       ]}
       rail={
         <>
@@ -412,8 +528,13 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             <p className="mt-1 font-mono text-3xl leading-none tracking-tight text-[var(--text-strong)]">
               {formatLeadValue(lead.estimatedValue, lead.currency)}
             </p>
+            {/* A lead with no likelihood on it is not 0% likely — nobody has
+                said. The property list above reads "Not scored", and this line
+                used to sit two hundred pixels below it saying "0% likely"
+                about the same field. */}
             <p className="mt-2 text-sm text-[var(--text-muted)]">
-              {lead.probability ?? 0}% likely · {CRM_STAGE_LABELS[lead.stage]}
+              {lead.probability == null ? "Not scored" : `${lead.probability}% likely`} ·{" "}
+              {CRM_STAGE_LABELS[lead.stage]}
             </p>
 
             {lead.scoreBreakdown ? (
@@ -462,12 +583,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           ) : null}
 
           <RailSection title="Contact so far">
-            <ActivityStrip counts={activityCounts} />
-            {recentCalls.length > 0 ? (
-              <div className="mt-3">
-                <CallList calls={recentCalls} />
-              </div>
-            ) : null}
+            <ContactList contacts={recentContact} />
           </RailSection>
 
           <RailSection title="Last email">

@@ -7,7 +7,7 @@ import { Calendar } from "@corelithzw/react";
 import { CalendarIcon, ChevronDown, Clock3 } from "@/lib/icons";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { ResponsivePopover } from "@/components/ui/responsive-popover";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -42,7 +42,7 @@ type CommonProps = {
   contentClassName?: string;
   placeholder?: string;
   disabled?: boolean;
-  align?: React.ComponentProps<typeof PopoverContent>["align"];
+  align?: React.ComponentProps<typeof ResponsivePopover>["align"];
   sideOffset?: number;
   label?: string;
 };
@@ -168,19 +168,25 @@ export function DatePicker(props: DatePickerProps) {
   return (
     <div className={cn("flex flex-col gap-2", className)}>
       {label ? <Label>{label}</Label> : null}
-      <Popover open={open} onOpenChange={setOpen}>
-        <PopoverTrigger asChild disabled={disabled}>
+      {/* A calendar is 280px wide and its trigger is usually near the bottom
+          of a form, so on a phone the popover had to open *over* the fields
+          above it. Below `sm` it comes up from the bottom edge instead. */}
+      <ResponsivePopover
+        open={open}
+        onOpenChange={setOpen}
+        title={isDateTime ? "Select date and time" : "Select date"}
+        align={align}
+        sideOffset={sideOffset}
+        className={cn("w-auto p-0", contentClassName)}
+        trigger={
           <DatePickerTrigger
             className={triggerClassName}
             value={triggerValue}
             placeholder={placeholder}
+            disabled={disabled}
           />
-        </PopoverTrigger>
-        <PopoverContent
-          align={align}
-          sideOffset={sideOffset}
-          className={cn("w-auto p-0", contentClassName)}
-        >
+        }
+      >
           {/* `.popover` scopes `.pop-h` / `.ti` / `.pop-actions`; its own
               surface is cleared because PopoverContent already draws one. */}
           <div className="popover max-w-none overflow-hidden rounded-[var(--card-radius)] border-0 p-0 shadow-none">
@@ -279,8 +285,7 @@ export function DatePicker(props: DatePickerProps) {
               </>
             ) : null}
           </div>
-        </PopoverContent>
-      </Popover>
+      </ResponsivePopover>
     </div>
   );
 }

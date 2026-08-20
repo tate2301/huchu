@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -154,14 +154,9 @@ export function CustomFieldsPanel() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-start justify-between gap-2">
-        <div>
-          <CardTitle>Custom fields</CardTitle>
-          <p className="text-sm text-[var(--text-muted)]">
-            Extra fields for your business. They show up on the form, the record page and the
-            filters as soon as you add them.
-          </p>
-        </div>
+      {/* The settings shell already names this section and describes it; see
+          the note in `pipelines-panel.tsx`. */}
+      <CardHeader className="flex flex-row items-center justify-end gap-2">
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
           New field

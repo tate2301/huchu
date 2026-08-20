@@ -10,6 +10,8 @@ export type LeadActivity = {
   body: string | null;
   metadata: unknown;
   occurredAt: string;
+  /** Who logged it. The API has always sent this; nothing used to ask. */
+  createdBy?: { id: string; name: string | null } | null;
 };
 
 export type LeadFollowUp = {
@@ -67,6 +69,11 @@ export type LeadDetail = {
   firstContactAt: string | null;
   wonAt: string | null;
   lostAt: string | null;
+  /** Out of the working set. Set by archiving, and by conversion. */
+  archivedAt: string | null;
+  /** When this lead became a deal, and which deal it became. */
+  convertedAt: string | null;
+  convertedDealId: string | null;
   createdAt: string;
   updatedAt: string;
   clientId: string | null;

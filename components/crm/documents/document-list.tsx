@@ -18,12 +18,26 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Download, DotsThree, FileText, Plus, ReceiptLong } from "@/lib/icons";
+import { cn } from "@/lib/utils";
+import {
+  Check,
+  Download,
+  DotsThree,
+  Eye,
+  FileText,
+  Mail,
+  Payments,
+  Plus,
+  ReceiptLong,
+  Send,
+  X,
+} from "@/lib/icons";
 
 import { DocumentBuilderSheet } from "./document-builder-sheet";
 import { RecordPaymentSheet } from "./record-payment-sheet";
@@ -44,6 +58,72 @@ import { Stack } from "@corelithzw/react";
 function KindIcon({ type }: { type: LeadDocument["type"] }) {
   const Icon = type === "RECEIPT" ? ReceiptLong : FileText;
   return <Icon className="h-4 w-4 shrink-0 text-[var(--text-muted)]" />;
+}
+
+/**
+ * What the customer did with it, and what they said.
+ *
+ * The approval record has carried `firstViewedAt`, `respondedAt`,
+ * `responderName` and `responseNote` since the day approval links shipped, and
+ * the record page read none of them — so "have they seen the quote?" and "why
+ * did they turn it down?" were questions the system knew the answer to and
+ * would not tell anybody. The status chip said "Declined" and stopped.
+ *
+ * Sent-but-unopened is its own state and worth showing: chasing somebody who
+ * has not opened the email is a different conversation from chasing somebody
+ * who read it a week ago and went quiet.
+ */
+export function ApprovalFeedback({ approval }: { approval: LeadDocument["approval"] }) {
+  if (!approval) return null;
+
+  const declined = approval.status === "DECLINED";
+  const approved = approval.status === "APPROVED";
+  const who = approval.responderName?.trim();
+
+  if (!approval.respondedAt) {
+    return (
+      <p className="mt-1 flex items-center gap-1.5 text-sm text-[var(--text-subtle)]">
+        <Eye className="size-3.5 shrink-0" aria-hidden="true" />
+        {approval.firstViewedAt ? (
+          <>
+            Opened <ClientDate value={approval.firstViewedAt} />, no answer yet
+          </>
+        ) : (
+          "Sent, not opened yet"
+        )}
+      </p>
+    );
+  }
+
+  return (
+    <div
+      className={cn(
+        "mt-1.5 border-l-2 pl-2.5 text-sm",
+        declined ? "border-[var(--status-error-border)]" : "border-[var(--status-success-border)]",
+      )}
+    >
+      <p
+        className={cn(
+          "flex items-center gap-1.5 font-medium",
+          declined ? "text-[var(--status-error-text)]" : "text-[var(--status-success-text)]",
+        )}
+      >
+        {declined ? (
+          <X className="size-3.5 shrink-0" aria-hidden="true" />
+        ) : (
+          <Check className="size-3.5 shrink-0" aria-hidden="true" />
+        )}
+        {who ? `${who} ` : ""}
+        {declined ? "declined" : approved ? "accepted" : "responded"} this{" "}
+        <ClientDate value={approval.respondedAt} />
+      </p>
+      {approval.responseNote?.trim() ? (
+        <p className="mt-0.5 whitespace-pre-wrap text-[var(--text-body)]">
+          “{approval.responseNote.trim()}”
+        </p>
+      ) : null}
+    </div>
+  );
 }
 
 export function DocumentList({
@@ -99,6 +179,46 @@ export function DocumentList({
     onError: (error) =>
       toast({
         title: "Could not create the approval link",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  /**
+   * Hand the document to whatever the reader sends mail with.
+   *
+   * Not a server-side send: this platform has no outbound mail — no provider,
+   * no API key, nowhere to queue a retry — and the honest version of "email
+   * this" under those conditions is a composed draft in the reader's own
+   * client, not a button that appears to send and does not. It mints the
+   * approval link first, so what lands in the customer's inbox is a link they
+   * can act on rather than a bare PDF.
+   *
+   * When outbound mail does arrive, this is the call site to change.
+   */
+  const emailToClient = useMutation({
+    mutationFn: async (doc: LeadDocument) => {
+      const approval = await fetchJson<{ token: string; path: string }>(
+        `${basePath}/documents/${doc.id}/approval`,
+        { method: "POST", body: JSON.stringify({}) },
+      );
+      return { doc, url: `${window.location.origin}${approval.path}` };
+    },
+    onSuccess: ({ doc, url }) => {
+      const kind = DOCUMENT_KIND_LABELS[doc.type].toLowerCase();
+      const subject = `${DOCUMENT_KIND_LABELS[doc.type]} ${documentNumber(doc)}`;
+      const body = [
+        `Please find our ${kind} ${documentNumber(doc)} for ${formatMoney(doc.amount, doc.currency)}.`,
+        "",
+        `You can review and respond to it here: ${url}`,
+        "",
+      ].join("\n");
+      window.location.href = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+      refreshAfterDocumentChange(queryClient);
+    },
+    onError: (error) =>
+      toast({
+        title: "Could not prepare the email",
         description: getApiErrorMessage(error),
         variant: "destructive",
       }),
@@ -210,6 +330,8 @@ export function DocumentList({
                     {canPay ? ` · ${formatMoney(outstanding, doc.currency)} outstanding` : ""}
                     {doc.revisionNote ? ` · ${doc.revisionNote}` : ""}
                   </div>
+
+                  <ApprovalFeedback approval={doc.approval} />
                 </div>
 
                 <span className="font-mono text-sm tabular-nums">
@@ -224,7 +346,8 @@ export function DocumentList({
                       <DotsThree />
                     </IconButton>
                   </DropdownMenuTrigger>
-                  <DropdownMenuContent align="end">
+                  <DropdownMenuContent align="end" className="min-w-56">
+                    <DropdownMenuLabel>{documentNumber(doc)}</DropdownMenuLabel>
                     <DropdownMenuItem asChild>
                       <a
                         href={`${basePath}/documents/${doc.id}/pdf`}
@@ -232,7 +355,7 @@ export function DocumentList({
                         rel="noreferrer"
                         className="flex items-center gap-2"
                       >
-                        <FileText className="h-4 w-4" />
+                        <FileText />
                         View PDF
                       </a>
                     </DropdownMenuItem>
@@ -241,7 +364,7 @@ export function DocumentList({
                         href={`${basePath}/documents/${doc.id}/pdf?download=1`}
                         className="flex items-center gap-2"
                       >
-                        <Download className="h-4 w-4" />
+                        <Download />
                         Download PDF
                       </a>
                     </DropdownMenuItem>
@@ -249,14 +372,32 @@ export function DocumentList({
                     {doc.type !== "RECEIPT" ? (
                       <>
                         <DropdownMenuSeparator />
-                        <DropdownMenuItem onClick={() => shareApproval.mutate(doc.id)}>
+                        <DropdownMenuItem
+                          variant="primary"
+                          onClick={() => shareApproval.mutate(doc.id)}
+                        >
+                          <Send />
                           {doc.approval ? "Copy approval link" : "Send for approval"}
+                        </DropdownMenuItem>
+                        {/* Straight into whatever the reader sends mail with,
+                            subject and link already written. The platform has
+                            no outbound mail of its own — no provider, no
+                            secret, nowhere to queue — and a menu item that
+                            silently does nothing is worse than one that hands
+                            off honestly. */}
+                        <DropdownMenuItem
+                          variant="primary"
+                          onClick={() => emailToClient.mutate(doc)}
+                        >
+                          <Mail />
+                          Email to the client
                         </DropdownMenuItem>
                       </>
                     ) : null}
 
                     {canConvert ? (
                       <>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem
                           onClick={() =>
                             setBuilder({
@@ -265,9 +406,11 @@ export function DocumentList({
                             })
                           }
                         >
+                          <ReceiptLong />
                           Convert to invoice
                         </DropdownMenuItem>
                         <DropdownMenuItem onClick={() => setDepositFor(doc)}>
+                          <Payments />
                           Request a deposit
                         </DropdownMenuItem>
                       </>
@@ -275,17 +418,21 @@ export function DocumentList({
 
                     {canPay ? (
                       <>
+                        <DropdownMenuSeparator />
                         <DropdownMenuItem onClick={() => setPaymentFor(doc)}>
-                          Record payment
+                          <Payments />
+                          Record a part payment
                         </DropdownMenuItem>
                         {/* The whole balance, one click, receipt raised. The
                             sheet is for a part payment or a deposit — this is
                             for the invoice that has simply been settled. */}
                         <DropdownMenuItem
+                          variant="positive"
                           disabled={markPaid.isPending}
                           onClick={() => markPaid.mutate(doc)}
                         >
-                          Mark as paid ({formatMoney(outstanding, doc.currency)})
+                          <Check />
+                          Settle in full ({formatMoney(outstanding, doc.currency)})
                         </DropdownMenuItem>
                       </>
                     ) : null}

@@ -21,6 +21,13 @@ const bulkSchema = z.discriminatedUnion("action", [
     stage: crmLeadStageSchema,
     lostReason: z.string().trim().max(500).optional(),
   }),
+  // Tidying up is a bulk job by nature — an import that went in twice, a
+  // morning of spam through the web form. One at a time, nobody does it.
+  z.object({
+    action: z.literal("archive"),
+    ids: z.array(z.string().uuid()).min(1).max(MAX_BULK_IDS),
+    archived: z.boolean(),
+  }),
 ]);
 
 export async function POST(request: NextRequest) {
@@ -41,6 +48,8 @@ export async function POST(request: NextRequest) {
         // Same fields the single-lead route selects: a bulk stage move
         // promotes to a deal exactly as a drag on the board does.
         convertedDealId: true,
+        convertedAt: true,
+        archivedAt: true,
         leadNo: true,
         title: true,
         estimatedValue: true,
@@ -92,6 +101,51 @@ export async function POST(request: NextRequest) {
       });
 
       return successResponse({ updated: editable.length, skipped, notFound });
+    }
+
+    if (body.action === "archive") {
+      // Restoring a converted lead would put a deal's own origin back in the
+      // pipeline beside it. Those are left where they are and reported as
+      // unchanged rather than failing the batch around them.
+      const targets = editable.filter((lead) => {
+        if (Boolean(lead.archivedAt) === body.archived) return false;
+        return body.archived || !lead.convertedAt;
+      });
+
+      if (targets.length > 0) {
+        const now = new Date();
+        await prisma.$transaction(async (tx) => {
+          await tx.crmLead.updateMany({
+            where: {
+              id: { in: targets.map((lead) => lead.id) },
+              companyId: session.user.companyId,
+            },
+            data: body.archived
+              ? { archivedAt: now, archivedById: session.user.id }
+              : { archivedAt: null, archivedById: null },
+          });
+          await tx.crmActivity.createMany({
+            data: targets.map((lead) => ({
+              companyId: session.user.companyId,
+              type: "SYSTEM" as const,
+              leadId: lead.id,
+              clientId: lead.clientId ?? undefined,
+              subject: body.archived
+                ? `Lead ${lead.leadNo} archived`
+                : `Lead ${lead.leadNo} restored`,
+              occurredAt: now,
+              createdById: session.user.id,
+            })),
+          });
+        });
+      }
+
+      return successResponse({
+        updated: targets.length,
+        unchanged: editable.length - targets.length,
+        skipped,
+        notFound,
+      });
     }
 
     // Stage moves run through the shared service so bulk history matches what

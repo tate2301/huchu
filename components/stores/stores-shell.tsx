@@ -126,10 +126,18 @@ export function StoresShell({
     return `${href}?${params.toString()}`;
   };
 
+  // Issuing and receiving move stock, so they belong on the views about stock
+  // — which is the same split the sidebar already draws between "Stock" and
+  // "What we sell". On the catalogue they were the wrong verbs in the loudest
+  // place on the screen: at 390px the bar showed "Receive" and pushed "Issue"
+  // into an overflow menu, while the page's actual primary action, "New item",
+  // sat down in the body under a heading and a paragraph.
+  const movesStock = activeTab !== "catalogue" && activeTab !== "price-lists";
+
   // Not memoised: the compiler infers a different dependency set than any
   // hand-written one here, and a fresh element per render costs nothing —
   // `PageChrome` only re-renders the bar, not the page.
-  const barActions = (
+  const barActions = movesStock ? (
       <>
         {actions}
         <Button
@@ -146,6 +154,11 @@ export function StoresShell({
           Issue
         </Button>
       </>
+  ) : (
+    // Left undefined rather than empty when the page has nothing of its own:
+    // that is how `PageChrome` is told to claim only the title, so the panel
+    // inside can register the bar's action itself.
+    actions
   );
 
   const activeLabel =

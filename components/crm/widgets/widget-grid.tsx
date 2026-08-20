@@ -40,12 +40,22 @@ import {
 import { IconButton } from "@/components/ui/icon-button";
 import { cn } from "@/lib/utils";
 
-/** Tailwind cannot see a computed `col-span-${n}`, so the classes are spelled out. */
+/**
+ * Tailwind cannot see a computed `col-span-${n}`, so the classes are spelled
+ * out.
+ *
+ * A quarter and a third are two-up on a phone rather than stacked. Six metric
+ * widgets at full width were six screens of one number each, and you reached
+ * the bottom of the overview without ever seeing two figures at once — which
+ * is the entire point of an overview. Anything a caller chose to make half the
+ * page or wider stays full width: it was sized that way because its contents
+ * need the room.
+ */
 const SPAN_CLASS: Record<WidgetSpan, string> = {
-  3: "sm:col-span-6 lg:col-span-3",
-  4: "sm:col-span-6 lg:col-span-4",
-  6: "sm:col-span-6 lg:col-span-6",
-  8: "sm:col-span-12 lg:col-span-8",
+  3: "col-span-6 lg:col-span-3",
+  4: "col-span-6 lg:col-span-4",
+  6: "col-span-12 sm:col-span-6",
+  8: "col-span-12 lg:col-span-8",
   12: "col-span-12",
 };
 

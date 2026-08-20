@@ -55,7 +55,15 @@ export async function GET(
     const [leads, deals, tasks, activities, documents, wonCount, lostCount] =
       await Promise.all([
         prisma.crmLead.findMany({
-          where: { companyId, assignedToId: id, stage: { notIn: ["WON", "LOST"] } },
+          // The rep's live pipeline. A converted lead is archived and its deal
+          // is listed right beside this, so an archived row here would show
+          // the same opportunity twice on one person's page.
+          where: {
+            companyId,
+            assignedToId: id,
+            archivedAt: null,
+            stage: { notIn: ["WON", "LOST"] },
+          },
           select: {
             id: true,
             leadNo: true,

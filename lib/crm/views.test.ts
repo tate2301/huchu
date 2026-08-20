@@ -7,20 +7,32 @@ import {
   hasActiveLeadFilters,
   leadViewFiltersSchema,
   parseLeadFiltersFromParams,
+  type LeadViewFilters,
 } from "./views";
 
 const COMPANY = "company-1";
 const USER = "user-1";
 
+/**
+ * The clauses a query carries beyond the archive one, which is always first
+ * and is asserted on its own below. Written as a helper so a test about owner
+ * filtering says something about owner filtering.
+ */
+function filterClauses(where: ReturnType<typeof buildLeadWhere>) {
+  return (where.AND as unknown[]).slice(1);
+}
+
 describe("buildLeadWhere", () => {
   it("always scopes to the company, even with no filters", () => {
-    expect(buildLeadWhere(COMPANY, {}, USER)).toEqual({ companyId: COMPANY });
+    const where = buildLeadWhere(COMPANY, {}, USER);
+    expect(where.companyId).toBe(COMPANY);
+    expect(filterClauses(where)).toEqual([]);
   });
 
   it("keeps the company scope alongside every filter", () => {
     const where = buildLeadWhere(COMPANY, { stages: ["NEW"], q: "roof" }, USER);
     expect(where.companyId).toBe(COMPANY);
-    expect(where.AND).toHaveLength(2);
+    expect(filterClauses(where)).toHaveLength(2);
   });
 
   it("treats explicit owners and unassigned as alternatives", () => {
@@ -29,41 +41,69 @@ describe("buildLeadWhere", () => {
       { assignedToIds: ["user-2"], unassigned: true },
       USER,
     );
-    expect(where.AND).toEqual([
+    expect(filterClauses(where)).toEqual([
       { OR: [{ assignedToId: { in: ["user-2"] } }, { assignedToId: null }] },
     ]);
   });
 
   it("applies a single owner clause directly rather than wrapping it in OR", () => {
     const where = buildLeadWhere(COMPANY, { assignedToIds: ["user-2"] }, USER);
-    expect(where.AND).toEqual([{ assignedToId: { in: ["user-2"] } }]);
+    expect(filterClauses(where)).toEqual([{ assignedToId: { in: ["user-2"] } }]);
   });
 
   it("resolves mineOnly against the calling user", () => {
     const where = buildLeadWhere(COMPANY, { mineOnly: true }, USER);
-    expect(where.AND).toEqual([{ assignedToId: USER }]);
+    expect(filterClauses(where)).toEqual([{ assignedToId: USER }]);
   });
 
   it("builds a bounded value range", () => {
     const where = buildLeadWhere(COMPANY, { valueMin: 100, valueMax: 500 }, USER);
-    expect(where.AND).toEqual([{ estimatedValue: { gte: 100, lte: 500 } }]);
+    expect(filterClauses(where)).toEqual([{ estimatedValue: { gte: 100, lte: 500 } }]);
   });
 
   it("builds an open-ended value range", () => {
     const where = buildLeadWhere(COMPANY, { valueMin: 100 }, USER);
-    expect(where.AND).toEqual([{ estimatedValue: { gte: 100 } }]);
+    expect(filterClauses(where)).toEqual([{ estimatedValue: { gte: 100 } }]);
   });
 
   it("searches across lead number, title, contact and client name", () => {
     const where = buildLeadWhere(COMPANY, { q: "acme" }, USER);
-    const or = (where.AND as Array<{ OR?: unknown[] }>)[0].OR;
+    const or = (filterClauses(where) as Array<{ OR?: unknown[] }>)[0].OR;
     expect(or).toHaveLength(5);
   });
 
   it("filters to leads carrying an overdue follow-up", () => {
     const where = buildLeadWhere(COMPANY, { overdueOnly: true }, USER);
-    const clause = (where.AND as Array<{ followUps?: { some?: { status?: string } } }>)[0];
+    const clause = (filterClauses(where) as Array<{ followUps?: { some?: { status?: string } } }>)[0];
     expect(clause.followUps?.some?.status).toBe("PENDING");
+  });
+
+  // The double-count this whole thing exists to stop: a converted lead is
+  // archived, so if archived rows leaked into a default query the deal and the
+  // lead it came from would both be counted as live business.
+  it("leaves archived leads out of every query by default", () => {
+    const cases: LeadViewFilters[] = [{}, { stages: ["NEW"] }, { mineOnly: true }];
+    for (const filters of cases) {
+      const where = buildLeadWhere(COMPANY, filters, USER);
+      expect((where.AND as unknown[])[0]).toEqual({ archivedAt: null });
+    }
+  });
+
+  it("swaps the set rather than narrowing it when the archive is asked for", () => {
+    const where = buildLeadWhere(COMPANY, { archived: true }, USER);
+    expect((where.AND as unknown[])[0]).toEqual({ archivedAt: { not: null } });
+    expect(filterClauses(where)).toEqual([]);
+  });
+
+  it("still narrows the archive by the other filters", () => {
+    const where = buildLeadWhere(COMPANY, { archived: true, mineOnly: true }, USER);
+    expect((where.AND as unknown[])[0]).toEqual({ archivedAt: { not: null } });
+    expect(filterClauses(where)).toEqual([{ assignedToId: USER }]);
+  });
+
+  it("reads the archive flag off a query string", () => {
+    expect(parseLeadFiltersFromParams(new URLSearchParams("archived=1")).archived).toBe(true);
+    expect(parseLeadFiltersFromParams(new URLSearchParams("")).archived).toBeUndefined();
   });
 });
 

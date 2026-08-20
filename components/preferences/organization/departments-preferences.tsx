@@ -13,6 +13,7 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import {
@@ -263,6 +264,23 @@ export function DepartmentsPreferences() {
 
   return (
     <>
+      {/* The page's one verb, in the app bar — where "New person" and "New
+          item" are in the other modules. Parked in the table's controls row it
+          sat under the title, the description and the search box, about four
+          hundred pixels down a 390px screen, while the bar beside the bell was
+          empty. */}
+      <PageActions>
+        <Button
+          type="button"
+          variant="primary"
+          size="sm"
+          startIcon={<Plus className="size-4" aria-hidden="true" />}
+          onClick={openCreateForm}
+        >
+          New department
+        </Button>
+      </PageActions>
+
       <DsDataTable
         ariaLabel="Departments"
         rows={pageRows}
@@ -272,17 +290,6 @@ export function DepartmentsPreferences() {
         searchPlaceholder="Search departments"
         onSearchChange={setSearch}
         onSearchSubmit={() => setSubmittedSearch(search)}
-        actions={
-          <Button
-            type="button"
-            variant="primary"
-            size="sm"
-            startIcon={<Plus className="size-4" aria-hidden="true" />}
-            onClick={openCreateForm}
-          >
-            New department
-          </Button>
-        }
         isLoading={departmentsQuery.isLoading}
         loadingLabel="Fetching departments"
         error={loadErrorMessage}

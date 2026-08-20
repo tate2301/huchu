@@ -144,13 +144,17 @@ export function StageProgress({
         ))}
       </div>
 
-      <p className="text-sm text-[var(--text-muted)]">
-        {isWon
-          ? "Won"
-          : isLost
-            ? "Lost — reopen it from the stage menu"
-            : `Step ${currentIndex + 1} of ${PATH_STAGES.length}`}
-      </p>
+      {/* "Step 1 of 6" is gone: the six segments directly above already say
+          it, and the band was stating the same stage three ways — the heading,
+          the track, and a sentence counting the track. Screen readers still
+          get the count, from the track's own label. What is left here is the
+          one case the track cannot show: a lost lead is not at a step, and
+          somebody looking at a drained track needs telling how to reopen it. */}
+      {isLost ? (
+        <p className="text-sm text-[var(--text-muted)]">
+          Lost — reopen it from the stage menu
+        </p>
+      ) : null}
     </div>
   );
 }

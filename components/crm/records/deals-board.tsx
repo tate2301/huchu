@@ -424,6 +424,7 @@ export function DealsBoard({
         page's stage bar, so nothing is lost by not dragging here. */}
     <MobileBoard
       className="lg:hidden"
+      noun={{ one: "deal", many: "deals" }}
       emptyTitle="No deals in this stage"
       stages={board.columns.map((column) => ({
         id: column.stage.id,
@@ -436,7 +437,7 @@ export function DealsBoard({
           href: `/crm/deals/${deal.id}`,
           title: deal.title,
           subtitle: `${deal.dealNo} · ${deal.client?.name ?? "No company"}`,
-          facts: [{ value: money(deal.value, deal.currency), mono: true }],
+          facts: [{ value: money(deal.value, deal.currency), mono: true, primary: true }],
         })),
       }))}
     />

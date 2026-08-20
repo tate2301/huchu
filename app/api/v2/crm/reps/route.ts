@@ -43,7 +43,10 @@ export async function GET(request: NextRequest) {
       getRepPerformance(companyId, { from, to, repId: isManager ? null : session.user.id }),
       prisma.crmLead.groupBy({
         by: ["assignedToId"],
-        where: { companyId, stage: { notIn: ["WON", "LOST"] } },
+        // What somebody is actually carrying. A converted lead is archived and
+        // its deal is counted beside this figure, so leaving archived rows in
+        // would credit one piece of business to a rep twice.
+        where: { companyId, archivedAt: null, stage: { notIn: ["WON", "LOST"] } },
         _count: { _all: true },
         _sum: { estimatedValue: true },
       }),

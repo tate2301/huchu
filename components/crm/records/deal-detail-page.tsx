@@ -8,12 +8,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ClientDate } from "@/components/ui/client-date";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   Building2,
   Calendar,
+  CalendarCheck,
+  Clock,
   FileText,
   Funnel,
   MapPin,
@@ -21,6 +22,7 @@ import {
   Plus,
   TrendingUp,
   UserRound,
+  Users,
 } from "@/lib/icons";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { isDealStale } from "@/lib/crm/pipelines";
@@ -28,19 +30,25 @@ import { visitItemsToQuotationLines } from "@/lib/crm/site-visits";
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
+import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { DocumentList } from "@/components/crm/documents/document-list";
 import { formatMoney, invoiceOutstanding } from "@/components/crm/documents/document-types";
 import type { LeadDocument } from "@/components/crm/documents/document-types";
-import { ActivityComposer } from "@/components/crm/lead-detail/activity-composer";
-import { automationTab, commentsTab, filesTab, mentionsTab, tasksTab } from "./record-tabs";
 import {
-  ActivityStrip,
-  CallList,
+  automationTab,
+  historyTab,
+  paperworkTab,
+  tasksTab,
+  useRecordComments,
+} from "./record-tabs";
+import {
+  ContactList,
   EmailPreview,
   MeetingCard,
   NextInteractionCard,
   type NextInteraction,
 } from "./record-panels";
+import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import { VisitsTab } from "@/components/crm/lead-detail/visits-tab";
@@ -60,8 +68,6 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import { DealStageBar } from "./deal-stage-bar";
 import { RailSection, RecordPageShell } from "@/components/records/record-page-shell";
-import { RecordHistoryTab } from "./record-history-tab";
-import { FieldHistoryTab } from "@/components/crm/records/field-history-tab";
 
 import { Stack } from "@corelithzw/react";
 
@@ -168,6 +174,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   });
 
   const owners = useMemo(() => teamQuery.data?.data ?? [], [teamQuery.data]);
+  // Comments join the story rather than sitting in a section of their own.
+  const comments = useRecordComments({ kind: "deal", id: dealId });
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const deal = dealQuery.data;
 
@@ -214,19 +222,19 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     );
   })();
 
-  const activityCounts = [
-    { label: "calls", count: deal.activities.filter((a) => a.type === "CALL").length },
-    { label: "emails", count: deal.activities.filter((a) => a.type === "EMAIL").length },
-    { label: "notes", count: deal.activities.filter((a) => a.type === "NOTE").length },
-    { label: "meetings", count: deal.activities.filter((a) => a.type === "MEETING").length },
-  ];
-
-  const recentCalls = deal.activities
-    .filter((activity) => activity.type === "CALL")
-    .slice(0, 3)
+  // Every kind of contact, newest first — not calls only. The panel is titled
+  // "contact so far", and showing three calls under a strip that counts five
+  // kinds made a record whose last month was all email read as silent.
+  const recentContact = deal.activities
+    .filter((activity) => activity.type in CONTACT_ACTIVITY_KIND)
+    .slice(0, 6)
     .map((activity) => ({
       id: activity.id,
       at: activity.occurredAt,
+      kind: CONTACT_ACTIVITY_KIND[activity.type],
+      // The API has always included who logged it; the panel just never asked,
+      // so every row in the summary was attributed to "Someone".
+      actorName: activity.createdBy?.name ?? null,
       summary: activity.body ?? activity.subject,
     }));
 
@@ -293,6 +301,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
           />
         }
         title={deal.title}
+      onTitleCommit={(next) => edit.save.mutate({ title: next })}
         reference={deal.dealNo}
         status={{
           label: deal.stage.name,
@@ -333,21 +342,18 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 placeholder: "Not sized",
                 mono: true,
                 ...edit.numeric("value", deal.value),
+                // A bare "9800" beside a deal in a workspace that bills in two
+                // currencies is a number you have to go and check. Editing
+                // still opens on the raw figure.
+                formatted:
+                  deal.value == null ? null : formatMoney(deal.value, deal.currency),
               },
-              {
-                id: "stage",
-                label: "Stage",
-                icon: Funnel,
-                display: (
-                  <span className="text-sm">
-                    {deal.stage.name}
-                    <span className="text-[var(--text-muted)]">
-                      {" · "}
-                      {deal.pipeline.name}
-                    </span>
-                  </span>
-                ),
-              },
+              // Stage is deliberately not a property row. `DealStageBar` in
+              // the rail below is the control for it, and it is the richer one
+              // — it gates on the stage's checklist and asks for a reason on
+              // the way to Lost. A second, plainer editor up here would route
+              // around both, and two ways to move a deal is how a pipeline
+              // stops meaning anything.
               {
                 id: "owner",
                 label: "Owner",
@@ -385,13 +391,17 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 id: "close",
                 label: "Expected close",
                 icon: Calendar,
-                display: deal.expectedCloseDate ? (
-                  <span className="text-sm">
-                    <ClientDate value={deal.expectedCloseDate} mode="date" />
-                  </span>
-                ) : undefined,
-                value: null,
+                kind: "date" as const,
                 placeholder: "No date set",
+                // The stored value is an ISO instant and the editor wants a
+                // calendar day, so the row opens on the day and reads back as
+                // the reader's own format.
+                value: deal.expectedCloseDate ? deal.expectedCloseDate.slice(0, 10) : null,
+                formatted: deal.expectedCloseDate
+                  ? new Date(deal.expectedCloseDate).toLocaleDateString()
+                  : null,
+                onCommit: (next: string) =>
+                  edit.save.mutate({ expectedCloseDate: next.trim() === "" ? null : next }),
               },
               {
                 id: "probability",
@@ -404,22 +414,29 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               {
                 id: "forecast",
                 label: "Forecast",
-                value: deal.forecastCategory.toLowerCase().replace("_", " "),
+                ...edit.choice("forecastCategory", deal.forecastCategory, [
+                  { value: "PIPELINE", label: "Pipeline" },
+                  { value: "BEST_CASE", label: "Best case" },
+                  { value: "COMMIT", label: "Commit" },
+                  { value: "CLOSED", label: "Closed" },
+                ]),
               },
-              ...(deal.site
-                ? [
-                    {
-                      id: "site",
-                      label: "Site",
-                      icon: MapPin,
-                      display: (
-                        <EntityLink href={`/crm/sites/${deal.site.id}`} className="text-sm">
-                          {deal.site.name}
-                        </EntityLink>
-                      ),
-                    },
-                  ]
-                : []),
+              {
+                id: "site",
+                label: "Site",
+                icon: MapPin,
+                display: (
+                  <RelationAttribute
+                    value={deal.site?.name ?? null}
+                    href={deal.site ? `/crm/sites/${deal.site.id}` : null}
+                    types={["SITE"]}
+                    placeholder="No site"
+                    searchPlaceholder="Search sites"
+                    onPick={(record) => edit.save.mutate({ siteId: record.id })}
+                    onClear={() => edit.save.mutate({ siteId: null })}
+                  />
+                ),
+              },
               ...customFieldAttributes({
                 definitions,
                 values: deal.customFields,
@@ -432,17 +449,22 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         onTabChange={setTab}
         tabs={[
           {
+            // Named Overview: on a phone the summary renders above it, and the
+            // two read as one thing — what this deal is worth and what is
+            // next, then what has actually happened to it.
             value: "timeline",
-            label: "Timeline",
+            label: "Conversation",
+            icon: Clock,
             content: (
               <div className="space-y-4">
-                <ActivityComposer target={{ kind: "deal", id: dealId }} />
+                <ConversationComposer target={{ kind: "deal", id: dealId }} />
                 <RecordStory
                   events={buildStory({
                     activities: deal.activities,
                     tasks: deal.followUps,
                     visits: deal.appointments,
                     documents: deal.documents,
+                    comments,
                     createdLabel: `Deal ${deal.dealNo} opened`,
                   })}
                   emptyMessage="Nothing has happened on this deal yet."
@@ -450,11 +472,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </div>
             ),
           },
-          {
-            value: "documents",
-            label: "Documents",
-            count: deal.documents.length,
-            content: (
+          paperworkTab({
+            ref: { kind: "deal", id: dealId },
+            documentCount: deal.documents.length,
+            documents: (
               <DocumentList
                 basePath={`/api/v2/crm/deals/${dealId}`}
                 currency={deal.currency}
@@ -464,11 +485,23 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 onPrefillConsumed={() => setQuotationPrefill(undefined)}
               />
             ),
+          }),
+          {
+            value: "people",
+            label: "People",
+            icon: Users,
+            count: deal.contacts.length,
+            content: <DealContactsTab dealId={dealId} contacts={deal.contacts} />,
           },
           {
             value: "visits",
             label: "Visits",
+            icon: CalendarCheck,
             count: deal.appointments.length,
+            attention: deal.appointments.some(
+              (visit) =>
+                visit.status === "SCHEDULED" && new Date(visit.scheduledStart) < new Date(),
+            ),
             content: (
               <VisitsTab
                 appointments={deal.appointments}
@@ -477,27 +510,19 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               />
             ),
           },
-          tasksTab({ ref: { kind: "deal", id: dealId }, currentUserId }),
           {
-            value: "people",
-            label: "People",
-            count: deal.contacts.length,
-            content: <DealContactsTab dealId={dealId} contacts={deal.contacts} />,
+            ...tasksTab({ ref: { kind: "deal", id: dealId }, currentUserId }),
+            count: deal.followUps.filter((task) => task.status === "PENDING").length,
+            attention: deal.followUps.some(
+              (task) => task.status === "PENDING" && new Date(task.dueAt) < new Date(),
+            ),
           },
-          commentsTab({ ref: { kind: "deal", id: dealId }, currentUserId }),
-        mentionsTab({ ref: { kind: "deal", id: dealId } }),
-        filesTab({ ref: { kind: "deal", id: dealId } }),
-        automationTab({ ref: { kind: "deal", id: dealId } }),
-          {
-            value: "history",
-            label: "History",
-            content: <RecordHistoryTab activities={deal.activities} />,
-          },
-          {
-            value: "changes",
-            label: "Field history",
-            content: <FieldHistoryTab entity="DEAL" recordId={dealId} />,
-          },
+          automationTab({ ref: { kind: "deal", id: dealId } }),
+          historyTab({
+            ref: { kind: "deal", id: dealId },
+            entity: "DEAL",
+            activities: deal.activities,
+          }),
         ]}
         rail={
           <>
@@ -543,12 +568,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             ) : null}
 
             <RailSection title="Contact so far">
-              <ActivityStrip counts={activityCounts} />
-              {recentCalls.length > 0 ? (
-                <div className="mt-3">
-                  <CallList calls={recentCalls} />
-                </div>
-              ) : null}
+              <ContactList contacts={recentContact} />
             </RailSection>
 
             <RailSection title="Last email">

@@ -120,7 +120,10 @@ export async function searchCrm(
       db.crmLead.findMany({
         where: {
           companyId,
-          convertedAt: null,
+          // Archived, not merely unconverted. Search offers things to go and
+          // work on; a lead that has been put away is not one of them, and
+          // hiding only the converted ones let every archived lead back in.
+          archivedAt: null,
           OR: [
             { leadNo: contains },
             { title: contains },

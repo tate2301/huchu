@@ -166,7 +166,7 @@ export function FilesTab({
                 <span
                   data-accent={mark.accent}
                   aria-hidden="true"
-                  className="flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] bg-[var(--accent-bg)] font-mono text-sm font-medium text-[var(--accent-fg)]"
+                  className="solid-mark flex size-9 shrink-0 items-center justify-center rounded-[var(--radius-sm)] font-mono text-sm font-semibold"
                 >
                   {mark.label}
                 </span>

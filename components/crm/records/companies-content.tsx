@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Building2, Coins, Funnel, MapPin, Users } from "@/lib/icons";
 import { useToast } from "@/components/ui/use-toast";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
@@ -15,6 +15,8 @@ import { useDebounced } from "@/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
@@ -65,14 +67,22 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(openCreate);
-  const [layout, setLayout] = useState<"LIST" | "BOARD">("LIST");
+  const [layout, setLayout] = useState<RecordLayout>("TABLE");
   const debouncedSearch = useDebounced(search, 300);
   const queryClient = useQueryClient();
   const { toast } = useToast();
 
   const companiesQuery = useQuery({
     queryKey: ["crm", "companies", debouncedSearch, page],
-    queryFn: () => fetchCrmCompanies({ filters: { q: debouncedSearch }, page, limit: PAGE_SIZE }),
+    queryFn: () =>
+      fetchCrmCompanies({
+        filters: { q: debouncedSearch },
+        // By name: the list below groups by first letter, and grouping a list
+        // ordered by `updatedAt` produces headings in no order at all.
+        sort: { field: "name", direction: "asc" },
+        page,
+        limit: PAGE_SIZE,
+      }),
     placeholderData: (previous) => previous,
   });
 
@@ -207,10 +217,17 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
                 label={ACCOUNT_STATUS_LABELS[company.accountStatus] ?? company.accountStatus}
               />
             ) : null}
+            {/* Two chips beside a company name wrap onto a line of their own
+                at phone width, which turns a two-line row into a three-line
+                one and costs the list a third of its rows per screen. Account
+                standing is the one worth the space — "on hold" changes what
+                you do next; "Customer" is what nearly every row says. */}
             {fields.isVisible("type") ? (
-              <Badge tone="neutral" size="sm">
-                {COMPANY_TYPE_LABELS[company.companyType] ?? company.companyType}
-              </Badge>
+              <span className="hidden sm:contents">
+                <Badge tone="neutral" size="sm">
+                  {COMPANY_TYPE_LABELS[company.companyType] ?? company.companyType}
+                </Badge>
+              </span>
             ) : null}
           </>
         ),
@@ -229,6 +246,134 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
     [companies, fields],
   );
 
+  /**
+   * The same companies, arranged as columns.
+   *
+   * Standing and type are the two questions a directory of accounts gets asked
+   * — "who is on hold", "which of these are suppliers" — and in the row layout
+   * they are two chips crowded against the name, with the second one dropped
+   * entirely on a phone. As columns they line up, which is the whole reason
+   * this arrangement exists.
+   */
+  const columns = useMemo<RecordTableColumn<(typeof companies)[number]>[]>(
+    () => [
+      {
+        id: "name",
+        label: "Company",
+        icon: Building2,
+        cell: (company) => (
+          <RecordTableName
+            leading={
+              <RecordMark
+                kind="company"
+                name={company.name}
+                emoji={company.emoji}
+                avatarUrl={company.avatarUrl}
+                size="sm"
+              />
+            }
+            title={company.name}
+            subtitle={company.clientNo}
+          />
+        ),
+      },
+      ...(fields.isVisible("status")
+        ? [
+            {
+              id: "status",
+              label: "Standing",
+              icon: Funnel,
+              width: "9rem",
+              cell: (company: (typeof companies)[number]) => (
+                <StatusChip
+                  status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? "pending"}
+                  label={ACCOUNT_STATUS_LABELS[company.accountStatus] ?? company.accountStatus}
+                />
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("type")
+        ? [
+            {
+              id: "type",
+              label: "Type",
+              icon: Funnel,
+              width: "8rem",
+              cell: (company: (typeof companies)[number]) => (
+                <Badge tone="neutral" size="sm">
+                  {COMPANY_TYPE_LABELS[company.companyType] ?? company.companyType}
+                </Badge>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("location")
+        ? [
+            {
+              id: "location",
+              label: "Location",
+              icon: MapPin,
+              width: "11rem",
+              cell: (company: (typeof companies)[number]) => (
+                <span className="block truncate">
+                  {[company.city, company.country].filter(Boolean).join(", ") || (
+                    <span className="text-[var(--text-subtle)]">—</span>
+                  )}
+                </span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("people")
+        ? [
+            {
+              id: "people",
+              label: "People",
+              icon: Users,
+              width: "6rem",
+              align: "end" as const,
+              cell: (company: (typeof companies)[number]) => (
+                <span className="font-mono tabular-nums">{company._count?.people ?? 0}</span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("deals")
+        ? [
+            {
+              id: "deals",
+              label: "Deals",
+              icon: Coins,
+              width: "6rem",
+              align: "end" as const,
+              cell: (company: (typeof companies)[number]) => (
+                <span className="font-mono tabular-nums">{company._count?.deals ?? 0}</span>
+              ),
+            },
+          ]
+        : []),
+      ...(fields.isVisible("owner")
+        ? [
+            {
+              id: "owner",
+              label: "Owner",
+              icon: Users,
+              width: "11rem",
+              cell: (company: (typeof companies)[number]) => (
+                <span className="block truncate">
+                  {company.assignedTo?.name ?? (
+                    <span className="text-[var(--text-subtle)]">Unassigned</span>
+                  )}
+                </span>
+              ),
+            },
+          ]
+        : []),
+    ],
+    [fields],
+  );
+
   // Same reasoning as People: a directory is scanned by name, so it gets a
   // heading per letter and a jump strip once it is long enough to be work to
   // scroll. Search results stay flat — they are ranked, not alphabetical.
@@ -240,6 +385,27 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
         rows: bucket.items,
       })),
     [rows],
+  );
+
+  // The rows arrangement, which is also what the table falls back to on a
+  // phone — so it is written once and used twice rather than diverging.
+  const directory = (
+    <GroupedRecordList
+      sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
+      showJumpStrip={!debouncedSearch && rows.length >= 30}
+      isLoading={companiesQuery.isLoading}
+      emptyTitle={debouncedSearch ? "No companies match that search" : "No companies yet"}
+      emptyBody={
+        debouncedSearch ? undefined : "Add one, or convert a lead and its company comes with it."
+      }
+      emptyAction={
+        debouncedSearch ? undefined : (
+          <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
+            Add the first company
+          </Button>
+        )
+      }
+    />
   );
 
   return (
@@ -261,18 +427,8 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
           label={layout === "BOARD" ? "Fields" : "Columns"}
         />
       }
-      filters={
-        <>
-          <SegmentedControl
-            value={layout}
-            onValueChange={(value) => setLayout(value as typeof layout)}
-            ariaLabel="List or board"
-            options={[
-              { value: "LIST", label: "List" },
-              { value: "BOARD", label: "Board" },
-            ]}
-          />
-        </>
+      layout={
+        <LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST", "BOARD"]} />
       }
     >
       {layout === "BOARD" ? (
@@ -280,33 +436,32 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
           columns={boardColumns}
           cards={boardCards}
           isLoading={companiesQuery.isLoading}
+          noun={{ one: "company", many: "companies" }}
           emptyLabel="None in this state"
           onMove={(id, accountStatus) => moveAccountStatus.mutate({ id, accountStatus })}
           className="min-h-[24rem]"
         />
+      ) : layout === "TABLE" ? (
+        <RecordTable
+          rows={companies}
+          columns={columns}
+          rowHref={(company) => `/crm/companies/${company.id}`}
+          isLoading={companiesQuery.isLoading}
+          emptyTitle={debouncedSearch ? "No companies match that search" : "No companies yet"}
+          emptyBody={
+            debouncedSearch
+              ? undefined
+              : "Add one, or convert a lead and its company comes with it."
+          }
+          mobile={directory}
+        />
       ) : (
-      <GroupedRecordList
-        sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
-        showJumpStrip={!debouncedSearch && rows.length >= 30}
-        isLoading={companiesQuery.isLoading}
-        emptyTitle={debouncedSearch ? "No companies match that search" : "No companies yet"}
-        emptyBody={
-          debouncedSearch ? undefined : "Add one, or convert a lead and its company comes with it."
-        }
-        emptyAction={
-          debouncedSearch ? undefined : (
-            <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
-              Add the first company
-            </Button>
-          )
-        }
-      />
-
+        directory
       )}
 
-      {layout === "LIST" ? (
+      {layout === "BOARD" ? null : (
         <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
-      ) : null}
+      )}
 
       <CompanyFormSheet open={createOpen} onOpenChange={setCreateOpen} />
     </RecordListShell>

@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -371,13 +371,11 @@ export function PipelinesPanel() {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between gap-2">
-        <div>
-          <CardTitle>Pipelines</CardTitle>
-          <p className="text-sm text-[var(--text-muted)]">
-            The stages a deal moves through. Different kinds of work can follow different paths.
-          </p>
-        </div>
+      {/* No title here. The settings shell draws "Pipelines" and its
+          description immediately above this card, and the panel repeating both
+          in slightly different words spent the whole first screen of a phone
+          saying the same thing twice before a single pipeline appeared. */}
+      <CardHeader className="flex flex-row items-center justify-end gap-2">
         <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
           <Plus className="h-4 w-4" />
           New pipeline

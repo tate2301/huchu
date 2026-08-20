@@ -148,6 +148,10 @@ export async function GET(request: NextRequest) {
           companyId,
           stage: { notIn: ["WON", "LOST"] },
           firstContactAt: null,
+          // A lead somebody put away is not waiting on a reply, and one that
+          // became a deal is being worked as the deal. Neither is an
+          // unanswered enquiry, which is what this tile counts.
+          archivedAt: null,
           ...scope,
         },
         select: { id: true, createdAt: true },

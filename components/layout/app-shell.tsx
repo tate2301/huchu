@@ -9,6 +9,8 @@ import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@/components/ui/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@/lib/public-routes";
+import { RecordPeekProvider } from "@/components/records/record-peek";
+import { RecordTrailProvider } from "@/components/records/record-trail";
 
 export function AppShell({
   children,
@@ -69,11 +71,18 @@ export function AppShell({
               isCctvRoute
                 ? "min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] py-0"
                 : isScrapRoute
-                  ? "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-4 pb-[max(1rem,env(safe-area-inset-bottom))] md:py-6"
-                  : "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-6"
+                  ? "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
+                  : "content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
             }
           >
-            <OnboardingProvider>{children}</OnboardingProvider>
+            {/* Both live above `main` rather than inside a page: the trail has
+                to survive the navigation it is recording, and the peek has to
+                render over the page it was opened from. */}
+            <RecordTrailProvider>
+              <RecordPeekProvider>
+                <OnboardingProvider>{children}</OnboardingProvider>
+              </RecordPeekProvider>
+            </RecordTrailProvider>
           </main>
         </SidebarInset>
       </SidebarProvider>

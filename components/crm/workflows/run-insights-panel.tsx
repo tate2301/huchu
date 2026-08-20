@@ -45,7 +45,7 @@ export function RunInsightsPanel({ range }: { range: ReportRange }) {
 
   if (query.isLoading) {
     return (
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4" aria-busy="true">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4" aria-busy="true">
         {[0, 1, 2, 3].map((index) => (
           <Skeleton key={index} height={96} />
         ))}
@@ -76,7 +76,7 @@ export function RunInsightsPanel({ range }: { range: ReportRange }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatCard
           label="Runs"
           value={String(totals.runs)}

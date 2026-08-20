@@ -20,8 +20,13 @@ const BAND_TONE: Record<LeadScore["band"], string> = {
 export function LeadScoreCard({ score }: { score: LeadScore }) {
   return (
     <div className="space-y-2">
+      {/* The number carries the band's colour, not just the word beside it.
+          A score is read at a glance and then, occasionally, argued with —
+          so the glance gets the colour and the argument gets the list. */}
       <div className="flex items-baseline gap-2">
-        <span className="font-mono text-xl leading-none text-[var(--text-strong)]">{score.total}</span>
+        <span className={cn("font-mono text-xl leading-none", BAND_TONE[score.band])}>
+          {score.total}
+        </span>
         <span className={cn("text-sm font-medium", BAND_TONE[score.band])}>
           {SCORE_BAND_LABELS[score.band]}
         </span>
@@ -32,17 +37,22 @@ export function LeadScoreCard({ score }: { score: LeadScore }) {
           Nothing on this lead has scored yet.
         </p>
       ) : (
+        // Evidence, muted. These four rows used to be drawn as darkly as the
+        // figures in the panel above them, so a lead's summary was a wall of
+        // equally loud numbers and nothing in it led. Only a signal counting
+        // *against* the lead keeps a colour, because that is the one worth
+        // stopping on.
         <Stack as="ul" gap="xs">
           {score.signals.map((signal) => (
             <li
               key={signal.key}
-              className="flex items-baseline justify-between gap-2 text-sm"
+              className="flex items-baseline justify-between gap-2 text-sm text-[var(--text-subtle)]"
             >
-              <span className="text-[var(--text-muted)]">{signal.label}</span>
+              <span>{signal.label}</span>
               <span
                 className={cn(
                   "font-mono tabular-nums",
-                  signal.points < 0 ? "text-[var(--status-error-text)]" : "",
+                  signal.points < 0 && "font-medium text-[var(--status-error-text)]",
                 )}
               >
                 {signal.points > 0 ? `+${signal.points}` : signal.points}

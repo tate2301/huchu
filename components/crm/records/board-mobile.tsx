@@ -33,11 +33,18 @@ export type MobileBoardStage = {
 
 export function MobileBoard({
   stages,
+  noun = { one: "record", many: "records" },
   emptyTitle = "Nothing in this stage",
   emptyBody,
   className,
 }: {
   stages: MobileBoardStage[];
+  /**
+   * What the rows are, for the line under the picker. Both forms, because a
+   * stage holding one of something is common enough that "1 deals in
+   * Discovery" would be on screen most of the time.
+   */
+  noun?: { one: string; many: string };
   emptyTitle?: string;
   emptyBody?: string;
   className?: string;
@@ -67,7 +74,17 @@ export function MobileBoard({
 
   return (
     <div className={cn("space-y-3", className)}>
-      <div className="scroll-rail -mx-1 flex gap-2 overflow-x-auto px-1 pb-1">
+      {/* Full-bleed, so a stage that does not fit is cut by the edge of the
+          screen rather than by a gutter eight pixels inside it. A chip clipped
+          at the screen edge is the phone's own idiom for "this scrolls"; one
+          clipped short of it just looks broken, which is what the inset rail
+          looked like. Snapping means a swipe lands on a chip rather than
+          halfway through one. */}
+      <div
+        role="group"
+        aria-label="Stages"
+        className="scroll-rail -mx-[var(--content-gutter-x)] flex snap-x snap-proximity gap-2 px-[var(--content-gutter-x)] pb-1"
+      >
         {stages.map((stage) => {
           const selected = stage.id === active.id;
           return (
@@ -77,7 +94,7 @@ export function MobileBoard({
               onClick={() => setPicked(stage.id)}
               aria-pressed={selected}
               className={cn(
-                "flex min-h-9 shrink-0 items-center gap-2 rounded-full border px-3 text-sm transition-colors",
+                "flex min-h-9 shrink-0 snap-start items-center gap-2 rounded-full border px-3 text-sm transition-colors",
                 selected
                   ? "border-[var(--border-strong)] bg-[var(--surface-muted)] font-medium text-[var(--text-strong)]"
                   : "border-[var(--border)] text-[var(--text-muted)]",
@@ -98,9 +115,14 @@ export function MobileBoard({
         })}
       </div>
 
-      {active.meta ? (
-        <p className="text-sm text-[var(--text-muted)]">{active.meta}</p>
-      ) : null}
+      {/* What the stage holds, said in words. This line used to be the bare
+          total the caller passed — "USD 4,050" under a row of chips, with
+          nothing saying whether that was the stage, the board, or the page. */}
+      <p className="text-sm text-[var(--text-muted)]">
+        <span className="font-mono tabular-nums">{active.count}</span>{" "}
+        {active.count === 1 ? noun.one : noun.many} in {active.label}
+        {active.meta ? <> · {active.meta}</> : null}
+      </p>
 
       <RecordList rows={active.rows} emptyTitle={emptyTitle} emptyBody={emptyBody} />
     </div>

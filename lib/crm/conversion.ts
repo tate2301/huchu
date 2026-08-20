@@ -257,6 +257,14 @@ export async function convertLead(
       convertedClientId: clientId,
       clientId: clientId ?? undefined,
       stage: "QUALIFIED",
+      // Archived in the same breath. Marking a lead converted was never
+      // enough on its own: it stayed in the leads list and on the board, so
+      // the same opportunity sat in the pipeline twice — once as a lead in
+      // Qualified and once as the deal it had just become — and every count
+      // that spanned both was wrong. The record is kept, as history always
+      // was; it is only out of the working set.
+      archivedAt: now,
+      archivedById: userId,
     },
   });
 

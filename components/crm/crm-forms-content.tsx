@@ -104,7 +104,7 @@ export function CrmFormsContent() {
 
   return (
     <div className="space-y-5">
-      <div className="grid gap-3 sm:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
         <StatCard label="Live forms" value={totals.live} footer={`${rows.length} in total`} />
         <StatCard label="Submissions" value={totals.submissions} footer="All time" />
         <StatCard
@@ -127,15 +127,21 @@ export function CrmFormsContent() {
             assigned and scored on the way in.
           </p>
         </div>
-        <Button
-          variant="primary"
-          size="sm"
-          startIcon={<Plus className="size-4" />}
-          disabled={create.isPending}
-          onClick={() => create.mutate()}
-        >
-          New form
-        </Button>
+        {/* Hidden while there is nothing here: the empty state below carries
+            the same action in the same colour, and two brand-blue buttons
+            offering one thing is the "one primary action per surface" rule
+            broken on the screen where it matters most — the first one. */}
+        {rows.length > 0 ? (
+          <Button
+            variant="primary"
+            size="sm"
+            startIcon={<Plus className="size-4" />}
+            disabled={create.isPending}
+            onClick={() => create.mutate()}
+          >
+            New form
+          </Button>
+        ) : null}
       </div>
 
       {forms.isLoading ? (

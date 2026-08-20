@@ -51,9 +51,9 @@ const SheetOverlay = React.forwardRef<
     className={cn(
       // `fixed inset-0` restates what `.modal-scrim` already does, so the
       // overlay does not depend on which of the package's two `.modal-scrim`
-      // rules lands last; `z-50` pins it to the app's overlay layer rather than
-      // the DS's own `z-index: 1100`.
-      "modal-scrim fixed inset-0 z-50 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=open]:duration-200",
+      // rules lands last. The z-index comes from the app's one overlay scale
+      // (see `globals.css`) rather than the DS's own 1100.
+      "modal-scrim fixed inset-0 z-[var(--z-overlay)] data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:duration-150 data-[state=open]:duration-200",
       className
     )}
     {...props}
@@ -76,7 +76,7 @@ const SHEET_SURFACE_SIZE: Record<ResponsiveSurfaceSize, string> = {
 }
 
 const sheetVariants = cva(
-  "drawer fixed z-50 max-h-[100dvh] overflow-y-auto overscroll-contain transition ease-[var(--motion-ease-standard)] focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-150 data-[state=open]:duration-200",
+  "drawer fixed z-[var(--z-overlay)] max-h-[100dvh] overflow-y-auto overscroll-contain transition ease-[var(--motion-ease-standard)] focus:outline-none data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:duration-150 data-[state=open]:duration-200",
   {
     variants: {
       side: {

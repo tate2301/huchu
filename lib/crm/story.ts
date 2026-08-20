@@ -1,4 +1,7 @@
 import type { StoryEvent } from "@/components/crm/records/record-story";
+// The wire-type → kind map lives beside the table that says what each kind
+// looks like, so a new activity type is one edit and not two.
+import { ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 
 /**
  * Turning a record's several tables into one story.
@@ -58,22 +61,6 @@ type CommentLike = {
   author?: { id: string; name: string | null } | null;
 };
 
-/** Activity types map onto the story's kinds; anything unknown reads as system. */
-const ACTIVITY_KIND: Record<string, StoryEvent["kind"]> = {
-  NOTE: "note",
-  CALL: "call",
-  EMAIL: "email",
-  WHATSAPP: "whatsapp",
-  MEETING: "meeting",
-  STAGE_CHANGE: "stage",
-  INTAKE_SUBMISSION: "intake",
-  DOCUMENT_CREATED: "document",
-  DOCUMENT_SENT: "document",
-  DOCUMENT_APPROVED: "document",
-  DOCUMENT_DECLINED: "document",
-  PAYMENT_RECORDED: "payment",
-  SYSTEM: "system",
-};
 
 /**
  * The types somebody writes prose into. Their content is written in the CRM's
@@ -199,7 +186,10 @@ export function commentEvents(comments: CommentLike[]): StoryEvent[] {
     id: comment.id,
     kind: "comment" as const,
     // The body carries any @mentions as written; the renderer resolves them.
-    title: `${comment.author?.name ?? "Someone"} commented`,
+    // The kind, not a sentence: the feed's header line already prints the
+    // author beside their avatar, so "Sarah commented" next to "Sarah" was the
+    // name twice and the useful word — which of the five kinds this is — never.
+    title: "Comment",
     body: comment.body,
     occurredAt: comment.createdAt,
     actorName: comment.author?.name ?? null,

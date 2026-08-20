@@ -6,10 +6,22 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
-import { Building2, Globe, Mail, MapPin, Phone, UserRound } from "@/lib/icons";
+import {
+  Building2,
+  Clock,
+  Funnel,
+  Globe,
+  Mail,
+  MapPin,
+  Phone,
+  Plus,
+  UserRound,
+  Users,
+} from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
@@ -20,16 +32,22 @@ import type { LeadActivity } from "@/components/crm/lead-detail/lead-types";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
 import { RecordMark } from "@/components/records/record-mark";
+import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { CompanyPeopleTab } from "./company-people-tab";
-import { automationTab, commentsTab, filesTab, mentionsTab, tasksTab } from "./record-tabs";
+import {
+  automationTab,
+  historyTab,
+  paperworkTab,
+  tasksTab,
+  useRecordComments,
+} from "./record-tabs";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
 import { CompanyFormSheet } from "./company-form-sheet";
-import { RecordHistoryTab } from "./record-history-tab";
+import { DealFormSheet } from "./deal-form-sheet";
 import { MergeDialog } from "./merge-dialog";
-import { FieldHistoryTab } from "@/components/crm/records/field-history-tab";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -95,7 +113,8 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
   const { data: session } = useSession();
   const [mergeOpen, setMergeOpen] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
-  const [tab, setTab] = useState("people");
+  const [dealOpen, setDealOpen] = useState(false);
+  const [tab, setTab] = useState("timeline");
 
   const companyQuery = useQuery({
     queryKey: ["crm", "company", companyId],
@@ -121,6 +140,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
   });
 
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
+  const comments = useRecordComments({ kind: "company", id: companyId });
   const company = companyQuery.data;
 
   if (companyQuery.isLoading) {
@@ -190,6 +210,16 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       icon={Building2}
       backHref="/crm/companies"
       backLabel="All companies"
+      primaryAction={
+        // A company is an account you sell to. The record had no primary
+        // action at all, so the bar on a phone was a back arrow, a search
+        // icon, a bell and an overflow menu — nothing to do, on the page
+        // where the next piece of business gets started.
+        <Button size="sm" className="gap-1.5" onClick={() => setDealOpen(true)}>
+          <Plus className="h-3.5 w-3.5" />
+          New deal
+        </Button>
+      }
       actions={[
         { label: "Edit", onSelect: () => setEditOpen(true) },
         { label: "Merge a duplicate", onSelect: () => setMergeOpen(true) },
@@ -204,6 +234,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
         />
       }
       title={company.name}
+      onTitleCommit={(next) => edit.save.mutate({ name: next })}
       reference={company.clientNo}
       status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? null}
       subtitle={subtitle}
@@ -246,12 +277,27 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
               placeholder: "Not recorded",
               ...edit.text("website", company.website),
             },
+            // Was one read-only "Location" reading "Healthcare · Chiredzi".
+            // Three columns behind it, so three rows: joined, there was no way
+            // to say which part of an address you were correcting.
             {
-              id: "location",
-              label: "Location",
+              id: "address",
+              label: "Address",
               icon: MapPin,
-              value: [company.city, company.country].filter(Boolean).join(", ") || null,
               placeholder: "Not recorded",
+              ...edit.text("addressLine", company.addressLine),
+            },
+            {
+              id: "city",
+              label: "City",
+              placeholder: "Not recorded",
+              ...edit.text("city", company.city),
+            },
+            {
+              id: "country",
+              label: "Country",
+              placeholder: "Not recorded",
+              ...edit.text("country", company.country),
             },
             {
               id: "industry",
@@ -285,14 +331,37 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       onTabChange={setTab}
       tabs={[
         {
+          value: "timeline",
+          label: "Conversation",
+          icon: Clock,
+          content: (
+            <div className="space-y-4">
+              <ConversationComposer target={{ kind: "company", id: companyId }} />
+              <RecordStory
+                events={buildStory({
+                  activities: company.activities,
+                  comments,
+                  createdLabel: "Company added",
+                })}
+              />
+            </div>
+          ),
+        },
+        // The company's own graph: who works there, what is being sold to
+        // them, and where. These sit directly after the summary because they
+        // are what an account page is *for* — a company is mostly a way in to
+        // the records hanging off it.
+        {
           value: "people",
           label: "People",
+          icon: Users,
           count: company.people.length,
           content: <CompanyPeopleTab companyId={companyId} people={company.people} />,
         },
         {
           value: "deals",
           label: "Deals",
+          icon: Funnel,
           count: company.deals.length,
           content: (
             <RelatedList
@@ -310,6 +379,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
         {
           value: "sites",
           label: "Sites",
+          icon: MapPin,
           count: company.sites.length,
           content: (
             <RelatedList
@@ -323,33 +393,14 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
             />
           ),
         },
-        {
-          value: "timeline",
-          label: "Timeline",
-          content: (
-            <RecordStory
-              events={buildStory({
-                activities: company.activities,
-                createdLabel: "Company added",
-              })}
-            />
-          ),
-        },
         tasksTab({ ref: { kind: "company", id: companyId }, currentUserId: session?.user?.id }),
-        commentsTab({ ref: { kind: "company", id: companyId }, currentUserId: session?.user?.id }),
-        mentionsTab({ ref: { kind: "company", id: companyId } }),
-        filesTab({ ref: { kind: "company", id: companyId } }),
+        paperworkTab({ ref: { kind: "company", id: companyId } }),
         automationTab({ ref: { kind: "company", id: companyId } }),
-        {
-          value: "history",
-          label: "History",
-          content: <RecordHistoryTab activities={company.activities} />,
-        },
-        {
-          value: "changes",
-          label: "Field history",
-          content: <FieldHistoryTab entity="CLIENT" recordId={companyId} />,
-        },
+        historyTab({
+          ref: { kind: "company", id: companyId },
+          entity: "CLIENT",
+          activities: company.activities,
+        }),
       ]}
       rail={
         <>
@@ -435,6 +486,13 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       survivorLabel={company.name}
       open={mergeOpen}
       onOpenChange={setMergeOpen}
+    />
+
+    <DealFormSheet
+      open={dealOpen}
+      onOpenChange={setDealOpen}
+      defaultClientId={companyId}
+      onCreated={() => companyQuery.refetch()}
     />
     </>
   );

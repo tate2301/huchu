@@ -1,12 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import type { ColumnDef } from "@tanstack/react-table";
 
-import { DataTable } from "@/components/ui/data-table";
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordMark } from "@/components/records/record-mark";
+import { Building2, Calendar, Checklist, Coins, Funnel, Users } from "@/lib/icons";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { StatusChip } from "@/components/ui/status-chip";
 import { ClientDate } from "@/components/ui/client-date";
@@ -24,7 +24,9 @@ import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
 import { DealFormSheet } from "./deal-form-sheet";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { RecordListShell } from "./record-list-shell";
-import { RecordList } from "./record-list";
+import { RecordList, RecordListPager } from "./record-list";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 
 const PAGE_SIZE = 50;
 
@@ -77,7 +79,7 @@ export function DealsContent({
   const pipelineId = pipelineIdProp ?? ownPipelineId;
   const setPipelineId = (next: string) =>
     onPickPipeline ? onPickPipeline(next) : setOwnPipelineId(next);
-  const [layout, setLayout] = useState<"BOARD" | "LIST">("BOARD");
+  const [layout, setLayout] = useState<RecordLayout>("BOARD");
 
   const pipelinesQuery = useQuery({
     queryKey: ["crm", "pipelines"],
@@ -112,79 +114,87 @@ export function DealsContent({
   const tableColumns = useVisibleColumns("crm.deals.table", DEAL_TABLE_COLUMNS);
   const boardFields = useVisibleColumns("crm.deals.board", DEAL_CARD_FIELDS);
 
-  const columns = useMemo<ColumnDef<CrmDealRecord>[]>(
+  const columns = useMemo<RecordTableColumn<CrmDealRecord>[]>(
     () => [
       {
         id: "deal",
-        header: "Deal",
-        size: 240,
-        cell: ({ row }) => (
-          <Link
-            href={`/crm/deals/${row.original.id}`}
-            className="block min-w-0 underline decoration-[var(--border)] underline-offset-2 hover:decoration-[var(--text-muted)]"
-          >
-            <div className="truncate font-medium">{row.original.title}</div>
-            <div className="truncate font-mono text-sm text-[var(--text-muted)]">
-              {row.original.dealNo}
-            </div>
-          </Link>
+        label: "Deal",
+        icon: Coins,
+        cell: (deal) => (
+          <RecordTableName
+            leading={<RecordMark kind="deal" name={deal.title} size="sm" />}
+            title={deal.title}
+            subtitle={<span className="font-mono">{deal.dealNo}</span>}
+          />
         ),
       },
       {
         id: "company",
-        header: "Company",
-        size: 190,
-        cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate text-sm">{row.original.client?.name ?? "—"}</div>
-            {row.original.primaryContact ? (
-              <div className="truncate text-sm text-[var(--text-muted)]">
-                {row.original.primaryContact.fullName}
-              </div>
-            ) : null}
-          </div>
+        label: "Company",
+        icon: Building2,
+        width: "13rem",
+        cell: (deal) => (
+          // `block truncate` on the cell, not on the link: a company called
+          // "Chitungwiza Medical Centre" wrapped to two lines and made its row
+          // twice as tall as its neighbours, which is what turns a table back
+          // into a list.
+          <span className="block truncate">
+            {deal.client ? (
+              <EntityLink href={`/crm/companies/${deal.client.id}`}>{deal.client.name}</EntityLink>
+            ) : (
+              <span className="text-[var(--text-subtle)]">—</span>
+            )}
+          </span>
         ),
       },
       {
         id: "stage",
-        header: "Stage",
-        size: 170,
-        cell: ({ row }) => {
+        label: "Stage",
+        icon: Funnel,
+        width: "14rem",
+        cell: (deal) => {
           const stale = isDealStale(
-            { stageEnteredAt: row.original.stageEnteredAt, status: row.original.status },
-            { inactivityDays: row.original.stage.inactivityDays, status: row.original.stage.status },
+            { stageEnteredAt: deal.stageEnteredAt, status: deal.status },
+            { inactivityDays: deal.stage.inactivityDays, status: deal.stage.status },
           );
           return (
-            <div className="flex flex-wrap items-center gap-1.5">
+            <span className="flex flex-wrap items-center gap-1.5">
               <StatusChip
-                status={STATUS_PRESENTATION[row.original.stage.status] ?? "pending"}
-                label={row.original.stage.name}
+                status={STATUS_PRESENTATION[deal.stage.status] ?? "pending"}
+                label={deal.stage.name}
               />
               {stale ? (
                 <Badge variant="outline" className="text-sm text-[var(--status-warning-text)]">
                   Stale
                 </Badge>
               ) : null}
-            </div>
+            </span>
           );
         },
       },
       {
         id: "value",
-        header: "Value",
-        size: 130,
-        cell: ({ row }) => (
-          <NumericCell>{formatMoney(row.original.value, row.original.currency)}</NumericCell>
+        label: "Value",
+        icon: Coins,
+        width: "10rem",
+        align: "end",
+        cell: (deal) => (
+          // Nowrap, or "USD 36,000" breaks after the currency and the column
+          // reads as two stacked half-facts.
+          <NumericCell className="whitespace-nowrap">
+            {formatMoney(deal.value, deal.currency)}
+          </NumericCell>
         ),
       },
       {
         id: "close",
-        header: "Expected close",
-        size: 140,
-        cell: ({ row }) => (
-          <span className="text-sm text-[var(--text-muted)]">
-            {row.original.expectedCloseDate ? (
-              <ClientDate value={row.original.expectedCloseDate} mode="date" />
+        label: "Expected close",
+        icon: Calendar,
+        width: "9rem",
+        cell: (deal) => (
+          <span className="text-[var(--text-muted)]">
+            {deal.expectedCloseDate ? (
+              <ClientDate value={deal.expectedCloseDate} mode="date" />
             ) : (
               "—"
             )}
@@ -193,26 +203,30 @@ export function DealsContent({
       },
       {
         id: "owner",
-        header: "Owner",
-        size: 150,
-        cell: ({ row }) => (
-          <span className="truncate text-sm">{row.original.assignedTo?.name ?? "Unassigned"}</span>
+        label: "Owner",
+        icon: Users,
+        width: "10rem",
+        cell: (deal) => (
+          <span className="block truncate">
+            {deal.assignedTo?.name ?? <span className="text-[var(--text-subtle)]">Unassigned</span>}
+          </span>
         ),
       },
       {
         id: "next",
-        header: "Next task",
-        size: 180,
-        cell: ({ row }) =>
-          row.original.nextFollowUp ? (
-            <div className="min-w-0">
-              <div className="truncate text-sm">{row.original.nextFollowUp.title}</div>
-              <div className="truncate text-sm text-[var(--text-muted)]">
-                <ClientDate value={row.original.nextFollowUp.dueAt} />
-              </div>
-            </div>
+        label: "Next task",
+        icon: Checklist,
+        width: "12rem",
+        cell: (deal) =>
+          deal.nextFollowUp ? (
+            <span className="block min-w-0">
+              <span className="block truncate">{deal.nextFollowUp.title}</span>
+              <span className="block truncate text-sm text-[var(--text-muted)]">
+                <ClientDate value={deal.nextFollowUp.dueAt} />
+              </span>
+            </span>
           ) : (
-            <span className="text-sm text-[var(--text-muted)]">—</span>
+            <span className="text-[var(--text-subtle)]">—</span>
           ),
       },
     ],
@@ -220,7 +234,7 @@ export function DealsContent({
   );
 
   const visibleColumns = useMemo(
-    () => columns.filter((column) => tableColumns.isVisible(String(column.id))),
+    () => columns.filter((column) => tableColumns.isVisible(column.id)),
     [columns, tableColumns],
   );
 
@@ -268,18 +282,9 @@ export function DealsContent({
             onPickPipeline={setPipelineId}
           />
 
-          <SegmentedControl
-            value={layout}
-            onValueChange={(value) => setLayout(value as typeof layout)}
-            ariaLabel="Board or list"
-            options={[
-              { value: "BOARD", label: "Board" },
-              { value: "LIST", label: "List" },
-            ]}
-          />
-
         </>
       }
+      layout={<LayoutSwitch value={layout} onChange={setLayout} options={["BOARD", "TABLE"]} />}
     >
       {layout === "BOARD" ? (
         <BoardFieldsProvider hidden={boardFields.hidden}>
@@ -290,53 +295,48 @@ export function DealsContent({
           />
         </BoardFieldsProvider>
       ) : (
-      <DataTable
-        // The shell above owns search; a second box in the table toolbar is the
-        // duplicate-control failure the cookbook's one-filter-pathway rule exists to stop.
-        features={{ globalFilter: false }}
-        data={rows}
-        columns={visibleColumns}
-        edgeToEdge
-        stickyHeader
-        queryState={{ mode: "paginated", page, pageSize: PAGE_SIZE }}
-        onQueryStateChange={(next) => {
-          if (next.page && next.page !== page) setPage(next.page);
-        }}
-        pagination={{
-          enabled: true,
-          server: true,
-          total,
-          totalPages: Math.max(1, Math.ceil(total / PAGE_SIZE)),
-        }}
-        // On a phone the table becomes the same list every other CRM surface
-        // uses: one row per deal, two lines inside it, rows separated by
-        // whitespace. The value moves to the right of the row rather than
-        // taking a third line of its own.
-        mobileListRenderer={({ rows: mobileRows }) => (
-          <RecordList
-            rows={mobileRows.map(({ row }) => ({
-              id: row.id,
-              href: `/crm/deals/${row.id}`,
-              title: row.title,
-              subtitle: `${row.dealNo} · ${row.client?.name ?? "No company"}`,
-              status: (
-                <StatusChip
-                  status={STATUS_PRESENTATION[row.stage.status] ?? "pending"}
-                  label={row.stage.name}
-                />
-              ),
-              facts: [{ value: formatMoney(row.value, row.currency), mono: true }],
-            }))}
+        <>
+          <RecordTable
+            rows={rows}
+            columns={visibleColumns}
+            rowHref={(deal) => `/crm/deals/${deal.id}`}
+            isLoading={dealsQuery.isLoading}
+            emptyTitle={
+              statusFilter === "OPEN" ? "No open deals" : "No deals match this filter"
+            }
+            emptyBody={
+              statusFilter === "OPEN" ? "Convert a qualified lead to start one." : undefined
+            }
+            // On a phone the same deals come back as the rows every other CRM
+            // surface uses: two lines, and the value on the right of the title
+            // rather than on a third line of its own.
+            mobile={
+              <RecordList
+                isLoading={dealsQuery.isLoading}
+                rows={rows.map((row) => ({
+                  id: row.id,
+                  href: `/crm/deals/${row.id}`,
+                  title: row.title,
+                  subtitle: `${row.dealNo} · ${row.client?.name ?? "No company"}`,
+                  status: (
+                    <StatusChip
+                      status={STATUS_PRESENTATION[row.stage.status] ?? "pending"}
+                      label={row.stage.name}
+                    />
+                  ),
+                  facts: [
+                    { value: formatMoney(row.value, row.currency), mono: true, primary: true },
+                  ],
+                }))}
+                emptyTitle={
+                  statusFilter === "OPEN" ? "No open deals" : "No deals match this filter"
+                }
+              />
+            }
           />
-        )}
-        emptyState={
-          dealsQuery.isLoading
-            ? "Loading deals…"
-            : statusFilter === "OPEN"
-              ? "No open deals. Convert a qualified lead to start one."
-              : "No deals match this filter."
-        }
-      />
+
+          <RecordListPager page={page} pageSize={PAGE_SIZE} total={total} onPageChange={setPage} />
+        </>
       )}
 
       <DealFormSheet open={createOpen} onOpenChange={setCreateOpen} />

@@ -46,9 +46,46 @@ describe("MobileBoard", () => {
     expect(html).toContain('aria-pressed="true"');
   });
 
-  it("shows the picked stage's total", () => {
-    const html = renderToStaticMarkup(<MobileBoard stages={STAGES} />);
+  it("says what the picked stage holds, in words, before the total", () => {
+    const html = renderToStaticMarkup(
+      <MobileBoard stages={STAGES} noun={{ one: "deal", many: "deals" }} />,
+    );
+    // The line used to be the bare total the caller passed, with nothing
+    // saying whether it was the stage's, the board's or the page's.
+    expect(html).toContain("deals in");
+    expect(html).toContain("Quoted");
     expect(html).toContain("USD 18,000");
+  });
+
+  it("counts one of something in the singular", () => {
+    const html = renderToStaticMarkup(
+      <MobileBoard
+        stages={[
+          {
+            id: "NEW",
+            label: "Discovery",
+            count: 1,
+            rows: [{ id: "a", href: "/a", title: "Tenant billing portal" }],
+          },
+        ]}
+        noun={{ one: "deal", many: "deals" }}
+      />,
+    );
+    // The count sits in its own tabular-numerals span, so the assertion is on
+    // the words that follow it.
+    expect(html).toContain("deal in Discovery");
+    expect(html).not.toContain("deals in");
+  });
+
+  it("still names the stage when the caller passes no total", () => {
+    const html = renderToStaticMarkup(
+      <MobileBoard
+        stages={[{ id: "NEW", label: "New", count: 3, rows: [] }]}
+        noun={{ one: "lead", many: "leads" }}
+      />,
+    );
+    expect(html).toContain("leads in");
+    expect(html).toContain("New");
   });
 
   it("falls back to the first stage when every one is empty", () => {
