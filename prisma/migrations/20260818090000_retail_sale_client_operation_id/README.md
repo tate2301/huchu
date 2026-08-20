@@ -20,11 +20,19 @@ checksum `_prisma_migrations` recorded when it ran. Restoring it therefore
 reconciles the history truthfully — no row was edited, nothing was marked
 rolled-back, and no `--force` was involved.
 
-**Do not edit `migration.sql`.** Prisma checksums that file and compares it to
-the recorded value on every command; a single changed byte turns a resolved
-history back into a failure, and one that is harder to diagnose than the original
+**Do not edit `migration.sql`.** Prisma checksums it and compares against the
+recorded value on every command, so changing what it *says* turns a resolved
+history back into a failure — and a harder one to diagnose than the original,
 because the migration now exists. This README is separate precisely so the
 explanation can live here without touching it.
+
+Line endings are the exception, and worth knowing so nobody wastes an afternoon
+on it: **Prisma normalises them before hashing.** This repository has
+`core.autocrlf=true` and no `.gitattributes`, so Windows checkouts rewrite these
+files to CRLF — `20260815090000_crm_lead_archive` is CRLF on disk, its raw
+SHA-256 is `f7aa9efd…` against a recorded `75414862…`, and `migrate status`
+accepts it without complaint. So a CRLF conversion here is harmless, and no
+`.gitattributes` rule is needed to protect this file.
 
 ## Half of it is superseded, and half is still load-bearing
 
