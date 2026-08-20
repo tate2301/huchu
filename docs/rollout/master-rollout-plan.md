@@ -136,14 +136,28 @@ somebody picking up a phone.
 
 **Blocking, week one, not engineering work:**
 
-- **Request the ZIMRA test taxpayer and per-device activation keys** (master-plan risk #6). Until
-  this lands, six FDMS stories cannot leave `wip` no matter how much code is written.
-- **Open a merchant account and decide the payment gateway** (SS-4.1, risk #10). The adapter is
-  written against all three providers, so this is a config change once an account exists — but a
-  rail comparison is not a decision, and `PAYMENT_PROVIDER` is empty.
-- **Choose the WhatsApp provider and submit the template drafts** (risk #9). Approval is measured
-  in days and is a hard dependency for SS-5. It is submitted while SS-5 is being written, not
-  after.
+- **Request the ZIMRA test taxpayer and per-device activation keys** (master-plan risk #6).
+  Confirmed coming; date unknown. Until it lands, six FDMS stories cannot leave `wip` no matter
+  how much code is written. **This is the program's longest pole** — the four pilots, the
+  north-star metric and MK-5's case studies all sit behind it.
+- ~~Decide the payment gateway~~ — **closed 2026-08-20: Paynow** (SS-4.1, risk #10). What remains
+  is opening the merchant account; the adapter is written and switching providers would cost one
+  line plus a key.
+- **Choose the WhatsApp provider and submit the template drafts** (risk #9). Still open, and now
+  the second-longest lead time of the three. Approval is measured in days and is a hard dependency
+  for SS-5. It is submitted while SS-5 is being written, not after.
+
+**The resume register is `docs/rollout/environment-credentials.md`.** It names, per credential,
+exactly which stories wake up and in what order, and the observable check that closes each — so
+nobody re-derives the list when the keys arrive.
+
+**Build order while the sandbox is awaited.** The self-serve funnel is the one chain of real value
+that touches ZIMRA nowhere: SS-2.1 gaining a caller → SS-2.2 sample data → SS-3.1/3.2 public trial
+→ SS-4.2/4.3 Paynow checkout → SS-6 activation instrumentation → MK-4 CTA swap. It ends at a
+stranger signing up, provisioning themselves and paying, with no staff involved — which is the
+program's second revenue mechanism and does not need a fiscal invoice to work. Running it now
+means the sandbox arriving finds the funnel already built rather than starting a second queue
+behind it.
 
 **Moved into this window because they were blocked, not deferred:** FD-1.1/1.2, FD-2.1/2.2,
 FD-3.1/3.2, FD-4.1/4.2, FD-5.1/5.2 and FD-7.1 demonstrating against the sandbox and a real
@@ -253,5 +267,6 @@ Newest first. One entry per commit that changes this document.
 
 | Date | Commit | Description |
 |---|---|---|
+| 2026-08-20 | — | **Payment gateway decided: Paynow.** One of the three week-one blockers closes; what remains on it is opening the merchant account, not the choice. Reasoning and what was deliberately not bought are in `docs/rollout/environment-credentials.md` and the SS changelog. The ZIMRA credentials are confirmed coming with no date and are now unambiguously the program's longest pole — the four pilots, the north-star metric and MK-5's case studies all sit behind them — and the WhatsApp provider becomes the second-longest lead time. Added a **resume register** to the credentials note: per credential, exactly which stories wake up and in what order, and the observable check that closes each, so the list is not re-derived when keys arrive. Added an explicit build order for the wait: the self-serve funnel (SS-2 → SS-3 → SS-4 → SS-6 → MK-4) is the one chain of real value that touches ZIMRA nowhere, and running it now means the sandbox arriving finds the funnel built rather than starting a second queue behind it. |
 | 2026-08-19 | — | **Critical path revised at day 60.** The day-30 exit criterion — a sandbox-validated fiscal invoice with a rendered QR — was missed, and the revision says so rather than restating the original dates. It was missed on procurement, not engineering: FD-3 is built and unit-tested against the v7.2 spec, but reaching ZIMRA's sandbox needs a test taxpayer and a single-use activation key per device, and neither has been requested. Six FDMS stories therefore sit `wip` — code complete, undemonstrated — and everything downstream inherits the slip, including FD-3.3, FD-8, the north-star metric leaving zero, and MK-5's case studies, which need a customer who has issued a real fiscal document. **The 90-day outcome as originally written is no longer reachable on the original dates.** Days 60–90 are reordered around the fact that the binding constraint is now credential lead time rather than engineering capacity: three procurement actions (ZIMRA test registration, a payment merchant account, the WhatsApp provider and template submission) are named as week-one blockers ahead of any code, because each has a lead time measured in days that nobody has started. The blocked FDMS stories, FD-8, SS-4.2's first sandbox payment, SS-2.2 and SS-2.1's missing caller move into the window; PR-4 gains the `ADDON_ACCOUNTING_ADVANCED` question that ST-1.2 deliberately did not settle. The original path is kept below the revision — a plan that quietly rewrites its own history stops being a contract. |
 | 2026-08-18 | — | Document created: program contract for the adopted rollout, workstream index, dependencies, critical path, risk register, governance. |
