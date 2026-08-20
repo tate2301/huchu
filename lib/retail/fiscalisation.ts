@@ -556,7 +556,13 @@ const SALE_INCLUDE = {
     select: {
       id: true,
       itemName: true,
-      catalogItemId: true,
+      // S-4 dropped `catalogItemId`, and this asked for it — so every fiscalisation
+      // threw a Prisma validation error before it reached the signer. It was
+      // doubly wrong: `resolveLineRates` reads `line.productId`, which this
+      // never selected, so the rate lookup would have seen `undefined` even had
+      // the column survived. The `as LoadedSale` cast below hid both halves
+      // from the compiler; `LoadedSale` has said `productId` all along.
+      productId: true,
       quantity: true,
       unitPrice: true,
       discountAmount: true,

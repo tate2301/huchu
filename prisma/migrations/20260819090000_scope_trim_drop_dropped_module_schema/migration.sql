@@ -172,6 +172,7 @@ DECLARE
   dead_types TEXT[] := ARRAY['SCRAP_METAL_PURCHASE', 'SCRAP_METAL_BATCH', 'SCRAP_METAL_SALE'];
   journal_rows BIGINT;
   ledger_rows BIGINT;
+  movement_rows BIGINT;
 BEGIN
   SELECT count(*) INTO journal_rows
   FROM "JournalEntry" WHERE "sourceType"::text = ANY (dead_types);
@@ -179,10 +180,21 @@ BEGIN
   SELECT count(*) INTO ledger_rows
   FROM "PaymentLedgerEntry" WHERE "sourceType"::text = ANY (dead_types);
 
-  IF journal_rows > 0 OR ledger_rows > 0 THEN
+  -- `StockMovement.sourceType` was added by S-2 (`lib/inventory/stock-movements.ts`,
+  -- applied by script rather than by migration), so this file did not know the
+  -- column existed and the cast below missed it — the migration aborted on
+  -- 2026-08-20 with "cannot drop type AccountingSourceType_old because column
+  -- sourceType of table StockMovement depends on it". A stock movement is not
+  -- financial history in the way a journal line is, but it is the audit trail
+  -- for a physical quantity, and nulling one silently would leave a movement
+  -- nobody can explain. It gets the same refusal.
+  SELECT count(*) INTO movement_rows
+  FROM "StockMovement" WHERE "sourceType"::text = ANY (dead_types);
+
+  IF journal_rows > 0 OR ledger_rows > 0 OR movement_rows > 0 THEN
     RAISE EXCEPTION
-      'ST-3.3: % JournalEntry and % PaymentLedgerEntry rows still name a scrap source type. These are posted financial history and this migration will not rewrite or delete them. Decide what they were, repoint them deliberately, then re-run.',
-      journal_rows, ledger_rows;
+      'ST-3.3: % JournalEntry, % PaymentLedgerEntry and % StockMovement rows still name a scrap source type. These are posted history and this migration will not rewrite or delete them. Decide what they were, repoint them deliberately, then re-run.',
+      journal_rows, ledger_rows, movement_rows;
   END IF;
 
   UPDATE "AccountingIntegrationEvent"
@@ -260,6 +272,10 @@ ALTER TABLE "PaymentLedgerEntry"
   ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
   USING ("sourceType"::text::"AccountingSourceType");
 ALTER TABLE "BankTransaction"
+  ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
+  USING ("sourceType"::text::"AccountingSourceType");
+-- The sixth. See the note in the guard above for why it was missing.
+ALTER TABLE "StockMovement"
   ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
   USING ("sourceType"::text::"AccountingSourceType");
 ALTER TABLE "JournalEntry" ALTER COLUMN "sourceType" SET DEFAULT 'MANUAL';

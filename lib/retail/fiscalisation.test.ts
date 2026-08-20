@@ -27,6 +27,19 @@
  * Run: npx vitest run lib/retail/fiscalisation
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
+
+/*
+  Every test here writes to the configured Postgres — a company, a provider
+  config, tax codes, products, stock rows, sales, receipts — and vitest defaults
+  to five seconds for a test and ten for a hook. Against the pooled Neon this
+  project develops on, that is not enough, and what it produces is not an honest
+  red: a connect timeout inside `openFiscalDay` surfaces as `expected null to be
+  FISCAL_DAY_NOT_OPEN`, which reads like a bug in the fiscal-day rule.
+
+  Not a performance target. It is the difference between a failure that names
+  what broke and one that sends you reading the wrong file.
+*/
+vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 import crypto from "node:crypto";
 import type { RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { money, percent, quantity } from "@/lib/money";
@@ -81,6 +94,10 @@ let certificateRef: string;
 let itemVat15: string;
 let itemZero: string;
 let itemUnmapped: string;
+
+/** R-1.4: real rows, because the foreign keys are real. */
+let siteId: string;
+let inventoryItemIds: string[];
 
 let seq = 0;
 
@@ -150,7 +167,7 @@ async function makeSale(input: {
     data: {
       companyId,
       saleNo: `FD5-${suite}-${seq}`,
-      siteId: `site-${suite}`,
+      siteId,
       saleType: input.saleType ?? "SALE",
       status: input.status ?? "POSTED",
       currency: input.currency ?? "USD",
@@ -164,7 +181,10 @@ async function makeSale(input: {
         // to carry it: the sale it hangs off is not enough any more.
         create: input.lines.map((line, index) => ({
           companyId,
-          inventoryItemId: `inv-${suite}-${index}`,
+          // Cycled, because a test may ring up more lines than the fixture has
+          // stock rows. Which stock row a line names is irrelevant here — that
+          // it names a real one is the whole point.
+          inventoryItemId: inventoryItemIds[index % inventoryItemIds.length],
           productId: line.productId,
           itemName: `Item ${index + 1}`,
           quantity: quantity(1),
@@ -247,6 +267,29 @@ beforeAll(async () => {
     ],
   });
 
+  /*
+    R-1.4 gave the retail tables real foreign keys, and this suite was written
+    without them: it fabricated `siteId: \`site-${suite}\`` and
+    `inventoryItemId: \`inv-${suite}-${index}\``, which
+    `RetailSale_siteId_fkey` and `RetailSaleLine_inventoryItemId_fkey` both
+    reject — 23 of these tests failed the moment the branch that added them met
+    the branch that added the keys.
+
+    The keys are right: a sale belongs to a branch that exists, and a sale line
+    to a stock row that exists. So the fixture grows a real branch, a real
+    location and a real stock line per product, and the ids below are those.
+  */
+  const site = await prisma.site.create({
+    data: { companyId, code: `FD5-${suite}`, name: "Fiscalisation Test Branch", isActive: true },
+    select: { id: true },
+  });
+  siteId = site.id;
+
+  const location = await prisma.stockLocation.create({
+    data: { siteId, code: `SHOP-${suite}`, name: "Shop floor", isActive: true },
+    select: { id: true },
+  });
+
   const catalogue = await Promise.all(
     [
       { code: "STD15", taxPercent: 15 },
@@ -266,14 +309,63 @@ beforeAll(async () => {
     ),
   );
   [itemVat15, itemZero, itemUnmapped] = catalogue.map((item) => item.id);
+
+  // One stock line per product, in the same order, so a sale line can name
+  // both and satisfy both keys.
+  const stock = await Promise.all(
+    catalogue.map((product, index) =>
+      prisma.inventoryItem.create({
+        data: {
+          itemCode: `FD5-${suite}-${index}`,
+          name: `Fiscalisation item ${index + 1}`,
+          category: "CONSUMABLES",
+          unit: "each",
+          siteId,
+          locationId: location.id,
+          currentStock: quantity(0),
+          productId: product.id,
+        },
+        select: { id: true },
+      }),
+    ),
+  );
+  inventoryItemIds = stock.map((row) => row.id);
 });
 
+/**
+ * Unwind the fixture, in dependency order, and **say so** if it will not go.
+ *
+ * This was `company.delete(...).catch(() => {})`. R-1.4 made `Site`
+ * `onDelete: Restrict` — a branch with sales against it must not vanish — so
+ * that delete could never succeed once the fixture grew a real site, and the
+ * swallow would have hidden it: a company, a site, a location, three products
+ * and three stock lines left on a shared database on every single run.
+ *
+ * The same mistake, and the same fix, as `lib/retail/provision.test.ts`. That
+ * one accumulated forty tenants in an afternoon before anything noticed, and
+ * what noticed was an unrelated suite timing out on a connection pool.
+ */
 afterAll(async () => {
   delete process.env[KEY_ENV];
-  await prisma.fiscalReceipt.deleteMany({ where: { companyId } });
-  await prisma.retailSale.deleteMany({ where: { companyId } });
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
-  await prisma.$disconnect();
+  try {
+    await prisma.fiscalReceipt.deleteMany({ where: { companyId } });
+    await prisma.retailSale.deleteMany({ where: { companyId } });
+    await prisma.fiscalDay.deleteMany({ where: { companyId } });
+    await prisma.inventoryItem.deleteMany({ where: { site: { companyId } } });
+    await prisma.stockLocation.deleteMany({ where: { site: { companyId } } });
+    await prisma.product.deleteMany({ where: { companyId } });
+    await prisma.site.deleteMany({ where: { companyId } });
+    await prisma.taxCode.deleteMany({ where: { companyId } });
+    await prisma.fiscalisationProviderConfig.deleteMany({ where: { companyId } });
+    await prisma.company.deleteMany({ where: { id: companyId } });
+
+    const survived = await prisma.company.count({ where: { id: companyId } });
+    if (survived > 0) {
+      throw new Error(`fixture company ${companyId} survived teardown`);
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
 });
 
 beforeEach(async () => {
@@ -864,7 +956,7 @@ describe("fiscalising one till sale", () => {
       data: {
         companyId,
         saleNo: `FD5-${suite}-${seq}`,
-        siteId: `site-${suite}`,
+        siteId,
         currency: "USD",
         status: "POSTED",
         postedAt: SALE_DATE,
@@ -875,8 +967,9 @@ describe("fiscalising one till sale", () => {
           create: [
             {
               companyId,
-              inventoryItemId: `inv-${suite}-orphan`,
-              // The line this test is about: no product, so no rate to sign at.
+              // A real stock row, because the key is real. What this test is
+              // about is the line naming no *product* — so no rate to sign at.
+              inventoryItemId: inventoryItemIds[0],
               productId: null,
               itemName: "Orphaned line",
               quantity: quantity(1),
