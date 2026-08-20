@@ -11,7 +11,6 @@ export type ReservableIdEntity =
   | "TAX_CODE"
   | "TAX_CATEGORY"
   | "TAX_TEMPLATE"
-  | "FIXED_ASSET"
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
   | "STOCK_MOVEMENT"
@@ -20,17 +19,9 @@ export type ReservableIdEntity =
   | "SCHOOL_FEE_INVOICE"
   | "SCHOOL_FEE_RECEIPT"
   | "SCHOOL_FEE_REFUND"
-  | "CAR_SALES_LEAD"
-  | "CAR_SALES_VEHICLE"
-  | "CAR_SALES_DEAL"
-  | "CAR_SALES_PAYMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE"
-  | "SCRAP_MATERIAL"
-  | "SCRAP_METAL_PURCHASE"
-  | "SCRAP_METAL_BATCH"
-  | "SCRAP_METAL_SALE"
   | "RETAIL_REGISTER"
   | "RETAIL_PURCHASE_ORDER"
   | "RETAIL_GOODS_RECEIPT"
@@ -71,7 +62,6 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   TAX_CODE: { prefix: "TAX", requiresSiteId: false },
   TAX_CATEGORY: { prefix: "TCAT", requiresSiteId: false },
   TAX_TEMPLATE: { prefix: "TTMP", requiresSiteId: false },
-  FIXED_ASSET: { prefix: "AST", requiresSiteId: false },
   INVENTORY_ITEM: { prefix: "INV", requiresSiteId: true },
   STOCK_LOCATION: { prefix: "LOC", requiresSiteId: true },
   STOCK_MOVEMENT: { prefix: "MOV", requiresSiteId: false, globalSequence: true },
@@ -81,17 +71,9 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   SCHOOL_FEE_RECEIPT: { prefix: "SFR", requiresSiteId: false },
   // SFR is taken by the receipt, so a refund reads SFRF.
   SCHOOL_FEE_REFUND: { prefix: "SFRF", requiresSiteId: false },
-  CAR_SALES_LEAD: { prefix: "LEAD", requiresSiteId: false },
-  CAR_SALES_VEHICLE: { prefix: "CAR", requiresSiteId: false },
-  CAR_SALES_DEAL: { prefix: "DEAL", requiresSiteId: false },
-  CAR_SALES_PAYMENT: { prefix: "PAY", requiresSiteId: false },
   GOLD_POUR: { prefix: "BAR", requiresSiteId: false },
   GOLD_RECEIPT: { prefix: "RCP", requiresSiteId: false },
   GOLD_PURCHASE: { prefix: "GPUR", requiresSiteId: false },
-  SCRAP_MATERIAL: { prefix: "SCMAT", requiresSiteId: false },
-  SCRAP_METAL_PURCHASE: { prefix: "SCPUR", requiresSiteId: false },
-  SCRAP_METAL_BATCH: { prefix: "SCBAT", requiresSiteId: false },
-  SCRAP_METAL_SALE: { prefix: "SCSAL", requiresSiteId: false },
   RETAIL_REGISTER: { prefix: "REG", requiresSiteId: true },
   RETAIL_PURCHASE_ORDER: { prefix: "RPO", requiresSiteId: true },
   RETAIL_GOODS_RECEIPT: { prefix: "RGR", requiresSiteId: true },
@@ -104,7 +86,8 @@ export const ID_ENTITY_CONFIG: Record<ReservableIdEntity, EntityConfig> = {
   CRM_APPOINTMENT: { prefix: "SVT", requiresSiteId: false },
   CRM_PERSON: { prefix: "PSN", requiresSiteId: false },
   CRM_WORK_ORDER: { prefix: "CWO", requiresSiteId: false },
-  // DEAL is already taken by CAR_SALES_DEAL, so the CRM deal reads CRMD.
+  // CRMD rather than DEAL: the prefix is baked into every deal number already
+  // issued, so it outlives the car-sales entity (ST-2.2) that first forced it.
   CRM_DEAL: { prefix: "CRMD", requiresSiteId: false },
   CRM_SITE: { prefix: "CSITE", requiresSiteId: false },
   SALES_QUOTATION: { prefix: "QTN", requiresSiteId: false },
@@ -283,13 +266,6 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.code), prefix);
     }
-    case "FIXED_ASSET": {
-      const records = await db.fixedAsset.findMany({
-        where: { companyId },
-        select: { assetCode: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.assetCode), prefix);
-    }
     case "INVENTORY_ITEM": {
       if (!siteId) return 0;
       const records = await db.inventoryItem.findMany({
@@ -348,34 +324,6 @@ async function findEntityMaxExistingCode(
       });
       return extractMaxFromCodes(records.map((record) => record.refundNo), prefix);
     }
-    case "CAR_SALES_LEAD": {
-      const records = await db.carSalesLead.findMany({
-        where: { companyId },
-        select: { leadNo: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.leadNo), prefix);
-    }
-    case "CAR_SALES_VEHICLE": {
-      const records = await db.carSalesVehicle.findMany({
-        where: { companyId },
-        select: { stockNo: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.stockNo), prefix);
-    }
-    case "CAR_SALES_DEAL": {
-      const records = await db.carSalesDeal.findMany({
-        where: { companyId },
-        select: { dealNo: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.dealNo), prefix);
-    }
-    case "CAR_SALES_PAYMENT": {
-      const records = await db.carSalesPayment.findMany({
-        where: { companyId },
-        select: { paymentNo: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.paymentNo), prefix);
-    }
     case "GOLD_POUR": {
       const records = await db.goldPour.findMany({
         where: { site: { companyId } },
@@ -401,34 +349,6 @@ async function findEntityMaxExistingCode(
         select: { purchaseNumber: true },
       });
       return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
-    }
-    case "SCRAP_MATERIAL": {
-      const records = await db.scrapMaterial.findMany({
-        where: { companyId },
-        select: { code: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.code), prefix);
-    }
-    case "SCRAP_METAL_PURCHASE": {
-      const records = await db.scrapMetalPurchase.findMany({
-        where: { companyId },
-        select: { purchaseNumber: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.purchaseNumber), prefix);
-    }
-    case "SCRAP_METAL_BATCH": {
-      const records = await db.scrapMetalBatch.findMany({
-        where: { companyId },
-        select: { batchNumber: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.batchNumber), prefix);
-    }
-    case "SCRAP_METAL_SALE": {
-      const records = await db.scrapMetalSale.findMany({
-        where: { companyId },
-        select: { saleNumber: true },
-      });
-      return extractMaxFromCodes(records.map((record) => record.saleNumber), prefix);
     }
     case "RETAIL_REGISTER": {
       if (!siteId) return 0;

@@ -17,14 +17,9 @@ function inferModuleId(queryKey: QueryKey) {
   const first = queryKey[0];
   if (typeof first !== "string") return null;
   if (
-    first.startsWith("scrap-") ||
-    first === "sites" ||
-    first === "employees"
-  ) {
-    return "scrap-metal";
-  }
-  if (
     first.startsWith("hr-") ||
+    first === "sites" ||
+    first === "employees" ||
     first === "shift-groups" ||
     first === "shift-group-schedules" ||
     first === "disciplinary-actions"

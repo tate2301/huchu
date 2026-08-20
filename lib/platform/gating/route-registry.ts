@@ -16,14 +16,11 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/settings/branding", featureKey: "core.branding.manage" },
   { scope: "page", prefix: "/settings/templates", featureKey: "core.branding.manage" },
 
-  { scope: "page", prefix: "/cctv/live", featureKey: "cctv.live" },
-  { scope: "page", prefix: "/cctv/cameras", featureKey: "cctv.cameras" },
-  { scope: "page", prefix: "/cctv/nvrs", featureKey: "cctv.nvrs" },
-  { scope: "page", prefix: "/cctv/events", featureKey: "cctv.events" },
-  { scope: "page", prefix: "/cctv/playback", featureKey: "cctv.playback" },
-  { scope: "page", prefix: "/cctv/access-logs", featureKey: "cctv.access-logs" },
-  { scope: "page", prefix: "/cctv/overview", featureKey: "cctv.overview" },
-  { scope: "page", prefix: "/cctv", featureKey: "cctv.overview" },
+  // ST-1.3 / ST-2 — CCTV, vehicle sales and scrap metal were dropped from the
+  // product. Their feature keys left the catalogue and their pages have now
+  // left the disk, so there is nothing here to gate: a request for one of those
+  // prefixes is a 404 from the router, which is the right answer and does not
+  // need a registry entry to produce it.
 
   // Longest prefix wins, so the returns page must precede the tables page it
   // sits under.
@@ -78,8 +75,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/accounting/sales", featureKey: "accounting.ar" },
   { scope: "page", prefix: "/accounting/purchases", featureKey: "accounting.ap" },
   { scope: "page", prefix: "/accounting/banking", featureKey: "accounting.banking" },
-  { scope: "page", prefix: "/accounting/assets", featureKey: "accounting.fixed-assets" },
-  { scope: "page", prefix: "/accounting/budgets", featureKey: "accounting.budgets" },
   { scope: "page", prefix: "/accounting/cost-centers", featureKey: "accounting.cost-centers" },
   { scope: "page", prefix: "/accounting/currency", featureKey: "accounting.multi-currency" },
   { scope: "page", prefix: "/accounting/tax", featureKey: "accounting.tax" },
@@ -114,17 +109,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/schools", featureKey: "schools.core" },
 
-  { scope: "page", prefix: "/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "page", prefix: "/autos/leads", featureKey: "autos.leads" },
-  { scope: "page", prefix: "/autos/deals", featureKey: "autos.deals" },
-  { scope: "page", prefix: "/autos/financing", featureKey: "autos.financing" },
-  { scope: "page", prefix: "/autos", featureKey: "autos.core" },
-  { scope: "page", prefix: "/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "page", prefix: "/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "page", prefix: "/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "page", prefix: "/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "page", prefix: "/car-sales", featureKey: "autos.core" },
-
   { scope: "page", prefix: "/retail/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/retail/catalog", featureKey: "retail.catalog" },
   { scope: "page", prefix: "/retail/purchasing", featureKey: "retail.purchasing" },
@@ -133,7 +117,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/retail/shifts", featureKey: "retail.shifts" },
   { scope: "page", prefix: "/retail/reports", featureKey: "retail.reports" },
   { scope: "page", prefix: "/retail", featureKey: "retail.core" },
-  { scope: "page", prefix: "/thrift", featureKey: "retail.core" },
 
   { scope: "page", prefix: "/portal/pos/customers", featureKey: "crm.customers" },
   { scope: "page", prefix: "/portal/pos", featureKey: "retail.pos" },
@@ -141,9 +124,13 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/portal/student", featureKey: "schools.portal.student" },
   { scope: "page", prefix: "/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "page", prefix: "/portal/schools", featureKey: "portal.schools" },
-  { scope: "page", prefix: "/portal/autos", featureKey: "portal.autos" },
-  { scope: "page", prefix: "/portal/car-sales", featureKey: "portal.autos" },
-  { scope: "page", prefix: "/portal/thrift", featureKey: "portal.pos" },
+  // ST-1.3 / ST-2 — `/portal/autos`, `/portal/car-sales` and `/portal/thrift`
+  // are gone with the modules that owned them, pages and all. The bare
+  // `/portal` entry below would still have caught those prefixes, which is why
+  // deleting the pages rather than inventing a sentinel key was the fix: a key
+  // that is not in the catalogue fails the "every route key is a catalogue key"
+  // check, and a router 404 is the honest answer for a page that no longer
+  // exists.
   { scope: "page", prefix: "/portal", featureKey: "portal.core" },
 
   { scope: "page", prefix: "/gold/intake/pours", featureKey: "gold.intake.pours" },
@@ -161,24 +148,6 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/gold/settlement/runs", featureKey: "settlements.gold" },
   { scope: "page", prefix: "/gold/prices", featureKey: "gold.home" },
   { scope: "page", prefix: "/gold", featureKey: "gold.home" },
-
-  { scope: "page", prefix: "/scrap-metal/tickets/held", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/tickets", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/sales/approval-requests", featureKey: "scrap-metal.sales" },
-  { scope: "page", prefix: "/scrap-metal/ticket-templates", featureKey: "core.branding.manage" },
-  { scope: "page", prefix: "/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/reports/daily-snapshot", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/reports/supplier-performance", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/reports/variance-aging", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/adjustments", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/reports", featureKey: "scrap-metal.home" },
-  { scope: "page", prefix: "/scrap-metal/settlements", featureKey: "settlements.scrap" },
-  { scope: "page", prefix: "/scrap-metal/purchases/unassigned", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
-  { scope: "page", prefix: "/scrap-metal/batches", featureKey: "scrap-metal.batches" },
-  { scope: "page", prefix: "/scrap-metal/sales", featureKey: "scrap-metal.sales" },
-  { scope: "page", prefix: "/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
-  { scope: "page", prefix: "/scrap-metal", featureKey: "scrap-metal.home" },
 
   { scope: "page", prefix: "/crm/leads", featureKey: "crm.leads" },
   { scope: "page", prefix: "/crm/deals", featureKey: "crm.leads" },
@@ -210,8 +179,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
   { scope: "page", prefix: "/management/master-data/operations/gold-expense-types", featureKey: "gold.payouts" },
-  { scope: "page", prefix: "/management/master-data/operations/scrap-materials", featureKey: "scrap-metal.pricing" },
-  { scope: "page", prefix: "/management/master-data/operations/scrap-sellers", featureKey: "scrap-metal.purchases" },
+  // ST-1.3 — the scrap materials and scrap sellers master-data screens went
+  // with the module. They fall back to the bare `/management/master-data` entry
+  // below, so they answer `admin.sites-sections` until ST-2 removes the pages.
   { scope: "page", prefix: "/management/master-data", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/users/create", featureKey: "admin.user-management.create" },
   { scope: "page", prefix: "/management/users/status", featureKey: "admin.user-management.status" },
@@ -228,9 +198,15 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // The production dashboard is built entirely on plant reports; gate it with
   // the same mining reporting feature so it never fail-opens into non-mining
   // workspaces.
+  // Reads as the workspace landing page and is not: `/dashboard` charts plant
+  // reports (`fetchPlantReports`), so `reports.plant` is the right gate and a
+  // non-mining tenant is correctly refused. Tenants land on their vertical's
+  // `preferredHomeHref` — /gold, /schools, /retail — never here.
   { scope: "page", prefix: "/dashboard", featureKey: "reports.plant" },
 
-  { scope: "page", prefix: "/reports/cctv-events", featureKey: "reports.cctv-events" },
+  // ST-1.3 — `/reports/cctv-events` left with the surveillance module. It falls
+  // back to the bare `/reports` entry at the end of this block, so it answers
+  // `reports.dashboard` until ST-2 removes the page.
   { scope: "page", prefix: "/reports/compliance-incidents", featureKey: "reports.compliance-incidents" },
   { scope: "page", prefix: "/reports/downtime", featureKey: "reports.downtime-analytics" },
   { scope: "page", prefix: "/reports/maintenance-work-orders", featureKey: "reports.maintenance-work-orders" },
@@ -265,14 +241,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/sections", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/payroll/config", featureKey: "admin.payroll-config" },
 
-  { scope: "api", prefix: "/api/cctv/streams", featureKey: "cctv.streaming-control" },
-  { scope: "api", prefix: "/api/cctv/stream-token", featureKey: "cctv.streaming-control" },
-  { scope: "api", prefix: "/api/cctv/playback", featureKey: "cctv.playback" },
-  { scope: "api", prefix: "/api/cctv/access-logs", featureKey: "cctv.access-logs" },
-  { scope: "api", prefix: "/api/cctv/events", featureKey: "cctv.events" },
-  { scope: "api", prefix: "/api/cctv/cameras", featureKey: "cctv.cameras" },
-  { scope: "api", prefix: "/api/cctv/nvrs", featureKey: "cctv.nvrs" },
-
   { scope: "api", prefix: "/api/shift-reports", featureKey: "ops.shift-report.submit" },
   { scope: "api", prefix: "/api/plant-reports", featureKey: "ops.plant-report.submit" },
 
@@ -283,6 +251,11 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/disbursements", featureKey: "hr.disbursements" },
   { scope: "api", prefix: "/api/compensation", featureKey: "hr.compensation-rules" },
   { scope: "api", prefix: "/api/employee-payments", featureKey: "hr.salaries" },
+  // SS-1.1 — adjustment approve/reject/submit already ask
+  // `hrPermissionDenial(session, "hr.payroll", ...)` inside the handler; without
+  // an entry here the route itself was ungated, so the module gate ran only
+  // where somebody remembered to write it. Same key, one layer earlier.
+  { scope: "api", prefix: "/api/adjustments", featureKey: "hr.payroll" },
   { scope: "api", prefix: "/api/approvals/history", featureKey: "hr.approvals-history" },
   { scope: "api", prefix: "/api/people/leave", featureKey: "hr.leave" },
   { scope: "api", prefix: "/api/people/attendance", featureKey: "hr.attendance" },
@@ -308,18 +281,14 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/gold/shift-allocations", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/expense-types", featureKey: "gold.payouts" },
   { scope: "api", prefix: "/api/gold/prices", featureKey: "gold.home" },
-
-  { scope: "api", prefix: "/api/scrap-metal/purchases", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/ticket-context", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/batches", featureKey: "scrap-metal.batches" },
-  { scope: "api", prefix: "/api/scrap-metal/sales", featureKey: "scrap-metal.sales" },
-  { scope: "api", prefix: "/api/scrap-metal/employee-balances", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/materials", featureKey: "scrap-metal.pricing" },
-  { scope: "api", prefix: "/api/scrap-metal/sellers", featureKey: "scrap-metal.purchases" },
-  { scope: "api", prefix: "/api/scrap-metal/dashboard", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/scale/last-weight", featureKey: "scrap-metal.home" },
-  { scope: "api", prefix: "/api/scrap-metal/pricing", featureKey: "scrap-metal.pricing" },
-  { scope: "api", prefix: "/api/scrap-metal/compliance-rules", featureKey: "scrap-metal.purchases" },
+  // SS-1.1 — the module fallback, deliberately last of the gold block (longest
+  // prefix wins). Before this entry `/api/gold/imports`, `/api/gold/summary`,
+  // `/api/gold/period-close`, `/api/gold/shift-output` and `/api/gold/reports/*`
+  // matched nothing and so were reachable by any signed-in user in any tenant,
+  // gold or not. `gold.home` rather than a per-screen key because every other
+  // `gold.*` feature declares it as a dependency, so no tenant that holds any
+  // gold entitlement can fail this gate.
+  { scope: "api", prefix: "/api/gold", featureKey: "gold.home" },
 
   { scope: "api", prefix: "/api/inventory/items", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/inventory/movements", featureKey: "stores.movements" },
@@ -352,8 +321,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/accounting/sales/quotations", featureKey: "accounting.ar" },
   { scope: "api", prefix: "/api/accounting/purchases", featureKey: "accounting.ap" },
   { scope: "api", prefix: "/api/accounting/banking", featureKey: "accounting.banking" },
-  { scope: "api", prefix: "/api/accounting/assets", featureKey: "accounting.fixed-assets" },
-  { scope: "api", prefix: "/api/accounting/budgets", featureKey: "accounting.budgets" },
   { scope: "api", prefix: "/api/accounting/cost-centers", featureKey: "accounting.cost-centers" },
   { scope: "api", prefix: "/api/accounting/currency", featureKey: "accounting.multi-currency" },
   { scope: "api", prefix: "/api/accounting/tax", featureKey: "accounting.tax" },
@@ -430,27 +397,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/schools", featureKey: "schools.core" },
 
-  { scope: "api", prefix: "/api/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/autos/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/autos/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/autos/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/autos", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/car-sales", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/v2/autos/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/v2/autos/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/v2/autos/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/v2/autos/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/v2/autos", featureKey: "autos.core" },
-  { scope: "api", prefix: "/api/v2/car-sales/inventory", featureKey: "autos.inventory" },
-  { scope: "api", prefix: "/api/v2/car-sales/leads", featureKey: "autos.leads" },
-  { scope: "api", prefix: "/api/v2/car-sales/deals", featureKey: "autos.deals" },
-  { scope: "api", prefix: "/api/v2/car-sales/financing", featureKey: "autos.financing" },
-  { scope: "api", prefix: "/api/v2/car-sales", featureKey: "autos.core" },
-
   { scope: "api", prefix: "/api/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/retail/purchasing", featureKey: "retail.purchasing" },
@@ -466,6 +412,9 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   // stays on the item master's own key.
   { scope: "api", prefix: "/api/v2/inventory/price-lists", featureKey: "stores.price-lists" },
   { scope: "api", prefix: "/api/v2/inventory/stock-items", featureKey: "stores.inventory" },
+  // SS-1.1 — "what is in this store" reads the same stock the three entries
+  // above gate; it was the one sibling with no entry.
+  { scope: "api", prefix: "/api/v2/inventory/locations", featureKey: "stores.inventory" },
   { scope: "api", prefix: "/api/v2/retail/customers", featureKey: "crm.customers" },
   { scope: "api", prefix: "/api/v2/retail/catalog", featureKey: "retail.catalog" },
   { scope: "api", prefix: "/api/v2/retail/purchasing", featureKey: "retail.purchasing" },
@@ -475,13 +424,15 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/retail/reports", featureKey: "retail.reports" },
   { scope: "api", prefix: "/api/v2/retail", featureKey: "retail.core" },
   { scope: "api", prefix: "/api/v2/thrift", featureKey: "retail.core" },
+  // SS-1.1 — the till's own v2 collection endpoint, which sits outside the
+  // `/api/v2/retail` tree and so matched nothing. `/api/v2/portal` does not
+  // collide with it: prefix matching is literal, and "por" is not "pos".
+  { scope: "api", prefix: "/api/v2/pos", featureKey: "retail.pos" },
 
   { scope: "api", prefix: "/api/portal/parent", featureKey: "schools.portal.parent" },
   { scope: "api", prefix: "/api/portal/student", featureKey: "schools.portal.student" },
   { scope: "api", prefix: "/api/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/portal/schools", featureKey: "portal.schools" },
-  { scope: "api", prefix: "/api/portal/autos", featureKey: "portal.autos" },
-  { scope: "api", prefix: "/api/portal/car-sales", featureKey: "portal.autos" },
   { scope: "api", prefix: "/api/portal/thrift", featureKey: "portal.pos" },
   { scope: "api", prefix: "/api/portal", featureKey: "portal.core" },
   { scope: "api", prefix: "/api/v2/portal/parent", featureKey: "schools.portal.parent" },
@@ -491,8 +442,6 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/portal/teacher/me", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/portal/teacher", featureKey: "schools.portal.teacher" },
   { scope: "api", prefix: "/api/v2/portal/schools", featureKey: "portal.schools" },
-  { scope: "api", prefix: "/api/v2/portal/autos", featureKey: "portal.autos" },
-  { scope: "api", prefix: "/api/v2/portal/car-sales", featureKey: "portal.autos" },
   { scope: "api", prefix: "/api/v2/portal/thrift", featureKey: "portal.pos" },
   { scope: "api", prefix: "/api/v2/portal", featureKey: "portal.core" },
 
@@ -550,6 +499,18 @@ function sortByPrefixLength<T extends { prefix: string }>(rows: T[]): T[] {
 const PAGE_PREFIX_SORTED = sortByPrefixLength(PAGE_FEATURE_ROUTES);
 const API_PREFIX_SORTED = sortByPrefixLength(API_FEATURE_ROUTES);
 
+/**
+ * The feature a path is gated on, or null for a path that is not a gated surface.
+ *
+ * SS-1.1 — null is load-bearing now that the policy denies by default. "No entry
+ * here" cannot mean "denied": this registry is a hand-maintained list against a
+ * router with 900-odd routes, and the day it forgets one, that route would go
+ * dark in production for every tenant at once. So the two failure modes are
+ * deliberately asymmetric — unmapped means ungated and passes; mapped-but-not-
+ * entitled is refused. Forgetting an entry leaves a route open, which is the
+ * pre-existing state and is caught by review and by the coverage audit, rather
+ * than taking a paying workspace off the air.
+ */
 export function resolveFeatureKeyForPath(pathname: string): string | null {
   const normalizedPath = normalizePath(pathname).toLowerCase();
   const prefixes = normalizedPath.startsWith("/api/") ? API_PREFIX_SORTED : PAGE_PREFIX_SORTED;

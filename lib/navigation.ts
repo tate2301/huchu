@@ -1,12 +1,10 @@
 import {
   MapPin,
-  AlertCircle,
   ArrowDownward,
   BarChart3,
   Building2,
   CalendarCheck,
   Calendar,
-  Camera,
   ChartLine,
   Checklist,
   ClipboardList,
@@ -33,13 +31,11 @@ import {
   Package,
   PackageCheck,
   ShieldCheck,
-  Server,
   Scale,
   Upload,
   UserRound,
   Users,
   UserCheck,
-  Video,
   Wallet,
   Payments,
   Phone,
@@ -49,7 +45,6 @@ import {
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
-import { SCRAP_TABS } from "@/lib/scrap-metal/tab-config";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
 // which checks it on the route prefix before the page renders.
@@ -108,7 +103,7 @@ export const navSections: NavSection[] = [
   {
     id: "daily",
     // Attendance left this section. Marking a register is not mining — a school,
-    // a bureau and a scrap yard all keep one, and it is now People › Time ›
+    // a bureau and a workshop all keep one, and it is now People › Time ›
     // Attendance. What stays here is production reporting, which is.
     title: "Daily Operations",
     description: "Mining shift and plant capture",
@@ -168,12 +163,6 @@ export const navSections: NavSection[] = [
         href: "/reports/compliance-incidents",
         icon: ShieldCheck,
         label: "Incidents",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/reports/cctv-events",
-        icon: Video,
-        label: "CCTV Events",
         roles: ["SUPERADMIN", "MANAGER"],
       },
     ],
@@ -333,19 +322,6 @@ export const navSections: NavSection[] = [
     ],
   },
   {
-    id: "car-sales",
-    title: "Auto Sales",
-    description: "Vehicle sales pipeline and deal operations",
-    featureKey: "autos.core",
-    items: [
-      { href: "/car-sales", icon: LocalShipping, label: "Auto Overview" },
-      { href: "/car-sales/leads", icon: Users, label: "Leads" },
-      { href: "/car-sales/inventory", icon: Package, label: "Inventory" },
-      { href: "/car-sales/deals", icon: Checklist, label: "Deals" },
-      { href: "/car-sales/financing", icon: Wallet, label: "Financing" },
-    ],
-  },
-  {
     id: "retail",
     title: "Retail",
     description: "Overview, sales, range and stock, purchasing, customers, shifts, reports, and setup",
@@ -420,18 +396,6 @@ export const navSections: NavSection[] = [
       { href: "/gold/exceptions", icon: ReportProblem, label: "Exceptions" },
       { href: "/reports/gold-chain", icon: ChartLine, label: "Gold Reports" },
     ],
-  },
-  {
-    id: "scrap-metal",
-    title: "Scrap & Recycling",
-    description: "Ticketing, lots, settlements, and material controls",
-    featureKey: "scrap-metal.home",
-    items: SCRAP_TABS.map((tab) => ({
-      href: tab.href,
-      icon: tab.icon,
-      label: tab.label,
-      roles: tab.roles,
-    })),
   },
   // The CRM is not one thing you open, it is six. A single parent entry meant
   // every route inside it cost two clicks and hid behind a word — "CRM" — that
@@ -512,56 +476,6 @@ export const navSections: NavSection[] = [
         label: "CRM settings",
         roles: ["SUPERADMIN", "MANAGER"],
         group: "setup",
-      },
-    ],
-  },
-  {
-    id: "cctv",
-    title: "CCTV",
-    description: "Surveillance and stream control",
-    featureKey: "cctv.overview",
-    items: [
-      {
-        href: "/cctv/overview",
-        icon: Dashboard,
-        label: "Overview",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/live",
-        icon: Video,
-        label: "Live Monitor",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/cameras",
-        icon: Camera,
-        label: "Cameras",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/nvrs",
-        icon: Server,
-        label: "NVRs",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/events",
-        icon: AlertCircle,
-        label: "Events",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/playback",
-        icon: History,
-        label: "Playback",
-        roles: ["SUPERADMIN", "MANAGER"],
-      },
-      {
-        href: "/cctv/access-logs",
-        icon: FileCheck,
-        label: "Access Logs",
-        roles: ["SUPERADMIN", "MANAGER"],
       },
     ],
   },

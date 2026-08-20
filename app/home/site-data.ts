@@ -10,6 +10,7 @@ import {
   Dashboard,
   Factory,
   FileText,
+  Gavel,
   History,
   LifeBuoy,
   LocalShipping,
@@ -19,6 +20,7 @@ import {
   PackageCheck,
   Payments,
   ReceiptLong,
+  Scale,
   ShieldCheck,
   Storefront,
   TrendingUp,
@@ -30,6 +32,33 @@ import {
   Wrench,
   type LucideIcon,
 } from "@/lib/icons";
+import {
+  ANNUAL_DISCOUNT_LABEL,
+  ANNUAL_PREPAY_COPY,
+  MARKETING_TIERS,
+  SCHOOL_STARTING_TERM_PRICE,
+  STARTING_ANNUAL_MONTHLY_PRICE,
+  STARTING_MONTHLY_PRICE,
+  formatUsd,
+  getMarketingTier,
+  productPriceLabel,
+} from "@/lib/marketing/pricing";
+
+// Prices in copy are read from the billing catalog through
+// `lib/marketing/pricing.ts` rather than typed out, so a tier change never
+// leaves a stale figure in a headline or a meta description. Annual is the ask
+// (PR-2.1), so copy quotes the annual rate first and the monthly rate second.
+
+/** Fails the build rather than rendering a page with a missing plan in it. */
+function tierByCode(code: string) {
+  const tier = getMarketingTier(code);
+  if (!tier) throw new Error(`Marketing copy references unknown tier ${code}`);
+  return tier;
+}
+
+const fiscalTier = tierByCode("FISCAL");
+const startTier = tierByCode("START");
+const scaleTier = tierByCode("SCALE");
 
 export type SeoEntry = {
   title: string;
@@ -164,15 +193,22 @@ export const footerGroups = [
   },
 ];
 
+// The homepage sells the compliance layer first (MK-1.1): a VAT-registered
+// buyer is under an obligation with a daily price on it, so the meta
+// description names the regulation before it names a benefit.
 const HOME_DESCRIPTION =
-  "Corelith puts sales, stock, jobs, invoices and cash on one record. Built in Zimbabwe, works offline, ZIMRA fiscalisation built in. From $29 a month.";
+  `The ZIMRA-compliant way to run a Zimbabwean business: fiscal invoicing built against ZIMRA's FDMS specification, on top of the POS, stock, books and payroll that produce the numbers on the invoice. Works offline, priced per site from ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually.`;
 
 export const seoPages = {
   home: {
-    title: "Find the money your business is losing",
+    title: "The ZIMRA-compliant way to run a Zimbabwean business",
     description: HOME_DESCRIPTION,
     path: "/home",
     keywords: [
+      "ZIMRA fiscalisation software",
+      "FDMS Zimbabwe",
+      "fiscal invoicing Zimbabwe",
+      "fiscalisation POS Zimbabwe",
       "business software Zimbabwe",
       "stock control software Zimbabwe",
       "invoicing and inventory software Zimbabwe",
@@ -181,14 +217,16 @@ export const seoPages = {
       "sales CRM Zimbabwe",
       "POS system Zimbabwe",
       "bottle store software Zimbabwe",
-      "ZIMRA fiscalisation software",
     ],
   },
   root: {
-    title: "Find the money your business is losing",
+    title: "The ZIMRA-compliant way to run a Zimbabwean business",
     description: HOME_DESCRIPTION,
     path: "/",
     keywords: [
+      "ZIMRA fiscalisation software",
+      "FDMS Zimbabwe",
+      "fiscal invoicing Zimbabwe",
       "business software Zimbabwe",
       "stock control software Zimbabwe",
       "invoicing software Zimbabwe",
@@ -224,19 +262,20 @@ export const seoPages = {
   pricing: {
     title: "Corelith pricing",
     description:
-      "Priced per site, never per user. From $29 a month with every seat included up to your ceiling. Pay annually and pay for ten months. 30-day money-back guarantee.",
+      `Priced per site, never per user. From ${formatUsd(STARTING_ANNUAL_MONTHLY_PRICE)} a month paid annually, ${formatUsd(STARTING_MONTHLY_PRICE)} month to month, with every seat included up to your ceiling. Onboarding is a published one-off. 30-day money-back guarantee.`,
     path: "/home/pricing",
     keywords: [
       "Corelith pricing",
       "ERP pricing Zimbabwe",
       "business software cost Zimbabwe",
       "per site pricing software",
+      "ZIMRA fiscalisation pricing Zimbabwe",
     ],
   },
   schools: {
     title: "Corelith for schools",
     description:
-      "Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals, priced per campus per term from $249.",
+      `Collect the fees you are owed and keep one record of every child. Admissions, fees, academics, boarding and parent portals, priced per campus per term from ${formatUsd(SCHOOL_STARTING_TERM_PRICE)}.`,
     path: "/home/schools",
     keywords: [
       "school management software Zimbabwe",
@@ -315,6 +354,43 @@ export const seoPages = {
       "business software migration Zimbabwe",
       "Corelith implementation",
       "ZIMRA fiscalisation software",
+    ],
+  },
+  tools: {
+    title: "Free ZIMRA compliance tools",
+    description:
+      "Two calculators, no sign-up: what a fiscalisation default is costing you per day, and whether your turnover has put you over the US$25,000 VAT registration threshold.",
+    path: "/home/tools",
+    keywords: [
+      "ZIMRA compliance calculator",
+      "fiscalisation penalty Zimbabwe",
+      "VAT threshold Zimbabwe",
+      "free tax tools Zimbabwe",
+    ],
+  },
+  penaltyCalculator: {
+    title: "Fiscalisation penalty calculator",
+    description:
+      "Work out what operating unfiscalised tills is costing you: US$25 per point of sale per day, capped at 181 days, after which the liability stops being a fine and becomes a criminal offence.",
+    path: "/home/tools/fiscalisation-penalty",
+    keywords: [
+      "fiscalisation penalty calculator",
+      "ZIMRA penalty per day",
+      "SI 104 of 2010 penalty",
+      "fiscal device penalty Zimbabwe",
+      "ZIMRA civil penalty US$25",
+    ],
+  },
+  vatThreshold: {
+    title: "VAT registration threshold checker",
+    description:
+      "Check your turnover against Zimbabwe's US$25,000 compulsory VAT registration threshold, measured over any rolling twelve months, and see what registering would mean.",
+    path: "/home/tools/vat-threshold",
+    keywords: [
+      "VAT registration threshold Zimbabwe",
+      "US$25000 VAT threshold",
+      "do I need to register for VAT Zimbabwe",
+      "ZIMRA VAT registration",
     ],
   },
   privacy: {
@@ -533,13 +609,142 @@ export const COUNTER_TRADE = {
   ],
 } as const;
 
-/** Honest, checkable claims. No logos, no invented testimonials. */
+/**
+ * Honest, checkable claims. No logos, no invented testimonials. Fiscalisation
+ * leads because that is the obligation the buyer arrived with — and the label
+ * says "built against" rather than "certified", which is all the FDMS roadmap
+ * currently permits.
+ */
 export const trustSignals = [
+  { label: "Built against ZIMRA's FDMS specification", icon: ShieldCheck },
+  { label: "Keeps selling and signing when the line drops", icon: WifiOff },
   { label: "Priced per site, never per user", icon: Users },
-  { label: "Keeps selling when the internet drops", icon: WifiOff },
-  { label: "ZIMRA fiscalisation built in", icon: ShieldCheck },
   { label: "Built and supported in Zimbabwe", icon: Building2 },
 ];
+
+// ---------------------------------------------------------------------------
+// The compliance layer (MK-1.1)
+// ---------------------------------------------------------------------------
+
+/**
+ * What we are permitted to say about fiscalisation, and why.
+ *
+ * `docs/rollout/fdms-roadmap.md` has FD-1.1, FD-2.1, FD-3.1 and FD-4.1 at `wip`
+ * and FD-8 at `todo`: the native FDMS client is written and signs, chains and
+ * counts, but nothing has met ZIMRA's test environment and no pilot has issued
+ * a production fiscal document yet. So the site may say built, and may say
+ * tested. "In pilot", "live", "certified", "approved" and "your invoices
+ * validate on the portal" are all defects until FD-8 closes — a buyer who
+ * discovers on their own that a compliance claim outran the code never buys the
+ * compliance product.
+ */
+export const FDMS_STATUS_HEADLINE = "Native FDMS integration: built and tested, not yet live with a customer.";
+
+export const FDMS_STATUS_COPY =
+  // Every clause here is checked against docs/rollout/fdms-roadmap.md. The
+  // stories that would let us say "live" or "validated" — FD-8, and the sandbox
+  // signals on FD-1 through FD-4 — are not `done`. In a market this small one
+  // ZIMRA rejection at a customer site ends the referral network, so this panel
+  // states the weaker true thing rather than the stronger sellable one.
+  "Device registration, receipt signing, hash chaining, fiscal-day counters and credit-note referencing are written against ZIMRA's FDMS specification and covered by tests. They have not yet been validated against ZIMRA's own test environment, no customer is issuing fiscal invoices through us today, and nothing here is certified or approved by ZIMRA. We will tell you exactly where that stands before you pay us anything.";
+
+export const fiscalHero = {
+  eyebrow: "ZIMRA fiscalisation, FDMS-native",
+  title: "The ZIMRA-compliant way to run a Zimbabwean business.",
+  lead:
+    "Fiscal invoicing built directly against ZIMRA's FDMS specification, sitting on top of the POS, stock, books and payroll that produce the numbers on the invoice. Not a fiscal printer bolted onto a till, and not a spreadsheet somebody retypes at month end. One record, fiscalised at the moment of sale.",
+  primaryCtaLabel: "See what fiscalising costs",
+  primaryCtaHref: "/home/pricing",
+  whatsappMessage:
+    "Hi Corelith, I need to fiscalise. Can you tell me what is involved and where your ZIMRA integration stands?",
+} as const;
+
+/**
+ * The fiscal wedge — the four things that separate an FDMS implementation that
+ * survives a Zimbabwean trading day from one that passes a demo. Each names the
+ * mechanism, because a buyer who has already been sold a fiscal device knows
+ * exactly which of these bit them.
+ */
+export const fiscalWedge = [
+  {
+    title: "Multi-till, multi-site",
+    copy:
+      "A device registration per till, and a fiscal day per device. Ten tills across four branches is the normal case here, not the enterprise case.",
+    icon: Storefront,
+  },
+  {
+    title: "Signs offline, submits later",
+    copy:
+      "Receipts are hashed, signed and chained on your side before anything touches the network, so a dropped line delays the submission, not the sale.",
+    icon: WifiOff,
+  },
+  {
+    title: "Credit notes that reference the original",
+    copy:
+      "A refund carries the receipt global number of the sale it reverses, which is what makes the reversal acceptable rather than a second document nobody can tie back.",
+    icon: ReceiptLong,
+  },
+  {
+    title: "Fiscal days that close cleanly",
+    copy:
+      "Open and close a fiscal day per device with the counters reconciled. A day that will not close tells you which receipts are the reason.",
+    icon: History,
+  },
+] satisfies Array<{ title: string; copy: string; icon: LucideIcon }>;
+
+/**
+ * How money actually reaches us today (MK-1.2). A self-serve card checkout is
+ * on the roadmap and not live, so this list says invoice-and-transfer plainly
+ * rather than implying a gateway that does not exist yet.
+ */
+export const paymentMethods = [
+  {
+    title: "Invoiced in US dollars",
+    copy: "Every plan, add-on and onboarding fee is quoted and invoiced in USD, so the figure on the pricing page is the figure on the invoice.",
+  },
+  {
+    title: "Bank transfer or mobile money",
+    copy: "USD bank transfer for annual prepay, bank transfer or EcoCash month to month. No card is required and no card is stored.",
+  },
+  {
+    title: "Annual is the default ask",
+    copy: `Paying for the year up front is ${ANNUAL_DISCOUNT_LABEL.replace(" off", "")} cheaper than paying monthly, and the monthly rate stays available with no commitment.`,
+  },
+  {
+    title: "Card and self-checkout are not live yet",
+    copy: "We are choosing a payment gateway on settlement time and recurring-billing support, not on headline rate. Until it ships, billing runs on invoices.",
+  },
+] as const;
+
+/**
+ * Free tools. They exist to be checked by an accountant and found correct, so
+ * every claim on them is statutory and the arithmetic is under test in
+ * `lib/marketing/penalty.ts`.
+ */
+export const freeTools = [
+  {
+    slug: "fiscalisation-penalty",
+    href: "/home/tools/fiscalisation-penalty",
+    name: "Fiscalisation penalty calculator",
+    summary:
+      "US$25 per point of sale per day in default, capped at 181 days, after which the liability converts to a criminal offence.",
+    icon: Gavel,
+  },
+  {
+    slug: "vat-threshold",
+    href: "/home/tools/vat-threshold",
+    name: "VAT threshold checker",
+    summary:
+      "Whether your taxable supplies over any rolling twelve months have passed the US$25,000 compulsory registration threshold.",
+    icon: Scale,
+  },
+] satisfies Array<{
+  slug: string;
+  href: string;
+  name: string;
+  summary: string;
+  icon: LucideIcon;
+}>;
 
 // ---------------------------------------------------------------------------
 // Segments
@@ -613,7 +818,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "The price is on the table before you spend an hour on a demo.",
-        copy: "Priced per site, with every cashier and clerk included up to your seat ceiling. Pay for the year and you pay for ten months. Setup is scoped and quoted separately, so you can see what you are buying.",
+        copy: `Priced per site, with every cashier and clerk included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off fee, so you can see what you are buying.`,
       },
     },
     seo: {
@@ -687,7 +892,10 @@ export const segments: MarketingSegment[] = [
       "Fiscal receipts issue from the sale itself, and ZIMRA records are clean without a second exercise.",
     ],
     proofMetrics: [
-      { value: "$29/mo", label: "Where one till and five staff accounts start" },
+      {
+        value: `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
+        label: `Where one till and ${startTier.includedUsers} staff accounts start, paid annually`,
+      },
       { value: "$0", label: "What adding another cashier costs, up to your seat ceiling" },
       { value: "Offline", label: "Keeps selling through load-shedding, syncs after" },
     ],
@@ -744,7 +952,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "You know the price before the proposal.",
-        copy: "Priced per site with staff accounts included up to your ceiling, so putting every supervisor on it costs you nothing. Pay annually and you pay for ten months.",
+        copy: `Priced per site with staff accounts included up to your ceiling, so putting every supervisor on it costs you nothing. ${ANNUAL_PREPAY_COPY} — annual is the ask.`,
       },
     },
     seo: {
@@ -874,7 +1082,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced per workshop, not per technician.",
-        copy: "Put every technician, storeman and service adviser on it up to your seat ceiling and pay nothing extra. Pay for the year and you pay for ten months.",
+        copy: `Put every technician, storeman and service adviser on it up to your seat ceiling and pay nothing extra. ${ANNUAL_PREPAY_COPY}.`,
       },
     },
     seo: {
@@ -947,7 +1155,10 @@ export const segments: MarketingSegment[] = [
       "Due services get chased, and repeat work stops depending on the customer remembering.",
     ],
     proofMetrics: [
-      { value: "$29/mo", label: "Where a single-bay workshop starts" },
+      {
+        value: productPriceLabel("workshops") ?? `${formatUsd(startTier.annualMonthlyPrice)}/mo`,
+        label: "Where a single-bay workshop starts",
+      },
       { value: "One job card", label: "Parts, hours, approval and invoice on the same record" },
       { value: "30 days", label: "Scoped setup from workflow mapping to go-live" },
     ],
@@ -1004,7 +1215,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced by plant and store, not by how many people work there.",
-        copy: "Every operator, storeman and supervisor is included up to your seat ceiling. Pay annually and you pay for ten months. Setup is quoted separately against your actual lines.",
+        copy: `Every operator, storeman and supervisor is included up to your seat ceiling. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, scoped against your actual lines.`,
       },
     },
     seo: {
@@ -1078,7 +1289,10 @@ export const segments: MarketingSegment[] = [
     ],
     proofMetrics: [
       { value: "Per run", label: "Materials in, output and wastage out, costed" },
-      { value: "$189/mo", label: "Eight sites and 60 staff accounts on Scale" },
+      {
+        value: `${formatUsd(scaleTier.annualMonthlyPrice)}/mo`,
+        label: `${scaleTier.includedSites} sites and ${scaleTier.includedUsers} staff accounts on ${scaleTier.name}, paid annually`,
+      },
       { value: "30 days", label: "From workflow mapping to your first costed run" },
     ],
     modules: ["Core platform", "Stock", "Work", "Books", "Maintenance pack"],
@@ -1134,7 +1348,7 @@ export const segments: MarketingSegment[] = [
       commercials: {
         eyebrow: "What it costs",
         title: "Priced per site, so growing the team does not grow the bill.",
-        copy: "Add every rep up to your seat ceiling for nothing. Pay for the year and you pay for ten months. Setup is scoped and quoted before you commit.",
+        copy: `Add every rep up to your seat ceiling for nothing. ${ANNUAL_PREPAY_COPY}. Onboarding is a published one-off, agreed before you commit.`,
       },
     },
     seo: {
@@ -1263,7 +1477,9 @@ export const schoolsTrack = {
     "Hi Corelith, I am from a school and would like to talk about Corelith Schools.",
   icon: Building2,
   assurances: [
-    "From $249 per campus, per term",
+    // Schools stay on per-term enrolment bands; PR-4.2 reconciles them with the
+    // monthly tier ladder.
+    `From ${formatUsd(SCHOOL_STARTING_TERM_PRICE)} per campus, per term`,
     "Unlimited staff and teacher accounts",
     "Your records migrated before you open",
   ],
@@ -1524,8 +1740,8 @@ export const pricingPrinciples = [
   "The plan covers sites and capacity. It never counts heads.",
   "Add every cashier, clerk, rep and technician you need up to your seat ceiling, at no extra cost.",
   "Extra seats come in packs of five. Extra sites bill at your plan's per-site rate.",
-  "Pay for the year and you pay for ten months.",
-  "Onboarding is quoted separately, because migration and training are real work by real people.",
+  `Annual is the price we quote, and it is ${ANNUAL_DISCOUNT_LABEL}. Month to month is there if you want it.`,
+  `Onboarding is a published one-off fee — nothing on ${fiscalTier.name} or ${startTier.name} — because migration and training are real work by real people.`,
   "Start with the one pack fixing this month's problem. Add depth when it pays for itself.",
 ];
 
@@ -1611,6 +1827,25 @@ export const foundingPartnerQuestions = [
   "Will you tell us plainly when something does not work, instead of quietly going back to the notebook?",
 ];
 
+/**
+ * The plan ladder written out for the FAQ, annual first. Derived so the answer
+ * cannot drift from the catalog the invoice is cut from.
+ */
+const tierLadderCopy = MARKETING_TIERS.map((tier) => {
+  const sites =
+    tier.includedSites >= 100
+      ? "unlimited sites"
+      : `${tier.includedSites} ${tier.includedSites === 1 ? "site" : "sites"}`;
+  const users = tier.includedUsers === null ? "unlimited users" : `${tier.includedUsers} users`;
+  return `${tier.name} ${tier.isQuoted ? "from" : "at"} ${formatUsd(tier.annualMonthlyPrice)} (${sites}, ${users})`;
+}).join(", ");
+
+const onboardingLadderCopy = MARKETING_TIERS.map((tier) =>
+  tier.isQuoted
+    ? `${tier.name} scoped with you`
+    : `${tier.name} ${tier.onboardingFee > 0 ? formatUsd(tier.onboardingFee) : "nothing"}`,
+).join(", ");
+
 export const faqs = [
   {
     q: "I already have a POS. Why would I change?",
@@ -1622,7 +1857,7 @@ export const faqs = [
   },
   {
     q: "What does this cost, and do you charge per user?",
-    a: "$29 a month for one site and five users, $79 for three sites and twenty, $189 for eight sites and sixty, $449 for twenty-five sites and unlimited users. Pay annually and you pay for ten months. There is no per-user charge until you pass your seat ceiling, so adding a cashier or a technician costs nothing. Onboarding is quoted separately once we have seen your workflow.",
+    a: `Paid annually, which is what we quote: ${tierLadderCopy}. Month to month costs the full rate, so paying for the year is ${ANNUAL_DISCOUNT_LABEL}. There is no per-user charge until you pass your seat ceiling, so adding a cashier or a technician costs nothing. Onboarding is a published one-off: ${onboardingLadderCopy}.`,
   },
   {
     q: "My staff will not use it.",

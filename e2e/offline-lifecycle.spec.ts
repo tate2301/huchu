@@ -3,8 +3,11 @@ import { expect, test } from "@playwright/test";
 
 const storageStatePath = process.env.E2E_STORAGE_STATE ?? "";
 const hasStorageState = storageStatePath.length > 0 && fs.existsSync(storageStatePath);
-const warmRoute = process.env.E2E_WARM_ROUTE ?? "/scrap-metal/tickets";
-const excludedRoute = process.env.E2E_EXCLUDED_ROUTE ?? "/scrap-metal/settlements";
+// Defaults follow the offline warmup scope in `lib/offline/workflow-catalog.ts`:
+// `/people` is warmed, `/accounting` is on the exclusion list. They moved off
+// the scrap routes when that vertical was dropped (ST-2.3).
+const warmRoute = process.env.E2E_WARM_ROUTE ?? "/people";
+const excludedRoute = process.env.E2E_EXCLUDED_ROUTE ?? "/accounting";
 const mutationTriggerSelector = process.env.E2E_MUTATION_TRIGGER_SELECTOR ?? "";
 
 if (hasStorageState) {

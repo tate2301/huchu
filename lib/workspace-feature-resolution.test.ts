@@ -117,14 +117,62 @@ describe("feature catalog bundles", () => {
     });
 
     it("carries the split-out catalogue keys wherever stock was already granted", () => {
-      // Splitting a key must not quietly take a working screen away from a
-      // tenant who could always open it.
-      for (const code of ["ADDON_STORES_CORE", "ADDON_SCRAP_METAL_SUITE"]) {
-        const bundle = FEATURE_BUNDLES.find((candidate) => candidate.code === code);
-        expect(bundle?.features, code).toContain("stores.catalogue");
-        expect(bundle?.features, code).toContain("stores.price-lists");
-      }
+      /*
+        Splitting a key must not quietly take a working screen away from a
+        tenant who could always open it.
+
+        This checked `ADDON_SCRAP_METAL_SUITE` too, for a yard that had always
+        reached the catalogue through `stores.inventory`. ST-1 stopped selling
+        that bundle and ST-2 deleted the module, so the tenant the guard was
+        written for does not exist. Stores keeps it: it is the bundle the keys
+        were split out of.
+      */
+      const bundle = FEATURE_BUNDLES.find(
+        (candidate) => candidate.code === "ADDON_STORES_CORE",
+      );
+      expect(bundle?.features).toContain("stores.catalogue");
+      expect(bundle?.features).toContain("stores.price-lists");
     });
+  });
+
+  /**
+   * ST-3.4 — a dropped module leaves no sellable trace.
+   *
+   * The catalogue is what the platform charges for, and a key that survives a
+   * deletion is a key an operator can still switch on. That buys a tenant a
+   * sidebar entry, a route gate that passes, and a 404 — which reads as a
+   * broken product rather than one we stopped selling. Asserted by prefix
+   * rather than by listing the individual keys, so re-adding *any* of them
+   * fails here instead of only the ones somebody remembered to enumerate.
+   */
+  it("sells no feature key from a dropped module", () => {
+    const droppedPrefixes = ["cctv.", "autos.", "scrap-metal."];
+    const droppedKeys = [
+      "reports.cctv-events",
+      "portal.autos",
+      "settlements.scrap",
+      "accounting.fixed-assets",
+      "accounting.budgets",
+    ];
+
+    const catalogueKeys = FEATURE_CATALOG.map((feature) => feature.key);
+    const bundledKeys = FEATURE_BUNDLES.flatMap((bundle) => bundle.features);
+
+    for (const keys of [catalogueKeys, bundledKeys]) {
+      for (const prefix of droppedPrefixes) {
+        expect(keys.filter((key) => key.startsWith(prefix))).toEqual([]);
+      }
+      for (const key of droppedKeys) {
+        expect(keys).not.toContain(key);
+      }
+    }
+  });
+
+  it("sells no bundle for a dropped module", () => {
+    const codes = FEATURE_BUNDLES.map((bundle) => bundle.code);
+    expect(codes).not.toContain("ADDON_CCTV_SUITE");
+    expect(codes).not.toContain("ADDON_AUTOS_SUITE");
+    expect(codes).not.toContain("ADDON_SCRAP_METAL_SUITE");
   });
 });
 
@@ -176,24 +224,33 @@ describe("vertical role registration", () => {
     expect(crmRoles).toContain("SALES_REP");
   });
 
-  it("keeps Autos sales roles registered through the Autos profile", () => {
-    expect(
-      getAllowedUserRolesForWorkspace({
-        workspaceProfile: "AUTOS",
-        enabledFeatures: [],
-      }),
-    ).toContain("SALES_EXEC");
+  // The Autos profile was dropped with the car-sales module (ST-1.1). A tenant
+  // still carrying the retired profile normalises to GENERAL, so the roles it
+  // gets are GENERAL's — asserted here so the retirement stays deliberate.
+  it("degrades a retired vertical profile to the general role set", () => {
+    const retired = getAllowedUserRolesForWorkspace({
+      workspaceProfile: "AUTOS",
+      enabledFeatures: [],
+    });
+    const general = getAllowedUserRolesForWorkspace({
+      workspaceProfile: "GENERAL",
+      enabledFeatures: [],
+    });
+    expect(retired).toEqual(general);
   });
 
 });
 
 describe("vertical product resolution", () => {
-  it("resolves multi-site operations from the multi-site template features", () => {
+  it("resolves general business from the core starter template features", () => {
+    // Was "multi-site operations", resolved from the security/stock template.
+    // Both were dropped with CCTV (ST-1.1); the core starter is what a general
+    // multi-site tenant now provisions from.
     const bundle = resolveWorkspaceVerticalProductBundle({
       workspaceProfile: "GENERAL",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
     });
-    expect(bundle.id).toBe("multi-site-operations");
+    expect(bundle.id).toBe("general-business");
   });
 
   it("resolves service workshop from the workshop template features", () => {
@@ -244,14 +301,12 @@ describe("crm template", () => {
 
 describe("primary quick actions", () => {
   const nonMiningCases: Array<[string, string | null]> = [
-    ["TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK", "GENERAL"],
     ["TEMPLATE_TECH_WORKSHOP", "GENERAL"],
     ["TEMPLATE_CORE_STARTER", "GENERAL"],
     ["TEMPLATE_SCHOOLS", "SCHOOLS"],
-    ["TEMPLATE_CAR_SALES", "AUTOS"],
     ["TEMPLATE_RETAIL", "RETAIL"],
-    ["TEMPLATE_SCRAP_METAL", "SCRAP_METAL"],
     ["TEMPLATE_CRM", "GENERAL"],
+    ["TEMPLATE_PAYROLL_BUREAU", "PAYROLL"],
   ];
 
   it.each(nonMiningCases)("%s offers no mining quick actions", (code, profile) => {
@@ -263,11 +318,11 @@ describe("primary quick actions", () => {
     expect(actions.filter((action) => isMiningHref(action.href))).toEqual([]);
   });
 
-  it("multi-site offers stores actions", () => {
+  it("a general business offers stores actions", () => {
     const actions = getPrimaryQuickActions({
       workspaceProfile: "GENERAL",
       role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
     });
     expect(actions.map((action) => action.href)).toContain("/stores/receive");
   });
@@ -292,9 +347,9 @@ describe("primary quick actions", () => {
     expect(hrefs).toContain("/gold/intake/pours/new");
   });
 
-  it("legacy multi-site tenants with leaked mining flags still see no mining quick actions", () => {
+  it("legacy general tenants with leaked mining flags still see no mining quick actions", () => {
     const leakedFeatures = [
-      ...templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      ...templateFeatures("TEMPLATE_CORE_STARTER"),
       ...MINE_DAILY_OPS_FEATURE_KEYS,
     ];
     const actions = getPrimaryQuickActions({
@@ -317,10 +372,10 @@ describe("workspace sidebar model", () => {
     expect(hrefs).toContain("/retail/customers");
   });
 
-  it("multi-site sidebar contains no mining hrefs anywhere", () => {
+  it("general business sidebar contains no mining hrefs anywhere", () => {
     const model = getWorkspaceSidebarModel({
       role: "MANAGER",
-      enabledFeatures: templateFeatures("TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK"),
+      enabledFeatures: templateFeatures("TEMPLATE_CORE_STARTER"),
       workspaceProfile: "GENERAL",
     });
     const hrefs = [
@@ -515,5 +570,40 @@ describe("route gating", () => {
     expect(resolveFeatureKeyForPath("/retail/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/portal/pos/customers")).toBe("crm.customers");
     expect(resolveFeatureKeyForPath("/api/v2/retail/customers/search")).toBe("crm.customers");
+  });
+
+  /**
+   * ST-2 / ST-3 — the dropped modules' paths resolve to nothing at all.
+   *
+   * Null here is the correct answer, not a gap: the pages and API handlers are
+   * off disk, so the router answers 404 and there is no request left to gate.
+   * A key coming back would mean somebody re-registered a prefix for routes
+   * that do not exist, which is how a dead module gets half-resurrected.
+   *
+   * `/accounting/assets` is the one to watch, because unlike the others it sits
+   * under a live prefix: if its own entry is ever re-added it will resolve, and
+   * if the bare `/accounting` fallback ever moves ahead of the specific entries
+   * this returns `accounting.core` instead of null.
+   */
+  it("gates nothing for a dropped module's routes", () => {
+    for (const path of [
+      "/cctv",
+      "/cctv/live",
+      "/api/cctv/cameras",
+      "/car-sales",
+      "/api/v2/autos/deals",
+      "/scrap-metal",
+      "/scrap-metal/tickets",
+      "/api/scrap-metal/purchases",
+      "/thrift",
+    ]) {
+      expect(resolveFeatureKeyForPath(path), path).toBeNull();
+    }
+
+    // Under `/accounting`, so they fall to the module's own key rather than to
+    // null. That is still correct — there is no page behind either — but it is
+    // a different assertion and worth spelling out.
+    expect(resolveFeatureKeyForPath("/accounting/assets")).toBe("accounting.core");
+    expect(resolveFeatureKeyForPath("/accounting/budgets")).toBe("accounting.core");
   });
 });

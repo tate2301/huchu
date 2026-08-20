@@ -35,9 +35,9 @@ import {
 function baseInput(overrides?: Partial<OfflineOutboxOperation>) {
   return {
     tenantKey: "tenant-a",
-    moduleId: "scrap-metal",
+    moduleId: "retail-pos",
     clientRequestId: "req-1",
-    entityType: "scrap-inbound-ticket",
+    entityType: "retail-sale",
     operation: "create-inbound-ticket",
     dependsOn: [],
     payload: { amount: 1 },

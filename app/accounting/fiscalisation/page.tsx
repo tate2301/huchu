@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { FiscalDayConsole } from "@/components/accounting/fiscalisation/fiscal-day-console";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -20,6 +21,8 @@ import {
   fetchFiscalisationConfig,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+
+type FiscalisationView = "fiscal-days" | "config" | "receipts";
 
 type FiscalisationFormState = {
   providerKey: string;
@@ -46,7 +49,10 @@ type FiscalisationFormState = {
 export default function FiscalisationPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeView, setActiveView] = useState<"config" | "receipts">("config");
+  // FD-7.1 — fiscal days lead. A supervisor opens this page during a shift to
+  // answer "is every till trading, and will every day close?"; provider
+  // credentials are a once-a-year task and no longer the landing view.
+  const [activeView, setActiveView] = useState<FiscalisationView>("fiscal-days");
   const [invoiceId, setInvoiceId] = useState("");
   const [draft, setDraft] = useState<Partial<FiscalisationFormState>>({});
 
@@ -314,13 +320,19 @@ export default function FiscalisationPage() {
 
       <VerticalDataViews
         items={[
+          { id: "fiscal-days", label: "Fiscal Days" },
           { id: "config", label: "Configuration" },
           { id: "receipts", label: "Receipts", count: receipts.length },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as "config" | "receipts")}
+        onValueChange={(value) => setActiveView(value as FiscalisationView)}
         railLabel="Fiscalisation Views"
       >
+        {/* Mounted only while selected, unlike the two views below: this one
+            polls every 30s, and a hidden panel quietly refetching the whole
+            fleet is load nobody asked for. */}
+        {activeView === "fiscal-days" ? <FiscalDayConsole /> : null}
+
         <div className={activeView === "config" ? "space-y-4" : "hidden"}>
           <Card>
             <CardHeader>

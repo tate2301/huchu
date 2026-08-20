@@ -2,7 +2,40 @@ import type { WorkspaceProfile } from "@/lib/workspace-products";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,
+  RETIRED_WORKSPACE_PROFILES,
 } from "@/lib/workspace-products";
+
+/**
+ * ST-2.5. The profiles that still have defaults, roles and personas behind them.
+ *
+ * `WorkspaceProfile` keeps `SCRAP_METAL` and `AUTOS` because stored tenant rows
+ * and the Prisma enum still carry them, so the union is what a company row can
+ * hold, and this is what the platform still knows how to configure. The two
+ * literals are spelled out because `RETIRED_WORKSPACE_PROFILES` is typed as
+ * `WorkspaceProfile[]` and so cannot narrow the union at the type level;
+ * `isRetiredWorkspaceProfile` is the runtime half and reads that constant, so a
+ * third retirement only has to be added in one place plus this `Exclude`.
+ */
+export type ActiveWorkspaceProfile = Exclude<WorkspaceProfile, "SCRAP_METAL" | "AUTOS">;
+
+export function isRetiredWorkspaceProfile(profile: WorkspaceProfile): boolean {
+  return RETIRED_WORKSPACE_PROFILES.includes(profile);
+}
+
+/**
+ * Degrade a stored profile onto one the platform still configures.
+ *
+ * A tenant sitting on a dropped vertical keeps its row until somebody migrates
+ * it, and every lookup in this file and in the role registry is a plain record
+ * index. Without this it reads `undefined` and the caller crashes on a workspace
+ * that used to work, so the fallback is spelled out rather than left to `??`.
+ */
+export function toActiveWorkspaceProfile(
+  profile: WorkspaceProfile | null | undefined,
+): ActiveWorkspaceProfile {
+  if (!profile || isRetiredWorkspaceProfile(profile)) return "GENERAL";
+  return profile as ActiveWorkspaceProfile;
+}
 
 export const EMPLOYEE_POSITION_VALUES = [
   "MANAGER",
@@ -98,7 +131,7 @@ const SHARED_POSITIONS = [
   "ADMINISTRATOR",
 ] as const satisfies readonly EmployeePositionValue[];
 
-const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
+const VERTICAL_DEFAULTS: Record<ActiveWorkspaceProfile, VerticalDefaultConfig> = {
   GOLD_MINE: {
     employeePositions: [...SHARED_POSITIONS, "OPERATOR", "ENGINEERS", "CHEMIST", "MINERS", "DRIVER"],
     defaultEmployeePosition: "MINERS",
@@ -121,31 +154,6 @@ const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
     },
     accounting: {
       includeGoldFlows: true,
-      includeSchoolFlows: false,
-    },
-  },
-  SCRAP_METAL: {
-    employeePositions: ["MANAGER", "BUYER", "SUPPORT_STAFF"],
-    defaultEmployeePosition: "BUYER",
-    workspace: {
-      siteNamePlaceholder: "Main Yard",
-      siteCodeExample: "YARD",
-      departmentNamePlaceholder: "Buying",
-      departmentCodeExample: "BUY",
-      locationPlaceholder: "Industrial Area",
-      jobTitlePlaceholder: "Yard Supervisor",
-    },
-    maintenance: {
-      technicianPosition: "TECHNICIAN",
-      equipmentCategories: ["YARD_EQUIPMENT", "VEHICLE", "SCALE", "PRESS", "POWER", "OTHER"],
-      measurementUnits: ["kilograms", "loads", "units"],
-      siteNamePlaceholder: "Main Yard",
-    },
-    stores: {
-      allowFuel: false,
-    },
-    accounting: {
-      includeGoldFlows: false,
       includeSchoolFlows: false,
     },
   },
@@ -172,31 +180,6 @@ const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
     accounting: {
       includeGoldFlows: false,
       includeSchoolFlows: true,
-    },
-  },
-  AUTOS: {
-    employeePositions: [...SHARED_POSITIONS, "SALES_REP", "TECHNICIAN", "DRIVER", "BUYER", "STOREKEEPER"],
-    defaultEmployeePosition: "SALES_REP",
-    workspace: {
-      siteNamePlaceholder: "Main Dealership",
-      siteCodeExample: "SHOW",
-      departmentNamePlaceholder: "Sales",
-      departmentCodeExample: "SALE",
-      locationPlaceholder: "City Centre",
-      jobTitlePlaceholder: "Sales Executive",
-    },
-    maintenance: {
-      technicianPosition: "TECHNICIAN",
-      equipmentCategories: ["VEHICLE", "SHOP_EQUIPMENT", "LIFT", "TOOLS", "POWER", "OTHER"],
-      measurementUnits: ["jobs", "vehicles", "units"],
-      siteNamePlaceholder: "Main Dealership",
-    },
-    stores: {
-      allowFuel: false,
-    },
-    accounting: {
-      includeGoldFlows: false,
-      includeSchoolFlows: false,
     },
   },
   RETAIL: {
@@ -281,19 +264,39 @@ const VERTICAL_DEFAULTS: Record<WorkspaceProfile, VerticalDefaultConfig> = {
   },
 };
 
+/**
+ * The profile a workspace's defaults, roles and personas should be read from.
+ *
+ * Shared with `lib/platform/vertical-roles.ts`, which resolved the same thing
+ * against its own record and had to agree with this one key for key.
+ *
+ * A stored profile only wins if it is a vertical we still configure: a dropped
+ * one is treated as absent, so the feature set gets a chance to identify the
+ * workspace before it falls back to GENERAL. A yard that also bought retail
+ * therefore lands on RETAIL rather than on the general defaults.
+ */
+export function resolveActiveWorkspaceProfile(args: {
+  workspaceProfile: string | null | undefined;
+  enabledFeatures?: string[] | undefined;
+}): ActiveWorkspaceProfile {
+  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
+  const normalizedProfile = normalizeWorkspaceProfileInput(args.workspaceProfile);
+
+  const profile =
+    normalizedProfile &&
+    normalizedProfile !== "GENERAL" &&
+    !isRetiredWorkspaceProfile(normalizedProfile)
+      ? normalizedProfile
+      : inferredProfile ?? normalizedProfile ?? "GENERAL";
+
+  return toActiveWorkspaceProfile(profile);
+}
+
 export function resolveVerticalDefaults(args: {
   workspaceProfile: string | null | undefined;
   enabledFeatures?: string[] | undefined;
 }): VerticalDefaultConfig {
-  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
-  const normalizedProfile = normalizeWorkspaceProfileInput(args.workspaceProfile) as WorkspaceProfile | null;
-
-  const profile =
-    normalizedProfile && normalizedProfile !== "GENERAL" && normalizedProfile in VERTICAL_DEFAULTS
-      ? normalizedProfile
-      : inferredProfile ?? normalizedProfile ?? "GENERAL";
-
-  return VERTICAL_DEFAULTS[profile] ?? VERTICAL_DEFAULTS.GENERAL;
+  return VERTICAL_DEFAULTS[resolveActiveWorkspaceProfile(args)];
 }
 
 export function getEmployeePositionOptions(args: {

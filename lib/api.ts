@@ -88,7 +88,7 @@ export type EmployeeSummary = {
   } | null;
   moduleAssignments?: Array<{
     id: string;
-    module: "HR" | "GOLD" | "SCRAP_METAL" | "CAR_SALES" | "RETAIL";
+    module: "HR" | "GOLD" | "RETAIL";
     accessRole?: string | null;
     requiresUserAccess: boolean;
     isPrimary: boolean;
@@ -99,26 +99,6 @@ export type EmployeeSummary = {
   supervisor?: { id: string; employeeId: string; name: string } | null;
   isActive: boolean;
   salaryOwed: number;
-};
-
-export type ScrapTicketBuyerOption = {
-  id: string;
-  employeeId: string;
-  userId?: string | null;
-  name: string;
-};
-
-export type ScrapTicketSiteOption = {
-  id: string;
-  name: string;
-  code: string;
-};
-
-export type ScrapTicketContext = {
-  buyers: ScrapTicketBuyerOption[];
-  sites: ScrapTicketSiteOption[];
-  defaultBuyerId: string | null;
-  buyerLinkMissing: boolean;
 };
 
 export type ShiftGroupRecord = {
@@ -1176,7 +1156,6 @@ export type ExecutiveKpiCard = {
     | "operations"
     | "maintenance"
     | "compliance"
-    | "security"
     | "reports"
     | "general";
 };
@@ -1227,7 +1206,6 @@ export type ExecutiveQuickLink = {
     | "operations"
     | "maintenance"
     | "compliance"
-    | "security"
     | "reports"
     | "general";
   priority: number;
@@ -1255,7 +1233,6 @@ export type ExecutiveModuleSummary = {
     | "stores"
     | "maintenance"
     | "compliance"
-    | "security"
     | "reports";
   status: ExecutiveModuleStatus;
   primaryMetric: ExecutiveSummaryMetric;
@@ -1429,10 +1406,6 @@ export async function fetchEmployees(
   const positionParam = Array.isArray(position) ? position.join(",") : position;
   const query = buildQuery({ ...rest, position: positionParam });
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
-}
-
-export async function fetchScrapTicketContext() {
-  return fetchJson<ScrapTicketContext>("/api/scrap-metal/ticket-context");
 }
 
 export async function fetchShiftGroups(
@@ -2092,17 +2065,12 @@ export type ReserveIdEntity =
   | "CHART_OF_ACCOUNT"
   | "COST_CENTER"
   | "TAX_CODE"
-  | "FIXED_ASSET"
   | "INVENTORY_ITEM"
   | "STOCK_LOCATION"
   | "STOCK_MOVEMENT"
   | "GOLD_POUR"
   | "GOLD_RECEIPT"
   | "GOLD_PURCHASE"
-  | "SCRAP_MATERIAL"
-  | "SCRAP_METAL_PURCHASE"
-  | "SCRAP_METAL_BATCH"
-  | "SCRAP_METAL_SALE"
   | "RETAIL_REGISTER"
   | "RETAIL_PURCHASE_ORDER"
   | "RETAIL_GOODS_RECEIPT"
@@ -3072,31 +3040,6 @@ export type BankReconciliationRecord = {
   bankAccount?: { id: string; name: string; currency: string } | null;
 };
 
-export type FixedAssetRecord = {
-  id: string;
-  companyId: string;
-  assetCode: string;
-  name: string;
-  category?: string | null;
-  acquisitionDate: string;
-  cost: number;
-  salvageValue: number;
-  usefulLifeMonths: number;
-  depreciationMethod: string;
-  isActive: boolean;
-};
-
-export type BudgetRecord = {
-  id: string;
-  companyId: string;
-  name: string;
-  startDate: string;
-  endDate: string;
-  status: "DRAFT" | "ACTIVE" | "CLOSED";
-  totalAmount: number;
-  notes?: string | null;
-};
-
 export type CostCenterRecord = {
   id: string;
   companyId: string;
@@ -3689,20 +3632,6 @@ export async function fetchBankReconciliations(
   );
 }
 
-export async function fetchAssets(
-  params: { active?: boolean; page?: number; limit?: number } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<FixedAssetRecord>>(`/api/accounting/assets${query}`);
-}
-
-export async function fetchBudgets(
-  params: { status?: string; page?: number; limit?: number } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<BudgetRecord>>(`/api/accounting/budgets${query}`);
-}
-
 export async function fetchCostCenters(
   params: { active?: boolean; page?: number; limit?: number } = {},
 ) {
@@ -3946,367 +3875,6 @@ export async function reopenAccountingPeriod(input: {
   reopenedAt?: string;
 }) {
   return fetchJson("/api/accounting/closing/period-reopen", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
-// ============================================
-// CCTV API Functions
-// ============================================
-
-export type Camera = {
-  id: string;
-  name: string;
-  channelNumber: number;
-  nvrId: string;
-  siteId: string;
-  area: string;
-  description?: string | null;
-  hasPTZ: boolean;
-  hasAudio: boolean;
-  hasMotionDetect: boolean;
-  hasLineDetect: boolean;
-  isActive: boolean;
-  isOnline: boolean;
-  isRecording: boolean;
-  lastSeen?: string | null;
-  isHighSecurity: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-  nvr?: { id: string; name: string; ipAddress: string; isOnline: boolean; isActive: boolean };
-  site?: { id: string; name: string; code: string };
-};
-
-export type NVR = {
-  id: string;
-  name: string;
-  ipAddress: string;
-  port: number;
-  httpPort: number;
-  siteId: string;
-  manufacturer: string;
-  model?: string | null;
-  firmware?: string | null;
-  username?: string;
-  password?: string;
-  isActive: boolean;
-  isOnline: boolean;
-  rtspPort: number;
-  isapiEnabled: boolean;
-  onvifEnabled: boolean;
-  lastHeartbeat?: string | null;
-  createdAt?: string;
-  updatedAt?: string;
-  site?: { id: string; name: string; code: string };
-  _count?: { cameras: number };
-};
-
-export type CCTVEvent = {
-  id: string;
-  eventType: string;
-  severity: string;
-  eventTime: string;
-  title: string;
-  description?: string | null;
-  isAcknowledged: boolean;
-  linkedIncidentId?: string | null;
-  notes?: string | null;
-  camera?: { id: string; name: string; area: string; site: { id: string; name: string; code: string } };
-  nvr?: { id: string; name: string; siteId: string };
-};
-
-export type CCTVStreamSession = {
-  id: string;
-  cameraId: string;
-  siteId: string;
-  userId: string;
-  streamType: string;
-  protocol: "WEBRTC" | "HLS";
-  status: "ACTIVE" | "STOPPED" | "FAILED";
-  playUrl?: string | null;
-  purpose?: string | null;
-  clientMeta?: string | null;
-  startedAt: string;
-  endedAt?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  camera?: {
-    id: string;
-    name: string;
-    area: string;
-    isOnline?: boolean;
-    nvr?: { id: string; name: string; isOnline?: boolean };
-    site: { id: string; name: string; code: string };
-  };
-  user?: { id: string; name: string; email: string };
-};
-
-export type CCTVAccessLog = {
-  id: string;
-  cameraId: string;
-  userId?: string | null;
-  accessType: string;
-  startTime: string;
-  endTime?: string | null;
-  duration?: number | null;
-  ipAddress?: string | null;
-  purpose?: string | null;
-  notes?: string | null;
-  camera: {
-    id: string;
-    name: string;
-    area: string;
-    site: { id: string; name: string; code: string };
-  };
-  user?: { id: string; name: string; email: string } | null;
-};
-
-export type PlaybackClip = {
-  id: string;
-  startTime: string;
-  endTime: string;
-  duration: number;
-  fileSize: number;
-  playbackUri: string;
-  recordingType: string;
-  playUrl: string | null;
-  fallbackPlayUrl: string | null;
-  protocol: "WEBRTC" | "HLS";
-  streamPath: string;
-  gatewayConfigured: boolean;
-  token: string;
-  expiresAt: string;
-};
-
-export type PlaybackSearchResponse = {
-  clips: PlaybackClip[];
-  totalClips: number;
-  pagination: PaginationMeta;
-  camera: {
-    id: string;
-    name: string;
-    area: string;
-    site: { id: string; name: string; code: string };
-  };
-  searchParams: {
-    startTime: string;
-    endTime: string;
-    recordType: string;
-  };
-  isapiSearchXML: string;
-  note: string;
-};
-
-export type StartPlaybackSessionResponse = {
-  playbackRecord: {
-    id: string;
-    cameraId: string;
-    startTime: string;
-    endTime: string;
-    duration: number;
-    fileSize: number;
-    playbackUri: string | null;
-    recordingType: string;
-    camera: {
-      id: string;
-      name: string;
-      area: string;
-      site: { id: string; name: string; code: string };
-    };
-  };
-  token: string;
-  expiresAt: string;
-  protocol: "WEBRTC" | "HLS";
-  playUrl: string | null;
-  fallbackPlayUrl: string | null;
-  streamPath: string;
-  gatewayConfigured: boolean;
-  seekTime: string | null;
-};
-
-export type StartStreamSessionResponse = {
-  session: CCTVStreamSession;
-  token: string;
-  rtspUrl: string;
-  expiresAt: string;
-  protocol: "WEBRTC" | "HLS";
-  playUrl: string | null;
-  fallbackPlayUrl: string | null;
-  snapshotUrl: string | null;
-  gatewayConfigured: boolean;
-};
-
-export type StartOverviewStreamResponse = {
-  token: string;
-  rtspUrl: string;
-  expiresAt: string;
-  protocol: "WEBRTC" | "HLS";
-  playUrl: string | null;
-  fallbackPlayUrl: string | null;
-  snapshotUrl: string | null;
-  gatewayConfigured: boolean;
-  nvr: {
-    id: string;
-    name: string;
-    site?: { id: string; name: string; code: string } | null;
-  };
-};
-
-export type StreamProfileResponse = {
-  session: CCTVStreamSession;
-  token: string;
-  rtspUrl: string;
-  playUrl: string | null;
-  fallbackPlayUrl: string | null;
-  snapshotUrl: string | null;
-  protocol: "WEBRTC" | "HLS";
-  expiresAt: string;
-};
-
-export async function fetchCameras(
-  params: {
-    siteId?: string;
-    area?: string;
-    isOnline?: boolean;
-    nvrId?: string;
-    isHighSecurity?: boolean;
-    includeInactive?: boolean;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<Camera>>(`/api/cctv/cameras${query}`);
-}
-
-export async function fetchNVRs(
-  params: {
-    siteId?: string;
-    isOnline?: boolean;
-    includeInactive?: boolean;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<NVR>>(`/api/cctv/nvrs${query}`);
-}
-
-export async function fetchCCTVEvents(
-  params: {
-    search?: string;
-    siteId?: string;
-    cameraId?: string;
-    eventType?: string;
-    severity?: string;
-    isAcknowledged?: boolean;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-
-  return fetchJson<Pagination<CCTVEvent>>(`/api/cctv/events${query}`);
-}
-
-export async function fetchCCTVStreamSessions(
-  params: {
-    siteId?: string;
-    cameraId?: string;
-    status?: "ACTIVE" | "STOPPED" | "FAILED";
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<CCTVStreamSession>>(`/api/cctv/streams/sessions${query}`);
-}
-
-export async function startCCTVStreamSession(input: {
-  cameraId: string;
-  streamType?: "main" | "sub" | "third";
-  preferredProtocol?: "WEBRTC" | "HLS";
-  purpose?: string;
-  clientMeta?: unknown;
-  expiresInMinutes?: number;
-}) {
-  return fetchJson<StartStreamSessionResponse>("/api/cctv/streams/session/start", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
-export async function startCCTVOverviewStream(input: {
-  nvrId: string;
-  preferredProtocol?: "WEBRTC" | "HLS";
-  expiresInMinutes?: number;
-}) {
-  return fetchJson<StartOverviewStreamResponse>("/api/cctv/overview-stream/start", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
-export async function stopCCTVStreamSession(sessionId: string) {
-  return fetchJson<{ session: CCTVStreamSession }>("/api/cctv/streams/session/stop", {
-    method: "POST",
-    body: JSON.stringify({ sessionId }),
-  });
-}
-
-export async function switchCCTVStreamProfile(input: {
-  sessionId: string;
-  streamType: "main" | "sub" | "third";
-  preferredProtocol?: "WEBRTC" | "HLS";
-}) {
-  return fetchJson<StreamProfileResponse>("/api/cctv/streams/profile", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
-export async function fetchCCTVAccessLogs(
-  params: {
-    siteId?: string;
-    cameraId?: string;
-    accessType?: string;
-    userId?: string;
-    startDate?: string;
-    endDate?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<CCTVAccessLog>>(`/api/cctv/access-logs${query}`);
-}
-
-export async function searchCCTVPlayback(input: {
-  cameraId: string;
-  startTime: string;
-  endTime: string;
-  recordType?: string;
-  purpose?: string;
-  page?: number;
-  limit?: number;
-}) {
-  return fetchJson<PlaybackSearchResponse>("/api/cctv/playback/search", {
-    method: "POST",
-    body: JSON.stringify(input),
-  });
-}
-
-export async function startCCTVPlaybackSession(input: {
-  playbackRecordId?: string;
-  token?: string;
-  seekTime?: string;
-  preferredProtocol?: "WEBRTC" | "HLS";
-  purpose?: string;
-}) {
-  return fetchJson<StartPlaybackSessionResponse>("/api/cctv/playback/session/start", {
     method: "POST",
     body: JSON.stringify(input),
   });

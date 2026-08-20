@@ -10,7 +10,6 @@
  *   1. createPurchaseBill writes a PurchaseBill + lines + payment, FK-linked.
  *   2. createSalesInvoice writes a SalesInvoice + lines + sales receipt, FK-linked.
  *   3. Transaction rollback: bill / invoice rows are absent after caller tx rolls back.
- *   4. Refactored scrap-metal helpers produce the same row shapes as before.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -22,18 +21,12 @@ import {
   upsertGoldVendor,
   upsertGoldCustomer,
 } from "@/lib/commodity-billing";
-import {
-  createScrapPurchaseAccountingDocs,
-  createScrapSaleAccountingDocs,
-} from "@/lib/scrap-metal";
 
 // Sentinel error used to force a transaction rollback in rollback tests.
 const ROLLBACK = new Error("__test_rollback__");
 
 let companyId: string;
 let userId: string;
-let vendorId: string;
-let customerId: string;
 
 beforeAll(async () => {
   await prisma.$connect();
@@ -45,18 +38,6 @@ beforeAll(async () => {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const u = await prisma.user.create({ data: factories.user(companyId) as any });
   userId = u.id;
-
-  // A pre-seeded vendor for scrap-metal compat test.
-  const vendor = await prisma.vendor.create({
-    data: { companyId, name: "Scrap Vendor Co.", isActive: true },
-  });
-  vendorId = vendor.id;
-
-  // A pre-seeded customer for scrap-metal compat test.
-  const customer = await prisma.customer.create({
-    data: { companyId, name: "Scrap Customer Ltd.", isActive: true },
-  });
-  customerId = customer.id;
 });
 
 afterAll(async () => {
@@ -334,79 +315,5 @@ describe("transaction rollback behaviour", () => {
       where: { id: capturedInvoiceId! },
     });
     expect(invoice).toBeNull();
-  });
-});
-
-// ---------------------------------------------------------------------------
-// 4. Refactored scrap-metal helpers produce correct row shapes
-// ---------------------------------------------------------------------------
-
-describe("scrap-metal helpers (refactored to delegate to commodity-billing)", () => {
-  it("createScrapPurchaseAccountingDocs writes a bill + payment via the shared helper", async () => {
-    const billDate = new Date("2026-05-10T12:00:00.000Z");
-
-    const { bill, payment } = await prisma.$transaction(async (tx) => {
-      return createScrapPurchaseAccountingDocs(tx, {
-        companyId,
-        vendorId,
-        description: "Scrap copper 50 kg @ $2/kg",
-        amount: 100,
-        currency: "USD",
-        billDate,
-        paymentMethod: "CASH",
-        paymentReference: "REF-001",
-        createdById: userId,
-      });
-    });
-
-    expect(bill).toBeDefined();
-    expect(payment).toBeDefined();
-
-    const fullBill = await prisma.purchaseBill.findUniqueOrThrow({
-      where: { id: bill.id },
-      include: { lines: true, payments: true },
-    });
-
-    expect(fullBill.vendorId).toBe(vendorId);
-    expect(fullBill.total).toBe(100);
-    expect(fullBill.status).toBe("PAID");
-    expect(fullBill.lines).toHaveLength(1);
-    expect(fullBill.lines[0].description).toContain("copper");
-    expect(fullBill.payments).toHaveLength(1);
-    expect(fullBill.payments[0].method).toBe("CASH");
-  });
-
-  it("createScrapSaleAccountingDocs writes an invoice + receipt via the shared helper", async () => {
-    const invoiceDate = new Date("2026-05-10T13:00:00.000Z");
-
-    const { invoice, receipt } = await prisma.$transaction(async (tx) => {
-      return createScrapSaleAccountingDocs(tx, {
-        companyId,
-        customerId,
-        description: "Scrap steel 200 kg @ $1.50/kg",
-        amount: 300,
-        currency: "USD",
-        invoiceDate,
-        paymentMethod: "BANK_TRANSFER",
-        paymentReference: "REF-002",
-        createdById: userId,
-      });
-    });
-
-    expect(invoice).toBeDefined();
-    expect(receipt).toBeDefined();
-
-    const fullInvoice = await prisma.salesInvoice.findUniqueOrThrow({
-      where: { id: invoice.id },
-      include: { lines: true, receipts: true },
-    });
-
-    expect(fullInvoice.customerId).toBe(customerId);
-    expect(fullInvoice.total).toBe(300);
-    expect(fullInvoice.status).toBe("PAID");
-    expect(fullInvoice.lines).toHaveLength(1);
-    expect(fullInvoice.lines[0].description).toContain("steel");
-    expect(fullInvoice.receipts).toHaveLength(1);
-    expect(fullInvoice.receipts[0].method).toBe("BANK_TRANSFER");
   });
 });

@@ -18,17 +18,13 @@ import {
 import {
   Dashboard,
   Gem,
-  Coins,
   FileText,
   MedusaAcademicCapIcon,
   MedusaBuildingStorefrontIcon,
-  MedusaDirectionsIcon,
   Payments,
-  Recycle,
   type LucideIcon,
 } from "@/lib/icons";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
-import { SCRAP_OPERATIONS_SECTIONS } from "@/lib/scrap-metal/tab-config";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 
 export { WORKSPACE_PROFILES };
@@ -113,33 +109,33 @@ type WorkspaceProfileRecipe = {
 
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["people", "payroll", "accounting", "management"];
-const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {
-  "scrap-metal": "scrap-metal.home",
-};
-const PROFILE_OWNER_MODULES: Record<Exclude<WorkspaceProfile, "GENERAL">, WorkspaceModuleId> = {
+/**
+ * Modules that need their own feature key present before they surface, on top of
+ * having visible items. Empty since the dropped verticals left; kept because the
+ * mechanism is what any future strict module hangs off.
+ */
+const STRICT_WORKSPACE_MODULE_FEATURE_KEYS: Partial<Record<WorkspaceModuleId, string>> = {};
+// Retired profiles (`SCRAP_METAL`, `AUTOS`) have no entry: their owning module
+// is gone. Nothing normalises to them any more, so the lookups below fall
+// through to `GENERAL` rather than to a module that does not exist.
+const PROFILE_OWNER_MODULES: Partial<Record<Exclude<WorkspaceProfile, "GENERAL">, WorkspaceModuleId>> = {
   GOLD_MINE: "gold",
-  SCRAP_METAL: "scrap-metal",
   SCHOOLS: "schools",
-  AUTOS: "car-sales",
   RETAIL: "retail",
   // The only profile whose owning module is one every other profile treats as
   // foundational. For a bureau, HR is not a supporting module — it is the product.
   PAYROLL: "payroll",
 };
-const WORKSPACE_PROFILE_ICONS: Record<WorkspaceProfile, LucideIcon> = {
+const WORKSPACE_PROFILE_ICONS: Partial<Record<WorkspaceProfile, LucideIcon>> = {
   GOLD_MINE: Gem,
-  SCRAP_METAL: Recycle,
   SCHOOLS: MedusaAcademicCapIcon,
-  AUTOS: MedusaDirectionsIcon,
   RETAIL: MedusaBuildingStorefrontIcon,
   PAYROLL: Payments,
   GENERAL: Dashboard,
 };
 const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "gold",
-  "scrap-metal",
   "schools",
-  "car-sales",
   "retail",
   "crm",
   "people",
@@ -149,7 +145,6 @@ const WORKSPACE_MODULE_ORDER: readonly WorkspaceModuleId[] = [
   "accounting",
   "management",
   "reporting",
-  "cctv",
 ];
 
 const SUPPORT_ITEMS: NavItem[] = [
@@ -206,23 +201,11 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "gold",
     homeHref: "/gold",
   }),
-  "scrap-metal": createSectionModule({
-    id: "scrap-metal",
-    label: "Scrap & Recycling",
-    sectionId: "scrap-metal",
-    homeHref: "/scrap-metal",
-  }),
   schools: createSectionModule({
     id: "schools",
     label: "School Operations",
     sectionId: "schools",
     homeHref: "/schools",
-  }),
-  "car-sales": createSectionModule({
-    id: "car-sales",
-    label: "Auto Sales",
-    sectionId: "car-sales",
-    homeHref: "/car-sales",
   }),
   retail: {
     id: "retail",
@@ -310,12 +293,6 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "reporting",
     homeHref: "/reports",
   }),
-  cctv: createSectionModule({
-    id: "cctv",
-    label: "CCTV",
-    sectionId: "cctv",
-    homeHref: "/cctv/overview",
-  }),
   accounting: {
     id: "accounting",
     label: "Accounting",
@@ -333,40 +310,22 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     label: "Management",
     homeHref: "/management/master-data",
     getItems(context) {
-      const items = getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
+      return getVisibleManagementModuleItems(context.enabledFeatures).map((item) => ({
         href: item.href,
         label: item.label,
         icon: item.icon ?? FileText,
       }));
-
-      if (
-        (context.enabledFeatures ?? []).some(
-          (feature) => normalizeFeatureKey(feature) === "scrap-metal.pricing",
-        ) &&
-        !items.some((item) => item.href === "/scrap-metal/pricing")
-      ) {
-        const masterDataIndex = items.findIndex((item) =>
-          item.href.startsWith("/management/master-data"),
-        );
-        const priceBoardItem = {
-          href: "/scrap-metal/pricing",
-          label: "Price Board",
-          icon: Coins,
-        };
-
-        if (masterDataIndex === -1) {
-          items.unshift(priceBoardItem);
-        } else {
-          items.splice(masterDataIndex + 1, 0, priceBoardItem);
-        }
-      }
-
-      return items;
     },
   },
 };
 
-const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe> = {
+// Retired profiles have no recipe. `normalizeWorkspaceProfile` maps them to
+// `GENERAL`, and every lookup here falls back to the `GENERAL` recipe, so a
+// stored `SCRAP_METAL` or `AUTOS` tenant gets the general workspace rather than
+// an empty sidebar.
+const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfileRecipe>> & {
+  GENERAL: WorkspaceProfileRecipe;
+} = {
   GOLD_MINE: {
     label: "Gold Operations",
     preferredHomeHref: "/gold",
@@ -397,41 +356,6 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
           { moduleId: "reporting", href: "/reports/gold-chain" },
           { moduleId: "reporting", href: "/reports/gold-receipts" },
         ],
-      },
-    ],
-  },
-  SCRAP_METAL: {
-    label: "Scrap & Recycling",
-    preferredHomeHref: "/scrap-metal",
-    nativeModules: ["scrap-metal", "reporting"],
-    sections: [
-      {
-        id: "scrap-ticketing",
-        title: "Ticketing",
-        refs: SCRAP_OPERATIONS_SECTIONS.ticketing.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-      },
-      {
-        id: "scrap-lots",
-        title: "Lots",
-        refs: SCRAP_OPERATIONS_SECTIONS.lots.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-      },
-      {
-        id: "scrap-cash",
-        title: "Cash & Settlements",
-        refs: SCRAP_OPERATIONS_SECTIONS.cash.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-      },
-      {
-        id: "scrap-reports",
-        title: "Reports",
-        refs: SCRAP_OPERATIONS_SECTIONS.reporting.map((href) => ({ moduleId: "scrap-metal" as const, href })),
-      },
-      {
-        id: "scrap-setup",
-        title: "Setup",
-        refs: SCRAP_OPERATIONS_SECTIONS.setup.map((href) => ({
-          moduleId: href.startsWith("/management/") ? "management" as const : "scrap-metal" as const,
-          href,
-        })),
       },
     ],
   },
@@ -555,30 +479,6 @@ const WORKSPACE_PROFILE_RECIPES: Record<WorkspaceProfile, WorkspaceProfileRecipe
         refs: [
           { moduleId: "schools", href: "/schools/reports" },
           { moduleId: "schools", href: "/schools/documents" },
-        ],
-      },
-    ],
-  },
-  AUTOS: {
-    label: "Auto Sales",
-    preferredHomeHref: "/car-sales",
-    nativeModules: ["car-sales"],
-    sections: [
-      {
-        id: "autos-pipeline",
-        title: "Pipeline",
-        refs: [
-          { moduleId: "car-sales", href: "/car-sales" },
-          { moduleId: "car-sales", href: "/car-sales/leads" },
-          { moduleId: "car-sales", href: "/car-sales/deals" },
-        ],
-      },
-      {
-        id: "autos-stock",
-        title: "Stock & Finance",
-        refs: [
-          { moduleId: "car-sales", href: "/car-sales/inventory" },
-          { moduleId: "car-sales", href: "/car-sales/financing" },
         ],
       },
     ],
@@ -727,6 +627,14 @@ export function normalizeWorkspaceProfile(value: string | null | undefined): Wor
   return normalizeWorkspaceProfileInput(value) ?? DEFAULT_WORKSPACE_PROFILE;
 }
 
+/**
+ * The recipe for a profile, falling back to the general one. Only a retired
+ * profile misses, and the general workspace is where a retired tenant belongs.
+ */
+function getWorkspaceProfileRecipe(profile: WorkspaceProfile): WorkspaceProfileRecipe {
+  return WORKSPACE_PROFILE_RECIPES[profile] ?? WORKSPACE_PROFILE_RECIPES.GENERAL;
+}
+
 export function getWorkspaceProfileForTemplate(code: string | null | undefined): WorkspaceProfile | null {
   const normalized = String(code || "").trim().toUpperCase();
   if (!normalized) {
@@ -734,9 +642,19 @@ export function getWorkspaceProfileForTemplate(code: string | null | undefined):
   }
 
   if (normalized.includes("GOLD")) return "GOLD_MINE";
-  if (normalized.includes("SCRAP")) return "SCRAP_METAL";
   if (normalized.includes("SCHOOL")) return "SCHOOLS";
-  if (normalized.includes("AUTO") || normalized.includes("CAR_SALES") || normalized.includes("CAR-SALES")) return "AUTOS";
+  // Retired templates. A stored tenant still on one of these codes gets the
+  // general workspace rather than a null profile, which would send it down the
+  // "no template" path and lose the mapping altogether.
+  if (
+    normalized.includes("SCRAP") ||
+    normalized.includes("AUTO") ||
+    normalized.includes("CAR_SALES") ||
+    normalized.includes("CAR-SALES") ||
+    normalized.includes("SECURITY_STOCK")
+  ) {
+    return "GENERAL";
+  }
   if (normalized.includes("THRIFT") || normalized.includes("RETAIL")) return "RETAIL";
   if (normalized.includes("PAYROLL") || normalized.includes("BUREAU")) return "PAYROLL";
   if (normalized.includes("CORE") || normalized.includes("ALL_FEATURES")) return "GENERAL";
@@ -901,18 +819,6 @@ function buildModuleSections(
   workspaceGroup: WorkspaceSectionGroup,
   excludedHrefs?: Set<string>,
 ): WorkspaceNavSection[] {
-  if (moduleId === "scrap-metal") {
-    const sections = buildProfileSections(WORKSPACE_PROFILE_RECIPES.SCRAP_METAL, visibleModules)
-      .map((section) => ({
-        ...section,
-        workspaceGroup,
-        items: section.items.filter((item) => !excludedHrefs?.has(item.href)),
-      }))
-      .filter((section) => section.items.length > 0);
-
-    return sections;
-  }
-
   if (moduleId === "accounting") {
     const moduleItems = visibleModules.get("accounting") ?? [];
     // Single consolidated section. Sub-tabs/grouping live inside the
@@ -923,7 +829,8 @@ function buildModuleSections(
       ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
       ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
       ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.banking,
+      // The banking section went with the ST-1.2 parking; the route and its
+      // model are untouched, it is simply not a sidebar entry point.
       ...ACCOUNTING_OPERATIONS_SECTIONS.master,
     ];
 
@@ -1016,15 +923,17 @@ function resolveEffectiveWorkspaceProfile(
     return inferWorkspaceProfileFromEnabledFeatures(enabledFeatures) ?? requestedProfile;
   }
 
+  // A retired profile has no owner module, so every lookup below misses and the
+  // tenant ends up on `GENERAL` — the documented landing place for one.
   const ownerModule = PROFILE_OWNER_MODULES[requestedProfile];
-  if (visibleModules.has(ownerModule)) {
+  if (ownerModule && visibleModules.has(ownerModule)) {
     return requestedProfile;
   }
 
   const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(enabledFeatures);
   if (inferredProfile && inferredProfile !== "GENERAL") {
     const inferredOwnerModule = PROFILE_OWNER_MODULES[inferredProfile];
-    if (visibleModules.has(inferredOwnerModule)) {
+    if (inferredOwnerModule && visibleModules.has(inferredOwnerModule)) {
       return inferredProfile;
     }
   }
@@ -1032,7 +941,7 @@ function resolveEffectiveWorkspaceProfile(
   for (const profile of WORKSPACE_PROFILES) {
     if (profile === "GENERAL") continue;
     const candidateModule = PROFILE_OWNER_MODULES[profile];
-    if (visibleModules.has(candidateModule)) {
+    if (candidateModule && visibleModules.has(candidateModule)) {
       return profile;
     }
   }
@@ -1068,11 +977,6 @@ function flattenVisibleItems(sections: WorkspaceNavSection[]): NavItem[] {
   return sections.flatMap((section) => section.items);
 }
 
-function isScrapOperatorExperienceRole(role: string | null | undefined): boolean {
-  const normalized = String(role ?? "").trim().toUpperCase();
-  return normalized === "OPERATOR" || normalized === "CLERK";
-}
-
 function getHomeTarget(args: {
   recipe: WorkspaceProfileRecipe;
   context: WorkspaceBuildContext;
@@ -1105,7 +1009,7 @@ export function getWorkspaceHomeHref(profile: string | null | undefined): string
     enabledFeatures: undefined,
     workspaceProfile: profile,
   }).preferredHomeHref
-    ?? WORKSPACE_PROFILE_RECIPES[normalizeWorkspaceProfile(profile)].preferredHomeHref
+    ?? getWorkspaceProfileRecipe(normalizeWorkspaceProfile(profile)).preferredHomeHref
     ?? "/dashboard";
 }
 
@@ -1118,7 +1022,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
   const context = buildContext(args);
   const visibleModules = getVisibleModules(context);
   const profile = resolveEffectiveWorkspaceProfile(args.enabledFeatures, requestedProfile, visibleModules);
-  const recipe = WORKSPACE_PROFILE_RECIPES[profile];
+  const recipe = getWorkspaceProfileRecipe(profile);
   const verticalProduct = resolveWorkspaceVerticalProductBundle({
     enabledFeatures: args.enabledFeatures,
     workspaceProfile: profile,
@@ -1140,20 +1044,7 @@ export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSid
         ...canonicalAdditionalSections,
         ...buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct),
       ];
-  const sections = [...primarySections, ...additionalSections].filter((section) => {
-    if (
-      profile === "SCRAP_METAL" &&
-      isScrapOperatorExperienceRole(context.role) &&
-      (section.id === "management" ||
-        section.id === "people" ||
-        section.id === "payroll" ||
-        section.id === "accounting" ||
-        section.id.startsWith("accounting-"))
-    ) {
-      return false;
-    }
-    return true;
-  });
+  const sections = [...primarySections, ...additionalSections];
   const homeTarget = getHomeTarget({
     recipe,
     context,

@@ -33,17 +33,67 @@ const MINE_DAILY_OPS_FEATURE_KEYS = [
   "reports.plant",
 ] as const;
 
+/**
+ * The till. GROW and above bundle `ADDON_RETAIL_SUITE` because that is what the
+ * tier is *for* — three tills across two branches is the shape GROW is priced
+ * against. A template inherits its recommended tier's features, so a workshop,
+ * a CRM tenant or a payroll bureau that sits on GROW would silently be handed a
+ * point-of-sale, and `inferWorkspaceProfileFromEnabledFeatures` reads `retail.*`
+ * as the strongest possible signal that a tenant is a shop — so the workspace
+ * came up as Retail for a business that has never sold anything over a counter.
+ *
+ * Non-retail templates strip these keys explicitly. Buying the tier still buys
+ * the capability; provisioning from a template that is not about selling in a
+ * shop just does not switch it on.
+ */
+const RETAIL_TILL_FEATURE_KEYS = [
+  "retail.core",
+  "retail.pos",
+  "retail.catalog",
+  "retail.purchasing",
+  "retail.promotions",
+  "retail.shifts",
+  "retail.reports",
+  "portal.pos",
+] as const;
+
+/**
+ * The sales desk. Same inheritance problem as the till: `ADDON_RETAIL_SUITE`
+ * carries `crm.customers` (the shared customer directory) and `ADDON_CRM_SUITE`
+ * rides on SCALE and ENTERPRISE, so a template on either tier inherits a CRM it
+ * never asked for. Templates that are not about selling strip these.
+ */
+const CRM_FEATURE_KEYS = [
+  "crm.customers",
+  "crm.core",
+  "crm.leads",
+  "crm.clients",
+  "crm.appointments",
+  "crm.intake",
+  "crm.documents",
+  "crm.insights",
+  "crm.commissions",
+  "crm.settings",
+] as const;
+
 export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   {
     code: "TEMPLATE_CORE_STARTER",
     label: "General Business Starter",
     description: "Shared finance, stock, people, and operating controls for growing businesses.",
     targetClients: ["Small company", "Starter operations"],
-    recommendedTierCode: "BASIC",
+    recommendedTierCode: "START",
     bundleCodes: ["ADDON_OPERATIONS_CORE", "ADDON_STORES_CORE", "ADDON_WORKFORCE_CORE"],
     featureKeys: [],
     verticalProductId: "general-business",
-    disabledFeatureKeys: [...MINE_DAILY_OPS_FEATURE_KEYS],
+    disabledFeatureKeys: [
+      ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A general business starter is not a shop. START bundles the retail
+      // suite because START is the single-shop self-serve tier; provisioning a
+      // general business from this template does not turn the till on.
+      ...RETAIL_TILL_FEATURE_KEYS,
+      ...CRM_FEATURE_KEYS,
+    ],
   },
   {
     code: "TEMPLATE_GOLD_MINE",
@@ -64,30 +114,20 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     ],
     featureKeys: [],
     verticalProductId: "gold-operations",
-  },
-  {
-    code: "TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK",
-    label: "Multi-Site Operations",
-    description: "People, stock, CCTV, and shared controls for smaller companies operating across several sites.",
-    targetClients: ["Shops", "SMEs", "Small multi-site company"],
-    recommendedTierCode: "STANDARD",
-    bundleCodes: [
-      "ADDON_OPERATIONS_CORE",
-      "ADDON_STORES_CORE",
-      "ADDON_WORKFORCE_CORE",
-      "ADDON_CCTV_SUITE",
-      "ADDON_ANALYTICS_PRO",
+    disabledFeatureKeys: [
+      // Gold Edition and ENTERPRISE both carry the retail and CRM suites. A
+      // mine sells to Fidelity on a dispatch, not over a counter, and a
+      // point-of-sale in its sidebar is noise at best and a wrong turn at worst.
+      ...RETAIL_TILL_FEATURE_KEYS,
+      ...CRM_FEATURE_KEYS,
     ],
-    featureKeys: [],
-    verticalProductId: "multi-site-operations",
-    disabledFeatureKeys: [...MINE_DAILY_OPS_FEATURE_KEYS],
   },
   {
     code: "TEMPLATE_TECH_WORKSHOP",
     label: "Service Workshop",
     description: "Parts, maintenance, payroll, and job operations for workshop and technician businesses.",
     targetClients: ["Mechanic workshop", "Technician services", "Engineering workshop"],
-    recommendedTierCode: "STANDARD",
+    recommendedTierCode: "GROW",
     bundleCodes: [
       "ADDON_OPERATIONS_CORE",
       "ADDON_STORES_CORE",
@@ -97,39 +137,10 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     ],
     featureKeys: [],
     verticalProductId: "service-workshop",
-    disabledFeatureKeys: [...MINE_DAILY_OPS_FEATURE_KEYS],
-  },
-  {
-    code: "TEMPLATE_SCRAP_METAL",
-    label: "Scrap & Recycling",
-    description: "Scrap buying, pricing, batching, settlements, and sales for recyclers and scrap traders.",
-    targetClients: ["Scrap yards", "Metal recyclers", "Industrial scrap traders"],
-    recommendedTierCode: "STANDARD",
-    bundleCodes: ["ADDON_WORKFORCE_CORE", "ADDON_SCRAP_METAL_SUITE", "ADDON_ADVANCED_PAYROLL", "ADDON_ANALYTICS_PRO"],
-    featureKeys: [],
-    verticalProductId: "scrap-recycling",
     disabledFeatureKeys: [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
-      "stores.fuel-ledger",
-      "maintenance.dashboard",
-      "maintenance.equipment",
-      "maintenance.work-orders",
-      "maintenance.breakdowns",
-      "maintenance.schedule",
-      "gold.home",
-      "gold.intake.pours",
-      "gold.dispatches",
-      "gold.receipts",
-      "gold.reconciliation",
-      "gold.exceptions",
-      "gold.audit-trail",
-      "gold.payouts",
-      "schools.core",
-      "autos.core",
-      "retail.core",
-      "portal.schools",
-      "portal.autos",
-      "portal.pos",
+      // A workshop takes payment on a job, not over a till.
+      ...RETAIL_TILL_FEATURE_KEYS,
     ],
   },
   {
@@ -137,7 +148,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     label: "School Operations",
     description: "Student, teacher, academics, boarding, finance, and portal workflows for schools.",
     targetClients: ["Schools", "Training institutions", "Education operators"],
-    recommendedTierCode: "BASIC",
+    recommendedTierCode: "START",
     bundleCodes: ["ADDON_SCHOOLS_SUITE", "ADDON_PORTAL_SUITE"],
     featureKeys: [],
     verticalProductId: "school-operations",
@@ -145,6 +156,9 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "ops.shift-report.submit",
       "ops.attendance.mark",
       "ops.plant-report.submit",
+      // A school has guardians and students, not customers. The shared
+      // directory arrives via START's retail suite; it has no place here.
+      ...CRM_FEATURE_KEYS,
       "stores.dashboard",
       "stores.inventory",
       "stores.movements",
@@ -170,12 +184,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       // A school that wants to pay its teachers from the same `Employee` rows
       // the timetable already uses now can, by buying the addon.
       //
-      // The settlement keys are different and stay blocked: they are the gold and
-      // scrap payout surface, which a school has no use for and which would render
-      // payout screens for commodities it does not handle.
+      // The settlement keys are different and stay blocked: they are the gold
+      // payout surface, which a school has no use for and which would render
+      // payout screens for a commodity it does not handle.
       "settlements.core",
       "settlements.gold",
-      "settlements.scrap",
       "maintenance.dashboard",
       "maintenance.equipment",
       "maintenance.work-orders",
@@ -186,14 +199,6 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "compliance.inspections",
       "compliance.incidents",
       "compliance.training-records",
-      "cctv.overview",
-      "cctv.live",
-      "cctv.cameras",
-      "cctv.nvrs",
-      "cctv.events",
-      "cctv.playback",
-      "cctv.access-logs",
-      "cctv.streaming-control",
       "reports.shift",
       "reports.attendance",
       "reports.plant",
@@ -207,16 +212,10 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "reports.audit-trails",
       "reports.downtime-analytics",
       "reports.compliance-incidents",
-      "reports.cctv-events",
       "admin.sites-sections",
       "admin.payroll-config",
       "admin.feature-flags-console",
       "admin.subscription-console",
-      "autos.core",
-      "autos.inventory",
-      "autos.leads",
-      "autos.deals",
-      "autos.financing",
       "retail.core",
       "retail.catalog",
       "retail.pos",
@@ -224,24 +223,6 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "retail.promotions",
       "retail.shifts",
       "retail.reports",
-      "portal.autos",
-      "portal.pos",
-    ],
-  },
-  {
-    code: "TEMPLATE_CAR_SALES",
-    label: "Auto Sales",
-    description: "Leads, vehicle inventory, financing, and deal execution for dealerships and traders.",
-    targetClients: ["Car dealerships", "Vehicle traders", "Auto sales operators"],
-    recommendedTierCode: "BASIC",
-    bundleCodes: ["ADDON_AUTOS_SUITE", "ADDON_PORTAL_SUITE"],
-    featureKeys: [],
-    verticalProductId: "auto-sales",
-    disabledFeatureKeys: [
-      ...MINE_DAILY_OPS_FEATURE_KEYS,
-      "schools.core",
-      "retail.core",
-      "portal.schools",
       "portal.pos",
     ],
   },
@@ -250,7 +231,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     label: "Retail",
     description: "Retail, POS, purchasing, merchandising, and cash-up workflows for shop operators.",
     targetClients: ["Small retailers", "Second-hand retail", "Resale marketplaces"],
-    recommendedTierCode: "STANDARD",
+    recommendedTierCode: "GROW",
     bundleCodes: [
       "ADDON_RETAIL_SUITE",
       "ADDON_STORES_CORE",
@@ -265,7 +246,6 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
       "stores.fuel-ledger",
       "schools.core",
-      "autos.core",
       "gold.home",
       "gold.intake.pours",
       "gold.dispatches",
@@ -274,13 +254,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "gold.exceptions",
       "gold.audit-trail",
       "gold.payouts",
-      "scrap-metal.home",
-      "scrap-metal.purchases",
-      "scrap-metal.batches",
-      "scrap-metal.sales",
-      "scrap-metal.pricing",
       "portal.schools",
-      "portal.autos",
     ],
   },
   {
@@ -288,7 +262,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     label: "Sales & CRM",
     description: "Lead-to-cash CRM with pipeline, site visits, intake forms, quoting/invoicing, and commissions for sales-led businesses.",
     targetClients: ["Field-sales businesses", "Installers & fitters", "Service sales teams"],
-    recommendedTierCode: "STANDARD",
+    recommendedTierCode: "GROW",
     bundleCodes: [
       "ADDON_CRM_SUITE",
       "ADDON_ACCOUNTING_CORE",
@@ -299,10 +273,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     verticalProductId: "crm-sales",
     disabledFeatureKeys: [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A sales desk is not a shop floor; GROW bundles the till, this template
+      // does not switch it on.
+      ...RETAIL_TILL_FEATURE_KEYS,
       "stores.fuel-ledger",
       "schools.core",
-      "autos.core",
-      "retail.core",
       "gold.home",
       "gold.intake.pours",
       "gold.dispatches",
@@ -311,13 +286,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "gold.exceptions",
       "gold.audit-trail",
       "gold.payouts",
-      "scrap-metal.home",
-      "scrap-metal.purchases",
-      "scrap-metal.batches",
-      "scrap-metal.sales",
-      "scrap-metal.pricing",
       "portal.schools",
-      "portal.autos",
       "portal.pos",
     ],
   },
@@ -338,7 +307,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       "Accounting practices running client payrolls",
       "Companies that want payroll only",
     ],
-    recommendedTierCode: "STANDARD",
+    recommendedTierCode: "GROW",
     bundleCodes: [
       "ADDON_WORKFORCE_CORE",
       "ADDON_ADVANCED_PAYROLL",
@@ -348,6 +317,8 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     verticalProductId: "payroll-services",
     disabledFeatureKeys: [
       ...MINE_DAILY_OPS_FEATURE_KEYS,
+      // A bureau runs other people's payroll; it has no counter of its own.
+      ...RETAIL_TILL_FEATURE_KEYS,
       "stores.dashboard",
       "stores.inventory",
       "stores.movements",
@@ -372,24 +343,14 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
       // would be empty tabs.
       "settlements.core",
       "settlements.gold",
-      "settlements.scrap",
       "schools.core",
       "retail.core",
       "retail.pos",
-      "autos.core",
       "maintenance.dashboard",
       "maintenance.equipment",
       "maintenance.work-orders",
       "maintenance.breakdowns",
       "maintenance.schedule",
-      "cctv.overview",
-      "cctv.live",
-      "cctv.cameras",
-      "cctv.nvrs",
-      "cctv.events",
-      "cctv.playback",
-      "cctv.access-logs",
-      "cctv.streaming-control",
     ],
   },
   {
@@ -410,11 +371,18 @@ const TEMPLATE_ALIASES: Record<string, string> = {
   GOLD: "TEMPLATE_GOLD_MINE",
   SCHOOL: "TEMPLATE_SCHOOLS",
   SCHOOLS: "TEMPLATE_SCHOOLS",
-  SCRAP: "TEMPLATE_SCRAP_METAL",
-  SCRAP_METAL: "TEMPLATE_SCRAP_METAL",
-  AUTOS: "TEMPLATE_CAR_SALES",
-  "CAR-SALES": "TEMPLATE_CAR_SALES",
-  CAR_SALES: "TEMPLATE_CAR_SALES",
+  // Dropped verticals (CCTV/security, scrap metal, car sales). The aliases stay
+  // so provisioning with a legacy code degrades to the core starter instead of
+  // throwing at a tenant that was created before the drop.
+  TEMPLATE_SCRAP_METAL: "TEMPLATE_CORE_STARTER",
+  TEMPLATE_CAR_SALES: "TEMPLATE_CORE_STARTER",
+  TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK: "TEMPLATE_CORE_STARTER",
+  SCRAP: "TEMPLATE_CORE_STARTER",
+  SCRAP_METAL: "TEMPLATE_CORE_STARTER",
+  AUTOS: "TEMPLATE_CORE_STARTER",
+  "CAR-SALES": "TEMPLATE_CORE_STARTER",
+  CAR_SALES: "TEMPLATE_CORE_STARTER",
+  SECURITY: "TEMPLATE_CORE_STARTER",
   THRIFT: "TEMPLATE_RETAIL",
   RETAIL: "TEMPLATE_RETAIL",
   CRM: "TEMPLATE_CRM",
@@ -525,19 +493,14 @@ export function getClientTemplateWorkspaceProfile(code: string | null | undefine
   switch (template.code) {
     case "TEMPLATE_GOLD_MINE":
       return "GOLD_MINE";
-    case "TEMPLATE_SCRAP_METAL":
-      return "SCRAP_METAL";
     case "TEMPLATE_SCHOOLS":
       return "SCHOOLS";
-    case "TEMPLATE_CAR_SALES":
-      return "AUTOS";
     case "TEMPLATE_RETAIL":
       return "RETAIL";
     case "TEMPLATE_PAYROLL_BUREAU":
       return "PAYROLL";
     case "TEMPLATE_CRM":
     case "TEMPLATE_CORE_STARTER":
-    case "TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK":
     case "TEMPLATE_TECH_WORKSHOP":
     case "TEMPLATE_ALL_FEATURES":
       return "GENERAL";

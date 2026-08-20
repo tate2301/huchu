@@ -2,16 +2,16 @@ import { createOfflineBootstrapProgress } from "@/lib/offline/bootstrap-state";
 import type { OfflineBootstrapProgress, OfflineModuleDefinition } from "@/lib/offline/types";
 
 const moduleDefinition: OfflineModuleDefinition = {
-  moduleId: "scrap-metal",
+  moduleId: "retail-pos",
   syncPriority: 10,
   bootstrapPriority: 10,
-  primaryFlowLabel: "Scrap ticketing",
+  primaryFlowLabel: "POS checkout",
   warmupBudget: "aggressive",
-  criticalRoutes: ["/scrap-metal/tickets"],
+  criticalRoutes: ["/portal/pos"],
   preloadQueries: [
     {
-      key: "scrap-materials",
-      queryKey: ["scrap-materials"],
+      key: "retail-pos-catalog",
+      queryKey: ["retail-pos-catalog"],
       fetcher: async () => [],
     },
   ],
@@ -28,22 +28,22 @@ describe("createOfflineBootstrapProgress", () => {
       currentStepLabel: null,
       totalSteps: 1,
       completedSteps: 2,
-      preparedRoutes: ["/scrap-metal/tickets"],
+      preparedRoutes: ["/portal/pos"],
       startedAt: null,
       updatedAt: new Date().toISOString(),
       lastPreparedAt: null,
       lastSyncedAt: null,
       modules: [
         {
-          moduleId: "scrap-metal",
-          primaryFlowLabel: "Scrap ticketing",
+          moduleId: "retail-pos",
+          primaryFlowLabel: "POS checkout",
           bootstrapPriority: 10,
           warmupBudget: "aggressive",
           state: "PREPARED",
           totalRoutes: 1,
-          preparedRoutes: ["/scrap-metal/tickets"],
+          preparedRoutes: ["/portal/pos"],
           totalQueries: 1,
-          preparedQueryKeys: ["scrap-materials", "old-query-key"],
+          preparedQueryKeys: ["retail-pos-catalog", "old-query-key"],
           lastPreparedAt: null,
         },
       ],
@@ -51,7 +51,7 @@ describe("createOfflineBootstrapProgress", () => {
 
     const progress = createOfflineBootstrapProgress("tenant-a", [moduleDefinition], existing);
 
-    expect(progress.modules[0]?.preparedQueryKeys).toEqual(["scrap-materials"]);
+    expect(progress.modules[0]?.preparedQueryKeys).toEqual(["retail-pos-catalog"]);
     expect(progress.completedSteps).toBeLessThanOrEqual(progress.totalSteps);
   });
 });

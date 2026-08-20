@@ -93,8 +93,15 @@ export function parseSettlementSource(
 /**
  * Which source a workspace settles, given what it has enabled.
  *
- * Reads feature keys rather than the workspace profile: a company can run gold
- * and scrap side by side, and the profile only names one of them.
+ * Reads feature keys rather than the workspace profile, because a company can
+ * run more than one settling module and the profile only names one of them.
+ *
+ * ST-2.3 / ST-2.2 removed the branches that answered SCRAP and COMMISSION: no
+ * surviving feature key implies either. The enum values themselves are kept —
+ * see `SETTLEMENT_SOURCES` — because settlements already recorded against a
+ * scrap or commission source are real payments to real people, and a run that
+ * cannot name its own source is a run nobody can audit. What is gone is the
+ * ability to *default* a new workspace onto one.
  */
 export function resolveDefaultSettlementSource(
   enabledFeatures?: string[] | null,
@@ -103,20 +110,23 @@ export function resolveDefaultSettlementSource(
     (enabledFeatures ?? []).map((feature) => feature.trim().toLowerCase()),
   )
   if (enabled.has("gold.payouts") || enabled.has("gold.home")) return "GOLD"
-  if (enabled.has("scrap-metal.home") || enabled.has("scrap-metal.purchases")) {
-    return "SCRAP"
-  }
-  if (enabled.has("autos.core")) return "COMMISSION"
   return "OTHER"
 }
 
-/** The feature key that gates a source's screens. */
+/**
+ * The feature key that gates a source's screens.
+ *
+ * Only GOLD has screens of its own. `settlements.scrap` used to gate
+ * `/scrap-metal/settlements`, and left the catalogue with the vertical (ST-3.4)
+ * — a billable key granting access to a page that is off disk is a feature we
+ * would be charging for and not delivering. A legacy SCRAP run therefore
+ * resolves to `settlements.core`, which is the shared surface it can actually
+ * be read on, rather than to a key no tenant can be sold.
+ */
 export function settlementSourceFeatureKey(source: SettlementSource): string {
   switch (source) {
     case "GOLD":
       return "settlements.gold"
-    case "SCRAP":
-      return "settlements.scrap"
     default:
       return "settlements.core"
   }

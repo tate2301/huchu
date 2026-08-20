@@ -43,8 +43,8 @@ const eslintConfig = defineConfig([
       "app/management/**/*.tsx",
       "app/preferences/**/*.tsx",
       "app/compliance/**/*.tsx",
-      // Still outside the fence: gold/, offline/, retail/, scrap-metal/,
-      // schools/ and the admin portal — each is a per-module job, because
+      // Still outside the fence: gold/, offline/, retail/, schools/ and the
+      // admin portal — each is a per-module job, because
       // raising type changes layout and doing it unseen ships a regression
       // nobody asked for. Bring a tree up to the scale, then add it here.
     ],

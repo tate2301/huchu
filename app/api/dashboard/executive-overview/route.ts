@@ -99,13 +99,6 @@ const EXECUTIVE_MODULE_ACCESS_CONFIG: Record<ExecutiveModuleKey, ExecutiveModule
       { href: "/compliance", feature: "compliance.incidents" },
     ],
   },
-  security: {
-    visibilityFeatures: ["cctv.events", "reports.cctv-events"],
-    reportTargets: [
-      { href: "/cctv/events", feature: "cctv.events" },
-      { href: "/reports/cctv-events", feature: "reports.cctv-events" },
-    ],
-  },
   reports: {
     visibilityFeatures: ["reports.dashboard"],
     reportTargets: [{ href: "/reports", feature: "reports.dashboard" }],
@@ -351,14 +344,6 @@ export async function GET(request: NextRequest) {
         requiredFeatures: ["compliance.incidents"],
       },
       {
-        id: "security-events",
-        title: "Critical CCTV events",
-        description: "High/critical unacknowledged CCTV events in selected range.",
-        value: metrics.criticalUnackedCctvEvents,
-        tone: metrics.criticalUnackedCctvEvents > 0 ? "critical" : "positive",
-        requiredFeatures: ["cctv.events"],
-      },
-      {
         id: "inventory-pressure",
         title: "Inventory pressure",
         description: "Items at or below minimum stock threshold.",
@@ -535,13 +520,6 @@ export async function GET(request: NextRequest) {
         openExceptions: toExceptionCount(metrics.openComplianceIncidents + metrics.permitsExpiring30Days),
         topExceptionLabel: pickTopExceptionLabel(complianceSignals),
         reportHref: getModuleReportHref("compliance"),
-      },
-      security: {
-        primaryMetric: createSummaryMetric("Critical Unacknowledged Events", metrics.criticalUnackedCctvEvents),
-        secondaryMetric: createSummaryMetric("Total Risk Items", metrics.totalRiskItems),
-        openExceptions: toExceptionCount(metrics.criticalUnackedCctvEvents),
-        topExceptionLabel: metrics.criticalUnackedCctvEvents > 0 ? "Critical CCTV events pending acknowledgement" : undefined,
-        reportHref: getModuleReportHref("security"),
       },
       reports: {
         primaryMetric: createSummaryMetric("Total Risk Items", metrics.totalRiskItems),

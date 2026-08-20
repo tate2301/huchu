@@ -1,6 +1,18 @@
 import type { UserRole } from "@/lib/roles";
 import type { WorkspaceProfile } from "@/lib/workspace-products";
+import {
+  type ActiveWorkspaceProfile,
+  toActiveWorkspaceProfile,
+} from "@/lib/platform/vertical-defaults";
 
+/**
+ * Every profile a company row can hold, including the retired ones.
+ *
+ * Deliberately wider than `ActiveWorkspaceProfile`: callers read this off a
+ * session or a stored tenant and cannot promise it is a vertical we still ship.
+ * `getRegisteredRoles` narrows it, so the degrade happens once, here, instead of
+ * at each call site.
+ */
 export type ManagedWorkspaceProfile = WorkspaceProfile;
 
 export type VerticalRoleRegistration = {
@@ -27,7 +39,9 @@ export const USER_ROLE_LABELS: Partial<Record<UserRole, string>> = {
   TEACHER: "Teacher",
   PARENT: "Parent",
   STUDENT: "Student",
-  AUTO_MANAGER: "Auto Manager",
+  // No AUTO_MANAGER: the vertical it managed is gone (ST-1.1). The role value
+  // survives in the Prisma enum until ST-3.1 retires it, and an existing user
+  // still on it renders through the title-case fallback callers already apply.
   SALES_EXEC: "Sales Executive",
   FINANCE_OFFICER: "Finance Officer",
   SHOP_MANAGER: "Shop Manager",
@@ -36,10 +50,8 @@ export const USER_ROLE_LABELS: Partial<Record<UserRole, string>> = {
   SALES_REP: "Sales Rep",
 };
 
-export const VERTICAL_ROLE_REGISTRY: Record<ManagedWorkspaceProfile, VerticalRoleRegistration> = {
+export const VERTICAL_ROLE_REGISTRY: Record<ActiveWorkspaceProfile, VerticalRoleRegistration> = {
   GOLD_MINE: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "FINANCE_OFFICER"] },
-  SCRAP_METAL: { roles: ["SUPERADMIN", "MANAGER", "OPERATOR"] },
-  AUTOS: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "AUTO_MANAGER", "SALES_EXEC", "FINANCE_OFFICER"] },
   RETAIL: { roles: ["SUPERADMIN", "MANAGER", "CLERK", "SHOP_MANAGER", "CASHIER", "STOCK_CLERK", "FINANCE_OFFICER"] },
   SCHOOLS: {
     roles: [
@@ -97,8 +109,10 @@ export function getRegisteredRoles(
   profile: ManagedWorkspaceProfile,
   enabledFeatures?: string[],
 ): UserRole[] {
+  // A tenant left on a dropped vertical gets the general role list rather than
+  // an empty one: its people still have to be able to sign in and be assigned.
   const roles = new Set<UserRole>(
-    VERTICAL_ROLE_REGISTRY[profile]?.roles ?? VERTICAL_ROLE_REGISTRY.GENERAL.roles,
+    VERTICAL_ROLE_REGISTRY[toActiveWorkspaceProfile(profile)].roles,
   );
 
   for (const registration of FEATURE_ROLE_REGISTRY) {

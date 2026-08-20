@@ -77,11 +77,6 @@ const TYPE_ICONS: Record<SearchResultType, LucideIcon> = {
   // icon doing no work.
   GOLD_PURCHASE: Scale,
   GOLD_DISPATCH: LocalShipping,
-  SCRAP_TICKET: Scale,
-  SCRAP_SELLER: Users,
-  VEHICLE: LocalShipping,
-  VEHICLE_DEAL: Funnel,
-  VEHICLE_LEAD: AddressBook,
   RETAIL_SALE: Receipt,
   INVENTORY_ITEM: Package,
   EQUIPMENT: Settings2,

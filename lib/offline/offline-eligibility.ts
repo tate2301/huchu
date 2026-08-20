@@ -6,10 +6,14 @@
  *
  * Offline-eligible roles:
  *   • CASHIER  — Retail POS operations
- *   • OPERATOR — Scrap metal ticketing (inbound/outbound)
- *   • CLERK    — Scrap metal support (lots, reports)
  *
  * Higher roles (ADMIN, MANAGER, SUPERUSER) are online-only.
+ *
+ * ST-2.3. OPERATOR and CLERK were here for scrap ticketing and scrap lots. The
+ * vertical is gone, and leaving them listed would have been worse than dropping
+ * them: an eligible role with no modules registers a service worker, warms
+ * nothing, and leaves the user on a shell that claims to work offline and does
+ * not. A role earns its place here by having a warmed workflow behind it.
  */
 
 import type { AuthSessionClaims } from "@/lib/auth-core/types";
@@ -17,7 +21,7 @@ import type { AuthSessionClaims } from "@/lib/auth-core/types";
 // ── Constants ────────────────────────────────────────────────────────────────
 
 /** Roles that qualify for offline capability */
-export const OFFLINE_ELIGIBLE_ROLES = ["CASHIER", "OPERATOR", "CLERK"] as const;
+export const OFFLINE_ELIGIBLE_ROLES = ["CASHIER"] as const;
 
 /** Type for offline-eligible role literals */
 export type OfflineEligibleRole = (typeof OFFLINE_ELIGIBLE_ROLES)[number];
@@ -25,28 +29,11 @@ export type OfflineEligibleRole = (typeof OFFLINE_ELIGIBLE_ROLES)[number];
 /** Role to primary vertical mapping */
 export const ROLE_VERTICAL_MAP: Record<string, string> = {
   CASHIER: "RETAIL",
-  OPERATOR: "SCRAP_METAL",
-  CLERK: "SCRAP_METAL",
 };
 
 /** Role to module ID filter mapping */
 export const ROLE_MODULE_FILTER: Record<string, string[]> = {
   CASHIER: ["retail-pos"],
-  OPERATOR: [
-    "scrap-metal",
-    "scrap-lots",
-    "scrap-master-data",
-    "scrap-price-board",
-    "hr-workforce-core",
-  ],
-  CLERK: [
-    "scrap-metal",
-    "scrap-lots",
-    "scrap-master-data",
-    "scrap-price-board",
-    "scrap-reports-snapshot",
-    "hr-workforce-core",
-  ],
 };
 
 // ── TypeScript Interfaces ────────────────────────────────────────────────────
@@ -167,41 +154,6 @@ export const ROLE_PREFETCH_CONFIG: Record<string, PrefetchConfig> = {
       "retail-pos-sales-history",
       "retail-held-carts",
       "retail-pos-sales-overview",
-    ],
-    maxConcurrentRequests: 4,
-    refreshOnReconnect: true,
-  },
-  OPERATOR: {
-    immediateQueries: [
-      "scrap-ticket-context",
-      "scrap-materials",
-      "scrap-sellers",
-      "scrap-prices",
-      "scrap-batches",
-    ],
-    immediateRoutes: ["/scrap-metal", "/scrap-metal/tickets"],
-    backgroundQueries: [
-      "scrap-held-inbound-tickets",
-      "scrap-held-outbound-tickets",
-      "scrap-purchases-register",
-      "scrap-sales-register",
-    ],
-    maxConcurrentRequests: 6,
-    refreshOnReconnect: true,
-  },
-  CLERK: {
-    immediateQueries: [
-      "scrap-ticket-context",
-      "scrap-materials",
-      "scrap-sellers",
-      "scrap-batches",
-    ],
-    immediateRoutes: ["/scrap-metal", "/scrap-metal/tickets"],
-    backgroundQueries: [
-      "scrap-ready-batches",
-      "scrap-unassigned-purchases-page",
-      "scrap-balances",
-      "scrap-home-daily-snapshot",
     ],
     maxConcurrentRequests: 4,
     refreshOnReconnect: true,

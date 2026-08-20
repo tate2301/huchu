@@ -1,10 +1,11 @@
 /**
  * lib/commodity-billing.ts
  *
- * Shared AP/AR subledger helpers used by both the Gold module and the
- * Scrap-Metal module.  Both modules create purchase bills (payables) and
- * sales invoices (receivables) using identical DB shapes — this file owns
- * that logic so neither module duplicates it.
+ * Shared AP/AR subledger helpers. Gold is the only caller left now that
+ * scrap-metal has been retired (ST-2.3), but the file stays generic: it owns
+ * the one correct way to write a purchase bill (payable) or a sales invoice
+ * (receivable), so the next commodity vertical inherits it instead of growing
+ * a second copy that drifts.
  *
  * Design constraints
  * ------------------
@@ -14,9 +15,7 @@
  * - `PurchaseBill` requires a `vendorId` FK (Vendor table).
  *   `SalesInvoice`  requires a `customerId` FK (Customer table).
  *   Neither model has a sourceType / sourceId column — the source reference
- *   is carried in the `notes` field and is surfaced via the relation chains
- *   on ScrapMetalPurchase / ScrapMetalSale (for scrap) and via the calling
- *   route's own state (for gold).
+ *   is carried in the `notes` field and by the calling route's own state.
  * - For gold flows the seller / buyer is often a one-time street contact with
  *   no pre-existing Vendor / Customer record.  Use `upsertGoldVendor` /
  *   `upsertGoldCustomer` to find-or-create a lightweight record keyed on

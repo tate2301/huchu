@@ -7,6 +7,16 @@
 > `lib/platform/feature-catalog.ts` remains what the platform actually charges, and this
 > document's **mechanism** content — the pricing formula, feature-flag behavior, and the
 > checklist for adding a feature, module, or bundle — remains normative and in force.
+>
+> **Scope-trim notice (2026-08-19, ST-1 / ST-2 / ST-3).** CCTV, vehicle sales and scrap
+> metal are no longer sold, and `accounting.fixed-assets` / `accounting.budgets` are no
+> longer shipped. Their bundles, feature keys and templates are gone from
+> `lib/platform/feature-catalog.ts` and `lib/platform/client-templates.ts`, their code is
+> gone from the tree, and their tables are gone from the database
+> (`prisma/migrations/20260819090000_scope_trim_drop_dropped_module_schema`). The tables
+> and mappings below have been pruned to match. Legacy template codes still resolve —
+> `SCRAP`, `AUTOS`, `CAR_SALES`, `SECURITY` and their `TEMPLATE_*` spellings degrade to
+> `TEMPLATE_CORE_STARTER` rather than throwing at a tenant provisioned before the drop.
 
 ## Scope
 
@@ -71,7 +81,6 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 | `ADDON_WORKFORCE_CORE` | Workforce Core | 0 | 0 |
 | `ADDON_GOLD_CORE` | Gold Operations | 69 | 15 |
 | `ADDON_CUSTOM_BRANDING` | Custom Branding | 29 | 0 |
-| `ADDON_CCTV_SUITE` | CCTV Suite | 99 | 15 |
 | `ADDON_ADVANCED_PAYROLL` | Advanced Payroll | 49 | 10 |
 | `ADDON_GOLD_ADVANCED` | Gold Advanced Controls | 79 | 10 |
 | `ADDON_COMPLIANCE_PRO` | Compliance Pro | 49 | 10 |
@@ -82,11 +91,9 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 | `ADDON_ACCOUNTING_ADVANCED` | Accounting Advanced | 49 | 10 |
 | `ADDON_ZIMRA_FISCAL` | ZIMRA Tax & Fiscalisation | 19 | 5 |
 | `ADDON_SCHOOLS_SUITE` | Schools Suite | 129 | 29 |
-| `ADDON_AUTOS_SUITE` | Auto Sales Suite | 59 | 10 |
 | `ADDON_RETAIL_SUITE` | Retail Suite | 39 | 10 |
 | `ADDON_CRM_CORE` | CRM Core | 19 | 5 |
 | `ADDON_PORTAL_SUITE` | Client Portal Suite | 19 | 5 |
-| `ADDON_SCRAP_METAL_SUITE` | Scrap Metal Suite | 39 | 10 |
 
 ### Bundle Feature Mapping
 
@@ -128,18 +135,6 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 
 - `core.branding.manage`
 - `core.branding.custom-domain`
-
-`ADDON_CCTV_SUITE`
-
-- `cctv.overview`
-- `cctv.live`
-- `cctv.cameras`
-- `cctv.nvrs`
-- `cctv.events`
-- `cctv.playback`
-- `cctv.access-logs`
-- `cctv.streaming-control`
-- `reports.cctv-events`
 
 `ADDON_ADVANCED_PAYROLL`
 
@@ -212,8 +207,6 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 - `accounting.ar`
 - `accounting.ap`
 - `accounting.banking`
-- `accounting.fixed-assets`
-- `accounting.budgets`
 - `accounting.cost-centers`
 - `accounting.multi-currency`
 
@@ -236,14 +229,6 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 - `schools.portal.student`
 - `schools.portal.teacher`
 
-`ADDON_AUTOS_SUITE`
-
-- `autos.core`
-- `autos.inventory`
-- `autos.leads`
-- `autos.deals`
-- `autos.financing`
-
 `ADDON_RETAIL_SUITE`
 
 - `retail.core`
@@ -264,21 +249,7 @@ The catalog includes both sellable add-ons and zero-priced foundation bundles us
 
 - `portal.core`
 - `portal.schools`
-- `portal.autos`
 - `portal.pos`
-
-`ADDON_SCRAP_METAL_SUITE`
-
-- `scrap-metal.home`
-- `scrap-metal.purchases`
-- `scrap-metal.batches`
-- `scrap-metal.sales`
-- `scrap-metal.pricing`
-- `stores.dashboard`
-- `stores.inventory`
-- `stores.movements`
-- `stores.issue`
-- `stores.receive`
 
 ### Why a Bundle May Not Show After Sync
 
@@ -310,11 +281,8 @@ Current templates:
 
 - `TEMPLATE_CORE_STARTER` (`BASIC`)
 - `TEMPLATE_GOLD_MINE` (`ENTERPRISE`)
-- `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` (`STANDARD`) - HR + CCTV + stock oriented multi-site starter
 - `TEMPLATE_TECH_WORKSHOP` (`STANDARD`) - stock + maintenance + HR/payroll depth
-- `TEMPLATE_SCRAP_METAL` (`STANDARD`) - scrap and recycling operating starter
 - `TEMPLATE_SCHOOLS` (`BASIC`) - schools + portal starter
-- `TEMPLATE_CAR_SALES` (`BASIC`) - auto sales + portal starter
 - `TEMPLATE_RETAIL` (`STANDARD`) - retail/POS + stock + accounting starter
 - `TEMPLATE_ALL_FEATURES` (`ENTERPRISE`) - enables all catalog features
 
@@ -325,9 +293,11 @@ Template aliases accepted in provisioning:
 - `BASE` -> `TEMPLATE_CORE_STARTER`
 - `GOLD` -> `TEMPLATE_GOLD_MINE`
 - `SCHOOL` / `SCHOOLS` -> `TEMPLATE_SCHOOLS`
-- `SCRAP` / `SCRAP_METAL` -> `TEMPLATE_SCRAP_METAL`
-- `AUTOS` / `CAR-SALES` / `CAR_SALES` -> `TEMPLATE_CAR_SALES`
 - `THRIFT` / `RETAIL` -> `TEMPLATE_RETAIL`
+- retired verticals, kept so old provisioning codes still resolve:
+  `SCRAP` / `SCRAP_METAL` / `TEMPLATE_SCRAP_METAL`, `AUTOS` / `CAR-SALES` / `CAR_SALES` /
+  `TEMPLATE_CAR_SALES`, `SECURITY` / `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK`
+  -> `TEMPLATE_CORE_STARTER`
 - `FULL` / `ALL` -> `TEMPLATE_ALL_FEATURES`
 
 ## Subscription Lifecycle and Health

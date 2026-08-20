@@ -8,14 +8,15 @@ import { cn } from "@/lib/utils";
  * A table row, as a card, on a phone.
  *
  * `DataTable` takes a `mobileCardRenderer` and swaps the table for a stack of
- * these below `md`. Ten scrap-metal screens have used this shape since it was
- * written; it lived in `components/scrap-metal/` and the only module-specific
- * thing about it was the prefix on the names.
+ * these below `md`. The shape was written for scrap metal and used by ten of
+ * its screens; it lived in `components/scrap-metal/` and the only
+ * module-specific thing about it was the prefix on the names.
  *
  * R-4.5 needed it for retail. Copying it in would have made a second
  * implementation of a solved problem — the exact thing S-6 exists to end — so
- * it moved here and `components/scrap-metal/mobile-list-card.tsx` re-exports
- * it. Ten pages keep their imports, and there is one card.
+ * it moved here, and a re-export kept those ten screens working. ST-2 has
+ * since deleted the scrap-metal module outright and the re-export went with
+ * it, which leaves this file as what it always was underneath: the one card.
  *
  * ## The shape, and why it is this shape
  *

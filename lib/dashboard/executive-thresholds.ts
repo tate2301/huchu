@@ -6,7 +6,6 @@ export type ExecutiveModuleKey =
   | "stores"
   | "maintenance"
   | "compliance"
-  | "security"
   | "reports";
 
 export type ExecutiveModuleStatus = "healthy" | "watch" | "critical";
@@ -24,7 +23,6 @@ export const EXECUTIVE_MODULE_ORDER: ExecutiveModuleKey[] = [
   "stores",
   "maintenance",
   "compliance",
-  "security",
   "reports",
 ];
 
@@ -36,7 +34,6 @@ export const EXECUTIVE_MODULE_THRESHOLDS: Record<ExecutiveModuleKey, ExecutiveMo
   stores: { watch: 2, critical: 6 },
   maintenance: { watch: 2, critical: 6 },
   compliance: { watch: 2, critical: 5 },
-  security: { watch: 1, critical: 4 },
   reports: { watch: 4, critical: 10 },
 };
 

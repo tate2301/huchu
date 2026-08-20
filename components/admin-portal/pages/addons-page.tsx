@@ -16,7 +16,7 @@ function formatCurrency(value: number) {
 }
 
 export function AddonsPage() {
-  const [enabled, setEnabled] = useState<Set<string>>(new Set(["ADDON_CCTV_SUITE", "ADDON_ANALYTICS_PRO"]));
+  const [enabled, setEnabled] = useState<Set<string>>(new Set(["ADDON_COMPLIANCE_PRO", "ADDON_ANALYTICS_PRO"]));
   const siteCount = 3;
 
   const totals = useMemo(() => {

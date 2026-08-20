@@ -4,7 +4,7 @@ import Link from "next/link";
 
 import { PageHeading } from "@/components/layout/page-heading";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, BarChart3, Camera, CheckCircle2, Clock, Factory, FileCheck, Fuel, Gem, History, Package, Shield, Users, Wrench } from "@/lib/icons";
+import { ArrowRight, BarChart3, CheckCircle2, Clock, Factory, FileCheck, Fuel, Gem, History, Package, Shield, Users, Wrench } from "@/lib/icons";
 
 const reportCards = [
   {
@@ -66,12 +66,6 @@ const reportCards = [
     title: "Incidents",
     description: "Compliance and safety incident records.",
     icon: Shield,
-  },
-  {
-    href: "/reports/cctv-events",
-    title: "CCTV Events",
-    description: "Security events and acknowledgements.",
-    icon: Camera,
   },
   {
     href: "/reports/audit-trails",

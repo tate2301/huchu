@@ -462,7 +462,6 @@ export default function AccountingOverviewPage() {
         items: [
           { id: "financial-home", label: "Financial Reports", description: "Overall reporting position and report access.", href: "/accounting/financial-reports", tag: "Home" },
           { id: "trial-balance", label: "Trial Balance", description: "Ledger checks by account debits and credits.", href: "/accounting/trial-balance", tag: "Report" },
-          { id: "financial-statements", label: "Financial Statements", description: "Profit and loss, balance sheet, and cash flow.", href: "/accounting/financial-statements", tag: "Report" },
           { id: "vat-summary", label: "VAT Summary", description: "Output/input VAT position and net tax.", href: "/accounting/tax?view=vat-summary", tag: "Tax" },
           { id: "vat-returns", label: "VAT Returns", description: "Draft, review, finalize, and file VAT returns.", href: "/accounting/tax?view=vat-returns", tag: "Compliance" },
         ],
@@ -470,7 +469,8 @@ export default function AccountingOverviewPage() {
       {
         group: "Payments & Banking",
         items: [
-          { id: "banking", label: "Banking", description: "Bank accounts, transactions, and reconciliations.", href: "/accounting/banking", tag: "Cash" },
+          // Banking parked in ST-1.2 — route and model intact, not an entry
+          // point. The executive dashboard still reads it for cash tiles.
           { id: "sales-receipts", label: "Receipt Register", description: "Incoming customer cash movements.", href: "/accounting/sales?view=receipts", tag: "AR" },
           { id: "purchase-payments", label: "Payment Register", description: "Outgoing supplier cash movements.", href: "/accounting/purchases?view=payments", tag: "AP" },
         ],
@@ -482,11 +482,10 @@ export default function AccountingOverviewPage() {
           { id: "periods", label: "Accounting Periods", description: "Period control, freeze date, and opening balances.", href: "/accounting/periods", tag: "Master" },
           { id: "journals", label: "Journals", description: "Manual journals and posting control.", href: "/accounting/journals", tag: "Core" },
           { id: "posting-rules", label: "Posting Rules", description: "Automation mappings for source postings.", href: "/accounting/posting-rules", tag: "Automation" },
-          { id: "cost-centers", label: "Cost Centers", description: "Cost allocation dimensions by department.", href: "/accounting/cost-centers", tag: "Master" },
-          { id: "budgets", label: "Budgets", description: "Budget setup and tracking.", href: "/accounting/budgets", tag: "Planning" },
-          { id: "currency", label: "Currency Rates", description: "Exchange rates and conversion controls.", href: "/accounting/currency", tag: "Master" },
+          // Cost centers and currency rates parked in ST-1.2. `costCenterId`
+          // columns and the currency models stay — the posting engine and
+          // `lib/money.ts` read them.
           { id: "tax", label: "Tax Setup", description: "Tax code setup and VAT controls.", href: "/accounting/tax", tag: "Tax" },
-          { id: "assets", label: "Fixed Assets", description: "Asset register and depreciation controls.", href: "/accounting/assets", tag: "Master" },
           { id: "fiscalisation", label: "Fiscalisation", description: "Fiscal device and receipt integration settings.", href: "/accounting/fiscalisation", tag: "Compliance" },
         ],
       },

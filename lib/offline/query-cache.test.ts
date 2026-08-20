@@ -38,10 +38,10 @@ describe("offline query cache", () => {
 
   it("restores persisted queries across client restarts", async () => {
     const sourceClient = new QueryClient();
-    sourceClient.setQueryData(["scrap-materials", "tickets"], [{ id: "m1" }]);
+    sourceClient.setQueryData(["retail-pos-catalog", "site-1"], [{ id: "m1" }]);
     const query = sourceClient
       .getQueryCache()
-      .find({ queryKey: ["scrap-materials", "tickets"] });
+      .find({ queryKey: ["retail-pos-catalog", "site-1"] });
 
     expect(query).not.toBeNull();
     await persistOfflineQueryRecord(query!, "tenant-a");
@@ -49,20 +49,20 @@ describe("offline query cache", () => {
     const restoredClient = new QueryClient();
     await restoreOfflineQueries(restoredClient, "tenant-a");
 
-    expect(restoredClient.getQueryData(["scrap-materials", "tickets"]))
+    expect(restoredClient.getQueryData(["retail-pos-catalog", "site-1"]))
       .toEqual([{ id: "m1" }]);
   });
 
   it("prunes entries only after retention window", async () => {
     const now = Date.now();
-    getStore("queryCache").set("tenant-a:[\"scrap-materials\"]", {
-      id: "tenant-a:[\"scrap-materials\"]",
+    getStore("queryCache").set("tenant-a:[\"retail-pos-catalog\"]", {
+      id: "tenant-a:[\"retail-pos-catalog\"]",
       tenantKey: "tenant-a",
-      queryKey: ["scrap-materials"],
+      queryKey: ["retail-pos-catalog"],
       data: [{ id: "m1" }],
       updatedAt: now - 31 * 24 * 60 * 60 * 1000,
       maxAgeMs: 30 * 24 * 60 * 60 * 1000,
-      moduleId: "scrap-metal",
+      moduleId: "retail-pos",
     } satisfies PersistedQueryRecord);
 
     await pruneOfflineQueries("tenant-a");

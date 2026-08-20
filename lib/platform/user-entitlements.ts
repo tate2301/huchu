@@ -58,14 +58,28 @@ const OPERATOR_TEMPLATE_ALLOW_PREFIXES = [
   "core.help.",
   "core.notifications.",
   "core.multitenancy.",
-  "scrap-metal.",
   "stores.",
   "maintenance.",
   "reports.",
-  // An operator counts the scrap and weighs the gold, so settlements are theirs
-  // to record. The matrix in `lib/settlements/permissions.ts` keeps them to
-  // recording and submitting — they cannot approve their own count or pay it out.
+  // An operator weighs the gold, so settlements are theirs to record. The matrix
+  // in `lib/settlements/permissions.ts` keeps them to recording and submitting —
+  // they cannot approve their own count or pay it out.
   "settlements.",
+] as const;
+
+/**
+ * What is left of a role whose vertical was dropped (ST-1.1).
+ *
+ * Not an empty list and not an absent entry: `isTemplateAllowedForRole` returns
+ * true for any role it has no allowlist for, so deleting `AUTO_MANAGER` outright
+ * would hand a user still on that role every feature the company has. Sign in,
+ * help and notifications only, until ST-3.1 retires the role value itself.
+ */
+const RETIRED_ROLE_ALLOW_PREFIXES = [
+  "core.auth.",
+  "core.help.",
+  "core.notifications.",
+  "core.multitenancy.",
 ] as const;
 
 const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
@@ -118,23 +132,15 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "schools.portal.student",
     "portal.",
   ],
-  AUTO_MANAGER: [
-    "core.auth.",
-    "core.help.",
-    "core.notifications.",
-    "core.multitenancy.",
-    "autos.",
-    "portal.autos",
-  ],
+  AUTO_MANAGER: RETIRED_ROLE_ALLOW_PREFIXES,
+  // Survives the drop as the CRM role it also was — `FEATURE_ROLE_REGISTRY` in
+  // `lib/platform/vertical-role-registry.ts` offers it only where CRM is on.
   SALES_EXEC: [
     "core.auth.",
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
-    "autos.leads",
-    "autos.deals",
     "crm.",
-    "portal.autos",
   ],
   SALES_REP: [
     "core.auth.",
@@ -148,13 +154,10 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
-    "autos.deals",
-    "autos.financing",
     "accounting.core",
     "accounting.ar",
     "accounting.banking",
     "accounting.tax",
-    "portal.autos",
   ],
   SHOP_MANAGER: [
     "core.auth.",
@@ -254,25 +257,17 @@ function isCompanyFeatureEnabled(featureKey: string, companyMap: FeatureMap): bo
   return CATALOG_DEFAULTS.get(normalized) === true;
 }
 
-function hasEnabledFeaturePrefix(companyMap: FeatureMap, prefix: string): boolean {
-  for (const [featureKey, isEnabled] of Object.entries(companyMap)) {
-    if (!isEnabled) continue;
-    if (normalizeFeatureKey(featureKey).startsWith(prefix)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function resolveTemplateRoleForCompany(
-  role: string,
-  companyMap: FeatureMap,
-): string {
-  const normalizedRole = role.trim().toUpperCase();
-  if (normalizedRole === "CLERK" && hasEnabledFeaturePrefix(companyMap, "scrap-metal.")) {
-    return "OPERATOR";
-  }
-  return normalizedRole;
+/**
+ * The role a user's feature template is read from.
+ *
+ * It used to promote a CLERK to OPERATOR on any company with `scrap-metal.`
+ * features enabled. Scrap is dropped (ST-1.1) and those keys are out of the
+ * catalog, but stale `CompanyFeatureFlag` rows can still carry them, so the
+ * rule had to go rather than be left to decay: a clerk on such a tenant is now
+ * read as a clerk.
+ */
+function resolveTemplateRole(role: string): string {
+  return role.trim().toUpperCase();
 }
 
 function getAllCompanyEnabledFeatureKeys(companyMap: FeatureMap): string[] {
@@ -381,7 +376,7 @@ export async function getEffectiveFeaturesForUser(input: {
 
   const companyMap = await getCompanyFeatureMap(companyId);
   const companyEnabled = getAllCompanyEnabledFeatureKeys(companyMap);
-  const templateRole = resolveTemplateRoleForCompany(role, companyMap);
+  const templateRole = resolveTemplateRole(role);
 
   const overrideMap = userId
     ? await getUserFeatureOverrideMap(userId)
@@ -407,7 +402,7 @@ export async function getManagedUserFeatureAccessEntries(input: {
     getCompanyFeatureMap(companyId),
     getUserFeatureOverrideMap(userId),
   ]);
-  const templateRole = resolveTemplateRoleForCompany(input.role, companyMap);
+  const templateRole = resolveTemplateRole(input.role);
 
   const entries: ManagedUserFeatureAccessEntry[] = [];
   for (const featureKey of getAllCompanyEnabledFeatureKeys(companyMap)) {
@@ -443,7 +438,7 @@ export async function setManagedUserFeatureOverride(input: {
 }): Promise<void> {
   const normalizedFeatureKey = normalizeFeatureKey(input.featureKey);
   const companyMap = await getCompanyFeatureMap(input.companyId.trim());
-  const templateRole = resolveTemplateRoleForCompany(input.role, companyMap);
+  const templateRole = resolveTemplateRole(input.role);
 
   if (!isCompanyFeatureEnabled(normalizedFeatureKey, companyMap)) {
     throw new Error("FEATURE_NOT_ENABLED_FOR_COMPANY");

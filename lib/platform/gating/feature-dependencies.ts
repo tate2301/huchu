@@ -9,12 +9,12 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "gold.audit-trail": ["gold.home"],
   "gold.payouts": ["gold.home"],
   // Settlements need somebody to settle with, and gold settlements need the gold
-  // allocations they read. Deliberately NOT dependent on `hr.payroll`: a yard that
-  // settles scrap in cash and keeps no payroll at all is a real customer, and the
-  // old `hr.settlements` key forced them to buy a payroll they never opened.
+  // allocations they read. Deliberately NOT dependent on `hr.payroll`: a site
+  // that settles crews in cash and keeps no payroll at all is a real customer,
+  // and the old `hr.settlements` key forced them to buy a payroll they never
+  // opened.
   "settlements.core": ["hr.employees"],
   "settlements.gold": ["settlements.core", "gold.payouts"],
-  "settlements.scrap": ["settlements.core"],
   // A register with nobody in it is not a register.
   "hr.attendance": ["hr.employees"],
   "hr.leave": ["hr.employees"],
@@ -37,8 +37,6 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "accounting.ar": ["accounting.core"],
   "accounting.ap": ["accounting.core"],
   "accounting.banking": ["accounting.core"],
-  "accounting.fixed-assets": ["accounting.core"],
-  "accounting.budgets": ["accounting.core"],
   "accounting.cost-centers": ["accounting.core"],
   "accounting.multi-currency": ["accounting.core"],
   "accounting.tax": ["accounting.core"],
@@ -52,10 +50,6 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "schools.portal.parent": ["schools.core", "portal.core"],
   "schools.portal.student": ["schools.core", "portal.core"],
   "schools.portal.teacher": ["schools.core", "portal.core"],
-  "autos.inventory": ["autos.core"],
-  "autos.leads": ["autos.core"],
-  "autos.deals": ["autos.core"],
-  "autos.financing": ["autos.core"],
   // What the business sells sits on top of the stock module it lives in. Both
   // screens read `/api/v2/inventory/products`, which is the item master.
   "stores.catalogue": ["stores.inventory"],
@@ -71,7 +65,6 @@ const FEATURE_DEPENDENCIES: Record<string, string[]> = {
   "retail.shifts": ["retail.core"],
   "retail.reports": ["retail.core"],
   "portal.schools": ["portal.core", "schools.core"],
-  "portal.autos": ["portal.core", "autos.core"],
   "portal.pos": ["portal.core", "retail.pos"],
 };
 

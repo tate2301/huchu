@@ -208,24 +208,6 @@ export const DEFAULT_TEMPLATE_CATALOG: DefaultTemplateCatalogEntry[] = [
     description: "Default branded credit note layout.",
     schema: recordTemplate("Credit Note"),
   },
-  {
-    key: "scrap-metal.purchase-ticket",
-    sourceKey: "scrap-metal.purchase-ticket",
-    documentType: "GENERIC_RECORD",
-    targetType: "RECORD",
-    name: "Scrap Inbound Ticket Default",
-    description: "Default branded inbound ticket layout for scrap operations.",
-    schema: recordTemplate("Inbound Ticket"),
-  },
-  {
-    key: "scrap-metal.sale-ticket",
-    sourceKey: "scrap-metal.sale-ticket",
-    documentType: "GENERIC_RECORD",
-    targetType: "RECORD",
-    name: "Scrap Outbound Ticket Default",
-    description: "Default branded outbound ticket layout for scrap operations.",
-    schema: recordTemplate("Outbound Ticket"),
-  },
   // Iteration 5 — the school's paper. Each of these is bound to a real template a
   // school can edit the wording of, which is the difference between a document and
   // a hard-coded print view.

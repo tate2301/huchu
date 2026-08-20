@@ -55,7 +55,13 @@ export async function POST(request: NextRequest) {
       },
       orderBy: [{ updatedAt: "asc" }],
       take: limit,
-      select: { id: true, invoiceId: true, schoolReceiptId: true },
+      select: {
+        id: true,
+        invoiceId: true,
+        schoolReceiptId: true,
+        creditNoteId: true,
+        retailSaleId: true,
+      },
     });
 
     // The never-attempted sweep, bounded by whatever the retry pass left of the
@@ -80,6 +86,7 @@ export async function POST(request: NextRequest) {
     let queued = 0;
     let failed = 0;
     let skipped = 0;
+    let deferred = 0;
 
     const attempt = async (run: () => Promise<{ status: string }>) => {
       try {
@@ -105,9 +112,21 @@ export async function POST(request: NextRequest) {
           });
           return { status: result.fiscalStatus };
         });
+      } else if (receipt.creditNoteId || receipt.retailSaleId) {
+        // FD-0.4a widened `FiscalReceipt` to four sources, but only two of them
+        // have an issuer yet: re-issuing needs the signing input rebuilt from
+        // the source document, and those mappings are FD-4.1 (credit note) and
+        // FD-5.1 (till sale). Counting these as `failed` would be a lie — no
+        // attempt was made and nothing is wrong with the row — and counting
+        // them as `skipped` would hide them among the schools-without-the-addon
+        // sweep. They are named so that a drain which cannot yet drain
+        // everything says so out loud rather than looking clean.
+        deferred += 1;
       } else {
-        // Unreachable while `FiscalReceipt_one_source_check` holds; counted
-        // rather than ignored so a constraint that stops holding is visible.
+        // A row naming no source at all. `FiscalReceipt_one_source_check` makes
+        // this impossible; it is counted rather than ignored so that a
+        // constraint which has stopped holding shows up here instead of being
+        // discovered by a chain that will not verify.
         failed += 1;
       }
     }
@@ -129,6 +148,8 @@ export async function POST(request: NextRequest) {
       // A school without the add-on: swept, correctly left alone, and not a
       // failure. Reported so the count reconciles.
       skipped,
+      // Sources this build cannot re-issue yet (credit notes, till sales).
+      deferred,
     });
   } catch (error) {
     if (error instanceof z.ZodError) {

@@ -4,11 +4,6 @@ import { errorResponse, successResponse, validateSession } from "@/lib/api-utils
 import { prisma } from "@/lib/prisma";
 import { getFeatureMap } from "@/lib/platform/features";
 import { hrPermissionDenial } from "@/lib/hr/permissions";
-import {
-  AUTOS_SEARCH_FEATURES,
-  AUTOS_SEARCH_TYPES,
-  type AutosSearchType,
-} from "@/lib/autos/search";
 import { GOLD_SEARCH_FEATURES, GOLD_SEARCH_TYPES, type GoldSearchType } from "@/lib/gold/search";
 import {
   OPERATIONS_SEARCH_FEATURES,
@@ -20,11 +15,6 @@ import {
   RETAIL_SEARCH_TYPES,
   type RetailSearchType,
 } from "@/lib/retail/search";
-import {
-  SCRAP_SEARCH_FEATURES,
-  SCRAP_SEARCH_TYPES,
-  type ScrapSearchType,
-} from "@/lib/scrap-metal/search";
 import {
   PEOPLE_SEARCH_FEATURES,
   PEOPLE_SEARCH_RESOURCES,
@@ -109,12 +99,6 @@ export async function GET(request: NextRequest) {
     const gold: GoldSearchType[] = GOLD_SEARCH_TYPES.filter((type) =>
       enabled(GOLD_SEARCH_FEATURES[type]),
     );
-    const scrap: ScrapSearchType[] = SCRAP_SEARCH_TYPES.filter((type) =>
-      enabled(SCRAP_SEARCH_FEATURES[type]),
-    );
-    const autos: AutosSearchType[] = AUTOS_SEARCH_TYPES.filter((type) =>
-      enabled(AUTOS_SEARCH_FEATURES[type]),
-    );
     const retail: RetailSearchType[] = RETAIL_SEARCH_TYPES.filter((type) =>
       enabled(RETAIL_SEARCH_FEATURES[type]),
     );
@@ -127,8 +111,6 @@ export async function GET(request: NextRequest) {
       schools,
       people,
       gold,
-      scrap,
-      autos,
       retail,
       operations,
     };

@@ -32,7 +32,6 @@ const MODULE_LABELS: Record<ExecutiveModuleSummary["module"], string> = {
   stores: "Stores",
   maintenance: "Maintenance",
   compliance: "Compliance",
-  security: "Security",
   reports: "Reports",
 };
 

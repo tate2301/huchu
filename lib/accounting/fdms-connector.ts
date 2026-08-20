@@ -94,23 +94,70 @@ function buildAuthHeaders(provider: FiscalisationProviderConfig) {
   return headers;
 }
 
-function buildHttpsAgent(provider: FiscalisationProviderConfig) {
+export type FdmsCertificateBundle = {
+  cert?: string;
+  key?: string;
+  ca?: string;
+  passphrase?: string;
+};
+
+/**
+ * The material behind `certificateRef`, in whichever of its two forms it is
+ * stored: the `{cert,key,ca}` JSON bundle registration writes, or a bare PEM
+ * certificate from before there was a private key to keep beside it.
+ *
+ * Exported because the device private key has two consumers that must never
+ * disagree — mTLS, below, and FD-3 receipt signing. The key that authenticates
+ * the device to FDGA is the key ZIMRA verifies its receipts with, so reading it
+ * out of two different places is how you end up with receipts signed by a key
+ * the certificate on file does not match.
+ */
+export function resolveProviderCertificateBundle(
+  provider: Pick<FiscalisationProviderConfig, "certificateRef">,
+): FdmsCertificateBundle | null {
   const raw = resolveRefValue(provider.certificateRef);
-  if (!raw) return undefined;
+  if (!raw) return null;
 
   const parsed = tryParseJson(raw);
-  if (!parsed) {
-    return new https.Agent({
-      cert: raw,
-      rejectUnauthorized: true,
-    });
-  }
+  // A bare PEM is a certificate and nothing else — no key, so no signing.
+  if (!parsed) return { cert: raw };
 
-  return new https.Agent({
+  return {
     cert: typeof parsed.cert === "string" ? parsed.cert : undefined,
     key: typeof parsed.key === "string" ? parsed.key : undefined,
     ca: typeof parsed.ca === "string" ? parsed.ca : undefined,
     passphrase: typeof parsed.passphrase === "string" ? parsed.passphrase : undefined,
+  };
+}
+
+/**
+ * The device private key, or null when this provider has none configured.
+ *
+ * Null is a legitimate answer — a tenant on the pre-native skeleton has a
+ * provider row and no keypair — and the caller decides whether that is fatal.
+ * The key itself is never returned to a route or logged: it goes straight into
+ * `crypto.createPrivateKey`.
+ */
+export function resolveDeviceSigningKey(
+  provider: Pick<FiscalisationProviderConfig, "certificateRef">,
+): { privateKeyPem: string; passphrase?: string } | null {
+  const bundle = resolveProviderCertificateBundle(provider);
+  const key = bundle?.key?.trim();
+  if (!key) return null;
+  return bundle?.passphrase
+    ? { privateKeyPem: key, passphrase: bundle.passphrase }
+    : { privateKeyPem: key };
+}
+
+function buildHttpsAgent(provider: FiscalisationProviderConfig) {
+  const bundle = resolveProviderCertificateBundle(provider);
+  if (!bundle) return undefined;
+
+  return new https.Agent({
+    cert: bundle.cert,
+    key: bundle.key,
+    ca: bundle.ca,
+    passphrase: bundle.passphrase,
     rejectUnauthorized: true,
   });
 }
@@ -210,13 +257,47 @@ function parseConnectorResponse(input: {
   return result;
 }
 
+const DEFAULT_DEVICE_PATH_PREFIX = "/Device/v1";
+
+/**
+ * The FDGA `SubmitReceipt` path for this device.
+ *
+ * v7.2 addresses a device in the URL — `/Device/v1/{deviceID}/SubmitReceipt` —
+ * rather than in the body, which is why a native submission also asks the
+ * connector to leave `deviceId` out of the JSON. The prefix is overridable
+ * through `metadata.devicePathPrefix` for the sandbox, and `metadata.issuePath`
+ * still wins outright so a tenant pointed at something that is not FDGA (the
+ * pre-native skeleton, and the schools path today) is unaffected.
+ */
+export function submitReceiptPath(provider: FiscalisationProviderConfig): string {
+  const metadata = tryParseJson(provider.metadataJson ?? "") ?? {};
+  if (typeof metadata.issuePath === "string" && metadata.issuePath) return metadata.issuePath;
+
+  const deviceId = String(provider.deviceId ?? "").trim();
+  if (!deviceId) {
+    throw new Error("Fiscalisation provider has no deviceId; register the device first.");
+  }
+  const prefix =
+    typeof metadata.devicePathPrefix === "string" && metadata.devicePathPrefix
+      ? metadata.devicePathPrefix.replace(/\/+$/, "")
+      : DEFAULT_DEVICE_PATH_PREFIX;
+  return `${prefix}/${encodeURIComponent(deviceId)}/SubmitReceipt`;
+}
+
 export async function issueWithFdmsConnector(input: {
   provider: FiscalisationProviderConfig;
   payload: ConnectorPayload;
   attemptCount: number;
+  /** Overrides `metadata.issuePath`. Native submissions pass
+   *  {@link submitReceiptPath}; everything else leaves this alone. */
+  path?: string;
+  /** FDGA carries the device in the URL, so a native submission suppresses the
+   *  body copy rather than sending the same identifier twice under two names. */
+  omitDeviceIdInBody?: boolean;
 }) {
   const metadata = tryParseJson(input.provider.metadataJson ?? "") ?? {};
-  const issuePath = typeof metadata.issuePath === "string" ? metadata.issuePath : "/receipts";
+  const issuePath =
+    input.path ?? (typeof metadata.issuePath === "string" ? metadata.issuePath : "/receipts");
 
   const response = await performRequest({
     provider: input.provider,
@@ -224,7 +305,9 @@ export async function issueWithFdmsConnector(input: {
     path: issuePath,
     body: {
       ...input.payload.payload,
-      deviceId: input.provider.deviceId ?? undefined,
+      ...(input.omitDeviceIdInBody
+        ? {}
+        : { deviceId: input.provider.deviceId ?? undefined }),
     },
     extraHeaders: {
       "Idempotency-Key": input.payload.idempotencyKey,
