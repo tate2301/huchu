@@ -5,9 +5,27 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { BandChip } from "@/components/accounting/band-chip";
+import {
+  ReportTable,
+  amt,
+  badge,
+  dim,
+  nm,
+  num,
+  txt,
+  type ReportRow,
+} from "@/components/accounting/report-table";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import {
   Dialog,
   DialogContent,
@@ -18,6 +36,7 @@ import {
 import {
   fetchAccountingSummary,
   fetchFinancialReportsHubSummary,
+  fetchJournalEntries,
   fetchPayablesHubSummary,
   fetchReceivablesHubSummary,
   fetchSites,
@@ -25,77 +44,29 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { AccountingSeedPackResult } from "@/lib/api";
 import {
-  ArrowRight,
-  ArrowRightUp,
-  BarChart3,
-  Building2,
   Coins,
-  FileText,
+  MoreHorizontal,
   Package,
   Payments,
   Plus,
   ReceiptLong,
   RefreshCcw,
-  Wallet,
 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-// ── Destination list ──────────────────────────────────────────────────────────
-
-type DestItem = {
-  id: string;
-  label: string;
-  description: string;
-  href: string;
-  tag?: string;
+/** Ink for the period panel's figures — the badge palette, so it agrees with
+ *  the status chips in the journals table beside it. */
+const PERIOD_INK: Record<string, string> = {
+  strong: "var(--text-strong)",
+  warn: "var(--badge-warn-fg)",
+  ok: "var(--badge-ok-fg)",
+  muted: "var(--text-subtle)",
 };
 
-type DestGroup = {
-  group: string;
-  items: DestItem[];
-};
 
-function DestinationList({ groups }: { groups: DestGroup[] }) {
-  return (
-    <div className="space-y-6">
-      {groups.map((group) => (
-        <div key={group.group}>
-          <p className="mb-2 px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            {group.group}
-          </p>
-          <div className="divide-y divide-border rounded-xl border bg-card">
-            {group.items.map((item) => (
-              <Link
-                key={item.id}
-                href={item.href}
-                className="group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
-              >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-foreground group-hover:text-[var(--action-primary-bg)]">
-                      Go to {item.label}
-                    </span>
-                    {item.tag && (
-                      <Badge variant="outline" className="text-[10px]">
-                        {item.tag}
-                      </Badge>
-                    )}
-                  </div>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{item.description}</p>
-                </div>
-                <ArrowRightUp className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
-              </Link>
-            ))}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
 
 // ── Initialize wizard ─────────────────────────────────────────────────────────
 
@@ -272,7 +243,7 @@ function FoundationPackDialog({
               </div>
             ) : preview ? (
               <>
-                <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+                <div className="rounded-[var(--radius-md)] border bg-[var(--surface-muted)] p-3 text-sm">
                   <p className="mb-2 font-medium text-foreground">What will be created</p>
                   <ul className="space-y-1">
                     {PACK_LABELS.map(([label, , missingKey]) => {
@@ -316,7 +287,7 @@ function FoundationPackDialog({
 
         {step === "done" && preview && (
           <div className="space-y-4 pt-1">
-            <div className="rounded-lg border bg-muted/30 p-3 text-sm">
+            <div className="rounded-[var(--radius-md)] border bg-[var(--surface-muted)] p-3 text-sm">
               <p className="mb-2 font-medium text-foreground">Applied successfully</p>
               <ul className="space-y-1">
                 {PACK_LABELS.map(([label, createdKey]) => {
@@ -347,47 +318,6 @@ function FoundationPackDialog({
   );
 }
 
-// ── Quick actions list ────────────────────────────────────────────────────────
-
-type QuickActionItem =
-  | { kind: "link"; label: string; href: string; icon: React.ElementType }
-  | { kind: "action"; label: string; icon: React.ElementType; onClick: () => void };
-
-function QuickActionsList({ items }: { items: QuickActionItem[] }) {
-  return (
-    <div className="divide-y divide-border rounded-xl border bg-card">
-      {items.map((item) => {
-        if (item.kind === "link") {
-          return (
-            <Link
-              key={item.label}
-              href={item.href}
-              className="group flex items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
-            >
-              <item.icon className="size-4 shrink-0 text-muted-foreground" />
-              <span className="flex-1 text-sm font-medium text-foreground">
-                Go to {item.label}
-              </span>
-              <ArrowRightUp className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
-            </Link>
-          );
-        }
-        return (
-          <button
-            key={item.label}
-            type="button"
-            onClick={item.onClick}
-            className="group flex w-full items-center gap-3 px-4 py-3 transition-colors first:rounded-t-xl last:rounded-b-xl hover:bg-muted/40"
-          >
-            <item.icon className="size-4 shrink-0 text-muted-foreground" />
-            <span className="flex-1 text-left text-sm font-medium text-foreground">{item.label}</span>
-            <ArrowRight className="size-3.5 shrink-0 text-muted-foreground/60 transition-colors group-hover:text-[var(--action-primary-bg)]" />
-          </button>
-        );
-      })}
-    </div>
-  );
-}
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
@@ -439,98 +369,280 @@ export default function AccountingOverviewPage() {
       }),
   });
 
-  const groupedLinks = useMemo<DestGroup[]>(
-    () => [
+  /**
+   * The trial balance by statement section. Assets and expenses carry debit
+   * balances, the rest carry credits, and a section only ever shows a figure on
+   * its own side — so the two columns stay readable as columns rather than as a
+   * grid of paired zeroes.
+   */
+  const totalDebit = financialSummary?.kpis.totalDebit ?? 0;
+  const totalCredit = financialSummary?.kpis.totalCredit ?? 0;
+  const balanced = Math.abs(totalDebit - totalCredit) < 0.005;
+
+  const trialBalanceRows = useMemo<ReportRow[]>(() => {
+    const k = financialSummary?.kpis;
+    /*
+      An empty side is a dash, never a zero. Nil and "does not apply on this
+      side" are different facts about an account section, and a column of 0.00
+      hides both — assets simply do not have a credit balance, and printing one
+      invites the reader to check an arithmetic that was never there.
+    */
+    const line = (label: string, debit: number | null, credit: number | null): ReportRow => ({
+      id: label,
+      cells: [
+        nm(label),
+        debit === null ? dim() : amt(formatCurrency(debit)),
+        credit === null ? dim() : amt(formatCurrency(credit)),
+      ],
+    });
+    return [
+      line("Assets", k?.assets ?? 0, null),
+      line("Liabilities", null, k?.liabilities ?? 0),
+      line("Equity", null, k?.equity ?? 0),
+      line("Income", null, k?.income ?? 0),
+      line("Expenses", Math.abs(k?.expenses ?? 0), null),
       {
-        group: "Receivables",
-        items: [
-          { id: "receivables-home", label: "Receivables Home", description: "Overall AR position, trends, and quick access.", href: "/accounting/receivables", tag: "Home" },
-          { id: "sales", label: "Sales Operations", description: "Customers, invoices, receipts, and adjustments.", href: "/accounting/sales", tag: "Operations" },
-          { id: "ar-aging", label: "AR Aging", description: "Receivables exposure by aging bucket.", href: "/accounting/sales?view=aging", tag: "Report" },
+        id: "total",
+        emphasis: true,
+        cells: [
+          nm("Total", { tone: balanced ? "total" : "bad" }),
+          amt(formatCurrency(totalDebit), { tone: balanced ? "total" : "bad" }),
+          amt(formatCurrency(totalCredit), { tone: balanced ? "total" : "bad" }),
         ],
       },
-      {
-        group: "Payables",
-        items: [
-          { id: "payables-home", label: "Payables Home", description: "Overall AP position, trends, and quick access.", href: "/accounting/payables", tag: "Home" },
-          { id: "purchases", label: "Purchases Operations", description: "Vendors, bills, payments, and adjustments.", href: "/accounting/purchases", tag: "Operations" },
-          { id: "ap-aging", label: "AP Aging", description: "Payables exposure by aging bucket.", href: "/accounting/purchases?view=aging", tag: "Report" },
+    ];
+  }, [financialSummary, totalDebit, totalCredit, balanced]);
+
+  /**
+   * Everything standing between today and a closed period, each row linking to
+   * the page that clears it. Only real blockers appear: a zero count is not a
+   * reassurance worth a row, it is a row you have to read to learn says nothing.
+   */
+  const blockers = useMemo(() => {
+    const rows: Array<{
+      label: string;
+      where: string;
+      href: string;
+      count: number;
+      value?: string;
+      urgent?: boolean;
+    }> = [];
+    const push = (row: (typeof rows)[number]) => {
+      if (row.count > 0) rows.push(row);
+    };
+
+    push({
+      label: "Journals still in draft",
+      where: "Journals",
+      href: "/accounting/journals",
+      count: accountingSummary?.draftJournals ?? 0,
+    });
+    push({
+      label: "Invoices open",
+      where: "Receivables",
+      href: "/accounting/sales",
+      count: accountingSummary?.openInvoices ?? 0,
+      value: formatCurrency(receivablesSummary?.kpis.overdueBalance ?? 0),
+      urgent: (receivablesSummary?.kpis.overdueBalance ?? 0) > 0,
+    });
+    push({
+      label: "Bills open",
+      where: "Payables",
+      href: "/accounting/purchases",
+      count: accountingSummary?.openBills ?? 0,
+      value: formatCurrency(payablesSummary?.kpis.overdueBalance ?? 0),
+      urgent: (payablesSummary?.kpis.overdueBalance ?? 0) > 0,
+    });
+    push({
+      label: "Receipts not fiscalised",
+      where: "Fiscalisation",
+      href: "/accounting/fiscalisation",
+      count: accountingSummary?.pendingFiscalReceipts ?? 0,
+      urgent: true,
+    });
+    push({
+      label: "VAT returns to file",
+      where: "Tax",
+      href: "/accounting/tax?view=vat-returns",
+      count: accountingSummary?.pendingVatReturns ?? 0,
+    });
+    push({
+      label: "Postings that never reached the ledger",
+      where: "Posting Rules",
+      href: "/accounting/posting-rules",
+      count: accountingSummary?.failedIntegrationEvents ?? 0,
+      urgent: true,
+    });
+
+    return rows;
+  }, [accountingSummary, receivablesSummary, payablesSummary]);
+
+  /** The blockers as table rows. Urgent counts take the danger ink. */
+  const blockerRows = useMemo<ReportRow[]>(
+    () =>
+      blockers.map((item) => ({
+        id: item.label,
+        href: item.href,
+        cells: [
+          nm(item.label),
+          txt(item.where, { tone: "subtle" }),
+          num(item.count.toLocaleString(), item.urgent ? { tone: "bad", bold: true } : {}),
+          item.value
+            ? amt(item.value, item.urgent ? { tone: "bad" } : {})
+            : dim(),
         ],
-      },
-      {
-        group: "Financial Reporting",
-        items: [
-          { id: "financial-home", label: "Financial Reports", description: "Overall reporting position and report access.", href: "/accounting/financial-reports", tag: "Home" },
-          { id: "trial-balance", label: "Trial Balance", description: "Ledger checks by account debits and credits.", href: "/accounting/trial-balance", tag: "Report" },
-          { id: "vat-summary", label: "VAT Summary", description: "Output/input VAT position and net tax.", href: "/accounting/tax?view=vat-summary", tag: "Tax" },
-          { id: "vat-returns", label: "VAT Returns", description: "Draft, review, finalize, and file VAT returns.", href: "/accounting/tax?view=vat-returns", tag: "Compliance" },
-        ],
-      },
-      {
-        group: "Payments & Banking",
-        items: [
-          // Banking parked in ST-1.2 — route and model intact, not an entry
-          // point. The executive dashboard still reads it for cash tiles.
-          { id: "sales-receipts", label: "Receipt Register", description: "Incoming customer cash movements.", href: "/accounting/sales?view=receipts", tag: "AR" },
-          { id: "purchase-payments", label: "Payment Register", description: "Outgoing supplier cash movements.", href: "/accounting/purchases?view=payments", tag: "AP" },
-        ],
-      },
-      {
-        group: "Accounting Master",
-        items: [
-          { id: "coa", label: "Chart of Accounts", description: "Account structure and classifications.", href: "/accounting/chart-of-accounts", tag: "Master" },
-          { id: "periods", label: "Accounting Periods", description: "Period control, freeze date, and opening balances.", href: "/accounting/periods", tag: "Master" },
-          { id: "journals", label: "Journals", description: "Manual journals and posting control.", href: "/accounting/journals", tag: "Core" },
-          { id: "posting-rules", label: "Posting Rules", description: "Automation mappings for source postings.", href: "/accounting/posting-rules", tag: "Automation" },
-          // Cost centers and currency rates parked in ST-1.2. `costCenterId`
-          // columns and the currency models stay — the posting engine and
-          // `lib/money.ts` read them.
-          { id: "tax", label: "Tax Setup", description: "Tax code setup and VAT controls.", href: "/accounting/tax", tag: "Tax" },
-          { id: "fiscalisation", label: "Fiscalisation", description: "Fiscal device and receipt integration settings.", href: "/accounting/fiscalisation", tag: "Compliance" },
-        ],
-      },
-    ],
-    [],
+      })),
+    [blockers],
   );
 
-  const quickActions = useMemo<QuickActionItem[]>(
-    () => [
-      { kind: "link", label: "Receivables Home", href: "/accounting/receivables", icon: ReceiptLong },
-      { kind: "link", label: "Payables Home", href: "/accounting/payables", icon: Payments },
-      { kind: "link", label: "Financial Reports", href: "/accounting/financial-reports", icon: BarChart3 },
-      { kind: "link", label: "Chart of Accounts", href: "/accounting/chart-of-accounts", icon: Coins },
-      { kind: "action", label: "Initialize Accounting Defaults", icon: RefreshCcw, onClick: () => setInitOpen(true) },
-      { kind: "action", label: "Apply Foundation Pack", icon: Package, onClick: () => setFoundationOpen(true) },
-    ],
-    [],
+  /**
+   * The last six journals.
+   *
+   * The design shows a `Source` column — Payroll, Fixed assets, Manual. The
+   * journal record carries no such field, so the column is `Date` instead
+   * rather than a guess dressed up as provenance. Worth adding to the API
+   * later; not worth inventing here.
+   */
+  const { data: recentJournals } = useQuery({
+    queryKey: ["accounting", "journals", "recent"],
+    queryFn: () => fetchJournalEntries({ limit: 6, page: 1 }),
+  });
+
+  const recentJournalRows = useMemo<ReportRow[]>(
+    () =>
+      (recentJournals?.data ?? []).map((entry) => ({
+        id: entry.id,
+        href: `/accounting/journals?entry=${entry.id}`,
+        cells: [
+          txt(`JE-${entry.entryNumber}`, { mono: true, tone: "strong" }),
+          nm(entry.description || "No memo"),
+          txt(new Date(entry.entryDate).toLocaleDateString(), { tone: "subtle" }),
+          badge(
+            entry.status === "POSTED" ? "Posted" : "Draft",
+            entry.status === "POSTED" ? "ok" : "warn",
+            { align: "right" },
+          ),
+        ],
+      })),
+    [recentJournals],
   );
+
+  const periodFacts = useMemo<
+    Array<{ label: string; value: string; tone?: "strong" | "warn" | "ok" | "muted" }>
+  >(
+    () => [
+      {
+        label: "Open periods",
+        value: String(accountingSummary?.openPeriods ?? 0),
+        tone: (accountingSummary?.openPeriods ?? 0) > 0 ? "ok" : "muted",
+      },
+      { label: "Posted journals", value: String(accountingSummary?.postedJournals ?? 0) },
+      {
+        label: "In draft",
+        value: String(accountingSummary?.draftJournals ?? 0),
+        tone: (accountingSummary?.draftJournals ?? 0) > 0 ? "warn" : "muted",
+      },
+      {
+        label: "Frozen before",
+        value: accountingSummary?.freezeBeforeDate
+          ? new Date(accountingSummary.freezeBeforeDate).toLocaleDateString()
+          : "not set",
+        tone: accountingSummary?.freezeBeforeDate ? "strong" : "muted",
+      },
+    ],
+    [accountingSummary],
+  );
+
+  /**
+   * The period panel's qualifier — "FY2026 · August" in the design.
+   *
+   * Derived from the summary's own period window rather than from today's
+   * date, so a workspace still posting into last month is described by the
+   * books rather than by the calendar on the wall.
+   */
+  const periodNote = useMemo(() => {
+    const end = financialSummary?.meta.endDate;
+    if (!end) return "the books you post into";
+    const date = new Date(end);
+    if (Number.isNaN(date.getTime())) return "the books you post into";
+    return `FY${date.getFullYear()} · ${date.toLocaleDateString(undefined, { month: "long" })}`;
+  }, [financialSummary]);
+
+
 
   const error = receivablesError || payablesError || financialError || accountingSummaryError;
 
   return (
     <AccountingShell
       activeTab="overview"
-      title="Accounting Overview"
+      // "Overview", not "Accounting Overview" — the app bar directly above
+      // already says Accounting, and the band repeating it costs the width the
+      // lede needs.
+      title="Overview"
+      description="where the books stand today"
+      bandSlot={
+        <>
+          <BandChip label="Period" value={periodNote} tone="ok" />
+          <BandChip
+            label="Balanced"
+            value={balanced ? "Yes" : "No"}
+            tone={balanced ? "ok" : "bad"}
+          />
+        </>
+      }
       actions={
-        <div className="flex flex-wrap gap-2">
+        /*
+          One verb plus a menu, not three competing buttons.
+
+          The design's app bar carries a single primary action. The other two
+          creates and the two setup wizards live behind it — the wizards
+          especially, which were previously only reachable from a "Quick
+          actions" panel the design does not have. Putting them here is what
+          keeps them reachable at all.
+        */
+        <div className="flex items-center gap-2">
           <Button asChild size="sm">
             <Link href="/accounting/journals?action=new-journal">
               <Plus className="mr-1.5 size-4" />
-              New Journal
+              New journal
             </Link>
           </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/sales?action=new-invoice">
-              <Plus className="mr-1.5 size-4" />
-              New Invoice
-            </Link>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <Link href="/accounting/purchases?action=new-bill">
-              <Plus className="mr-1.5 size-4" />
-              New Bill
-            </Link>
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="outline" aria-label="More accounting actions">
+                <MoreHorizontal className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="min-w-[15rem]">
+              <DropdownMenuItem asChild>
+                <Link href="/accounting/sales?action=new-invoice">
+                  <ReceiptLong className="mr-2 size-4" />
+                  Raise an invoice
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/accounting/purchases?action=new-bill">
+                  <Payments className="mr-2 size-4" />
+                  Record a bill
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuItem asChild>
+                <Link href="/accounting/chart-of-accounts?action=new-account">
+                  <Coins className="mr-2 size-4" />
+                  Add an account
+                </Link>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={() => setInitOpen(true)}>
+                <RefreshCcw className="mr-2 size-4" />
+                Initialize accounting defaults
+              </DropdownMenuItem>
+              <DropdownMenuItem onSelect={() => setFoundationOpen(true)}>
+                <Package className="mr-2 size-4" />
+                Apply foundation pack
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       }
     >
@@ -541,57 +653,195 @@ export default function AccountingOverviewPage() {
         </Alert>
       ) : null}
 
-      {/* Metrics row */}
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+      {/*
+        One strip, not two rows of three.
+
+        These six answer "where do the books stand", and that is a glance, not a
+        read — stacked 3-and-3 it became a scan down and back. Six across only
+        became possible once the module stopped centring itself inside
+        `max-w-7xl`; at 2xl each tile gets ~226px, room for a six-figure value
+        without truncation. Below that it steps to three, then two.
+      */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        {/*
+          Named for what they are, not for the table they came out of.
+
+          "Open AR" and "Open AP" are the ledger's words for them. This is the
+          page somebody opens to find out how the business is doing, and on it
+          the two figures mean "money customers owe us" and "money we owe
+          suppliers" — so that is what they say. The rail is one click away for
+          anyone who wants the ledger view.
+        */}
         <MetricTile
-          title="Accounts in Chart"
-          value={accountingSummary?.accounts ?? 0}
-          valueLabel={(accountingSummary?.accounts ?? 0).toLocaleString()}
-          detail="Active account structure"
-        />
-        <MetricTile
-          title="Open AR"
-          value={receivablesSummary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(receivablesSummary?.kpis.openBalance ?? 0)}
-          detail="Outstanding receivables"
-        />
-        <MetricTile
-          title="Open AP"
-          value={payablesSummary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(payablesSummary?.kpis.openBalance ?? 0)}
-          detail="Outstanding payables"
-        />
-        <MetricTile
-          title="Net Income"
-          value={financialSummary?.kpis.netIncome ?? 0}
-          valueLabel={formatCurrency(financialSummary?.kpis.netIncome ?? 0)}
-          detail="Profit and loss position"
-        />
-        <MetricTile
-          title="Net Cash"
+          title="Cash on hand"
           value={financialSummary?.kpis.netCash ?? 0}
           valueLabel={formatCurrency(financialSummary?.kpis.netCash ?? 0)}
-          detail="Cash flow net movement"
+          delta={(financialSummary?.kpis.netCash ?? 0) < 0 ? "overdrawn" : "net movement"}
+          detail="across cash and bank"
+          tone={(financialSummary?.kpis.netCash ?? 0) < 0 ? "danger" : "good"}
+          href="/accounting/financial-reports"
         />
         <MetricTile
-          title="Open Periods"
-          value={accountingSummary?.openPeriods ?? 0}
-          valueLabel={(accountingSummary?.openPeriods ?? 0).toLocaleString()}
-          detail="Current open accounting periods"
+          title="Owed to us"
+          value={receivablesSummary?.kpis.openBalance ?? 0}
+          valueLabel={formatCurrency(receivablesSummary?.kpis.openBalance ?? 0)}
+          delta={
+            (receivablesSummary?.kpis.overdueBalance ?? 0) > 0
+              ? `${formatCurrency(receivablesSummary?.kpis.overdueBalance ?? 0)} overdue`
+              : undefined
+          }
+          detail={
+            (receivablesSummary?.kpis.overdueBalance ?? 0) > 0
+              ? "past its terms"
+              : "all within terms"
+          }
+          tone={(receivablesSummary?.kpis.overdueBalance ?? 0) > 0 ? "danger" : "good"}
+          href="/accounting/receivables"
+        />
+        <MetricTile
+          title="We owe"
+          value={payablesSummary?.kpis.openBalance ?? 0}
+          valueLabel={formatCurrency(payablesSummary?.kpis.openBalance ?? 0)}
+          delta={
+            (payablesSummary?.kpis.overdueBalance ?? 0) > 0
+              ? `${formatCurrency(payablesSummary?.kpis.overdueBalance ?? 0)} overdue`
+              : undefined
+          }
+          detail={
+            (payablesSummary?.kpis.overdueBalance ?? 0) > 0 ? "past its terms" : "all within terms"
+          }
+          tone={(payablesSummary?.kpis.overdueBalance ?? 0) > 0 ? "warn" : "good"}
+          href="/accounting/payables"
+        />
+        <MetricTile
+          title="Income"
+          value={financialSummary?.kpis.income ?? 0}
+          valueLabel={formatCurrency(financialSummary?.kpis.income ?? 0)}
+          delta="for the period"
+          detail="everything earned"
+          tone="neutral"
+          href="/accounting/financial-reports"
+        />
+        <MetricTile
+          title="Expenses"
+          value={Math.abs(financialSummary?.kpis.expenses ?? 0)}
+          valueLabel={formatCurrency(Math.abs(financialSummary?.kpis.expenses ?? 0))}
+          delta="for the period"
+          detail="everything spent"
+          tone="warn"
+          href="/accounting/financial-reports"
+        />
+        <MetricTile
+          title="Net income"
+          value={financialSummary?.kpis.netIncome ?? 0}
+          valueLabel={formatCurrency(financialSummary?.kpis.netIncome ?? 0)}
+          delta={(financialSummary?.kpis.netIncome ?? 0) < 0 ? "at a loss" : "before tax"}
+          detail="income less expenses"
+          tone={(financialSummary?.kpis.netIncome ?? 0) < 0 ? "danger" : "good"}
+          href="/accounting/financial-reports"
         />
       </div>
 
-      {/* Destinations + Quick actions */}
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
-        <DestinationList groups={groupedLinks} />
+      {/*
+        Where the books stand, then what is stopping them closing.
 
-        <div className="space-y-3">
-          <p className="px-1 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Quick Actions
-          </p>
-          <QuickActionsList items={quickActions} />
-        </div>
+        What used to be here was `DestinationList` — nineteen described links to
+        the other accounting pages. That list existed because the navigation did
+        not: the rail showed six categories, and the rest had to be discovered by
+        landing somewhere. The rail now carries all thirteen destinations
+        permanently, so the overview stops being a menu and answers the question
+        you actually opened it with.
+      */}
+      <div className="grid gap-3 xl:grid-cols-12">
+        <ReportPanel
+          className="xl:col-span-5"
+          title="Trial balance"
+          note="debits and credits must agree"
+        >
+          <ReportTable
+            label="Trial balance by section"
+            tracks="minmax(0,1fr) 120px 120px"
+            columns={[
+              { label: "" },
+              { label: "Debit", align: "right" },
+              { label: "Credit", align: "right" },
+            ]}
+            rows={trialBalanceRows}
+          />
+          {!balanced ? (
+            <p className="border-t border-[var(--border-subtle)] px-[13px] py-2 text-sm text-[var(--badge-bad-fg)]">
+              Out by {formatCurrency(Math.abs(totalDebit - totalCredit))} — the ledger will not
+              close until this is nil.
+            </p>
+          ) : null}
+        </ReportPanel>
+
+        <ReportPanel
+          className="xl:col-span-7"
+          title="Needs attention"
+          note="what is blocking the close"
+        >
+          <ReportTable
+            label="Blocking the close"
+            tracks="minmax(0,1fr) 130px 110px 130px"
+            columns={[
+              { label: "What" },
+              { label: "Where" },
+              { label: "Count", align: "right" },
+              { label: "Value", align: "right" },
+            ]}
+            rows={blockerRows}
+            emptyLabel="Nothing outstanding. Every journal is posted and nothing is waiting on a filing."
+          />
+        </ReportPanel>
       </div>
+
+      <div className="grid gap-3 xl:grid-cols-12">
+        <ReportPanel className="xl:col-span-4" title="Period" note={periodNote}>
+          {/*
+            Label and figure, not a table. These five are facts about one
+            thing rather than rows of a set — there is nothing to sort, total
+            or compare down a column, so the table's head and rules would be
+            chrome around a definition list.
+          */}
+          <div className="px-[13px] py-1.5">
+            {periodFacts.map((fact) => (
+              <div key={fact.label} className="flex min-h-[26px] items-center gap-2.5">
+                <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-muted)]">
+                  {fact.label}
+                </span>
+                <span
+                  className="font-mono text-sm font-semibold tabular-nums"
+                  style={{ color: PERIOD_INK[fact.tone ?? "strong"] }}
+                >
+                  {fact.value}
+                </span>
+              </div>
+            ))}
+          </div>
+          <div className="border-t border-[var(--border-subtle)] p-[13px]">
+            <Button asChild size="sm" className="w-full">
+              <Link href="/accounting/periods">Open the close checklist</Link>
+            </Button>
+          </div>
+        </ReportPanel>
+
+        <ReportPanel className="xl:col-span-8" title="Recent journals" note="newest first">
+          <ReportTable
+            label="Recent journal entries"
+            tracks="120px minmax(0,1fr) 130px 120px"
+            columns={[
+              { label: "Ref" },
+              { label: "Memo" },
+              { label: "Date" },
+              { label: "Status", align: "right" },
+            ]}
+            rows={recentJournalRows}
+            emptyLabel="No journals posted yet."
+          />
+        </ReportPanel>
+      </div>
+
 
       <InitializeWizardDialog open={initOpen} onOpenChange={setInitOpen} />
       <FoundationPackDialog open={foundationOpen} onOpenChange={setFoundationOpen} />

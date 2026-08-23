@@ -69,7 +69,20 @@ export function AppShell({
             // CCTV (a full-bleed video wall, hence no vertical padding) and
             // scrap ticketing (a thumb-reachable bottom bar, hence a tighter
             // bottom inset); both modules are gone (ST-2.1, ST-2.3).
-            className="content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] pt-[var(--content-gutter-y)] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
+            // The work surface is the canvas tint, not white.
+            // ============================================================
+            // `SidebarInset` stays white because the app bar lives in it and
+            // the bar is white in every artboard. But everything below the bar
+            // is drawn on `--canvas` with white reserved for the things that
+            // are actually raised off it: the rail, the view toolbar, and the
+            // cards.
+            //
+            // On white it all collapsed into one field — a card's 1px
+            // `--border` was the only thing separating a panel from the page,
+            // so the layout read as a flat sheet with hairlines ruled on it
+            // and nothing looked grouped. The tint is what makes a card a
+            // card, and it costs one token.
+            className="content-shell min-w-0 min-h-0 flex-1 overflow-y-auto overscroll-contain [touch-action:pan-y] bg-[var(--canvas)] pt-[var(--content-gutter-y)] pb-[max(1.5rem,env(safe-area-inset-bottom))] md:py-[var(--content-gutter-y)]"
           >
             {/* Both live above `main` rather than inside a page: the trail has
                 to survive the navigation it is recording, and the peek has to

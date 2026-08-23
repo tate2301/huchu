@@ -8,6 +8,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { BandChip } from "@/components/accounting/band-chip";
 import { Input } from "@/components/ui/input";
 import {
   Select,
@@ -70,6 +71,23 @@ export default function ChartOfAccountsPage() {
   });
 
   const accounts = useMemo(() => accountsData?.data ?? [], [accountsData]);
+
+  /**
+   * The chart's size, for the band.
+   *
+   * Counted across every account rather than the filtered view: "96 accounts"
+   * is a fact about the chart, and a chip that changed as you typed in the
+   * search box would be reporting the filter rather than the books. Inactive
+   * only earns a chip when there are some — a permanent "Inactive 0" is a
+   * reassurance nobody asked for taking up band width on every page load.
+   */
+  const accountCounts = useMemo(
+    () => ({
+      total: accounts.length,
+      inactive: accounts.filter((account) => !account.isActive).length,
+    }),
+    [accounts],
+  );
 
   const filteredAccounts = useMemo(() => {
     return accounts.filter((account) => {
@@ -347,6 +365,15 @@ export default function ChartOfAccountsPage() {
     <AccountingShell
       activeTab="chart-of-accounts"
       title="Chart of Accounts"
+      description="the account tree every posting lands in"
+      bandSlot={
+        <>
+          <BandChip label="Accounts" value={String(accountCounts.total)} tone="mute" />
+          {accountCounts.inactive > 0 ? (
+            <BandChip label="Inactive" value={String(accountCounts.inactive)} tone="warn" />
+          ) : null}
+        </>
+      }
       actions={
         <AccountingNewButton items={[{ label: "Add Account", icon: TableRows, onClick: openNew }]} />
       }
@@ -422,7 +449,7 @@ export default function ChartOfAccountsPage() {
                 placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                 required
               />
-              <p className="mt-1 text-xs text-muted-foreground">
+              <p className="mt-1 acct-caption">
                 {editingAccount
                   ? "Account code is immutable."
                   : reserveError ?? "Code is auto-generated and cannot be edited."}

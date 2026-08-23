@@ -12,7 +12,7 @@ export default async function CrmCompaniesPage({ searchParams }: { searchParams:
   if (!session?.user) redirect("/login");
   const params = await searchParams;
   return (
-    <CrmPage>
+    <CrmPage title="Companies" description="the businesses you sell to">
       <CompaniesContent openCreate={params.new === "1"} />
     </CrmPage>
   );

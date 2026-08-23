@@ -66,7 +66,7 @@ export function BlockingReceiptsTable({
               <TableRow key={receipt.id}>
                 <TableCell>
                   <div className="font-mono">{receipt.sourceRef ?? receipt.receiptNumber ?? receipt.id}</div>
-                  <div className="text-xs text-muted-foreground">
+                  <div className="acct-caption">
                     {SOURCE_KIND_LABELS[receipt.sourceKind]}
                   </div>
                 </TableCell>
@@ -76,7 +76,7 @@ export function BlockingReceiptsTable({
                     label={receipt.status}
                   />
                   {receipt.attemptCount > 0 ? (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="acct-caption">
                       {receipt.attemptCount} attempt{receipt.attemptCount === 1 ? "" : "s"}
                     </div>
                   ) : null}
@@ -85,12 +85,12 @@ export function BlockingReceiptsTable({
                 <TableCell>
                   <TimeAgo value={receipt.createdAt} />
                   {receipt.nextRetryAt ? (
-                    <div className="text-xs text-muted-foreground">
+                    <div className="acct-caption">
                       retry <TimeAgo value={receipt.nextRetryAt} />
                     </div>
                   ) : null}
                 </TableCell>
-                <TableCell className="text-xs text-muted-foreground">
+                <TableCell className="acct-caption">
                   {receipt.lastError ?? "Not yet submitted"}
                 </TableCell>
               </TableRow>
@@ -101,7 +101,7 @@ export function BlockingReceiptsTable({
       {truncated ? (
         // Said out loud, because a list silently cut at eight rows reads as
         // "eight receipts to fix" when it may be eighty.
-        <p className="text-xs text-muted-foreground">
+        <p className="acct-caption">
           Showing the {receipts.length} oldest of {total}. Clear these and refresh to see the rest.
         </p>
       ) : null}

@@ -18,7 +18,10 @@ export default async function CrmTasksPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage
+      title="Tasks"
+      description="what the team owes, and when it is due"
+    >
       <TasksRegisterContent />
     </CrmPage>
   );

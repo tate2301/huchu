@@ -5,7 +5,8 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
@@ -31,6 +32,20 @@ import {
 import { getApiErrorMessage } from "@/lib/api-client";
 
 type StatementRow = TrialBalanceRow & { group: string; value: number };
+
+/**
+ * Money the way a statement prints it: negatives in brackets, no minus sign.
+ * A leading `-` at the far left of a right-aligned mono column is easy to read
+ * straight past, and on a cash flow that is the difference between an inflow
+ * and an outflow.
+ */
+function accountingFigure(value: number) {
+  const magnitude = Math.abs(value).toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+  return value < 0 ? `(${magnitude})` : magnitude;
+}
 
 export default function FinancialStatementsPage() {
   const [activeView, setActiveView] = useState<"profit" | "balance" | "cash-flow">("profit");
@@ -134,7 +149,7 @@ export default function FinancialStatementsPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.code}</div>
-            <div className="text-xs text-muted-foreground">{row.original.name}</div>
+            <div className="acct-caption">{row.original.name}</div>
           </div>
         ),
         size: 280,
@@ -186,6 +201,14 @@ export default function FinancialStatementsPage() {
     <AccountingShell
       activeTab="financials"
       title="Financial Statements"
+      description="profit and loss, the balance sheet, and where the cash went"
+      bandSlot={
+        <BandChip
+          label="Net income"
+          value={accountingFigure(totals.netIncome)}
+          tone={totals.netIncome < 0 ? "bad" : "ok"}
+        />
+      }
     >
       {error ? (
         <Alert variant="destructive">
@@ -194,13 +217,64 @@ export default function FinancialStatementsPage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <FrappeStatCard label="Total Income" value={totals.income} valueLabel={totals.income.toFixed(2)} />
-        <FrappeStatCard label="Total Expenses" value={totals.expenses} valueLabel={totals.expenses.toFixed(2)} />
-        <FrappeStatCard label="Net Income" value={totals.netIncome} valueLabel={totals.netIncome.toFixed(2)} />
-        <FrappeStatCard label="Total Assets" value={balanceTotals.assets} valueLabel={balanceTotals.assets.toFixed(2)} />
-        <FrappeStatCard label="Total Liabilities" value={balanceTotals.liabilities} valueLabel={balanceTotals.liabilities.toFixed(2)} />
-        <FrappeStatCard label="Total Equity" value={balanceTotals.equity} valueLabel={balanceTotals.equity.toFixed(2)} />
+      {/*
+        Six figures, one strip, on the canvas tile.
+
+        These were `FrappeStatCard`s — the frappe `NumberChart` in a
+        `rounded-[var(--radius-sm)]` box, a different card from every other panel in the
+        module, and one that silently drops the qualifier it is handed. Same
+        tile as the rest of accounting now, and each figure says what it is
+        measured against rather than standing alone.
+      */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+        <MetricTile
+          title="Income"
+          value={totals.income}
+          valueLabel={accountingFigure(totals.income)}
+          delta="for the period"
+          detail="everything earned"
+          tone="neutral"
+        />
+        <MetricTile
+          title="Expenses"
+          value={Math.abs(totals.expenses)}
+          valueLabel={accountingFigure(Math.abs(totals.expenses))}
+          delta="for the period"
+          detail="everything spent"
+          tone="warn"
+        />
+        <MetricTile
+          title="Net income"
+          value={totals.netIncome}
+          valueLabel={accountingFigure(totals.netIncome)}
+          delta={totals.netIncome < 0 ? "at a loss" : "before tax"}
+          detail="income less expenses"
+          tone={totals.netIncome < 0 ? "danger" : "good"}
+        />
+        <MetricTile
+          title="Total assets"
+          value={balanceTotals.assets}
+          valueLabel={accountingFigure(balanceTotals.assets)}
+          delta="at period end"
+          detail="what the business holds"
+          tone="neutral"
+        />
+        <MetricTile
+          title="Total liabilities"
+          value={balanceTotals.liabilities}
+          valueLabel={accountingFigure(balanceTotals.liabilities)}
+          delta="at period end"
+          detail="what it owes"
+          tone="warn"
+        />
+        <MetricTile
+          title="Total equity"
+          value={balanceTotals.equity}
+          valueLabel={accountingFigure(balanceTotals.equity)}
+          delta="assets less liabilities"
+          detail="the owners' share"
+          tone={balanceTotals.equity < 0 ? "danger" : "good"}
+        />
       </div>
 
       <VerticalDataViews
@@ -274,11 +348,39 @@ export default function FinancialStatementsPage() {
               </div>
 
               <div className={activeView === "cash-flow" ? "space-y-3" : "hidden"}>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                  <FrappeStatCard label="Operating Cash" value={cashTotals.operating} valueLabel={cashTotals.operating.toFixed(2)} />
-                  <FrappeStatCard label="Investing Cash" value={cashTotals.investing} valueLabel={cashTotals.investing.toFixed(2)} />
-                  <FrappeStatCard label="Financing Cash" value={cashTotals.financing} valueLabel={cashTotals.financing.toFixed(2)} />
-                  <FrappeStatCard label="Net Cash" value={cashTotals.netCash} valueLabel={cashTotals.netCash.toFixed(2)} />
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <MetricTile
+                    title="Operating"
+                    value={cashTotals.operating}
+                    valueLabel={accountingFigure(cashTotals.operating)}
+                    delta={cashTotals.operating < 0 ? "cash out" : "cash in"}
+                    detail="from trading"
+                    tone={cashTotals.operating < 0 ? "warn" : "good"}
+                  />
+                  <MetricTile
+                    title="Investing"
+                    value={cashTotals.investing}
+                    valueLabel={accountingFigure(cashTotals.investing)}
+                    delta={cashTotals.investing < 0 ? "cash out" : "cash in"}
+                    detail="assets bought and sold"
+                    tone="neutral"
+                  />
+                  <MetricTile
+                    title="Financing"
+                    value={cashTotals.financing}
+                    valueLabel={accountingFigure(cashTotals.financing)}
+                    delta={cashTotals.financing < 0 ? "cash out" : "cash in"}
+                    detail="borrowing and equity"
+                    tone="neutral"
+                  />
+                  <MetricTile
+                    title="Net cash"
+                    value={cashTotals.netCash}
+                    valueLabel={accountingFigure(cashTotals.netCash)}
+                    delta="the three, summed"
+                    detail="movement over the period"
+                    tone={cashTotals.netCash < 0 ? "danger" : "good"}
+                  />
                 </div>
                 <DataTable
                   data={cashFlowRows}

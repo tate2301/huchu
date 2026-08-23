@@ -334,8 +334,10 @@ export function RecordPageShell({
         <div className="border-t border-[var(--border-subtle)] pt-4">{attributes}</div>
       ) : null}
 
+      {/* Phone only — above `md` this is in the band, and rendering it twice
+          would put two stage ladders on one page. */}
       {beforeTabs ? (
-        <div className="border-t border-[var(--border-subtle)] pt-4">{beforeTabs}</div>
+        <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">{beforeTabs}</div>
       ) : null}
 
       {rail ? <div className="space-y-7 border-t border-[var(--border-subtle)] pt-4">{rail}</div> : null}
@@ -460,10 +462,38 @@ export function RecordPageShell({
         {barActions}
       </PageChrome>
 
-      {/* Everything about the record lives in the standing column now, so
-          there is no band between the app bar and the columns to render — a
-          section starts where the page starts. On a phone there is no third
-          column, so the same content leads the landing view. */}
+      {/*
+        The record band.
+
+        The properties still live in the standing column — that decision holds,
+        and a phone still leads with them. What comes back to the top is the
+        part you act on: where the record is in its lifecycle, and the move to
+        the next stage. Those were in the column too, which meant that on a long
+        conversation the ladder was three screens above the thing you had just
+        read before deciding to advance it.
+
+        So this is not the old identity band returning. It carries the status,
+        the reference and the stage controls only — the facts you need *while*
+        working the record, pinned — and nothing that the column already says
+        better. Hidden below `md`, where the column is the landing view anyway.
+      */}
+      {status || reference || beforeTabs ? (
+        <div className="band-shell sticky top-0 z-30 mb-3 hidden min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)] md:flex">
+          {status ? <StatusChip status={status.status} label={status.label} /> : null}
+          {reference ? (
+            <span className="font-mono text-sm text-[var(--text-muted)]">{reference}</span>
+          ) : null}
+          {subtitle ? (
+            <span className="hidden min-w-0 truncate border-l border-[var(--border)] pl-2.5 text-sm text-[var(--text-muted)] lg:inline">
+              {subtitle}
+            </span>
+          ) : null}
+          {beforeTabs ? (
+            <div className="ml-auto flex min-w-0 shrink items-center justify-end">{beforeTabs}</div>
+          ) : null}
+        </div>
+      ) : null}
+
       <div className={sectionGrid}>
         {/* The sections. Sticky, because a rail you have to scroll back up to
             reach is a rail you stop using on a long timeline. */}

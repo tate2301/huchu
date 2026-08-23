@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { BandChip } from "@/components/accounting/band-chip";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -54,6 +55,18 @@ import { Building2, FileText, NoteAdd, Payments, Trash2 } from "@/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
+
+/**
+ * Money in the band: grouped, two decimals, no currency symbol — the chip's
+ * label already says what the figure is, and a symbol in front of a mono value
+ * pushes the digits out of alignment with the chip beside it.
+ */
+function formatMoney(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 type BillLineForm = {
   description: string;
@@ -252,7 +265,29 @@ export default function AccountingPurchasesPage() {
   const debitNotes = debitNotesData?.data ?? [];
   const writeOffs = writeOffsData?.data ?? [];
   const agingRows = agingReport?.rows ?? [];
+
+  /**
+   * Open and overdue, for the band — read from the ageing report rather than
+   * recomputed from bill due dates, so this and the AP report cannot disagree.
+   */
+  const apTotals = useMemo(() => {
+    let open = 0;
+    let overdue = 0;
+    for (const row of agingRows) {
+      open += row.total;
+      overdue += row.days30 + row.days60 + row.days90 + row.days90Plus;
+    }
+    return { open, overdue };
+  }, [agingRows]);
   const statementLines = statementReport?.lines ?? [];
+
+  /**
+   * What moved over the statement period — derived from the two balances
+   * rather than summed from the lines, which are paginated and filtered. See
+   * the AR statement for the reasoning.
+   */
+  const statementMovement =
+    (statementReport?.closingBalance ?? 0) - (statementReport?.openingBalance ?? 0);
   const bankAccounts = bankAccountsData?.data ?? [];
   const taxOptions = taxCodes ?? [];
 
@@ -268,7 +303,7 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.contactName || "No contact"}
             </div>
           </div>
@@ -282,7 +317,7 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <div className="text-sm">
             <div>{row.original.phone || "-"}</div>
-            <div className="text-xs text-muted-foreground">{row.original.email || ""}</div>
+            <div className="acct-caption">{row.original.email || ""}</div>
           </div>
         ),
         size: 160,
@@ -310,7 +345,7 @@ export default function AccountingPurchasesPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-mono">{row.original.billNumber}</div>
-          <div className="text-xs text-muted-foreground">{row.original.vendor?.name}</div>
+          <div className="acct-caption">{row.original.vendor?.name}</div>
         </div>
       ),
       size: 280,
@@ -387,7 +422,7 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.paymentNumber}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.bill?.billNumber ?? "Unlinked"}
             </div>
           </div>
@@ -432,7 +467,7 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.noteNumber}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.bill?.billNumber ?? "Bill"}
             </div>
           </div>
@@ -496,7 +531,7 @@ export default function AccountingPurchasesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.bill?.billNumber ?? "-"}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.bill?.vendor?.name ?? ""}
             </div>
           </div>
@@ -1025,8 +1060,19 @@ export default function AccountingPurchasesPage() {
   };
   return (
     <AccountingShell
-      activeTab="purchases"
-      title="Purchases (Accounts Payable)"
+      activeTab="payables"
+      title="Payables"
+      description="vendors, bills and the money going out"
+      bandSlot={
+        <>
+          <BandChip label="Open" value={formatMoney(apTotals.open)} tone="mute" />
+          <BandChip
+            label="Overdue"
+            value={formatMoney(apTotals.overdue)}
+            tone={apTotals.overdue > 0 ? "warn" : "ok"}
+          />
+        </>
+      }
       actions={
         <AccountingNewButton
           items={[
@@ -1185,16 +1231,31 @@ export default function AccountingPurchasesPage() {
         </div>
 
         <div className={activeView === "statements" ? "space-y-3" : "hidden"}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <FrappeStatCard
-              label="Opening Balance"
+          {/* Opening, movement, closing — the mirror of the AR statement. */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricTile
+              title="Opening balance"
               value={statementReport?.openingBalance ?? 0}
-              valueLabel={(statementReport?.openingBalance ?? 0).toFixed(2)}
+              valueLabel={formatMoney(statementReport?.openingBalance ?? 0)}
+              delta="at period start"
+              detail="what we owed then"
+              tone="neutral"
             />
-            <FrappeStatCard
-              label="Closing Balance"
+            <MetricTile
+              title="Movement"
+              value={statementMovement}
+              valueLabel={formatMoney(statementMovement)}
+              delta={statementMovement > 0 ? "owed more" : statementMovement < 0 ? "paid down" : "no change"}
+              detail="bills less payments"
+              tone={statementMovement > 0 ? "warn" : "good"}
+            />
+            <MetricTile
+              title="Closing balance"
               value={statementReport?.closingBalance ?? 0}
-              valueLabel={(statementReport?.closingBalance ?? 0).toFixed(2)}
+              valueLabel={formatMoney(statementReport?.closingBalance ?? 0)}
+              delta="at period end"
+              detail="what we owe now"
+              tone={(statementReport?.closingBalance ?? 0) > 0 ? "warn" : "good"}
             />
           </div>
           <DataTable

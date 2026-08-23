@@ -11,8 +11,9 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -216,20 +217,28 @@ function summarizeTemplateLines(template: TaxTemplateRecord): string {
     .join(" • ");
 }
 
+/** VAT money, grouped and to the cent — the chip and the tiles agree. */
+function formatVatFigure(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
 function countActiveRows(rows: Array<{ isActive: boolean }>): number {
   return rows.filter((row) => row.isActive).length;
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
   return (
-    <label className="mb-2 block text-[11px] font-semibold uppercase tracking-[0.18em] text-[var(--text-muted)]">
+    <label className="acct-col-head mb-2 block">
       {children}
     </label>
   );
 }
 
 function FieldHint({ children }: { children: ReactNode }) {
-  return <p className="mt-1 text-xs text-[var(--text-muted)]">{children}</p>;
+  return <p className="mt-1 acct-caption">{children}</p>;
 }
 
 export function TaxSetupWorkspace() {
@@ -888,7 +897,7 @@ export function TaxSetupWorkspace() {
     {
       id: "code",
       header: "Code",
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.code}</span>,
+      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
       size: 120,
       minSize: 120,
       maxSize: 120,
@@ -899,7 +908,7 @@ export function TaxSetupWorkspace() {
       cell: ({ row }) => (
         <div className="min-w-0">
           <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="truncate text-xs text-[var(--text-muted)]">{row.original.type}</div>
+          <div className="truncate acct-caption">{row.original.type}</div>
         </div>
       ),
     },
@@ -915,7 +924,7 @@ export function TaxSetupWorkspace() {
       id: "appliesTo",
       header: "Applies To",
       cell: ({ row }) => (
-        <Badge variant="outline" className="rounded-full font-mono text-[10px]">
+        <Badge variant="outline" className="font-mono">
           {row.original.appliesTo ?? "BOTH"}
         </Badge>
       ),
@@ -956,7 +965,7 @@ export function TaxSetupWorkspace() {
     {
       id: "code",
       header: "Code",
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.code}</span>,
+      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
       size: 120,
       minSize: 120,
       maxSize: 120,
@@ -966,7 +975,7 @@ export function TaxSetupWorkspace() {
       id: "scope",
       header: "Scope",
       cell: ({ row }) => (
-        <Badge variant="outline" className="rounded-full font-mono text-[10px]">
+        <Badge variant="outline" className="font-mono">
           {row.original.scope}
         </Badge>
       ),
@@ -1007,7 +1016,7 @@ export function TaxSetupWorkspace() {
     {
       id: "code",
       header: "Code",
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.code}</span>,
+      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
       size: 120,
       minSize: 120,
       maxSize: 120,
@@ -1018,7 +1027,7 @@ export function TaxSetupWorkspace() {
       cell: ({ row }) => (
         <div className="min-w-0">
           <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="line-clamp-2 text-xs text-[var(--text-muted)]">
+          <div className="line-clamp-2 acct-caption">
             {row.original.description?.trim() || "No description added"}
           </div>
         </div>
@@ -1027,7 +1036,7 @@ export function TaxSetupWorkspace() {
     {
       id: "lineCount",
       header: "Lines",
-      cell: ({ row }) => <span className="font-mono text-xs">{row.original.lines?.length ?? 0}</span>,
+      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.lines?.length ?? 0}</span>,
       size: 92,
       minSize: 92,
       maxSize: 92,
@@ -1036,7 +1045,7 @@ export function TaxSetupWorkspace() {
       id: "mix",
       header: "Tax Mix",
       cell: ({ row }) => (
-        <div className="min-w-0 text-xs text-[var(--text-muted)]">
+        <div className="min-w-0 acct-caption">
           <div className="line-clamp-2">{summarizeTemplateLines(row.original)}</div>
         </div>
       ),
@@ -1080,7 +1089,7 @@ export function TaxSetupWorkspace() {
       cell: ({ row }) => (
         <div className="min-w-0">
           <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="truncate text-xs text-[var(--text-muted)]">
+          <div className="truncate acct-caption">
             Template: {row.original.template?.name ?? "Unknown"}
           </div>
         </div>
@@ -1090,7 +1099,7 @@ export function TaxSetupWorkspace() {
       id: "appliesTo",
       header: "Applies To",
       cell: ({ row }) => (
-        <Badge variant="outline" className="rounded-full font-mono text-[10px]">
+        <Badge variant="outline" className="font-mono">
           {row.original.appliesTo}
         </Badge>
       ),
@@ -1110,7 +1119,7 @@ export function TaxSetupWorkspace() {
       id: "category",
       header: "Category",
       cell: ({ row }) => (
-        <div className="min-w-0 text-xs text-[var(--text-muted)]">
+        <div className="min-w-0 acct-caption">
           <div className="truncate">{row.original.taxCategory?.name ?? "All counterparties"}</div>
           <div className="truncate font-mono">{row.original.taxCategory?.code ?? "GLOBAL"}</div>
         </div>
@@ -1123,7 +1132,7 @@ export function TaxSetupWorkspace() {
       id: "window",
       header: "Effective Window",
       cell: ({ row }) => (
-        <div className="min-w-0 text-xs text-[var(--text-muted)]">
+        <div className="min-w-0 acct-caption">
           <div className="truncate font-mono">{buildRuleWindow(row.original)}</div>
           <div className="truncate">Currency: {row.original.currency ?? "Any"}</div>
         </div>
@@ -1253,7 +1262,7 @@ export function TaxSetupWorkspace() {
       id: "period",
       header: "Period",
       cell: ({ row }) => (
-        <span className="font-mono text-xs">
+        <span className="font-mono acct-caption">
           {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
           {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
         </span>
@@ -1278,7 +1287,7 @@ export function TaxSetupWorkspace() {
       id: "dueDates",
       header: "Due Dates",
       cell: ({ row }) => (
-        <div className="text-xs">
+        <div className="acct-caption">
           <div className="font-mono">
             Return:{" "}
             {row.original.returnDueDate
@@ -1321,7 +1330,7 @@ export function TaxSetupWorkspace() {
         const payable = Number(boxes.vatPayable ?? 0);
         const refundable = Number(boxes.vatRefundable ?? 0);
         return (
-          <div className="text-right font-mono text-xs">
+          <div className="text-right font-mono acct-caption">
             <div>Payable: {payable.toFixed(2)}</div>
             <div>Refund: {refundable.toFixed(2)}</div>
           </div>
@@ -1404,7 +1413,21 @@ export function TaxSetupWorkspace() {
   return (
     <AccountingShell
       activeTab="tax"
-      title="Tax Setup"
+      title="Tax"
+      description="codes, categories, templates and the rules that pick between them"
+      bandSlot={
+        /*
+          Net VAT — output less input, which is what actually gets paid to (or
+          reclaimed from) ZIMRA. Amber when there is a liability, green when
+          the position is a refund or nil, because the two mean opposite things
+          to whoever is about to file.
+        */
+        <BandChip
+          label="Net VAT"
+          value={formatVatFigure(vatTotals.netTax)}
+          tone={vatTotals.netTax > 0 ? "warn" : "ok"}
+        />
+      }
       actions={
         activeCreateLabel ? (
           <Button size="sm" onClick={openCreateForActiveView} disabled={createDisabled}>
@@ -1421,32 +1444,52 @@ export function TaxSetupWorkspace() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <FrappeStatCard
-          label="Active tax codes"
+      {/*
+        Four counts, each against its total.
+
+        These printed a bare active count — "12" — which cannot be read: twelve
+        active codes out of twelve is a healthy setup and twelve out of forty is
+        a chart somebody has been switching off. The total is the context that
+        makes the count mean something, so it goes in the note.
+      */}
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <MetricTile
+          title="Tax codes"
           value={countActiveRows(taxCodes)}
           valueLabel={String(countActiveRows(taxCodes))}
+          delta="active"
+          detail={`of ${taxCodes.length} defined`}
+          tone={countActiveRows(taxCodes) === 0 ? "warn" : "neutral"}
         />
-        <FrappeStatCard
-          label="Active categories"
+        <MetricTile
+          title="Categories"
           value={countActiveRows(taxCategories)}
           valueLabel={String(countActiveRows(taxCategories))}
+          delta="active"
+          detail={`of ${taxCategories.length} defined`}
+          tone={countActiveRows(taxCategories) === 0 ? "warn" : "neutral"}
         />
-        <FrappeStatCard
-          label="Active templates"
+        <MetricTile
+          title="Templates"
           value={countActiveRows(taxTemplates)}
           valueLabel={String(countActiveRows(taxTemplates))}
+          delta="active"
+          detail={`of ${taxTemplates.length} defined`}
+          tone="neutral"
         />
-        <FrappeStatCard
-          label="Active rules"
+        <MetricTile
+          title="Rules"
           value={countActiveRows(taxRules)}
           valueLabel={String(countActiveRows(taxRules))}
+          delta="active"
+          detail={`of ${taxRules.length} defined`}
+          tone={countActiveRows(taxRules) === 0 ? "warn" : "neutral"}
         />
       </div>
 
-      <section className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-5 py-4 shadow-[var(--surface-frame-shadow)]">
+      <section className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] px-[13px] py-3">
         <div className="flex flex-wrap items-start gap-3">
-          <Badge variant="secondary" className="rounded-full px-3 py-1">
+          <Badge variant="secondary">
             Seeded logic stays editable
           </Badge>
           <div className="min-w-0 flex-1 space-y-2">
@@ -1469,7 +1512,7 @@ export function TaxSetupWorkspace() {
         railLabel="Tax Views"
       >
         <section className="space-y-3">
-          <div className="rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-5 py-4 shadow-[var(--surface-frame-shadow)]">
+          <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-[13px] py-3">
             <p className="text-sm font-semibold text-[var(--text-strong)]">
               {viewCopy[activeView].title}
             </p>
@@ -1536,23 +1579,35 @@ export function TaxSetupWorkspace() {
           </div>
 
           <div className={activeView === "vat-summary" ? "space-y-3" : "hidden"}>
-            <div className="grid gap-4 md:grid-cols-3">
-              <FrappeStatCard
-                label="Output VAT"
+            {/*
+              Output, input, and what that leaves. Net VAT is the only one of
+              the three anybody files, so it carries the direction: amber when
+              it is a liability, green when it is a refund or nil.
+            */}
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricTile
+                title="Output VAT"
                 value={vatTotals.outputTax}
-                valueLabel={vatTotals.outputTax.toFixed(2)}
+                valueLabel={formatVatFigure(vatTotals.outputTax)}
+                delta="charged"
+                detail="on what we sold"
+                tone="neutral"
               />
-              <FrappeStatCard
-                label="Input VAT"
+              <MetricTile
+                title="Input VAT"
                 value={vatTotals.inputTax}
-                valueLabel={vatTotals.inputTax.toFixed(2)}
+                valueLabel={formatVatFigure(vatTotals.inputTax)}
+                delta="reclaimable"
+                detail="on what we bought"
+                tone="neutral"
               />
-              <FrappeStatCard
-                label="Net VAT"
+              <MetricTile
+                title="Net VAT"
                 value={vatTotals.netTax}
-                valueLabel={vatTotals.netTax.toFixed(2)}
-                tone={vatTotals.netTax > 0 ? "warning" : "success"}
-                negativeIsBetter
+                valueLabel={formatVatFigure(vatTotals.netTax)}
+                delta={vatTotals.netTax > 0 ? "payable to ZIMRA" : "refundable"}
+                detail="output less input"
+                tone={vatTotals.netTax > 0 ? "warn" : "good"}
               />
             </div>
             <DataTable
@@ -1796,7 +1851,7 @@ export function TaxSetupWorkspace() {
                     <Checkbox checked={templateForm.isActive} onCheckedChange={(checked) => setTemplateForm((current) => ({ ...current, isActive: checked === true }))} />
                     <span className="text-sm text-[var(--text-strong)]">Keep this template active</span>
                   </div>
-                  <div className="space-y-3 rounded-[24px] border border-[var(--edge-subtle)] bg-[var(--surface-base)] px-4 py-4">
+                  <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-[13px] py-3">
                     <div className="flex items-center justify-between gap-3">
                       <div>
                         <p className="text-sm font-semibold text-[var(--text-strong)]">Tax Lines</p>

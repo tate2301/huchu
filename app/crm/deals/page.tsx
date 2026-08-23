@@ -15,7 +15,10 @@ export default async function CrmDealsPage({ searchParams }: { searchParams: Sea
   // leads without a navigation.
   const pipeline = typeof params.pipeline === "string" ? params.pipeline : "deals";
   return (
-    <CrmPage>
+    <CrmPage
+      title="Deals"
+      description="what is in the pipeline, and what it is worth"
+    >
       <PipelineWorkspace initial={pipeline} openCreate={params.new === "1"} />
     </CrmPage>
   );

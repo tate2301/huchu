@@ -63,7 +63,7 @@ export function VisitBriefContent({ token }: { token: string }) {
       </header>
 
       {cancelled ? (
-        <p className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
+        <p className="rounded-[var(--radius-md)] border border-red-200 bg-red-50 p-3 text-sm font-medium text-red-800">
           This visit has been cancelled. Nobody is coming — please check with whoever
           arranged it.
         </p>

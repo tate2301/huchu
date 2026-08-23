@@ -7,7 +7,8 @@ import { format } from "date-fns";
 import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { BandChip } from "@/components/accounting/band-chip";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -55,6 +56,19 @@ import { Download, NoteAdd, ReceiptLong, Trash2, UserPlus, XCircle } from "@/lib
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
+
+/**
+ * Money in the band: grouped, two decimals, no currency symbol.
+ *
+ * The chip's label already says what the figure is, and a symbol in front of a
+ * mono value pushes the digits out of alignment with the chip beside it.
+ */
+function formatMoney(value: number) {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
 
 type InvoiceLineForm = {
   description: string;
@@ -256,7 +270,36 @@ export default function AccountingSalesPage() {
   const creditNotes = creditNotesData?.data ?? [];
   const writeOffs = writeOffsData?.data ?? [];
   const agingRows = agingReport?.rows ?? [];
+
+  /**
+   * Open and overdue, for the band.
+   *
+   * Both come from the ageing report rather than from the invoice list,
+   * because "overdue" is a date comparison the server already does once, with
+   * the tenant's own as-at date. Recomputing it here from due dates in the
+   * browser would give a second answer that disagrees with the AR report on
+   * the next page along.
+   */
+  const arTotals = useMemo(() => {
+    let open = 0;
+    let overdue = 0;
+    for (const row of agingRows) {
+      open += row.total;
+      overdue += row.days30 + row.days60 + row.days90 + row.days90Plus;
+    }
+    return { open, overdue };
+  }, [agingRows]);
   const statementLines = statementReport?.lines ?? [];
+
+  /**
+   * What actually moved over the statement period.
+   *
+   * Derived from the two balances rather than summed from the lines: the lines
+   * are paginated and filtered, and a movement figure that changed when you
+   * searched would be describing the search rather than the account.
+   */
+  const statementMovement =
+    (statementReport?.closingBalance ?? 0) - (statementReport?.openingBalance ?? 0);
   const bankAccounts = bankAccountsData?.data ?? [];
   const taxOptions = taxCodes ?? [];
 
@@ -272,7 +315,7 @@ export default function AccountingSalesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.contactName || "No contact"}
             </div>
           </div>
@@ -286,7 +329,7 @@ export default function AccountingSalesPage() {
         cell: ({ row }) => (
           <div className="text-sm">
             <div>{row.original.phone || "-"}</div>
-            <div className="text-xs text-muted-foreground">{row.original.email || ""}</div>
+            <div className="acct-caption">{row.original.email || ""}</div>
           </div>
         ),
         size: 160,
@@ -314,9 +357,9 @@ export default function AccountingSalesPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-mono">{row.original.invoiceNumber}</div>
-          <div className="text-xs text-muted-foreground">{row.original.customer?.name}</div>
+          <div className="acct-caption">{row.original.customer?.name}</div>
           {row.original.fromQuotation ? (
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               from{" "}
               <span className="font-mono">{row.original.fromQuotation.quotationNumber}</span>
             </div>
@@ -437,7 +480,7 @@ export default function AccountingSalesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.receiptNumber}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.invoice?.invoiceNumber ?? "Unlinked"}
             </div>
           </div>
@@ -482,7 +525,7 @@ export default function AccountingSalesPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.noteNumber}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.invoice?.invoiceNumber ?? "Invoice"}
             </div>
           </div>
@@ -545,7 +588,7 @@ export default function AccountingSalesPage() {
       cell: ({ row }) => (
         <div>
           <div className="font-mono">{row.original.invoice?.invoiceNumber ?? "-"}</div>
-          <div className="text-xs text-muted-foreground">
+          <div className="acct-caption">
             {row.original.invoice?.customer?.name ?? ""}
           </div>
         </div>
@@ -1148,8 +1191,19 @@ export default function AccountingSalesPage() {
   };
   return (
     <AccountingShell
-      activeTab="sales"
-      title="Sales (Accounts Receivable)"
+      activeTab="receivables"
+      title="Receivables"
+      description="customers, invoices and the money coming in"
+      bandSlot={
+        <>
+          <BandChip label="Open" value={formatMoney(arTotals.open)} tone="mute" />
+          <BandChip
+            label="Overdue"
+            value={formatMoney(arTotals.overdue)}
+            tone={arTotals.overdue > 0 ? "bad" : "ok"}
+          />
+        </>
+      }
       actions={
         <AccountingNewButton
           items={[
@@ -1308,16 +1362,36 @@ export default function AccountingSalesPage() {
         </div>
 
         <div className={activeView === "statements" ? "space-y-3" : "hidden"}>
-          <div className="grid gap-4 md:grid-cols-2">
-            <FrappeStatCard
-              label="Opening Balance"
+          {/*
+            Opening, what moved, and closing — the three figures a statement is
+            for. The middle one was missing: two balances with no movement
+            between them makes the reader do the subtraction that the statement
+            exists to save them.
+          */}
+          <div className="grid gap-3 sm:grid-cols-3">
+            <MetricTile
+              title="Opening balance"
               value={statementReport?.openingBalance ?? 0}
-              valueLabel={(statementReport?.openingBalance ?? 0).toFixed(2)}
+              valueLabel={formatMoney(statementReport?.openingBalance ?? 0)}
+              delta="at period start"
+              detail="what was owed then"
+              tone="neutral"
             />
-            <FrappeStatCard
-              label="Closing Balance"
+            <MetricTile
+              title="Movement"
+              value={statementMovement}
+              valueLabel={formatMoney(statementMovement)}
+              delta={statementMovement > 0 ? "owed more" : statementMovement < 0 ? "paid down" : "no change"}
+              detail="invoices less receipts"
+              tone={statementMovement > 0 ? "warn" : "good"}
+            />
+            <MetricTile
+              title="Closing balance"
               value={statementReport?.closingBalance ?? 0}
-              valueLabel={(statementReport?.closingBalance ?? 0).toFixed(2)}
+              valueLabel={formatMoney(statementReport?.closingBalance ?? 0)}
+              delta="at period end"
+              detail="what is owed now"
+              tone={(statementReport?.closingBalance ?? 0) > 0 ? "warn" : "good"}
             />
           </div>
           <DataTable

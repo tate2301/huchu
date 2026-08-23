@@ -1,5 +1,6 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { format } from "date-fns";
 import {
   type AdminChartAnnotation,
@@ -24,6 +25,24 @@ export type TradingViewSeries = {
 type TradingViewChartCardProps = {
   title: string;
   subtitle?: string;
+  /** Right-aligned qualifier in the panel head — "last six months". */
+  note?: ReactNode;
+  /**
+   * Panel chrome instead of card chrome.
+   *
+   * The default here is a gradient-filled, glow-lit, 12px-cornered card that
+   * predates the accounting canvas. Next to the flat 10px panels the rest of
+   * a report is built from, it reads as a widget borrowed from another
+   * product — and the radial highlight sits directly behind the plot, tinting
+   * the one thing on the page that has to be read accurately.
+   *
+   * `flat` matches `ReportPanel` exactly, so a chart can sit in a row of
+   * panels and be the same object as its neighbours. Kept opt-in because the
+   * schools reporting page still wants the original.
+   */
+  flat?: boolean;
+  /** Plot height. The canvas draws these short — 120 in a three-across row. */
+  height?: number;
   data: ChartDatum[];
   xKey: string;
   xAxisType?: "category" | "time";
@@ -73,6 +92,9 @@ function toAdminSeries(items: TradingViewSeries[]): AdminChartSeries[] {
 export function TradingViewChartCard({
   title,
   subtitle: _subtitle,
+  note,
+  flat = false,
+  height = 320,
   data,
   xKey,
   xAxisType = "category",
@@ -94,6 +116,43 @@ export function TradingViewChartCard({
     };
   });
 
+  const chart = (
+    <AdminTrendChart
+      rows={chartRows}
+      series={toAdminSeries(series)}
+      comparisonSeries={toAdminSeries(comparisonSeries)}
+      target={target}
+      annotations={annotations}
+      height={height}
+      valueFormatter={valueFormatter}
+      yTickFormatter={valueFormatter}
+      xTickFormatter={(value) => formatAxisLabel(value, xAxisType)}
+      xTickInterval="preserveStartEnd"
+      emptyLabel={emptyMessage}
+    />
+  );
+
+  if (flat) {
+    return (
+      <section
+        className={cn(
+          "overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]",
+          className,
+        )}
+      >
+        <header className="flex h-9 items-center gap-2 border-b border-[var(--border-subtle)] px-[13px]">
+          <h3 className="truncate text-sm font-bold text-[var(--text-strong)]">{title}</h3>
+          {note ? (
+            <span className="ml-auto shrink-0 truncate text-sm text-[var(--text-subtle)]">
+              {note}
+            </span>
+          ) : null}
+        </header>
+        <div className={cn("w-full px-2 pb-2 pt-2", chartClassName)}>{chart}</div>
+      </section>
+    );
+  }
+
   return (
     <div
       className={cn(
@@ -108,19 +167,7 @@ export function TradingViewChartCard({
         </div>
         <div className={cn("relative w-full px-2 pb-2 pt-1", chartClassName)}>
           <div className="pointer-events-none absolute inset-x-2 top-1 h-px bg-gradient-to-r from-transparent via-border to-transparent" />
-          <AdminTrendChart
-            rows={chartRows}
-            series={toAdminSeries(series)}
-            comparisonSeries={toAdminSeries(comparisonSeries)}
-            target={target}
-            annotations={annotations}
-            height={320}
-            valueFormatter={valueFormatter}
-            yTickFormatter={valueFormatter}
-            xTickFormatter={(value) => formatAxisLabel(value, xAxisType)}
-            xTickInterval="preserveStartEnd"
-            emptyLabel={emptyMessage}
-          />
+          {chart}
         </div>
       </div>
     </div>

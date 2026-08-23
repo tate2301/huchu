@@ -38,10 +38,21 @@ export function StageProgress({
   stage,
   onChange,
   disabled,
+  compact,
 }: {
   stage: CrmLeadStage;
   onChange: (stage: CrmLeadStage) => void;
   disabled?: boolean;
+  /**
+   * The band's stage rail: every stage named inline, current one filled.
+   *
+   * Two different controls for two different jobs, not one control squeezed.
+   * The band has horizontal room and no vertical room — 44px, and a control
+   * that grew it would push the sticky stack down on record pages only — so it
+   * gets the rail. The standing column is the reverse shape, so it keeps the
+   * track, which stacks.
+   */
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -56,6 +67,70 @@ export function StageProgress({
     : isLost
       ? "bg-[var(--border-strong)]"
       : "bg-[var(--action-primary-bg)]";
+
+  /*
+    Compact is the canvas's stage rail: every stage named, inline, with the
+    current one filled.
+
+    This replaces a segmented track plus a stage-name popover. The track could
+    show *how far along* but never *what the stages are called*, so reading it
+    meant opening the menu — and the menu was the only way to jump backwards.
+    Naming all of them costs the width the track was using and answers both
+    questions at a glance, which is what the band is for.
+
+    The fill is the ink rather than the brand: a row of eight chips with one
+    brand-tinted is a row where the tint competes with every other blue on the
+    page. Solid near-black reads as "you are here" without claiming to be an
+    action.
+  */
+  if (compact) {
+    return (
+      <div className="flex min-w-0 items-center gap-2">
+        <div
+          className="flex min-w-0 items-center gap-[3px] overflow-x-auto"
+          role="tablist"
+          aria-label="Lead stage"
+        >
+          {CRM_LEAD_STAGES.map((entry) => {
+            const current = entry === stage;
+            return (
+              <button
+                key={entry}
+                type="button"
+                role="tab"
+                aria-selected={current}
+                disabled={disabled}
+                onClick={() => {
+                  if (entry !== stage) onChange(entry);
+                }}
+                className={cn(
+                  "acct-stage-chip disabled:cursor-not-allowed disabled:opacity-60",
+                  current
+                    ? "bg-[var(--text-strong)] font-bold text-[var(--surface)]"
+                    : "font-medium text-[var(--text-subtle)] hover:bg-[var(--surface-muted)] hover:text-[var(--text-body)]",
+                )}
+              >
+                {CRM_STAGE_LABELS[entry]}
+              </button>
+            );
+          })}
+        </div>
+
+        {next && !isClosed ? (
+          <Button
+            variant="secondary"
+            size="sm"
+            className="shrink-0"
+            disabled={disabled}
+            onClick={() => onChange(next)}
+            endIcon={<ArrowRight className="size-3.5" aria-hidden="true" />}
+          >
+            Move to {CRM_STAGE_LABELS[next]}
+          </Button>
+        ) : null}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-2">
@@ -150,6 +225,9 @@ export function StageProgress({
           get the count, from the track's own label. What is left here is the
           one case the track cannot show: a lost lead is not at a step, and
           somebody looking at a drained track needs telling how to reopen it. */}
+      {/* Kept on the phone, where there is room under the track; the band
+          drops it, since a lost lead already shows a Lost status chip beside
+          this control. */}
       {isLost ? (
         <p className="text-sm text-[var(--text-muted)]">
           Lost — reopen it from the stage menu

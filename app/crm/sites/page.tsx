@@ -12,7 +12,7 @@ export default async function CrmSitesPage({ searchParams }: { searchParams: Sea
   if (!session?.user) redirect("/login");
   const params = await searchParams;
   return (
-    <CrmPage>
+    <CrmPage title="Sites" description="where the work actually happens">
       <SitesContent openCreate={params.new === "1"} />
     </CrmPage>
   );

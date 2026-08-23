@@ -86,9 +86,9 @@ function readCloseRefusal(error: unknown): CloseRefusal | null {
 function Metric({ label, value, hint }: { label: string; value: React.ReactNode; hint?: React.ReactNode }) {
   return (
     <div>
-      <div className="text-xs text-muted-foreground">{label}</div>
+      <div className="acct-caption">{label}</div>
       <div className="font-mono">{value}</div>
-      {hint ? <div className="text-xs text-muted-foreground">{hint}</div> : null}
+      {hint ? <div className="acct-caption">{hint}</div> : null}
     </div>
   );
 }
@@ -196,7 +196,7 @@ function DeviceCard({
                   truncated={refusal.truncated}
                   total={refusal.total}
                 />
-                <p className="text-xs">
+                <p className="acct-caption">
                   Replay or void each of these, then close the day again. Nothing has been submitted
                   to ZIMRA.
                 </p>
@@ -227,10 +227,10 @@ function DeviceCard({
           {device.openBlockedReason && !day ? (
             // Only shown when there is no day at all: with a day open the
             // reason is "a day is already open", which the card already says.
-            <span className="text-xs text-muted-foreground">{device.openBlockedReason}</span>
+            <span className="acct-caption">{device.openBlockedReason}</span>
           ) : null}
           {!canManage ? (
-            <span className="text-xs text-muted-foreground">
+            <span className="acct-caption">
               Read-only — opening and closing days needs a manager role.
             </span>
           ) : null}

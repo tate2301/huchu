@@ -88,7 +88,7 @@ export function CrmMembers({ className }: { className?: string }) {
         </p>
         <ul className="max-h-72 overflow-y-auto">
           {members.map((member) => (
-            <li key={member.id} className="flex items-center gap-2.5 rounded-md px-2 py-1.5">
+            <li key={member.id} className="flex items-center gap-2.5 rounded-[var(--radius-sm)] px-2 py-1.5">
               <Avatar size="sm" name={member.name ?? member.email ?? "?"} />
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-sm">

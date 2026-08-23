@@ -357,7 +357,7 @@ export function renderHomeWidget(type: string, data: HomeData): React.ReactNode 
             </Link>
           }
         >
-          <p className="font-mono text-2xl">{delivery.upcomingVisits}</p>
+          <p className="acct-stat-value font-mono tabular-nums text-[var(--text-strong)]">{delivery.upcomingVisits}</p>
           <p className="text-sm text-[var(--text-muted)]">Booked in the next seven days.</p>
         </Card>
       );

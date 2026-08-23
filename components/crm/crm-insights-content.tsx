@@ -185,7 +185,7 @@ export function CrmInsightsContent() {
 
           <div className="grid gap-3 sm:grid-cols-3">
             <Card title="Median time to close">
-              <p className="text-2xl font-semibold">
+              <p className="acct-stat-value text-[var(--text-strong)]">
                 {data.medianCycleDays === null ? "—" : `${data.medianCycleDays} days`}
               </p>
               <p className="text-sm text-[var(--text-muted)]">
@@ -195,7 +195,7 @@ export function CrmInsightsContent() {
               </p>
             </Card>
             <Card title="Biggest leak">
-              <p className="text-2xl font-semibold">{leak ? leak.label : "—"}</p>
+              <p className="acct-stat-value text-[var(--text-strong)]">{leak ? leak.label : "—"}</p>
               <p className="text-sm text-[var(--text-muted)]">
                 {leak
                   ? `${leak.droppedFromPrevious} dropped before reaching it — ${formatRate(leak.conversionFromPrevious)} of the previous stage carried through.`
@@ -203,7 +203,7 @@ export function CrmInsightsContent() {
               </p>
             </Card>
             <Card title="Leads converted">
-              <p className="text-2xl font-semibold">
+              <p className="acct-stat-value text-[var(--text-strong)]">
                 {data.leads.converted}
                 <span className="text-base font-normal text-[var(--text-muted)]">
                   {" "}

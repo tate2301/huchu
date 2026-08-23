@@ -10,6 +10,8 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { JournalDetailPanel } from "@/components/accounting/journal-detail-panel";
+import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -56,6 +58,7 @@ export default function JournalsPage() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [formOpen, setFormOpen] = useState(false);
+  const [selectedEntryId, setSelectedEntryId] = useState<string | null>(null);
   const [statusFilter, setStatusFilter] = useState("all");
   const [entryDate, setEntryDate] = useState(() => format(new Date(), "yyyy-MM-dd"));
   const [description, setDescription] = useState("");
@@ -108,6 +111,7 @@ export default function JournalsPage() {
 
   const journalEntries = useMemo(() => journalData?.data ?? [], [journalData]);
   const accounts = accountData?.data ?? [];
+
   const costCenters = costCenterData?.data ?? [];
 
   const filteredEntries = useMemo(() => {
@@ -115,13 +119,56 @@ export default function JournalsPage() {
     return journalEntries.filter((entry) => entry.status === statusFilter);
   }, [journalEntries, statusFilter]);
 
+  /**
+   * The entry whose lines are showing.
+   *
+   * Defaults to the newest journal rather than to nothing, so the panel is
+   * carrying its weight the moment the page loads instead of showing an empty
+   * prompt beside a full table. Falls back cleanly when a filter removes the
+   * selected entry from the list.
+   */
+  const selectedEntry =
+    filteredEntries.find((entry) => entry.id === selectedEntryId) ?? filteredEntries[0] ?? null;
+
+  const accountsById = useMemo(
+    () => new Map(accounts.map((account) => [account.id, { code: account.code, name: account.name }])),
+    [accounts],
+  );
+
+  /**
+   * Drafts across the whole ledger, not the filtered view.
+   *
+   * The band chip is a standing fact about the books — "there are three
+   * journals nobody has posted" — and it would be worse than useless if it
+   * changed to zero the moment somebody filtered the list to Posted.
+   */
+  const draftCount = useMemo(
+    () => journalEntries.filter((entry) => entry.status === "DRAFT").length,
+    [journalEntries],
+  );
+
   const columns: ColumnDef<JournalEntryRecord>[] = [
     {
       id: "entry",
       header: "Entry",
       accessorKey: "entryNumber",
+      /*
+        The reference opens the entry.
+
+        The design's instruction is "click a journal to open its lines", and
+        the underlying list view has no row-click of its own. The reference is
+        the right target anyway: it is what a person points at when they say
+        which journal they mean, and making the whole row clickable would
+        fight the row's other controls.
+      */
       cell: ({ row }) => (
-        <NumericCell align="left">#{row.original.entryNumber}</NumericCell>
+        <button
+          type="button"
+          onClick={() => setSelectedEntryId(row.original.id)}
+          className="font-mono text-sm font-semibold text-[var(--brand-strong)] hover:underline"
+        >
+          JE-{row.original.entryNumber}
+        </button>
       ),
       size: 112,
       minSize: 112,
@@ -462,7 +509,15 @@ export default function JournalsPage() {
   return (
     <AccountingShell
       activeTab="journals"
-      title="Journal Entries"
+      title="Journals"
+      description="every posting into the ledger, and where it came from"
+      bandSlot={
+        draftCount > 0 ? (
+          <BandChip label="In draft" value={String(draftCount)} tone="warn" />
+        ) : (
+          <BandChip label="In draft" value="0" tone="ok" />
+        )
+      }
       actions={
         <AccountingNewButton items={[{ label: "New Entry", icon: FileCheck, onClick: () => setFormOpen(true) }]} />
       }
@@ -474,27 +529,44 @@ export default function JournalsPage() {
         </Alert>
       ) : null}
 
-      <DataTable
-        data={filteredEntries}
-        columns={columns}
-        groupBy="status"
-        searchPlaceholder="Search journals"
-        searchSubmitLabel="Search"
-        pagination={{ enabled: true }}
-        toolbar={
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger size="sm" className="h-8 w-[160px]">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="DRAFT">Draft</SelectItem>
-              <SelectItem value="POSTED">Posted</SelectItem>
-            </SelectContent>
-          </Select>
-        }
-        emptyState={journalsLoading ? "Loading journals..." : "No journal entries yet."}
-      />
+      {/*
+        The ledger and the entry, side by side.
+
+        The list alone could tell you a journal existed and what it totalled,
+        but not what it did — for that you had to leave the page. A journal is
+        only meaningful as its lines: which accounts, which way round, and
+        whether the two sides agree. So the lines sit beside the list, pinned,
+        and stay there while you scan down.
+      */}
+      <div className="grid min-w-0 items-start gap-2.5 2xl:grid-cols-[minmax(0,1fr)_430px]">
+        <DataTable
+          data={filteredEntries}
+          columns={columns}
+          groupBy="status"
+          searchPlaceholder="Search journals"
+          searchSubmitLabel="Search"
+          pagination={{ enabled: true }}
+          toolbar={
+            <Select value={statusFilter} onValueChange={setStatusFilter}>
+              <SelectTrigger size="sm" className="h-8 w-[160px]">
+                <SelectValue placeholder="Filter status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="DRAFT">Draft</SelectItem>
+                <SelectItem value="POSTED">Posted</SelectItem>
+              </SelectContent>
+            </Select>
+          }
+          emptyState={journalsLoading ? "Loading journals..." : "No journal entries yet."}
+        />
+
+        <JournalDetailPanel
+          entry={selectedEntry}
+          accountsById={accountsById}
+          className="2xl:sticky 2xl:top-[calc(var(--stack-top,0px)+0.75rem)]"
+        />
+      </div>
 
       <Sheet open={formOpen} onOpenChange={setFormOpen}>
         <SheetContent size="xl" className="w-full p-6 overflow-y-auto">

@@ -256,16 +256,26 @@
      STATUS
      ══════════════════════════════════════════════════════════════════════ */
 
+  /* Status inks are the badge inks.
+     ================================
+     These three used to point at the package's `-strong` ramp positions
+     (#2E5526, #7A2419) — chosen for body text on white, and too dark once
+     they sit on their own tint, which is where a status ink almost always
+     ends up. That left the app with two status palettes: `StatusChip` on one,
+     the canvas tables on the other, both claiming to mean "overdue".
+
+     One palette now, defined under BADGES below. Every chip, pill and status
+     line in either module resolves to the same three colours. */
   --status-success-bg:     var(--tone-success-bg);
   --status-success-border: var(--tone-success-bd);
-  --status-success-text:   var(--tone-success-strong);
+  --status-success-text:   var(--badge-ok-fg);
   --status-success-500:    var(--tone-success);
   --status-warning-bg:     var(--tone-warn-bg);
   --status-warning-border: var(--tone-warn-bd);
-  --status-warning-text:   var(--warning-700);
+  --status-warning-text:   var(--badge-warn-fg);
   --status-error-bg:       var(--tone-danger-bg);
   --status-error-border:   var(--tone-danger-bd);
-  --status-error-text:     var(--tone-danger-strong);
+  --status-error-text:     var(--badge-bad-fg);
   --status-danger-border:  var(--tone-danger-bd);
   --status-info-bg:        var(--tone-info-bg);
   --status-info-border:    var(--tone-info-bd);
@@ -295,11 +305,39 @@
   --badge-info-bg:      var(--tone-info-bg);
   --badge-info-text:    var(--brand-strong);
   --badge-success-bg:   var(--tone-success-bg);
-  --badge-success-text: var(--tone-success-strong);
+  --badge-success-text: var(--badge-ok-fg);
   --badge-warning-bg:   var(--tone-warn-bg);
-  --badge-warning-text: var(--warning-700);
+  --badge-warning-text: var(--badge-warn-fg);
   --badge-danger-bg:    var(--tone-danger-bg);
-  --badge-danger-text:  var(--tone-danger-strong);
+  --badge-danger-text:  var(--badge-bad-fg);
+
+  /* ── The canvas badge palette ──────────────────────────────────────────
+     Five pairs, and they are the ones the designs are drawn in.
+
+     The BACKGROUNDS are already package tokens and match exactly, so they
+     are aliased rather than restated. The FOREGROUNDS are not: the package's
+     `-strong` inks (#2E5526 success, #7A2419 danger) were chosen for body
+     text on white, and a badge is neither — it is 10.5px of 600 weight on a
+     tint of its own hue. At that size the strong inks go so dark they read
+     as black-on-pastel and the tone stops carrying meaning. The canvas
+     lightened all three by roughly one step, and those are literals here
+     because they are decisions about a specific pairing, not a ramp
+     position anything else can be derived from.
+
+     Literal is safe here because this app is light-only (see the
+     `data-appearance` note at the foot of this file). If dark ever lands,
+     these three need the inverse treatment — on a dark tint it is the light
+     inks that stay readable — so they are grouped here to be found. */
+  --badge-ok-bg:   var(--tone-success-bg);
+  --badge-ok-fg:   #4A7042;
+  --badge-warn-bg: var(--tone-warn-bg);
+  --badge-warn-fg: #8A5C18;
+  --badge-bad-bg:  var(--tone-danger-bg);
+  --badge-bad-fg:  #8F2D20;
+  --badge-mute-bg: var(--surface-muted);
+  --badge-mute-fg: var(--text-muted);
+  /* Info needs no new pair — `--badge-info-bg`/`-text` above already resolve
+     to the canvas's #E8EFFE on #0944C2. */
 
   /* ══════════════════════════════════════════════════════════════════════
      TABLES
@@ -307,9 +345,15 @@
 
   --table-toolbar-bg:      color-mix(in oklab, var(--surface) 86%, transparent);
   --table-toolbar-border:  var(--border-subtle);
-  --table-header-bg:       var(--surface-muted);
-  --table-header-text:     var(--text-subtle);
-  --table-divider:         var(--border-subtle);
+  /* The canvas puts the column head on the page's own canvas tint, not on
+     `--surface-muted`. One step lighter, and it matters because the head is
+     sticky: it sits over rows as they scroll under it, so it wants to read as
+     the field the card is cut out of rather than as a fourth grey. */
+  --table-header-bg:       var(--canvas);
+  --table-header-text:     var(--text-muted);
+  /* Row rules are lighter still. At 36px a row this is the difference between
+     a table you read across and a grid you read as boxes. */
+  --table-divider:         #F4F6F9;
   --table-row-bg:          var(--surface);
   --table-row-bg-alt:      var(--surface);
   --table-row-hover-bg:    var(--surface-muted);
@@ -410,6 +454,12 @@
 
   --radius-full: 9999px;      /* literal by nature — same as --radius-pill */
 
+  /* The package ships `--card-radius: 12px`. The canvas draws every panel at
+     10, and at this density that is not a rounding difference you can wave
+     off: a 12px corner on a 36px card head reads as a pill trying to be a
+     box. One override here rather than a `rounded-[10px]` on every panel. */
+  --card-radius: 10px;
+
   --control-height-sm: var(--h-control-sm);
   --control-height-md: var(--h-control-md);
 
@@ -422,11 +472,24 @@
   --icon-size-lg: 22px;
   --icon-size-xl: 28px;
 
-  /* Page gutters. The design system's guidance is ≤430px: 16 · 431–767: 20 ·
-     ≥768: 24, with `--gutter-x` (24) as the desktop value. */
+  /* Page gutters.
+     The design system's gutter rule (≤430: 16 · 431–767: 20 · ≥768: 24) is a
+     rule for a page that sits in a container. This app's work surfaces do not:
+     the shell is edge to edge and the gutter is the only inset left, so it
+     stays at 16 at every width and tables bleed past even that. A wider
+     desktop gutter here bought whitespace on the one axis that was already
+     starved — see `--content-max` below. */
   --content-gutter-x: var(--space-4);
   --section-gutter-x: var(--space-4);
   --table-gutter-x:   var(--space-3);
+
+  /* Deliberately none. Work surfaces fill the width they are given; the only
+     things that cap their width are panes that carry their own (a record
+     rail, a settings editor). Kept as a named token so a page that genuinely
+     wants a reading measure asks for it explicitly rather than inheriting a
+     cap it never chose. */
+  --content-max: none;
+  --rail-w: 184px;   /* was 220 — longest label in the app is "Public holidays" */
 
   /* The app bar's height, and the padding `main` puts above and below a page.
      Named because any page that wants to fill the screen has to subtract them
@@ -434,14 +497,33 @@
      silently the next time the bar changes. `Navbar` and `AppShell`'s `main`
      read these, so `--content-viewport` cannot drift from what a page
      actually has. */
-  --app-bar-h:        3.5rem;
-  --content-gutter-y: var(--space-4);
+  --app-bar-h:        48px;
+  /* Zero, and that is the point: `main` no longer pads the page top and
+     bottom. Every band that pins to the top of the scrollport — the page
+     band, a list toolbar, a table header — has to start at the scrollport's
+     own edge, and 24px of padding above them meant each one floated with a
+     gap the content then slid through. Bands own their vertical padding now. */
+  --content-gutter-y: 0px;
   --content-viewport: calc(
     100dvh - var(--app-bar-h) - env(safe-area-inset-top, 0px)
       - (var(--content-gutter-y) * 2)
   );
-  --table-row-min-h:  calc(var(--h-control-md) + var(--space-3));    /* 48 */
-  --table-head-min-h: calc(var(--h-control-md) + var(--space-1));    /* 40 */
+  --table-row-min-h:  36px;   /* was 48 — four more rows per screen */
+  --table-head-min-h: 32px;   /* was 40 — it is a label strip, not a row */
+
+  /* The sticky stack.
+     Four bands pin in sequence and each offset is the sum of the ones above
+     it. Named because the alternative is a literal in every table: the first
+     time the app bar changes height, every column header in the app hides
+     behind a toolbar and nothing fails loudly. Read these, never re-type them.
+
+       app bar      top: 0                        h 48   z 40
+       page band    top: var(--app-bar-h)         h 44   z 30
+       list toolbar top: var(--band-stack-h)      h 44   z 20
+       table head   top: var(--sticky-stack-h)    h 32   z 10 */
+  --page-band-h:      44px;
+  --band-stack-h:     calc(var(--app-bar-h) + var(--page-band-h));
+  --sticky-stack-h:   calc(var(--band-stack-h) + var(--list-toolbar-h));
 
   /* The options row on a record list — the band holding the layout switch, the
      filters and the search. Named for the same reason the app bar is: it pins
@@ -449,7 +531,7 @@
      has to pin *below* it. A literal here and a literal in `RecordTable` is
      how a header ends up half-hidden behind a toolbar the next time the row
      gains a control. */
-  --list-toolbar-h:   3.25rem;
+  --list-toolbar-h:   44px;   /* was 3.25rem — the controls inside are 30px */
 
   /* ══════════════════════════════════════════════════════════════════════
      TYPOGRAPHY
@@ -601,19 +683,25 @@
   --keypad-enter-active: var(--action-primary-pressed);
 }
 
-/* Page gutter widens with the viewport, per the design system's gutter rule. */
+/* The gutter no longer widens with the viewport.
+   It used to step 16 → 20 → 24 per the design system's gutter rule, which is
+   written for pages inside a container. These are not: the extra 8px at
+   desktop was inset on a surface that had already given up 360px to
+   `max-w-7xl`, and the vertical gutter pushed every sticky band away from the
+   top of the scrollport it needed to pin to. Both are gone; the horizontal
+   gutter is a flat 16 and bands own their own vertical padding.
+
+   `--section-gutter-x` still steps, because a section header inside a pane is
+   reading material rather than a work surface. */
 @media (min-width: 431px) {
   :root {
-    --content-gutter-x: var(--space-5);
     --section-gutter-x: var(--space-5);
   }
 }
 
 @media (min-width: 768px) {
   :root {
-    --content-gutter-x: var(--gutter-x);
     --section-gutter-x: var(--gutter-x);
-    --content-gutter-y: var(--space-6);
   }
 }
 

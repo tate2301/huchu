@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
@@ -127,6 +128,8 @@ export default function CurrencyRatesPage() {
     <AccountingShell
       activeTab="currency"
       title="Currency Rates"
+      description="what each currency was worth, and on which day"
+      bandSlot={<BandChip label="Rates" value={String(rates.length)} tone="mute" />}
       actions={
         <AccountingNewButton items={[{ label: "New Rate", icon: ArrowRightLeft, onClick: () => setFormOpen(true) }]} />
       }

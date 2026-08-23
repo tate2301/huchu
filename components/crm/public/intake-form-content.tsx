@@ -243,7 +243,7 @@ export function IntakeFormContent({ token }: { token: string }) {
           <button
             type="submit"
             disabled={submitting}
-            className="w-full rounded-xl bg-neutral-900 px-4 py-3 font-medium text-white disabled:opacity-60"
+            className="w-full rounded-[10px] bg-neutral-900 px-4 py-3 font-medium text-white disabled:opacity-60"
           >
             {submitting ? "Submitting…" : "Submit"}
           </button>
@@ -254,7 +254,7 @@ export function IntakeFormContent({ token }: { token: string }) {
 }
 
 const inputClass =
-  "w-full rounded-lg border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none focus:border-neutral-900";
+  "w-full rounded-[var(--radius-md)] border border-neutral-300 bg-white px-3 py-2 text-neutral-900 outline-none focus:border-neutral-900";
 
 function CenteredCard({ children }: { children: React.ReactNode }) {
   return (

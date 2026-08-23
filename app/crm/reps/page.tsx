@@ -10,7 +10,7 @@ export default async function CrmRepsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage title="Reps" description="who is selling, and how they are doing">
       <RepsContent />
     </CrmPage>
   );
