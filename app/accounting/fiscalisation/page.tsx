@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,25 @@ type FiscalisationFormState = {
   phone: string;
   email: string;
 };
+
+/**
+ * A labelled break in the provider form.
+ *
+ * The form is thirteen fields in one undifferentiated column — provider key,
+ * credentials, a device id, two secret references and two JSON blobs — and the
+ * only thing distinguishing "the URL we call" from "the certificate that signs
+ * receipts" was reading order. These headings say which question each run of
+ * fields is answering, so someone setting FDMS up for the first time can find
+ * the half they have the answers for.
+ */
+function FieldGroup({ label, hint }: { label: string; hint: string }) {
+  return (
+    <div className="flex items-baseline gap-2 border-b border-[var(--border-subtle)] pb-1.5 pt-2 first:pt-0">
+      <h3 className="text-sm font-bold text-[var(--text-strong)]">{label}</h3>
+      <span className="truncate text-sm text-[var(--text-subtle)]">{hint}</span>
+    </div>
+  );
+}
 
 export default function FiscalisationPage() {
   const { toast } = useToast();
@@ -94,6 +114,22 @@ export default function FiscalisationPage() {
   const formState = useMemo(() => ({ ...baseFormState, ...draft }), [baseFormState, draft]);
 
   const receipts = useMemo(() => receiptsData?.data ?? [], [receiptsData]);
+
+  /**
+   * What is waiting on ZIMRA, for the band.
+   *
+   * Pending and failed are separated because they need different things from
+   * a supervisor. A pending receipt is the system working — it wants patience.
+   * A failed one is stuck and needs a replay, which is why it gets the danger
+   * tone and only appears when there is at least one.
+   */
+  const receiptCounts = useMemo(
+    () => ({
+      pending: receipts.filter((receipt) => receipt.status === "PENDING").length,
+      failed: receipts.filter((receipt) => receipt.status === "FAILED").length,
+    }),
+    [receipts],
+  );
   const hasActiveProvider = Boolean(configData?.provider?.isActive);
   const syncMutation = useMutation({
     mutationFn: async (receiptId: string) =>
@@ -120,7 +156,7 @@ export default function FiscalisationPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-mono">{row.original.invoice?.invoiceNumber ?? "-"}</div>
-            <div className="text-xs text-muted-foreground">{row.original.providerKey ?? ""}</div>
+            <div className="acct-caption">{row.original.providerKey ?? ""}</div>
           </div>
         ),
         size: 280,
@@ -309,7 +345,20 @@ export default function FiscalisationPage() {
   return (
     <AccountingShell
       activeTab="fiscalisation"
-      title="ZIMRA Fiscalisation"
+      title="Fiscalisation"
+      description="ZIMRA FDMS — the device, its credentials, and the open fiscal day"
+      bandSlot={
+        <>
+          <BandChip
+            label="Queued"
+            value={String(receiptCounts.pending)}
+            tone={receiptCounts.pending > 0 ? "warn" : "ok"}
+          />
+          {receiptCounts.failed > 0 ? (
+            <BandChip label="Failed" value={String(receiptCounts.failed)} tone="bad" />
+          ) : null}
+        </>
+      }
     >
       {(configError || receiptsError) ? (
         <Alert variant="destructive">
@@ -343,6 +392,7 @@ export default function FiscalisationPage() {
             </CardHeader>
             <div className="px-6 pb-6">
               <form onSubmit={handleSaveConfig} className="space-y-4">
+                <FieldGroup label="Connection" hint="where we call, and how we authenticate" />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold mb-2">Provider Key *</label>
@@ -390,6 +440,7 @@ export default function FiscalisationPage() {
                     />
                   </div>
                 </div>
+                <FieldGroup label="Credentials and certificates" hint="never shown in full once saved" />
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   <div>
                     <label className="block text-sm font-semibold mb-2">Username</label>
@@ -453,6 +504,7 @@ export default function FiscalisationPage() {
                     />
                   </div>
                 </div>
+                <FieldGroup label="Advanced" hint="JSON, validated on save" />
                 <div>
                   <label className="block text-sm font-semibold mb-2">Retry Policy JSON</label>
                   <Input

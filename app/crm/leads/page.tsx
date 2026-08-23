@@ -23,7 +23,10 @@ export default async function CrmLeadsPage({ searchParams }: { searchParams: Sea
   const view = params.get("view") === "table" ? "TABLE" : "BOARD";
 
   return (
-    <CrmPage>
+    <CrmPage
+      title="Leads"
+      description="enquiries that have not become deals yet"
+    >
       {/* One workspace: the pipeline menu inside it crosses to the deal
           pipelines without leaving the page. */}
       <PipelineWorkspace

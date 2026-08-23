@@ -440,7 +440,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
           ) : null}
 
           <RailSection title="Value">
-            <p className="font-mono text-2xl">{formatMoney(wonValue, currency)}</p>
+            <p className="acct-stat-value font-mono tabular-nums text-[var(--text-strong)]">{formatMoney(wonValue, currency)}</p>
             <p className="text-sm text-[var(--text-muted)]">
               won so far · {openDeals.length} deal{openDeals.length === 1 ? "" : "s"} still open
             </p>

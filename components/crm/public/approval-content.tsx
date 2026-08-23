@@ -185,7 +185,7 @@ export function ApprovalContent({ token }: { token: string }) {
             ) : null}
 
             {doc.expired ? (
-              <p className="mt-6 rounded-lg bg-neutral-50 p-4 text-center text-sm text-neutral-600">
+              <p className="mt-6 rounded-[var(--radius-md)] bg-neutral-50 p-4 text-center text-sm text-neutral-600">
                 This link has expired, so the pricing is no longer shown. Ask us for a fresh copy
                 and we&apos;ll send one over.
               </p>
@@ -260,7 +260,7 @@ export function ApprovalContent({ token }: { token: string }) {
             ) : null}
 
             {doc.branding.bankAccountNumber ? (
-              <section className="mt-6 rounded-lg bg-neutral-50 p-4">
+              <section className="mt-6 rounded-[var(--radius-md)] bg-neutral-50 p-4">
                 <p className="text-sm text-neutral-400">Payment details</p>
                 <dl className="mt-1 space-y-0.5 text-sm text-neutral-700">
                   {doc.branding.bankName ? (
@@ -307,13 +307,13 @@ export function ApprovalContent({ token }: { token: string }) {
                 Happy with this {label.toLowerCase()}? Approving lets us get started.
               </p>
               <input
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-900"
+                className="w-full rounded-[var(--radius-md)] border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-900"
                 placeholder="Your name"
                 value={name}
                 onChange={(e) => setName(e.target.value)}
               />
               <textarea
-                className="w-full rounded-lg border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-900"
+                className="w-full rounded-[var(--radius-md)] border border-neutral-300 px-3 py-2 outline-none focus:border-neutral-900"
                 rows={2}
                 placeholder="Add a note (optional)"
                 value={note}
@@ -324,7 +324,7 @@ export function ApprovalContent({ token }: { token: string }) {
                 <button
                   disabled={submitting}
                   onClick={() => respond("APPROVE")}
-                  className="flex-1 rounded-xl px-4 py-3 font-medium text-white disabled:opacity-60"
+                  className="flex-1 rounded-[10px] px-4 py-3 font-medium text-white disabled:opacity-60"
                   style={{ backgroundColor: accent }}
                 >
                   {submitting ? "Sending…" : "Approve"}
@@ -332,7 +332,7 @@ export function ApprovalContent({ token }: { token: string }) {
                 <button
                   disabled={submitting}
                   onClick={() => respond("DECLINE")}
-                  className="flex-1 rounded-xl border border-neutral-300 px-4 py-3 font-medium text-neutral-800 disabled:opacity-60"
+                  className="flex-1 rounded-[10px] border border-neutral-300 px-4 py-3 font-medium text-neutral-800 disabled:opacity-60"
                 >
                   Decline
                 </button>

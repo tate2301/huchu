@@ -112,7 +112,7 @@ function FormBuilderEditor({ formId, initial }: { formId: string; initial: FormR
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">Form details</CardTitle>
+          <CardTitle>Form details</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3">
           <div>
@@ -129,7 +129,7 @@ function FormBuilderEditor({ formId, initial }: { formId: string; initial: FormR
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Services offered</CardTitle>
+          <CardTitle>Services offered</CardTitle>
           <Button size="sm" variant="outline" onClick={addService}>
             Add service
           </Button>
@@ -170,7 +170,7 @@ function FormBuilderEditor({ formId, initial }: { formId: string; initial: FormR
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Custom fields</CardTitle>
+          <CardTitle>Custom fields</CardTitle>
           <Button size="sm" variant="outline" onClick={addField}>
             Add field
           </Button>

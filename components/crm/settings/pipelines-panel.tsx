@@ -7,6 +7,13 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
+import {
+  ReportTable,
+  badge,
+  nm,
+  num,
+  txt,
+} from "@/components/accounting/report-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -428,17 +435,59 @@ export function PipelinesPanel() {
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-1">
-              {pipeline.stages.map((stage) => (
-                <Badge
-                  key={stage.id}
-                  variant={stage.status === "OPEN" ? "outline" : "secondary"}
-                  className="text-sm"
-                >
-                  {stage.name}
-                </Badge>
-              ))}
-            </div>
+            {/*
+              The stages, with what each one actually does.
+
+              This was a row of name-only badges. A stage is not just a name —
+              it carries the probability the forecast is weighted by, the idle
+              period after which a deal goes stale, and the fields and checks
+              that gate leaving it. None of that was visible without opening
+              the editor, so the one screen somebody comes to this page to
+              audit was the one screen that showed the least.
+
+              Read-only here, on purpose: this is the audit view, and "Edit
+              stages" directly above is the door to changing any of it.
+            */}
+            <ReportTable
+              label={`Stages in ${pipeline.name}`}
+              tracks="minmax(0,1fr) 110px 90px 90px 110px"
+              columns={[
+                { label: "Stage" },
+                { label: "Status" },
+                { label: "Win %", align: "right" },
+                { label: "Stale after", align: "right" },
+                { label: "Gates", align: "right" },
+              ]}
+              rows={pipeline.stages.map((stage) => {
+                const gates =
+                  (stage.requiredFields?.length ?? 0) + (stage.checklist?.length ?? 0);
+                return {
+                  id: stage.id,
+                  cells: [
+                    nm(stage.name),
+                    badge(
+                      stage.status === "OPEN"
+                        ? "Open"
+                        : stage.status === "WON"
+                          ? "Won"
+                          : "Lost",
+                      stage.status === "WON" ? "ok" : stage.status === "LOST" ? "bad" : "mute",
+                    ),
+                    num(`${stage.probability ?? 0}%`),
+                    // A stage with no idle rule never goes stale, which is a
+                    // real setting rather than a missing one — so it reads as
+                    // "never" rather than as an empty cell.
+                    stage.inactivityDays
+                      ? num(`${stage.inactivityDays}d`)
+                      : txt("never", { align: "right", tone: "dim" }),
+                    gates === 0
+                      ? txt("none", { align: "right", tone: "dim" })
+                      : num(`${gates}`, { tone: "warn" }),
+                  ],
+                };
+              })}
+              emptyLabel="This pipeline has no stages yet."
+            />
           </div>
         ))}
       </CardContent>

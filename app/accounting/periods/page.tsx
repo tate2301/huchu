@@ -10,6 +10,11 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { BandChip } from "@/components/accounting/band-chip";
+import {
+  PeriodCloseChecklist,
+  type ChecklistItem,
+} from "@/components/accounting/period-close-checklist";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -33,6 +38,7 @@ import {
   type AccountingPeriodRecord,
   fetchAccountingPeriods,
   fetchAccountingSummary,
+  fetchFinancialReportsHubSummary,
   fetchChartOfAccounts,
   importOpeningBalances,
   setAccountingFreezeDate,
@@ -107,6 +113,11 @@ export default function AccountingPeriodsPage() {
     queryKey: ["accounting", "periods"],
     queryFn: () => fetchAccountingPeriods({ limit: 200 }),
   });
+  const { data: financialSummary } = useQuery({
+    queryKey: ["accounting", "hubs", "financial-reports", "periods"],
+    queryFn: () => fetchFinancialReportsHubSummary({}),
+  });
+
   const { data: accountingSummary } = useQuery({
     queryKey: ["accounting-summary"],
     queryFn: fetchAccountingSummary,
@@ -308,6 +319,76 @@ export default function AccountingPeriodsPage() {
     },
   });
 
+  /**
+   * The close gates, built from the same summary the overview reads.
+   *
+   * Trial balance is checked with a rounded comparison, not `===`. Debits and
+   * credits arrive as floats, and an unrounded equality test reports a
+   * perfectly balanced ledger as failing over 1e-13 — which is exactly the
+   * kind of false blocker that makes people stop trusting a checklist.
+   */
+  const checklist = useMemo<ChecklistItem[]>(() => {
+    const drafts = accountingSummary?.draftJournals ?? 0;
+    const posted = accountingSummary?.postedJournals ?? 0;
+    const fiscal = accountingSummary?.pendingFiscalReceipts ?? 0;
+    const vat = accountingSummary?.pendingVatReturns ?? 0;
+    const failed = accountingSummary?.failedIntegrationEvents ?? 0;
+
+    const debit = financialSummary?.kpis.totalDebit ?? 0;
+    const credit = financialSummary?.kpis.totalCredit ?? 0;
+    const difference = Math.round((debit - credit) * 100) / 100;
+
+    return [
+      {
+        label: "All journals posted",
+        done: drafts === 0,
+        note: drafts === 0 ? `${posted} of ${posted}` : `${drafts} in draft`,
+        href: "/accounting/journals",
+      },
+      {
+        label: "Trial balance agrees",
+        done: difference === 0,
+        note: difference === 0 ? "balanced" : `out by ${Math.abs(difference).toFixed(2)}`,
+        href: "/accounting/trial-balance",
+      },
+      {
+        label: "Receipts fiscalised",
+        done: fiscal === 0,
+        note: fiscal === 0 ? "all sent" : `${fiscal} pending`,
+        href: "/accounting/fiscalisation",
+      },
+      {
+        label: "VAT return prepared",
+        done: vat === 0,
+        note: vat === 0 ? "filed" : `${vat} to file`,
+        href: "/accounting/tax?view=vat-returns",
+      },
+      {
+        label: "Every posting reached the ledger",
+        done: failed === 0,
+        note: failed === 0 ? "none failed" : `${failed} failed`,
+        href: "/accounting/posting-rules?view=failures",
+      },
+    ];
+  }, [accountingSummary, financialSummary]);
+
+  const blockingCount = checklist.filter((item) => !item.done).length;
+
+  /**
+   * The period people are posting into.
+   *
+   * The earliest open period rather than the latest — if two are open, work
+   * lands in the older one first, and naming the newer would describe a period
+   * nobody is using yet.
+   */
+  const openPeriodLabel = useMemo(() => {
+    const open = periods
+      .filter((period) => period.status === "OPEN")
+      .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+    if (open.length === 0) return "none";
+    return format(new Date(open[0].startDate), "MMM yyyy");
+  }, [periods]);
+
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -326,7 +407,18 @@ export default function AccountingPeriodsPage() {
   return (
     <AccountingShell
       activeTab="periods"
-      title="Accounting Periods"
+      title="Periods"
+      description="what is open, what is closed, and what closing still needs"
+      bandSlot={
+        <>
+          <BandChip label="Open" value={openPeriodLabel} tone="ok" />
+          {blockingCount > 0 ? (
+            <BandChip label="Blocking" value={String(blockingCount)} tone="bad" />
+          ) : (
+            <BandChip label="Blocking" value="0" tone="ok" />
+          )}
+        </>
+      }
       actions={
         <AccountingNewButton items={[{ label: "New Period", icon: Calendar, onClick: () => setFormOpen(true) }]} />
       }
@@ -359,6 +451,8 @@ export default function AccountingPeriodsPage() {
         }
         emptyState={isLoading ? "Loading periods..." : "No accounting periods found."}
       />
+
+      <PeriodCloseChecklist items={checklist} />
 
       <Card>
         <CardHeader>
@@ -418,7 +512,7 @@ export default function AccountingPeriodsPage() {
             <textarea
               value={openingLinesJson}
               onChange={(event) => setOpeningLinesJson(event.target.value)}
-              className="h-36 w-full rounded-md border border-input bg-background p-2 font-mono text-xs"
+              className="h-36 w-full rounded-[var(--radius-sm)] border border-input bg-background p-2 font-mono acct-caption"
             />
           </div>
         </CardContent>

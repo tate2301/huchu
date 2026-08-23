@@ -10,7 +10,10 @@ export default async function CrmInvoicesPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage
+      title="Invoices"
+      description="what has been billed, and what is still owed"
+    >
       <DocumentsListContent
         kind="INVOICE"
         title="Invoices"

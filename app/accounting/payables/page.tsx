@@ -1,14 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
-import { InsightDonutCard } from "@/components/charts/insight-donut-card";
+import {
+  Breakdown,
+  ReportPanel,
+  type BreakdownRow,
+} from "@/components/ui/breakdown-panel";
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
@@ -21,21 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchPayablesHubSummary, fetchSites } from "@/lib/api";
+import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
+import { cn } from "@/lib/utils";
 import { Building2, FileText, Payments } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "hsl(var(--chart-5))",
-  RECEIVED: "hsl(var(--chart-4))",
-  PAID: "hsl(var(--chart-2))",
-  VOIDED: "hsl(var(--chart-1))",
-};
 
 export default function PayablesHomePage() {
   const [startDate, setStartDate] = useState("");
@@ -79,19 +73,99 @@ export default function PayablesHomePage() {
     return { aging, status, trend };
   }, [summary]);
 
-  const agingChartConfig = useMemo(
+  /**
+   * Ageing buckets, tinted by severity. Matched on the label rather than on
+   * position — the API may omit empty buckets, and position would then tint the
+   * wrong row. Unrecognised buckets stay neutral.
+   */
+  const agingRows = useMemo<BreakdownRow[]>(
     () =>
-      buildAxisChartConfig({
-        data: chartData.aging,
-        title: "AP Aging Heatmap",
-        subtitle: "Frappe block view for liability bucket scanning.",
-        xAxisKey: "bucket",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
+      chartData.aging.map((item) => {
+        const key = item.bucket.toLowerCase();
+        const tone: BreakdownRow["tone"] =
+          key.includes("not due") || key.includes("current")
+            ? "good"
+            : /(^|\D)(61|90)/.test(key) || key.includes("over")
+              ? "danger"
+              : /(^|\D)(31|60)/.test(key)
+                ? "warn"
+                : "neutral";
+        return { label: item.bucket, amount: item.amount, tone };
       }),
     [chartData.aging],
   );
+
+  const statusRows = useMemo<BreakdownRow[]>(
+    () =>
+      chartData.status.map((item) => {
+        const key = item.status.toUpperCase();
+        const tone: BreakdownRow["tone"] =
+          key === "PAID"
+            ? "good"
+            : key === "OVERDUE"
+              ? "danger"
+              : key === "VOIDED" || key === "DRAFT"
+                ? "warn"
+                : "neutral";
+        return {
+          label: key.charAt(0) + key.slice(1).toLowerCase(),
+          amount: item.count,
+          display: item.count.toLocaleString(),
+          tone,
+        };
+      }),
+    [chartData.status],
+  );
+
+
+  /**
+   * The book, vendor by vendor — read from the AP ageing report rather than
+   * from a second endpoint, so the closing table and the ageing panel above it
+   * cannot disagree. See the AR report for the reasoning.
+   */
+  const { data: apAging } = useQuery({
+    queryKey: ["accounting", "reports", "ap-aging", endDate],
+    queryFn: () => fetchApAging(endDate ? { asOf: endDate } : {}),
+  });
+
+  const vendorRows = useMemo(() => {
+    const rows = (apAging?.rows ?? []).map((row) => {
+      const overdue = row.days30 + row.days60 + row.days90 + row.days90Plus;
+      const oldest =
+        row.days90Plus > 0
+          ? { label: "Over 90", tone: "bad" as const }
+          : row.days90 > 0
+            ? { label: "61–90", tone: "bad" as const }
+            : row.days60 > 0
+              ? { label: "31–60", tone: "warn" as const }
+              : row.days30 > 0
+                ? { label: "1–30", tone: "warn" as const }
+                : { label: "—", tone: "mute" as const };
+      return { id: row.id, name: row.name, open: row.total, overdue, oldest };
+    });
+    return rows
+      .filter((row) => row.open !== 0 || row.overdue !== 0)
+      .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
+  }, [apAging]);
+
+  /**
+   * Ratios, null when there is no denominator — see the AR report. A tenant
+   * with no bills received has no settlement rate, and "0% of billed" would
+   * report a problem that does not exist.
+   */
+  const overdueShare = useMemo(() => {
+    const open = summary?.kpis.openBalance ?? 0;
+    const overdue = summary?.kpis.overdueBalance ?? 0;
+    if (open <= 0) return null;
+    return Math.round((overdue / open) * 100);
+  }, [summary]);
+
+  const settlementRate = useMemo(() => {
+    const billed = summary?.kpis.receivedBillValue ?? 0;
+    const paid = summary?.kpis.paidAmount ?? 0;
+    if (billed <= 0) return null;
+    return Math.round((paid / billed) * 100);
+  }, [summary]);
 
   const groups = useMemo<HubLinkGroup[]>(
     () => [
@@ -160,8 +234,9 @@ export default function PayablesHomePage() {
 
   return (
     <AccountingShell
-      activeTab="payables"
-      title="Payables Home"
+      activeTab="ap-report"
+      title="AP Report"
+      description="the payables book — what was a separate summary tab"
       actions={
         <AccountingNewButton
           items={[
@@ -198,75 +273,157 @@ export default function PayablesHomePage() {
               </SelectContent>
             </Select>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 acct-caption">
             Branch filter is shown for planning consistency. Current accounting totals remain company-wide.
           </p>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Five figures, one strip — the whole AP position at a glance. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <MetricTile
           title="Open AP"
           value={summary?.kpis.openBalance ?? 0}
           valueLabel={formatCurrency(summary?.kpis.openBalance ?? 0)}
-          detail="Outstanding payables"
+          delta={`${(summary?.kpis.receivedBillCount ?? 0).toLocaleString()} bills`}
+          detail={
+            vendorRows.length > 0
+              ? `across ${vendorRows.length} vendor${vendorRows.length === 1 ? "" : "s"}`
+              : "nothing outstanding"
+          }
+          tone="neutral"
+          href="/accounting/purchases?view=bills"
         />
         <MetricTile
           title="Overdue AP"
           value={summary?.kpis.overdueBalance ?? 0}
           valueLabel={formatCurrency(summary?.kpis.overdueBalance ?? 0)}
-          detail="Past due liabilities"
-          negativeIsBetter
+          delta={overdueShare === null ? undefined : `${overdueShare}% of the book`}
+          detail={
+            (summary?.kpis.overdueBalance ?? 0) > 0 ? "past its terms" : "all within terms"
+          }
+          tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "danger" : "good"}
+          href="/accounting/purchases?view=aging"
         />
         <MetricTile
-          title="Bill Value"
+          title="Billed, period"
           value={summary?.kpis.receivedBillValue ?? 0}
           valueLabel={formatCurrency(summary?.kpis.receivedBillValue ?? 0)}
-          detail={`${(summary?.kpis.receivedBillCount ?? 0).toLocaleString()} received bills`}
+          delta={`${(summary?.kpis.receivedBillCount ?? 0).toLocaleString()} received`}
+          detail="in the selected period"
+          tone="neutral"
+          href="/accounting/purchases?view=bills"
         />
         <MetricTile
-          title="Payments"
+          title="Paid, period"
           value={summary?.kpis.paidAmount ?? 0}
           valueLabel={formatCurrency(summary?.kpis.paidAmount ?? 0)}
-          detail="Supplier payments"
+          delta={settlementRate === null ? undefined : `${settlementRate}% of billed`}
+          detail="paid to suppliers"
+          tone="good"
+          href="/accounting/purchases?view=payments"
         />
         <MetricTile
-          title="Debit Notes"
+          title="Debit notes"
           value={summary?.kpis.debitNoteAmount ?? 0}
           valueLabel={formatCurrency(summary?.kpis.debitNoteAmount ?? 0)}
-          detail="Issued debit notes"
+          detail="raised against bills"
+          tone={(summary?.kpis.debitNoteAmount ?? 0) > 0 ? "warn" : "neutral"}
+          href="/accounting/purchases?view=debit-notes"
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell className="rounded-xl">
-          {isLoading ? null : <AxisChart config={agingChartConfig} />}
-        </FrappeChartShell>
-        <InsightDonutCard
-          title="Bill Status Distribution"
-          data={
-            isLoading
-              ? []
-              : chartData.status.map((item) => ({
-                  label: item.status,
-                  value: item.count,
-                  color: STATUS_COLORS[item.status] ?? "hsl(var(--chart-3))",
-                }))
-          }
-          valueFormatter={(value) => value.toLocaleString()}
+      {/* Ageing and status as figures, not pictures — see the AR report. */}
+      <div className="grid gap-3 xl:grid-cols-12">
+        <ReportPanel className="xl:col-span-4" title="Ageing" note="where the balance sits">
+          <Breakdown
+            rows={agingRows}
+            formatValue={formatCurrency}
+            emptyLabel="Nothing outstanding in this period."
+          />
+        </ReportPanel>
+
+        <ReportPanel className="xl:col-span-4" title="Bill status" note="by document status">
+          <Breakdown
+            rows={statusRows}
+            formatValue={(value) => value.toLocaleString()}
+            emptyLabel="No bills received in this period."
+          />
+        </ReportPanel>
+
+        {/* Same two fixes as the AR report: panel chrome rather than the
+            gradient card, and series colours that resolve — `--chart-4` and
+            `--chart-2` are not tokens in this design system, so both lines
+            painted the same unset colour. */}
+        <TradingViewChartCard
+          flat
+          height={132}
+          className="xl:col-span-4"
+          title="Settlement momentum"
+          note="billed against paid"
+          data={isLoading ? [] : chartData.trend}
+          xKey="date"
+          xAxisType="time"
+          series={[
+            { key: "billed", label: "Billed", type: "area", color: "var(--brand-300)" },
+            { key: "paid", label: "Paid", type: "line", color: "var(--brand)" },
+          ]}
+          valueFormatter={formatCurrency}
         />
       </div>
-      <TradingViewChartCard
-        title="Payables Settlement Momentum"
-        data={isLoading ? [] : chartData.trend}
-        xKey="date"
-        xAxisType="time"
-        series={[
-          { key: "billed", label: "Billed", type: "area", color: "hsl(var(--chart-4))" },
-          { key: "paid", label: "Paid", type: "line", color: "hsl(var(--chart-2))" },
-        ]}
-        valueFormatter={formatCurrency}
-      />
+
+      {/* Who we owe it to — the mirror of the AR report's closing table. */}
+      <ReportPanel title="By vendor" note="worst first">
+        {vendorRows.length === 0 ? (
+          <p className="px-[13px] py-4 text-sm text-[var(--text-muted)]">
+            Nothing outstanding on any vendor.
+          </p>
+        ) : (
+          <div role="table" aria-label="Payables by vendor">
+            <div
+              role="row"
+              className="grid grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] acct-col-head px-[13px] py-1.5"
+            >
+              <span role="columnheader">Vendor</span>
+              <span role="columnheader" className="text-right">Open</span>
+              <span role="columnheader" className="text-right">Overdue</span>
+              <span role="columnheader" className="text-right">Oldest</span>
+            </div>
+            {vendorRows.map((row) => (
+              <div
+                role="row"
+                key={row.id}
+                className="grid min-h-9 grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--table-divider)] px-[13px] hover:bg-[var(--canvas)]"
+              >
+                <span role="cell" className="truncate pr-3 text-sm font-semibold text-[var(--text-strong)]">
+                  {row.name}
+                </span>
+                <span role="cell" className="text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-strong)]">
+                  {formatCurrency(row.open)}
+                </span>
+                <span
+                  role="cell"
+                  className={cn(
+                    "text-right font-mono text-sm font-semibold tabular-nums",
+                    row.overdue > 0 ? "text-[var(--badge-bad-fg)]" : "text-[var(--text-subtle)]",
+                  )}
+                >
+                  {formatCurrency(row.overdue)}
+                </span>
+                <span role="cell" className="text-right">
+                  {row.oldest.tone === "mute" ? (
+                    <span className="font-mono text-sm text-[var(--text-subtle)]">—</span>
+                  ) : (
+                    <span className="acct-badge" data-tone={row.oldest.tone}>
+                      {row.oldest.label}
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </ReportPanel>
 
       <GroupedLinkList groups={groups} />
     </AccountingShell>

@@ -2,9 +2,8 @@
 
 import * as React from "react";
 
-import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
-import type { LucideIcon } from "@/lib/icons";
 import { resolveViewIcon } from "@/lib/ui/view-icons";
+import type { LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 export type VerticalDataViewItem = {
@@ -25,17 +24,29 @@ type VerticalDataViewsProps = {
   value: string;
   onValueChange: (value: string) => void;
   className?: string;
+  /** Accessible name for the switcher. No longer painted as a rail heading. */
   railLabel?: React.ReactNode;
   children: React.ReactNode;
 };
 
 /**
- * A view switcher rendered as the shared nav rail.
+ * A view switcher, rendered as a segmented strip that pins above its content.
  *
- * These were `<Button>`s carrying a border and a pill radius, so a list of
- * views read as a column of controls rather than as navigation. They are now
- * the same quiet rail Settings uses, and counts sit at the right as plain
- * tabular text instead of outlined badges.
+ * It used to be a second vertical nav rail. On a page like Receivables that
+ * put four levels of navigation in front of the data — app sidebar, the
+ * module's category rail, a horizontal tab strip, and then this — and the
+ * views rail alone took `--rail-w` off the width of every table it sat beside.
+ *
+ * The rail was also saying the wrong thing. Customers, Invoices, Receipts,
+ * Credit notes, Write-offs, Ageing and Statements are not seven destinations;
+ * they are seven cuts of one ledger. A rail presents them as places you travel
+ * to, which is why the pages behind it kept needing their own headings to
+ * re-explain where you were. A segmented control presents them as what they
+ * are: the current view of the thing already named in the page band.
+ *
+ * Overflow is horizontal scroll, never wrapping or shrinking. Pills keep their
+ * natural width — a set that squeezes to fit is a set you cannot read, and the
+ * counts are the part that goes first.
  */
 export function VerticalDataViews({
   items,
@@ -49,37 +60,76 @@ export function VerticalDataViews({
 
   return (
     <section
-      className={cn(
-        // `minmax(0,1fr)` on the single-column layout as well as the two-column
-        // one. Below `lg` the implicit track was `auto`, so the rail's
-        // max-content width — long labels, several views — set the width of the
-        // whole section, and every page using this component was wider than a
-        // phone. It did not read as broken because the app shell scrolls
-        // horizontally, so the content pane simply sat half off-screen.
-        "grid gap-4 grid-cols-[minmax(0,1fr)] lg:grid-cols-[var(--rail-w)_minmax(0,1fr)]",
-        className,
-      )}
+      className={cn("min-w-0", className)}
+      style={
+        {
+          // Computed here, applied one element down. `--stack-top: calc(var(--stack-top) …)`
+          // on a single element is a custom-property cycle — CSS makes the whole
+          // declaration invalid rather than reading the inherited value — so the
+          // accumulate and the rename have to happen on different elements.
+          "--stack-next": "calc(var(--stack-top, 0px) + var(--list-toolbar-h))",
+        } as React.CSSProperties
+      }
     >
-      <aside className="min-w-0 lg:sticky lg:top-16 lg:self-start">
-        <NavRail label={accessibleLabel} orientation="responsive">
-          {railLabel ? <div className="group-label">{railLabel}</div> : null}
+      {/*
+        Pins at whatever offset the stack has reached: zero on a page with no
+        band above it, the page band's height inside the accounting shell.
+      */}
+      <div
+        className="band-shell sticky z-20 flex min-h-[var(--list-toolbar-h)] items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-base)]"
+        style={{ top: "var(--stack-top, 0px)" }}
+      >
+        <div
+          role="tablist"
+          aria-label={accessibleLabel}
+          className="flex min-w-0 max-w-full items-center gap-0.5 overflow-x-auto rounded-[7px] bg-[var(--surface-sunken)] p-0.5"
+        >
           {items.map((item) => {
             const Icon = item.icon ?? resolveViewIcon(item.id, item.label);
+            const active = item.id === value;
             return (
-              <NavRailItem
+              <button
                 key={item.id}
-                active={item.id === value}
-                count={item.count}
-                icon={<Icon className="size-4" aria-hidden="true" />}
+                type="button"
+                role="tab"
+                aria-selected={active}
                 onClick={() => onValueChange(item.id)}
+                className={cn(
+                  "flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 text-sm transition-colors",
+                  active
+                    ? "bg-[var(--surface)] font-bold text-[var(--text-strong)] shadow-[0_1px_2px_rgba(22,24,29,.10)]"
+                    : "font-medium text-[var(--text-muted)] hover:text-[var(--text-strong)]",
+                )}
               >
-                {item.label}
-              </NavRailItem>
+                <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+                <span>{item.label}</span>
+                {typeof item.count === "number" ? (
+                  <span
+                    className={cn(
+                      "font-mono text-sm tabular-nums",
+                      active ? "text-[var(--text-muted)]" : "text-[var(--text-subtle)]",
+                    )}
+                  >
+                    {item.count}
+                  </span>
+                ) : null}
+              </button>
             );
           })}
-        </NavRail>
-      </aside>
-      <div className="min-w-0 space-y-2.5">{children}</div>
+        </div>
+      </div>
+
+      {/*
+        Republish the stack one band lower. Anything sticky inside a view — a
+        list toolbar, and through it a column header — now pins beneath this
+        strip without ever naming a pixel offset.
+      */}
+      <div
+        className="min-w-0 space-y-2.5 pt-3"
+        style={{ "--stack-top": "var(--stack-next)" } as React.CSSProperties}
+      >
+        {children}
+      </div>
     </section>
   );
 }

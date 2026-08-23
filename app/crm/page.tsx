@@ -10,7 +10,10 @@ export default async function CrmDashboardPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage
+      title="Overview"
+      description="the state of the book today"
+    >
       <PageChrome title="CRM" />
       <CrmOverview />
     </CrmPage>

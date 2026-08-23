@@ -91,7 +91,7 @@ export function SignOffContent({ token }: { token: string }) {
       ) : null}
 
       {job.signedOffAt ? (
-        <section className="rounded-lg border border-green-200 bg-green-50 p-4">
+        <section className="rounded-[var(--radius-md)] border border-green-200 bg-green-50 p-4">
           <p className="font-medium text-green-900">Signed off. Thank you.</p>
           <p className="mt-1 text-sm text-green-800">
             {job.signedOffName} · <ClientDate value={job.signedOffAt} mode="datetime" />
@@ -117,7 +117,7 @@ export function SignOffContent({ token }: { token: string }) {
               id="signoff-name"
               value={name}
               onChange={(event) => setName(event.target.value)}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-base"
+              className="w-full rounded-[var(--radius-md)] border border-neutral-300 px-3 py-2 text-base"
               autoComplete="name"
             />
           </div>
@@ -135,8 +135,8 @@ export function SignOffContent({ token }: { token: string }) {
                   onClick={() => setRating(rating === value ? null : value)}
                   className={
                     rating === value
-                      ? "size-11 rounded-lg border-2 border-neutral-900 text-base font-semibold"
-                      : "size-11 rounded-lg border border-neutral-300 text-base"
+                      ? "size-11 rounded-[var(--radius-md)] border-2 border-neutral-900 text-base font-semibold"
+                      : "size-11 rounded-[var(--radius-md)] border border-neutral-300 text-base"
                   }
                 >
                   {value}
@@ -154,7 +154,7 @@ export function SignOffContent({ token }: { token: string }) {
               value={notes}
               onChange={(event) => setNotes(event.target.value)}
               rows={3}
-              className="w-full rounded-lg border border-neutral-300 px-3 py-2 text-base"
+              className="w-full rounded-[var(--radius-md)] border border-neutral-300 px-3 py-2 text-base"
             />
           </div>
 
@@ -163,7 +163,7 @@ export function SignOffContent({ token }: { token: string }) {
           <button
             type="submit"
             disabled={submit.isPending}
-            className="w-full rounded-lg bg-neutral-900 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
+            className="w-full rounded-[var(--radius-md)] bg-neutral-900 px-4 py-3 text-base font-medium text-white disabled:opacity-60"
           >
             {submit.isPending ? "Sending…" : "Confirm the work is done"}
           </button>

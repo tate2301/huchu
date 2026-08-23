@@ -174,7 +174,7 @@ export function RecordTable<T extends { id: string }>({
               {selection ? (
                 <th
                   scope="col"
-                  className="w-10 border-b border-[var(--border-subtle)] bg-surface-base px-2 py-2 @5xl:sticky @5xl:top-[var(--list-toolbar-h)] @5xl:z-[2]"
+                  className="w-10 border-b border-[var(--border)] bg-[var(--table-header-bg)] px-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
                 >
                   <Checkbox
                     checked={allSelected}
@@ -192,17 +192,23 @@ export function RecordTable<T extends { id: string }>({
                     scope="col"
                     style={column.width ? { width: column.width } : undefined}
                     className={cn(
-                      // Pinned under the options row, not under the top of the
-                      // scrollport: the toolbar is already sitting there, and a
-                      // header that pins to zero slides underneath it.
+                      // Pinned at whatever offset the band stack has reached
+                      // rather than at a hard-coded toolbar height. On a page
+                      // with a band the stack publishes 44; inside a view
+                      // switcher, 88 — and the header lands under whichever is
+                      // actually above it instead of guessing.
                       //
                       // Only where the wrapper has dropped its overflow clamp.
                       // Inside a scroll container that never scrolls
-                      // vertically, `top: 52px` does not pin anything — it just
-                      // pushes the header 52px down the page and leaves a band
-                      // of nothing above it.
-                      "border-b border-[var(--border-subtle)] bg-surface-base px-3 py-2 @5xl:sticky @5xl:top-[var(--list-toolbar-h)] @5xl:z-[2]",
-                      "text-sm font-medium text-[var(--text-subtle)]",
+                      // vertically, a `top` offset pins nothing — it just
+                      // pushes the header down the page and leaves a band of
+                      // nothing above it.
+                      "border-b border-[var(--border)] bg-[var(--table-header-bg)] px-[13px] py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]",
+                      // The canvas column head is a label strip, not a row of
+                      // prose: small, heavy, uppercase and letterspaced, so it
+                      // reads as the table's chrome rather than as its first
+                      // line of data.
+                      "acct-col-head",
                       column.align === "end" && "text-right",
                     )}
                   >
@@ -229,11 +235,11 @@ export function RecordTable<T extends { id: string }>({
                   key={row.id}
                   className={cn(
                     "group/row",
-                    selected ? "bg-[var(--surface-subtle)]" : "hover:bg-[var(--surface-muted)]",
+                    selected ? "bg-[var(--brand-tint)]" : "hover:bg-[var(--canvas)]",
                   )}
                 >
                   {selection ? (
-                    <td className="border-b border-[var(--border-subtle)] px-2">
+                    <td className="border-b border-[var(--table-divider)] px-2">
                       <Checkbox
                         checked={selected}
                         onCheckedChange={() => toggle(row.id)}
@@ -246,9 +252,16 @@ export function RecordTable<T extends { id: string }>({
                     <td
                       key={column.id}
                       className={cn(
-                        // 44px of row from the padding alone, so a one-line
-                        // cell is still a target a thumb can hit.
-                        "min-h-11 border-b border-[var(--border-subtle)] px-3 py-2.5 align-middle text-sm",
+                        // 36px on a mouse, 44 on a coarse pointer.
+                        //
+                        // The canvas runs these lists at 36px — four more rows
+                        // per screen on a register somebody scans all day. A
+                        // 36px row is still a comfortable mouse target and a
+                        // poor thumb one, so the row grows back on touch,
+                        // where the extra height buys a hit area rather than
+                        // costing a row.
+                        "min-h-[var(--table-row-min-h)] border-b border-[var(--table-divider)] px-[13px] py-1.5 align-middle text-sm",
+                        "[@media(pointer:coarse)]:min-h-11 [@media(pointer:coarse)]:py-2.5",
                         column.align === "end" && "text-right",
                       )}
                     >
@@ -318,11 +331,18 @@ export function RecordTableName({
         {/* The underline is on the title and nowhere else — the same quiet
             "this opens" cue `EntityLink` draws, and the only part of the cell
             that actually is the link's subject. */}
-        <span className="block truncate font-medium text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
+        <span className="block truncate font-semibold text-[var(--text-strong)] underline decoration-[var(--border)] underline-offset-2 group-hover/row:decoration-[var(--text-muted)]">
           {title}
         </span>
+        {/* Mono, and a step down.
+
+            The subtitle is nearly always an identifier — a reference, a code,
+            a phone number, a branch — and setting identifiers in mono is what
+            lets the eye run down the column and spot the one that differs.
+            At the same size and face as the title it read as a second name
+            and doubled the apparent height of every row. */}
         {subtitle ? (
-          <span className="block truncate text-sm text-[var(--text-muted)]">{subtitle}</span>
+          <span className="acct-caption block truncate font-mono">{subtitle}</span>
         ) : null}
       </span>
     </span>

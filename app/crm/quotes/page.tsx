@@ -10,7 +10,10 @@ export default async function CrmQuotesPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage
+      title="Quotes"
+      description="what is out with customers"
+    >
       <DocumentsListContent
         kind="QUOTATION"
         title="Quotes"

@@ -1,14 +1,15 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AxisChart } from "@rtcamp/frappe-ui-react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
-import { InsightDonutCard } from "@/components/charts/insight-donut-card";
+import {
+  Breakdown,
+  ReportPanel,
+  type BreakdownRow,
+} from "@/components/ui/breakdown-panel";
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
@@ -21,21 +22,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
+import { fetchArAging, fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { buildAxisChartConfig } from "@/lib/charts/frappe-config-builders";
+import { cn } from "@/lib/utils";
 import { NoteAdd, ReceiptLong, UserPlus } from "@/lib/icons";
 
 function formatCurrency(value: number) {
   return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
-
-const STATUS_COLORS: Record<string, string> = {
-  DRAFT: "hsl(var(--chart-5))",
-  ISSUED: "hsl(var(--chart-1))",
-  PAID: "hsl(var(--chart-2))",
-  VOIDED: "hsl(var(--chart-4))",
-};
 
 export default function ReceivablesHomePage() {
   const [startDate, setStartDate] = useState("");
@@ -61,6 +55,20 @@ export default function ReceivablesHomePage() {
       }),
   });
 
+  /**
+   * The book, customer by customer.
+   *
+   * The hub summary is totals only, and the design's closing table is the one
+   * part of this report that names who owes the money — which is the part
+   * somebody acts on. The AR ageing report already computes exactly that per
+   * customer, so this reads it rather than adding a second endpoint that would
+   * have to be kept agreeing with the first.
+   */
+  const { data: arAging } = useQuery({
+    queryKey: ["accounting", "reports", "ar-aging", endDate],
+    queryFn: () => fetchArAging(endDate ? { asOf: endDate } : {}),
+  });
+
   const chartData = useMemo(() => {
     const aging = (summary?.charts.aging ?? []).map((item) => ({
       bucket: item.bucket,
@@ -79,19 +87,102 @@ export default function ReceivablesHomePage() {
     return { aging, status, trend };
   }, [summary]);
 
-  const agingChartConfig = useMemo(
+  /**
+   * Ageing buckets, tinted by how bad they are.
+   *
+   * Matched on the bucket label rather than on position, because the API is
+   * free to return fewer buckets when they are empty and position would then
+   * tint the wrong row green. Anything unrecognised stays neutral — a bucket we
+   * do not know the severity of should not be given one.
+   */
+  const agingRows = useMemo<BreakdownRow[]>(
     () =>
-      buildAxisChartConfig({
-        data: chartData.aging,
-        title: "AR Aging Heatmap",
-        subtitle: "Frappe block view for operational bucket scanning.",
-        xAxisKey: "bucket",
-        xAxisType: "category",
-        yAxisTitle: "Amount",
-        series: [{ name: "amount", type: "bar" }],
+      chartData.aging.map((item) => {
+        const key = item.bucket.toLowerCase();
+        const tone: BreakdownRow["tone"] =
+          key.includes("not due") || key.includes("current")
+            ? "good"
+            : /(^|\D)(61|90)/.test(key) || key.includes("over")
+              ? "danger"
+              : /(^|\D)(31|60)/.test(key)
+                ? "warn"
+                : "neutral";
+        return { label: item.bucket, amount: item.amount, tone };
       }),
     [chartData.aging],
   );
+
+  const statusRows = useMemo<BreakdownRow[]>(
+    () =>
+      chartData.status.map((item) => {
+        const key = item.status.toUpperCase();
+        const tone: BreakdownRow["tone"] =
+          key === "PAID"
+            ? "good"
+            : key === "OVERDUE"
+              ? "danger"
+              : key === "VOIDED" || key === "DRAFT"
+                ? "warn"
+                : "neutral";
+        return {
+          label: key.charAt(0) + key.slice(1).toLowerCase(),
+          amount: item.count,
+          display: item.count.toLocaleString(),
+          tone,
+        };
+      }),
+    [chartData.status],
+  );
+
+  /**
+   * Worst first — the design's ordering, and the only one that makes the table
+   * worth putting last on the page. Sorted on what is overdue rather than on
+   * what is open, because a large balance inside its terms is a healthy
+   * customer and a small one past 90 days is a problem.
+   */
+  const customerRows = useMemo(() => {
+    const rows = (arAging?.rows ?? []).map((row) => {
+      const overdue = row.days30 + row.days60 + row.days90 + row.days90Plus;
+      // The oldest bucket carrying anything. Read from the far end so a
+      // customer sitting in two buckets is reported by the worse one.
+      const oldest =
+        row.days90Plus > 0
+          ? { label: "Over 90", tone: "bad" as const }
+          : row.days90 > 0
+            ? { label: "61–90", tone: "bad" as const }
+            : row.days60 > 0
+              ? { label: "31–60", tone: "warn" as const }
+              : row.days30 > 0
+                ? { label: "1–30", tone: "warn" as const }
+                : { label: "—", tone: "mute" as const };
+      return { id: row.id, name: row.name, open: row.total, overdue, oldest };
+    });
+    return rows
+      .filter((row) => row.open !== 0 || row.overdue !== 0)
+      .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
+  }, [arAging]);
+
+  /**
+   * The two figures on the KPI strip that are ratios rather than totals.
+   *
+   * Both return null rather than 0 when the denominator is zero. A tenant with
+   * no invoices raised has no collection rate — printing "0% of invoiced"
+   * there states a failure that has not happened, and the tile drops the delta
+   * line instead.
+   */
+  const overdueShare = useMemo(() => {
+    const open = summary?.kpis.openBalance ?? 0;
+    const overdue = summary?.kpis.overdueBalance ?? 0;
+    if (open <= 0) return null;
+    return Math.round((overdue / open) * 100);
+  }, [summary]);
+
+  const collectionRate = useMemo(() => {
+    const invoiced = summary?.kpis.issuedInvoiceValue ?? 0;
+    const collected = summary?.kpis.collectedAmount ?? 0;
+    if (invoiced <= 0) return null;
+    return Math.round((collected / invoiced) * 100);
+  }, [summary]);
 
   const groups = useMemo<HubLinkGroup[]>(
     () => [
@@ -160,8 +251,9 @@ export default function ReceivablesHomePage() {
 
   return (
     <AccountingShell
-      activeTab="receivables"
-      title="Receivables Home"
+      activeTab="ar-report"
+      title="AR Report"
+      description="the receivables book — what was a separate summary tab"
       actions={
         <AccountingNewButton
           items={[
@@ -198,75 +290,181 @@ export default function ReceivablesHomePage() {
               </SelectContent>
             </Select>
           </div>
-          <p className="mt-2 text-xs text-muted-foreground">
+          <p className="mt-2 acct-caption">
             Branch filter is shown for planning consistency. Current accounting totals remain company-wide.
           </p>
         </CardContent>
       </Card>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+      {/* Five figures, one strip — the whole AR position at a glance. */}
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
         <MetricTile
           title="Open AR"
           value={summary?.kpis.openBalance ?? 0}
           valueLabel={formatCurrency(summary?.kpis.openBalance ?? 0)}
-          detail="Outstanding receivables"
+          delta={`${(summary?.kpis.issuedInvoiceCount ?? 0).toLocaleString()} invoices`}
+          detail={
+            customerRows.length > 0
+              ? `across ${customerRows.length} customer${customerRows.length === 1 ? "" : "s"}`
+              : "nothing outstanding"
+          }
+          tone="neutral"
+          href="/accounting/sales?view=invoices"
         />
         <MetricTile
           title="Overdue AR"
           value={summary?.kpis.overdueBalance ?? 0}
           valueLabel={formatCurrency(summary?.kpis.overdueBalance ?? 0)}
-          detail="Past due receivables"
-          negativeIsBetter
+          delta={
+            overdueShare === null ? undefined : `${overdueShare}% of the book`
+          }
+          detail={
+            (summary?.kpis.overdueBalance ?? 0) > 0
+              ? "past its terms"
+              : "all within terms"
+          }
+          tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "danger" : "good"}
+          href="/accounting/sales?view=aging"
         />
         <MetricTile
-          title="Invoice Value"
+          title="Invoiced, period"
           value={summary?.kpis.issuedInvoiceValue ?? 0}
           valueLabel={formatCurrency(summary?.kpis.issuedInvoiceValue ?? 0)}
-          detail={`${(summary?.kpis.issuedInvoiceCount ?? 0).toLocaleString()} issued invoices`}
+          delta={`${(summary?.kpis.issuedInvoiceCount ?? 0).toLocaleString()} raised`}
+          detail="in the selected period"
+          tone="neutral"
+          href="/accounting/sales?view=invoices"
         />
         <MetricTile
-          title="Collections"
+          title="Collected, period"
           value={summary?.kpis.collectedAmount ?? 0}
           valueLabel={formatCurrency(summary?.kpis.collectedAmount ?? 0)}
-          detail="Payments received"
+          delta={collectionRate === null ? undefined : `${collectionRate}% of invoiced`}
+          detail="receipts banked"
+          tone="good"
+          href="/accounting/sales?view=receipts"
         />
         <MetricTile
-          title="Credit Notes"
+          title="Credit notes"
           value={summary?.kpis.creditNoteAmount ?? 0}
           valueLabel={formatCurrency(summary?.kpis.creditNoteAmount ?? 0)}
-          detail="Issued credit notes"
+          detail="raised against invoices"
+          tone={(summary?.kpis.creditNoteAmount ?? 0) > 0 ? "warn" : "neutral"}
+          href="/accounting/sales?view=credit-notes"
         />
       </div>
 
-      <div className="grid gap-4 xl:grid-cols-2">
-        <FrappeChartShell className="rounded-xl">
-          {isLoading ? null : <AxisChart config={agingChartConfig} />}
-        </FrappeChartShell>
-        <InsightDonutCard
-          title="Invoice Status Distribution"
-          data={
-            isLoading
-              ? []
-              : chartData.status.map((item) => ({
-                  label: item.status,
-                  value: item.count,
-                  color: STATUS_COLORS[item.status] ?? "hsl(var(--chart-3))",
-                }))
-          }
-          valueFormatter={(value) => value.toLocaleString()}
+      {/*
+        Ageing and status, as figures rather than as pictures.
+
+        Both were charts: an axis chart for ageing and a donut for status. An
+        ageing report is read to the dollar — which bucket, how much, is it
+        worse than last month — and neither shape lets you do that without a
+        legend and a hover. The donut had a harder problem still: its palette
+        did not resolve, so every slice painted the same colour and the whole
+        ring carried no information.
+      */}
+      <div className="grid gap-3 xl:grid-cols-12">
+        <ReportPanel className="xl:col-span-4" title="Ageing" note="where the balance sits">
+          <Breakdown
+            rows={agingRows}
+            formatValue={formatCurrency}
+            emptyLabel="Nothing outstanding in this period."
+          />
+        </ReportPanel>
+
+        <ReportPanel className="xl:col-span-4" title="Invoice status" note="by document status">
+          <Breakdown
+            rows={statusRows}
+            formatValue={(value) => value.toLocaleString()}
+            emptyLabel="No invoices issued in this period."
+          />
+        </ReportPanel>
+
+        {/*
+          Collections momentum keeps its axis, and it is the only thing on this
+          page that does. Ageing and status are parts of a whole, read to the
+          dollar; this is one measure over six months, where the shape is the
+          point and the individual months are not.
+
+          Its two series used to be `hsl(var(--chart-3))` and
+          `hsl(var(--chart-2))` — tokens this design system does not define, so
+          both lines resolved to the same unset colour and the legend was the
+          only thing telling them apart.
+        */}
+        <TradingViewChartCard
+          flat
+          height={132}
+          className="xl:col-span-4"
+          title="Collections momentum"
+          note="invoiced against collected"
+          data={isLoading ? [] : chartData.trend}
+          xKey="date"
+          xAxisType="time"
+          series={[
+            { key: "invoiced", label: "Invoiced", type: "area", color: "var(--brand-300)" },
+            { key: "collected", label: "Collected", type: "line", color: "var(--brand)" },
+          ]}
+          valueFormatter={formatCurrency}
         />
       </div>
-      <TradingViewChartCard
-        title="Collections Momentum"
-        data={isLoading ? [] : chartData.trend}
-        xKey="date"
-        xAxisType="time"
-        series={[
-          { key: "invoiced", label: "Invoiced", type: "area", color: "hsl(var(--chart-3))" },
-          { key: "collected", label: "Collected", type: "line", color: "hsl(var(--chart-2))" },
-        ]}
-        valueFormatter={formatCurrency}
-      />
+
+      {/*
+        Who owes it. Every figure above this is a total; this is the one panel
+        that names a customer, which is why the design puts it last and full
+        width — you read the position, then you read who to ring.
+      */}
+      <ReportPanel title="By customer" note="worst first">
+        {customerRows.length === 0 ? (
+          <p className="px-[13px] py-4 text-sm text-[var(--text-muted)]">
+            Nothing outstanding on any customer.
+          </p>
+        ) : (
+          <div role="table" aria-label="Receivables by customer">
+            <div
+              role="row"
+              className="grid grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] acct-col-head px-[13px] py-1.5"
+            >
+              <span role="columnheader">Customer</span>
+              <span role="columnheader" className="text-right">Open</span>
+              <span role="columnheader" className="text-right">Overdue</span>
+              <span role="columnheader" className="text-right">Oldest</span>
+            </div>
+            {customerRows.map((row) => (
+              <div
+                role="row"
+                key={row.id}
+                className="grid min-h-9 grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--table-divider)] px-[13px] hover:bg-[var(--canvas)]"
+              >
+                <span role="cell" className="truncate pr-3 text-sm font-semibold text-[var(--text-strong)]">
+                  {row.name}
+                </span>
+                <span role="cell" className="text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-strong)]">
+                  {formatCurrency(row.open)}
+                </span>
+                <span
+                  role="cell"
+                  className={cn(
+                    "text-right font-mono text-sm font-semibold tabular-nums",
+                    row.overdue > 0 ? "text-[var(--badge-bad-fg)]" : "text-[var(--text-subtle)]",
+                  )}
+                >
+                  {formatCurrency(row.overdue)}
+                </span>
+                <span role="cell" className="text-right">
+                  {row.oldest.tone === "mute" ? (
+                    <span className="font-mono text-sm text-[var(--text-subtle)]">—</span>
+                  ) : (
+                    <span className="acct-badge" data-tone={row.oldest.tone}>
+                      {row.oldest.label}
+                    </span>
+                  )}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+      </ReportPanel>
 
       <GroupedLinkList groups={groups} />
     </AccountingShell>

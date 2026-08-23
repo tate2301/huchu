@@ -5,10 +5,12 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { BandChip } from "@/components/accounting/band-chip";
+import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { ReportTable, amt, nm } from "@/components/accounting/report-table";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import {
@@ -141,6 +143,17 @@ export default function TrialBalancePage() {
     total: 0,
   };
 
+  /**
+   * Closing debits less closing credits.
+   *
+   * Rounded to the cent before the comparison. These are floats off the wire,
+   * and an unrounded `=== 0` reports a perfectly good ledger as out of balance
+   * over a difference of 1e-13 — which sends somebody hunting for a posting
+   * error that does not exist.
+   */
+  const difference = Math.round((totals.closingDebit - totals.closingCredit) * 100) / 100;
+  const balanced = difference === 0;
+
   const handlePeriodChange = (value: string) => {
     setPeriodId(value);
     if (value) {
@@ -163,6 +176,14 @@ export default function TrialBalancePage() {
     <AccountingShell
       activeTab="trial-balance"
       title="Trial Balance"
+      description="every account, opening through closing"
+      bandSlot={
+        <BandChip
+          label="Difference"
+          value={difference.toFixed(2)}
+          tone={balanced ? "ok" : "bad"}
+        />
+      }
     >
       {error ? (
         <Alert variant="destructive">
@@ -171,24 +192,21 @@ export default function TrialBalancePage() {
         </Alert>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        <FrappeStatCard
-          label="Opening Credits"
-          value={totals.openingCredit}
-          valueLabel={totals.openingCredit.toFixed(2)}
-        />
-        <FrappeStatCard
-          label="Closing Credits"
-          value={totals.closingCredit}
-          valueLabel={totals.closingCredit.toFixed(2)}
-        />
-        <FrappeStatCard
-          label="Total"
-          value={totals.total}
-          valueLabel={totals.total.toFixed(2)}
-        />
-      </div>
+      {/*
+        The totals, once, under the table.
 
+        There were three stat cards above it — "Opening Credits", "Closing
+        Credits" and "Total" — and none of them was a fact anybody comes to a
+        trial balance for. Opening credits in isolation answers nothing; the
+        question this report exists to settle is whether closing debits equal
+        closing credits, and that now lives in the band as a Difference chip
+        that stays in view however far you scroll.
+
+        The full totals row sits below the table rather than inside it, because
+        the table paginates: a total row as the last row would appear only on
+        the final page, and on every other page the reader would see a column
+        of figures with no sum at all.
+      */}
       <DataTable
         data={rows}
         columns={columns}
@@ -228,6 +246,43 @@ export default function TrialBalancePage() {
         }
         emptyState={isLoading ? "Loading trial balance..." : "No trial balance data."}
       />
+
+      <ReportPanel title="Totals" note="every account, summed">
+        <ReportTable
+          label="Trial balance totals"
+          tracks="minmax(0,1fr) 108px 108px 108px 108px 112px 112px"
+          columns={[
+            { label: "" },
+            { label: "Opening Dr", align: "right" },
+            { label: "Opening Cr", align: "right" },
+            { label: "Movement Dr", align: "right" },
+            { label: "Movement Cr", align: "right" },
+            { label: "Closing Dr", align: "right" },
+            { label: "Closing Cr", align: "right" },
+          ]}
+          rows={[
+            {
+              id: "totals",
+              emphasis: true,
+              cells: [
+                nm("Total", { tone: balanced ? "total" : "bad" }),
+                amt(totals.openingDebit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+                amt(totals.openingCredit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+                amt(totals.debit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+                amt(totals.credit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+                amt(totals.closingDebit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+                amt(totals.closingCredit.toFixed(2), { tone: balanced ? "total" : "bad" }),
+              ],
+            },
+          ]}
+        />
+        {!balanced ? (
+          <p className="border-t border-[var(--border-subtle)] px-[13px] py-2 text-sm text-[var(--badge-bad-fg)]">
+            Closing debits and credits differ by {difference.toFixed(2)}. The ledger will not close
+            until this is nil.
+          </p>
+        ) : null}
+      </ReportPanel>
     </AccountingShell>
   );
 }

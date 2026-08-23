@@ -1,9 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { PostingRuleList } from "@/components/accounting/posting-rule-list";
+import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -215,9 +217,9 @@ function ruleFromRecord(r: PostingRuleRecord): RuleForm {
 
 function ReadinessIcon({ passed }: { passed: boolean }) {
   return passed ? (
-    <CheckCircle2 className="h-4 w-4 text-green-600 flex-shrink-0" />
+    <CheckCircle2 className="h-4 w-4 text-[var(--badge-ok-fg)] flex-shrink-0" />
   ) : (
-    <XCircle className="h-4 w-4 text-red-500 flex-shrink-0" />
+    <XCircle className="h-4 w-4 text-[var(--badge-bad-fg)] flex-shrink-0" />
   );
 }
 
@@ -240,6 +242,14 @@ function RuleLibraryView({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<RuleForm>(emptyForm());
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+
+  /** Account lookup for the explainer, so a line can name its account rather
+   *  than show the id the record stores. */
+  const accountsById = useMemo(
+    () => new Map(coaOptions.map((account) => [account.id, account])),
+    [coaOptions],
+  );
 
   const saveMutation = useMutation({
     mutationFn: async (f: RuleForm) => {
@@ -346,16 +356,24 @@ function RuleLibraryView({
     });
   }
 
+  /*
+    Master and detail, not a spreadsheet of properties.
+
+    The list is the index and the panel is the answer. Selection lives here so
+    it survives opening and closing the editor sheet — you edit a rule, save,
+    and are still looking at the rule you were reading.
+  */
+  const selectedRule =
+    rules.find((rule) => rule.id === selectedId) ?? rules[0] ?? null;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-sm text-muted-foreground">
-            {rules.length} rule{rules.length !== 1 ? "s" : ""} configured
-          </p>
-        </div>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between gap-2">
+        <p className="text-sm text-[var(--text-muted)]">
+          {rules.length} rule{rules.length !== 1 ? "s" : ""} configured
+        </p>
         <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onRefetch}>
+          <Button variant="ghost" size="sm" onClick={onRefetch} aria-label="Refresh rules">
             <RefreshCw className="h-4 w-4" />
           </Button>
           <Button size="sm" onClick={openNew}>
@@ -366,79 +384,63 @@ function RuleLibraryView({
       </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          Loading rules…
-        </div>
+        <div className="py-12 text-center text-sm text-[var(--text-muted)]">Loading rules…</div>
       ) : rules.length === 0 ? (
-        <div className="py-12 text-center text-sm text-muted-foreground">
-          No posting rules configured. Add your first rule to start posting journals automatically.
+        <div className="py-12 text-center text-sm text-[var(--text-muted)]">
+          No posting rules configured. Add your first rule to start posting journals
+          automatically.
         </div>
       ) : (
-        <div className="border rounded-md overflow-hidden">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
-              <tr>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground w-8">#</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Source</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Rule name</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Scope</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Mode</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Lines</th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y">
-              {rules.map((r) => (
-                <tr key={r.id} className="hover:bg-muted/20 transition-colors">
-                  <td className="px-3 py-2 tabular-nums text-muted-foreground">
-                    {r.priority}
-                  </td>
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
-                      {formatAccountingSourceType(r.sourceType)}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2 font-medium">
-                    {r.name}
-                    {r.isFallback && (
-                      <Badge variant="outline" className="ml-2 text-xs">
-                        fallback
-                      </Badge>
-                    )}
-                  </td>
-                  <td className="px-3 py-2 text-muted-foreground text-xs">{r.scopeType}</td>
-                  <td className="px-3 py-2 text-muted-foreground text-xs">{r.ruleMode}</td>
-                  <td className="px-3 py-2 text-muted-foreground">{r.lines.length}</td>
-                  <td className="px-3 py-2">
-                    <Badge
-                      variant={r.isActive ? "default" : "outline"}
-                      className="text-xs"
-                    >
-                      {r.isActive ? "Active" : "Inactive"}
-                    </Badge>
-                  </td>
-                  <td className="px-3 py-2 text-right">
-                    <div className="flex items-center justify-end gap-1">
-                      <Button variant="ghost" size="sm" onClick={() => openEdit(r)}>
-                        Edit
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(r.id)}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="grid min-w-0 items-start gap-2.5 lg:grid-cols-[264px_minmax(0,1fr)]">
+          <PostingRuleList
+            rules={rules}
+            selectedId={selectedRule?.id ?? null}
+            onSelect={setSelectedId}
+            className="lg:sticky lg:top-[calc(var(--stack-top,0px)+0.75rem)]"
+          />
+
+          {selectedRule ? (
+            <div className="flex min-w-0 flex-col gap-2.5">
+              <div className="flex min-w-0 items-center gap-2">
+                <h3 className="min-w-0 flex-1 truncate text-base font-bold text-[var(--text-strong)]">
+                  {selectedRule.name}
+                </h3>
+                <span className="acct-badge" data-tone={selectedRule.isActive ? "ok" : "mute"}>
+                  {selectedRule.isActive ? "Active" : "Inactive"}
+                </span>
+                {selectedRule.isFallback ? (
+                  <span className="acct-badge" data-tone="warn">
+                    Fallback
+                  </span>
+                ) : null}
+                <Button variant="ghost" size="sm" onClick={() => openEdit(selectedRule)}>
+                  Edit
+                </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="text-[var(--badge-bad-fg)] hover:text-[var(--badge-bad-fg)]"
+                  onClick={() => setDeleteId(selectedRule.id)}
+                  aria-label={`Delete ${selectedRule.name}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+
+              {selectedRule.description ? (
+                <p className="text-sm text-[var(--text-muted)]">{selectedRule.description}</p>
+              ) : null}
+
+              <PostingRuleExplainer
+                rule={selectedRule}
+                accountsById={accountsById}
+                onEdit={() => openEdit(selectedRule)}
+              />
+            </div>
+          ) : null}
         </div>
       )}
+
 
       {/* Rule editor sheet */}
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
@@ -456,7 +458,7 @@ function RuleLibraryView({
               </h3>
               <div className="grid grid-cols-2 gap-3">
                 <div className="col-span-2">
-                  <label className="text-xs text-muted-foreground mb-1 block">Rule name</label>
+                  <label className="acct-field-label">Rule name</label>
                   <Input
                     value={form.name}
                     onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
@@ -464,7 +466,7 @@ function RuleLibraryView({
                   />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
+                  <label className="acct-field-label">
                     Source type
                   </label>
                   <Select
@@ -484,7 +486,7 @@ function RuleLibraryView({
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">
+                  <label className="acct-field-label">
                     Priority (lower = higher precedence)
                   </label>
                   <Input
@@ -499,7 +501,7 @@ function RuleLibraryView({
                 </div>
               </div>
               <div>
-                <label className="text-xs text-muted-foreground mb-1 block">
+                <label className="acct-field-label">
                   Description (optional)
                 </label>
                 <Input
@@ -519,7 +521,7 @@ function RuleLibraryView({
               </h3>
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Scope</label>
+                  <label className="acct-field-label">Scope</label>
                   <Select
                     value={form.scopeType}
                     onValueChange={(v: "COMPANY" | "SITE") =>
@@ -536,7 +538,7 @@ function RuleLibraryView({
                   </Select>
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground mb-1 block">Mode</label>
+                  <label className="acct-field-label">Mode</label>
                   <Select
                     value={form.ruleMode}
                     onValueChange={(v: "GUIDED" | "ADVANCED") =>
@@ -604,7 +606,7 @@ function RuleLibraryView({
                 </Button>
               </div>
               {form.conditions.length === 0 && (
-                <p className="text-xs text-muted-foreground">
+                <p className="acct-caption">
                   No conditions - this rule applies to all{" "}
                   {formatAccountingSourceType(form.sourceType)} events within its scope.
                 </p>
@@ -620,7 +622,7 @@ function RuleLibraryView({
                       updateCondition(idx, { field: v as typeof cond.field })
                     }
                   >
-                    <SelectTrigger className="text-xs">
+                    <SelectTrigger className="acct-caption">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -637,7 +639,7 @@ function RuleLibraryView({
                       updateCondition(idx, { operator: v as typeof cond.operator })
                     }
                   >
-                    <SelectTrigger className="text-xs">
+                    <SelectTrigger className="acct-caption">
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
@@ -649,7 +651,7 @@ function RuleLibraryView({
                     </SelectContent>
                   </Select>
                   <Input
-                    className="text-xs"
+                    className="acct-caption"
                     value={
                       cond.operator === "IN" || cond.operator === "NOT_IN"
                         ? cond.valueListJson
@@ -694,7 +696,7 @@ function RuleLibraryView({
               <div className="flex items-center justify-between">
                 <h3 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">
                   Journal lines{" "}
-                  <span className="text-xs font-normal normal-case">(minimum 2)</span>
+                  <span className="acct-caption font-normal normal-case">(minimum 2)</span>
                 </h3>
                 <Button
                   variant="ghost"
@@ -710,10 +712,10 @@ function RuleLibraryView({
 
               <div className="space-y-2">
                 {form.lines.map((line, idx) => (
-                  <div key={idx} className="border rounded-md p-3 space-y-2">
+                  <div key={idx} className="border rounded-[var(--radius-sm)] p-3 space-y-2">
                     <div className="grid grid-cols-[1fr_1fr_1fr_auto] gap-2 items-center">
                       <div>
-                        <label className="text-xs text-muted-foreground block mb-0.5">
+                        <label className="acct-field-label">
                           Account source
                         </label>
                         <Select
@@ -726,7 +728,7 @@ function RuleLibraryView({
                             })
                           }
                         >
-                          <SelectTrigger className="text-xs">
+                          <SelectTrigger className="acct-caption">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -738,7 +740,7 @@ function RuleLibraryView({
 
                       {line.accountSource === "FIXED_ACCOUNT" ? (
                         <div>
-                          <label className="text-xs text-muted-foreground block mb-0.5">
+                          <label className="acct-field-label">
                             Account
                           </label>
                           <Select
@@ -747,7 +749,7 @@ function RuleLibraryView({
                               updateLine(idx, { accountId: v || null })
                             }
                           >
-                            <SelectTrigger className="text-xs">
+                            <SelectTrigger className="acct-caption">
                               <SelectValue placeholder="Select…" />
                             </SelectTrigger>
                             <SelectContent>
@@ -761,7 +763,7 @@ function RuleLibraryView({
                         </div>
                       ) : (
                         <div>
-                          <label className="text-xs text-muted-foreground block mb-0.5">
+                          <label className="acct-field-label">
                             Repeat mode
                           </label>
                           <Select
@@ -770,7 +772,7 @@ function RuleLibraryView({
                               updateLine(idx, { repeatMode: v })
                             }
                           >
-                            <SelectTrigger className="text-xs">
+                            <SelectTrigger className="acct-caption">
                               <SelectValue />
                             </SelectTrigger>
                             <SelectContent>
@@ -782,7 +784,7 @@ function RuleLibraryView({
                       )}
 
                       <div>
-                        <label className="text-xs text-muted-foreground block mb-0.5">
+                        <label className="acct-field-label">
                           Direction
                         </label>
                         <Select
@@ -791,7 +793,7 @@ function RuleLibraryView({
                             updateLine(idx, { direction: v })
                           }
                         >
-                          <SelectTrigger className="text-xs">
+                          <SelectTrigger className="acct-caption">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -813,7 +815,7 @@ function RuleLibraryView({
 
                     <div className="grid grid-cols-3 gap-2">
                       <div>
-                        <label className="text-xs text-muted-foreground block mb-0.5">
+                        <label className="acct-field-label">
                           Basis
                         </label>
                         <Select
@@ -822,7 +824,7 @@ function RuleLibraryView({
                             updateLine(idx, { basis: v })
                           }
                         >
-                          <SelectTrigger className="text-xs">
+                          <SelectTrigger className="acct-caption">
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -838,11 +840,11 @@ function RuleLibraryView({
                       {form.ruleMode === "ADVANCED" && (
                         <>
                           <div>
-                            <label className="text-xs text-muted-foreground block mb-0.5">
+                            <label className="acct-field-label">
                               Value path
                             </label>
                             <Input
-                              className="text-xs"
+                              className="acct-caption"
                               value={line.valuePath}
                               onChange={(e) =>
                                 updateLine(idx, { valuePath: e.target.value })
@@ -851,11 +853,11 @@ function RuleLibraryView({
                             />
                           </div>
                           <div>
-                            <label className="text-xs text-muted-foreground block mb-0.5">
+                            <label className="acct-field-label">
                               Memo template
                             </label>
                             <Input
-                              className="text-xs"
+                              className="acct-caption"
                               value={line.memoTemplate}
                               onChange={(e) =>
                                 updateLine(idx, { memoTemplate: e.target.value })
@@ -938,44 +940,44 @@ function RetailDefaultsView({
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold mb-1">Retail posting rule coverage</h3>
-        <p className="text-xs text-muted-foreground">
+        <p className="acct-caption">
           These source types must have at least one active rule for retail journals to post
           automatically.
         </p>
       </div>
 
-      <div className="border rounded-md overflow-hidden">
+      <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]">
         <table className="w-full text-sm">
-          <thead className="bg-muted/40 border-b">
+          <thead className="border-b border-[var(--border)] bg-[var(--table-header-bg)]">
             <tr>
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+              <th className="acct-col-head px-[13px] py-1.5 text-left">
                 Source type
               </th>
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Rules</th>
-              <th className="px-3 py-2 text-left font-medium text-muted-foreground">Status</th>
+              <th className="acct-col-head px-[13px] py-1.5 text-left">Rules</th>
+              <th className="acct-col-head px-[13px] py-1.5 text-left">Status</th>
             </tr>
           </thead>
-          <tbody className="divide-y">
+          <tbody className="divide-y divide-[var(--table-divider)]">
             {RETAIL_REQUIRED_SOURCE_TYPES.map((st) => {
               const typeRules = rulesBySource[st] ?? [];
               const active = typeRules.filter((r) => r.isActive);
               const covered = active.length > 0;
               return (
-                <tr key={st} className="hover:bg-muted/20">
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                <tr key={st} className="hover:bg-[var(--canvas)]">
+                  <td className="px-[13px] py-1.5">
+                    <span className="acct-caption rounded-[4px] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">
                       {formatAccountingSourceType(st)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">
+                  <td className="px-[13px] py-1.5 text-[var(--text-muted)]">
                     {typeRules.length === 0
                       ? "None"
                       : typeRules.map((r) => r.name).join(", ")}
                   </td>
-                  <td className="px-3 py-2">
+                  <td className="px-[13px] py-1.5">
                     <div className="flex items-center gap-1.5">
                       <ReadinessIcon passed={covered} />
-                      <span className="text-xs">
+                      <span className="acct-caption">
                         {covered ? `${active.length} active` : "Missing"}
                       </span>
                     </div>
@@ -994,46 +996,46 @@ function RetailDefaultsView({
             No tender mappings configured. Run the seed pack to create defaults.
           </p>
         ) : (
-          <div className="border rounded-md overflow-hidden">
+          <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 border-b">
+              <thead className="border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Tender type
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Currency
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Clearing account
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Scope
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Status
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-[var(--table-divider)]">
                 {tenderMappings.map((m) => (
-                  <tr key={m.id} className="hover:bg-muted/20">
-                    <td className="px-3 py-2 font-medium">{m.tenderType}</td>
-                    <td className="px-3 py-2 text-muted-foreground">
+                  <tr key={m.id} className="hover:bg-[var(--canvas)]">
+                    <td className="px-[13px] py-1.5 font-semibold text-[var(--text-strong)]">{m.tenderType}</td>
+                    <td className="px-[13px] py-1.5 text-[var(--text-muted)]">
                       {m.currency ?? "All"}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-[13px] py-1.5">
                       {m.clearingAccount
                         ? `${m.clearingAccount.code} - ${m.clearingAccount.name}`
                         : m.clearingAccountId}
                     </td>
-                    <td className="px-3 py-2 text-muted-foreground text-xs">
+                    <td className="acct-caption px-[13px] py-1.5">
                       {m.siteId ? "Site" : "Company"}
                     </td>
-                    <td className="px-3 py-2">
+                    <td className="px-[13px] py-1.5">
                       <Badge
                         variant={m.isActive ? "default" : "outline"}
-                        className="text-xs"
+                        className="acct-caption"
                       >
                         {m.isActive ? "Active" : "Inactive"}
                       </Badge>
@@ -1096,7 +1098,7 @@ function SimulationView() {
     <div className="space-y-6">
       <div>
         <h3 className="text-sm font-semibold mb-1">Posting simulation</h3>
-        <p className="text-xs text-muted-foreground">
+        <p className="acct-caption">
           Preview the journal that would be generated for a given event without persisting
           anything.
         </p>
@@ -1104,7 +1106,7 @@ function SimulationView() {
 
       <div className="grid grid-cols-2 gap-4">
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Source type</label>
+          <label className="acct-field-label">Source type</label>
           <Select
             value={form.sourceType}
             onValueChange={(v) => setForm((f) => ({ ...f, sourceType: v }))}
@@ -1122,14 +1124,14 @@ function SimulationView() {
           </Select>
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Description</label>
+          <label className="acct-field-label">Description</label>
           <Input
             value={form.description}
             onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Amount</label>
+          <label className="acct-field-label">Amount</label>
           <Input
             type="number"
             value={form.amount}
@@ -1137,7 +1139,7 @@ function SimulationView() {
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label className="acct-field-label">
             Net amount (optional)
           </label>
           <Input
@@ -1148,7 +1150,7 @@ function SimulationView() {
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label className="acct-field-label">
             Tax amount (optional)
           </label>
           <Input
@@ -1158,14 +1160,14 @@ function SimulationView() {
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">Currency</label>
+          <label className="acct-field-label">Currency</label>
           <Input
             value={form.currency}
             onChange={(e) => setForm((f) => ({ ...f, currency: e.target.value }))}
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label className="acct-field-label">
             Site ID (optional)
           </label>
           <Input
@@ -1174,7 +1176,7 @@ function SimulationView() {
           />
         </div>
         <div>
-          <label className="text-xs text-muted-foreground block mb-1">
+          <label className="acct-field-label">
             Register code (optional)
           </label>
           <Input
@@ -1187,7 +1189,7 @@ function SimulationView() {
       {/* Tender splits */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <h4 className="acct-col-head">
             Payment splits
           </h4>
           <Button
@@ -1219,7 +1221,7 @@ function SimulationView() {
                 })
               }
             >
-              <SelectTrigger className="text-xs">
+              <SelectTrigger className="acct-caption">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
@@ -1232,7 +1234,7 @@ function SimulationView() {
             </Select>
             <Input
               type="number"
-              className="text-xs"
+              className="acct-caption"
               value={p.amount}
               onChange={(e) =>
                 setForm((f) => {
@@ -1243,7 +1245,7 @@ function SimulationView() {
               }
             />
             <Input
-              className="text-xs"
+              className="acct-caption"
               value={p.currency}
               onChange={(e) =>
                 setForm((f) => {
@@ -1273,7 +1275,7 @@ function SimulationView() {
       </Button>
 
       {error && (
-        <div className="p-3 border border-destructive/30 bg-destructive/5 rounded-md text-sm text-destructive">
+        <div className="p-3 border border-destructive/30 bg-destructive/5 rounded-[var(--radius-sm)] text-sm text-destructive">
           {error}
         </div>
       )}
@@ -1287,7 +1289,7 @@ function SimulationView() {
               {result.totalDebit.toFixed(2)} / Cr {result.totalCredit.toFixed(2)}
             </span>
             {result.selectedRule?.name && (
-              <Badge variant="outline" className="text-xs">
+              <Badge variant="outline" className="acct-caption">
                 {result.selectedRule.name}
               </Badge>
             )}
@@ -1300,45 +1302,45 @@ function SimulationView() {
           {result.warnings.length > 0 && (
             <div className="space-y-1">
               {result.warnings.map((warning) => (
-                <p key={warning} className="text-xs text-amber-700">
+                <p key={warning} className="acct-caption text-[var(--badge-warn-fg)]">
                   {warning}
                 </p>
               ))}
             </div>
           )}
 
-          <div className="border rounded-md overflow-hidden">
+          <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]">
             <table className="w-full text-sm">
-              <thead className="bg-muted/40 border-b">
+              <thead className="border-b border-[var(--border)] bg-[var(--table-header-bg)]">
                 <tr>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Account
                   </th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-right">
                     Debit
                   </th>
-                  <th className="px-3 py-2 text-right font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-right">
                     Credit
                   </th>
-                  <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                  <th className="acct-col-head px-[13px] py-1.5 text-left">
                     Memo
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y">
+              <tbody className="divide-y divide-[var(--table-divider)]">
                 {result.lines.map((line, i) => (
-                  <tr key={i} className="hover:bg-muted/20">
-                    <td className="px-3 py-2">
-                      <span className="font-mono text-xs">{line.accountCode}</span>{" "}
+                  <tr key={i} className="hover:bg-[var(--canvas)]">
+                    <td className="px-[13px] py-1.5">
+                      <span className="font-mono acct-caption">{line.accountCode}</span>{" "}
                       <span className="text-muted-foreground">{line.accountName}</span>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-[13px] py-1.5 text-right font-mono tabular-nums">
                       {line.debit > 0 ? line.debit.toFixed(2) : ""}
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums">
+                    <td className="px-[13px] py-1.5 text-right font-mono tabular-nums">
                       {line.credit > 0 ? line.credit.toFixed(2) : ""}
                     </td>
-                    <td className="px-3 py-2 text-xs text-muted-foreground">{line.memo}</td>
+                    <td className="acct-caption px-[13px] py-1.5">{line.memo}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1398,7 +1400,7 @@ function FailuresView() {
       <div className="flex items-center justify-between">
         <div>
           <h3 className="text-sm font-semibold">Integration event failures</h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
+          <p className="acct-caption mt-0.5">
             {total} event{total !== 1 ? "s" : ""} pending or failed
           </p>
         </div>
@@ -1427,54 +1429,54 @@ function FailuresView() {
           No failed or pending events — all journals posted successfully.
         </div>
       ) : (
-        <div className="border rounded-md overflow-hidden">
+        <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]">
           <table className="w-full text-sm">
-            <thead className="bg-muted/40 border-b">
+            <thead className="border-b border-[var(--border)] bg-[var(--table-header-bg)]">
               <tr>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-left">
                   Status
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-left">
                   Source type
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-left">
                   Description
                 </th>
-                <th className="px-3 py-2 text-right font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-right">
                   Amount
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-left">
                   Attempts
                 </th>
-                <th className="px-3 py-2 text-left font-medium text-muted-foreground">
+                <th className="acct-col-head px-[13px] py-1.5 text-left">
                   Last error
                 </th>
               </tr>
             </thead>
-            <tbody className="divide-y">
+            <tbody className="divide-y divide-[var(--table-divider)]">
               {[...pending, ...events].map((ev) => (
-                <tr key={ev.id} className="hover:bg-muted/20">
-                  <td className="px-3 py-2">
+                <tr key={ev.id} className="hover:bg-[var(--canvas)]">
+                  <td className="px-[13px] py-1.5">
                     <Badge
                       variant={ev.status === "FAILED" ? "destructive" : "outline"}
-                      className="text-xs"
+                      className="acct-caption"
                     >
                       {ev.status}
                     </Badge>
                   </td>
-                  <td className="px-3 py-2">
-                    <span className="font-mono text-xs bg-muted px-1.5 py-0.5 rounded">
+                  <td className="px-[13px] py-1.5">
+                    <span className="acct-caption rounded-[4px] bg-[var(--surface-muted)] px-1.5 py-0.5 font-mono">
                       {formatAccountingSourceType(ev.sourceType)}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground max-w-48 truncate">
+                  <td className="max-w-48 truncate px-[13px] py-1.5 text-[var(--text-muted)]">
                     {ev.description}
                   </td>
-                  <td className="px-3 py-2 text-right tabular-nums">
+                  <td className="px-[13px] py-1.5 text-right font-mono tabular-nums">
                     {Number(ev.amount).toFixed(2)}
                   </td>
-                  <td className="px-3 py-2 text-muted-foreground">{ev.attemptCount}</td>
-                  <td className="px-3 py-2 text-xs text-destructive max-w-64 truncate">
+                  <td className="px-[13px] py-1.5 text-[var(--text-muted)]">{ev.attemptCount}</td>
+                  <td className="acct-caption max-w-64 truncate px-[13px] py-1.5 text-[var(--badge-bad-fg)]">
                     {ev.lastError ?? "-"}
                   </td>
                 </tr>
@@ -1581,16 +1583,16 @@ function SeedView() {
                 {readinessPassed(readiness)}/{readinessTotal(readiness)} checks passing
               </span>
             </div>
-            <div className="border rounded-md overflow-hidden">
+            <div className="overflow-hidden rounded-[10px] border border-[var(--border)] bg-[var(--surface)]">
               <table className="w-full text-sm">
-                <tbody className="divide-y">
+                <tbody className="divide-y divide-[var(--table-divider)]">
                   {readiness.checks.map((check) => (
-                    <tr key={check.id} className="hover:bg-muted/20">
-                      <td className="px-3 py-2 w-8">
+                    <tr key={check.id} className="hover:bg-[var(--canvas)]">
+                      <td className="w-8 px-[13px] py-1.5">
                         <ReadinessIcon passed={check.ready} />
                       </td>
-                      <td className="px-3 py-2 font-medium">{check.label}</td>
-                      <td className="px-3 py-2 text-xs text-muted-foreground">
+                      <td className="px-[13px] py-1.5 font-semibold text-[var(--text-strong)]">{check.label}</td>
+                      <td className="acct-caption px-[13px] py-1.5">
                         {check.note ?? ""}
                       </td>
                     </tr>
@@ -1610,7 +1612,7 @@ function SeedView() {
           <h3 className="text-sm font-semibold mb-1">
             Zimbabwe Retail Foundation seed pack
           </h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="acct-caption">
             Provisions chart of accounts, tax codes, currencies, posting rules, and tender
             mappings for Zimbabwe retail. Idempotent - safe to re-run.
           </p>
@@ -1618,7 +1620,7 @@ function SeedView() {
 
         <div className="grid grid-cols-2 gap-3">
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">
+            <label className="acct-field-label">
               ZWG/USD rate (e.g. 27.5)
             </label>
             <Input
@@ -1630,7 +1632,7 @@ function SeedView() {
             />
           </div>
           <div>
-            <label className="text-xs text-muted-foreground block mb-1">
+            <label className="acct-field-label">
               ZAR/USD rate (e.g. 18.5)
             </label>
             <Input
@@ -1664,8 +1666,8 @@ function SeedView() {
         </div>
 
         {seedResult && (
-          <div className="border rounded-md p-4 space-y-2 bg-muted/20">
-            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          <div className="border rounded-[var(--radius-sm)] p-4 space-y-2 bg-[var(--surface-muted)]">
+            <p className="acct-col-head">
               {seedResult.mode === "DRY_RUN" ? "Dry run preview" : "Applied"}
             </p>
             <div className="grid grid-cols-2 gap-x-6 gap-y-1 text-sm">
@@ -1689,7 +1691,7 @@ function SeedView() {
               <span className="tabular-nums">{seedResult.createdPeriods}</span>
             </div>
             {seedResult.preview.missingFxQuotes.length > 0 && (
-              <p className="text-xs text-amber-700">
+              <p className="acct-caption text-[var(--badge-warn-fg)]">
                 Missing FX quotes for: {seedResult.preview.missingFxQuotes.join(", ")}
               </p>
             )}
@@ -1703,7 +1705,7 @@ function SeedView() {
       <div className="space-y-4">
         <div>
           <h3 className="text-sm font-semibold mb-1">Retail accounting backfill</h3>
-          <p className="text-xs text-muted-foreground">
+          <p className="acct-caption">
             Post missing historical journals for retail sales, refunds, goods receipts, shift
             openings, and variances. Always dry-run first.
           </p>
@@ -1752,21 +1754,21 @@ function SeedView() {
             </div>
 
             {backfillResult.mode === "DRY_RUN" && backfillResult.candidates.length > 0 && (
-              <div className="border rounded-md overflow-hidden max-h-64 overflow-y-auto">
-                <table className="w-full text-xs">
-                  <thead className="bg-muted/40 border-b sticky top-0">
+              <div className="border rounded-[var(--radius-sm)] overflow-hidden max-h-64 overflow-y-auto">
+                <table className="w-full acct-caption">
+                  <thead className="bg-[var(--surface-muted)] border-b sticky top-0">
                     <tr>
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">
+                      <th className="acct-col-head px-[13px] py-1.5 text-left">
                         Candidate
                       </th>
-                      <th className="px-3 py-1.5 text-left font-medium text-muted-foreground">
+                      <th className="acct-col-head px-[13px] py-1.5 text-left">
                         Entry date
                       </th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y">
+                  <tbody className="divide-y divide-[var(--table-divider)]">
                     {backfillResult.candidates.map((candidate, i) => (
-                      <tr key={i} className="hover:bg-muted/20">
+                      <tr key={i} className="hover:bg-[var(--canvas)]">
                         <td className="px-3 py-1.5 text-muted-foreground truncate max-w-48">
                           {candidate.label}
                         </td>
@@ -1783,7 +1785,7 @@ function SeedView() {
             {backfillResult.mode === "APPLY" && backfillResult.failures.length > 0 && (
               <div className="space-y-1">
                 {backfillResult.failures.map((failure) => (
-                  <p key={failure.key} className="text-xs text-destructive">
+                  <p key={failure.key} className="acct-caption text-[var(--badge-bad-fg)]">
                     {failure.key}: {failure.error}
                   </p>
                 ))}
@@ -1846,7 +1848,11 @@ export default function PostingStudioPage() {
   }));
 
   return (
-    <AccountingShell activeTab="posting-rules" title="Posting Studio">
+    <AccountingShell
+      activeTab="posting-rules"
+      title="Posting Rules"
+      description="what each kind of business event posts to the ledger"
+    >
       <VerticalDataViews
         items={viewItems}
         value={activeView}

@@ -422,6 +422,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
       }
       beforeTabs={
         <StageProgress
+          compact
           stage={lead.stage}
           disabled={changeStage.isPending}
           onChange={(stage) => {

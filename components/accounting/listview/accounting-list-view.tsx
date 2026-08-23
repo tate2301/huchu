@@ -18,6 +18,7 @@ import {
   type ListViewColumnDefinition,
 } from "@/lib/accounting/listview-adapter";
 import { buildGroupedRows } from "@/lib/accounting/listview-grouping";
+import { cn } from "@/lib/utils";
 
 type GroupBySelector<TData> =
   | keyof TData
@@ -193,8 +194,22 @@ export function AccountingListView<TData>({
   const listRows = groupedRows ?? internalRows;
 
   return (
-    <div className={className ?? "space-y-0"}>
-      <div className="flex flex-wrap items-center gap-2 bg-[var(--datatable-toolbar-bg)] px-[var(--content-gutter-x)] py-1.5 table-edge-to-edge">
+    <div
+      className={cn("acct-listview", className ?? "space-y-0")}
+      style={
+        {
+          // Where this list's column header pins: one toolbar below whatever
+          // the stack had reached when the list was mounted. The CSS in
+          // `globals.css` reads it — frappe's header cannot be given a `top`
+          // through the component's own API.
+          "--table-head-top": "calc(var(--stack-top, 0px) + var(--list-toolbar-h))",
+        } as React.CSSProperties
+      }
+    >
+      <div
+        className="table-edge-to-edge sticky z-20 flex min-h-[var(--list-toolbar-h)] flex-wrap items-center gap-2 border-b border-[var(--border)] bg-[var(--surface-base)] px-[var(--content-gutter-x)] py-1.5"
+        style={{ top: "var(--stack-top, 0px)" }}
+      >
         <form
           className="flex items-center gap-2 p-0"
           onSubmit={(event) => {
@@ -216,7 +231,7 @@ export function AccountingListView<TData>({
         {toolbar ? <div className="flex flex-wrap items-center gap-2">{toolbar}</div> : null}
         {paginationEnabled ? (
           <div className="ml-auto flex flex-wrap items-center gap-2">
-            <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="flex items-center gap-2 acct-caption">
               <span>Rows</span>
               <Select
                 value={String(pageSize)}
@@ -237,7 +252,7 @@ export function AccountingListView<TData>({
                 </SelectContent>
               </Select>
             </div>
-            <span className="text-xs text-muted-foreground">
+            <span className="acct-caption">
               {filtered.length === 0 ? "0 of 0" : `${currentPage} of ${totalPages}`}
             </span>
             <Button
@@ -281,7 +296,10 @@ export function AccountingListView<TData>({
           options: {
             selectable,
             showTooltip: false,
-            rowHeight: 42,
+            // 36, from `--table-row-min-h`. frappe wants a number, so this is
+            // the one place in the module that restates the token — four more
+            // rows per screen than the 42 it shipped with.
+            rowHeight: 36,
           },
           slots: {
             cell: ({ row, column }) => {

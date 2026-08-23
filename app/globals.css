@@ -1057,6 +1057,376 @@
     padding-inline: var(--content-gutter-x);
   }
 
+  /* A band that pins to the top of the scrollport.
+     `main` carries the page gutter, so a band nested inside it would stop 16px
+     short of each edge and its bottom hairline would float with a gap at both
+     ends — which reads as a broken rule rather than a boundary. This bleeds
+     back out by the gutter and immediately puts it back as padding: the
+     background and the hairline reach the full width of the scrollport while
+     the band's content still lines up with the page below it.
+
+     Opaque on purpose. A translucent band over a scrolling table smears the
+     row underneath it and repaints every frame. */
+  .band-shell {
+    width: calc(100% + (var(--content-gutter-x) * 2));
+    margin-inline: calc(var(--content-gutter-x) * -1);
+    padding-inline: var(--content-gutter-x);
+    max-width: none;
+  }
+
+  /* `--stack-top` is "the next free offset in this scrollport".
+     Each band that pins reads it, then republishes it one band lower to its
+     own children. The bands compose without any of them knowing what is above:
+     a list toolbar on a page with a view switcher lands at 88, the same
+     toolbar on a page without one lands at 44, and neither page states a
+     number. This is what stops a column header hiding behind a toolbar the
+     next time a band is added or removed. */
+  .band-stack-content {
+    --stack-top: var(--page-band-h);
+  }
+
+  /* frappe's ListView, made to pin.
+     Its header is a grid sibling above the rows, and the wrapper around both
+     sets `overflow-y: hidden` — which makes that wrapper a scroll container
+     and silently disables `position: sticky` on anything inside it. The header
+     scrolled away with the rows and there was no way to switch it on from the
+     component's own API. Both halves are needed: release the wrapper, then
+     pin the header at whatever the stack has reached. */
+  .acct-listview .overflow-y-hidden {
+    overflow-y: visible;
+  }
+
+  /* The table gets its own viewport.
+
+     A wide ledger needs `overflow-x: auto` for its columns, and CSS will not
+     let one axis scroll while the other stays visible — the cross axis is
+     forced to `auto` too. That makes frappe's table region a scroll container,
+     and a scroll container is the containing block for any `position: sticky`
+     inside it. So a header pinned to the *page* offset could never work here:
+     it stuck to a box that was itself scrolling away.
+
+     Bounding the region's height turns that constraint into the better
+     behaviour. The table scrolls in place under a header pinned to the top of
+     its own box, both axes move together so the header stays aligned with its
+     columns, and the bands above it never move at all. The height is whatever
+     the viewport has left once the sticky stack above has taken its share. */
+  .acct-listview .overflow-x-auto {
+    max-height: calc(var(--content-viewport) - var(--table-head-top, 0px) - 4rem);
+  }
+
+  .acct-listview .bg-surface-gray-2 {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* The canvas panel, on every work surface.
+
+     The package tunes `.card` for a reader being introduced to the product:
+     20px of horizontal padding, 16 above the title, and a 16px section-title
+     with no rule under it. The artboards draw something else — a 36px head at
+     13px padding, a 12.5px bold title, and a hairline separating head from
+     body — and they draw it identically in accounting and in CRM setup,
+     because it is one panel.
+
+     Scoped to `.band-stack-content`, which the accounting, CRM and module
+     shells all set. That covers every work surface and deliberately leaves
+     the marketing and onboarding pages on the roomier default, where a reader
+     is being introduced rather than checking a figure.
+
+     The head is `min-height` rather than `height`: a panel whose head carries
+     a control — a select, a segmented switch — needs to grow rather than clip
+     it, and the artboards that do this draw a taller head. */
+  .band-stack-content .card-head {
+    min-height: 36px;
+    /* 6px rather than the artboard's 0: a single line still lands on 36
+       because min-height governs, and a head whose note wraps on a narrow
+       column gets room instead of colliding with its own border. */
+    padding: 6px 13px;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .band-stack-content .card-title {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-strong);
+  }
+
+  .band-stack-content .card-sub {
+    font-size: var(--text-sm);
+    color: var(--text-subtle);
+  }
+
+  .band-stack-content .card-body {
+    padding: 8px 13px 13px;
+  }
+
+  .band-stack-content .card-pad {
+    padding: 12px 13px;
+  }
+
+  .band-stack-content .card-foot {
+    padding: 10px 13px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  /* ── The canvas badge ────────────────────────────────────────────────
+     A status badge in a 36px table row, drawn to the artboards: 18px tall,
+     4px corners, 10.5px at 600.
+
+     Written as CSS rather than utilities for two reasons. It is one shape
+     used in every accounting table, so it belongs in one place — and the
+     type scale's 13px floor is enforced on Tailwind class strings, which is
+     the right rule for prose and the wrong one for a chip whose height is
+     fixed at 18px. Naming it here keeps that exception visible and countable
+     instead of scattering arbitrary sizes through the pages.
+
+     The tone is an attribute rather than five classes so a page can pass a
+     tone straight through from data without a lookup table of class names. */
+  .acct-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  .acct-badge[data-tone="ok"] {
+    background: var(--badge-ok-bg);
+    color: var(--badge-ok-fg);
+  }
+
+  .acct-badge[data-tone="warn"] {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .acct-badge[data-tone="bad"] {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
+  .acct-badge[data-tone="info"] {
+    background: var(--badge-info-bg);
+    color: var(--badge-info-text);
+  }
+
+  /* ── The canvas stat tile ────────────────────────────────────────────
+     A KPI as the artboards draw it: a tone dot, a label, the figure, then
+     the two things that qualify it — a delta and what the delta is against.
+
+     Same reasoning as `.acct-badge` for living in CSS: the label and the
+     footer sit below the 13px type floor by design, because this tile packs
+     five pieces of information into 78px and six of them sit across a
+     2xl row. Keeping the sizes here makes that one decision rather than
+     forty scattered ones. */
+  .acct-stat {
+    padding: 11px 13px 12px;
+  }
+
+  .acct-stat-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .acct-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* Tabular mono at 23px with the tracking pulled in. The figure is the one
+     thing on the tile that gets read at a glance, and mono is what lets a
+     column of them line up on the decimal. */
+  .acct-stat-value {
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  .acct-stat-delta,
+  .acct-stat-note {
+    font-size: 10.5px;
+  }
+
+  .acct-stat-delta {
+    font-weight: 700;
+  }
+
+  .acct-stat-note {
+    color: var(--text-subtle);
+  }
+
+  /* ── The design system's Badge, brought onto the canvas ──────────────
+     The package draws `.badge` as a 22px pill at 11px/500, and colours each
+     tone from the mid-ramp (`--tone-danger`, `#B83A2A`) rather than from the
+     status inks. That gave the app two different badges claiming to mean the
+     same thing: `.acct-badge` in the accounting tables, and this one in the
+     ~140 call sites that use `<Badge>` — different height, different corner,
+     different red.
+
+     This is the same shape as `.acct-badge`, so the two are interchangeable
+     and a page can mix a `<Badge>` with a table cell chip without the seam
+     showing. The pill was the loudest single difference: a fully rounded
+     22px chip beside a 4px 18px one reads as a control rather than a label.
+
+     Scoped overrides rather than a fork of the component — `<Badge>` keeps
+     its API, its tones and its dot slot. Only the geometry and the three
+     tone inks move.
+
+     `.badge-mini` is deliberately untouched: it is a notification count on a
+     nav item, where a circle is correct. */
+  .badge:not(.badge-mini) {
+    height: 18px;
+    padding: 0 7px;
+    gap: 4px;
+    border-radius: 4px;
+    font: 600 10.5px/1 var(--font-sans);
+  }
+
+  .badge-success {
+    background: var(--badge-ok-bg);
+    color: var(--badge-ok-fg);
+  }
+
+  .badge-warn {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .badge-danger {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
+  .badge-info {
+    background: var(--badge-info-bg);
+    color: var(--badge-info-text);
+  }
+
+  .badge-neutral {
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  /* The record band's stage chip — every stage named, inline.
+
+     22px tall at 11px so eight of them fit across a 44px band beside a status
+     chip and a reference. Below the type floor by design: these are labels in
+     a control strip, not prose, and the current one is the only one that has
+     to be read at a glance — which it earns with fill, not size. */
+  .acct-stage-chip {
+    display: flex;
+    height: 22px;
+    flex-shrink: 0;
+    align-items: center;
+    border-radius: 4px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  /* The canvas field label.
+
+     11.5px at 600 in the muted ink, 5px above its control. Same reasoning as
+     the badge for living in CSS: it is one shape repeated across every form in
+     both modules, and the size is a deliberate step below the body floor
+     because a label sits directly above the value it names — it does not
+     compete for reading, it points.
+
+     Replaces the `text-xs text-muted-foreground mb-1 block` that had accreted
+     across the editor sheets, which was both the wrong size and the wrong
+     grey — `--muted-foreground` is a shadcn holdover, not a token this design
+     system defines a role for. */
+  .acct-field-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-muted);
+  }
+
+  /* A hint or caption under a control — the same step down as a field label,
+     but at normal weight and with no block/margin of its own, because it
+     follows its subject rather than introducing one.
+
+     Also replaces `text-muted-foreground`, a shadcn holdover this design
+     system has no role for; `--text-subtle` is the token for text that
+     recedes. */
+  .acct-caption {
+    font-size: 11.5px;
+    color: var(--text-subtle);
+  }
+
+  /* The canvas column head.
+     A label strip rather than a row of prose: 10px, heavy, uppercase, and
+     letterspaced so the caps stay legible at that size. Shared by the CRM
+     record tables and `ReportTable`, so a list and a report drawn on the same
+     page have the same chrome. */
+  .acct-col-head {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--table-header-text);
+  }
+
+  /* Group headings and secondary lines inside a narrow rail — the posting
+     rules index, and anything else that lists grouped records beside a detail
+     pane. Same reasoning as the badge for living here: these are 10px and
+     10.5px by design, in a 264px column where a 13px heading would wrap. */
+  .acct-rail-heading {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+
+  .acct-rail-sub {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--gray-400);
+  }
+
+  /* The rail's count badge is the same idea two steps smaller — it sits in a
+     29px nav row rather than a table cell, and it carries a number, not a
+     word, so it can afford to be tighter and heavier. */
+  .acct-rail-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  .acct-rail-badge[data-tone="warn"] {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .acct-rail-badge[data-tone="bad"] {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
   .section-shell {
     margin-inline: 0;
     padding-inline: var(--content-gutter-x);

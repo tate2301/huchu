@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -92,6 +93,19 @@ export default function BankingPage() {
   const transactions = useMemo(() => transactionsData?.data ?? [], [transactionsData]);
   const reconciliations = useMemo(() => reconciliationsData?.data ?? [], [reconciliationsData]);
 
+  /**
+   * Bank lines nobody has matched yet.
+   *
+   * The single fact this page exists to surface, so it goes in the band and
+   * stays there. Counted across every account rather than the filtered view —
+   * "eleven lines unmatched" is a fact about the books, and a chip that reset
+   * to zero when you filtered to one account would be reporting the filter.
+   */
+  const unreconciledCount = useMemo(
+    () => transactions.filter((txn) => !txn.reconciledAt).length,
+    [transactions],
+  );
+
   const filteredTransactions = useMemo(() => {
     if (!accountFilter) return transactions;
     return transactions.filter((txn) => txn.bankAccountId === accountFilter);
@@ -104,7 +118,7 @@ export default function BankingPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.bankName || "-"}</div>
+            <div className="acct-caption">{row.original.bankName || "-"}</div>
           </div>
         ),
         size: 280,
@@ -215,7 +229,7 @@ export default function BankingPage() {
         cell: ({ row }) => (
           <div>
             <div className="font-medium">{row.original.bankAccount?.name ?? "-"}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {row.original.bankAccount?.currency ?? "USD"}
             </div>
           </div>
@@ -229,7 +243,7 @@ export default function BankingPage() {
         cell: ({ row }) => (
           <div className="text-sm">
             <div className="font-mono">{format(new Date(row.original.startDate), "yyyy-MM-dd")}</div>
-            <div className="text-xs text-muted-foreground">
+            <div className="acct-caption">
               {format(new Date(row.original.endDate), "yyyy-MM-dd")}
             </div>
           </div>
@@ -419,6 +433,17 @@ export default function BankingPage() {
     <AccountingShell
       activeTab="banking"
       title="Banking"
+      description="accounts, the lines that came in, and what has been reconciled"
+      bandSlot={
+        <>
+          <BandChip label="Accounts" value={String(accounts.length)} tone="mute" />
+          <BandChip
+            label="Unreconciled"
+            value={String(unreconciledCount)}
+            tone={unreconciledCount > 0 ? "warn" : "ok"}
+          />
+        </>
+      }
       actions={
         <AccountingNewButton
           items={[

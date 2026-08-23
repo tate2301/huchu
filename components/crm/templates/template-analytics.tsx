@@ -33,7 +33,7 @@ function Stat({
     <div className="rounded-[var(--card-radius)] border border-[var(--border)] p-3">
       <h3 className="text-base font-semibold text-[var(--text-strong)] text-[var(--text-subtle)]">
         {label}
-        <span className="mt-1 block font-mono text-xl font-semibold tracking-normal text-[var(--text-strong)]">
+        <span className="acct-stat-value mt-1 block font-mono tabular-nums text-[var(--text-strong)]">
           {value}
         </span>
       </h3>

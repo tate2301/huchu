@@ -26,6 +26,8 @@ export type AccountingTab =
   | "trial-balance"
   | "financials"
   | "posting-rules"
+  | "ar-report"
+  | "ap-report"
   | "sales"
   | "purchases"
   | "banking"
@@ -138,17 +140,23 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
     featureKey: "accounting.posting-rules",
     categoryId: "core",
   },
+  /**
+   * Receivables and Payables are one destination each.
+   *
+   * Each used to be two: a "Home" summary of tiles and charts, and the working
+   * list beside it. The summary was not a place you did anything — it was a
+   * report wearing a destination's clothes, and it took the good name. Landing
+   * on "Receivables" gave you five tiles and a chart, and finding an invoice
+   * meant noticing there was a second tab.
+   *
+   * So the name now points at the work — the ledger you actually open — and the
+   * summary moved into Reports as `ar-report` / `ap-report`, beside Financial
+   * Reports and Trial Balance where it is compared against its peers. Same two
+   * pages, same two routes; only which one answers to "Receivables" changed.
+   */
   {
     id: "receivables",
     label: "Receivables",
-    href: "/accounting/receivables",
-    icon: ReceiptLong,
-    featureKey: "accounting.ar",
-    categoryId: "receivables",
-  },
-  {
-    id: "sales",
-    label: "Sales",
     href: "/accounting/sales",
     icon: ReceiptLong,
     featureKey: "accounting.ar",
@@ -157,14 +165,6 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
   {
     id: "payables",
     label: "Payables",
-    href: "/accounting/payables",
-    icon: PackageCheck,
-    featureKey: "accounting.ap",
-    categoryId: "payables",
-  },
-  {
-    id: "purchases",
-    label: "Purchases",
     href: "/accounting/purchases",
     icon: PackageCheck,
     featureKey: "accounting.ap",
@@ -205,13 +205,36 @@ export const ACCOUNTING_TABS: AccountingTabItem[] = [
     featureKey: "accounting.trial-balance",
     categoryId: "reports",
   },
+  // The two summaries, in the category they always belonged to.
+  {
+    id: "ar-report",
+    label: "AR Report",
+    href: "/accounting/receivables",
+    icon: BarChart3,
+    featureKey: "accounting.ar",
+    categoryId: "reports",
+  },
+  {
+    id: "ap-report",
+    label: "AP Report",
+    href: "/accounting/payables",
+    icon: BarChart3,
+    featureKey: "accounting.ap",
+    categoryId: "reports",
+  },
 ];
 
 export const ACCOUNTING_OPERATIONS_SECTIONS = {
   overview: ["/accounting"],
-  receivables: ["/accounting/receivables", "/accounting/sales"],
-  payables: ["/accounting/payables", "/accounting/purchases"],
-  reporting: ["/accounting/financial-reports", "/accounting/trial-balance"],
+  // The ledgers people work in. The two summaries moved to `reporting`.
+  receivables: ["/accounting/sales"],
+  payables: ["/accounting/purchases"],
+  reporting: [
+    "/accounting/financial-reports",
+    "/accounting/trial-balance",
+    "/accounting/receivables",
+    "/accounting/payables",
+  ],
   master: [
     "/accounting/chart-of-accounts",
     "/accounting/periods",

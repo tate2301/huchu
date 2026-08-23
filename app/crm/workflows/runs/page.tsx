@@ -10,7 +10,7 @@ export default async function CrmWorkflowRunsPage() {
   if (!session?.user) redirect("/login");
 
   return (
-    <CrmPage>
+    <CrmPage title="Workflow runs" description="every run, and what it did">
       <WorkflowRunsContent />
     </CrmPage>
   );

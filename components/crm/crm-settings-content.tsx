@@ -85,7 +85,7 @@ function ApiKeysPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Webhook API keys</CardTitle>
+        <CardTitle>Webhook API keys</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--text-muted)]">
@@ -94,7 +94,7 @@ function ApiKeysPanel() {
         <div className="grid grid-cols-1 gap-2 md:grid-cols-4">
           <Input placeholder="Key name (e.g. Facebook Lead Ads)" value={name} onChange={(e) => setName(e.target.value)} />
           <select
-            className="rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
             value={defaultChannel}
             onChange={(e) => setDefaultChannel(e.target.value)}
           >
@@ -119,7 +119,7 @@ function ApiKeysPanel() {
           Ads&quot; key labels leads as Paid ads / facebook automatically.
         </p>
         {revealed ? (
-          <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-hover)] p-3">
+          <div className="rounded-[var(--radius-md)] border border-[var(--border)] bg-[var(--surface-hover)] p-3">
             <p className="text-sm font-medium">Copy this key now — it won&apos;t be shown again:</p>
             <code className="mt-1 block break-all text-sm">{revealed}</code>
           </div>
@@ -186,7 +186,7 @@ function LeadSourcesPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Lead sources</CardTitle>
+        <CardTitle>Lead sources</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <p className="text-sm text-[var(--text-muted)]">
@@ -201,7 +201,7 @@ function LeadSourcesPanel() {
             onChange={(e) => setName(e.target.value)}
           />
           <select
-            className="rounded-lg border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
+            className="rounded-[var(--radius-md)] border border-[var(--border)] bg-transparent px-3 py-2 text-sm"
             value={channel}
             onChange={(e) => setChannel(e.target.value)}
           >
@@ -224,7 +224,7 @@ function LeadSourcesPanel() {
               </span>
               <span className="flex items-center gap-2">
                 <select
-                  className="rounded-lg border border-[var(--border)] bg-transparent px-2 py-1 text-sm"
+                  className="rounded-[var(--radius-md)] border border-[var(--border)] bg-transparent px-2 py-1 text-sm"
                   value={source.channel}
                   disabled={update.isPending}
                   onChange={(e) => update.mutate({ id: source.id, channel: e.target.value })}
@@ -291,7 +291,7 @@ function CommissionsPanel() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="text-base">Commission rules</CardTitle>
+        <CardTitle>Commission rules</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
@@ -303,7 +303,7 @@ function CommissionsPanel() {
             <Label htmlFor="rule-basis">Basis</Label>
             <select
               id="rule-basis"
-              className="w-full rounded-lg border border-[var(--border)] bg-transparent px-3 py-2"
+              className="w-full rounded-[var(--radius-md)] border border-[var(--border)] bg-transparent px-3 py-2"
               value={basis}
               onChange={(e) => setBasis(e.target.value as "INVOICED" | "PAID")}
             >
@@ -399,7 +399,14 @@ type SettingsSection = {
   render: () => ReactNode;
 };
 
-const SECTIONS: SettingsSection[] = [
+/**
+ * The six setup sections.
+ *
+ * Exported because the page band names the active one — see `CrmSettingsShell`.
+ * The descriptions are the band ledes, which is why they are written as
+ * sentence fragments rather than headings.
+ */
+export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
   {
     id: "pipelines",
     label: "Pipelines",
@@ -448,7 +455,7 @@ export function CrmSettingsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const requested = searchParams.get("tab");
-  const active = SECTIONS.find((section) => section.id === requested) ?? SECTIONS[0];
+  const active = CRM_SETTINGS_SECTIONS.find((section) => section.id === requested) ?? CRM_SETTINGS_SECTIONS[0];
 
   const select = (id: string) => {
     // Replace rather than push: flipping between settings sections is not
@@ -461,7 +468,7 @@ export function CrmSettingsContent() {
   return (
     <div className="settings-layout">
       <NavRail label="CRM settings sections" orientation="responsive">
-        {SECTIONS.map((section) => (
+        {CRM_SETTINGS_SECTIONS.map((section) => (
           <NavRailItem
             key={section.id}
             active={section.id === active.id}
@@ -473,13 +480,14 @@ export function CrmSettingsContent() {
         ))}
       </NavRail>
 
-      <section className="min-w-0 space-y-4">
-        <header>
-          <h2 className="text-base font-semibold text-[var(--text-strong)]">{active.label}</h2>
-          <p className="text-sm text-[var(--text-muted)]">{active.description}</p>
-        </header>
-        {active.render()}
-      </section>
+      {/* No heading here.
+
+          The band directly above already carries this section's name and its
+          lede — see `CrmSettingsShell`. A second copy three lines lower is the
+          same duplication the accounting pages had between the app bar and the
+          page title, and it pushed the first actual control below the fold on
+          a laptop. */}
+      <section className="min-w-0 space-y-3">{active.render()}</section>
     </div>
   );
 }
