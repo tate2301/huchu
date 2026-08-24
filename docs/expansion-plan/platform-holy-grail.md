@@ -1,3 +1,13 @@
+
+> **Scope-trim notice (added 2026-08-24).** This document predates the August 2026 scope trim
+> and still describes CCTV, Autos/car-sales and Scrap metal as platform modules. All three were
+> deleted from code and schema under ST-2 / ST-3 of `docs/rollout/scope-trim-roadmap.md`, and
+> their feature keys are granted by no bundle. Every module list, route table and feature-key reference to those three is therefore dead.
+>
+> The rest of this document has not been re-verified against the August tree. Where it and
+> `docs/system-reference/` disagree, `system-reference/` is the live snapshot and this is the
+> plan of record. Do not restore a feature key, route or model from here to make a test pass.
+
 ﻿# Platform Holy Grail: End-to-End Architecture and Module Connectivity
 
 ## Purpose

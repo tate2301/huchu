@@ -221,10 +221,13 @@ This matters for positioning because Huchu is not trying to be a lifestyle SaaS 
 
 The platform currently exposes:
 
-- `3` tiers: `BASIC`, `STANDARD`, `ENTERPRISE`
-- `20` add-on bundles
-- `9` client templates
-- `124` feature catalog entries across `16` domains
+- `6` tiers: `FISCAL`, `START`, `GROW`, `SCALE`, `GOLD_EDITION`, `ENTERPRISE` (recounted 2026-08-24)
+- `21` add-on bundles
+- `8` client templates
+- `122` feature catalog entries
+
+Counted from `lib/marketing/pricing.ts`, `lib/platform/feature-catalog.ts` and
+`lib/platform/client-templates.ts` — check those rather than trusting these numbers to age well.
 
 This is one of the strongest signals in the codebase: Huchu is designed to be sold as a configurable platform, not as one fixed monolith.
 

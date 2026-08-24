@@ -7,7 +7,7 @@
 
 ## Program Scope (Locked Order)
 1. Schools pack first (including boarding, results, and parent/student/teacher portals).
-2. Car sales pack second (Zimbabwe-ready sales/deals/payments workflow).
+2. ~~Car sales pack second.~~ **Dropped 2026-08 (ST-2.2)** — the pack was never completed and its code was deleted.
 3. Thrift pack third (intake/grading/lots/sales, POS-first operation).
 
 ## Completed Slices
