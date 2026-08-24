@@ -57,3 +57,7 @@ scripts/zz-*
 # be committed by a sweep that stages everything.
 *.tmp.mjs
 test-results/
+
+# graphify: machine-local interpreter/root pointers (absolute paths)
+graphify-out/.graphify_python
+graphify-out/.graphify_root
