@@ -2,6 +2,12 @@
 
 This document translates the current platform into market-facing language while keeping claims anchored to the live product and documented packaging model.
 
+> **Reviewed 2026-08-24.** Corrected for the August scope trim: the `TEMPLATE_SCRAP_METAL`,
+> `TEMPLATE_CAR_SALES` and `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK` sections, the
+> `ADDON_CCTV_SUITE` / `ADDON_AUTOS_SUITE` / `ADDON_SCRAP_METAL_SUITE` rows and the
+> `BASIC`/`STANDARD`/`ENTERPRISE` tier table all described things that no longer exist.
+> Bundle prices are no longer restated here — see `lib/platform/feature-catalog.ts`.
+
 ## Positioning Summary
 
 ### Short positioning line
@@ -14,7 +20,7 @@ Huchu is a configurable business platform for operators that need operational co
 
 ### Long-form positioning
 
-Huchu is best marketed as a Zimbabwe-ready, multi-industry operating platform rather than as a generic ERP clone. The product combines tenant-aware access control, commercial feature packaging, workflow-driven modules, branded document output, reporting, and platform operations tooling. On top of that shared foundation, it offers dedicated workspaces for gold operations, scrap and recycling, schools, auto sales, retail/POS, and general business operations. The result is a system that can be sold as one platform with multiple vertical packs instead of as unrelated standalone apps.
+Huchu is best marketed as a Zimbabwe-ready, multi-industry operating platform rather than as a generic ERP clone. The product combines tenant-aware access control, commercial feature packaging, workflow-driven modules, branded document output, reporting, and platform operations tooling. On top of that shared foundation, it offers dedicated workspaces for gold operations, schools, retail/POS, CRM, and general business operations. The result is a system that can be sold as one platform with multiple vertical packs instead of as unrelated standalone apps.
 
 ## What Makes The Product Marketable
 
@@ -23,7 +29,6 @@ Huchu is best marketed as a Zimbabwe-ready, multi-industry operating platform ra
 The codebase already supports distinct market stories for:
 
 - gold mines and mineral-buying operations
-- scrap yards and recyclers
 - schools and training institutions
 - car dealerships and vehicle traders
 - retailers and POS-heavy shops
@@ -109,18 +114,6 @@ The platform is strongest when the buyer has some combination of:
   - payroll/settlement coordination
   - audit and reporting
 
-### `TEMPLATE_SCRAP_METAL`
-
-- Best fit:
-  - scrap yards
-  - recyclers
-  - industrial scrap traders
-- Primary value story:
-  - buying discipline
-  - yard stock visibility
-  - pricing control
-  - bulk sales and settlements
-
 ### `TEMPLATE_SCHOOLS`
 
 - Best fit:
@@ -132,17 +125,6 @@ The platform is strongest when the buyer has some combination of:
   - academics and attendance
   - boarding and fee administration
   - parent/student/teacher visibility
-
-### `TEMPLATE_CAR_SALES`
-
-- Best fit:
-  - car dealerships
-  - vehicle traders
-  - auto sales operators
-- Primary value story:
-  - lead-to-deal visibility
-  - inventory and financing coordination
-  - deal progression control
 
 ### `TEMPLATE_RETAIL`
 
@@ -156,15 +138,6 @@ The platform is strongest when the buyer has some combination of:
   - catalog and pricing management
   - receiving and purchasing discipline
   - shift/cash-up visibility
-
-### `TEMPLATE_SMALL_BUSINESS_SECURITY_STOCK`
-
-- Best fit:
-  - growing multi-site SMEs
-  - distributed stock operators
-  - branch-heavy businesses with security needs
-- Primary value story:
-  - people, stock, CCTV, and controls in one platform
 
 ### `TEMPLATE_TECH_WORKSHOP`
 
@@ -181,18 +154,27 @@ Currency is currently modeled in `USD`.
 
 ### Subscription tiers
 
-| Tier | Base / Month | Included Sites | Additional Site / Month | Commercial Story |
-| --- | ---: | ---: | ---: | --- |
-| `BASIC` | 450 | 1 | 90 | Entry point for smaller tenants or focused vertical packs |
-| `STANDARD` | 900 | 3 | 140 | Best fit for growing multi-site operators |
-| `ENTERPRISE` | 1800 | 8 | 220 | Full operating suite and broader controls |
+`BASIC` / `STANDARD` / `ENTERPRISE` no longer exist. The marketed line-up is six SKUs,
+defined in `lib/marketing/pricing.ts`:
+
+| Tier | Positioning |
+| --- | --- |
+| `FISCAL` | Fiscalise first — ZIMRA/FDMS on every till, for businesses whose binding obligation is the receipt |
+| `START` | One shop, yard or office still keeping records in a book |
+| `GROW` | Growing operators adding stock, purchasing and staff control |
+| `SCALE` | Multi-site operators needing branch and cash control |
+| `GOLD_EDITION` | The gold vertical's own packaging |
+| `ENTERPRISE` | Quoted, not listed (`QUOTED_TIER_CODES`) — groups with audit, compliance and payroll obligations across many sites |
+
+**Prices are deliberately not repeated here.** They live in `lib/marketing/pricing.ts` and
+`lib/platform/feature-catalog.ts` and are synced to the database from there. Duplicating them
+into this document is what made the previous table wrong for months.
 
 ### Current add-on bundles
 
 | Bundle | Base / Month | Additional Site / Month | Notes |
 | --- | ---: | ---: | --- |
 | `ADDON_CUSTOM_BRANDING` | 120 | 0 | branding + custom domain support |
-| `ADDON_CCTV_SUITE` | 300 | 40 | surveillance and stream operations |
 | `ADDON_ADVANCED_PAYROLL` | 250 | 30 | payroll/disbursement-heavy workflows |
 | `ADDON_GOLD_ADVANCED` | 220 | 25 | reconciliation, exceptions, audit, payouts |
 | `ADDON_COMPLIANCE_PRO` | 200 | 25 | permits, inspections, incidents, training |
@@ -200,13 +182,15 @@ Currency is currently modeled in `USD`.
 | `ADDON_USER_MANAGEMENT_PRO` | 180 | 20 | advanced user lifecycle controls |
 | `ADDON_ANALYTICS_PRO` | 160 | 15 | analytics surfaces and push features |
 | `ADDON_ACCOUNTING_CORE` | 250 | 30 | core accounting and financials |
-| `ADDON_ACCOUNTING_ADVANCED` | 350 | 40 | AR/AP, banking, assets, budgets, FX |
+| `ADDON_ACCOUNTING_ADVANCED` | 350 | 40 | AR/AP, banking, cost centers, FX (assets and budgets were removed under ST-3.4) |
 | `ADDON_ZIMRA_FISCAL` | 120 | 15 | VAT and fiscalisation support |
 | `ADDON_SCHOOLS_SUITE` | 320 | 35 | student, academics, boarding, fees, and school portals |
-| `ADDON_AUTOS_SUITE` | 210 | 25 | lead-to-deal, inventory, and financing controls |
 | `ADDON_RETAIL_SUITE` | 180 | 20 | retail, POS, purchasing, merchandising |
 | `ADDON_PORTAL_SUITE` | 110 | 10 | shared external portal shell across verticals |
-| `ADDON_SCRAP_METAL_SUITE` | 150 | 20 | scrap buying/yard/trading |
+
+Added to the catalog since this table was written, and not priced here: `ADDON_CRM_SUITE`,
+`ADDON_COMMODITY_SETTLEMENTS`, `ADDON_ZIMBABWE_PAYROLL`. Check
+`lib/platform/feature-catalog.ts` for the authoritative list and current prices.
 
 The platform also includes non-priced foundational bundles such as operations core, stores core, workforce core, and gold core that help shape templates and entitlement sets.
 
@@ -267,7 +251,7 @@ Start with:
 
 - stores
 - workforce
-- CCTV
+- retail/POS
 
 Then expand into:
 
@@ -284,7 +268,7 @@ The following claims are well-supported by the current codebase and can be used 
 
 - Huchu is a multi-tenant platform with tenant-aware host enforcement.
 - Huchu supports configurable vertical workspaces and client templates.
-- Huchu includes live modules for gold, scrap and recycling, schools, auto sales, retail/POS, accounting, HR, maintenance, compliance, CCTV, and reporting.
+- Huchu includes live modules for gold, schools, retail/POS, CRM, accounting, HR, maintenance, compliance, and reporting. **Do not claim scrap and recycling, auto sales, or CCTV — those modules were deleted in August 2026.**
 - Huchu includes role-specific portals for parents, students, teachers, cashiers/POS users, and platform admins.
 - Huchu includes a platform admin portal and an operator TUI for deeper platform operations.
 - Huchu includes branding, document templating, and PDF/document rendering infrastructure.

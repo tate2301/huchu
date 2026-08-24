@@ -1,6 +1,14 @@
 # Live Capabilities
 
-This document focuses on capabilities that are evidenced by the current codebase on March 20, 2026.
+This document focuses on capabilities that are evidenced by the current codebase.
+
+> **Reviewed 2026-08-24.** The body below was written against the March 20, 2026 codebase.
+> Three verticals it originally documented as live — Scrap and Recycling, CCTV and
+> Surveillance, and Auto Sales — have since been deleted from code and schema under
+> `docs/rollout/scope-trim-roadmap.md`; their sections now carry a removal note instead of a
+> capability list. The remaining sections have **not** been re-verified line by line against
+> the August codebase, so treat an unreviewed claim here as "true in March" rather than
+> "true today", and check the route or model before relying on it.
 
 It intentionally emphasizes:
 
@@ -179,7 +187,6 @@ There is a dedicated reports area with live routes for:
 - audit trails
 - downtime analytics
 - compliance incident reports
-- CCTV event reports
 
 The route inventory makes reporting one of the most widely shared cross-domain layers in the product.
 
@@ -300,47 +307,17 @@ The app contains dedicated gold forms/components for:
 - searchable selects
 - shift allocation modal flows
 
-## Scrap and Recycling
+## Scrap and Recycling (removed)
 
-Scrap and recycling is implemented as a dedicated vertical, not just a generic inventory extension.
+**Scrap and Recycling was dropped from the platform.** The routes, APIs, components and Prisma
+models this section used to list no longer exist: they were deleted under ST-2.3 / ST-3.1 of
+`docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
-### Live pages
+Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
+in `prisma/schema.prisma`.
 
-- `/scrap-metal`
-- `/scrap-metal/buying/purchases`
-- `/scrap-metal/buying/pricing`
-- `/scrap-metal/yard/batches`
-- `/scrap-metal/batches`
-- `/scrap-metal/sales`
-- `/scrap-metal/trading/sales`
-- `/scrap-metal/pricing`
-- `/scrap-metal/setup/materials`
-- `/scrap-metal/settlements`
-- `/scrap-metal/reports`
-
-### Live APIs
-
-- `/api/scrap-metal/materials`
-- `/api/scrap-metal/pricing`
-- `/api/scrap-metal/sellers`
-- `/api/scrap-metal/purchases`
-- `/api/scrap-metal/employee-balances`
-- `/api/scrap-metal/batches`
-- `/api/scrap-metal/batches/:id/items`
-- `/api/scrap-metal/sales`
-- `/api/scrap-metal/dashboard`
-
-### Current capabilities
-
-- scrap material master data
-- pricing / price board management
-- seller profile management
-- purchase capture
-- employee balance tracking
-- yard batch management
-- sales lifecycle with approval/complete/cancel flows
-- settlement surface
-- reports surface
+The detail that used to live here is preserved in git history; do not restore a feature
+key or route from it to make an old test pass.
 
 ## Human Resources and Payroll
 
@@ -450,65 +427,17 @@ The HR stack is strongly workflow-driven. The codebase already models submit, ap
 - training record management
 - compliance incident reporting
 
-## CCTV and Surveillance
+## CCTV and Surveillance (removed)
 
-The CCTV stack is a real module with both operational and technical depth.
+**CCTV and Surveillance was dropped from the platform.** The routes, APIs, components and Prisma
+models this section used to list no longer exist: they were deleted under ST-2.1 / ST-3.1 of
+`docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
-### Live pages
+Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
+in `prisma/schema.prisma`.
 
-- `/cctv`
-- `/cctv/overview`
-- `/cctv/live`
-- `/cctv/cameras`
-- `/cctv/cameras/new`
-- `/cctv/cameras/[id]/edit`
-- `/cctv/nvrs`
-- `/cctv/nvrs/new`
-- `/cctv/nvrs/[id]/edit`
-- `/cctv/events`
-- `/cctv/playback`
-- `/cctv/access-logs`
-- `/cctv/dashboard`
-
-### Live APIs
-
-- `/api/cctv/cameras`
-- `/api/cctv/nvrs`
-- `/api/cctv/events`
-- `/api/cctv/access-logs`
-- `/api/cctv/playback/search`
-- `/api/cctv/streams/profile`
-- `/api/cctv/streams/gateway-offer`
-- `/api/cctv/streams/hls-url`
-- `/api/cctv/streams/session/start`
-- `/api/cctv/streams/session/stop`
-- `/api/cctv/streams/sessions`
-- `/api/cctv/stream-token`
-
-### Current capabilities
-
-- camera inventory
-- NVR inventory
-- live monitoring surface
-- event monitoring and acknowledgment
-- playback search
-- access logging
-- stream session control
-- stream token generation
-- site-filtered and status-aware CCTV dashboards
-
-### Schema support
-
-The schema includes first-class models for:
-
-- `NVR`
-- `Camera`
-- `CCTVEvent`
-- `StreamSession`
-- `PlaybackRecord`
-- `CameraAccessLog`
-
-This is not just a UI mockup. The data layer is already structured for surveillance operations.
+The detail that used to live here is preserved in git history; do not restore a feature
+key or route from it to make an old test pass.
 
 ## Accounting and Fiscalisation
 
@@ -720,47 +649,17 @@ Verified live capabilities include:
 - parent/student/teacher portal surfaces
 - school-specific reports and notices
 
-## Auto Sales
+## Auto Sales (removed)
 
-Auto sales is implemented as a real vertical pack with both app routes and `v2` APIs.
+**Auto Sales was dropped from the platform.** The routes, APIs, components and Prisma
+models this section used to list no longer exist: they were deleted under ST-2.2 / ST-3.1 of
+`docs/rollout/scope-trim-roadmap.md`, and the SKU was retired with them.
 
-### Live pages
+Verified 2026-08-24: no matching directory under `app/` or `lib/`, and no matching model
+in `prisma/schema.prisma`.
 
-- `/car-sales`
-- `/car-sales/leads`
-- `/car-sales/inventory`
-- `/car-sales/deals`
-- `/car-sales/financing`
-
-### Live APIs
-
-- `/api/v2/autos`
-- `/api/v2/autos/leads`
-- `/api/v2/autos/inventory`
-- `/api/v2/autos/deals`
-- `/api/v2/autos/deals/:id/reserve`
-- `/api/v2/autos/deals/:id/contract`
-- `/api/v2/autos/financing`
-
-There are also legacy/parallel `car-sales` and non-`v2` aliases in the route registry.
-
-### Schema-backed auto entities
-
-The schema currently models:
-
-- `CarSalesLead`
-- `CarSalesVehicle`
-- `CarSalesDeal`
-- `CarSalesPayment`
-
-### Current capabilities
-
-- lead capture and management
-- vehicle inventory
-- deal creation and progression
-- reserve and contract transitions
-- financing surface
-- payment modeling at the schema layer
+The detail that used to live here is preserved in git history; do not restore a feature
+key or route from it to make an old test pass.
 
 ## Retail, POS, and Thrift-Facing Surfaces
 
@@ -889,8 +788,6 @@ The POS portal functions as a focused cashier/workstation surface rather than a 
 - `/management/master-data/operations/sections`
 - `/management/master-data/operations/downtime-codes`
 - `/management/master-data/operations/gold-expense-types`
-- `/management/master-data/operations/scrap-materials`
-- `/management/master-data/operations/scrap-sellers`
 - `/management/users`
 - `/management/users/create`
 - `/management/users/status`

@@ -1,6 +1,15 @@
 # Route and Surface Inventory
 
-This appendix gives a current-state footprint snapshot of the system as inspected on March 20, 2026.
+This appendix gives a current-state footprint snapshot of the system.
+
+> **Route-group tables regenerated 2026-08-24** against the working tree: 340 page routes
+> across `app/`, 613 API routes under `app/api/`. The March 20, 2026 tables listed `cctv`,
+> `scrap-metal` and `car-sales` groups that no longer exist, and predated `crm`, `retail` and
+> the `v2` API consolidation. Both tables now show the top 14 groups by count.
+>
+> The **Feature Catalog Domain Counts**, **Platform Admin Browser Surface** and **Current
+> Surface Metrics** sections below have *not* been regenerated and still reflect March —
+> treat their numbers as stale until someone recounts them.
 
 ## Page Route Groups
 
@@ -8,32 +17,20 @@ Top-level App Router page counts by route group:
 
 | Route Group | Page Count |
 | --- | ---: |
-| `portal` | 38 |
-| `schools` | 34 |
-| `gold` | 21 |
-| `accounting` | 19 |
-| `management` | 14 |
-| `reports` | 14 |
-| `cctv` | 13 |
-| `human-resources` | 12 |
-| `retail` | 12 |
-| `scrap-metal` | 12 |
-| `stores` | 7 |
-| `car-sales` | 5 |
+| `portal` | 75 |
+| `schools` | 48 |
+| `crm` | 35 |
+| `gold` | 23 |
+| `retail` | 23 |
+| `accounting` | 17 |
+| `home` | 17 |
+| `preferences` | 15 |
+| `reports` | 13 |
+| `management` | 12 |
+| `stores` | 10 |
+| `people` | 7 |
+| `payroll` | 7 |
 | `compliance` | 5 |
-| `maintenance` | 5 |
-| `settings` | 5 |
-| `user-management` | 5 |
-| `thrift` | 4 |
-| `access-blocked` | 1 |
-| `admin` | 1 |
-| `attendance` | 1 |
-| `dashboard` | 1 |
-| `help` | 1 |
-| `login` | 1 |
-| `plant-report` | 1 |
-| `shift-report` | 1 |
-| `status` | 1 |
 
 ## API Route Groups
 
@@ -41,44 +38,20 @@ Top-level API route counts by route group:
 
 | API Group | Route Count |
 | --- | ---: |
-| `v2` | 116 |
-| `accounting` | 80 |
-| `hr` | 18 |
-| `scrap-metal` | 18 |
-| `cctv` | 14 |
-| `gold` | 13 |
+| `v2` | 306 |
+| `accounting` | 88 |
+| `gold` | 48 |
+| `settlements` | 13 |
+| `payroll` | 13 |
 | `platform-admin` | 12 |
 | `compensation` | 12 |
-| `payroll` | 11 |
+| `public` | 11 |
+| `users` | 10 |
+| `people` | 10 |
+| `hr` | 10 |
 | `compliance` | 8 |
-| `users` | 7 |
 | `notifications` | 6 |
 | `disbursements` | 6 |
-| `document-templates` | 4 |
-| `documents` | 4 |
-| `inventory` | 4 |
-| `adjustments` | 3 |
-| `settings` | 3 |
-| `attendance` | 2 |
-| `auth` | 2 |
-| `departments` | 2 |
-| `downtime-codes` | 2 |
-| `employee-payments` | 2 |
-| `employees` | 2 |
-| `equipment` | 2 |
-| `job-grades` | 2 |
-| `onboarding` | 2 |
-| `plant-reports` | 2 |
-| `sections` | 2 |
-| `shift-reports` | 2 |
-| `sites` | 2 |
-| `stock-locations` | 2 |
-| `uploads` | 2 |
-| `work-orders` | 2 |
-| `analytics` | 1 |
-| `approvals` | 1 |
-| `dashboard` | 1 |
-| `ids` | 1 |
 
 ## Feature Catalog Domain Counts
 

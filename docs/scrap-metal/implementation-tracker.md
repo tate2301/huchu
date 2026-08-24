@@ -1,5 +1,11 @@
 # Scrap Module Implementation Tracker
 
+> **Superseded — this module was dropped.** Scrap metal was deleted from the codebase and schema
+> in August 2026 under ST-2.3 / ST-3.1 of `docs/rollout/scope-trim-roadmap.md`, and its SKU was
+> retired. Nothing described below is live. Kept as a historical record of what was built and
+> why; do not restore a feature key, route or model from it to make a test pass.
+
+
 Last updated: 2026-04-12
 
 ## Completed
