@@ -277,14 +277,23 @@ export function RecordAttributes({
             // `items-start`, not `items-center`: a value that wraps to two
             // lines should hang off its label, not push the label into the
             // middle of it.
-            <div key={attribute.id} className="flex items-start gap-3">
+            <div key={attribute.id} className="flex items-start gap-2">
               {/* Narrower on a phone. A 144px label column out of the ~358px a
                   390px screen has left barely 200px for the value, which is
                   what pushed emails, company names and the pickers beside them
                   off the right edge. */}
+              {/* 116px, which is the artboard's label column, and the subtle
+                  ink rather than the muted one.
+
+                  It was 144 on a desktop. In a 340px standing column that left
+                  under 190px for the value, so an email or a company name
+                  truncated in a pane with room to spare — and the label, which
+                  is the half you already know, was taking more width than the
+                  half you came to read. The lighter ink is the same trade: at
+                  this size a label as dark as its value reads as two values. */}
               <dt
                 className={cn(
-                  "flex w-28 shrink-0 items-start gap-2 text-[var(--text-muted)] @md:w-36",
+                  "flex w-28 shrink-0 items-start gap-2 text-[var(--text-subtle)] @md:w-[116px]",
                   ATTRIBUTE_ROW,
                 )}
               >

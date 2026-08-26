@@ -67,7 +67,7 @@ import { RelationAttribute } from "./relation-attribute";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import { DealStageBar, StageChecklist } from "./deal-stage-bar";
-import { RailSection, RecordPageShell } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
 
@@ -303,6 +303,21 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         title={deal.title}
       onTitleCommit={(next) => edit.save.mutate({ title: next })}
         reference={deal.dealNo}
+        related={
+          <RecordRelated
+            items={
+              deal.clientId && deal.client
+                ? [
+                    {
+                      href: `/crm/companies/${deal.clientId}`,
+                      label: deal.client.name,
+                      dot: "bg-[var(--brand)]",
+                    },
+                  ]
+                : []
+            }
+          />
+        }
         bandValue={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
         beforeTabs={
           <DealStageBar

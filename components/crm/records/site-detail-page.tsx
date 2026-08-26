@@ -32,7 +32,7 @@ import { RelationAttribute } from "./relation-attribute";
 import { useToast } from "@/components/ui/use-toast";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
-import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { SiteFormSheet } from "./site-form-sheet";
 
@@ -208,6 +208,22 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       reference={site.siteNo}
       subtitle={subtitle}
       activeTab={tab}
+      related={
+        <RecordRelated
+          items={
+            // A site can exist before anyone has attached it to a company.
+            site.client
+              ? [
+                  {
+                    href: `/crm/companies/${site.client.id}`,
+                    label: site.client.name,
+                    dot: "bg-[var(--brand)]",
+                  },
+                ]
+              : []
+          }
+        />
+      }
       attributes={
         <RecordAttributes
           attributes={[

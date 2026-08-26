@@ -543,7 +543,10 @@ export function RecordPageShell({
             record with thirteen sections keeps every one reachable without
             scrolling the conversation back to the top to get at them. */}
         {hasSectionRail ? (
-          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] p-2 md:block md:w-[11rem]">
+          // 176 wide on 10/8 of padding, against the subtle hairline — the
+          // artboard's rail exactly. White, because the pane beside it carries
+          // the canvas tint and the seam between them is what makes it a rail.
+          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 py-2.5 md:block md:w-[11rem]">
             {sectionRail}
             {/* Records this one points at. Under the sections rather than
                 beside them: these are places to go, the same as a section, and
@@ -605,7 +608,10 @@ export function RecordPageShell({
             scrolling ancestor. Without the overflow here that ancestor is the
             page, and the headings do nothing. */}
         {infoOpen ? (
-          <aside className="hidden shrink-0 overflow-y-auto border-l border-[var(--border-subtle)] bg-[var(--surface-base)] px-5 lg:block lg:w-[21.25rem]">
+          // 340 wide on 14 of padding, against the card hairline rather than
+          // the subtle one — this seam separates two panes, where the rail's
+          // only separates a rail from its content.
+          <aside className="hidden shrink-0 overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-base)] px-3.5 lg:block lg:w-[21.25rem]">
             <div className="space-y-4 pb-5">
               <div className="flex justify-end pt-2">
                 <IconButton aria-label="Hide record details" onClick={toggleInfo}>
@@ -616,7 +622,7 @@ export function RecordPageShell({
             </div>
           </aside>
         ) : (
-          <aside className="hidden shrink-0 border-l border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 pt-2 lg:block">
+          <aside className="hidden shrink-0 border-l border-[var(--border)] bg-[var(--surface-base)] px-2 pt-2 lg:block">
             <IconButton aria-label="Show record details" onClick={toggleInfo}>
               <ChevronLeftIcon />
             </IconButton>
@@ -722,13 +728,59 @@ export function RailSection({
           of the column so you can still see which block you are reading eight
           properties down. Bleeds out by the column's padding so the rules reach
           both edges instead of floating inside it. */}
-      <div className="sticky top-0 z-10 -mx-5 mb-2 flex h-[30px] items-center gap-2 border-y border-[var(--border-subtle)] bg-[var(--canvas)] px-5">
-        <h3 className="acct-rail-heading">{title}</h3>
+      <div className="sticky top-0 z-10 -mx-3.5 mb-2 flex h-[30px] items-center gap-2 border-y border-[var(--border-subtle)] bg-[var(--canvas)] px-3.5">
+        {/* `--text-muted`, not the subtle ink the rail headings elsewhere use.
+            This one sits on the canvas tint rather than on white, and at 10px
+            the lighter grey stopped reading as a heading and started reading as
+            a disabled label. */}
+        <h3 className="acct-rail-heading text-[var(--text-muted)]">{title}</h3>
         {meta ? <span className="ml-auto font-mono text-sm font-bold">{meta}</span> : null}
         {action ? <span className={cn(meta ? "" : "ml-auto")}>{action}</span> : null}
       </div>
       {children}
     </section>
+  );
+}
+
+/**
+ * The rail's "Related" group — the records this one is attached to.
+ *
+ * The artboard puts a lead's company, its quote and its site here, under the
+ * sections: three rows, a coloured dot each, no counts. They are places to go,
+ * the same as a section, which is why they belong in the rail rather than in a
+ * panel in the standing column — and why each is one line rather than a card.
+ * This answers "what is this attached to", not "what has happened to it".
+ *
+ * Deliberately not `RelatedList` below, which is the boxed, subtitled list a
+ * *tab* uses to show every person on a deal. This is the shortcut, not the
+ * register.
+ */
+export function RecordRelated({
+  items,
+}: {
+  items: Array<{ href: string; label: string; dot?: string }>;
+}) {
+  if (items.length === 0) return null;
+
+  return (
+    <ul>
+      {items.map((item) => (
+        <li key={item.href}>
+          <Link
+            href={item.href}
+            className="flex h-[27px] items-center gap-2 rounded-[var(--radius-md)] px-2 hover:bg-[var(--surface-hover)]"
+          >
+            <span
+              aria-hidden="true"
+              className={cn("size-[7px] shrink-0 rounded-[2px]", item.dot ?? "bg-[var(--brand)]")}
+            />
+            <span className="min-w-0 flex-1 truncate text-sm text-[var(--text-muted)]">
+              {item.label}
+            </span>
+          </Link>
+        </li>
+      ))}
+    </ul>
   );
 }
 
