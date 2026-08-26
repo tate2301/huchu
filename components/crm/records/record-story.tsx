@@ -2,7 +2,6 @@
 
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { Avatar } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { ChevronDown, ChevronRight, FileText } from "@/lib/icons";
 import {
@@ -73,8 +72,8 @@ export type StoryEvent = {
  * email boxed, a feed alternated between a framed paragraph and an unframed one
  * for two things that are the same thing — a message — and the frame stopped
  * meaning "somebody said this" and started meaning "this one happened to be an
- * email". The accent on the box's leading edge is what tells the kinds apart;
- * the box itself only says there are words in here.
+ * email". The mark on the left of the row is what tells the kinds apart; the
+ * box itself only says there are words in here.
  */
 const BOXED: ReadonlySet<EventKind> = new Set([
   "email",
@@ -151,16 +150,6 @@ function StoryMark({
   );
 }
 
-/** The vertical line behind the marks, drawn per row so the last one stops. */
-function StoryRail() {
-  return (
-    <span
-      aria-hidden="true"
-      className="absolute bottom-0 left-[11px] top-6 w-px bg-[var(--border-subtle)]"
-    />
-  );
-}
-
 function StoryRow({ event }: { event: StoryEvent }) {
   const { icon: Icon, accent, label } = eventKindStyle(event.kind);
   const quiet = QUIET_KINDS.has(event.kind);
@@ -180,21 +169,23 @@ function StoryRow({ event }: { event: StoryEvent }) {
    */
   const header = (
     <div className="flex items-center gap-2">
-      {event.actorName ? (
-        // Coloured by who wrote it, not by what kind of event it is — that
-        // second channel is the mark on the rail. The design system hashes the
-        // name for us, so two colleagues in one day's worth of rows come out as
-        // two colours rather than two identical discs.
-        <Avatar size="sm" name={event.actorName} solid />
-      ) : null}
+      {/* No author avatar.
 
+          There used to be one here, coloured by name, sitting beside the kind
+          mark on the left of the row — two discs on every line, an inch apart,
+          neither of them the thing being said. The artboard keeps one mark per
+          event and makes it the kind: what happened is what you scan a
+          timeline for, and who did it is already the first word of the
+          sentence. */}
       <span className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2">
         {event.actorName ? (
-          <span className="text-sm font-medium text-[var(--text-strong)]">{event.actorName}</span>
+          <span className="text-sm font-semibold text-[var(--text-strong)]">
+            {event.actorName}
+          </span>
         ) : null}
         {/* With an author beside it the title is the *kind* — "Email", "Note" —
-            so it reads as a label rather than repeating the name the avatar
-            already carries. Without one it is the whole sentence. */}
+            so it reads as a label rather than repeating the name already at the
+            head of the line. Without one it is the whole sentence. */}
         <span
           className={cn(
             "min-w-0 text-sm",
@@ -210,7 +201,7 @@ function StoryRow({ event }: { event: StoryEvent }) {
       {/* The day is already the section heading, so the row only needs the
           time of day — a full "8/4/2026, 9:06:53 PM" on every one of a hundred
           rows repeats the heading and adds a second nobody reads. */}
-      <span className="shrink-0 text-sm tabular-nums text-[var(--text-subtle)]">
+      <span className="shrink-0 font-mono text-sm tabular-nums text-[var(--text-disabled)]">
         <ClientTime value={event.occurredAt} />
       </span>
     </div>
@@ -260,7 +251,6 @@ function StoryRow({ event }: { event: StoryEvent }) {
 
   return (
     <li className="relative flex gap-3 pb-3 last:pb-0">
-      <StoryRail />
       <StoryMark accent={accent} title={label}>
         <Icon className="size-3.5" />
       </StoryMark>
@@ -271,10 +261,7 @@ function StoryRow({ event }: { event: StoryEvent }) {
           // event's colour on its leading edge — so a scrolled feed shows at a
           // glance which paragraphs are the client's and which are ours,
           // without reading a word of any of them.
-          <div
-            data-accent={accent}
-            className="rounded-[var(--card-radius)] border border-[var(--border)] border-l-2 border-l-[var(--accent-solid)] bg-[var(--surface-base)] p-3"
-          >
+          <div className="rounded-[var(--card-radius)] border border-[var(--border)] bg-[var(--surface-base)] p-3">
             {content}
           </div>
         ) : (
@@ -304,7 +291,6 @@ function FoldedRun({ events }: { events: StoryEvent[] }) {
           <StoryRow key={`${event.kind}-${event.id}`} event={event} />
         ))}
         <li className="relative flex gap-3 pb-3">
-          <StoryRail />
           <span className="w-6 shrink-0" aria-hidden="true" />
           <button
             type="button"
@@ -321,7 +307,6 @@ function FoldedRun({ events }: { events: StoryEvent[] }) {
 
   return (
     <li className="relative flex gap-3 pb-3 last:pb-0">
-      <StoryRail />
       {/* The same 24px disc the rows use, so the fold sits on the rail rather
           than beside it — a gap in the line reads as a gap in the record. */}
       <StoryMark accent="gray">
@@ -422,7 +407,7 @@ export function RecordStory({
           {/* The date, with the rule running off to the right of it. A bare
               bold word between two runs of rows reads as another row; a rule
               says "everything below me is this day" without shouting it. */}
-          <h4 className="flex items-center gap-3 text-sm font-semibold text-[var(--text-strong)]">
+          <h4 className="flex items-center gap-2.5 text-sm font-bold uppercase tracking-[0.06em] text-[var(--text-subtle)]">
             {dayLabel(group.entries[0].occurredAt, now)}
             <span className="h-px flex-1 bg-[var(--border-subtle)]" aria-hidden="true" />
           </h4>
