@@ -1,22 +1,33 @@
 "use client";
 
-import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
+import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { format } from "date-fns";
+import { endOfMonth, format, isSameDay, startOfMonth } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { ReportPanel } from "@/components/ui/breakdown-panel";
+import {
+  ReportTable,
+  badge,
+  nm,
+  node,
+  txt,
+  type ReportRow,
+} from "@/components/accounting/report-table";
 import { BandChip } from "@/components/accounting/band-chip";
 import {
   PeriodCloseChecklist,
   type ChecklistItem,
 } from "@/components/accounting/period-close-checklist";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
@@ -24,13 +35,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { useToast } from "@/components/ui/use-toast";
 import {
   closeAccountingPeriod,
@@ -44,7 +48,7 @@ import {
   setAccountingFreezeDate,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Calendar } from "@/lib/icons";
+import { Calendar, MoreHorizontal } from "@/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 type OpeningBalanceLineInput = {
@@ -83,27 +87,36 @@ function parseOpeningBalanceLines(raw: string): OpeningBalanceLineInput[] {
   return lines;
 }
 
+/**
+ * What to call a period in the table's first column.
+ *
+ * The record carries two dates and no name, so the name is derived rather than
+ * stored. A window that runs from the first of a month to its last day is that
+ * month and nothing else — "August 2026" is how everyone in the building refers
+ * to it. Anything else keeps its dates, because calling a 6 Aug – 12 Sep window
+ * "August" would be a claim about the books that is simply untrue.
+ */
+function periodLabel(period: AccountingPeriodRecord): string {
+  const start = new Date(period.startDate);
+  const end = new Date(period.endDate);
+
+  if (isSameDay(start, startOfMonth(start)) && isSameDay(end, endOfMonth(start))) {
+    return format(start, "MMMM yyyy");
+  }
+
+  return `${format(start, "d MMM yyyy")} – ${format(end, "d MMM yyyy")}`;
+}
+
 export default function AccountingPeriodsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [formOpen, setFormOpen] = useState(false);
-  const [statusFilter, setStatusFilter] = useState("all");
+  const openingDateRef = useRef<HTMLInputElement>(null);
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
   const [freezeBeforeDate, setFreezeBeforeDate] = useState("");
   const [retainedEarningsAccountId, setRetainedEarningsAccountId] = useState("");
-  const [openingDate, setOpeningDate] = useState("");
   const [openingReference, setOpeningReference] = useState("");
-  const [openingLinesJson, setOpeningLinesJson] = useState(
-    JSON.stringify(
-      [
-        { accountId: "", debit: 0, credit: 0, memo: "Opening balance line 1" },
-        { accountId: "", debit: 0, credit: 0, memo: "Opening balance line 2" },
-      ],
-      null,
-      2,
-    ),
-  );
+  const [openingLinesJson, setOpeningLinesJson] = useState("");
 
   const {
     data: periodsData,
@@ -134,88 +147,48 @@ export default function AccountingPeriodsPage() {
   const effectiveFreezeBeforeDate =
     freezeBeforeDate || accountingSummary?.freezeBeforeDate?.slice(0, 10) || "";
 
-  const filteredPeriods = useMemo(() => {
-    if (statusFilter === "all") return periods;
-    return periods.filter((period) => period.status === statusFilter);
-  }, [periods, statusFilter]);
+  const openPeriodMutation = useMutation({
+    mutationFn: async () => {
+      if (!startDate || !endDate) {
+        throw new Error("Opening and closing dates are both required.");
+      }
 
-  const columns: ColumnDef<AccountingPeriodRecord>[] = [
-    {
-      id: "period",
-      header: "Period",
-      cell: ({ row }) => (
-        <NumericCell align="left">
-          {format(new Date(row.original.startDate), "yyyy-MM-dd")} to {" "}
-          {format(new Date(row.original.endDate), "yyyy-MM-dd")}
-        </NumericCell>
-      ),
-      size: 280,
-      minSize: 220,
-      maxSize: 420},
-    {
-      id: "status",
-      header: "Status",
-      accessorKey: "status",
-      cell: ({ row }) => (
-        <div className="flex items-center gap-2">
-          <Badge variant={row.original.status === "OPEN" ? "secondary" : "outline"}>
-            {row.original.status}
-          </Badge>
-          {row.original.reopenedAt ? <Badge variant="outline">Reopened</Badge> : null}
-        </div>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120},
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          {row.original.status === "OPEN" ? (
-            <Button size="sm" onClick={() => closeMutation.mutate(row.original.id)}>
-              Close with Voucher
-            </Button>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              onClick={() => {
-                const reason = window.prompt("Why are you reopening this accounting period?");
-                if (!reason?.trim()) return;
-                reopenMutation.mutate({ id: row.original.id, reason: reason.trim() });
-              }}
-            >
-              Reopen Period
-            </Button>
-          )}
-        </div>
-      ),
-      size: 108,
-      minSize: 108,
-      maxSize: 108},
-  ];
+      // Parsed before anything is written. Opening a period and posting its
+      // opening balances are two calls, and discovering the JSON is malformed
+      // after the first one has succeeded leaves a period on the books that
+      // nobody asked for on its own.
+      const raw = openingLinesJson.trim();
+      const lines = raw && raw !== "[]" ? parseOpeningBalanceLines(raw) : null;
 
-  const createMutation = useMutation({
-    mutationFn: async (payload: { startDate: string; endDate: string }) =>
-      fetchJson("/api/accounting/periods", {
+      await fetchJson("/api/accounting/periods", {
         method: "POST",
-        body: JSON.stringify(payload),
-      }),
+        body: JSON.stringify({ startDate, endDate }),
+      });
+
+      if (lines) {
+        await importOpeningBalances({
+          effectiveDate: startDate,
+          sourceReference: openingReference || undefined,
+          lines,
+        });
+      }
+    },
     onSuccess: () => {
       toast({
-        title: "Period created",
+        title: "Period opened",
         description: "Accounting period opened successfully.",
         variant: "success",
       });
-      setFormOpen(false);
       setStartDate("");
       setEndDate("");
+      setOpeningReference("");
+      setOpeningLinesJson("");
       queryClient.invalidateQueries({ queryKey: ["accounting", "periods"] });
+      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
     },
     onError: (err) => {
       toast({
-        title: "Unable to create period",
+        title: "Unable to open period",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
@@ -277,7 +250,7 @@ export default function AccountingPeriodsPage() {
     mutationFn: async () => setAccountingFreezeDate(effectiveFreezeBeforeDate || null),
     onSuccess: () => {
       toast({
-        title: "Freeze date updated",
+        title: "Closing controls saved",
         description: "Posting freeze date has been saved.",
         variant: "success",
       });
@@ -285,34 +258,7 @@ export default function AccountingPeriodsPage() {
     },
     onError: (err) => {
       toast({
-        title: "Unable to update freeze date",
-        description: getApiErrorMessage(err),
-        variant: "destructive",
-      });
-    },
-  });
-  const importOpeningMutation = useMutation({
-    mutationFn: async () => {
-      if (!openingDate) throw new Error("Opening date is required.");
-      const lines = parseOpeningBalanceLines(openingLinesJson);
-      return importOpeningBalances({
-        effectiveDate: openingDate,
-        sourceReference: openingReference || undefined,
-        lines,
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Opening balances imported",
-        description: "Opening entries have been posted.",
-        variant: "success",
-      });
-      queryClient.invalidateQueries({ queryKey: ["accounting", "periods"] });
-      queryClient.invalidateQueries({ queryKey: ["accounting-summary"] });
-    },
-    onError: (err) => {
-      toast({
-        title: "Unable to import opening balances",
+        title: "Unable to save closing controls",
         description: getApiErrorMessage(err),
         variant: "destructive",
       });
@@ -346,10 +292,10 @@ export default function AccountingPeriodsPage() {
         href: "/accounting/journals",
       },
       {
-        label: "Trial balance agrees",
-        done: difference === 0,
-        note: difference === 0 ? "balanced" : `out by ${Math.abs(difference).toFixed(2)}`,
-        href: "/accounting/trial-balance",
+        label: "VAT return prepared",
+        done: vat === 0,
+        note: vat === 0 ? "filed" : `${vat} to file`,
+        href: "/accounting/tax?view=vat-returns",
       },
       {
         label: "Receipts fiscalised",
@@ -358,10 +304,10 @@ export default function AccountingPeriodsPage() {
         href: "/accounting/fiscalisation",
       },
       {
-        label: "VAT return prepared",
-        done: vat === 0,
-        note: vat === 0 ? "filed" : `${vat} to file`,
-        href: "/accounting/tax?view=vat-returns",
+        label: "Trial balance agrees",
+        done: difference === 0,
+        note: difference === 0 ? "balanced" : `out by ${Math.abs(difference).toFixed(2)}`,
+        href: "/accounting/trial-balance",
       },
       {
         label: "Every posting reached the ledger",
@@ -381,28 +327,76 @@ export default function AccountingPeriodsPage() {
    * lands in the older one first, and naming the newer would describe a period
    * nobody is using yet.
    */
-  const openPeriodLabel = useMemo(() => {
+  const openPeriod = useMemo(() => {
     const open = periods
       .filter((period) => period.status === "OPEN")
       .sort((a, b) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
-    if (open.length === 0) return "none";
-    return format(new Date(open[0].startDate), "MMM yyyy");
+    return open[0] ?? null;
   }, [periods]);
 
-  const handleSubmit = (event: React.FormEvent) => {
-    event.preventDefault();
+  const openPeriodLabel = openPeriod ? format(new Date(openPeriod.startDate), "MMM yyyy") : "none";
 
-    if (!startDate || !endDate) {
-      toast({
-        title: "Missing dates",
-        description: "Please provide start and end dates.",
-        variant: "destructive",
-      });
-      return;
-    }
+  const periodRows = useMemo<ReportRow[]>(
+    () =>
+      periods.map((period) => {
+        const label = periodLabel(period);
+        // One chip, not two. A reopened period is open again, and stacking a
+        // second "Reopened" badge beside "OPEN" made the row read as two
+        // states at once; the reopening is the fact worth flagging, so it
+        // takes the chip and the warn tint with it.
+        const status = period.reopenedAt
+          ? badge("Reopened", "warn")
+          : period.status === "OPEN"
+            ? badge("Open", "ok")
+            : badge("Closed", "mute");
 
-    createMutation.mutate({ startDate, endDate });
-  };
+        return {
+          id: period.id,
+          cells: [
+            nm(label),
+            txt(format(new Date(period.startDate), "d MMM yyyy"), { mono: true }),
+            txt(format(new Date(period.endDate), "d MMM yyyy"), { mono: true }),
+            status,
+            node(
+              <div className="flex justify-center">
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="size-6"
+                      aria-label={`Actions for ${label}`}
+                    >
+                      <MoreHorizontal className="size-4 text-[var(--gray-400)]" />
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="min-w-[13rem]">
+                    {period.status === "OPEN" ? (
+                      <DropdownMenuItem onSelect={() => closeMutation.mutate(period.id)}>
+                        Close with voucher
+                      </DropdownMenuItem>
+                    ) : (
+                      <DropdownMenuItem
+                        onSelect={() => {
+                          const reason = window.prompt(
+                            "Why are you reopening this accounting period?",
+                          );
+                          if (!reason?.trim()) return;
+                          reopenMutation.mutate({ id: period.id, reason: reason.trim() });
+                        }}
+                      >
+                        Reopen period
+                      </DropdownMenuItem>
+                    )}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>,
+            ),
+          ],
+        };
+      }),
+    [periods, closeMutation, reopenMutation],
+  );
 
   return (
     <AccountingShell
@@ -420,7 +414,21 @@ export default function AccountingPeriodsPage() {
         </>
       }
       actions={
-        <AccountingNewButton items={[{ label: "New Period", icon: Calendar, onClick: () => setFormOpen(true) }]} />
+        <AccountingNewButton
+          items={[
+            {
+              label: "Open period",
+              icon: Calendar,
+              // The form is on the page rather than behind an overlay, so the
+              // app bar's job is to take you to it, not to open a second copy
+              // of it.
+              onClick: () => {
+                openingDateRef.current?.scrollIntoView({ block: "center" });
+                openingDateRef.current?.focus();
+              },
+            },
+          ]}
+        />
       }
     >
       {error ? (
@@ -430,132 +438,173 @@ export default function AccountingPeriodsPage() {
         </Alert>
       ) : null}
 
-      <DataTable
-        data={filteredPeriods}
-        columns={columns}
-        groupBy="status"
-        searchPlaceholder="Search periods"
-        searchSubmitLabel="Search"
-        pagination={{ enabled: true }}
-        toolbar={
-          <Select value={statusFilter} onValueChange={setStatusFilter}>
-            <SelectTrigger size="sm" className="h-8 w-[160px]">
-              <SelectValue placeholder="Filter status" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Statuses</SelectItem>
-              <SelectItem value="OPEN">Open</SelectItem>
-              <SelectItem value="CLOSED">Closed</SelectItem>
-            </SelectContent>
-          </Select>
-        }
-        emptyState={isLoading ? "Loading periods..." : "No accounting periods found."}
-      />
+      {/*
+        The ledger on the left, the controls that change it on the right.
 
-      <PeriodCloseChecklist items={checklist} />
+        The right column is sticky because everything in it acts on the table
+        beside it — you read a row, then close it, open the next one, or check
+        what is still blocking. Scrolling eight months of periods should not
+        take the close checklist off the screen.
+      */}
+      <div className="grid items-start gap-2.5 xl:grid-cols-[minmax(0,1fr)_400px]">
+        <ReportPanel title="Periods" note="a closed period refuses new postings">
+          <ReportTable
+            label="Accounting periods"
+            tracks="minmax(0,1fr) 120px 120px 110px 44px"
+            columns={[
+              { label: "Period" },
+              { label: "Opens" },
+              { label: "Closes" },
+              { label: "Status" },
+              { label: "" },
+            ]}
+            rows={periodRows}
+            emptyLabel={isLoading ? "Loading periods…" : "No accounting periods yet."}
+          />
+        </ReportPanel>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Closing Controls</CardTitle>
-          <CardDescription>
-            Manage freeze date, retained earnings account, and opening balance imports.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-3">
-            <Input
-              type="date"
-              value={effectiveFreezeBeforeDate}
-              onChange={(event) => setFreezeBeforeDate(event.target.value)}
-            />
-            <Select value={effectiveRetainedEarningsAccountId} onValueChange={setRetainedEarningsAccountId}>
-              <SelectTrigger>
-                <SelectValue placeholder="Retained earnings account" />
-              </SelectTrigger>
-              <SelectContent>
-                {accounts.map((account) => (
-                  <SelectItem key={account.id} value={account.id}>
-                    {account.code} - {account.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              onClick={() => freezeMutation.mutate()}
-              disabled={freezeMutation.isPending}
+        <div className="flex flex-col gap-2.5 xl:sticky xl:top-[calc(var(--page-band-h)+12px)]">
+          <ReportPanel
+            title="Open an accounting period"
+            lead={
+              <span className="acct-badge" data-tone="ok">
+                NEW
+              </span>
+            }
+          >
+            <form
+              className="grid grid-cols-2 gap-x-3 gap-y-[11px] px-[13px] pb-[13px] pt-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                openPeriodMutation.mutate();
+              }}
             >
-              Save Freeze Date
-            </Button>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Input
-              type="date"
-              value={openingDate}
-              onChange={(event) => setOpeningDate(event.target.value)}
-              placeholder="Opening date"
-            />
-            <Input
-              value={openingReference}
-              onChange={(event) => setOpeningReference(event.target.value)}
-              placeholder="Source reference (optional)"
-            />
-            <Button
-              onClick={() => importOpeningMutation.mutate()}
-              disabled={importOpeningMutation.isPending}
-            >
-              Import Opening Balances
-            </Button>
-          </div>
-          <div>
-            <label className="mb-2 block text-sm font-semibold">Opening Lines JSON</label>
-            <textarea
-              value={openingLinesJson}
-              onChange={(event) => setOpeningLinesJson(event.target.value)}
-              className="h-36 w-full rounded-[var(--radius-sm)] border border-input bg-background p-2 font-mono acct-caption"
-            />
-          </div>
-        </CardContent>
-      </Card>
+              <div className="min-w-0">
+                <label className="acct-field-label" htmlFor="period-opening-date">
+                  Opening date *
+                </label>
+                <Input
+                  id="period-opening-date"
+                  ref={openingDateRef}
+                  type="date"
+                  value={startDate}
+                  onChange={(event) => setStartDate(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="min-w-0">
+                <label className="acct-field-label" htmlFor="period-closing-date">
+                  Closing date *
+                </label>
+                <Input
+                  id="period-closing-date"
+                  type="date"
+                  value={endDate}
+                  onChange={(event) => setEndDate(event.target.value)}
+                  required
+                />
+              </div>
+              <div className="col-span-2 min-w-0">
+                <label className="acct-field-label" htmlFor="period-source-reference">
+                  Source reference
+                </label>
+                <Input
+                  id="period-source-reference"
+                  value={openingReference}
+                  onChange={(event) => setOpeningReference(event.target.value)}
+                  placeholder="Source reference (optional)"
+                />
+              </div>
+              <div className="col-span-2 min-w-0">
+                <label className="acct-field-label" htmlFor="period-opening-lines">
+                  Opening lines JSON
+                </label>
+                <Textarea
+                  id="period-opening-lines"
+                  value={openingLinesJson}
+                  onChange={(event) => setOpeningLinesJson(event.target.value)}
+                  className="font-mono"
+                  style={{ minHeight: 56 }}
+                  placeholder='[{ "accountId": "…", "debit": 0, "credit": 0 }]'
+                />
+                <p className="acct-caption mt-1">
+                  opening balances to post on the first day — leave empty to carry forward from
+                  the prior close
+                </p>
+              </div>
+              <div className="col-span-2">
+                <Button type="submit" className="w-full" disabled={openPeriodMutation.isPending}>
+                  Open period
+                </Button>
+              </div>
+            </form>
+          </ReportPanel>
 
-      <Sheet open={formOpen} onOpenChange={setFormOpen}>
-        <SheetContent size="md" className="w-full p-6">
-          <SheetHeader>
-            <SheetTitle>Open Accounting Period</SheetTitle>
-            <SheetDescription>
-              Periods must not overlap. Once closed, entries cannot be posted inside the window.
-            </SheetDescription>
-          </SheetHeader>
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="block text-sm font-semibold mb-2">Start Date *</label>
-              <Input
-                type="date"
-                value={startDate}
-                onChange={(event) => setStartDate(event.target.value)}
-                required
-              />
+          <ReportPanel title="Closing controls" note={openPeriodLabel}>
+            <div className="grid grid-cols-2 gap-x-3 gap-y-[11px] px-[13px] pb-[13px] pt-3">
+              <div className="col-span-2 min-w-0">
+                <label className="acct-field-label">Retained earnings account</label>
+                <Select
+                  value={effectiveRetainedEarningsAccountId}
+                  onValueChange={setRetainedEarningsAccountId}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Retained earnings account" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {accounts.map((account) => (
+                      <SelectItem key={account.id} value={account.id}>
+                        {account.code} - {account.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <p className="acct-caption mt-1">
+                  where the year rolls into on close — applied by the close itself, not stored
+                  with the freeze date
+                </p>
+              </div>
+              <div className="col-span-2 min-w-0">
+                <label className="acct-field-label" htmlFor="period-freeze-date">
+                  Freeze postings before
+                </label>
+                <Input
+                  id="period-freeze-date"
+                  type="date"
+                  value={effectiveFreezeBeforeDate}
+                  onChange={(event) => setFreezeBeforeDate(event.target.value)}
+                />
+                <p className="acct-caption mt-1">
+                  nothing may be posted on or before this date, open period or not
+                </p>
+              </div>
             </div>
-            <div>
-              <label className="block text-sm font-semibold mb-2">End Date *</label>
-              <Input
-                type="date"
-                value={endDate}
-                onChange={(event) => setEndDate(event.target.value)}
-                required
-              />
-            </div>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
-                Create Period
+            <div className="px-[13px] pb-[13px]">
+              <Button
+                variant="outline"
+                className="w-full"
+                onClick={() => freezeMutation.mutate()}
+                disabled={freezeMutation.isPending}
+              >
+                Save controls
               </Button>
-              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
-                Cancel
-              </Button>
             </div>
-          </form>
-        </SheetContent>
-      </Sheet>
+          </ReportPanel>
+
+          <PeriodCloseChecklist
+            items={checklist}
+            closeAction={
+              openPeriod
+                ? {
+                    label: `Close ${periodLabel(openPeriod)}`,
+                    pending: closeMutation.isPending,
+                    onClick: () => closeMutation.mutate(openPeriod.id),
+                  }
+                : undefined
+            }
+          />
+        </div>
+      </div>
     </AccountingShell>
   );
 }

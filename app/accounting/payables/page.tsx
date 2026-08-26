@@ -3,8 +3,17 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import {
+  ReportTable,
+  amt,
+  nm,
+  total,
+  type CellTone,
+  type ReportRow,
+} from "@/components/accounting/report-table";
 import {
   Breakdown,
   ReportPanel,
@@ -22,13 +31,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
 import { Building2, FileText, Payments } from "@/lib/icons";
 
-function formatCurrency(value: number) {
-  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+/**
+ * One ageing bucket in the by-vendor table.
+ *
+ * A zero is printed rather than dashed. Every vendor carries all five buckets
+ * whether or not there is money in them, so the column can be read straight
+ * down; an em dash there would say "not reported" when what is true is
+ * "nothing owed in this bucket". The severity ink only lands on a bucket that
+ * actually holds money, which is what keeps a clean vendor's row from reading
+ * as five warnings.
+ */
+function bucketCell(value: number, tone: CellTone) {
+  return amt(formatAmount(value), { tone: value > 0 ? tone : "dim" });
 }
 
 export default function PayablesHomePage() {
@@ -129,24 +148,72 @@ export default function PayablesHomePage() {
   });
 
   const vendorRows = useMemo(() => {
-    const rows = (apAging?.rows ?? []).map((row) => {
-      const overdue = row.days30 + row.days60 + row.days90 + row.days90Plus;
-      const oldest =
-        row.days90Plus > 0
-          ? { label: "Over 90", tone: "bad" as const }
-          : row.days90 > 0
-            ? { label: "61–90", tone: "bad" as const }
-            : row.days60 > 0
-              ? { label: "31–60", tone: "warn" as const }
-              : row.days30 > 0
-                ? { label: "1–30", tone: "warn" as const }
-                : { label: "—", tone: "mute" as const };
-      return { id: row.id, name: row.name, open: row.total, overdue, oldest };
-    });
+    const rows = (apAging?.rows ?? []).map((row) => ({
+      id: row.id,
+      name: row.name,
+      notDue: row.current,
+      days30: row.days30,
+      days60: row.days60,
+      days90: row.days90,
+      days90Plus: row.days90Plus,
+      open: row.total,
+      overdue: row.days30 + row.days60 + row.days90 + row.days90Plus,
+    }));
     return rows
       .filter((row) => row.open !== 0 || row.overdue !== 0)
       .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
   }, [apAging]);
+
+  /**
+   * The foot of the table. Summed from the rows on screen rather than taken
+   * from the summary KPIs, because the two are answers to different questions —
+   * the KPIs honour the period filter, the ageing report is a position as at a
+   * date — and a total that does not add up the column above it is worse than
+   * no total at all.
+   */
+  const bucketTotals = useMemo(
+    () =>
+      vendorRows.reduce(
+        (running, row) => ({
+          notDue: running.notDue + row.notDue,
+          days30: running.days30 + row.days30,
+          days60: running.days60 + row.days60,
+          days90: running.days90 + row.days90,
+          days90Plus: running.days90Plus + row.days90Plus,
+        }),
+        { notDue: 0, days30: 0, days60: 0, days90: 0, days90Plus: 0 },
+      ),
+    [vendorRows],
+  );
+
+  const vendorTableRows = useMemo<ReportRow[]>(() => {
+    if (vendorRows.length === 0) return [];
+    return [
+      ...vendorRows.map((row) => ({
+        id: row.id,
+        cells: [
+          nm(row.name),
+          bucketCell(row.notDue, "strong"),
+          bucketCell(row.days30, "warn"),
+          bucketCell(row.days60, "warn"),
+          bucketCell(row.days90, "bad"),
+          bucketCell(row.days90Plus, "bad"),
+        ],
+      })),
+      {
+        id: "total",
+        emphasis: true,
+        cells: [
+          nm("Total", { tone: "total" }),
+          total(formatAmount(bucketTotals.notDue)),
+          total(formatAmount(bucketTotals.days30)),
+          total(formatAmount(bucketTotals.days60)),
+          total(formatAmount(bucketTotals.days90)),
+          total(formatAmount(bucketTotals.days90Plus)),
+        ],
+      },
+    ];
+  }, [vendorRows, bucketTotals]);
 
   /**
    * Ratios, null when there is no denominator — see the AR report. A tenant
@@ -237,6 +304,16 @@ export default function PayablesHomePage() {
       activeTab="ap-report"
       title="AP Report"
       description="the payables book — what was a separate summary tab"
+      bandSlot={
+        <>
+          <BandChip label="Open" value={formatHeadline(summary?.kpis.openBalance ?? 0)} tone="mute" />
+          <BandChip
+            label="Overdue"
+            value={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
+            tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "bad" : "ok"}
+          />
+        </>
+      }
       actions={
         <AccountingNewButton
           items={[
@@ -284,7 +361,7 @@ export default function PayablesHomePage() {
         <MetricTile
           title="Open AP"
           value={summary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.openBalance ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.openBalance ?? 0)}
           delta={`${(summary?.kpis.receivedBillCount ?? 0).toLocaleString()} bills`}
           detail={
             vendorRows.length > 0
@@ -297,7 +374,7 @@ export default function PayablesHomePage() {
         <MetricTile
           title="Overdue AP"
           value={summary?.kpis.overdueBalance ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.overdueBalance ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
           delta={overdueShare === null ? undefined : `${overdueShare}% of the book`}
           detail={
             (summary?.kpis.overdueBalance ?? 0) > 0 ? "past its terms" : "all within terms"
@@ -308,7 +385,7 @@ export default function PayablesHomePage() {
         <MetricTile
           title="Billed, period"
           value={summary?.kpis.receivedBillValue ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.receivedBillValue ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.receivedBillValue ?? 0)}
           delta={`${(summary?.kpis.receivedBillCount ?? 0).toLocaleString()} received`}
           detail="in the selected period"
           tone="neutral"
@@ -317,7 +394,7 @@ export default function PayablesHomePage() {
         <MetricTile
           title="Paid, period"
           value={summary?.kpis.paidAmount ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.paidAmount ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.paidAmount ?? 0)}
           delta={settlementRate === null ? undefined : `${settlementRate}% of billed`}
           detail="paid to suppliers"
           tone="good"
@@ -326,7 +403,7 @@ export default function PayablesHomePage() {
         <MetricTile
           title="Debit notes"
           value={summary?.kpis.debitNoteAmount ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.debitNoteAmount ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.debitNoteAmount ?? 0)}
           detail="raised against bills"
           tone={(summary?.kpis.debitNoteAmount ?? 0) > 0 ? "warn" : "neutral"}
           href="/accounting/purchases?view=debit-notes"
@@ -338,7 +415,7 @@ export default function PayablesHomePage() {
         <ReportPanel className="xl:col-span-4" title="Ageing" note="where the balance sits">
           <Breakdown
             rows={agingRows}
-            formatValue={formatCurrency}
+            formatValue={formatAmount}
             emptyLabel="Nothing outstanding in this period."
           />
         </ReportPanel>
@@ -368,62 +445,31 @@ export default function PayablesHomePage() {
             { key: "billed", label: "Billed", type: "area", color: "var(--brand-300)" },
             { key: "paid", label: "Paid", type: "line", color: "var(--brand)" },
           ]}
-          valueFormatter={formatCurrency}
+          valueFormatter={formatAmount}
         />
       </div>
 
-      {/* Who we owe it to — the mirror of the AR report's closing table. */}
+      {/* Who we owe it to, bucket by bucket. The ageing panel above answers
+          "how old is the book"; this answers "whose", and it has to carry every
+          bucket to do it — a single summed "overdue" figure cannot tell a
+          vendor sitting one day past terms from one sitting a quarter past. */}
       <ReportPanel title="By vendor" note="worst first">
-        {vendorRows.length === 0 ? (
-          <p className="px-[13px] py-4 text-sm text-[var(--text-muted)]">
-            Nothing outstanding on any vendor.
-          </p>
-        ) : (
-          <div role="table" aria-label="Payables by vendor">
-            <div
-              role="row"
-              className="grid grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] acct-col-head px-[13px] py-1.5"
-            >
-              <span role="columnheader">Vendor</span>
-              <span role="columnheader" className="text-right">Open</span>
-              <span role="columnheader" className="text-right">Overdue</span>
-              <span role="columnheader" className="text-right">Oldest</span>
-            </div>
-            {vendorRows.map((row) => (
-              <div
-                role="row"
-                key={row.id}
-                className="grid min-h-9 grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--table-divider)] px-[13px] hover:bg-[var(--canvas)]"
-              >
-                <span role="cell" className="truncate pr-3 text-sm font-semibold text-[var(--text-strong)]">
-                  {row.name}
-                </span>
-                <span role="cell" className="text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-strong)]">
-                  {formatCurrency(row.open)}
-                </span>
-                <span
-                  role="cell"
-                  className={cn(
-                    "text-right font-mono text-sm font-semibold tabular-nums",
-                    row.overdue > 0 ? "text-[var(--badge-bad-fg)]" : "text-[var(--text-subtle)]",
-                  )}
-                >
-                  {formatCurrency(row.overdue)}
-                </span>
-                <span role="cell" className="text-right">
-                  {row.oldest.tone === "mute" ? (
-                    <span className="font-mono text-sm text-[var(--text-subtle)]">—</span>
-                  ) : (
-                    <span className="acct-badge" data-tone={row.oldest.tone}>
-                      {row.oldest.label}
-                    </span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+        <ReportTable
+          label="Payables by vendor"
+          tracks="minmax(0,1fr) 120px 120px 120px 120px 130px"
+          columns={[
+            { label: "Vendor" },
+            { label: "Not due", align: "right" },
+            { label: "1–30", align: "right" },
+            { label: "31–60", align: "right" },
+            { label: "61–90", align: "right" },
+            { label: "Over 90", align: "right" },
+          ]}
+          rows={vendorTableRows}
+          emptyLabel="Nothing outstanding on any vendor."
+        />
       </ReportPanel>
+
 
       <GroupedLinkList groups={groups} />
     </AccountingShell>

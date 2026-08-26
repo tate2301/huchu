@@ -13,6 +13,14 @@ import {
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { BandChip } from "@/components/accounting/band-chip";
+import {
+  ReportTable,
+  amt,
+  nm,
+  total,
+  type ReportRow,
+} from "@/components/accounting/report-table";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -24,12 +32,8 @@ import {
 } from "@/components/ui/select";
 import { fetchArAging, fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { formatAmount, formatCount, formatHeadline } from "@/lib/accounting/format";
 import { NoteAdd, ReceiptLong, UserPlus } from "@/lib/icons";
-
-function formatCurrency(value: number) {
-  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 export default function ReceivablesHomePage() {
   const [startDate, setStartDate] = useState("");
@@ -141,26 +145,64 @@ export default function ReceivablesHomePage() {
    * customer and a small one past 90 days is a problem.
    */
   const customerRows = useMemo(() => {
-    const rows = (arAging?.rows ?? []).map((row) => {
-      const overdue = row.days30 + row.days60 + row.days90 + row.days90Plus;
-      // The oldest bucket carrying anything. Read from the far end so a
-      // customer sitting in two buckets is reported by the worse one.
-      const oldest =
-        row.days90Plus > 0
-          ? { label: "Over 90", tone: "bad" as const }
-          : row.days90 > 0
-            ? { label: "61–90", tone: "bad" as const }
-            : row.days60 > 0
-              ? { label: "31–60", tone: "warn" as const }
-              : row.days30 > 0
-                ? { label: "1–30", tone: "warn" as const }
-                : { label: "—", tone: "mute" as const };
-      return { id: row.id, name: row.name, open: row.total, overdue, oldest };
-    });
+    const rows = (arAging?.rows ?? []).map((row) => ({
+      ...row,
+      overdue: row.days30 + row.days60 + row.days90 + row.days90Plus,
+    }));
     return rows
-      .filter((row) => row.open !== 0 || row.overdue !== 0)
-      .sort((a, b) => b.overdue - a.overdue || b.open - a.open);
+      .filter((row) => row.total !== 0 || row.overdue !== 0)
+      .sort((a, b) => b.overdue - a.overdue || b.total - a.total);
   }, [arAging]);
+
+  /**
+   * The book split the way an ageing report is actually read: a column per
+   * bucket, so you can see whether a customer is one late invoice or a
+   * pattern.
+   *
+   * This carried a single "Overdue" figure and a badge naming the worst bucket
+   * before, which threw away four of the five numbers the endpoint already
+   * returns — and a badge reading "Over 90" cannot tell you whether that is
+   * forty dollars or forty thousand.
+   */
+  const customerTableRows = useMemo<ReportRow[]>(() => {
+    if (customerRows.length === 0) return [];
+
+    // Zero is drawn back rather than emphasised: on a wide ageing grid most
+    // cells are zero, and giving them the same ink as the balances buries the
+    // handful of figures somebody has to act on.
+    const bucket = (value: number, tone: "strong" | "warn" | "bad") =>
+      amt(formatAmount(value), { tone: value === 0 ? "dim" : tone });
+
+    const rows: ReportRow[] = customerRows.map((row) => ({
+      id: row.id,
+      cells: [
+        nm(row.name),
+        bucket(row.current, "strong"),
+        bucket(row.days30, "warn"),
+        bucket(row.days60, "bad"),
+        bucket(row.days90, "bad"),
+        bucket(row.days90Plus, "bad"),
+      ],
+    }));
+
+    const sum = (pick: (row: (typeof customerRows)[number]) => number) =>
+      customerRows.reduce((running, row) => running + pick(row), 0);
+
+    rows.push({
+      id: "total",
+      emphasis: true,
+      cells: [
+        nm("Total", { tone: "total" }),
+        total(formatAmount(sum((row) => row.current))),
+        total(formatAmount(sum((row) => row.days30))),
+        total(formatAmount(sum((row) => row.days60))),
+        total(formatAmount(sum((row) => row.days90))),
+        total(formatAmount(sum((row) => row.days90Plus))),
+      ],
+    });
+
+    return rows;
+  }, [customerRows]);
 
   /**
    * The two figures on the KPI strip that are ratios rather than totals.
@@ -254,6 +296,24 @@ export default function ReceivablesHomePage() {
       activeTab="ar-report"
       title="AR Report"
       description="the receivables book — what was a separate summary tab"
+      /*
+        The two figures the rest of the page is read against, pinned.
+
+        Everything below here is a breakdown of one of these, and by the time
+        you are down at the customer table the tiles carrying them have
+        scrolled away — which is the moment you most want to know whether the
+        $12,800 in front of you is most of the overdue book or a tenth of it.
+      */
+      bandSlot={
+        <>
+          <BandChip label="Open" value={formatHeadline(summary?.kpis.openBalance ?? 0)} tone="mute" />
+          <BandChip
+            label="Overdue"
+            value={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
+            tone={(summary?.kpis.overdueBalance ?? 0) > 0 ? "bad" : "ok"}
+          />
+        </>
+      }
       actions={
         <AccountingNewButton
           items={[
@@ -301,11 +361,11 @@ export default function ReceivablesHomePage() {
         <MetricTile
           title="Open AR"
           value={summary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.openBalance ?? 0)}
-          delta={`${(summary?.kpis.issuedInvoiceCount ?? 0).toLocaleString()} invoices`}
+          valueLabel={formatHeadline(summary?.kpis.openBalance ?? 0)}
+          delta={formatCount(summary?.kpis.issuedInvoiceCount ?? 0, "invoice")}
           detail={
             customerRows.length > 0
-              ? `across ${customerRows.length} customer${customerRows.length === 1 ? "" : "s"}`
+              ? `across ${formatCount(customerRows.length, "customer")}`
               : "nothing outstanding"
           }
           tone="neutral"
@@ -314,7 +374,7 @@ export default function ReceivablesHomePage() {
         <MetricTile
           title="Overdue AR"
           value={summary?.kpis.overdueBalance ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.overdueBalance ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.overdueBalance ?? 0)}
           delta={
             overdueShare === null ? undefined : `${overdueShare}% of the book`
           }
@@ -329,7 +389,7 @@ export default function ReceivablesHomePage() {
         <MetricTile
           title="Invoiced, period"
           value={summary?.kpis.issuedInvoiceValue ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.issuedInvoiceValue ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.issuedInvoiceValue ?? 0)}
           delta={`${(summary?.kpis.issuedInvoiceCount ?? 0).toLocaleString()} raised`}
           detail="in the selected period"
           tone="neutral"
@@ -338,7 +398,7 @@ export default function ReceivablesHomePage() {
         <MetricTile
           title="Collected, period"
           value={summary?.kpis.collectedAmount ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.collectedAmount ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.collectedAmount ?? 0)}
           delta={collectionRate === null ? undefined : `${collectionRate}% of invoiced`}
           detail="receipts banked"
           tone="good"
@@ -347,7 +407,7 @@ export default function ReceivablesHomePage() {
         <MetricTile
           title="Credit notes"
           value={summary?.kpis.creditNoteAmount ?? 0}
-          valueLabel={formatCurrency(summary?.kpis.creditNoteAmount ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.creditNoteAmount ?? 0)}
           detail="raised against invoices"
           tone={(summary?.kpis.creditNoteAmount ?? 0) > 0 ? "warn" : "neutral"}
           href="/accounting/sales?view=credit-notes"
@@ -368,7 +428,7 @@ export default function ReceivablesHomePage() {
         <ReportPanel className="xl:col-span-4" title="Ageing" note="where the balance sits">
           <Breakdown
             rows={agingRows}
-            formatValue={formatCurrency}
+            formatValue={formatAmount}
             emptyLabel="Nothing outstanding in this period."
           />
         </ReportPanel>
@@ -405,7 +465,7 @@ export default function ReceivablesHomePage() {
             { key: "invoiced", label: "Invoiced", type: "area", color: "var(--brand-300)" },
             { key: "collected", label: "Collected", type: "line", color: "var(--brand)" },
           ]}
-          valueFormatter={formatCurrency}
+          valueFormatter={formatAmount}
         />
       </div>
 
@@ -414,56 +474,21 @@ export default function ReceivablesHomePage() {
         that names a customer, which is why the design puts it last and full
         width — you read the position, then you read who to ring.
       */}
-      <ReportPanel title="By customer" note="worst first">
-        {customerRows.length === 0 ? (
-          <p className="px-[13px] py-4 text-sm text-[var(--text-muted)]">
-            Nothing outstanding on any customer.
-          </p>
-        ) : (
-          <div role="table" aria-label="Receivables by customer">
-            <div
-              role="row"
-              className="grid grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--border)] bg-[var(--table-header-bg)] acct-col-head px-[13px] py-1.5"
-            >
-              <span role="columnheader">Customer</span>
-              <span role="columnheader" className="text-right">Open</span>
-              <span role="columnheader" className="text-right">Overdue</span>
-              <span role="columnheader" className="text-right">Oldest</span>
-            </div>
-            {customerRows.map((row) => (
-              <div
-                role="row"
-                key={row.id}
-                className="grid min-h-9 grid-cols-[minmax(0,1fr)_130px_120px_120px] items-center border-b border-[var(--table-divider)] px-[13px] hover:bg-[var(--canvas)]"
-              >
-                <span role="cell" className="truncate pr-3 text-sm font-semibold text-[var(--text-strong)]">
-                  {row.name}
-                </span>
-                <span role="cell" className="text-right font-mono text-sm font-semibold tabular-nums text-[var(--text-strong)]">
-                  {formatCurrency(row.open)}
-                </span>
-                <span
-                  role="cell"
-                  className={cn(
-                    "text-right font-mono text-sm font-semibold tabular-nums",
-                    row.overdue > 0 ? "text-[var(--badge-bad-fg)]" : "text-[var(--text-subtle)]",
-                  )}
-                >
-                  {formatCurrency(row.overdue)}
-                </span>
-                <span role="cell" className="text-right">
-                  {row.oldest.tone === "mute" ? (
-                    <span className="font-mono text-sm text-[var(--text-subtle)]">—</span>
-                  ) : (
-                    <span className="acct-badge" data-tone={row.oldest.tone}>
-                      {row.oldest.label}
-                    </span>
-                  )}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+      <ReportPanel title="By customer" note="by bucket, oldest on the right">
+        <ReportTable
+          label="Receivables by customer, by ageing bucket"
+          tracks="minmax(0,1fr) 120px 120px 120px 120px 130px"
+          columns={[
+            { label: "Customer" },
+            { label: "Not due", align: "right" },
+            { label: "1–30", align: "right" },
+            { label: "31–60", align: "right" },
+            { label: "61–90", align: "right" },
+            { label: "Over 90", align: "right" },
+          ]}
+          rows={customerTableRows}
+          emptyLabel="Nothing outstanding on any customer."
+        />
       </ReportPanel>
 
       <GroupedLinkList groups={groups} />

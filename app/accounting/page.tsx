@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useMemo, useState } from "react";
+import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
@@ -34,6 +34,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  fetchAccountingPeriods,
   fetchAccountingSummary,
   fetchFinancialReportsHubSummary,
   fetchJournalEntries,
@@ -42,7 +43,8 @@ import {
   fetchSites,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import type { AccountingSeedPackResult } from "@/lib/api";
+import type { AccountingPeriodRecord, AccountingSeedPackResult } from "@/lib/api";
+import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import {
   Coins,
   MoreHorizontal,
@@ -53,10 +55,6 @@ import {
   RefreshCcw,
 } from "@/lib/icons";
 
-function formatCurrency(value: number) {
-  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 /** Ink for the period panel's figures — the badge palette, so it agrees with
  *  the status chips in the journals table beside it. */
 const PERIOD_INK: Record<string, string> = {
@@ -65,6 +63,42 @@ const PERIOD_INK: Record<string, string> = {
   ok: "var(--badge-ok-fg)",
   muted: "var(--text-subtle)",
 };
+
+/*
+  Period boundaries are printed in UTC, not in the reader's zone.
+
+  A period is stored as a pair of date-only values parsed at UTC midnight, so
+  formatting 2026-08-31T00:00:00Z anywhere west of Greenwich renders "30 Aug"
+  and the panel tells a Harare bookkeeper the month closes a day early. The
+  journal *timestamps* below stay local — those are moments, and a moment is
+  properly read in the zone you are standing in.
+*/
+function formatPeriodMonth(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+function formatPeriodDay(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  });
+}
+
+/** The same shape, read in the reader's own zone — for `closedAt` and the
+ *  other stamps that record when somebody did something. */
+function formatMomentDay(iso: string) {
+  return new Date(iso).toLocaleDateString(undefined, {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
 
 
 
@@ -321,6 +355,26 @@ function FoundationPackDialog({
 
 // ── Page ─────────────────────────────────────────────────────────────────────
 
+
+/**
+ * Today, read once per page load rather than on every render.
+ *
+ * `Date.now()` in a memo is an impure read: two renders a second apart can
+ * disagree about which period contains today, and on the server it is the
+ * server's clock rather than the reader's. Same contract as `ClientTime` in
+ * the CRM timeline — the server snapshot and the client's first snapshot are
+ * both null, so hydration matches, and the cached timestamp keeps the
+ * snapshot referentially stable so the store never loops.
+ */
+const NO_RESUBSCRIBE = () => () => {};
+let clientToday: number | null = null;
+const readToday = () => (clientToday ??= Date.now());
+const readTodayOnServer = () => null;
+
+function useToday(): number | null {
+  return useSyncExternalStore(NO_RESUBSCRIBE, readToday, readTodayOnServer);
+}
+
 export default function AccountingOverviewPage() {
   const queryClient = useQueryClient();
   const [startDate, setStartDate] = useState("");
@@ -391,8 +445,8 @@ export default function AccountingOverviewPage() {
       id: label,
       cells: [
         nm(label),
-        debit === null ? dim() : amt(formatCurrency(debit)),
-        credit === null ? dim() : amt(formatCurrency(credit)),
+        debit === null ? dim() : amt(formatAmount(debit)),
+        credit === null ? dim() : amt(formatAmount(credit)),
       ],
     });
     return [
@@ -406,8 +460,8 @@ export default function AccountingOverviewPage() {
         emphasis: true,
         cells: [
           nm("Total", { tone: balanced ? "total" : "bad" }),
-          amt(formatCurrency(totalDebit), { tone: balanced ? "total" : "bad" }),
-          amt(formatCurrency(totalCredit), { tone: balanced ? "total" : "bad" }),
+          amt(formatAmount(totalDebit), { tone: balanced ? "total" : "bad" }),
+          amt(formatAmount(totalCredit), { tone: balanced ? "total" : "bad" }),
         ],
       },
     ];
@@ -442,7 +496,7 @@ export default function AccountingOverviewPage() {
       where: "Receivables",
       href: "/accounting/sales",
       count: accountingSummary?.openInvoices ?? 0,
-      value: formatCurrency(receivablesSummary?.kpis.overdueBalance ?? 0),
+      value: formatHeadline(receivablesSummary?.kpis.overdueBalance ?? 0),
       urgent: (receivablesSummary?.kpis.overdueBalance ?? 0) > 0,
     });
     push({
@@ -450,7 +504,7 @@ export default function AccountingOverviewPage() {
       where: "Payables",
       href: "/accounting/purchases",
       count: accountingSummary?.openBills ?? 0,
-      value: formatCurrency(payablesSummary?.kpis.overdueBalance ?? 0),
+      value: formatHeadline(payablesSummary?.kpis.overdueBalance ?? 0),
       urgent: (payablesSummary?.kpis.overdueBalance ?? 0) > 0,
     });
     push({
@@ -461,17 +515,26 @@ export default function AccountingOverviewPage() {
       urgent: true,
     });
     push({
-      label: "VAT returns to file",
-      where: "Tax",
-      href: "/accounting/tax?view=vat-returns",
-      count: accountingSummary?.pendingVatReturns ?? 0,
-    });
-    push({
       label: "Postings that never reached the ledger",
       where: "Posting Rules",
       href: "/accounting/posting-rules",
       count: accountingSummary?.failedIntegrationEvents ?? 0,
       urgent: true,
+    });
+    /*
+      VAT sits last because it is ours, not the design's.
+
+      The order above is the close as the design sequences it — journals, then
+      the two ledgers, then fiscalisation, then the postings that never landed
+      — and a filing deadline is a different kind of obligation from a document
+      somebody has to go and clear. Appending it keeps that sequence readable
+      instead of interrupting it halfway down.
+    */
+    push({
+      label: "VAT returns to file",
+      where: "Tax",
+      href: "/accounting/tax?view=vat-returns",
+      count: accountingSummary?.pendingVatReturns ?? 0,
     });
 
     return rows;
@@ -502,6 +565,12 @@ export default function AccountingOverviewPage() {
    * journal record carries no such field, so the column is `Date` instead
    * rather than a guess dressed up as provenance. Worth adding to the API
    * later; not worth inventing here.
+   *
+   * `Amount` is the design's own column and is real: the journals endpoint
+   * foots each entry's lines and returns the total. A balanced entry has
+   * debit and credit equal, so either side is the entry's size — `totalDebit`
+   * is the conventional one to print, with `amount` (the larger side) as the
+   * fallback for a draft that does not yet balance.
    */
   const { data: recentJournals } = useQuery({
     queryKey: ["accounting", "journals", "recent"],
@@ -517,6 +586,7 @@ export default function AccountingOverviewPage() {
           txt(`JE-${entry.entryNumber}`, { mono: true, tone: "strong" }),
           nm(entry.description || "No memo"),
           txt(new Date(entry.entryDate).toLocaleDateString(), { tone: "subtle" }),
+          amt(formatHeadline(entry.totalDebit ?? entry.amount ?? 0)),
           badge(
             entry.status === "POSTED" ? "Posted" : "Draft",
             entry.status === "POSTED" ? "ok" : "warn",
@@ -527,46 +597,109 @@ export default function AccountingOverviewPage() {
     [recentJournals],
   );
 
+  /**
+   * The period panel is about one period, so it asks for periods.
+   *
+   * It used to be built from `AccountingSummary`, which only carries counts —
+   * how many periods are open, how many journals are posted — and a count of
+   * open periods answers a different question from the one the panel is
+   * titled with. A dozen rows is enough to find the current window and the
+   * one closed before it; the endpoint returns them newest first.
+   */
+  const { data: periodPage } = useQuery({
+    queryKey: ["accounting", "periods", "overview"],
+    queryFn: () => fetchAccountingPeriods({ limit: 12, page: 1 }),
+  });
+
+  /**
+   * The period being posted into, and the last one signed off.
+   *
+   * "Current" is the window today falls inside rather than simply the newest
+   * open one: a workspace that has run ahead and created next quarter's
+   * periods should still describe the month its bookkeepers are working in.
+   * Only when today falls outside every window does the newest open period
+   * stand in for it.
+   */
+  const now = useToday();
+  const { currentPeriod, lastClosedPeriod } = useMemo(() => {
+    const periods = periodPage?.data ?? [];
+    // Before hydration there is no reader's clock to compare against, so no
+    // window "contains" today and the open-period fallback below stands in.
+    const contains = (p: AccountingPeriodRecord) =>
+      now !== null &&
+      new Date(p.startDate).getTime() <= now &&
+      now <= new Date(p.endDate).getTime();
+
+    const current =
+      periods.find((p) => p.status === "OPEN" && contains(p)) ??
+      periods.find(contains) ??
+      periods.find((p) => p.status === "OPEN") ??
+      null;
+
+    const lastClosed =
+      periods.find((p) => p.status === "CLOSED" && p.id !== current?.id) ?? null;
+
+    return { currentPeriod: current, lastClosedPeriod: lastClosed };
+  }, [periodPage, now]);
+
   const periodFacts = useMemo<
     Array<{ label: string; value: string; tone?: "strong" | "warn" | "ok" | "muted" }>
-  >(
-    () => [
-      {
-        label: "Open periods",
-        value: String(accountingSummary?.openPeriods ?? 0),
-        tone: (accountingSummary?.openPeriods ?? 0) > 0 ? "ok" : "muted",
-      },
-      { label: "Posted journals", value: String(accountingSummary?.postedJournals ?? 0) },
-      {
-        label: "In draft",
-        value: String(accountingSummary?.draftJournals ?? 0),
-        tone: (accountingSummary?.draftJournals ?? 0) > 0 ? "warn" : "muted",
-      },
-      {
-        label: "Frozen before",
-        value: accountingSummary?.freezeBeforeDate
-          ? new Date(accountingSummary.freezeBeforeDate).toLocaleDateString()
-          : "not set",
-        tone: accountingSummary?.freezeBeforeDate ? "strong" : "muted",
-      },
-    ],
-    [accountingSummary],
-  );
+  >(() => {
+    const facts: Array<{
+      label: string;
+      value: string;
+      tone?: "strong" | "warn" | "ok" | "muted";
+    }> = [];
+
+    if (currentPeriod) {
+      const open = currentPeriod.status === "OPEN";
+      facts.push({ label: "Current period", value: formatPeriodMonth(currentPeriod.endDate) });
+      facts.push({ label: "Status", value: open ? "Open" : "Closed", tone: open ? "ok" : "muted" });
+      /*
+        A period that is already closed did not "close on" its window end — it
+        closed when somebody signed it off, and that is the date a reviewer is
+        looking for. Open periods still show the deadline ahead of them.
+      */
+      facts.push(
+        open
+          ? { label: "Closes on", value: formatPeriodDay(currentPeriod.endDate) }
+          : {
+              label: "Closed on",
+              value: currentPeriod.closedAt
+                ? formatMomentDay(currentPeriod.closedAt)
+                : formatPeriodDay(currentPeriod.endDate),
+              tone: "muted",
+            },
+      );
+    } else {
+      facts.push({ label: "Current period", value: "none open", tone: "muted" });
+    }
+
+    facts.push({
+      label: "Last closed",
+      value: lastClosedPeriod ? formatPeriodMonth(lastClosedPeriod.endDate) : "none yet",
+      tone: "muted",
+    });
+
+    return facts;
+  }, [currentPeriod, lastClosedPeriod]);
 
   /**
    * The period panel's qualifier — "FY2026 · August" in the design.
    *
-   * Derived from the summary's own period window rather than from today's
-   * date, so a workspace still posting into last month is described by the
-   * books rather than by the calendar on the wall.
+   * Read off the current period rather than today's date, so a workspace
+   * still posting into last month is described by the books rather than by
+   * the calendar on the wall.
    */
   const periodNote = useMemo(() => {
-    const end = financialSummary?.meta.endDate;
-    if (!end) return "the books you post into";
-    const date = new Date(end);
-    if (Number.isNaN(date.getTime())) return "the books you post into";
-    return `FY${date.getFullYear()} · ${date.toLocaleDateString(undefined, { month: "long" })}`;
-  }, [financialSummary]);
+    if (!currentPeriod) return undefined;
+    const end = new Date(currentPeriod.endDate);
+    if (Number.isNaN(end.getTime())) return undefined;
+    return `FY${end.getUTCFullYear()} · ${end.toLocaleDateString(undefined, {
+      month: "long",
+      timeZone: "UTC",
+    })}`;
+  }, [currentPeriod]);
 
 
 
@@ -582,7 +715,21 @@ export default function AccountingOverviewPage() {
       description="where the books stand today"
       bandSlot={
         <>
-          <BandChip label="Period" value={periodNote} tone="ok" />
+          {/*
+            The chip gets the short form — "Aug 2026" — not the panel note's
+            fuller "FY2026 · August". It sits in a band that also has to hold
+            the title, the lede and the actions, and a chip is read at a
+            glance rather than parsed. Absent a period there is nothing to
+            pin, and an em dash in a chip is a chip that has to be read to
+            learn it says nothing.
+          */}
+          {currentPeriod ? (
+            <BandChip
+              label="Period"
+              value={formatPeriodMonth(currentPeriod.endDate)}
+              tone={currentPeriod.status === "OPEN" ? "ok" : "mute"}
+            />
+          ) : null}
           <BandChip
             label="Balanced"
             value={balanced ? "Yes" : "No"}
@@ -675,7 +822,7 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="Cash on hand"
           value={financialSummary?.kpis.netCash ?? 0}
-          valueLabel={formatCurrency(financialSummary?.kpis.netCash ?? 0)}
+          valueLabel={formatHeadline(financialSummary?.kpis.netCash ?? 0)}
           delta={(financialSummary?.kpis.netCash ?? 0) < 0 ? "overdrawn" : "net movement"}
           detail="across cash and bank"
           tone={(financialSummary?.kpis.netCash ?? 0) < 0 ? "danger" : "good"}
@@ -684,10 +831,10 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="Owed to us"
           value={receivablesSummary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(receivablesSummary?.kpis.openBalance ?? 0)}
+          valueLabel={formatHeadline(receivablesSummary?.kpis.openBalance ?? 0)}
           delta={
             (receivablesSummary?.kpis.overdueBalance ?? 0) > 0
-              ? `${formatCurrency(receivablesSummary?.kpis.overdueBalance ?? 0)} overdue`
+              ? `${formatHeadline(receivablesSummary?.kpis.overdueBalance ?? 0)} overdue`
               : undefined
           }
           detail={
@@ -701,10 +848,10 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="We owe"
           value={payablesSummary?.kpis.openBalance ?? 0}
-          valueLabel={formatCurrency(payablesSummary?.kpis.openBalance ?? 0)}
+          valueLabel={formatHeadline(payablesSummary?.kpis.openBalance ?? 0)}
           delta={
             (payablesSummary?.kpis.overdueBalance ?? 0) > 0
-              ? `${formatCurrency(payablesSummary?.kpis.overdueBalance ?? 0)} overdue`
+              ? `${formatHeadline(payablesSummary?.kpis.overdueBalance ?? 0)} overdue`
               : undefined
           }
           detail={
@@ -716,7 +863,7 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="Income"
           value={financialSummary?.kpis.income ?? 0}
-          valueLabel={formatCurrency(financialSummary?.kpis.income ?? 0)}
+          valueLabel={formatHeadline(financialSummary?.kpis.income ?? 0)}
           delta="for the period"
           detail="everything earned"
           tone="neutral"
@@ -725,7 +872,7 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="Expenses"
           value={Math.abs(financialSummary?.kpis.expenses ?? 0)}
-          valueLabel={formatCurrency(Math.abs(financialSummary?.kpis.expenses ?? 0))}
+          valueLabel={formatHeadline(Math.abs(financialSummary?.kpis.expenses ?? 0))}
           delta="for the period"
           detail="everything spent"
           tone="warn"
@@ -734,7 +881,7 @@ export default function AccountingOverviewPage() {
         <MetricTile
           title="Net income"
           value={financialSummary?.kpis.netIncome ?? 0}
-          valueLabel={formatCurrency(financialSummary?.kpis.netIncome ?? 0)}
+          valueLabel={formatHeadline(financialSummary?.kpis.netIncome ?? 0)}
           delta={(financialSummary?.kpis.netIncome ?? 0) < 0 ? "at a loss" : "before tax"}
           detail="income less expenses"
           tone={(financialSummary?.kpis.netIncome ?? 0) < 0 ? "danger" : "good"}
@@ -770,7 +917,7 @@ export default function AccountingOverviewPage() {
           />
           {!balanced ? (
             <p className="border-t border-[var(--border-subtle)] px-[13px] py-2 text-sm text-[var(--badge-bad-fg)]">
-              Out by {formatCurrency(Math.abs(totalDebit - totalCredit))} — the ledger will not
+              Out by {formatAmount(Math.abs(totalDebit - totalCredit))} — the ledger will not
               close until this is nil.
             </p>
           ) : null}
@@ -799,9 +946,9 @@ export default function AccountingOverviewPage() {
       <div className="grid gap-3 xl:grid-cols-12">
         <ReportPanel className="xl:col-span-4" title="Period" note={periodNote}>
           {/*
-            Label and figure, not a table. These five are facts about one
-            thing rather than rows of a set — there is nothing to sort, total
-            or compare down a column, so the table's head and rules would be
+            Label and figure, not a table. These are facts about one thing
+            rather than rows of a set — there is nothing to sort, total or
+            compare down a column, so the table's head and rules would be
             chrome around a definition list.
           */}
           <div className="px-[13px] py-1.5">
@@ -821,7 +968,7 @@ export default function AccountingOverviewPage() {
           </div>
           <div className="border-t border-[var(--border-subtle)] p-[13px]">
             <Button asChild size="sm" className="w-full">
-              <Link href="/accounting/periods">Open the close checklist</Link>
+              <Link href="/accounting/periods">Run the close checklist</Link>
             </Button>
           </div>
         </ReportPanel>
@@ -829,11 +976,12 @@ export default function AccountingOverviewPage() {
         <ReportPanel className="xl:col-span-8" title="Recent journals" note="newest first">
           <ReportTable
             label="Recent journal entries"
-            tracks="120px minmax(0,1fr) 130px 120px"
+            tracks="110px minmax(0,1fr) 110px 120px 110px"
             columns={[
               { label: "Ref" },
               { label: "Memo" },
               { label: "Date" },
+              { label: "Amount", align: "right" },
               { label: "Status", align: "right" },
             ]}
             rows={recentJournalRows}

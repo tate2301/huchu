@@ -3,6 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { ReportPanel } from "@/components/ui/breakdown-panel";
 import {
@@ -14,10 +15,9 @@ import {
   txt,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { Scale } from "@/lib/icons";
+import { Coins, Percent, Scale, TrendingUp, Wallet } from "@/lib/icons";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
@@ -27,12 +27,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-
-function formatCurrency(value: number) {
-  return value.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
 
 /**
  * Money the way a statement prints it: negatives in brackets, no minus sign.
@@ -41,9 +38,12 @@ function formatCurrency(value: number) {
  * the far left of the cell, several characters away from the digits and easy
  * to read straight past — which on a cash flow statement is the difference
  * between an inflow and an outflow.
+ *
+ * Only for table cells. The tiles above take `formatHeadline`, where the
+ * figure stands alone rather than in a column and a minus sign is unmissable.
  */
 function accountingFigure(value: number) {
-  const magnitude = formatCurrency(Math.abs(value));
+  const magnitude = formatAmount(Math.abs(value));
   return value < 0 ? `(${magnitude})` : magnitude;
 }
 
@@ -57,11 +57,7 @@ export default function FinancialReportsHomePage() {
     queryFn: fetchSites,
   });
 
-  const {
-    data: summary,
-    isLoading,
-    error,
-  } = useQuery({
+  const { data: summary, error } = useQuery({
     queryKey: ["accounting", "hubs", "financial-reports", startDate, endDate, branchId],
     queryFn: () =>
       fetchFinancialReportsHubSummary({
@@ -81,9 +77,12 @@ export default function FinancialReportsHomePage() {
    * 184,620 off a bar, and a reader who has come here to tie assets back to
    * liabilities plus equity cannot do it at all.
    *
-   * Negatives print in brackets, which is the accounting convention and also
-   * the only unambiguous one: a leading minus at the left edge of a
-   * right-aligned mono column is easy to miss.
+   * The design draws sub-lines beneath each heading — revenue split by stream,
+   * a cost of sales line, a gross profit subtotal. Those are not rendered here
+   * because the hub endpoint does not yet supply them: its `pnlBreakdown` is
+   * the income/expenses/net-income totals under second names, so looping over
+   * it printed every figure on this table twice. Three honest lines beat six
+   * lines that are three facts wearing two hats each.
    */
   const pnlRows = useMemo<ReportRow[]>(() => {
     const k = summary?.kpis;
@@ -96,62 +95,68 @@ export default function FinancialReportsHomePage() {
     const share = (value: number) =>
       income === 0 ? dim() : num(`${Math.round((Math.abs(value) / income) * 100)}`, { tone: "subtle" });
 
-    const lines: ReportRow[] = [
+    return [
       { id: "income", cells: [nm("Income"), amt(accountingFigure(income)), share(income)] },
+      { id: "expenses", cells: [nm("Expenses"), amt(accountingFigure(expenses)), share(expenses)] },
+      {
+        id: "net-income",
+        emphasis: true,
+        cells: [
+          nm("Net income", { tone: net < 0 ? "bad" : "total" }),
+          amt(accountingFigure(net), { tone: net < 0 ? "bad" : "total" }),
+          income === 0
+            ? dim()
+            : num(`${Math.round((net / income) * 100)}`, { tone: net < 0 ? "bad" : "total", bold: true }),
+        ],
+      },
     ];
-    for (const item of summary?.charts.pnlBreakdown ?? []) {
-      lines.push({
-        id: `pnl-${item.label}`,
-        cells: [txt(item.label, { indent: true }), amt(accountingFigure(item.amount)), share(item.amount)],
-      });
-    }
-    lines.push({
-      id: "expenses",
-      cells: [nm("Expenses"), amt(accountingFigure(expenses)), share(expenses)],
-    });
-    lines.push({
-      id: "net-income",
-      emphasis: true,
-      cells: [
-        nm("Net income", { tone: net < 0 ? "bad" : "total" }),
-        amt(accountingFigure(net), { tone: net < 0 ? "bad" : "total" }),
-        income === 0
-          ? dim()
-          : num(`${Math.round((net / income) * 100)}`, { tone: net < 0 ? "bad" : "total", bold: true }),
-      ],
-    });
-    return lines;
   }, [summary]);
 
+  /**
+   * Assets, liabilities, equity — once each.
+   *
+   * The design splits assets into current and fixed and liabilities into
+   * current and long-term before each total. `balanceComposition` cannot
+   * supply that split: it is the same three totals relabelled, so rendering it
+   * above the totals printed each figure twice under two names, which on a
+   * balance sheet reads as a ledger that does not add up.
+   */
   const balanceRows = useMemo<ReportRow[]>(() => {
     const k = summary?.kpis;
     const assets = k?.assets ?? 0;
     const liabilities = k?.liabilities ?? 0;
     const equity = k?.equity ?? 0;
 
-    const lines: ReportRow[] = [];
-    for (const item of summary?.charts.balanceComposition ?? []) {
-      lines.push({
-        id: `bs-${item.label}`,
-        cells: [txt(item.label, { indent: true }), amt(accountingFigure(item.amount))],
-      });
-    }
-    lines.push({ id: "assets", cells: [nm("Total assets"), amt(accountingFigure(assets))] });
-    lines.push({
-      id: "liabilities",
-      cells: [nm("Total liabilities"), amt(accountingFigure(liabilities))],
-    });
-    lines.push({
-      id: "equity",
-      emphasis: true,
-      cells: [nm("Equity", { tone: "total" }), amt(accountingFigure(equity), { tone: "total" })],
-    });
-    return lines;
+    return [
+      { id: "assets", cells: [nm("Total assets"), amt(accountingFigure(assets))] },
+      { id: "liabilities", cells: [nm("Total liabilities"), amt(accountingFigure(liabilities))] },
+      {
+        id: "equity",
+        emphasis: true,
+        cells: [nm("Equity", { tone: "total" }), amt(accountingFigure(equity), { tone: "total" })],
+      },
+    ];
   }, [summary]);
 
+  /**
+   * The three movements, then the one line they add up to.
+   *
+   * `cashFlowComposition` carries a fourth entry that is the net total rather
+   * than a movement, so it is dropped here: the total belongs at the foot of
+   * the statement, emphasised, and printing it both as an ordinary row and as
+   * the total makes the column appear to double-count itself.
+   *
+   * Opening and closing cash — the two rows that turn this into a
+   * reconciliation — are absent because `getCashFlowReport` derives net
+   * movement from the period alone and never looks up a balance brought
+   * forward.
+   */
   const cashRows = useMemo<ReportRow[]>(() => {
     const net = summary?.kpis.netCash ?? 0;
-    const lines: ReportRow[] = (summary?.charts.cashFlowComposition ?? []).map((item) => ({
+    const movements = (summary?.charts.cashFlowComposition ?? []).filter(
+      (item) => item.label.trim().toLowerCase() !== "net cash",
+    );
+    const lines: ReportRow[] = movements.map((item) => ({
       id: `cf-${item.label}`,
       cells: [nm(item.label), amt(accountingFigure(item.amount))],
     }));
@@ -188,6 +193,24 @@ export default function FinancialReportsHomePage() {
   }, [summary]);
 
   /**
+   * The date the balance sheet is drawn at.
+   *
+   * A balance sheet is a position, not a movement: "August 2026" is the wrong
+   * label for it even when the P&L beside it is right, because the figure is a
+   * balance on one day rather than a total over thirty. With no end date
+   * filtered the position is today's.
+   */
+  const asAtDate = useMemo(() => {
+    const to = summary?.meta.endDate;
+    if (!to) return "today";
+    return new Date(to).toLocaleDateString(undefined, {
+      day: "numeric",
+      month: "short",
+      year: "numeric",
+    });
+  }, [summary]);
+
+  /**
    * The ratios behind three of the tiles.
    *
    * Null rather than zero when the denominator is missing, so a tenant with no
@@ -219,40 +242,6 @@ export default function FinancialReportsHomePage() {
     return Math.round(raw * 100) / 100;
   }, [summary]);
 
-  const chartData = useMemo(() => {
-    const pnl = (summary?.charts.pnlBreakdown ?? []).map((item) => ({
-      label: item.label,
-      amount: item.amount,
-    }));
-    const balance = (summary?.charts.balanceComposition ?? []).map((item) => ({
-      label: item.label,
-      amount: item.amount,
-    }));
-    const cash = (summary?.charts.cashFlowComposition ?? []).map((item) => ({
-      label: item.label,
-      amount: item.amount,
-    }));
-    const cashRunRate = cash.reduce<Array<{ label: string; amount: number; cumulative: number }>>(
-      (acc, item) => {
-        const previous = acc.at(-1)?.cumulative ?? 0;
-        acc.push({
-          label: item.label,
-          amount: item.amount,
-          cumulative: previous + item.amount,
-        });
-        return acc;
-      },
-      [],
-    );
-    const types = (summary?.charts.accountTypeBreakdown ?? []).map((item) => ({
-      label: item.type,
-      amount: item.amount,
-    }));
-
-    return { pnl, balance, cash, cashRunRate, types };
-  }, [summary]);
-
-
   /**
    * The report shelf.
    *
@@ -263,87 +252,63 @@ export default function FinancialReportsHomePage() {
    * what it covers and on what basis before they run it. Those are columns.
    *
    * `Covers` and `Basis` are static facts about each report, not data — a
-   * balance sheet is always as-at and always accrual. `Last run` is
-   * deliberately absent: nothing records it yet, and a column of "not yet run"
-   * would be a worse lie than no column.
+   * balance sheet is always as-at and always accrual.
+   *
+   * Two of the design's columns are deliberately absent. `Last run` has no
+   * source: nothing records when a report was generated, and a column reading
+   * "not yet run" against six rows would be a worse lie than no column.
+   * `Format` advertised "PDF · XLSX" against an export capability that exists
+   * nowhere in the app — a promise the shelf cannot keep.
    */
   const reportRows = useMemo<ReportRow[]>(
     () => [
       {
+        id: "profit-and-loss",
+        href: "/accounting/financial-statements",
+        cells: [nm("Profit and loss"), txt(periodLabel, { tone: "subtle" }), txt("Accrual")],
+      },
+      {
+        id: "balance-sheet",
+        href: "/accounting/financial-statements",
+        cells: [nm("Balance sheet"), txt(`At ${asAtDate}`, { tone: "subtle" }), txt("Accrual")],
+      },
+      {
+        id: "cash-flow",
+        href: "/accounting/financial-statements",
+        cells: [nm("Cash flow"), txt(periodLabel, { tone: "subtle" }), txt("Indirect")],
+      },
+      {
         id: "trial-balance",
         href: "/accounting/trial-balance",
-        cells: [
-          nm("Trial balance"),
-          txt(`At ${periodLabel}`, { tone: "subtle" }),
-          txt("All accounts"),
-          txt("PDF · XLSX", { align: "right", tone: "subtle" }),
-        ],
+        cells: [nm("Trial balance"), txt(`At ${asAtDate}`, { tone: "subtle" }), txt("All accounts")],
       },
       {
         id: "vat",
-        href: "/accounting/tax?view=vat-summary",
-        cells: [
-          nm("VAT summary"),
-          txt(periodLabel, { tone: "subtle" }),
-          txt("ZIMRA"),
-          txt("PDF", { align: "right", tone: "subtle" }),
-        ],
-      },
-      {
-        id: "ar-aging",
-        href: "/accounting/sales?view=aging",
-        cells: [
-          nm("AR ageing"),
-          txt(`At ${periodLabel}`, { tone: "subtle" }),
-          txt("By due bucket"),
-          txt("PDF · XLSX", { align: "right", tone: "subtle" }),
-        ],
-      },
-      {
-        id: "ap-aging",
-        href: "/accounting/purchases?view=aging",
-        cells: [
-          nm("AP ageing"),
-          txt(`At ${periodLabel}`, { tone: "subtle" }),
-          txt("By due bucket"),
-          txt("PDF · XLSX", { align: "right", tone: "subtle" }),
-        ],
-      },
-      {
-        id: "customer-statements",
-        href: "/accounting/sales?view=statements",
-        cells: [
-          nm("Customer statements"),
-          txt(periodLabel, { tone: "subtle" }),
-          txt("Per customer"),
-          txt("PDF", { align: "right", tone: "subtle" }),
-        ],
-      },
-      {
-        id: "vendor-statements",
-        href: "/accounting/purchases?view=statements",
-        cells: [
-          nm("Vendor statements"),
-          txt(periodLabel, { tone: "subtle" }),
-          txt("Per vendor"),
-          txt("PDF", { align: "right", tone: "subtle" }),
-        ],
+        href: "/accounting/tax",
+        cells: [nm("VAT return"), txt(periodLabel, { tone: "subtle" }), txt("ZIMRA")],
       },
     ],
-    [periodLabel],
+    [asAtDate, periodLabel],
   );
-
 
   return (
     <AccountingShell
       activeTab="financial-reports"
       title="Financial Reports"
       description="the statements, from one period selector"
+      // The applied period is the one fact every figure below depends on, so
+      // it belongs in the band that never scrolls rather than on a panel head
+      // that leaves the screen with its own table.
+      bandSlot={<BandChip label="Period" value={periodLabel} tone="mute" />}
       actions={
         <AccountingNewButton
-          label="Open"
+          label="Run a report"
           items={[
-            { label: "Trial Balance", icon: Scale, href: "/accounting/trial-balance" },
+            { label: "Profit and loss", icon: TrendingUp, href: "/accounting/financial-statements" },
+            { label: "Balance sheet", icon: Scale, href: "/accounting/financial-statements" },
+            { label: "Cash flow", icon: Wallet, href: "/accounting/financial-statements" },
+            { label: "Trial balance", icon: Coins, href: "/accounting/trial-balance" },
+            { label: "VAT return", icon: Percent, href: "/accounting/tax" },
           ]}
         />
       }
@@ -357,7 +322,7 @@ export default function FinancialReportsHomePage() {
 
       <Card>
         <CardContent className="pt-4">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-2.5 md:grid-cols-3">
             <Input type="date" value={startDate} onChange={(event) => setStartDate(event.target.value)} />
             <Input type="date" value={endDate} onChange={(event) => setEndDate(event.target.value)} />
             <Select value={branchId} onValueChange={setBranchId}>
@@ -381,11 +346,11 @@ export default function FinancialReportsHomePage() {
       </Card>
 
       {/* Six figures, one strip — the whole position at a glance. */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+      <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
         <MetricTile
           title="Net income"
           value={summary?.kpis.netIncome ?? 0}
-          valueLabel={accountingFigure(summary?.kpis.netIncome ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.netIncome ?? 0)}
           delta={margin === null ? undefined : `${margin}% margin`}
           detail={periodLabel}
           tone={(summary?.kpis.netIncome ?? 0) < 0 ? "danger" : "good"}
@@ -393,15 +358,15 @@ export default function FinancialReportsHomePage() {
         <MetricTile
           title="Total assets"
           value={summary?.kpis.assets ?? 0}
-          valueLabel={accountingFigure(summary?.kpis.assets ?? 0)}
-          delta="at period end"
+          valueLabel={formatHeadline(summary?.kpis.assets ?? 0)}
+          delta={`at ${asAtDate}`}
           detail="what the business holds"
           tone="neutral"
         />
         <MetricTile
           title="Total liabilities"
           value={summary?.kpis.liabilities ?? 0}
-          valueLabel={accountingFigure(summary?.kpis.liabilities ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.liabilities ?? 0)}
           delta={gearing === null ? undefined : `${gearing}% of assets`}
           detail="what it owes"
           tone="warn"
@@ -409,7 +374,7 @@ export default function FinancialReportsHomePage() {
         <MetricTile
           title="Total equity"
           value={summary?.kpis.equity ?? 0}
-          valueLabel={accountingFigure(summary?.kpis.equity ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.equity ?? 0)}
           delta="assets less liabilities"
           detail="the owners' share"
           tone={(summary?.kpis.equity ?? 0) < 0 ? "danger" : "good"}
@@ -417,7 +382,7 @@ export default function FinancialReportsHomePage() {
         <MetricTile
           title="Net cash"
           value={summary?.kpis.netCash ?? 0}
-          valueLabel={accountingFigure(summary?.kpis.netCash ?? 0)}
+          valueLabel={formatHeadline(summary?.kpis.netCash ?? 0)}
           delta={(summary?.kpis.netCash ?? 0) < 0 ? "cash went out" : "cash came in"}
           detail="movement over the period"
           tone={(summary?.kpis.netCash ?? 0) < 0 ? "warn" : "good"}
@@ -428,7 +393,8 @@ export default function FinancialReportsHomePage() {
           A trial balance difference is only ever interesting as "is it zero" —
           the number itself tells you nothing until it is not zero, and then
           the number is exactly what you need. So it prints the word when it
-          balances and the difference when it does not.
+          balances and the difference when it does not, to the cent, because a
+          difference rounded to the dollar can round itself out of existence.
         */}
         <MetricTile
           title="Trial balance"
@@ -451,7 +417,7 @@ export default function FinancialReportsHomePage() {
         ring showed nothing at all. Read as rows, each of these is the report
         it is named after.
       */}
-      <div className="grid gap-3 xl:grid-cols-12">
+      <div className="grid gap-2.5 xl:grid-cols-12">
         <ReportPanel className="xl:col-span-5" title="Profit and loss" note={periodLabel}>
           <ReportTable
             label="Profit and loss"
@@ -462,7 +428,7 @@ export default function FinancialReportsHomePage() {
           />
         </ReportPanel>
 
-        <ReportPanel className="xl:col-span-4" title="Balance sheet" note="at period end">
+        <ReportPanel className="xl:col-span-4" title="Balance sheet" note={`at ${asAtDate}`}>
           <ReportTable
             label="Balance sheet"
             tracks="minmax(0,1fr) 120px"
@@ -472,7 +438,7 @@ export default function FinancialReportsHomePage() {
           />
         </ReportPanel>
 
-        <ReportPanel className="xl:col-span-3" title="Cash flow" note="movement">
+        <ReportPanel className="xl:col-span-3" title="Cash flow" note={periodLabel}>
           <ReportTable
             label="Cash flow"
             tracks="minmax(0,1fr) 110px"
@@ -483,32 +449,11 @@ export default function FinancialReportsHomePage() {
         </ReportPanel>
       </div>
 
-      {/* A trend, so it stays a chart — this is the one thing here that is
-          genuinely a shape over time rather than a set of parts. */}
-      <TradingViewChartCard
-        flat
-        height={200}
-        note="component against running total"
-        title="Cash flow momentum"
-        data={isLoading ? [] : chartData.cashRunRate}
-        xKey="label"
-        series={[
-          { key: "amount", label: "Component", type: "bar", color: "var(--brand)" },
-          { key: "cumulative", label: "Cumulative", type: "line", color: "var(--tone-success)" },
-        ]}
-        valueFormatter={formatCurrency}
-      />
-
-      <ReportPanel title="Reports" note="what you can run from here">
+      <ReportPanel title="Reports you can run">
         <ReportTable
           label="Available reports"
-          tracks="minmax(0,1fr) 200px 160px 130px"
-          columns={[
-            { label: "Report" },
-            { label: "Covers" },
-            { label: "Basis" },
-            { label: "Format", align: "right" },
-          ]}
+          tracks="minmax(0,1fr) 180px 160px"
+          columns={[{ label: "Report" }, { label: "Covers" }, { label: "Basis" }]}
           rows={reportRows}
         />
       </ReportPanel>

@@ -1,7 +1,6 @@
 "use client";
 
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { StatusChip } from "@/components/ui/status-chip";
+import { ReportTable, dim, node, num, type BadgeTone } from "@/components/accounting/report-table";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { SOURCE_KIND_LABELS } from "@/components/accounting/fiscalisation/receipt-mapping";
 import type { BlockingReceiptWire } from "@/components/accounting/fiscalisation/types";
@@ -24,16 +23,20 @@ import type { BlockingReceiptWire } from "@/components/accounting/fiscalisation/
  *
  * Rendered in two places (inside a device card, and inside the 409 refusal), so
  * the two can never describe the same receipt differently.
+ *
+ * `ReportTable` rather than a bare `<Table>`: this is an accounting table on an
+ * accounting page, and it was the last one still setting its own row height and
+ * column padding.
  */
 
-/** ZIMRA statuses mapped onto the design system's canonical tones rather than
- *  passed through raw: `PENDING` and `FAILED` happen to normalise correctly,
- *  but relying on that coincidence would break silently if a status is renamed. */
-const RECEIPT_TONE: Record<string, string> = {
-  PENDING: "pending",
-  FAILED: "failing",
-  SUCCESS: "passing",
-  VOIDED: "inactive",
+/** ZIMRA statuses mapped onto the table's badge tones rather than passed
+ *  through raw, so a renamed status fails here loudly instead of silently
+ *  falling back to a neutral chip. */
+const RECEIPT_TONE: Record<string, BadgeTone> = {
+  PENDING: "warn",
+  FAILED: "bad",
+  SUCCESS: "ok",
+  VOIDED: "mute",
 };
 
 export function BlockingReceiptsTable({
@@ -50,54 +53,58 @@ export function BlockingReceiptsTable({
 
   return (
     <div className="space-y-2">
-      <div className="overflow-x-auto">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Receipt</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Global no</TableHead>
-              <TableHead>Waiting</TableHead>
-              <TableHead>Last error</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {receipts.map((receipt) => (
-              <TableRow key={receipt.id}>
-                <TableCell>
-                  <div className="font-mono">{receipt.sourceRef ?? receipt.receiptNumber ?? receipt.id}</div>
+      <ReportTable
+        label="Receipts blocking this fiscal day"
+        tracks="minmax(0,1.1fr) 110px 100px 120px minmax(0,1.4fr)"
+        columns={[
+          { label: "Receipt" },
+          { label: "Status" },
+          { label: "Global no", align: "right" },
+          { label: "Waiting" },
+          { label: "Last error" },
+        ]}
+        rows={receipts.map((receipt) => ({
+          id: receipt.id,
+          cells: [
+            node(
+              <div className="min-w-0">
+                <div className="truncate font-mono text-sm text-[var(--text-strong)]">
+                  {receipt.sourceRef ?? receipt.receiptNumber ?? receipt.id}
+                </div>
+                <div className="acct-caption">{SOURCE_KIND_LABELS[receipt.sourceKind]}</div>
+              </div>,
+            ),
+            node(
+              <div className="min-w-0">
+                <span className="acct-badge" data-tone={RECEIPT_TONE[receipt.status] ?? "mute"}>
+                  {receipt.status}
+                </span>
+                {receipt.attemptCount > 0 ? (
                   <div className="acct-caption">
-                    {SOURCE_KIND_LABELS[receipt.sourceKind]}
+                    {receipt.attemptCount} attempt{receipt.attemptCount === 1 ? "" : "s"}
                   </div>
-                </TableCell>
-                <TableCell>
-                  <StatusChip
-                    status={RECEIPT_TONE[receipt.status] ?? receipt.status}
-                    label={receipt.status}
-                  />
-                  {receipt.attemptCount > 0 ? (
-                    <div className="acct-caption">
-                      {receipt.attemptCount} attempt{receipt.attemptCount === 1 ? "" : "s"}
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell className="font-mono">{receipt.receiptGlobalNo ?? "-"}</TableCell>
-                <TableCell>
-                  <TimeAgo value={receipt.createdAt} />
-                  {receipt.nextRetryAt ? (
-                    <div className="acct-caption">
-                      retry <TimeAgo value={receipt.nextRetryAt} />
-                    </div>
-                  ) : null}
-                </TableCell>
-                <TableCell className="acct-caption">
-                  {receipt.lastError ?? "Not yet submitted"}
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </div>
+                ) : null}
+              </div>,
+            ),
+            receipt.receiptGlobalNo === null
+              ? dim()
+              : num(String(receipt.receiptGlobalNo)),
+            node(
+              <div className="min-w-0 text-sm text-[var(--text-body)]">
+                <TimeAgo value={receipt.createdAt} />
+                {receipt.nextRetryAt ? (
+                  <div className="acct-caption">
+                    retry <TimeAgo value={receipt.nextRetryAt} />
+                  </div>
+                ) : null}
+              </div>,
+            ),
+            // A node rather than a text cell: the error is the actionable part
+            // of the row, and a text cell truncates it to one line.
+            node(<span className="acct-caption">{receipt.lastError ?? "Not yet submitted"}</span>),
+          ],
+        }))}
+      />
       {truncated ? (
         // Said out loud, because a list silently cut at eight rows reads as
         // "eight receipts to fix" when it may be eighty.
