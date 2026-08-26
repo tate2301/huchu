@@ -565,44 +565,28 @@ export function GlobalCommandBar() {
       </IconButton>
 
       {/*
-        A real input, not a button dressed as one.
-        =========================================
-        It used to be a `<button>`, which meant the app bar advertised a search
-        box and then asked you to open a dialog before you could type into it —
-        two gestures for the thing people do most. Now the first keystroke lands
-        where you aimed it.
+        A ghost field, not a bordered box.
+        =================================
+        The app bar carries one search affordance and the dialog carries the
+        real one, so this is a trigger wearing a field's clothes: a filled
+        ghost with no outline, which reads as part of the bar rather than as a
+        control fenced off inside it. Clicking it opens the bar, whose own
+        input autofocuses — one place to type, never two inputs holding two
+        different queries.
       */}
-      <div className="relative hidden items-center md:flex">
-        <Search
-          className="pointer-events-none absolute left-2.5 size-4 text-[var(--text-subtle)]"
-          aria-hidden="true"
-        />
-        <input
-          type="search"
-          value=""
-          aria-label="Search records and actions"
-          placeholder="Search"
-          // Read-only-ish by design: it owns no text of its own. Whatever you
-          // type opens the bar with that text already in it, and the bar's own
-          // input takes over from there — so there is never a moment where two
-          // inputs hold two different queries.
-          onChange={(event) => {
-            const typed = event.target.value;
-            if (typed) setQuery(typed);
-            changeOpen(true);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter" || event.key === "ArrowDown") {
-              event.preventDefault();
-              changeOpen(true);
-            }
-          }}
-          className="h-9 w-36 rounded-[var(--radius-sm)] border border-[var(--chrome-edge)] bg-[var(--surface)] pl-8 pr-14 text-sm text-[var(--text-body)] outline-none placeholder:text-[var(--text-muted)] focus-visible:border-[var(--focus-ring)] lg:w-64 [&::-webkit-search-cancel-button]:hidden"
-        />
-        <kbd className="pointer-events-none absolute right-2 hidden rounded border border-[var(--border)] px-1 font-sans text-sm text-[var(--text-muted)] lg:inline">
+      <button
+        type="button"
+        aria-label="Search records and actions"
+        aria-keyshortcuts="Meta+K Control+K"
+        onClick={() => changeOpen(true)}
+        className="hidden h-9 w-36 items-center gap-2 rounded-[var(--radius-sm)] border-0 bg-[var(--surface-muted)] px-2.5 text-left text-sm text-[var(--text-muted)] outline-none transition-colors hover:bg-[var(--surface-subtle)] hover:text-[var(--text-body)] focus-visible:ring-2 focus-visible:ring-[var(--focus-ring)] md:flex lg:w-64"
+      >
+        <Search className="size-4 shrink-0 text-[var(--text-subtle)]" aria-hidden="true" />
+        <span className="min-w-0 flex-1 truncate">Search</span>
+        <kbd className="hidden shrink-0 font-sans text-sm text-[var(--text-subtle)] lg:inline">
           ⌘K
         </kbd>
-      </div>
+      </button>
 
       <CommandBar
         open={open}

@@ -17,6 +17,10 @@ import {
   FileText,
   Fuel,
   Funnel,
+  Layers,
+  Mail,
+  MedusaBookOpenIcon,
+  Receipt,
   History,
   Zap,
   LocalShipping,
@@ -279,81 +283,107 @@ export const navSections: NavSection[] = [
     featureKey: "schools.core",
     flattenGroups: true,
     groups: [
-      { id: "admissions", label: "Admissions" },
-      { id: "boarding", label: "Boarding" },
+      { id: "students", label: "Students" },
+      { id: "attendance", label: "Attendance" },
       { id: "academics", label: "Academics" },
+      { id: "teaching", label: "Teaching" },
       { id: "results", label: "Results" },
-      { id: "finance", label: "Finance" },
-      { id: "services", label: "Services" },
+      { id: "boarding", label: "Boarding" },
+      { id: "fees", label: "Fees" },
+      { id: "people", label: "People" },
       { id: "communication", label: "Communication" },
+      { id: "services", label: "Services" },
       { id: "paperwork", label: "Reports and documents" },
     ],
+    // Alphabetical within every band. A school's nav is a reference list, not a
+    // narrative: nobody reads it top to bottom, they look for a word they
+    // already have in mind, and a hand-ordered band means scanning all of it to
+    // find out the order was somebody's opinion. The only item exempt is an
+    // "Overview" — a band's own front page is not one of its siblings.
     items: [
       { href: "/schools", icon: Building2, label: "Overview" },
 
-      // Everyone on the roll and everything that changes it. The band is named
-      // for the door people come in through.
-      { href: "/schools/admissions", icon: NoteAdd, label: "Applications", group: "admissions" },
-      { href: "/schools/students", icon: Users, label: "Students", group: "admissions" },
-      { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "admissions" },
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "admissions" },
-      { href: "/schools/imports", icon: Upload, label: "Import records", group: "admissions" },
-      {
-        href: "/management/master-data/schools/identity",
-        icon: TableRows,
-        label: "Identity and records",
-        group: "admissions",
-      },
+      // The roll and everything that changes it.
+      { href: "/schools/admissions", icon: NoteAdd, label: "Applications", group: "students" },
+      { href: "/schools/imports", icon: Upload, label: "Import records", group: "students" },
+      { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "students" },
+      { href: "/schools/students", icon: Users, label: "Students", group: "students" },
 
-      { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
-      { href: "/schools/boarding/welfare", icon: ShieldCheck, label: "Health and welfare", group: "boarding" },
+      // Oversight, not a register. An administrator arrives at the whole school
+      // and narrows to a class; the class-by-class rail belongs to the page,
+      // which is the only thing that knows tonight's year groups.
+      { href: "/schools/attendance/follow-up", icon: ReportProblem, label: "Absence follow-up", group: "attendance" },
+      { href: "/schools/attendance", icon: UserCheck, label: "Whole school", group: "attendance" },
 
-      // Attendance sits here rather than on its own: a register is a class's
-      // record of a lesson, and the person chasing a missing one at 09:15 is
-      // the same person who looks at the timetable to see whose it was.
-      { href: "/schools/attendance", icon: UserCheck, label: "Attendance", group: "academics" },
-      { href: "/schools/timetable", icon: Calendar, label: "Timetable", group: "academics" },
-      { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "academics" },
-      { href: "/schools/goals", icon: TrendingUp, label: "Subject targets", group: "academics" },
-      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "academics" },
-      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "academics" },
+      // Years, terms, classes, subjects, periods and grading are master data and
+      // live under Management. These reach across so nobody has to know that.
       {
         href: "/management/master-data/schools/years",
         icon: Dataset,
         label: "Academic setup",
         group: "academics",
       },
+      { href: "/schools/calendar", icon: Calendar, label: "Calendar", group: "academics" },
+      {
+        href: "/management/master-data/schools/identity",
+        icon: TableRows,
+        label: "Identity and records",
+        group: "academics",
+      },
+      { href: "/schools/academics/rooms", icon: MapPin, label: "Rooms", group: "academics" },
+      { href: "/schools/academics/syllabus", icon: Layers, label: "Scheme of work", group: "academics" },
 
-      // A band of its own because it is a workflow, not a screen: a sheet is
-      // submitted, moderated, sent back or approved, then published, and each
-      // of those is somebody different's move.
-      { href: "/schools/results", icon: FileCheck, label: "Results overview", group: "results" },
-      { href: "/schools/results/sheets", icon: Checklist, label: "Result sheets", group: "results" },
+      { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "teaching" },
+      { href: "/schools/teaching/lessons", icon: MedusaBookOpenIcon, label: "Lesson plans", group: "teaching" },
+      { href: "/schools/goals", icon: TrendingUp, label: "Subject targets", group: "teaching" },
+      { href: "/schools/teaching/resources", icon: FileText, label: "Teaching resources", group: "teaching" },
+      { href: "/schools/timetable", icon: Calendar, label: "Timetable", group: "teaching" },
+
+      // A workflow, not a screen: a sheet is submitted, moderated, sent back or
+      // approved, then published, and each of those is somebody different's move.
+      { href: "/schools/results", icon: FileCheck, label: "Overview", group: "results" },
       { href: "/schools/results/moderation", icon: Scale, label: "Moderation", group: "results" },
       { href: "/schools/results/publish", icon: FileCheck, label: "Publishing", group: "results" },
+      { href: "/schools/results/publish/windows", icon: Calendar, label: "Publishing windows", group: "results" },
+      { href: "/schools/results/sheets", icon: Checklist, label: "Result sheets", group: "results" },
 
-      // Each of these opens the ledger on the tab it names. They used to be
+      { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
+      { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
+      { href: "/schools/boarding/welfare", icon: ShieldCheck, label: "Health and welfare", group: "boarding" },
+      { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
+      { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
+
+      // Each ledger label opens the ledger on the tab it names. They used to be
       // routes of their own that redirected to the year-group PICKER, so
       // "Waivers" landed a bursar on a grid of class cards — three labels
       // pointing at a fourth screen. One ledger, one tab per label.
-      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "finance" },
-      { href: "/schools/finance/ledger", icon: Payments, label: "Ledger and structures", group: "finance" },
-      { href: "/schools/finance/ledger?view=receipts", icon: ReceiptLong, label: "Receipts", group: "finance" },
-      { href: "/schools/finance/ledger?view=waivers", icon: Scale, label: "Waivers", group: "finance" },
-      { href: "/schools/finance/ledger?view=refunds", icon: Wallet, label: "Refunds", group: "finance" },
+      { href: "/schools/finance/arrears", icon: ReportProblem, label: "Arrears and ageing", group: "fees" },
+      { href: "/schools/finance/ledger?view=credits", icon: Coins, label: "Credits on account", group: "fees" },
+      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "fees" },
+      { href: "/schools/finance/ledger?view=invoices", icon: Receipt, label: "Invoices", group: "fees" },
+      { href: "/schools/finance/ledger", icon: Payments, label: "Ledger and structures", group: "fees" },
+      { href: "/schools/finance/ledger?view=receipts", icon: ReceiptLong, label: "Receipts", group: "fees" },
+      { href: "/schools/finance/ledger?view=refunds", icon: Wallet, label: "Refunds", group: "fees" },
+      { href: "/schools/finance/ledger?view=waivers", icon: Scale, label: "Waivers", group: "fees" },
 
-      { href: "/schools/library", icon: Dataset, label: "Library", group: "services" },
-      { href: "/schools/transport", icon: LocalShipping, label: "Transport", group: "services" },
+      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "people" },
+      { href: "/schools/teachers/assignments", icon: Checklist, label: "Staff assignments", group: "people" },
+      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "people" },
 
       // What the school has said, and what has been said to it. A notice goes
       // out to many and cannot be replied to; a message is one family and one
       // member of staff. Keeping them adjacent is how somebody learns which
       // one they wanted.
+      { href: "/schools/messages", icon: Mail, label: "Messages", group: "communication" },
       { href: "/schools/notices", icon: EventNote, label: "Notices", group: "communication" },
-      { href: "/schools/messages", icon: Phone, label: "Messages", group: "communication" },
+      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "communication" },
 
-      { href: "/schools/reports", icon: BarChart3, label: "School reports", group: "paperwork" },
+      { href: "/schools/library", icon: Dataset, label: "Library", group: "services" },
+      { href: "/schools/library/loans", icon: MedusaBookOpenIcon, label: "Library loans", group: "services" },
+      { href: "/schools/transport", icon: LocalShipping, label: "Transport", group: "services" },
+
       { href: "/schools/documents", icon: FileText, label: "Documents", group: "paperwork" },
+      { href: "/schools/reports", icon: BarChart3, label: "School reports", group: "paperwork" },
     ],
   },
   {

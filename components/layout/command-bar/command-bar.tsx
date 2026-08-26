@@ -113,6 +113,16 @@ export function CommandBar({
   const router = useRouter();
   const [activeId, setActiveId] = React.useState<string | null>(null);
   const listRef = React.useRef<HTMLDivElement>(null);
+  const inputRef = React.useRef<HTMLInputElement>(null);
+
+  // Focus the field on every opening, not just the first mount. `autoFocus`
+  // alone fires when React mounts the node, which loses the race against the
+  // click that opened the bar — the dialog appeared and the caret stayed in
+  // whatever the pointer had just left. A layout effect runs before paint, so
+  // the caret is in the field by the time the bar is visible.
+  React.useLayoutEffect(() => {
+    if (open) inputRef.current?.focus();
+  }, [open]);
 
   const flat = React.useMemo(() => groups.flatMap((group) => group.items), [groups]);
 
@@ -202,6 +212,7 @@ export function CommandBar({
         <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] px-3">
           <Search className="size-4 shrink-0 text-[var(--text-subtle)]" aria-hidden="true" />
           <input
+            ref={inputRef}
             autoFocus
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
