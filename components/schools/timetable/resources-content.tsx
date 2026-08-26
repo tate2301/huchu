@@ -13,6 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 
@@ -44,6 +45,8 @@ export function TeachingResourcesContent() {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
+  /** The resource the form is amending. Null means it is adding a new one. */
+  const [editing, setEditing] = useState<Resource | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     title: "",
@@ -89,20 +92,32 @@ export function TeachingResourcesContent() {
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [resources]);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/v2/schools/teaching-resources", {
-        method: "POST",
-        body: JSON.stringify({
-          title: draft.title.trim(),
-          description: draft.description.trim() || null,
-          subjectId: draft.subjectId || null,
-          linkUrl: draft.linkUrl.trim() || null,
-          isShared: draft.isShared,
-        }),
-      }),
+  /**
+   * One mutation for both verbs.
+   *
+   * Adding and amending write the same five fields to the same shape, so a
+   * second mutation would only be a second place for the two forms to drift
+   * apart. `editing` decides the method and the URL and nothing else.
+   */
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const body = JSON.stringify({
+        title: draft.title.trim(),
+        description: draft.description.trim() || null,
+        subjectId: draft.subjectId || null,
+        linkUrl: draft.linkUrl.trim() || null,
+        isShared: draft.isShared,
+      });
+      return editing
+        ? fetchJson(`/api/v2/schools/teaching-resources/${editing.id}`, {
+            method: "PATCH",
+            body,
+          })
+        : fetchJson("/api/v2/schools/teaching-resources", { method: "POST", body });
+    },
     onSuccess: () => {
       setFormOpen(false);
+      setEditing(null);
       setActionError(null);
       setDraft({
         title: "",
@@ -115,6 +130,51 @@ export function TeachingResourcesContent() {
     },
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
+
+  /**
+   * Taking something off the shelf.
+   *
+   * A dead link left sitting there looks usable, and a staff room that opens
+   * two broken worksheets stops trusting the shelf and goes back to memory
+   * sticks. Nothing is written against a resource, so this is a real delete.
+   */
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/teaching-resources/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setActionError(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "resources"] });
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
+  function openBlank() {
+    setEditing(null);
+    setDraft({
+      title: "",
+      description: "",
+      subjectId: "",
+      linkUrl: "",
+      isShared: true,
+    });
+    setActionError(null);
+    setFormOpen(true);
+  }
+
+  function openFor(resource: Resource) {
+    setEditing(resource);
+    setDraft({
+      title: resource.title,
+      description: resource.description ?? "",
+      subjectId: resource.subject?.id ?? "",
+      // A file-backed resource has no link to edit; the box stays empty and
+      // the PATCH route keeps the file it already has.
+      linkUrl: resource.linkUrl ?? "",
+      isShared: resource.isShared,
+    });
+    setActionError(null);
+    setFormOpen(true);
+  }
 
   return (
     <div className="space-y-4">
@@ -155,7 +215,7 @@ export function TeachingResourcesContent() {
             onChange={setSubjectFilter}
           />
         </FilterBar>
-        <Button onClick={() => setFormOpen(true)}>Add a resource</Button>
+        <Button onClick={openBlank}>Add a resource</Button>
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -178,6 +238,33 @@ export function TeachingResourcesContent() {
                   key={resource.id}
                   static
                   title={resource.title}
+                  trailing={
+                    <RecordActions
+                      resource="schools.academics"
+                      verbs={[
+                        {
+                          label: "Edit",
+                          action: "edit",
+                          onSelect: () => openFor(resource),
+                        },
+                        {
+                          label: "Take it off",
+                          action: "archive",
+                          tone: "danger",
+                          loading:
+                            deleteMutation.isPending &&
+                            deleteMutation.variables === resource.id,
+                          onSelect: () => deleteMutation.mutate(resource.id),
+                          confirm: {
+                            title: `Take “${resource.title}” off the shelf?`,
+                            description:
+                              "It goes for everybody who can see the shelf. Nothing else in the school points at a resource, so this cannot be undone.",
+                            confirmLabel: "Take it off",
+                          },
+                        },
+                      ]}
+                    />
+                  }
                   subtitle={
                     <span className="mt-1 flex flex-wrap items-center gap-2">
                       <span>
@@ -215,11 +302,11 @@ export function TeachingResourcesContent() {
         onOpenChange={setFormOpen}
         title="Add a resource"
         size="md"
-        errors={createMutation.isError && actionError ? [actionError] : undefined}
+        errors={saveMutation.isError && actionError ? [actionError] : undefined}
         onSubmit={(event) => {
           event.preventDefault();
-          if (draft.title.trim() && draft.linkUrl.trim() && !createMutation.isPending) {
-            createMutation.mutate();
+          if (draft.title.trim() && draft.linkUrl.trim() && !saveMutation.isPending) {
+            saveMutation.mutate();
           }
         }}
         footer={
@@ -230,10 +317,10 @@ export function TeachingResourcesContent() {
             <Button
               type="submit"
               disabled={
-                !draft.title.trim() || !draft.linkUrl.trim() || createMutation.isPending
+                !draft.title.trim() || !draft.linkUrl.trim() || saveMutation.isPending
               }
             >
-              {createMutation.isPending ? "Saving…" : "Add it"}
+              {saveMutation.isPending ? "Saving…" : "Add it"}
             </Button>
           </div>
         }

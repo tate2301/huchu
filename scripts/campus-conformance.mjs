@@ -87,7 +87,7 @@ const SCREENS = {
   FeeDialogs: '/schools/finance/ledger',
 
   // Services
-  Boarding: '/schools/boarding',
+  Boarding: '/schools/boarding/allocations',
   BoardingHostel: '/schools/boarding/hostels',
   BoardingWelfare: '/schools/boarding/welfare',
   Library: '/schools/library',

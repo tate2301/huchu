@@ -29,6 +29,7 @@ import {
 } from "@/components/schools/records/record-files-tab";
 import { StudentPortalPanel } from "@/components/schools/records/student-portal-panel";
 import { StudentAttendanceTab } from "@/components/schools/records/student-attendance-tab";
+import { StudentOverviewTab } from "@/components/schools/records/student-overview-tab";
 import {
   StudentFormSheet,
   type StudentFormValues,
@@ -116,6 +117,10 @@ type Allocation = {
 
 type ResultLine = {
   id: string;
+  subjectCode: string;
+  score: number;
+  grade: string | null;
+  createdAt: string;
   sheet: { id: string; title: string; term: { name: string } | null } | null;
 };
 
@@ -156,7 +161,10 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
   const config = recordType("STUDENT");
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("guardians");
+  // The overview is the landing view: it is the only section that answers
+  // "how is this child doing" without a second click, and every other tab is
+  // one of its cards opened up.
+  const [activeTab, setActiveTab] = useState("overview");
   const [formOpen, setFormOpen] = useState(false);
   const [actionError, setActionError] = useState<unknown>(null);
 
@@ -435,6 +443,23 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
 
   const tabs: RecordTab[] = [
     {
+      value: "overview",
+      label: "Overview",
+      content: (
+        <StudentOverviewTab
+          student={{
+            ...student,
+            resultLines: student.resultLines ?? [],
+            guardianLinks: student.guardianLinks ?? [],
+            enrollments: student.enrollments ?? [],
+            feeInvoices: student.feeInvoices ?? [],
+            boardingAllocations: student.boardingAllocations ?? [],
+          }}
+          onOpenSection={setActiveTab}
+        />
+      ),
+    },
+    {
       value: "guardians",
       label: "Guardians",
       count: student.guardianLinks?.length ?? 0,
@@ -497,12 +522,13 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       ),
     },
     // Dropped by the shell when the array is empty, rather than advertising an
-    // empty Boarding tab for a day pupil.
+    // empty Welfare tab for a day pupil, who has no hostel and no sick bay
+    // entry to show.
     ...(student.boardingAllocations?.length
       ? [
           {
             value: "boarding",
-            label: "Boarding",
+            label: "Welfare",
             count: student.boardingAllocations.length,
             content: (
               <RelatedList
@@ -537,7 +563,10 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
     },
     {
       value: "files",
-      label: "Files",
+      // "Documents" rather than "Files": what a school keeps here is a birth
+      // certificate and a medical consent, and nobody at a counter asks for
+      // a child's files.
+      label: "Documents",
       count: files.data?.data?.length ?? 0,
       content: (
         <RecordFilesTab
@@ -553,7 +582,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       ? [
           {
             value: "results",
-            label: "Results",
+            label: "Academics",
             count: student.resultLines.length,
             content: (
               <RelatedList
@@ -610,7 +639,10 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         status: normalizeUiStatus(student.status),
       }}
       subtitle={
-        [student.currentClass?.name, student.isBoarding ? "Boarder" : "Day pupil"]
+        // The caption the canvas draws: the register class and the pupil's own
+        // number. Not "Boarder" — the badge above already says that, and this
+        // line is for the two facts somebody reads off the screen down a phone.
+        [student.currentStream?.name ?? student.currentClass?.name, student.studentNo]
           .filter(Boolean)
           .join(" · ") || null
       }

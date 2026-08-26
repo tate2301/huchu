@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
@@ -204,6 +205,26 @@ export function LessonPlansContent({
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  /**
+   * Tearing a plan out.
+   *
+   * The planner could write and rewrite and that was all, so a week laid out
+   * against the wrong subject left a fortnight of drafts nobody could clear —
+   * and because "lay out from timetable" skips a day that already has a plan
+   * on it, an unremovable wrong plan is also a lesson that can never be laid
+   * out correctly.
+   */
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/lesson-plans/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setActionError(null);
+      setEditing(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
   const covered = plans.filter((plan) => plan.cover).length;
 
   return (
@@ -369,6 +390,23 @@ export function LessonPlansContent({
                         }}
                       >
                         {plan.cover ? "Change cover" : "Arrange cover"}
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        disabled={deleteMutation.isPending}
+                        onClick={async () => {
+                          const confirmed = await dsConfirm({
+                            title: `Tear up “${plan.topic}”?`,
+                            description:
+                              "The lesson leaves the week. Any cover arranged for it goes with it, and the slot becomes one that can be laid out again.",
+                            confirmLabel: "Tear it up",
+                            variant: "danger",
+                          });
+                          if (confirmed) deleteMutation.mutate(plan.id);
+                        }}
+                      >
+                        Tear it up
                       </Button>
                     </span>
                   }

@@ -368,6 +368,11 @@ export const navSections: NavSection[] = [
 
       { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "people" },
       { href: "/schools/teachers/assignments", icon: Checklist, label: "Staff assignments", group: "people" },
+      // Everybody a school employs who does not teach — the bursar, the nurse,
+      // the grounds team. They are HR employees carrying the SCHOOLS
+      // assignment, so payroll and leave stay in one place; this is the
+      // school's window onto its own.
+      { href: "/schools/staff", icon: ManageAccounts, label: "Support staff", group: "people" },
       { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "people" },
 
       // What the school has said, and what has been said to it. A notice goes

@@ -10,8 +10,12 @@ import {
   MobileListSectionHeader,
 } from "@corelithzw/react";
 
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls } from "@/components/schools/common/table-controls";
+import { PageCaption } from "@/components/schools/records/page-caption";
+import { RecordTabs } from "@/components/schools/records/record-tabs";
 import {
   LoadError,
   NothingLeftToDo,
@@ -76,8 +80,16 @@ type Plan = {
  * Anyone already in the target term is shown greyed rather than hidden, so
  * running it twice reads as "already done" instead of as an empty screen.
  */
+/**
+ * The two cuts of the plan. "Moving up" is the work; "Leaving" is the handful
+ * at the top of the ladder who have nowhere above them, and reading those two
+ * lists together is how a school misses a school leaver.
+ */
+type RollUpTab = "moving" | "leaving";
+
 export function YearRollUpContent() {
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<RollUpTab>("moving");
   const [fromTermId, setFromTermId] = useState("");
   const [toTermId, setToTermId] = useState("");
   const [classFilter, setClassFilter] = useState("");
@@ -122,7 +134,23 @@ export function YearRollUpContent() {
   });
 
   const plan = planQuery.data ?? null;
-  const rows = useMemo(() => plan?.rows ?? [], [plan]);
+  const allRows = useMemo(() => plan?.rows ?? [], [plan]);
+
+  /**
+   * The tab picks the list. A child's action is whatever the office last chose
+   * for them, not the server's proposal — otherwise overriding somebody to
+   * "Leaving" would make them vanish off the tab you were looking at.
+   */
+  const rows = useMemo(
+    () =>
+      allRows.filter((row) => {
+        const action = overrides[row.studentId] ?? row.proposed;
+        return tab === "leaving"
+          ? action === "GRADUATE" || action === "WITHDRAW" || action === "TRANSFER"
+          : action === "PROMOTE" || action === "REPEAT";
+      }),
+    [allRows, overrides, tab],
+  );
 
   const grouped = useMemo(() => {
     const map = new Map<string, PlanRow[]>();
@@ -149,7 +177,11 @@ export function YearRollUpContent() {
         body: JSON.stringify({
           fromTermId: resolvedFrom,
           toTermId: resolvedTo,
-          decisions: rows
+          // Every child in the plan, not just the tab in view: the verb says
+          // "Roll 772 students up" and rolling only the half on screen would
+          // be the worst kind of surprise on the one screen that touches
+          // every record in the school.
+          decisions: allRows
             .filter((row) => !row.alreadyRolled)
             .map((row) => {
               const action = overrides[row.studentId] ?? row.proposed;
@@ -180,14 +212,46 @@ export function YearRollUpContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
-  const toDo = rows.filter((row) => !row.alreadyRolled).length;
-  const flagged = rows.filter((row) => row.flagged).length;
+  const toDo = allRows.filter((row) => !row.alreadyRolled).length;
+  const flagged = allRows.filter((row) => row.flagged).length;
+  const movingCount = allRows.filter((row) => {
+    const action = overrides[row.studentId] ?? row.proposed;
+    return action === "PROMOTE" || action === "REPEAT";
+  }).length;
+  const leavingCount = allRows.length - movingCount;
 
   return (
     <div className="space-y-4">
+      {/* The page is named in the app bar, and the one verb that acts on every
+          record in the school goes with the name. It is disabled until there is
+          a plan, because "roll 0 students up" is not an offer. */}
+      <PageChrome
+        title="Roll up the year"
+        backHref="/schools/students"
+        backLabel="All students"
+      >
+        <Button
+          variant="primary"
+          loading={applyMutation.isPending}
+          disabled={applyMutation.isPending || toDo === 0}
+          title={toDo === 0 ? "Nothing in this plan would move." : undefined}
+          onClick={() => applyMutation.mutate()}
+        >
+          {applyMutation.isPending
+            ? "Rolling up…"
+            : `Roll ${toDo} student${toDo === 1 ? "" : "s"} up`}
+        </Button>
+      </PageChrome>
+
+      {plan ? (
+        <PageCaption>
+          {plan.fromTerm.name} → {plan.toTerm.name}
+        </PageCaption>
+      ) : null}
+
       {/* The four numbers this screen exists to weigh, and the one verb that
-          acts on them. The verb sits in the band rather than the header because
-          it is only meaningful once a plan has been worked out. */}
+          acts on them. The band carries only the numbers now; the verb moved to
+          the app bar, where the canvas puts every page's primary action. */}
       <PageBand
         chips={[
           { label: "Moving up", value: plan?.summary.PROMOTE ?? "—", tone: "success" },
@@ -199,19 +263,6 @@ export function YearRollUpContent() {
             tone: flagged > 0 ? "danger" : "neutral",
           },
         ]}
-        actions={
-          <Button
-            variant="primary"
-            size="sm"
-            loading={applyMutation.isPending}
-            disabled={applyMutation.isPending || toDo === 0}
-            onClick={() => applyMutation.mutate()}
-          >
-            {applyMutation.isPending
-              ? "Rolling up…"
-              : `Roll ${toDo} student${toDo === 1 ? "" : "s"} up`}
-          </Button>
-        }
       />
 
       {planQuery.error ? (
@@ -228,29 +279,45 @@ export function YearRollUpContent() {
         </Alert>
       ) : null}
 
-      <FilterBar>
-        <FilterSelect
-          label="From term"
-          allLabel="Current term"
-          value={fromTermId}
-          options={sortedTerms.map((term) => ({ value: term.id, label: term.name }))}
-          onChange={setFromTermId}
-        />
-        <FilterSelect
-          label="Into term"
-          allLabel="The next one"
-          value={toTermId}
-          options={sortedTerms.map((term) => ({ value: term.id, label: term.name }))}
-          onChange={setToTermId}
-        />
-        <FilterSelect
-          label="Year group"
-          allLabel="The whole school"
-          value={classFilter}
-          options={classes.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setClassFilter}
-        />
-      </FilterBar>
+      {/* The tabs and the three narrowings in one row, because all four change
+          the list beneath them and nothing else on the page. */}
+      <TableControls
+        tabs={
+          <RecordTabs<RollUpTab>
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { id: "moving", label: "Moving up", count: plan ? movingCount : undefined },
+              { id: "leaving", label: "Leaving", count: plan ? leavingCount : undefined },
+            ]}
+          />
+        }
+        filters={
+          <>
+            <FilterSelect
+              label="From term"
+              allLabel="Current term"
+              value={fromTermId}
+              options={sortedTerms.map((term) => ({ value: term.id, label: term.name }))}
+              onChange={setFromTermId}
+            />
+            <FilterSelect
+              label="Into term"
+              allLabel="The next one"
+              value={toTermId}
+              options={sortedTerms.map((term) => ({ value: term.id, label: term.name }))}
+              onChange={setToTermId}
+            />
+            <FilterSelect
+              label="Year group"
+              allLabel="The whole school"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
+            />
+          </>
+        }
+      />
 
       {plan && plan.source === "current-class" ? (
         <Alert tone="warn" title="Built from where each child sits now">
@@ -302,7 +369,12 @@ export function YearRollUpContent() {
                     subtitle={
                       <span className="mt-1 flex flex-wrap items-center gap-2">
                         <span>
-                          {row.student.studentNo} · {row.reason}
+                          {/* Number, then the move, then the average. The
+                              ladder is the fact the office is checking — "Form
+                              2 → Form 3", or that there is nothing above. */}
+                          {row.student.studentNo} ·{" "}
+                          {row.fromClass?.name ?? "No year group"} →{" "}
+                          {row.toClass?.name ?? "no year group above"}
                           {row.termAverage !== null
                             ? ` · average ${row.termAverage}%`
                             : ""}

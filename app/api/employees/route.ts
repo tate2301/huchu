@@ -167,6 +167,7 @@ export async function GET(request: NextRequest) {
     const position = searchParams.get("position")
     const departmentId = searchParams.get("departmentId")
     const gradeId = searchParams.get("gradeId")
+    const employeeModule = searchParams.get("module")
     const { page, limit, skip } = getPaginationParams(request)
 
     const where: Record<string, unknown> = {
@@ -174,6 +175,32 @@ export async function GET(request: NextRequest) {
     }
 
     if (active !== null) where.isActive = active === "true"
+    // Which module's staff these are. A school's office wants the people
+    // assigned to SCHOOLS — the bursar, the groundsman, the nurse — and not the
+    // whole company's payroll, which on a multi-vertical tenant is mostly
+    // somebody else's mine. Filtering on the assignment rather than on
+    // `position` is deliberate: position says what somebody does, the
+    // assignment says which business they do it for, and only the second one
+    // answers "show me our staff".
+    if (employeeModule) {
+      const requested = employeeModule
+        .split(",")
+        .map((value) => value.trim().toUpperCase())
+        .filter((value): value is EmployeeModuleInput =>
+          (EMPLOYEE_MODULE_INPUT_VALUES as readonly string[]).includes(value),
+        )
+        .map(normalizeEmployeeModule)
+      if (requested.length > 0) {
+        where.moduleAssignments = {
+          some: {
+            isActive: true,
+            module: {
+              in: requested as unknown as EmployeeModule[],
+            },
+          },
+        }
+      }
+    }
     if (position) {
       const requested = position
         .split(",")
