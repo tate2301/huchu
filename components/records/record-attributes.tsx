@@ -300,7 +300,18 @@ export function RecordAttributes({
                 {/* `mt-px` against a 20px line box, which is where the optical
                     centre of a 16px glyph actually falls — the old `mt-0.5`
                     was tuned against a line box the value no longer uses. */}
-                {Icon ? <Icon className="mt-px size-4 shrink-0" aria-hidden="true" /> : null}
+                {/* A step lighter than the label it sits beside, which is
+                    already a step lighter than the value. The mark is the
+                    quietest thing in the row — it is how you find "Owner"
+                    without reading, not a third thing to read — and at the
+                    label's own ink a column of sixteen of them was the first
+                    thing the eye landed on in the pane. */}
+                {Icon ? (
+                  <Icon
+                    className="mt-px size-4 shrink-0 text-[var(--text-disabled)]"
+                    aria-hidden="true"
+                  />
+                ) : null}
                 {/* Wraps rather than truncates. In a 112px column "Primary
                     contact" became "Primary cont…", which is a label somebody
                     has to guess at — and a label is the half of the row that
