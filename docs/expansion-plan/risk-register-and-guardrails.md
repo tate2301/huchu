@@ -37,7 +37,7 @@ Track the highest expansion risks and define enforceable guardrails before produ
 
 ## Monitoring and Escalation
 Minimum monitors:
-1. `/api/schools/*`, `/api/car-sales/*`, `/api/thrift/*` error rates.
+1. `/api/schools/*`, `/api/v2/retail/*`, `/api/thrift/*` error rates. *(2026-08-24: `/api/car-sales/*` removed — the module was dropped under ST-2.2.)*
 2. Auth/forbidden trends for pack routes (detect gate drift).
 3. Failed accounting integration event queue depth.
 

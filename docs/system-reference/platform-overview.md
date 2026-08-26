@@ -7,7 +7,7 @@ Huchu is a multi-tenant, feature-gated business operations platform with shared 
 At its core, the system combines:
 
 - shared identity, tenancy, entitlement, branding, reporting, audit, and finance rails
-- industry workspaces for gold operations, scrap and recycling, schools, auto sales, retail/POS, and general business operations
+- industry workspaces for gold operations, schools, retail/POS, and general business operations
 - external role-based portals for parents, students, teachers, cashiers/POS users, and platform admins
 - a browser-based admin control plane plus an Ink-based platform TUI for platform operators
 
@@ -21,21 +21,25 @@ The product philosophy visible across the codebase and planning docs is:
 
 ## Current Product Shape
 
-The current implementation supports these workspace profiles:
+The current implementation supports these **active** workspace profiles:
 
 - `GOLD_MINE`
-- `SCRAP_METAL`
 - `SCHOOLS`
-- `AUTOS`
 - `RETAIL`
 - `GENERAL`
+
+`SCRAP_METAL` and `AUTOS` still exist as values in the `WorkspaceProfile` enum, but they are
+**retired, not active**. They were kept deliberately: `Company.workspaceProfile` is `NOT NULL`,
+so a tenant stored on one of them keeps holding the value, and dropping it would fail the
+migration on any database with such a tenant. `RETIRED_WORKSPACE_PROFILES` in
+`lib/workspace-products.ts` lists both, `ActiveWorkspaceProfile` excludes them, and
+`toActiveWorkspaceProfile` degrades them to `GENERAL` at every lookup. Do not treat either as
+a sellable profile.
 
 These resolve into vertical product bundles such as:
 
 - Gold Operations
-- Scrap & Recycling
 - School Operations
-- Auto Sales
 - Retail
 - Service Workshop
 - Multi-Site Operations
@@ -65,15 +69,13 @@ Tenant workspaces are the operational applications end users spend their time in
 - operations capture
 - HR and payroll
 - stores and inventory
-- maintenance
+- maintenance (frozen — bug fixes only, see `CONTRIBUTING.md`)
 - compliance
-- CCTV
 - accounting
 - gold operations
-- scrap and recycling
 - schools
-- auto sales
 - retail/POS
+- CRM
 
 ### 3. External portals
 
@@ -219,10 +221,13 @@ This matters for positioning because Huchu is not trying to be a lifestyle SaaS 
 
 The platform currently exposes:
 
-- `3` tiers: `BASIC`, `STANDARD`, `ENTERPRISE`
-- `20` add-on bundles
-- `9` client templates
-- `124` feature catalog entries across `16` domains
+- `6` tiers: `FISCAL`, `START`, `GROW`, `SCALE`, `GOLD_EDITION`, `ENTERPRISE` (recounted 2026-08-24)
+- `21` add-on bundles
+- `8` client templates
+- `122` feature catalog entries
+
+Counted from `lib/marketing/pricing.ts`, `lib/platform/feature-catalog.ts` and
+`lib/platform/client-templates.ts` — check those rather than trusting these numbers to age well.
 
 This is one of the strongest signals in the codebase: Huchu is designed to be sold as a configurable platform, not as one fixed monolith.
 
@@ -241,7 +246,7 @@ From the live code plus the market docs, Huchu is best understood as:
 
 - Huchu is multi-tenant.
 - Huchu is feature-gated and bundle-driven.
-- Huchu already contains real live surfaces for gold, scrap, schools, autos, retail/POS, accounting, HR, compliance, CCTV, and platform admin.
+- Huchu already contains real live surfaces for gold, schools, retail/POS, CRM, accounting, HR, compliance, maintenance, and platform admin.
 - Huchu includes browser and operator tooling for tenant and platform administration.
 - Huchu includes branding, document templating, and finance-oriented controls.
 

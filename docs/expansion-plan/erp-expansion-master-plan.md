@@ -1,5 +1,15 @@
 # ERP Expansion Master Plan (Multi-Pack Program Contract)
 
+> **Scope-trim notice (added 2026-08-24).** This document predates the August 2026 scope trim
+> and still describes CCTV, Autos/car-sales and Scrap metal as platform modules. All three were
+> deleted from code and schema under ST-2 / ST-3 of `docs/rollout/scope-trim-roadmap.md`, and
+> their feature keys are granted by no bundle. In particular, the `Car Sales` rows in the route/feature tables below point at routes that no longer resolve.
+>
+> The rest of this document has not been re-verified against the August tree. Where it and
+> `docs/system-reference/` disagree, `system-reference/` is the live snapshot and this is the
+> plan of record. Do not restore a feature key, route or model from here to make a test pass.
+
+
 ## Normative References
 1. Platform architecture source of truth: `docs/expansion-plan/platform-holy-grail.md`
 2. UX enforcement source of truth: `docs/ux/platform-ux-playbook.md`

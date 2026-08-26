@@ -155,6 +155,24 @@ export const CONTACT_TYPE_COLOR: Record<string, { dot: string; band: string }> =
   OTHER: { dot: "bg-[var(--text-subtle)]", band: "bg-[var(--text-subtle)]" },
 };
 
+/**
+ * Lead channels, for the setup page's channel cards and its source rows.
+ *
+ * A hue each and no judgement in any of them: a walk-in is not worth less than
+ * a paid click, and colouring them as though it were would put a verdict on a
+ * page whose only job is to say where enquiries came from. `OTHER` is
+ * deliberately the subtle ink — it is the absence of an answer, not an answer.
+ */
+export const CRM_CHANNEL_COLOR: Record<string, { dot: string; band: string }> = {
+  MANUAL: { dot: "bg-[var(--brand)]", band: "bg-[var(--brand)]" },
+  WEB_FORM: { dot: "bg-[var(--tone-info)]", band: "bg-[var(--tone-info)]" },
+  WEBHOOK: { dot: "bg-[var(--accent-500)]", band: "bg-[var(--accent-500)]" },
+  SOCIAL: { dot: "bg-[var(--warning-400)]", band: "bg-[var(--warning-400)]" },
+  ADS: { dot: "bg-[var(--tone-warn)]", band: "bg-[var(--tone-warn)]" },
+  REFERRAL: { dot: "bg-[var(--tone-success)]", band: "bg-[var(--tone-success)]" },
+  OTHER: { dot: "bg-[var(--text-subtle)]", band: "bg-[var(--text-subtle)]" },
+};
+
 /** Company account standing. Here the colour *is* a judgement, so it is semantic. */
 export const ACCOUNT_STATUS_COLOR: Record<string, { dot: string; band: string }> = {
   ACTIVE: { dot: "bg-[var(--tone-success)]", band: "bg-[var(--tone-success)]" },

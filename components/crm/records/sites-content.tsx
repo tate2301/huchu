@@ -196,6 +196,7 @@ export function SitesContent({ openCreate = false }: { openCreate?: boolean }) {
       createLabel="New site"
       onCreate={() => setCreateOpen(true)}
       error={sitesQuery.error}
+      count={`${sites.length} of ${total}`}
       layout={<LayoutSwitch value={layout} onChange={setLayout} options={["TABLE", "LIST"]} />}
     >
       {layout === "TABLE" ? (

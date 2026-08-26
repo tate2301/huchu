@@ -1,5 +1,11 @@
 # Car Sales Phase 1 Core Spec (Delivered Slice)
 
+> **Superseded — this module was dropped.** Autos / car sales was deleted from the codebase and schema
+> in August 2026 under ST-2.2 / ST-3.1 of `docs/rollout/scope-trim-roadmap.md`, and its SKU was
+> retired. Nothing described below is live. Kept as a historical record of what was built and
+> why; do not restore a feature key, route or model from it to make a test pass.
+
+
 ## Normative References
 1. `docs/expansion-plan/platform-holy-grail.md`
 2. `docs/ux/platform-ux-playbook.md`

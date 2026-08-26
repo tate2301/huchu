@@ -1,6 +1,12 @@
 # Retail Market and Competitor Research
 
 Date: 2026-04-08
+Scorecard re-verified against the codebase: 2026-08-24
+
+> **Read §8 and §10 with the August update.** Six of the nine gaps this document identified
+> in April have since shipped. The market read (§4), competitor read (§5) and positioning
+> (§11) have **not** been re-verified — they were based on competitor brochures and websites
+> as of April, and those products have presumably moved too.
 
 Scope:
 - Market and competitor research for the retail product vertical
@@ -219,7 +225,10 @@ The platform already has a meaningful retail engine.
 
 ## 8. Competitor Comparison
 
-| Capability | SalesIntellect / market expectation | Huchu today | Read |
+*Original April assessment, left intact as the record. The verified August status is in
+§8.1 below — six of these rows have changed.*
+
+| Capability | SalesIntellect / market expectation | Huchu today (April 2026) | Read |
 |---|---|---|---|
 | POS checkout | Strong | Strong | Competitive foundation exists |
 | Hold / recall | Strong | Present | Competitive |
@@ -240,6 +249,56 @@ The platform already has a meaningful retail engine.
 | Local payment experience | Important | Partial | Gap |
 | Retail-native fiscalisation story | Important | Underexposed | Gap |
 | Role-shaped retail workspace | Important | Not yet | Gap |
+
+### 8.1 August 2026 re-verification
+
+Checked directly against the tree on 2026-08-24. Six rows changed.
+
+| April verdict | Status now | Evidence in the codebase |
+| --- | --- | --- |
+| Offline sales and sync — **major gap** | **Closed** | Full `lib/offline/` stack — `outbox.ts`, `sync-engine.ts`, `conflict-resolver.ts`, `lifecycle-machine.ts`, `query-cache.ts`, service worker — plus retail-specific `lib/retail/pos-offline-queue.ts`, `offline-catalog.ts`, `offline-sale.ts`, `offline-receipt.ts`, the `/api/v2/retail/pos/sync` endpoint and the `app/portal/pos/offline` screen |
+| Loyalty and customer retention — **major gap** | **Partly closed, and fragile** | `/api/v2/retail/customers/[id]/loyalty` earns and redeems points — but see §8.2 |
+| Stock counts and variance — gap | **Closed** | `/api/v2/retail/stock/count` + `app/retail/stock/count`, posting through `recordStockMovement` |
+| Inter-branch transfers — gap | **Closed** | `/api/v2/retail/stock/transfers` + `app/retail/stock/transfers`, and it posts via `captureAccountingEvent` |
+| Retail-native fiscalisation — underexposed | **Closed** | `lib/retail/fiscalisation.ts`: `fiscaliseRetailSale`, `loadRetailTaxResolver`, `buildRetailSaleSigningInput`, `retailReceiptType` |
+| Register and device operations — gap | **Half closed** | `RetailRegister` and `RetailTillPin` models exist; `RetailDevice` was never built, so register and device are still not separated |
+| WhatsApp receipts — **major gap** | **Still open** | "whatsapp" appears only in `app/home/*` marketing pages and `lib/crm/sources.ts` — nothing in the POS receipt path, and no receipt-delivery service abstraction |
+| Supplier returns — gap | **Still open** | No `SupplierReturn` match anywhere in `prisma/schema.prisma`, `lib/` or `app/` |
+| Employee performance and commissions | **Still open** | No commission logic under `lib/retail` or `app/api/v2/retail` |
+
+Of the recommended first-class domain objects in §12, only `RetailRegister` was built.
+`RetailStockCount`, `RetailStockTransfer` and `RetailCustomer` were **not** created as retail
+models — that functionality reuses the shared inventory engine and the shared `Customer`
+model, which is a reasonable outcome and not a gap. `RetailDevice`, `RetailPriceList`,
+`RetailAssortment`, `RetailLoyaltyAccount`, `RetailSupplierReturn`, `RetailCashUpReview` and
+`RetailFiscalReceiptBinding` do not exist.
+
+### 8.2 Where Huchu now leads the April benchmark
+
+`RetailSalePayment` carries a **per-tender currency, exchange rate and base amount**:
+
+```prisma
+currency     String   @default("USD")
+exchangeRate Decimal  @db.Decimal(12, 4)
+baseAmount   Decimal  @db.Decimal(14, 2)
+```
+
+A USD-priced basket settled part in USD notes and part in ZWG or EcoCash reconciles against
+the drawer. No competitor in §5 is described as doing per-tender FX. For Harare this is
+closer to a requirement than a differentiator.
+
+**Open defect, worth fixing before a client demo.** The loyalty endpoint joins customers to
+sales by **name string**, not by ID:
+
+```ts
+const sales = await prisma.retailSale.findMany({
+  where: { companyId, customerName: customer.name, status: "POSTED" },
+```
+
+Two customers with the same name share a balance, and renaming a customer detaches their
+history. Redeemed points are parsed out of the free-text `sale.notes` field via
+`parseLoyaltyRedeemPoints`. `RetailSale` needs a real `customerId` foreign key and a points
+ledger before loyalty is shown to a shop owner.
 
 ## 9. Where Huchu Is Stronger Than SalesIntellect
 
@@ -274,9 +333,15 @@ SalesIntellect appears stronger in the parts the Harare shop owner will feel imm
 - inventory counts and stock control packaging
 - easy-to-understand operational surface
 
-This is the biggest product lesson:
+This was the biggest product lesson in April:
 
 `Huchu has more platform depth, but SalesIntellect currently looks more retail-native.`
+
+**August 2026:** roughly half-resolved. The depth argument got stronger, and offline selling,
+stock counts, transfers and retail fiscalisation are no longer gaps. The visible-convenience
+gap has narrowed to three items a shop owner will ask about in the first ten minutes and
+which still cannot be demonstrated: WhatsApp receipts, staff performance/commission, and
+supplier returns — plus loyalty, which exists but is not yet trustworthy.
 
 ## 11. Strategic Positioning Recommendation
 

@@ -194,7 +194,7 @@ exact surface. `https://design.corelith.co.zw/verticals/<name>/index.html`
 | Route | Vertical | Also see portal |
 |---|---|---|
 | `app/gold` | `gold` | `portals/gold/demo.html` |
-| `app/scrap-metal` | `scrap` | `portals/scrap/demo.html` |
+| ~~`app/scrap-metal`~~ | `scrap` | *(dropped 2026-08, ST-2.3 — directory deleted)* |
 | `app/accounting` | `accounting` | — |
 | `app/human-resources`, `app/attendance` | `hr` | `portals/staff/demo.html` |
 | `app/retail` | `retail` | `portals/pos/demo.html` |
@@ -202,8 +202,8 @@ exact surface. `https://design.corelith.co.zw/verticals/<name>/index.html`
 | `app/management`, `app/reports` | `multisite` | `portals/owner/demo.html` |
 | `app/maintenance` | `maintenance` | — |
 | `app/compliance` | `compliance` | — |
-| `app/cctv` | `cctv` | — |
-| `app/car-sales` | `auto` | — |
+| ~~`app/cctv`~~ | `cctv` | *(dropped 2026-08, ST-2.1 — directory deleted)* |
+| ~~`app/car-sales`~~ | `auto` | *(dropped 2026-08, ST-2.2 — directory deleted)* |
 | `app/schools` | `schools` | `portals/{parent,student,teacher}/demo.html` |
 | `app/thrift` | `thrift` | — |
 | `app/admin`, `app/user-management` | — | `portals/admin/demo.html` |

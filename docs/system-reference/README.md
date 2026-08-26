@@ -58,7 +58,6 @@ The docs in this folder were grounded in:
   - `docs/build-plan/brand-identity.md`
   - `docs/hr-module-capability-roadmap.md`
   - `docs/accounting/zimra-fiscalisation.md`
-  - `CCTV_UI_SUMMARY.md`
 
 ## Important Reading Rule
 

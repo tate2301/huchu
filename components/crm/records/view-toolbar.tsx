@@ -57,6 +57,7 @@ export function ViewToolbar({
   layout,
   start,
   search,
+  count,
   end,
   className,
 }: {
@@ -69,6 +70,18 @@ export function ViewToolbar({
   start?: ReactNode;
   /** The search control, right-aligned with the display controls. */
   search?: ReactNode;
+  /**
+   * How many records are showing, and out of how many — "50 of 214".
+   *
+   * The artboards put it here, between the filters and the display controls,
+   * because it is the answer to the question the filters just asked. Without
+   * it a heavily filtered list and an empty database read the same from the
+   * toolbar down, and you have to scroll to the pager to find out which.
+   *
+   * Desktop only: on a phone this row is already one button and a search box,
+   * and a count there costs the search half its width.
+   */
+  count?: ReactNode;
   /** Display controls: column picker, card fields. */
   end?: ReactNode;
   className?: string;
@@ -179,6 +192,23 @@ export function ViewToolbar({
       {/* Search stays out of the sheet: it is how you find one record, which
           is the most common reason to touch this row at all. */}
       <div className="min-w-0 flex-1 sm:flex-none sm:shrink-0">{search}</div>
+
+      {count ? (
+        <>
+          <span className="hidden shrink-0 font-mono text-sm tabular-nums text-[var(--text-subtle)] sm:inline">
+            {count}
+          </span>
+          {/* The same seam as the one after the layout switch: it separates
+              "which records" from "how they are shown". Only drawn when there
+              is something on the far side of it to separate. */}
+          {end ? (
+            <span
+              aria-hidden="true"
+              className="hidden h-[18px] w-px shrink-0 bg-[var(--border-subtle)] sm:block"
+            />
+          ) : null}
+        </>
+      ) : null}
 
       <div className="hidden shrink-0 items-center gap-2 sm:flex">{end}</div>
     </div>

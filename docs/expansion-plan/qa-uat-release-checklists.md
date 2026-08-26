@@ -5,7 +5,10 @@
 2. UX enforcement source of truth: `docs/ux/platform-ux-playbook.md`
 
 ## Purpose
-Provide hard gates for shipping `Schools`, `Car Sales`, and `Thrift` packs safely.
+Provide hard gates for shipping `Schools` and `Thrift` packs safely.
+
+> **2026-08-24:** the `Car Sales` section below is dead — the pack was dropped under ST-2.2 and
+> its code deleted. Do not run those gates; they test routes that no longer resolve.
 
 ## 1. Build and Pre-QA Gate
 - [ ] Schema changes reviewed for tenant key + constraints.

@@ -320,8 +320,20 @@ navigation:
 E2E_BASE_URL=http://payroll-demo.apps.pagka.local:3000 npx playwright test e2e/attendance-mark.spec.ts
 ```
 
-**Never `prisma migrate deploy`.** This repo uses `prisma db push` plus scripts for
-data moves. `prisma/migrations` exists but is not the source of truth.
+**`prisma/migrations` IS the source of truth.** *(Corrected 2026-08-24 — this section
+previously said "never `prisma migrate deploy`" and that migrations were not authoritative.
+That stopped being true in August 2026.)*
+
+The history was reconciled with the schema over commits `08aa5197` (recovered the orphan
+migration that blocked `migrate deploy`), `84444c2c` (history caught up with the scripts)
+and `eb0c8fd9` (pending migrations deployed). There are now 63 migrations and a
+`migration_lock.toml`, and `prisma/migrations` is what production applies.
+
+Use `prisma migrate dev` for a schema change that is going to production — see
+`.claude/agents/gold-data-foundation.md`, which requires it and requires a migration
+witness test. `prisma db push` is for throwaway local databases only; using it against a
+shared database is what caused the drift post-mortem in
+`docs/gold-prod-recovery-2026-05-10.md`.
 
 **Never `db push --force-reset`** on a database you care about. It is the remedy
 Prisma suggests for the two changes in §5 and it drops everything.

@@ -31,7 +31,7 @@ The expansion docs consistently reinforce a common direction:
 The explicit pack sequence documented in the expansion plan is:
 
 1. Schools
-2. Car sales
+2. ~~Car sales~~ — **dropped 2026-08** (ST-2.2); the pack was never completed and its code was deleted
 3. Thrift
 
 Even though retail/POS surfaces are already live, the roadmap still treats thrift as a deeper pack that needs fuller identity and workflow separation.

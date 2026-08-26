@@ -299,11 +299,19 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             {lead.client?.name ?? "No client"}
           </EntityLink>
           {" · "}
-          <EntityLink href={lead.assignedTo ? `/crm/reps/${lead.assignedTo.id}` : null} muted>
-            {lead.assignedTo?.name ?? "Unassigned"}
-          </EntityLink>
+          {/* An unassigned lead is nobody's job, which is the single most
+              common reason one goes quiet. It reads as a warning rather than
+              as another grey name. */}
+          {lead.assignedTo ? (
+            <EntityLink href={`/crm/reps/${lead.assignedTo.id}`} muted>
+              {lead.assignedTo.name}
+            </EntityLink>
+          ) : (
+            <span className="font-semibold text-[var(--status-error-text)]">Unassigned</span>
+          )}
         </>
       }
+      bandValue={formatLeadValue(lead.estimatedValue, lead.currency)}
       primaryAction={
         // Converting is the one thing a qualified lead exists to do — until it
         // has done it. A converted lead is history, and the useful move from
@@ -517,33 +525,20 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
       ]}
       rail={
         <>
-          {/* The headline, and the only raised surface on the page. Removing
-              every frame made the summary calm and also uniform — nine
-              sections of identical weight, so nothing led. One tinted panel
-              carrying the two figures somebody opens a lead to see gives the
-              column a top, and everything below it can stay quiet. */}
-          <section className="rounded-[var(--card-radius)] bg-[var(--surface-muted)] px-4 py-3.5">
-            <p className="text-sm font-medium uppercase tracking-wide text-[var(--text-subtle)]">
-              Worth
-            </p>
-            <p className="mt-1 font-mono text-3xl leading-none tracking-tight text-[var(--text-strong)]">
-              {formatLeadValue(lead.estimatedValue, lead.currency)}
-            </p>
-            {/* A lead with no likelihood on it is not 0% likely — nobody has
-                said. The property list above reads "Not scored", and this line
-                used to sit two hundred pixels below it saying "0% likely"
-                about the same field. */}
-            <p className="mt-2 text-sm text-[var(--text-muted)]">
-              {lead.probability == null ? "Not scored" : `${lead.probability}% likely`} ·{" "}
-              {CRM_STAGE_LABELS[lead.stage]}
-            </p>
+          {/* No "Worth" panel here any more.
 
-            {lead.scoreBreakdown ? (
-              <div className="mt-3.5 border-t border-[var(--border)] pt-3">
-                <LeadScoreCard score={lead.scoreBreakdown} />
-              </div>
-            ) : null}
-          </section>
+              The figure is in the band, where it stays in view while the
+              conversation scrolls — see `bandValue` below. A copy at the top of
+              this column was the same number twice on one screen, and it was
+              the copy that scrolled away.
+
+              What is left is the score, which is not a headline but a
+              breakdown: a number, a band, and the reasons for both. */}
+          {lead.scoreBreakdown ? (
+            <RailSection title="How warm">
+              <LeadScoreCard score={lead.scoreBreakdown} />
+            </RailSection>
+          ) : null}
 
           <RailSection title="Up next">
             <NextInteractionCard

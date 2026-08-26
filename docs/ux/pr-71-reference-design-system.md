@@ -63,7 +63,7 @@ This spec intentionally preserves the platform UX playbook rules around one acti
 - `--status-urgent-text`: `#D61F5C`
 
 ### Typography
-- App font: `SS Huchu` for shell and navigation.
+- App font: `Atkinson Hyperlegible Next` for shell and navigation. *(Corrected 2026-08-24 — `SS Huchu` was reversed; see `docs/design-system/01-setup.md`.)*
 - Numeric font: `font-mono` with tabular figures for amounts, dates, and counts.
 - Page title: `40/700`
 - Section title: `18/600`

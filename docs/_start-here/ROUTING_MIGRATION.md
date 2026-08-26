@@ -1,5 +1,13 @@
 # CCTV Routing Migration Guide
 
+> **Superseded — the module this describes was deleted.** CCTV was removed from the codebase
+> and schema in August 2026 under ST-2.1 / ST-3.1 of `docs/rollout/scope-trim-roadmap.md`.
+> None of the routes below exist. It is kept only as a worked example of the query-parameter
+> → file-based routing migration pattern, which is still how the app routes; nothing else here
+> is actionable. **It should not be in `_start-here/`** — a new engineer following the
+> onboarding path will spend time on a module that is gone. Move or delete it.
+
+
 ## Overview
 
 Successfully migrated CCTV surveillance module from query parameter routing to Next.js file-based routing with a common layout.

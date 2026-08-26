@@ -20,7 +20,7 @@ When any UX guidance conflicts with other docs, this playbook wins.
 - `--action-destructive-bg`: `#EC442C`
 
 ### Typography
-- Family: `SS Huchu`, `Inter`, and system fallbacks.
+- Family: `Atkinson Hyperlegible Next`, and system fallbacks. *(Corrected 2026-08-24 — the `SS Huchu` decision was reversed; see `docs/design-system/01-setup.md`.)*
 - Page title: `32/700`
 - Section title: `20/700`
 - Body: `14/400`

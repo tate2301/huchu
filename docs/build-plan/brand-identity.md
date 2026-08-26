@@ -30,8 +30,14 @@ Rules:
 3. Reserve saturated colors for action and status, not decoration.
 
 ## Typography Scale
-Primary family: `SS Huchu`.
+Primary family: **Atkinson Hyperlegible Next**, taken from the design system's `--font-sans`.
 Fallbacks: `"Segoe UI", "Helvetica Neue", Arial, sans-serif`.
+
+> **Superseded 2026-08-24.** This section previously mandated a self-hosted `SS Huchu`
+> family. That decision was reversed: the `@font-face` blocks are gone and `--font-sans`
+> now resolves to Atkinson Hyperlegible Next, pulled from Google Fonts by the design
+> system's `styles.css`. See `docs/design-system/01-setup.md`. Any surviving `SS Huchu`
+> `.woff2` files under `public/` are unreferenced and safe to delete.
 
 Required semantic sizes:
 1. `text-page-title`

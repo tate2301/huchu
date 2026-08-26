@@ -176,6 +176,22 @@ export type ReportRow = {
   cells: ReportCell[];
   href?: string;
   /**
+   * Opens the row in place rather than navigating. A stage in the pipeline
+   * editor carries a checklist, not a page of its own — `href` would send the
+   * reader away from the table they came to audit.
+   *
+   * Ignored when `href` is set: a row is either a link or a disclosure.
+   */
+  onSelect?: () => void;
+  /** Whether this row's `detail` is showing. Announced as `aria-expanded`. */
+  expanded?: boolean;
+  /**
+   * What the row reveals when it is open. Rendered as a sibling below the row
+   * rather than inside it, so it spans the full width instead of being cut up
+   * by the tracks above it.
+   */
+  detail?: ReactNode;
+  /**
    * Draws the row as a summary line: a heavier top rule and no hover. Used for
    * the total at the foot of a statement.
    */
@@ -298,29 +314,71 @@ export function ReportTable({
           (row.href || !row.emphasis) && "hover:bg-[var(--canvas)]",
         );
 
+        const key = row.id ?? index;
+
+        // The row and whatever it reveals are one unit, so the detail cannot
+        // be separated from its row by the divider that follows it.
+        const withDetail = (rowEl: ReactNode) =>
+          row.detail && row.expanded ? (
+            <div key={key} role="rowgroup">
+              {rowEl}
+              <div
+                role="row"
+                className="border-b border-[var(--table-divider)] bg-[var(--canvas)] px-[13px] py-2.5"
+              >
+                {row.detail}
+              </div>
+            </div>
+          ) : (
+            rowEl
+          );
+
         if (row.href) {
-          return (
+          return withDetail(
             <a
               role="row"
-              key={row.id ?? index}
+              key={key}
               href={row.href}
               className={rowClass}
               style={{ gridTemplateColumns: tracks }}
             >
               {content}
-            </a>
+            </a>,
           );
         }
 
-        return (
+        if (row.onSelect) {
+          // A button rather than a div with a click handler: this is a
+          // disclosure, and it has to be reachable and operable from the
+          // keyboard like every other one in the module.
+          return withDetail(
+            <button
+              type="button"
+              role="row"
+              key={key}
+              aria-expanded={row.detail ? Boolean(row.expanded) : undefined}
+              onClick={row.onSelect}
+              className={cn(
+                rowClass,
+                "w-full text-left",
+                row.expanded && "bg-[var(--canvas)]",
+              )}
+              style={{ gridTemplateColumns: tracks }}
+            >
+              {content}
+            </button>,
+          );
+        }
+
+        return withDetail(
           <div
             role="row"
-            key={row.id ?? index}
+            key={key}
             className={rowClass}
             style={{ gridTemplateColumns: tracks }}
           >
             {content}
-          </div>
+          </div>,
         );
       })}
     </div>

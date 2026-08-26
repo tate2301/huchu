@@ -21,7 +21,7 @@ page you need; never bulk-fetch. When a fetched page contradicts `index.d.ts` or
 | Kit | `kits/<name>.html` |
 | Portal prototype | `portals/<name>/demo.html` |
 | Vertical | `verticals/<name>/index.html` |
-| Shared module | `shared/<stock\|hr\|maintenance\|cctv\|settings\|notifications>/index.html` |
+| Shared module | `shared/<stock\|hr\|maintenance\|settings\|notifications>/index.html` (the `cctv` module reference was dropped 2026-08-24 with the module) |
 
 Also: `sitemap.html` (every page), `playground/index.html`, `system/changelog.html`,
 `system/audit-a11y.html`, `system/audit-reuse.html`, `system/roadmap.html`.
@@ -108,7 +108,7 @@ being built or restyled.
 | `pos` | Cashiers, field buyers | Tablet | Sales entry, payments, receipts, till reconciliation |
 | `staff` | Employees | Mobile / desktop | Payslips + deductions, leave, clock in/out, expenses, directory |
 | `gold` | Mine clerks | Tablet / desktop | Pour ledger, refinery batching, payments, regulatory forms |
-| `scrap` | Scrap yard workers | Mobile / tablet / desktop | Opening checks, load weighing, suppliers, batch shipments |
+| ~~`scrap`~~ | ~~Scrap yard workers~~ | — | *(2026-08-24: the scrap-metal module was dropped under ST-2.3. The demo may still exist on the design-system host, but there is no Huchu surface behind it.)* |
 | `parent` | Parents, guardians | Mobile | Fee balances, attendance, marks, news, payments |
 | `student` | Students | Mobile / tablet | Timetable, marks, homework, library, goals |
 | `teacher` | Teachers | Tablet / desktop | Attendance, grades, lesson plans, parent messaging |

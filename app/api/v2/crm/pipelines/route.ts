@@ -60,6 +60,13 @@ export async function GET(request: NextRequest) {
         stages: {
           where: { archivedAt: null },
           orderBy: { position: "asc" },
+          // How many deals are sitting in each stage. The setup page draws this
+          // as its "In it now" column: a stage's settings — the probability, the
+          // idle rule, what it gates — mean little without knowing whether
+          // anything is actually in it. A pipeline where everything has piled up
+          // in Quoted is the fact this screen exists to surface, and it was the
+          // one fact it did not carry.
+          include: { _count: { select: { deals: true } } },
         },
         _count: { select: { deals: true } },
       },

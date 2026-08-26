@@ -6,11 +6,17 @@
 - UX default locked: successful submit redirects to a related list/history view and highlights the newly saved record.
 - Gold control locked: immutable records with corrective actions and full audit trail, not hard delete.
 
+> **Reviewed 2026-08-24.** This plan is largely delivered and partly superseded. The gap
+> list below was written against an earlier tree; two of its entries are no longer true, and
+> Phase 3's module has since been **frozen** by
+> `docs/rollout/scope-trim-roadmap.md` (ST-4.1). Corrections are inline. Treat this document
+> as a delivered plan and a historical record, not as a to-do list.
+
 ## Current Gaps (from repo inspection)
 - `Stores Receive` and `Stores Issue` are form-only views (`app/stores/receive/page.tsx`, `app/stores/issue/page.tsx`) without dedicated submitted-record tables in those modules.
-- `Work Orders` has create/list but no update/delete endpoints or UI actions (`app/api/work-orders/route.ts`, `components/maintenance/maintenance-content.tsx`).
+- ~~`Work Orders` has create/list but no update/delete endpoints or UI actions.~~ **Closed 2026-08-24:** `app/api/work-orders/[id]/route.ts` exports `GET`, `PATCH` and `DELETE`.
 - `Gold` forms return to menu after save (`app/gold/components/pour-form.tsx`, `app/gold/components/dispatch-form.tsx`, `app/gold/components/receipt-form.tsx`) rather than redirecting to filtered history showing saved record.
-- `Compliance` is placeholder only (`app/compliance/page.tsx`) while Prisma models already exist.
+- ~~`Compliance` is placeholder only while Prisma models already exist.~~ **Closed 2026-08-24:** the module shipped — `app/compliance/{permits,inspections,incidents,training}/page.tsx` plus all four `app/api/compliance/*` resource routes with `[id]` handlers.
 - API surface is inconsistent for full lifecycle on several entities (missing `/:id` handlers and standardized mutation patterns).
 
 ## Phase Plan
@@ -44,6 +50,11 @@
 - Extend `components/stores/stores-shell.tsx` with `Movements` tab.
 
 ## Phase 3: Maintenance lifecycle completion
+
+> **Delivered, and the module is now frozen.** Maintenance (`app/maintenance`,
+> `app/api/work-orders`, `app/api/equipment`) is bug-fixes-only under ST-4.1 of the scope-trim
+> roadmap — see the scope register in `CONTRIBUTING.md`. Do not open new stories against this
+> phase; a PR adding a feature to a frozen module should be sent back.
 - Work orders:
 - Add `PATCH /api/work-orders/[id]` for status, technician, workDone, partsUsed, downtimeEnd.
 - Add cancellation endpoint behavior in same patch contract (`status="CANCELLED"`).
@@ -76,7 +87,10 @@
 - For payment records: include explicit update history and status transitions in row/detail.
 - Ensure every table has fast filters and date scoping to prevent large-list UX degradation.
 
-## Phase 6: Compliance bootstrap (next after active modules)
+## Phase 6: Compliance bootstrap (delivered)
+
+> **Delivered 2026-08-24.** Every endpoint listed below exists, and the placeholder page was
+> replaced by the four module pages. Kept as the record of what was built.
 - Build baseline CRUD + list views for:
 - Permits, inspections, incidents, training records.
 - API routes to add:

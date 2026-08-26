@@ -25,7 +25,7 @@
 
 ### 3) Unified Reports Center
 - Rework `app/reports/page.tsx` into a report catalog + builder.
-- Add report definitions spanning operations, stores, gold, HR, compliance, maintenance, CCTV.
+- Add report definitions spanning operations, stores, gold, HR, compliance, maintenance. *(2026-08-24: CCTV removed — module dropped under ST-2.1.)*
 - Centralize filters and export pipeline while preserving query-string state.
 
 ## Acceptance Criteria

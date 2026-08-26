@@ -250,6 +250,7 @@ export function DealsContent({
       createLabel="New deal"
       onCreate={() => setCreateOpen(true)}
       error={dealsQuery.error}
+      count={`${rows.length} of ${total}`}
       display={
         <ColumnPicker
           columns={layout === "BOARD" ? DEAL_CARD_FIELDS : DEAL_TABLE_COLUMNS}

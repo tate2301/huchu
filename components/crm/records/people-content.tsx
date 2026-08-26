@@ -457,6 +457,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       createLabel="New person"
       onCreate={() => setCreateOpen(true)}
       error={peopleQuery.error}
+      count={`${people.length} of ${total}`}
       display={
         <ColumnPicker
           columns={PERSON_FIELDS}
