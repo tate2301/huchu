@@ -1,0 +1,39 @@
+{
+ "screen": "StateLoading",
+ "header": "<!-- SCREEN: StateLoading | app-bar title: Form 2 | caption: Term 2 &middot; 118 pupils -->",
+ "filters": [
+  "Class = Every class",
+  "Status = Any status",
+  "Boarding = Boarders and day"
+ ],
+ "columns": [
+  "Student",
+  "Class",
+  "Status",
+  "Boarding",
+  "Guardians"
+ ],
+ "cards": [
+  "Form 2"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Loading",
+  "Export"
+ ],
+ "allCopy": [
+  "Loading",
+  "Export",
+  "Class",
+  "Every class",
+  "Status",
+  "Any status",
+  "Boarding",
+  "Boarders and day",
+  "Search this year group",
+  "Form 2",
+  "Student",
+  "Guardians"
+ ]
+}

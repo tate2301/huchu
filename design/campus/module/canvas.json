@@ -1,0 +1,791 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Heading law — a page is named once",
+      "page": "foundation",
+      "x": 0,
+      "y": 0,
+      "w": 1180,
+      "h": 1300,
+      "expand": "fit",
+      "print": "flow"
+    },
+    {
+      "file": "StateLoading.dc.html",
+      "title": "Loading",
+      "page": "states",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateEmpty.dc.html",
+      "title": "Empty",
+      "page": "states",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateError.dc.html",
+      "title": "Error",
+      "page": "states",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateDenied.dc.html",
+      "title": "Not your job — permission",
+      "page": "states",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateNotFound.dc.html",
+      "title": "Not found",
+      "page": "states",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateOffline.dc.html",
+      "title": "Offline",
+      "page": "states",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateSaving.dc.html",
+      "title": "Saving, and what “Done” says",
+      "page": "states",
+      "x": 10320,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StateDialog.dc.html",
+      "title": "Dialog anatomy",
+      "page": "states",
+      "x": 12040,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "AccessBlocked.dc.html",
+      "title": "Access blocked",
+      "page": "states",
+      "x": 13760,
+      "y": 0,
+      "w": 1100,
+      "h": 700,
+      "expand": "fit"
+    },
+    {
+      "file": "OfflinePage.dc.html",
+      "title": "app/offline — as built and proposed",
+      "page": "states",
+      "x": 14980,
+      "y": 0,
+      "w": 1100,
+      "h": 600,
+      "expand": "fit"
+    },
+    {
+      "file": "ClaimAccount.dc.html",
+      "title": "Claim a portal account",
+      "page": "states",
+      "x": 16200,
+      "y": 0,
+      "w": 900,
+      "h": 700,
+      "expand": "fit"
+    },
+    {
+      "file": "Overview.dc.html",
+      "title": "School overview",
+      "page": "office",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "OverviewAsBuilt.dc.html",
+      "title": "/schools as it ships today",
+      "page": "office",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Attendance.dc.html",
+      "title": "Attendance — the register board",
+      "page": "office",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Notices.dc.html",
+      "title": "School notices",
+      "page": "office",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Documents.dc.html",
+      "title": "School documents",
+      "page": "office",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Reports.dc.html",
+      "title": "School reports — collections",
+      "page": "office",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ReportsArrears.dc.html",
+      "title": "School reports — arrears aging",
+      "page": "office",
+      "x": 10320,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Meetings.dc.html",
+      "title": "Parent meetings and the calendar",
+      "page": "office",
+      "x": 12040,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Timetable.dc.html",
+      "title": "Timetable",
+      "page": "office",
+      "x": 13760,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Homework.dc.html",
+      "title": "Homework oversight",
+      "page": "office",
+      "x": 15480,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Goals.dc.html",
+      "title": "Subject targets",
+      "page": "office",
+      "x": 17200,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Students.dc.html",
+      "title": "All students",
+      "page": "records",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentsClass.dc.html",
+      "title": "A year group’s roll",
+      "page": "records",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentRecord.dc.html",
+      "title": "Student record — Tanaka Mutasa",
+      "page": "records",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentRollUp.dc.html",
+      "title": "Roll up the year",
+      "page": "records",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Admissions.dc.html",
+      "title": "Admissions",
+      "page": "records",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Imports.dc.html",
+      "title": "Import records",
+      "page": "records",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Guardians.dc.html",
+      "title": "Guardians",
+      "page": "records",
+      "x": 10320,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "GuardianRecord.dc.html",
+      "title": "Guardian record — Grace Mutasa",
+      "page": "records",
+      "x": 12040,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Teachers.dc.html",
+      "title": "Teachers",
+      "page": "records",
+      "x": 13760,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "TeacherRecord.dc.html",
+      "title": "Teacher record — Priscilla Nyathi",
+      "page": "records",
+      "x": 15480,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Identity.dc.html",
+      "title": "Identity and records",
+      "page": "records",
+      "x": 17200,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Academics.dc.html",
+      "title": "Years and terms",
+      "page": "academics",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Classes.dc.html",
+      "title": "Classes and streams",
+      "page": "academics",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ClassRecord.dc.html",
+      "title": "Class record — Form 2",
+      "page": "academics",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Subjects.dc.html",
+      "title": "Subjects",
+      "page": "academics",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "SubjectRecord.dc.html",
+      "title": "Subject record — Mathematics",
+      "page": "academics",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Syllabus.dc.html",
+      "title": "Scheme of work",
+      "page": "academics",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Results.dc.html",
+      "title": "Results overview",
+      "page": "results",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ResultsClass.dc.html",
+      "title": "A year group’s mark sheets",
+      "page": "results",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ResultsModeration.dc.html",
+      "title": "Moderation queue",
+      "page": "results",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "ResultsPublish.dc.html",
+      "title": "Publishing",
+      "page": "results",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Fees.dc.html",
+      "title": "Fees by year group",
+      "page": "fees",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "FeesClass.dc.html",
+      "title": "A year group’s invoices",
+      "page": "fees",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerInvoices.dc.html",
+      "title": "Ledger — invoices",
+      "page": "fees",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerReceipts.dc.html",
+      "title": "Ledger — receipts",
+      "page": "fees",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerCredits.dc.html",
+      "title": "Ledger — credit on account",
+      "page": "fees",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerRefunds.dc.html",
+      "title": "Ledger — refunds",
+      "page": "fees",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerWaivers.dc.html",
+      "title": "Ledger — waivers",
+      "page": "fees",
+      "x": 10320,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LedgerStructures.dc.html",
+      "title": "Ledger — fee structures",
+      "page": "fees",
+      "x": 12040,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "FeeBulkGenerate.dc.html",
+      "title": "Bulk generate invoices",
+      "page": "fees",
+      "x": 13760,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "FeeDialogs.dc.html",
+      "title": "The fee dialogs",
+      "page": "fees",
+      "x": 15480,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Boarding.dc.html",
+      "title": "Bed board",
+      "page": "services",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BoardingHostel.dc.html",
+      "title": "Hostel record — Chishawasha House",
+      "page": "services",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BoardingWelfare.dc.html",
+      "title": "Health and welfare",
+      "page": "services",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Library.dc.html",
+      "title": "Library — shelves",
+      "page": "services",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "LibraryOut.dc.html",
+      "title": "Library — what is out",
+      "page": "services",
+      "x": 6880,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "Transport.dc.html",
+      "title": "Transport — routes",
+      "page": "services",
+      "x": 8600,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "TransportRegister.dc.html",
+      "title": "Transport — this morning",
+      "page": "services",
+      "x": 10320,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "foundation-intro",
+      "x": 1280,
+      "y": 0,
+      "w": 420,
+      "text": "START HERE\n\nThis sheet is the rule the other pages are held to.\n\nThe short version: the module screens name a page in the app bar, again in the rail, and a third time in the page band — then spend a caption line explaining a word nobody misread.\n\nOne name, in the app bar. The band takes the state instead. The caption survives only where it carries something that changes.",
+      "page": "foundation"
+    },
+    {
+      "id": "foundation-precedent",
+      "x": 1280,
+      "y": 380,
+      "w": 420,
+      "text": "NOT AN INVENTION\n\nThe teacher portal already does this. Its shell has a comment saying the old category line \"repeated what the rail already says\", and it now spends the caption on the term and the class in view.\n\nPageIntro already throws away its `purpose` and `nextStep` props — the caption text is being computed and discarded today.\n\nSo this is less a redesign than finishing something already started in two places.",
+      "page": "foundation"
+    },
+    {
+      "id": "foundation-carry",
+      "x": 1280,
+      "y": 800,
+      "w": 420,
+      "text": "WHAT CARRIES ACROSS THIS CANVAS\n\nEvery admin artboard here is emitted from one shared shell — the same 280px sidebar, 48px app bar, 200px rail and page band, byte for byte, sliced out of the original Overview artboard.\n\nThe rail is lib/navigation.ts verbatim, including its voice: \"Roll up the year\", \"Bed board\", \"Fees by year group\". Nothing is renamed to suit the drawing.\n\nSo when the rule changes it changes in one place, and forty screens cannot drift apart the way forty hand-drawn lookalikes would.",
+      "page": "foundation"
+    },
+    {
+      "id": "states-band",
+      "x": 0,
+      "y": -320,
+      "w": 760,
+      "text": "STATES — the law, once\n\nCampus has no error.tsx, no not-found.tsx and no loading.tsx anywhere. Repo-wide there are three such files and all three are in the platform-admin portal. There is no global-error.tsx either.\n\nSo a 404 on a student record is Next's default black-on-white page, an uncaught render error is unstyled, and every list \"loads\" by swapping a sentence into an empty table.\n\nEach artboard is labelled AS BUILT or PROPOSED. The rules stated here are what every other page on this canvas follows, so a state never has to be invented twice.",
+      "page": "states"
+    },
+    {
+      "id": "states-entry",
+      "x": 8020,
+      "y": -320,
+      "w": 480,
+      "text": "THE THREE SHARED ENTRY SCREENS\n\nAccess blocked is reproduced verbatim — including that it is the only campus-adjacent screen written in US product English (\"organization\", \"Retry Access\") while every portal screen is British sentence-case prose. Worth settling which voice wins.\n\napp/offline is drawn as it ships, which is a spinner and nothing else, beside what it should say.\n\n/c/[token] is the portal invite. Its already-claimed state is the one nobody has drawn, and it is the one a parent hits.",
+      "page": "states"
+    },
+    {
+      "id": "office-band",
+      "x": 0,
+      "y": -380,
+      "w": 760,
+      "text": "OFFICE — the ten screens a head opens across a term\n\nOverview, the register board, notices, documents, the two fee reports, parent meetings, the timetable, homework and subject targets. Copy is the source verbatim; the shell is the same 280px sidebar, 48px app bar and 200px rail as every other artboard on this canvas.\n\nThe first two are the same route. \"School overview\" is the screen a deputy head wants at 07:30 — what is missing a register, what is waiting on somebody, what is owed. \"/schools as it ships today\" is what is actually there: a fourteen-row key/value table with a search box, identical for all six personas.\n\nWhere a screen is read-only and obviously wants a verb — homework, subject targets, attendance, arrears — the artboard draws it and the panel beside it says it is a proposal, rather than letting a button smuggle itself in as fact.",
+      "page": "office"
+    },
+    {
+      "id": "office-filters",
+      "x": 0,
+      "y": 1060,
+      "w": 700,
+      "text": "FILTERING, THE SAME WAY EVERYWHERE\n\nEvery screen here carries the module's own FilterBar: labelled dropdowns whose closed state names what they filter, with an allLabel — \"Every year group\", \"Every subject\", \"Anything set\" — standing in for no filter.\n\nFour of these screens have no filters at all today. Reports renders whatever the API returns with no term or year-group control; the Documents \"Class Lists\" and \"Attendance Registers\" tabs keep a search state and never render the box, so they print all 842 pupils; Notices lists every notice ever sent; attendance filters only by date.\n\nThat is why the year-group filter appears on all ten. A school is organised by year group, and a screen that cannot narrow to one is a screen somebody exports to a spreadsheet.",
+      "page": "office"
+    },
+    {
+      "id": "office-meetings",
+      "x": 12040,
+      "y": 1060,
+      "w": 440,
+      "text": "Parent meetings carries the best sentence in the module, on the release dialog: \"Nobody is told automatically — ring them.\"\n\nIt is honest, and it is a gap. The school has a notices system that reaches every parent's portal in one send, and a cancelled meeting does not use it.\n\nThe month grid beside the evenings is new. The term is the window the office thinks in, but \"which nights are open\" is a calendar question and the list of teachers cannot answer it.",
+      "page": "office"
+    },
+    {
+      "id": "records-band",
+      "x": 0,
+      "y": -300,
+      "w": 720,
+      "text": "RECORDS — the people the school keeps\n\nEleven screens: the roll, one pupil, the roll-up, admissions, imports, guardians and teachers with their record pages, and the identity settings.\n\nTwo things run through all of them. There is no way to add a pupil, a guardian, a stream, or a teacher-portal invite from where you would look for it. And every record type has a Files tab with no upload control anywhere in the module.",
+      "page": "records"
+    },
+    {
+      "id": "records-imports",
+      "x": 8600,
+      "y": 1060,
+      "w": 440,
+      "text": "Import records is the best-designed screen in the module and worth reading as the standard: it explains the order records must be loaded in and why, it refuses to guess silently (\"A wrong guess waved through is worse than no guess\"), it shows what it would do before doing it, and it is the only thing in campus that can be undone.",
+      "page": "records"
+    },
+    {
+      "id": "records-identity",
+      "x": 17200,
+      "y": -300,
+      "w": 440,
+      "text": "Identity and records is the ONLY route in campus with a visible role gate — controls disable and the save button is not rendered below SCHOOL_ADMIN.\n\nEverywhere else a bursar sees a head's buttons and learns the answer as a red alert after clicking. This screen already knows how to do it right; nothing copies it. That is what the Denied artboard on the States page is arguing.",
+      "page": "records"
+    },
+    {
+      "id": "academics-band",
+      "x": 0,
+      "y": -300,
+      "w": 700,
+      "text": "ACADEMICS — the ladder everything hangs off\n\nYears, terms, the calendar, classes, streams, subjects, and the scheme of work.\n\nThree gaps sit in here and each breaks a screen further down: no periods UI (the timetable tells you to come here for it), no way to create a stream (every roll and mark sheet filters by one), and three separate subject lists with two different create dialogs.",
+      "page": "academics"
+    },
+    {
+      "id": "results-band",
+      "x": 0,
+      "y": -300,
+      "w": 760,
+      "text": "RESULTS — the widest gap in the module\n\nThe API has five transition endpoints: submit, hod-approve, hod-request-changes, publish, unpublish. Each is permission-gated, each is tested, and each has ZERO call sites in the app.\n\nSo the moderation queue and the publishing screen are read-only tables. HOD_APPROVED is a state no human being can reach through the interface, and a publish window can only be created with a REST client.\n\nThe HOD page on the Leadership canvas draws this queue with its verbs.",
+      "page": "results"
+    },
+    {
+      "id": "results-vocab",
+      "x": 1720,
+      "y": 1060,
+      "w": 420,
+      "text": "One enum, two vocabularies: the class page says Approved / Sent back, the moderation queue says HOD Approved / HOD Rejected, for the same sheet in the same state.\n\nPick one. \"Sent back\" is the better pair for \"Approved\" — it says what happened to the sheet rather than who did it.",
+      "page": "results"
+    },
+    {
+      "id": "fees-band",
+      "x": 0,
+      "y": -300,
+      "w": 760,
+      "text": "FEES — the module's workhorse, and its worst dialogs\n\nThe ledger is one 1367-line component behind six segments. Refunds are the only fully wired state machine in campus. Invoices, receipts, waivers and fee structures are all tables with their verbs missing: issue, void, write off, void a receipt, fiscalise, approve a waiver, activate a draft structure — every one has an endpoint and no control.\n\nAnd four dialogs ask a bursar to type a UUID into a box labelled \"Student ID\", \"Term ID\" or \"Invoice ID\". That is the single worst thing in the module.",
+      "page": "fees"
+    },
+    {
+      "id": "fees-deadends",
+      "x": 10320,
+      "y": 1060,
+      "w": 440,
+      "text": "Three sidebar entries — Receipts, Refunds, Waivers — point at routes that redirect to the fees YEAR-GROUP PICKER rather than to their own ledger tab. A bursar clicking \"Waivers\" lands on a grid of class cards.\n\nThe artboards here are drawn on the correct tab; the Leadership canvas draws them as the screens the nav promises.",
+      "page": "fees"
+    },
+    {
+      "id": "services-band",
+      "x": 0,
+      "y": -300,
+      "w": 740,
+      "text": "BOARDING AND SERVICES — where the writing is best and the verbs are fewest\n\n\"A route with no stops is a bus with nowhere to pull in.\" \"This is the combination a school cannot be caught by. Ring home before anything else on this page.\" \"Write the sentence a nurse needs, not a list of words.\"\n\nAnd: boarding has no approve on a leave request, no allocate, no add hostel; transport has no create for routes or stops; the library cannot catalogue a book. A complete bed-allocation board exists in the tree and no route renders it.",
+      "page": "services"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "office"
+  },
+  "pages": [
+    {
+      "id": "foundation",
+      "name": "Foundation"
+    },
+    {
+      "id": "states",
+      "name": "States"
+    },
+    {
+      "id": "office",
+      "name": "Office"
+    },
+    {
+      "id": "records",
+      "name": "Records"
+    },
+    {
+      "id": "academics",
+      "name": "Academics"
+    },
+    {
+      "id": "results",
+      "name": "Results"
+    },
+    {
+      "id": "fees",
+      "name": "Fees"
+    },
+    {
+      "id": "services",
+      "name": "Boarding and services"
+    }
+  ]
+}

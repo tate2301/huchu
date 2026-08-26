@@ -1,0 +1,47 @@
+{
+ "screen": "Library",
+ "header": "<!-- SCREEN: Library | app-bar title: Library | caption: 1,842 copies &middot; 214 out -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "Things Fall Apart · Chinua Achebe"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Shelves",
+  "Take it back"
+ ],
+ "allCopy": [
+  "Shelves",
+  "612",
+  "Out",
+  "214",
+  "Find a book",
+  "Title, author or ISBN",
+  "612 titles · 1,628 copies on the shelf",
+  "Things Fall Apart",
+  "11 of 14 in · AFR 823.9",
+  "The Rain Came",
+  "6 of 8 in · AFR 823.9",
+  "New General Mathematics 2",
+  "28 of 40 in · MAT 510",
+  "Nervous Conditions",
+  "9 of 12 in · AFR 823.9",
+  "Combined Science for ZIMSEC",
+  "22 of 36 in · SCI 500",
+  "Tsumo neMadimikira",
+  "5 of 6 in · SHO 398",
+  "Things Fall Apart · Chinua Achebe",
+  "TFA-004",
+  "Nyathi, Kudzai · back by 2026-09-04",
+  "Take it back",
+  "TFA-007",
+  "Moyo, Farai · back by 2026-08-21",
+  "TFA-009",
+  "AFR 823.9",
+  "In",
+  "Lend it",
+  "TFA-011"
+ ]
+}

@@ -3,13 +3,18 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   createSchoolsAcademicYear,
   createSchoolsTerm,
@@ -29,8 +34,14 @@ import { TermFormSheet } from "./term-form-sheet";
  * Every term-scoped record in the pack (enrolment, invoice, register, result
  * sheet, allocation) is keyed by `termId`, and until this surface existed there
  * was no way to create one. It is therefore the first screen a newly
- * provisioned school has to visit, which is why it leads the Academics rail and
- * says so plainly when the school has no active term.
+ * provisioned school has to visit, which is why it leads Master Data's schools
+ * section and says so plainly when the school has no active term.
+ *
+ * Both tables now carry the full set of verbs. Before, a year or a term could
+ * be created and made current and nothing else — a typo in a term's dates was
+ * permanent, and a year opened by mistake stayed on the list for ever. Verbs
+ * are disabled with the reason rather than hidden, so a bursar reading this
+ * page sees the same shape the head does.
  */
 
 export type SchoolsCalendarView = "years" | "terms";
@@ -55,7 +66,12 @@ export function SchoolsCalendarContent({
   const queryClient = useQueryClient();
   const [yearSheetOpen, setYearSheetOpen] = useState(false);
   const [termSheetOpen, setTermSheetOpen] = useState(false);
+  const [editingYear, setEditingYear] = useState<SchoolsAcademicYearRecord | null>(null);
+  const [editingTerm, setEditingTerm] = useState<SchoolsTermRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  // Terms belong to a year, so narrowing by the year is the filter a school
+  // actually reaches for — three terms this year, twelve on the list.
+  const [yearFilter, setYearFilter] = useState("");
 
   const yearsQuery = useQuery({
     queryKey: ["schools", "academic-years"],
@@ -67,12 +83,19 @@ export function SchoolsCalendarContent({
   });
 
   const years = useMemo(() => yearsQuery.data?.data ?? [], [yearsQuery.data]);
-  const terms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
-  const activeTerm = useMemo(() => terms.find((term) => term.isActive), [terms]);
+  const allTerms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
+  const terms = useMemo(
+    () =>
+      yearFilter
+        ? allTerms.filter((term) => term.academicYear.id === yearFilter)
+        : allTerms,
+    [allTerms, yearFilter],
+  );
+  const activeTerm = useMemo(() => allTerms.find((term) => term.isActive), [allTerms]);
 
   function invalidate() {
-    queryClient.invalidateQueries({ queryKey: ["schools", "academic-years"] });
-    queryClient.invalidateQueries({ queryKey: ["schools", "terms"] });
+    void queryClient.invalidateQueries({ queryKey: ["schools", "academic-years"] });
+    void queryClient.invalidateQueries({ queryKey: ["schools", "terms"] });
   }
 
   const activateYear = useMutation({
@@ -93,23 +116,70 @@ export function SchoolsCalendarContent({
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
-  const createYear = useMutation({
-    mutationFn: createSchoolsAcademicYear,
+  const saveYear = useMutation({
+    mutationFn: (values: {
+      code: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+      isActive?: boolean;
+    }) =>
+      editingYear
+        ? updateSchoolsAcademicYear(editingYear.id, values)
+        : createSchoolsAcademicYear(values),
     onSuccess: () => {
       setActionError(null);
       setYearSheetOpen(false);
+      setEditingYear(null);
       invalidate();
     },
   });
 
-  const createTerm = useMutation({
-    mutationFn: createSchoolsTerm,
+  const saveTerm = useMutation({
+    mutationFn: (values: {
+      academicYearId: string;
+      code: string;
+      name: string;
+      startDate: string;
+      endDate: string;
+      isActive?: boolean;
+    }) =>
+      editingTerm
+        ? updateSchoolsTerm(editingTerm.id, {
+            code: values.code,
+            name: values.name,
+            startDate: values.startDate,
+            endDate: values.endDate,
+            isActive: values.isActive,
+          })
+        : createSchoolsTerm(values),
     onSuccess: () => {
       setActionError(null);
       setTermSheetOpen(false);
+      setEditingTerm(null);
       invalidate();
       onCreatedTerm?.();
     },
+  });
+
+  const deleteYear = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/academic-years/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
+  const deleteTerm = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/terms/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const yearColumns = useMemo<ColumnDef<SchoolsAcademicYearRecord>[]>(
@@ -142,21 +212,52 @@ export function SchoolsCalendarContent({
         id: "status",
         header: "Status",
         cell: ({ row }) =>
-          row.original.isActive ? (
-            <Badge variant="secondary">Current</Badge>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={activateYear.isPending}
-              onClick={() => activateYear.mutate(row.original.id)}
-            >
-              Make current
-            </Button>
-          ),
+          row.original.isActive ? <Badge tone="success">Current</Badge> : null,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <RecordActions
+            resource="schools.academics"
+            verbs={[
+              ...(row.original.isActive
+                ? []
+                : [
+                    {
+                      label: "Make current",
+                      action: "edit" as const,
+                      loading: activateYear.isPending,
+                      onSelect: () => activateYear.mutate(row.original.id),
+                    },
+                  ]),
+              {
+                label: "Edit",
+                action: "edit",
+                onSelect: () => {
+                  setEditingYear(row.original);
+                  setYearSheetOpen(true);
+                },
+              },
+              {
+                label: "Delete",
+                action: "archive",
+                tone: "danger",
+                loading: deleteYear.isPending,
+                confirm: {
+                  title: `Delete ${row.original.name}?`,
+                  description:
+                    "The year disappears from every picker. It is refused while any term, class or enrolment still hangs off it.",
+                  confirmLabel: "Delete the year",
+                },
+                onSelect: () => deleteYear.mutate(row.original.id),
+              },
+            ]}
+          />
+        ),
       },
     ],
-    [activateYear],
+    [activateYear, deleteYear],
   );
 
   const termColumns = useMemo<ColumnDef<SchoolsTermRecord>[]>(
@@ -178,7 +279,7 @@ export function SchoolsCalendarContent({
       {
         id: "academicYear",
         header: "Academic year",
-        cell: ({ row }) => row.original.academicYear.code,
+        cell: ({ row }) => row.original.academicYear.name,
       },
       {
         id: "enrollments",
@@ -194,21 +295,57 @@ export function SchoolsCalendarContent({
         id: "status",
         header: "Status",
         cell: ({ row }) =>
-          row.original.isActive ? (
-            <Badge variant="secondary">Current</Badge>
-          ) : (
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={activateTermMutation.isPending}
-              onClick={() => activateTermMutation.mutate(row.original.id)}
-            >
-              Make current
-            </Button>
-          ),
+          row.original.isActive ? <Badge tone="success">Current</Badge> : null,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <RecordActions
+            resource="schools.academics"
+            verbs={[
+              ...(row.original.isActive
+                ? []
+                : [
+                    {
+                      label: "Make current",
+                      action: "edit" as const,
+                      loading: activateTermMutation.isPending,
+                      onSelect: () => activateTermMutation.mutate(row.original.id),
+                    },
+                  ]),
+              {
+                label: "Edit",
+                action: "edit",
+                onSelect: () => {
+                  setEditingTerm(row.original);
+                  setTermSheetOpen(true);
+                },
+              },
+              {
+                label: "Delete",
+                action: "archive",
+                tone: "danger",
+                loading: deleteTerm.isPending,
+                // A current term is the one every register and invoice is being
+                // written against today, so it is not deletable at all.
+                unavailable: row.original.isActive
+                  ? "The current term cannot be deleted. Make another term current first."
+                  : undefined,
+                confirm: {
+                  title: `Delete ${row.original.name}?`,
+                  description:
+                    "The term disappears from every picker. It is refused while any enrolment, invoice or result sheet is dated inside it.",
+                  confirmLabel: "Delete the term",
+                },
+                onSelect: () => deleteTerm.mutate(row.original.id),
+              },
+            ]}
+          />
+        ),
       },
     ],
-    [activateTermMutation],
+    [activateTermMutation, deleteTerm],
   );
 
   const hasError = yearsQuery.error || termsQuery.error;
@@ -216,165 +353,228 @@ export function SchoolsCalendarContent({
   return (
     <div className="space-y-4">
       {hasError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the academic calendar</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(yearsQuery.error || termsQuery.error)}
-          </AlertDescription>
-        </Alert>
+        <LoadError
+          what="the academic calendar"
+          error={yearsQuery.error || termsQuery.error}
+          onRetry={() => invalidate()}
+        />
       ) : null}
 
       {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That change was not applied</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
+        <Alert tone="danger" title="That change was not applied" onDismiss={() => setActionError(null)}>
+          {actionError}
         </Alert>
       ) : null}
 
       {!yearsQuery.isLoading && !termsQuery.isLoading && !activeTerm ? (
-        <Alert>
-          <AlertTitle>This school has no current term</AlertTitle>
-          <AlertDescription>
-            Admissions, fees, registers and results are all recorded against a term.
-            Open an academic year and make one of its terms current to start using them.
-          </AlertDescription>
+        <Alert tone="warn" title="This school has no current term">
+          Admissions, fees, registers and results are all recorded against a term.
+          Open an academic year and make one of its terms current to start using them.
         </Alert>
       ) : null}
 
       {view === "years" ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-section-title">Academic years</h2>
-            <Button size="sm" onClick={() => setYearSheetOpen(true)}>
-              New academic year
-            </Button>
+            <CreateButton
+              resource="schools.academics"
+              label="New academic year"
+              onSelect={() => {
+                setEditingYear(null);
+                setYearSheetOpen(true);
+              }}
+            />
           </div>
-          <DataTable
-            data={years}
-            columns={yearColumns}
-            searchPlaceholder="Search academic years"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            mobileListRenderer={({ rows }) => (
-              <MobileList>
-                {rows.length === 0 ? (
-                  <MobileListEmpty>
-                    {yearsQuery.isLoading
-                      ? "Loading academic years…"
-                      : "No academic years yet."}
-                  </MobileListEmpty>
-                ) : (
-                  rows.map(({ row }) => (
-                    <MobileList.Row
-                      key={row.id}
-                      static={row.isActive}
-                      title={`${row.code} - ${row.name}`}
-                      // "Current" reads on the subtitle line rather than as a
-                      // badge in `trailing`: the design system's row is a
-                      // `1fr 14px` grid sized for a chevron and `.mobile-list`
-                      // is `overflow: clip`, so a badge there was cut mid-word.
-                      subtitle={[
-                        formatRange(row.startDate, row.endDate),
-                        `${row._count.terms} terms`,
-                        row.isActive ? "Current" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      onClick={
-                        row.isActive ? undefined : () => activateYear.mutate(row.id)
-                      }
-                    />
-                  ))
-                )}
-              </MobileList>
-            )}
-            emptyState={
-              yearsQuery.isLoading
-                ? "Loading academic years…"
-                : "No academic years yet. Create one to open the school year."
-            }
-          />
+          {yearsQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[{ twoLine: true }, { width: 90 }, { width: 90 }, { width: 120 }]}
+            />
+          ) : years.length === 0 ? (
+            <NothingYet
+              title="No academic years yet"
+              body="An academic year is the frame every term, class and invoice hangs off. Create one to open the school year."
+            />
+          ) : (
+            <DataTable
+              data={years}
+              columns={yearColumns}
+              searchPlaceholder="Search academic years"
+              searchSubmitLabel="Search"
+              pagination={{ enabled: true }}
+              mobileListRenderer={({ rows }) => (
+                <MobileList>
+                  {rows.length === 0 ? (
+                    <MobileListEmpty>No academic years matched.</MobileListEmpty>
+                  ) : (
+                    rows.map(({ row }) => (
+                      <MobileList.Row
+                        key={row.id}
+                        static={row.isActive}
+                        title={`${row.code} - ${row.name}`}
+                        // "Current" reads on the subtitle line rather than as a
+                        // badge in `trailing`: the design system's row is a
+                        // `1fr 14px` grid sized for a chevron and `.mobile-list`
+                        // is `overflow: clip`, so a badge there was cut mid-word.
+                        subtitle={[
+                          formatRange(row.startDate, row.endDate),
+                          `${row._count.terms} terms`,
+                          row.isActive ? "Current" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        onClick={
+                          row.isActive ? undefined : () => activateYear.mutate(row.id)
+                        }
+                      />
+                    ))
+                  )}
+                </MobileList>
+              )}
+              emptyState={<NothingMatched what="academic years" />}
+            />
+          )}
         </div>
       ) : null}
 
       {view === "terms" ? (
-        <div className="space-y-2">
+        <div className="space-y-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="text-section-title">Terms</h2>
-            <Button
-              size="sm"
-              disabled={years.length === 0}
-              onClick={() => setTermSheetOpen(true)}
-            >
-              New term
-            </Button>
+            <CreateButton
+              resource="schools.academics"
+              label="New term"
+              unavailable={
+                years.length === 0
+                  ? "A term belongs to an academic year. Create the year first."
+                  : undefined
+              }
+              onSelect={() => {
+                setEditingTerm(null);
+                setTermSheetOpen(true);
+              }}
+            />
           </div>
           {years.length === 0 ? (
-            <Alert>
-              <AlertTitle>Create an academic year first</AlertTitle>
-              <AlertDescription>
-                A term belongs to an academic year and has to fall inside its dates.
-              </AlertDescription>
+            <Alert tone="info" title="Create an academic year first">
+              A term belongs to an academic year and has to fall inside its dates.
             </Alert>
           ) : null}
-          <DataTable
-            data={terms}
-            columns={termColumns}
-            searchPlaceholder="Search terms"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            mobileListRenderer={({ rows }) => (
-              <MobileList>
-                {rows.length === 0 ? (
-                  <MobileListEmpty>
-                    {termsQuery.isLoading ? "Loading terms…" : "No terms yet."}
-                  </MobileListEmpty>
-                ) : (
-                  rows.map(({ row }) => (
-                    <MobileList.Row
-                      key={row.id}
-                      static={row.isActive}
-                      title={`${row.academicYear.code} · ${row.code} - ${row.name}`}
-                      subtitle={[
-                        formatRange(row.startDate, row.endDate),
-                        row.isActive ? "Current" : null,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      onClick={
-                        row.isActive
-                          ? undefined
-                          : () => activateTermMutation.mutate(row.id)
-                      }
-                    />
-                  ))
-                )}
-              </MobileList>
-            )}
-            emptyState={
-              termsQuery.isLoading
-                ? "Loading terms…"
-                : "No terms yet. Add the terms that make up the academic year."
-            }
-          />
+
+          <FilterBar>
+            <FilterSelect
+              label="Academic year"
+              allLabel="Every academic year"
+              value={yearFilter}
+              options={years.map((year) => ({ value: year.id, label: year.name }))}
+              onChange={setYearFilter}
+            />
+          </FilterBar>
+
+          {termsQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[
+                { twoLine: true },
+                { width: 160 },
+                { width: 90 },
+                { width: 90 },
+                { width: 120 },
+              ]}
+            />
+          ) : allTerms.length === 0 ? (
+            <NothingYet
+              title="No terms yet"
+              body="Add the terms that make up the academic year. Every register, invoice and result sheet is dated inside one."
+            />
+          ) : terms.length === 0 ? (
+            <NothingMatched
+              what="terms"
+              filters={[years.find((year) => year.id === yearFilter)?.name ?? ""]}
+              onClear={() => setYearFilter("")}
+            />
+          ) : (
+            <DataTable
+              data={terms}
+              columns={termColumns}
+              searchPlaceholder="Search terms"
+              searchSubmitLabel="Search"
+              pagination={{ enabled: true }}
+              mobileListRenderer={({ rows }) => (
+                <MobileList>
+                  {rows.length === 0 ? (
+                    <MobileListEmpty>No terms matched.</MobileListEmpty>
+                  ) : (
+                    rows.map(({ row }) => (
+                      <MobileList.Row
+                        key={row.id}
+                        static={row.isActive}
+                        title={`${row.academicYear.code} · ${row.code} - ${row.name}`}
+                        subtitle={[
+                          formatRange(row.startDate, row.endDate),
+                          row.isActive ? "Current" : null,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        onClick={
+                          row.isActive
+                            ? undefined
+                            : () => activateTermMutation.mutate(row.id)
+                        }
+                      />
+                    ))
+                  )}
+                </MobileList>
+              )}
+              emptyState={<NothingMatched what="terms" />}
+            />
+          )}
         </div>
       ) : null}
 
       <AcademicYearFormSheet
         open={yearSheetOpen}
-        onOpenChange={setYearSheetOpen}
-        isSubmitting={createYear.isPending}
-        error={createYear.error ? getApiErrorMessage(createYear.error) : null}
-        onSubmit={(values) => createYear.mutate(values)}
+        onOpenChange={(open) => {
+          setYearSheetOpen(open);
+          if (!open) setEditingYear(null);
+        }}
+        initial={
+          editingYear
+            ? {
+                code: editingYear.code,
+                name: editingYear.name,
+                startDate: formatDate(editingYear.startDate),
+                endDate: formatDate(editingYear.endDate),
+                isActive: editingYear.isActive,
+              }
+            : undefined
+        }
+        isSubmitting={saveYear.isPending}
+        error={saveYear.error ? getApiErrorMessage(saveYear.error) : null}
+        onSubmit={(values) => saveYear.mutate(values)}
       />
 
       <TermFormSheet
         open={termSheetOpen}
-        onOpenChange={setTermSheetOpen}
+        onOpenChange={(open) => {
+          setTermSheetOpen(open);
+          if (!open) setEditingTerm(null);
+        }}
         years={years}
-        isSubmitting={createTerm.isPending}
-        error={createTerm.error ? getApiErrorMessage(createTerm.error) : null}
-        onSubmit={(values) => createTerm.mutate(values)}
+        initial={
+          editingTerm
+            ? {
+                academicYearId: editingTerm.academicYear.id,
+                code: editingTerm.code,
+                name: editingTerm.name,
+                startDate: formatDate(editingTerm.startDate),
+                endDate: formatDate(editingTerm.endDate),
+                isActive: editingTerm.isActive,
+              }
+            : undefined
+        }
+        isSubmitting={saveTerm.isPending}
+        error={saveTerm.error ? getApiErrorMessage(saveTerm.error) : null}
+        onSubmit={(values) => saveTerm.mutate(values)}
       />
     </div>
   );

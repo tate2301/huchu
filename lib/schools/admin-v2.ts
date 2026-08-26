@@ -237,6 +237,13 @@ export async function fetchSchoolsStudents(params: {
   classId?: string;
   streamId?: string;
   isBoarding?: boolean;
+  /**
+   * Whether the pupil has claimed a portal account. The route has filtered on
+   * this since the invite flow landed — it reads `userId` — but this signature
+   * did not offer it, so the one screen that needs it (how many people a notice
+   * cannot reach) could not ask.
+   */
+  hasPortalAccount?: boolean;
 } = {}) {
   const query = buildQuery(params);
   const response = await fetchJson<Paginated<SchoolsStudentRecord>>(
@@ -342,6 +349,7 @@ export async function fetchTeacherAssignments(params: {
   termId?: string;
   classId?: string;
   streamId?: string;
+  subjectId?: string;
   teacherProfileId?: string;
   isActive?: boolean;
 } = {}) {
@@ -586,13 +594,15 @@ export type PortalInviteFailure = {
 export async function issuePortalInvites(
   invites: Array<{ subject: PortalInviteSubject; subjectId: string; sentTo: string }>,
 ) {
-  const response = await fetchJson<
-    ApiResponse<{ issued: IssuedPortalInvite[]; failed: PortalInviteFailure[] }>
-  >("/api/v2/schools/portal-invites", {
-    method: "POST",
-    body: JSON.stringify({ invites }),
-  });
-  return response.data;
+  // Unwrapped, per the note at the top of this file: the route ends in
+  // `successResponse({ issued, failed })`, so the body *is* that object. Read
+  // as `ApiResponse` it handed back `undefined`, and the invite dialog's
+  // "copy these links now" panel — the only place a token is ever shown —
+  // therefore never appeared after a successful batch.
+  return fetchJson<{ issued: IssuedPortalInvite[]; failed: PortalInviteFailure[] }>(
+    "/api/v2/schools/portal-invites",
+    { method: "POST", body: JSON.stringify({ invites }) },
+  );
 }
 
 // ---------------------------------------------------------------------------

@@ -18,7 +18,10 @@ export async function POST(
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "approve");
+    // `approve-leave`, not the generic `approve`: the warden persona is granted
+    // the first and not the second, so the generic verb refused the one person
+    // whose job this is and the screen had no way to say why.
+    const denied = schoolPermissionDenial(session, "schools.boarding", "approve-leave");
     if (denied) return errorResponse(denied, 403);
     const { id } = await params;
     const companyId = session.user.companyId;

@@ -46,6 +46,9 @@ const leaveRequestInclude = {
       lastName: true,
       isBoarding: true,
       status: true,
+      // Same reason as the allocations board: the leave list filters by year
+      // group and a request only knows the child, not their class.
+      currentClass: { select: { id: true, code: true, name: true } },
     },
   },
   term: {

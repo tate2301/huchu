@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { RecordMark } from "@/components/records/record-mark";
 import {
   RailSection,
   RecordPageShell,
-  RelatedList,
   type RecordTab,
 } from "@/components/records/record-page-shell";
 import {
@@ -18,9 +18,12 @@ import {
   type SubjectNote,
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { RecordActions } from "@/components/schools/common/record-actions";
+import { RecordNotFound } from "@/components/schools/common/states";
+import { TeacherAssignmentsPanel } from "@/components/schools/teachers/teacher-assignments-panel";
+import { TeacherEmployeePanel } from "@/components/schools/teachers/teacher-employee-panel";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -40,10 +43,18 @@ import { recordType } from "@/lib/records/registry";
  * No custom fields tab either: `CrmFieldDefinition` accepts TEACHER, but a
  * school's own fields about staff overlap with HR's, and deciding which system
  * owns "teaching qualification" is a product call rather than a wiring one.
+ *
+ * What the landing view *does* edit is the timetable. It was a read-only list,
+ * which made the page a poster: a head of department who could see that one of
+ * nine lessons had moved to another set had to leave for the assignments table
+ * and find the row again among two hundred and eighty. The HR link is here for
+ * the same reason — the list has always answered "who is not joined up", and
+ * the record had no way to act on the answer.
  */
 
 type Assignment = {
   id: string;
+  isActive: boolean;
   term: { id: string; code: string; name: string } | null;
   class: { id: string; code: string; name: string } | null;
   stream: { id: string; code: string; name: string } | null;
@@ -58,6 +69,7 @@ type TeacherRecord = {
   isHod: boolean;
   isActive: boolean;
   employeeId: string | null;
+  employee: { id: string; employeeId: string; name: string; jobTitle: string | null } | null;
   avatarUrl: string | null;
   accent: string | null;
   user: {
@@ -72,6 +84,8 @@ type TeacherRecord = {
 
 export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
   const config = recordType("TEACHER");
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("assignments");
 
   const query = useQuery({
@@ -98,6 +112,18 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       fetchJson<{ data: SubjectFile[] }>(
         `/api/v2/records/files?subjectType=TEACHER&subjectId=${teacherId}`,
       ),
+  });
+
+  // The profile route rather than this record's own PATCH route: only
+  // `teachers/profiles/[id]` carries a DELETE, and it refuses while lessons
+  // are still against the teacher.
+  const remove = useMutation({
+    mutationFn: () =>
+      fetchJson(`/api/v2/schools/teachers/profiles/${teacherId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+      router.push(config.indexHref);
+    },
   });
 
   const teacher = query.data ?? null;
@@ -159,10 +185,11 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
 
   if (query.isError || !teacher) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>This teacher could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+      <RecordNotFound
+        what="That teacher"
+        backHref={config.indexHref}
+        backLabel="Back to the teachers"
+      />
     );
   }
 
@@ -174,23 +201,21 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       value: "assignments",
       label: "Teaches",
       count: assignments.length,
+      // The landing view: the timetable, editable, and whether payroll knows
+      // this person exists — the two things a record page is opened to settle.
       content: (
-        <RelatedList
-          items={assignments}
-          emptyMessage="Nothing is timetabled to this teacher yet."
-          renderItem={(assignment) => ({
-            href: assignment.class
-              ? recordType("CLASS").href(assignment.class.id)
-              : "/schools/academics",
-            title: [assignment.subject?.name, assignment.class?.name]
-              .filter(Boolean)
-              .join(" · ") || "Assignment",
-            subtitle: [assignment.term?.name, assignment.stream?.name]
-              .filter(Boolean)
-              .join(" · "),
-            meta: assignment.subject?.isCore ? "Core" : undefined,
-          })}
-        />
+        <div className="space-y-4">
+          <TeacherAssignmentsPanel
+            teacherProfileId={teacherId}
+            teacherName={name}
+            assignments={assignments}
+          />
+          <TeacherEmployeePanel
+            teacherProfileId={teacherId}
+            teacherName={name}
+            employee={teacher.employee}
+          />
+        </div>
       ),
     },
     {
@@ -241,6 +266,30 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
           avatarUrl={teacher.avatarUrl}
           accent={teacher.accent}
           size="lg"
+        />
+      }
+      primaryAction={
+        <RecordActions
+          resource="schools.teachers"
+          verbs={[
+            {
+              label: "Delete",
+              action: "archive",
+              tone: "danger",
+              loading: remove.isPending,
+              unavailable:
+                assignments.length > 0
+                  ? "Remove their assignments first — a teacher with lessons against them cannot be deleted."
+                  : undefined,
+              confirm: {
+                title: `Delete ${name}'s profile?`,
+                description:
+                  "The school stops seeing them as a teacher. Their staff account and their HR record are untouched — turn the profile off instead if they have simply left.",
+                confirmLabel: "Delete the profile",
+              },
+              onSelect: () => remove.mutate(),
+            },
+          ]}
         />
       }
       attributes={<RecordAttributes attributes={attributes} />}

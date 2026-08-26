@@ -1,0 +1,208 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F7F8FA;color:#262A33;
+      font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+    a{color:#0944C2;text-decoration:none}
+    a:hover{color:#08379C;text-decoration:underline}
+    svg{display:block}
+    .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace}
+    .nav:hover{background:#F1F3F6}
+    .row:hover{background:#F7F8FA}
+    .btn:hover{background:#F1F3F6}
+    .pri:hover{background:#0944C2}
+    .scroll::-webkit-scrollbar{width:10px;height:10px}
+    .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box}
+    .scroll::-webkit-scrollbar-track{background:transparent}
+  </style>
+</helmet>
+
+<div style="width: 1240px; height: 880px; display: flex; overflow: hidden; background: #F7F8FA; position: relative; --band-h: {{bandH}}; --row-h: {{rowH}}; --head-h: {{headH}}">
+
+  <div class="scroll" style="width: 236px; flex-shrink: 0; display: flex; flex-direction: column; background: #FFFFFF; border-right: 1px solid #E5E8EE; padding: 16px 12px 12px; overflow-y: auto">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 0 4px 14px">
+      <span style="width: 36px; height: 36px; border-radius: 999px; background: #F2EBFC; color: #5C31A6; font-size: 15px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0">PN</span>
+      <div style="min-width: 0">
+        <div style="font-size: 13px; font-weight: 600; color: #16181D; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Priscilla Nyathi</div>
+        <div style="font-size: 11px; color: #8A91A0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Mathematics · Add. Mathematics</div>
+      </div>
+    </div>
+    
+      <div style="padding: 10px 10px 4px"><div style="font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">My classes</div></div>
+      
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; cursor: pointer; background: #F2EBFC">
+    <span style="width: 6px; height: 22px; border-radius: 3px; background: #7B45D6; flex-shrink: 0"></span>
+    <span style="flex: 1; min-width: 0">
+      <span style="display: block; font-size: 12.5px; font-weight: 700; color: #5C31A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Form 2A · Mathematics</span>
+      <span class="mono" style="font-size: 10.5px; font-weight: 400; color: #8A91A0; font-variant-numeric: tabular-nums">F2A · 32</span>
+    </span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <span style="width: 6px; height: 22px; border-radius: 3px; background: #0B5DF0; flex-shrink: 0"></span>
+    <span style="flex: 1; min-width: 0">
+      <span style="display: block; font-size: 12.5px; font-weight: 500; color: #262A33; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Form 2B · Mathematics</span>
+      <span class="mono" style="font-size: 10.5px; font-weight: 400; color: #8A91A0; font-variant-numeric: tabular-nums">F2B · 31</span>
+    </span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <span style="width: 6px; height: 22px; border-radius: 3px; background: #13857D; flex-shrink: 0"></span>
+    <span style="flex: 1; min-width: 0">
+      <span style="display: block; font-size: 12.5px; font-weight: 500; color: #262A33; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Form 3A · Mathematics</span>
+      <span class="mono" style="font-size: 10.5px; font-weight: 400; color: #8A91A0; font-variant-numeric: tabular-nums">F3A · 30</span>
+    </span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; padding: 8px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <span style="width: 6px; height: 22px; border-radius: 3px; background: #E06A16; flex-shrink: 0"></span>
+    <span style="flex: 1; min-width: 0">
+      <span style="display: block; font-size: 12.5px; font-weight: 500; color: #262A33; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Form 4A · Add. Mathematics</span>
+      <span class="mono" style="font-size: 10.5px; font-weight: 400; color: #8A91A0; font-variant-numeric: tabular-nums">F4A · 18</span>
+    </span>
+  </div>
+      <div style="padding: 10px 10px 4px"><div style="font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">Daily work</div></div>
+      
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Today</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M253.66,133.66l-32,32a8,8,0,0,1-11.32,0l-16-16a8,8,0,0,1,11.32-11.32L216,148.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM144,157.68a68,68,0,1,0-71.9,0c-20.65,6.76-39.23,19.39-54.17,37.17A8,8,0,0,0,24,208H192a8,8,0,0,0,6.13-13.15C183.18,177.07,164.6,164.44,144,157.68Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Attendance</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Zm5.66-58.34-96,96A8,8,0,0,1,128,168H96a8,8,0,0,1-8-8V128a8,8,0,0,1,2.34-5.66l96-96a8,8,0,0,1,11.32,0l32,32A8,8,0,0,1,229.66,69.66Zm-17-5.66L192,43.31,179.31,56,200,76.69Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Enter marks</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M200,32H163.74a47.92,47.92,0,0,0-71.48,0H56A16,16,0,0,0,40,48V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm-72,0a32,32,0,0,1,32,32H96A32,32,0,0,1,128,32Zm32,128H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Marks book</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: #F2EBFC">
+    <svg viewBox="0 0 256 256" fill="#5C31A6" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 700; color: #5C31A6; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Messages</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Timetable</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M12,111l112,64a8,8,0,0,0,7.94,0l112-64a8,8,0,0,0,0-13.9l-112-64a8,8,0,0,0-7.94,0l-112,64A8,8,0,0,0,12,111Z"></path><path d="M236,137.05,128,198.79,20,137.05A8,8,0,1,0,12,151l112,64a8,8,0,0,0,7.94,0l112-64a8,8,0,1,0-7.94-13.9Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Lesson plans</span>
+  </div>
+      <div style="padding: 10px 10px 4px"><div style="font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">More</div></div>
+      
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M208,32H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM117.66,149.66l-32,32a8,8,0,0,1-11.32,0l-16-16a8,8,0,0,1,11.32-11.32L80,164.69l26.34-26.35a8,8,0,0,1,11.32,11.32Zm0-64-32,32a8,8,0,0,1-11.32,0l-16-16A8,8,0,0,1,69.66,90.34L80,100.69l26.34-26.35a8,8,0,0,1,11.32,11.32ZM192,168H144a8,8,0,0,1,0-16h48a8,8,0,0,1,0,16Zm0-64H144a8,8,0,0,1,0-16h48a8,8,0,0,1,0,16Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Homework</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M216,72H131.31L104,44.69A15.88,15.88,0,0,0,92.69,40H40A16,16,0,0,0,24,56V200.62A15.41,15.41,0,0,0,39.39,216h177.5A15.13,15.13,0,0,0,232,200.89V88A16,16,0,0,0,216,72ZM40,56H92.69l16,16H40Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Shared files</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1,0-16h8V136a8,8,0,0,1,8-8H72a8,8,0,0,1,8,8v64H96V88a8,8,0,0,1,8-8h32a8,8,0,0,1,8,8V200h16V40a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V200h8A8,8,0,0,1,232,208Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Reports</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32ZM169.66,133.66l-48,48a8,8,0,0,1-11.32,0l-24-24a8,8,0,0,1,11.32-11.32L116,164.69l42.34-42.35a8,8,0,0,1,11.32,11.32ZM48,80V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24V80Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Parent meetings</span>
+  </div>
+      <div style="padding: 10px 10px 4px"><div style="font-size: 10.5px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">Account</div></div>
+      
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M172,120a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,120Zm60,8A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.09,88.09,0,0,0-91.47-87.93C77.43,41.89,39.87,81.12,40,128.25a87.65,87.65,0,0,0,22.24,58.16A79.71,79.71,0,0,1,84,165.1a4,4,0,0,1,4.83.32,59.83,59.83,0,0,0,78.28,0,4,4,0,0,1,4.83-.32,79.71,79.71,0,0,1,21.79,21.31A87.62,87.62,0,0,0,216,128Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Profile</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M216,130.16q.06-2.16,0-4.32l14.92-18.64a8,8,0,0,0,1.48-7.06,107.6,107.6,0,0,0-10.88-26.25,8,8,0,0,0-6-3.93l-23.72-2.64q-1.48-1.56-3-3L186,40.54a8,8,0,0,0-3.94-6,107.29,107.29,0,0,0-26.25-10.86,8,8,0,0,0-7.06,1.48L130.16,40Q128,40,125.84,40L107.2,25.11a8,8,0,0,0-7.06-1.48A107.6,107.6,0,0,0,73.89,34.51a8,8,0,0,0-3.93,6L67.32,64.27q-1.56,1.49-3,3L40.54,70a8,8,0,0,0-6,3.94,107.71,107.71,0,0,0-10.87,26.25,8,8,0,0,0,1.49,7.06L40,125.84Q40,128,40,130.16L25.11,148.8a8,8,0,0,0-1.48,7.06,107.6,107.6,0,0,0,10.88,26.25,8,8,0,0,0,6,3.93l23.72,2.64q1.49,1.56,3,3L70,215.46a8,8,0,0,0,3.94,6,107.71,107.71,0,0,0,26.25,10.87,8,8,0,0,0,7.06-1.49L125.84,216q2.16.06,4.32,0l18.64,14.92a8,8,0,0,0,7.06,1.48,107.21,107.21,0,0,0,26.25-10.88,8,8,0,0,0,3.93-6l2.64-23.72q1.56-1.48,3-3L215.46,186a8,8,0,0,0,6-3.94,107.71,107.71,0,0,0,10.87-26.25,8,8,0,0,0-1.49-7.06ZM128,168a40,40,0,1,1,40-40A40,40,0,0,1,128,168Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Settings</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M128,24A104,104,0,1,0,232,128,104.11,104.11,0,0,0,128,24Zm0,168a12,12,0,1,1,12-12A12,12,0,0,1,128,192Zm8-48.72V144a8,8,0,0,1-16,0v-8a8,8,0,0,1,8-8c13.23,0,24-9,24-20s-10.77-20-24-20-24,9-24,20v4a8,8,0,0,1-16,0v-4c0-19.85,17.94-36,40-36s40,16.15,40,36C168,125.38,154.24,139.93,136,143.28Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Help</span>
+  </div>
+  <div class="nav" style="display: flex; align-items: center; gap: 9px; min-height: 34px; padding: 9px 10px; border-radius: 7px; cursor: pointer; background: transparent">
+    <svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M120,216a8,8,0,0,1-8,8H48a8,8,0,0,1-8-8V40a8,8,0,0,1,8-8h64a8,8,0,0,1,0,16H56V208h56A8,8,0,0,1,120,216Zm109.66-93.66-40-40A8,8,0,0,0,176,88v32H112a8,8,0,0,0,0,16h64v32a8,8,0,0,0,13.66,5.66l40-40A8,8,0,0,0,229.66,122.34Z"></path></svg>
+    <span style="flex: 1; min-width: 0; font-size: 13px; font-weight: 500; color: #565C69; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Sign out</span>
+  </div>
+  </div>
+
+  <div style="flex: 1; min-width: 0; display: flex; flex-direction: column; overflow: hidden">
+    <div style="min-height: 56px; flex-shrink: 0; display: flex; align-items: center; gap: 14px; padding: 0 22px; border-bottom: 1px solid #E5E8EE; background: #FFFFFF">
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 11.5px; font-weight: 500; color: #8A91A0; line-height: 1">Loveness Mafuta &middot; about Simba Mafuta &middot; Form 4A</div>
+        <h1 style="margin: 3px 0 0; font-size: 16px; font-weight: 700; line-height: 1.2; letter-spacing: -.015em; color: #16181D">Term 2 fees</h1>
+      </div>
+      <span style="display: inline-flex; align-items: center; height: 20px; padding: 3px 10px; border-radius: 999px; font-size: 11px; font-weight: 600; background: #E7EFE0; color: #4A7042; flex-shrink: 0">Online</span>
+      <div style="position: relative; width: 32px; height: 32px; border-radius: 7px; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+        <svg viewBox="0 0 256 256" fill="#565C69" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"></path></svg>
+        <span class="mono" style="position: absolute; top: -2px; right: -2px; min-width: 14px; height: 14px; border-radius: 999px; background: #B83A2A; color: #fff; font-size: 9px; font-weight: 600; line-height: 14px; text-align: center">4</span>
+      </div>
+    </div>
+    <div style="display: flex; align-items: center; gap: 2px; padding: 0 22px; border-bottom: 1px solid #E5E8EE; background: #FFFFFF; flex-shrink: 0">
+      <div style="display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 13px; font-weight: 500; line-height: 1; border-bottom: 2px solid transparent; color: #565C69; cursor: pointer"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z"></path></svg>Today</div><div style="display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 13px; font-weight: 500; line-height: 1; border-bottom: 2px solid transparent; color: #565C69; cursor: pointer"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M224,128v80a16,16,0,0,1-16,16H48a16,16,0,0,1-16-16V48A16,16,0,0,1,48,32h80a8,8,0,0,1,0,16H48V208H208V128a8,8,0,0,1,16,0Zm5.66-58.34-96,96A8,8,0,0,1,128,168H96a8,8,0,0,1-8-8V128a8,8,0,0,1,2.34-5.66l96-96a8,8,0,0,1,11.32,0l32,32A8,8,0,0,1,229.66,69.66Zm-17-5.66L192,43.31,179.31,56,200,76.69Z"></path></svg>Marks</div><div style="display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 13px; font-weight: 500; line-height: 1; border-bottom: 2px solid #7B45D6; color: #5C31A6; cursor: pointer"><svg viewBox="0 0 256 256" fill="#7B45D6" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z"></path></svg>Messages</div><div style="display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 13px; font-weight: 500; line-height: 1; border-bottom: 2px solid transparent; color: #565C69; cursor: pointer"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"></path></svg>Timetable</div><div style="display: flex; align-items: center; gap: 7px; padding: 11px 14px; font-size: 13px; font-weight: 500; line-height: 1; border-bottom: 2px solid transparent; color: #565C69; cursor: pointer"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M12,111l112,64a8,8,0,0,0,7.94,0l112-64a8,8,0,0,0,0-13.9l-112-64a8,8,0,0,0-7.94,0l-112,64A8,8,0,0,0,12,111Z"></path><path d="M236,137.05,128,198.79,20,137.05A8,8,0,1,0,12,151l112,64a8,8,0,0,0,7.94,0l112-64a8,8,0,1,0-7.94-13.9Z"></path></svg>Lessons</div>
+    </div>
+    <div class="scroll" style="flex: 1; min-height: 0; overflow-y: auto; padding: 20px 24px 24px; display: flex; flex-direction: column; gap: 16px"><div style="opacity: .3">
+  <div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden">
+    <div style="display: flex; align-items: center; gap: 10px; padding: 13px 16px; border-bottom: 1px solid #EEF0F4">
+            <div style="flex: 1; min-width: 0">
+              <div style="font-size: 14px; font-weight: 700; color: #16181D">Loveness Mafuta</div>
+              <div style="font-size: 11.5px; color: #8A91A0; margin-top: 2px">Mother · about Simba Mafuta</div>
+            </div>
+          </div>
+    <div style="padding: 14px 16px"><div style="height: 320px"></div></div>
+  </div></div></div>
+  </div>
+  <div style="position: absolute; inset: 0; z-index: 60; background: rgba(22,24,29,.34); display: flex; align-items: center; justify-content: center">
+      <div style="width: 500px; border-radius: 12px; background: #FFFFFF; box-shadow: 0 24px 64px -12px rgba(42,38,34,.28); overflow: hidden">
+        <div style="padding: 16px 18px 12px">
+          <div style="font-size: 14.5px; font-weight: 700; color: #16181D">Pass this to somebody else</div>
+          <div style="font-size: 12px; color: #565C69; line-height: 1.55; margin-top: 3px">This is a fees question. Passing it moves the conversation to them and tells Loveness Mafuta who has it now &mdash; she does not have to write again.</div>
+        </div>
+        <div style="padding: 0 18px 14px; display: flex; flex-direction: column; gap: 10px">
+          <div style="display: flex; gap: 11px; padding: 11px 12px; border: 1px solid #0B5DF0; border-radius: 10px; background: #E8EFFE">
+                  <span style="width: 15px; height: 15px; border-radius: 999px; border: 1px solid #0B5DF0; background: #0B5DF0; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center"><span style="width:5px;height:5px;border-radius:999px;background:#fff"></span></span>
+                  <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 12.5px; font-weight: 700; color: #16181D">The bursar</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Fees and payments</span></span><span style="display: block; font-size: 11.5px; color: #565C69; margin-top: 2px">Invoices, receipts, payment plans, hardship</span></span>
+                </div><div style="display: flex; gap: 11px; padding: 11px 12px; border: 1px solid #E5E8EE; border-radius: 10px; background: #FFFFFF">
+                  <span style="width: 15px; height: 15px; border-radius: 999px; border: 1px solid #D2D7E0; background: #FFFFFF; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center"></span>
+                  <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 12.5px; font-weight: 700; color: #16181D">The school office</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Registrar and admin</span></span><span style="display: block; font-size: 11.5px; color: #565C69; margin-top: 2px">Forms, records, and anything unclear</span></span>
+                </div><div style="display: flex; gap: 11px; padding: 11px 12px; border: 1px solid #E5E8EE; border-radius: 10px; background: #FFFFFF">
+                  <span style="width: 15px; height: 15px; border-radius: 999px; border: 1px solid #D2D7E0; background: #FFFFFF; flex-shrink: 0; margin-top: 2px; display: flex; align-items: center; justify-content: center"></span>
+                  <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 12.5px; font-weight: 700; color: #16181D">Mrs P. Nyathi</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Head of Mathematics</span></span><span style="display: block; font-size: 11.5px; color: #565C69; margin-top: 2px">Marks, moderation, department matters</span></span>
+                </div>
+          <div style="display: flex; flex-direction: column; gap: 4px;">
+    <span style="font-size: 11px; font-weight: 600; color: #262A33">A note for them</span>
+    <div style="display: flex; align-items: center; gap: 6px; min-height: 32px; padding: 0 10px; border: 1px solid #E5E8EE; border-radius: 7px; background: #FFFFFF"><span style="flex: 1; min-width: 0; font-size: 12.5px; color: #262A33">Family is in difficulty this term and is asking about a payment plan. Nothing owed to me.</span></div>
+    <span style="font-size: 11px; color: #8A91A0; line-height: 1.45">The family sees that it was passed on, not what you wrote here.</span>
+  </div>
+        </div>
+        <div style="display: flex; align-items: center; justify-content: flex-end; gap: 8px; padding: 12px 18px; border-top: 1px solid #EEF0F4; background: #F7F8FA">
+          <div class="btn" style="height: 28px; padding: 0 9px; border: 1px solid #E5E8EE; border-radius: 6px; display: flex; align-items: center; gap: 6px; cursor: pointer; background: #FFFFFF; flex-shrink: 0"><span style="font-size: 12px; color: #565C69">Cancel</span></div><div class="pri" style="height: 28px; padding: 0 10px; border-radius: 6px; background: #0B5DF0; display: flex; align-items: center; gap: 6px; cursor: pointer; flex-shrink: 0"><span style="font-size: 12px; font-weight: 600; color: #fff">Pass it to the bursar</span></div>
+        </div>
+      </div>
+    </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"density":{"editor":"enum","options":["Compact","Cozy"],"default":"Compact"},"$preview":{"width":1240,"height":880}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cozy = (this.props.density ?? 'Compact') === 'Cozy';
+    return {
+      bandH: cozy ? '52px' : '44px',
+      rowH:  cozy ? '44px' : '36px',
+      headH: cozy ? '38px' : '32px',
+    };
+  }
+}
+</script>
+</body>
+</html>

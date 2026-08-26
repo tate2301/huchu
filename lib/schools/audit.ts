@@ -38,6 +38,14 @@ export type SchoolAuditEventType =
   /** One row for one bulk run, naming every invoice it raised. */
   | "schools.fee.invoice.bulk-generated"
   | "schools.fee.invoice.written-off"
+  /**
+   * Editing and discarding an invoice, which only a DRAFT one allows. Both
+   * change what a family is about to be asked for, so neither may happen
+   * silently — "who removed the invoice that should have been raised" is a
+   * question a bursar gets asked at the end of a term.
+   */
+  | "schools.fee.invoice.edited"
+  | "schools.fee.invoice.discarded"
   | "schools.fee.waiver.created"
   /**
    * A waiver created straight into `APPROVED` or `APPLIED` was authorised in
@@ -48,11 +56,29 @@ export type SchoolAuditEventType =
   | "schools.fee.waiver.approved"
   | "schools.fee.waiver.applied"
   /**
+   * The other three fates of a waiver, and editing or discarding a draft one.
+   * Refusing and reversing both put money back on a family's bill, so they are
+   * named rather than folded into an "edited" row that says a field changed.
+   */
+  | "schools.fee.waiver.rejected"
+  | "schools.fee.waiver.reversed"
+  | "schools.fee.waiver.edited"
+  | "schools.fee.waiver.discarded"
+  /**
    * S-4.6 — copying a fee sheet to other year groups. One act that decides what
    * every family in fifteen classes will be billed, so "who copied Form 1's fees
    * across the school, and which classes were left alone" needs an answer.
    */
   | "schools.fee.structure.cloned"
+  /**
+   * A structure's own lifecycle. Activating a draft is the moment a sheet of
+   * amounts becomes what the school will bill, and archiving one takes it out
+   * of use, so both are named separately from an ordinary edit.
+   */
+  | "schools.fee.structure.edited"
+  | "schools.fee.structure.active"
+  | "schools.fee.structure.archived"
+  | "schools.fee.structure.deleted"
   /**
    * S-3.3 — a school switching systems. An import writes hundreds of students,
    * parents and balances in one act, so "who loaded these nine hundred pupils,

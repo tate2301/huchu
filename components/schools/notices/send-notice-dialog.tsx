@@ -17,6 +17,18 @@ export type NoticeDraft = {
   audience: "ALL" | "PARENTS" | "STUDENTS" | "TEACHERS";
   classId: string;
   severity: "INFO" | "WARNING" | "CRITICAL";
+  /** Set when this notice puts an earlier one right. See `Correcting`. */
+  correctsNoticeId: string | null;
+};
+
+/** The notice being put right, as the list knows it. */
+export type Correcting = {
+  id: string;
+  title: string;
+  audience: NoticeDraft["audience"];
+  classId: string | null;
+  severity: NoticeDraft["severity"];
+  sentOn: string;
 };
 
 const EMPTY: NoticeDraft = {
@@ -25,6 +37,7 @@ const EMPTY: NoticeDraft = {
   audience: "PARENTS",
   classId: "",
   severity: "INFO",
+  correctsNoticeId: null,
 };
 
 const AUDIENCES = [
@@ -46,6 +59,11 @@ const AUDIENCES = [
  * There is no draft and no schedule. A notice cannot be recalled once it is
  * out, so the honest interaction is one deliberate Send rather than a save that
  * implies it can be taken back.
+ *
+ * A correction opens the same dialog with the audience already fixed to the
+ * people who got the original. The audience is locked rather than merely
+ * pre-filled: a correction that reaches a different set of families than the
+ * mistake did leaves some of them holding the wrong version for good.
  */
 export function SendNoticeDialog({
   open,
@@ -53,36 +71,57 @@ export function SendNoticeDialog({
   isSending,
   error,
   onSend,
+  correcting,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   isSending: boolean;
   error: string | null;
   onSend: (draft: NoticeDraft) => void;
+  /** When set, the dialog composes a correction to this notice. */
+  correcting?: Correcting | null;
 }) {
-  const [draft, setDraft] = useState<NoticeDraft>(EMPTY);
+  const seed = (): NoticeDraft =>
+    correcting
+      ? {
+          title: `Correction — ${correcting.title}`.slice(0, 160),
+          body: `This corrects the notice sent on ${correcting.sentOn}, "${correcting.title}".\n\n`,
+          audience: correcting.audience,
+          classId: correcting.classId ?? "",
+          severity: correcting.severity,
+          correctsNoticeId: correcting.id,
+        }
+      : EMPTY;
+
+  const [draft, setDraft] = useState<NoticeDraft>(seed);
   const [wasOpen, setWasOpen] = useState(open);
-  if (open !== wasOpen) {
+  const [wasCorrecting, setWasCorrecting] = useState(correcting?.id ?? null);
+  if (open !== wasOpen || (correcting?.id ?? null) !== wasCorrecting) {
     setWasOpen(open);
-    if (open) setDraft(EMPTY);
+    setWasCorrecting(correcting?.id ?? null);
+    if (open) setDraft(seed());
   }
 
   const classesQuery = useQuery({
     queryKey: ["schools", "classes", "for-notice"],
-    queryFn: () => fetchSchoolsClasses({ limit: 200 }),
+    queryFn: () => fetchSchoolsClasses({ limit: 100 }),
     enabled: open,
   });
   const classes = classesQuery.data?.data ?? [];
 
-  const canNarrow = draft.audience !== "TEACHERS" || draft.classId !== "";
+  const locked = Boolean(correcting);
   const ready = draft.title.trim().length > 0 && draft.body.trim().length > 0;
 
   return (
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Send a notice"
-      description="Write to families and staff. A notice appears in the portal straight away and cannot be recalled."
+      title={correcting ? "Send a correction" : "Send a notice"}
+      description={
+        correcting
+          ? "A notice cannot be recalled. This goes to exactly the people who got the original, and says what changed."
+          : "Write to families and staff. A notice appears in the portal straight away and cannot be recalled."
+      }
       errors={error ? [error] : undefined}
       footer={
         <>
@@ -90,7 +129,7 @@ export function SendNoticeDialog({
             Cancel
           </Button>
           <Button onClick={() => onSend(draft)} disabled={!ready || isSending}>
-            {isSending ? "Sending…" : "Send now"}
+            {isSending ? "Sending…" : correcting ? "Send the correction" : "Send now"}
           </Button>
         </>
       }
@@ -108,6 +147,7 @@ export function SendNoticeDialog({
                 audience: (value || "PARENTS") as NoticeDraft["audience"],
               }))
             }
+            className={locked ? "pointer-events-none opacity-60" : undefined}
           />
           <FilterSelect
             label="Year group"
@@ -115,19 +155,21 @@ export function SendNoticeDialog({
             value={draft.classId}
             options={classes.map((row) => ({ value: row.id, label: row.name }))}
             onChange={(value) => setDraft((current) => ({ ...current, classId: value }))}
+            className={locked ? "pointer-events-none opacity-60" : undefined}
           />
         </div>
         <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-          {draft.classId
-            ? draft.audience === "PARENTS"
-              ? "Only the parents of pupils in that year group will get this."
-              : draft.audience === "STUDENTS"
-                ? "Only pupils in that year group will get this."
-                : draft.audience === "TEACHERS"
-                  ? "Only the teachers who teach that year group will get this."
-                  : "Only that year group's families and teachers will get this."
-            : "Everybody in the chosen audience, across the school."}
-          {canNarrow ? "" : ""}
+          {locked
+            ? "Fixed to the people who got the notice this puts right."
+            : draft.classId
+              ? draft.audience === "PARENTS"
+                ? "Only the parents of pupils in that year group will get this."
+                : draft.audience === "STUDENTS"
+                  ? "Only pupils in that year group will get this."
+                  : draft.audience === "TEACHERS"
+                    ? "Only the teachers who teach that year group will get this."
+                    : "Only that year group's families and teachers will get this."
+              : "Everybody in the chosen audience, across the school."}
         </p>
 
         <div>

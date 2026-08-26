@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import {
@@ -16,6 +17,12 @@ const subjectSchema = z.enum(["STUDENT", "GUARDIAN"]);
 
 const querySchema = z.object({
   subject: subjectSchema.optional(),
+  /**
+   * One record's invitations. A record page asks "has this parent been
+   * invited, and is the invitation still live" — without it the page had to
+   * pull every outstanding invite in the school and find its own row.
+   */
+  subjectId: z.string().uuid().optional(),
   status: z.enum(["outstanding", "claimed", "revoked"]).optional(),
 });
 
@@ -57,12 +64,24 @@ export async function GET(request: NextRequest) {
     const { page, limit, skip } = getPaginationParams(request);
     const query = querySchema.parse({
       subject: searchParams.get("subject") ?? undefined,
+      subjectId: searchParams.get("subjectId") ?? undefined,
       status: searchParams.get("status") ?? undefined,
     });
+
+    // The subject is a nullable key per kind, so which column an id belongs in
+    // depends on `subject`; asked for without one it matches either.
+    const subjectWhere: Prisma.SchoolPortalInviteWhereInput = !query.subjectId
+      ? {}
+      : query.subject === "STUDENT"
+        ? { studentId: query.subjectId }
+        : query.subject === "GUARDIAN"
+          ? { guardianId: query.subjectId }
+          : { OR: [{ studentId: query.subjectId }, { guardianId: query.subjectId }] };
 
     const where = {
       companyId: session.user.companyId,
       ...(query.subject ? { subject: query.subject } : {}),
+      ...subjectWhere,
       ...(query.status === "outstanding"
         ? { claimedAt: null, revokedAt: null }
         : query.status === "claimed"

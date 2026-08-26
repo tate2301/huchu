@@ -90,6 +90,50 @@ export async function PATCH(
   }
 }
 
+/**
+ * Remove a hostel that should not be on the list.
+ *
+ * Only one nobody has ever boarded in. A house with allocations behind it is
+ * closed rather than deleted — `isActive: false` through PATCH — because the
+ * allocations are the record of where a child slept, and cascading them away to
+ * tidy a list is not a trade a school can make.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.boarding", "archive");
+    if (denied) return errorResponse(denied, 403);
+
+    const { id } = await params;
+    if (!isValidUUID(id)) return errorResponse("Invalid hostel ID", 400);
+
+    const existing = await prisma.schoolHostel.findFirst({
+      where: { id, companyId: session.user.companyId },
+      select: { id: true, _count: { select: { allocations: true } } },
+    });
+    if (!existing) return errorResponse("Hostel not found", 404);
+
+    if (existing._count.allocations > 0) {
+      return errorResponse(
+        "Children have boarded in this hostel. Close it instead of deleting it.",
+        409,
+      );
+    }
+
+    await prisma.schoolHostel.delete({ where: { id: existing.id } });
+    return successResponse({ id: existing.id, deleted: true });
+  } catch (error) {
+    console.error("[API] DELETE /api/v2/schools/boarding/hostels/[id] error:", error);
+    return errorResponse("Failed to delete hostel");
+  }
+}
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },

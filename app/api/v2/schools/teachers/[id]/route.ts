@@ -123,6 +123,13 @@ export async function GET(
             isActive: true,
           },
         },
+        // The HR record for the same person, so the record page can say whether
+        // payroll knows this teacher exists and offer to join them up. The list
+        // has carried this since S-1.7; the record page sent the reader back to
+        // the list to act on it.
+        employee: {
+          select: { id: true, employeeId: true, name: true, jobTitle: true },
+        },
         assignments: {
           include: {
             term: { select: { id: true, code: true, name: true } },

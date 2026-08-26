@@ -15,6 +15,12 @@ const assignmentsQuerySchema = z.object({
   termId: z.string().uuid().optional(),
   classId: z.string().uuid().optional(),
   streamId: z.string().uuid().optional(),
+  /**
+   * One subject's lessons. "Who teaches Mathematics, and to whom" is the
+   * question a head of department arrives with, and the only way to ask it was
+   * to type the subject's name into the search box and hope no class shared it.
+   */
+  subjectId: z.string().uuid().optional(),
   teacherProfileId: z.string().uuid().optional(),
   search: z.string().trim().min(1).optional(),
   isActive: z
@@ -48,6 +54,7 @@ export async function GET(request: NextRequest) {
       termId: searchParams.get("termId") ?? undefined,
       classId: searchParams.get("classId") ?? undefined,
       streamId: searchParams.get("streamId") ?? undefined,
+      subjectId: searchParams.get("subjectId") ?? undefined,
       teacherProfileId: searchParams.get("teacherProfileId") ?? undefined,
       search: searchParams.get("search") ?? undefined,
       isActive: searchParams.get("isActive") ?? undefined,
@@ -58,6 +65,7 @@ export async function GET(request: NextRequest) {
       ...(query.termId ? { termId: query.termId } : {}),
       ...(query.classId ? { classId: query.classId } : {}),
       ...(query.streamId ? { streamId: query.streamId } : {}),
+      ...(query.subjectId ? { subjectId: query.subjectId } : {}),
       ...(query.teacherProfileId ? { teacherProfileId: query.teacherProfileId } : {}),
       ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
       ...(query.search

@@ -18,6 +18,7 @@ import {
   type SubjectNote,
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+import { ClassStreamsPanel } from "@/components/schools/classes/class-streams-panel";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -196,27 +197,22 @@ export function ClassRecordPage({ classId }: { classId: string }) {
         />
       ),
     },
-    ...(streams.length
-      ? [
-          {
-            value: "streams",
-            label: "Streams",
-            count: streams.length,
-            content: (
-              <RelatedList
-                items={streams}
-                emptyMessage="This class is not streamed."
-                renderItem={(stream) => ({
-                  href: `/schools/classes/${classId}`,
-                  title: stream.name,
-                  subtitle: stream.code,
-                  meta: stream.capacity == null ? undefined : `${stream.capacity} places`,
-                })}
-              />
-            ),
-          } satisfies RecordTab,
-        ]
-      : []),
+    // Always present, never conditional on there being streams: the tab is
+    // where a class *gets* split, and hiding it when the count is nought left
+    // the one screen that can create a stream unreachable until one existed.
+    {
+      value: "streams",
+      label: "Streams",
+      count: streams.length,
+      content: (
+        <ClassStreamsPanel
+          classId={classId}
+          className={record.name}
+          classCode={record.code}
+          streams={streams}
+        />
+      ),
+    },
     {
       value: "notes",
       label: "Notes",

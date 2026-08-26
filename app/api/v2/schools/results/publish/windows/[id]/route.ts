@@ -110,3 +110,39 @@ export async function PATCH(
     return errorResponse("Failed to update publish window");
   }
 }
+
+/**
+ * Windows were creatable and editable but never removable, so a window opened
+ * against the wrong class could only be closed — and a closed window still
+ * shows on the publishing screen for ever. Same grant as the PATCH above.
+ */
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.results", "publish");
+    if (denied) return errorResponse(denied, 403);
+    const companyId = session.user.companyId;
+    const { id } = await params;
+
+    const existing = await prisma.schoolPublishWindow.findFirst({
+      where: { id, companyId },
+      select: { id: true },
+    });
+    if (!existing) {
+      return errorResponse("Publish window not found", 404);
+    }
+
+    await prisma.schoolPublishWindow.delete({ where: { id: existing.id } });
+
+    return successResponse({ id: existing.id });
+  } catch (error) {
+    console.error("[API] DELETE /api/v2/schools/results/publish/windows/[id] error:", error);
+    return errorResponse("Failed to delete publish window");
+  }
+}

@@ -12,7 +12,10 @@ export default async function SchoolsTimetablePage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Timetable" />
+      <PageHeading
+        title="Timetable"
+        description="The week as a grid of days against periods — read it by class or by teacher, and place, move or remove a lesson where you see the gap."
+      />
       <SchoolsTimetableContent />
     </div>
   );

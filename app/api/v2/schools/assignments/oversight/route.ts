@@ -9,6 +9,7 @@ const querySchema = z.object({
   termId: z.string().uuid().optional(),
   classId: z.string().uuid().optional(),
   subjectId: z.string().uuid().optional(),
+  teacherProfileId: z.string().uuid().optional(),
 });
 
 /**
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = querySchema.parse(
       Object.fromEntries(
-        ["termId", "classId", "subjectId"]
+        ["termId", "classId", "subjectId", "teacherProfileId"]
           .map((key) => [key, searchParams.get(key) ?? undefined])
           .filter(([, value]) => value !== undefined),
       ),
@@ -47,6 +48,9 @@ export async function GET(request: NextRequest) {
       termId,
       ...(query.classId ? { classId: query.classId } : {}),
       ...(query.subjectId ? { subjectId: query.subjectId } : {}),
+      ...(query.teacherProfileId
+        ? { teacherProfileId: query.teacherProfileId }
+        : {}),
     });
 
     return successResponse({ termId, ...oversight });

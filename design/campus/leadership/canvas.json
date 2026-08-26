@@ -1,0 +1,176 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Six roles, one landing",
+      "page": "roles",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "HeadDashboard.dc.html",
+      "title": "The head",
+      "page": "roles",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BursarDashboard.dc.html",
+      "title": "The bursar",
+      "page": "bursar",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BursarReceipts.dc.html",
+      "title": "Receipts",
+      "page": "bursar",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BursarWaivers.dc.html",
+      "title": "Waivers",
+      "page": "bursar",
+      "x": 3440,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "BursarInvoiceActions.dc.html",
+      "title": "Invoice actions",
+      "page": "bursar",
+      "x": 5160,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "HodModeration.dc.html",
+      "title": "Moderation, with its verbs",
+      "page": "hod",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "HodPublishWindows.dc.html",
+      "title": "Publish windows",
+      "page": "hod",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "WardenDashboard.dc.html",
+      "title": "The warden",
+      "page": "warden",
+      "x": 0,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    },
+    {
+      "file": "WardenBedAllocate.dc.html",
+      "title": "The bed board",
+      "page": "warden",
+      "x": 1720,
+      "y": 0,
+      "w": 1600,
+      "h": 1000,
+      "expand": "fit"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "roles-band",
+      "x": 0,
+      "y": -400,
+      "w": 800,
+      "text": "EVERYTHING ON THIS CANVAS IS PROPOSED\n\nSix school roles sign in and all six land on /schools, which is a fourteen-row key/value table with a search box. ROLE_ROUTE_ALLOWLIST in lib/auth-core/role-routes.ts has exactly one entry, and it is SALES_REP.\n\nMeanwhile lib/platform/personas.ts grants each of them a different set of verbs — the bursar can issue, receive, waive, write off, void and refund; the HOD can moderate, request changes and approve; the warden can allocate a bed, approve leave and check a boarder in and out.\n\nAlmost none of those verbs has a control anywhere in the product. The API routes exist and are permission-gated; nothing calls them. This canvas draws the screens that would.",
+      "page": "roles"
+    },
+    {
+      "id": "bursar-band",
+      "x": 0,
+      "y": -400,
+      "w": 760,
+      "text": "BURSAR — the verbs that exist in the API and nowhere else\n\ninvoices/[id]/issue · invoices/[id]/write-off · receipts/[id]/void · receipts/[id]/fiscalise · waivers/[id]/apply. Every one is built, tested and gated. None has a call site.\n\nSo VOIDED and WRITEOFF render as badges and filter options no screen can reach, four of the five waiver states are unreachable, and the ZIMRA fiscalisation path in lib/schools/fiscalisation.ts has no campus screen at all.\n\nThe nav also promises three screens that do not exist: Receipts, Refunds and Waivers all redirect to the fees year-group picker. Two of them are drawn here as what the nav says they are.",
+      "page": "bursar"
+    },
+    {
+      "id": "bursar-chase",
+      "x": 5160,
+      "y": -400,
+      "w": 460,
+      "text": "THE CHASE LIST IS THE MISSING PRODUCT\n\nThe arrears report names 188 families and offers no way to contact any of them, while the notices system can reach every parent portal in one send. The two features are three clicks apart and do not know about each other.\n\nA reminder run that reads the arrears report and posts to the portal is those two systems, joined.",
+      "page": "bursar"
+    },
+    {
+      "id": "hod-band",
+      "x": 0,
+      "y": -400,
+      "w": 780,
+      "text": "HEAD OF DEPARTMENT — the widest gap in the module\n\nFive transition endpoints exist for a mark sheet: submit, hod-approve, hod-request-changes, publish, unpublish. Each is permission-gated and each has ZERO call sites. HOD_APPROVED is a state no human being can reach through the interface.\n\nportal-isolation.ts routes an HOD to /portal/teacher \"with additional permissions\", and the teacher shell has no HOD affordance at all — see the Teacher canvas.\n\nA publish window can only be created with a REST client, and the teacher portal explains the mechanism to teachers in plain words: \"The office opens a window per term.\"",
+      "page": "hod"
+    },
+    {
+      "id": "hod-schemes",
+      "x": 3440,
+      "y": -400,
+      "w": 460,
+      "text": "THE SAME HOD SIGNS THE SCHEMES\n\nA ZIMSEC scheme-cum-plan is checked and signed by the head of department before it is taught, a fortnight ahead of delivery. That queue is on the Teacher canvas under Planning.\n\nOne person, two kinds of approval, and neither has a screen today.",
+      "page": "hod"
+    },
+    {
+      "id": "warden-band",
+      "x": 0,
+      "y": -400,
+      "w": 760,
+      "text": "WARDEN — a complete screen that no route renders\n\ncomponents/schools/boarding/bed-board-content.tsx is a finished bed-allocation board: rooms, beds, \"Free the bed\", \"Give it to somebody\", an inline boarder picker, and a warning for boarders with no bed. Nothing imports it, even though the sidebar calls /schools/boarding \"Bed board\".\n\nWhat ships instead is three read-only tables with statuses printed as raw enums — APPROVED, CHECKED_IN, CANCELED — and no approve or reject on a leave request.\n\nThe roll call is new: the warden persona is granted check-in and check-out and there is no screen for either, which is the one thing a boarding school does every night.",
+      "page": "warden"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "roles"
+  },
+  "pages": [
+    {
+      "id": "roles",
+      "name": "Who lands where"
+    },
+    {
+      "id": "bursar",
+      "name": "Bursar"
+    },
+    {
+      "id": "hod",
+      "name": "Head of department"
+    },
+    {
+      "id": "warden",
+      "name": "Warden"
+    }
+  ]
+}

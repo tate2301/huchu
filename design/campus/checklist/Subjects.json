@@ -1,0 +1,46 @@
+{
+ "screen": "Subjects",
+ "header": "<!-- SCREEN: Subjects | app-bar title: Subjects | caption: 22 on the catalogue -->",
+ "filters": [],
+ "columns": [
+  "Code",
+  "Name",
+  "Type",
+  "Pass Mark",
+  "Status"
+ ],
+ "cards": [
+  "Subjects"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [],
+ "allCopy": [
+  "Subjects",
+  "Code",
+  "Name",
+  "Type",
+  "Pass Mark",
+  "Status",
+  "MAT",
+  "Mathematics",
+  "Core",
+  "50",
+  "Active",
+  "ENG",
+  "English Language",
+  "CSC",
+  "Combined Science",
+  "SHO",
+  "Shona",
+  "GEO",
+  "Geography",
+  "Elective",
+  "45",
+  "HIS",
+  "History",
+  "LAT",
+  "Latin",
+  "Inactive"
+ ]
+}

@@ -48,9 +48,21 @@ export async function resolveNoticeAudience(input: {
   audience: NoticeAudience;
   /** Narrow to one year group. Parents means "parents of pupils in it". */
   classId?: string | null;
+  /**
+   * Narrow to a named set of pupils — the families a screen has already
+   * shortlisted.
+   *
+   * The arrears board names the 188 who owe and the meetings board names the
+   * one family whose slot was just released; neither is a year group, and
+   * writing to the whole of Form 4 because six of them are behind is how a
+   * school teaches its parents to stop reading the notice board. Teachers are
+   * unaffected by it: a shortlist of pupils does not describe a staff room.
+   */
+  studentIds?: string[] | null;
 }): Promise<{ userIds: string[]; withoutAccount: number }> {
   const { companyId, audience } = input;
   const classId = input.classId ?? null;
+  const studentIds = input.studentIds?.length ? input.studentIds : null;
 
   const wantsParents = audience === "ALL" || audience === "PARENTS";
   const wantsStudents = audience === "ALL" || audience === "STUDENTS";
@@ -63,8 +75,11 @@ export async function resolveNoticeAudience(input: {
     const links = await prisma.schoolStudentGuardian.findMany({
       where: {
         companyId,
-        ...(classId ? { student: { currentClassId: classId } } : {}),
-        student: { status: "ACTIVE", ...(classId ? { currentClassId: classId } : {}) },
+        ...(studentIds ? { studentId: { in: studentIds } } : {}),
+        student: {
+          status: "ACTIVE",
+          ...(classId ? { currentClassId: classId } : {}),
+        },
       },
       select: { guardian: { select: { id: true, userId: true } } },
     });
@@ -80,7 +95,12 @@ export async function resolveNoticeAudience(input: {
 
   if (wantsStudents) {
     const students = await prisma.schoolStudent.findMany({
-      where: { companyId, status: "ACTIVE", ...(classId ? { currentClassId: classId } : {}) },
+      where: {
+        companyId,
+        status: "ACTIVE",
+        ...(classId ? { currentClassId: classId } : {}),
+        ...(studentIds ? { id: { in: studentIds } } : {}),
+      },
       select: { userId: true },
     });
     for (const student of students) {
@@ -113,14 +133,27 @@ export async function sendSchoolNotice(input: {
   body: string;
   audience: NoticeAudience;
   classId?: string | null;
+  /** A shortlist of pupils to write to the families of. See `resolveNoticeAudience`. */
+  studentIds?: string[] | null;
   severity?: "INFO" | "WARNING" | "CRITICAL";
   /** After this, the notice stops showing. Null means it stands until archived. */
   expiresAt?: Date | null;
+  /**
+   * The notice this one puts right.
+   *
+   * A notice cannot be recalled — the recipient rows are written when it is
+   * sent and the portals have already shown it — so the only honest correction
+   * is a second notice to the same people that says what changed. Recording
+   * which notice it corrects keeps the pair readable afterwards; without it the
+   * sent list is two unrelated letters about the same sports day.
+   */
+  correctsNoticeId?: string | null;
 }): Promise<{ id: string; recipients: number; withoutAccount: number }> {
   const { userIds, withoutAccount } = await resolveNoticeAudience({
     companyId: input.companyId,
     audience: input.audience,
     classId: input.classId ?? null,
+    studentIds: input.studentIds ?? null,
   });
 
   if (userIds.length === 0) {
@@ -145,7 +178,12 @@ export async function sendSchoolNotice(input: {
         payloadJson: JSON.stringify({
           sentBy: input.senderUserId,
           classId: input.classId ?? null,
+          // The ids themselves, not just a count: a bursar asked "who did that
+          // reminder actually go to" a week later needs an answer, and the
+          // recipient rows only name guardians who had an account.
+          studentIds: input.studentIds ?? null,
           withoutAccount,
+          correctsNoticeId: input.correctsNoticeId ?? null,
         }),
       },
       select: { id: true },
@@ -167,11 +205,43 @@ export type SentNotice = {
   summary: string;
   severity: string;
   audience: string;
+  /**
+   * The audience as it was chosen, not as it is written down. The office's list
+   * filters by it, and a correction has to be addressed to exactly the same
+   * people — neither can work off a display label that says "Pupils".
+   */
+  audienceCode: NoticeAudience;
+  /** The year group it was narrowed to, from the payload. Null means school-wide. */
+  classId: string | null;
+  className: string | null;
   createdAt: Date;
   expiresAt: Date | null;
   recipients: number;
   read: number;
 };
+
+const AUDIENCE_FOR: Record<string, NoticeAudience> = {
+  SCHOOL_NOTICE_ALL: "ALL",
+  SCHOOL_NOTICE_PARENTS: "PARENTS",
+  SCHOOL_NOTICE_STUDENTS: "STUDENTS",
+  SCHOOL_NOTICE_TEACHERS: "TEACHERS",
+};
+
+/** The year group a notice was addressed to, if the sender narrowed it. */
+function classIdFromPayload(payload: string | null): string | null {
+  if (!payload) return null;
+  try {
+    const parsed: unknown = JSON.parse(payload);
+    if (parsed && typeof parsed === "object" && "classId" in parsed) {
+      const value = (parsed as { classId?: unknown }).classId;
+      return typeof value === "string" ? value : null;
+    }
+  } catch {
+    // A payload that will not parse is a notice sent by something else. It is
+    // still a notice; it simply has no year group, which is what null says.
+  }
+  return null;
+}
 
 /** What the office has sent, with how far it got. */
 export async function listSentNotices(input: {
@@ -200,22 +270,47 @@ export async function listSentNotices(input: {
       severity: true,
       createdAt: true,
       expiresAt: true,
+      payloadJson: true,
       recipients: { select: { isRead: true } },
     },
   });
 
-  return notices.map((notice) => ({
-    id: notice.id,
-    title: notice.title,
-    summary: notice.summary,
-    severity: notice.severity,
-    audience: audienceLabel(notice.type),
-    createdAt: notice.createdAt,
-    expiresAt: notice.expiresAt,
-    recipients: notice.recipients.length,
-    // "Read by 12 of 58" is the only honest measure of whether a notice landed.
-    read: notice.recipients.filter((row) => row.isRead).length,
-  }));
+  // The year groups in one query rather than a join per notice: a term's worth
+  // of notices names a handful of classes between them.
+  const classIds = [
+    ...new Set(
+      notices
+        .map((notice) => classIdFromPayload(notice.payloadJson))
+        .filter((value): value is string => value !== null),
+    ),
+  ];
+  const classes =
+    classIds.length > 0
+      ? await prisma.schoolClass.findMany({
+          where: { companyId: input.companyId, id: { in: classIds } },
+          select: { id: true, name: true },
+        })
+      : [];
+  const classNames = new Map(classes.map((row) => [row.id, row.name]));
+
+  return notices.map((notice) => {
+    const classId = classIdFromPayload(notice.payloadJson);
+    return {
+      id: notice.id,
+      title: notice.title,
+      summary: notice.summary,
+      severity: notice.severity,
+      audience: audienceLabel(notice.type),
+      audienceCode: AUDIENCE_FOR[notice.type] ?? "ALL",
+      classId,
+      className: classId ? (classNames.get(classId) ?? null) : null,
+      createdAt: notice.createdAt,
+      expiresAt: notice.expiresAt,
+      recipients: notice.recipients.length,
+      // "Read by 12 of 58" is the only honest measure of whether a notice landed.
+      read: notice.recipients.filter((row) => row.isRead).length,
+    };
+  });
 }
 
 export function audienceLabel(type: string) {

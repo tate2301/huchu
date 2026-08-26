@@ -39,6 +39,22 @@ import {
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),
   studentId: z.string().uuid().optional(),
+  /**
+   * The pupil's current year group. Filtered through the student rather than a
+   * column on the receipt, for the same reason the invoice route does it: the
+   * class belongs to the child, and a copy on the receipt would give two
+   * answers the moment they move up.
+   */
+  classId: z.string().uuid().optional(),
+  /** Inclusive receipt-date window — "everything banked this week". */
+  from: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
+  to: z
+    .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/)
+    .optional(),
   status: z.enum(["DRAFT", "POSTED", "VOIDED"]).optional(),
   includeAllocations: z
     .enum(["true", "false"])
@@ -120,12 +136,24 @@ export async function GET(request: NextRequest) {
     const query = querySchema.parse({
       search: searchParams.get("search") ?? undefined,
       studentId: searchParams.get("studentId") ?? undefined,
+      classId: searchParams.get("classId") ?? undefined,
+      from: searchParams.get("from") ?? undefined,
+      to: searchParams.get("to") ?? undefined,
       status: searchParams.get("status") ?? undefined,
       includeAllocations: searchParams.get("includeAllocations") ?? undefined,
     });
 
     const where: Prisma.SchoolFeeReceiptWhereInput = { companyId };
     if (query.studentId) where.studentId = query.studentId;
+    if (query.classId) where.student = { currentClassId: query.classId };
+    if (query.from || query.to) {
+      where.receiptDate = {
+        ...(query.from ? { gte: new Date(`${query.from}T00:00:00.000Z`) } : {}),
+        // The window is inclusive of its last day, so a bursar asking for
+        // "up to the 20th" is not silently told about the 19th.
+        ...(query.to ? { lte: new Date(`${query.to}T23:59:59.999Z`) } : {}),
+      };
+    }
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [
@@ -161,6 +189,12 @@ export async function GET(request: NextRequest) {
             },
             orderBy: [{ createdAt: "asc" }],
           },
+          // S-2.7. The fiscal number is the one thing a parent needs off a
+          // ZIMRA receipt, and until now nothing in the product carried it out
+          // of the database.
+          fiscalReceipt: {
+            select: { id: true, status: true, fiscalNumber: true },
+          },
           _count: { select: { allocations: true } },
         } satisfies Prisma.SchoolFeeReceiptInclude)
       : ({
@@ -171,6 +205,12 @@ export async function GET(request: NextRequest) {
               firstName: true,
               lastName: true,
             },
+          },
+          // S-2.7. The fiscal number is the one thing a parent needs off a
+          // ZIMRA receipt, and until now nothing in the product carried it out
+          // of the database.
+          fiscalReceipt: {
+            select: { id: true, status: true, fiscalNumber: true },
           },
           _count: { select: { allocations: true } },
         } satisfies Prisma.SchoolFeeReceiptInclude);

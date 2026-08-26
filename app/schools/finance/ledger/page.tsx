@@ -1,7 +1,7 @@
+import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
 import { SchoolsFeesContent } from "@/components/schools/fees/schools-fees-content";
 import { authOptions } from "@/lib/auth";
 
@@ -14,6 +14,12 @@ import { authOptions } from "@/lib/auth";
  * "every receipt this week", "which structures are still draft" — which is not
  * about a year group at all, and forcing it through one would be worse than the
  * single list it replaced.
+ *
+ * The heading moved inside the client component: the primary action belongs to
+ * whichever segment is open, and only the browser knows that — the tab is read
+ * from `?view=`, which is also why the content sits behind a Suspense boundary.
+ * `useSearchParams` opts a route into client rendering, and without the
+ * boundary Next refuses to build the page at all.
  */
 export default async function SchoolsFinanceLedgerPage() {
   const session = await getServerSession(authOptions);
@@ -23,8 +29,9 @@ export default async function SchoolsFinanceLedgerPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Fee ledger" />
-      <SchoolsFeesContent />
+      <Suspense fallback={null}>
+        <SchoolsFeesContent />
+      </Suspense>
     </div>
   );
 }

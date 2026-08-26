@@ -293,6 +293,8 @@ export type AssignmentOversightRow = {
   streamName: string | null;
   subjectId: string;
   subjectName: string;
+  /** The id, so the board's Teacher filter is not matching on a name. */
+  teacherProfileId: string;
   teacherName: string | null;
   /** Everybody the work was set to, handed in or not. */
   onRoll: number;
@@ -332,6 +334,7 @@ export async function assignmentOversight(input: {
   termId: string;
   classId?: string;
   subjectId?: string;
+  teacherProfileId?: string;
   /** Injectable so the tests are not hostage to the day they run on. */
   now?: Date;
 }) {
@@ -346,6 +349,9 @@ export async function assignmentOversight(input: {
       classSubject: {
         ...(input.classId ? { classId: input.classId } : {}),
         ...(input.subjectId ? { subjectId: input.subjectId } : {}),
+        ...(input.teacherProfileId
+          ? { teacherProfileId: input.teacherProfileId }
+          : {}),
       },
     },
     select: {
@@ -362,7 +368,9 @@ export async function assignmentOversight(input: {
           class: { select: { id: true, name: true, level: true } },
           stream: { select: { id: true, name: true } },
           subject: { select: { id: true, name: true } },
-          teacherProfile: { select: { user: { select: { name: true } } } },
+          teacherProfile: {
+            select: { id: true, user: { select: { name: true } } },
+          },
         },
       },
     },
@@ -453,6 +461,7 @@ export async function assignmentOversight(input: {
       streamName: assignment.classSubject.stream?.name ?? null,
       subjectId: assignment.classSubject.subject.id,
       subjectName: assignment.classSubject.subject.name,
+      teacherProfileId: assignment.classSubject.teacherProfile.id,
       teacherName: assignment.classSubject.teacherProfile.user.name,
       onRoll,
       handedIn,

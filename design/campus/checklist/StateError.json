@@ -1,0 +1,44 @@
+{
+ "screen": "StateError",
+ "header": "<!-- SCREEN: StateError | app-bar title: Fee ledger | caption: Term 2 -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "Proposed &mdash; the failure is scoped to what failed",
+  "Proposed &mdash; an unrecoverable page"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Try again",
+  "Refunds",
+  "Back to School Overview"
+ ],
+ "allCopy": [
+  "Could not load",
+  "Unable to load schools fees data",
+  "Request failed with status code 500",
+  "Try again",
+  "Proposed &mdash; the failure is scoped to what failed",
+  "Invoices",
+  "412",
+  "Receipts",
+  "388",
+  "Credits",
+  "9",
+  "Refunds",
+  "Waivers",
+  "24",
+  "Refunds did not load",
+  "The other four views loaded. Only the refund list is missing.",
+  "A failed segment keeps its place in the strip and carries the fault; the ones that loaded stay usable. A page-wide alert throws away four good answers to report one bad one.",
+  "Proposed &mdash; an unrecoverable page",
+  "error.tsx, which campus does not have",
+  "This page could not be opened",
+  "Something went wrong at our end, not yours. Nothing you had entered was saved.",
+  "Reference",
+  "e4b9-2201",
+  "— quote it if you report this.",
+  "Back to School Overview"
+ ]
+}

@@ -2,12 +2,24 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import {
+  Alert,
+  Badge,
+  Button,
+  MobileList,
+  MobileListSectionHeader,
+} from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import {
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  SaveError,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -41,11 +53,11 @@ const STAGE_OPTIONS = [...PIPELINE_STAGES, ...CLOSED_STAGES].map((stage) => ({
 }));
 
 function stageBadge(stage: ApplicationStage) {
-  if (stage === "ENROLLED") return <Badge variant="secondary">Enrolled</Badge>;
+  if (stage === "ENROLLED") return <Badge tone="success">Enrolled</Badge>;
   if (stage === "DECLINED" || stage === "WITHDRAWN") {
-    return <Badge variant="destructive">{STAGE_LABELS[stage]}</Badge>;
+    return <Badge tone="danger">{STAGE_LABELS[stage]}</Badge>;
   }
-  return <Badge variant="outline">{STAGE_LABELS[stage]}</Badge>;
+  return <Badge tone="outline">{STAGE_LABELS[stage]}</Badge>;
 }
 
 /**
@@ -72,6 +84,7 @@ export function AdmissionsBoardContent() {
   const [search, setSearch] = useState("");
   const [includeClosed, setIncludeClosed] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
+  const [editing, setEditing] = useState<SchoolsApplicationRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [duplicates, setDuplicates] = useState<DuplicateCandidateRecord[]>([]);
   const [enrolNote, setEnrolNote] = useState<string | null>(null);
@@ -120,9 +133,45 @@ export function AdmissionsBoardContent() {
     offerHasLapsed(application, now),
   );
 
-  const createMutation = useMutation({
-    mutationFn: (values: ApplicationFormValues) =>
-      createSchoolApplication({
+  const namedFilters = [
+    classes.find((row) => row.id === classFilter)?.name,
+    stageFilter ? STAGE_LABELS[stageFilter as ApplicationStage] : undefined,
+    search.trim() || undefined,
+  ].filter((entry): entry is string => Boolean(entry));
+
+  function clearFilters() {
+    setSearch("");
+    setClassFilter("");
+    setStageFilter("");
+  }
+
+  const saveMutation = useMutation({
+    /**
+     * Both branches are declared to return only the duplicate list, which is
+     * all `onSuccess` reads. Correcting an application returns the stage row
+     * and taking a new one returns the whole record, and leaving the return
+     * type to inference made the two irreconcilable — the board refetches
+     * either way, so the record itself is never what updates the screen.
+     */
+    mutationFn: (
+      values: ApplicationFormValues,
+    ): Promise<{ duplicates: DuplicateCandidateRecord[] }> => {
+      if (editing) {
+        // Only what PATCH takes. The child's own details are the family's
+        // form, and correcting those is a new application.
+        return updateSchoolApplication(editing.id, {
+          guardianName: values.guardianName.trim() || null,
+          guardianPhone: values.guardianPhone.trim() || null,
+          guardianEmail: values.guardianEmail.trim() || null,
+          appliedForClassId: values.appliedForClassId || null,
+          notes: values.notes.trim() || null,
+          assessmentScore:
+            values.assessmentScore.trim() === "" ? null : Number(values.assessmentScore),
+          assessmentAt: values.assessmentAt || null,
+          // A correction is not a new child, so it never surfaces duplicates.
+        }).then(() => ({ duplicates: [] }));
+      }
+      return createSchoolApplication({
         firstName: values.firstName.trim(),
         lastName: values.lastName.trim(),
         dateOfBirth: values.dateOfBirth || null,
@@ -134,9 +183,11 @@ export function AdmissionsBoardContent() {
         source: values.source || null,
         appliedForClassId: values.appliedForClassId || null,
         notes: values.notes.trim() || null,
-      }),
+      });
+    },
     onSuccess: (result) => {
       setFormOpen(false);
+      setEditing(null);
       setActionError(null);
       setDuplicates(result.duplicates);
       void queryClient.invalidateQueries({ queryKey: ["schools", "applications"] });
@@ -187,40 +238,57 @@ export function AdmissionsBoardContent() {
       {view === "enrolments" ? <SchoolsAdmissionsContent /> : null}
 
       <div className={view === "pipeline" ? "space-y-4" : "hidden"}>
+      {/* Pipeline and roll side by side: "61 in, 842 here" is the whole of
+          what an admissions office is watching in September. */}
+      <PageBand
+        chips={[
+          { label: "Pipeline", value: applications.length, tone: "brand" },
+          {
+            label: "Offers out",
+            value: counts.OFFERED ?? 0,
+            tone: lapsed.length > 0 ? "warn" : "neutral",
+          },
+          {
+            label: "Lapsed",
+            value: lapsed.length,
+            tone: lapsed.length > 0 ? "danger" : "neutral",
+          },
+        ]}
+        actions={
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={() => setIncludeClosed((on) => !on)}
+          >
+            {includeClosed ? "Hide closed" : "Show closed"}
+          </Button>
+        }
+      />
+
       {applicationsQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load applications</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(applicationsQuery.error)}
-          </AlertDescription>
-        </Alert>
+        <LoadError
+          what="the applications"
+          error={applicationsQuery.error}
+          onRetry={() => void applicationsQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      {actionError ? <SaveError what="That change" error={actionError} /> : null}
       {enrolNote ? (
-        <Alert>
-          <AlertTitle>Enrolled</AlertTitle>
-          <AlertDescription>{enrolNote}</AlertDescription>
+        <Alert tone="success" title="Enrolled">
+          {enrolNote}
         </Alert>
       ) : null}
       {duplicates.length > 0 ? (
-        <Alert>
-          <AlertTitle>
-            {duplicates.length} existing application
-            {duplicates.length === 1 ? "" : "s"} worth a look
-          </AlertTitle>
-          <AlertDescription>
-            {duplicates
-              .map(
-                (row) =>
-                  `${row.lastName}, ${row.firstName} (${row.applicationNo}) — ${row.reason}`,
-              )
-              .join("; ")}
-          </AlertDescription>
+        <Alert
+          tone="warn"
+          title={`${duplicates.length} existing application${duplicates.length === 1 ? "" : "s"} worth a look`}
+        >
+          {duplicates
+            .map(
+              (row) =>
+                `${row.lastName}, ${row.firstName} (${row.applicationNo}) — ${row.reason}`,
+            )
+            .join("; ")}
         </Alert>
       ) : null}
 
@@ -252,12 +320,14 @@ export function AdmissionsBoardContent() {
             onChange={setStageFilter}
           />
         </FilterBar>
-        <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button variant="outline" onClick={() => setIncludeClosed((on) => !on)}>
-            {includeClosed ? "Hide closed" : "Show closed"}
-          </Button>
-          <Button onClick={() => setFormOpen(true)}>New application</Button>
-        </div>
+        <CreateButton
+          resource="schools.admissions"
+          label="New application"
+          onSelect={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        />
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -267,25 +337,37 @@ export function AdmissionsBoardContent() {
       </p>
 
       {lapsed.length > 0 ? (
-        <Alert variant="destructive">
-          <AlertTitle>
-            {lapsed.length} offer{lapsed.length === 1 ? " has" : "s have"} run out
-          </AlertTitle>
-          <AlertDescription>
-            {lapsed.map((row) => `${row.lastName}, ${row.firstName}`).join(", ")} — the
-            place is being held for a family that has not answered.
-          </AlertDescription>
+        <Alert
+          tone="danger"
+          title={`${lapsed.length} offer${lapsed.length === 1 ? " has" : "s have"} run out`}
+        >
+          {lapsed
+            .map((row) => `${row.lastName}, ${row.firstName} (${row.applicationNo})`)
+            .join(", ")}{" "}
+          — the place is being held for a family that has not answered.
         </Alert>
       ) : null}
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {applicationsQuery.isLoading
-              ? "Loading applications…"
-              : "No applications yet."}
-          </MobileListEmpty>
+      {grouped.length === 0 && applicationsQuery.isLoading ? (
+        <TableRowsSkeleton rows={6} columns={[{ twoLine: true }, { width: 220 }]} />
+      ) : null}
+      {grouped.length === 0 && !applicationsQuery.isLoading ? (
+        namedFilters.length > 0 ? (
+          <NothingMatched
+            what="applications"
+            filters={namedFilters}
+            onClear={clearFilters}
+          />
         ) : (
+          <NothingLeftToDo
+            title="Nothing in the pipeline"
+            body="Every application has been decided. New enquiries land here as they are taken at the desk."
+          />
+        )
+      ) : null}
+
+      <MobileList>
+        {grouped.length === 0 ? null : (
           grouped.map(([stage, rows]) => (
             <div key={stage}>
               <MobileListSectionHeader>
@@ -314,35 +396,72 @@ export function AdmissionsBoardContent() {
                         </span>
                         {stageBadge(application.stage)}
                         {offerHasLapsed(application, now) ? (
-                          <Badge variant="destructive">Offer lapsed</Badge>
+                          <Badge tone="danger">Offer lapsed</Badge>
                         ) : null}
-                        {application.stage === "ACCEPTED" ? (
-                          <Button
-                            size="sm"
-                            disabled={enrolMutation.isPending}
-                            onClick={() => enrolMutation.mutate(application.id)}
-                          >
-                            Enrol
-                          </Button>
-                        ) : null}
-                        {next
-                          .filter((target) => target !== "ENROLLED")
-                          .map((target) => (
-                            <Button
-                              key={target}
-                              size="sm"
-                              variant="ghost"
-                              disabled={moveMutation.isPending}
-                              onClick={() =>
-                                moveMutation.mutate({
-                                  id: application.id,
-                                  stage: target,
-                                })
-                              }
-                            >
-                              {STAGE_LABELS[target]}
-                            </Button>
-                          ))}
+                        {/* Correcting the file and deciding on the child are
+                            different acts with different grants — `edit` and
+                            `approve` — so they are different verbs, each
+                            disabled with the reason rather than hidden. */}
+                        <RecordActions
+                          resource="schools.admissions"
+                          verbs={[
+                            {
+                              label: "Edit",
+                              action: "edit",
+                              onSelect: () => {
+                                setEditing(application);
+                                setFormOpen(true);
+                              },
+                            },
+                            ...(application.stage === "ACCEPTED"
+                              ? [
+                                  {
+                                    label: "Enrol",
+                                    action: "approve" as const,
+                                    loading: enrolMutation.isPending,
+                                    confirm: {
+                                      title: `Enrol ${application.firstName} ${application.lastName}`,
+                                      description:
+                                        "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
+                                      confirmLabel: "Enrol",
+                                    },
+                                    onSelect: () => enrolMutation.mutate(application.id),
+                                  },
+                                ]
+                              : []),
+                            ...next
+                              .filter((target) => target !== "ENROLLED")
+                              .map((target) => ({
+                                label: STAGE_LABELS[target],
+                                action: "approve" as const,
+                                tone:
+                                  target === "DECLINED" || target === "WITHDRAWN"
+                                    ? ("danger" as const)
+                                    : ("default" as const),
+                                loading: moveMutation.isPending,
+                                ...(target === "DECLINED" || target === "WITHDRAWN"
+                                  ? {
+                                      confirm: {
+                                        title:
+                                          target === "DECLINED"
+                                            ? `Turn ${application.firstName} ${application.lastName} down`
+                                            : `Mark ${application.firstName} ${application.lastName} withdrawn`,
+                                        description:
+                                          target === "DECLINED"
+                                            ? "The school has said no. The application leaves the board and the place is freed for the waiting list."
+                                            : "The family has gone elsewhere. The application leaves the board and the place is freed for the waiting list.",
+                                        confirmLabel: STAGE_LABELS[target],
+                                      },
+                                    }
+                                  : {}),
+                                onSelect: () =>
+                                  moveMutation.mutate({
+                                    id: application.id,
+                                    stage: target,
+                                  }),
+                              })),
+                          ]}
+                        />
                       </span>
                     }
                   />
@@ -355,11 +474,15 @@ export function AdmissionsBoardContent() {
 
       <ApplicationFormSheet
         open={formOpen}
-        onOpenChange={setFormOpen}
+        onOpenChange={(next) => {
+          setFormOpen(next);
+          if (!next) setEditing(null);
+        }}
+        application={editing}
         classes={classes.map((row) => ({ id: row.id, name: row.name }))}
-        isSubmitting={createMutation.isPending}
-        error={createMutation.isError ? actionError : null}
-        onSubmit={(values) => createMutation.mutate(values)}
+        isSubmitting={saveMutation.isPending}
+        error={saveMutation.isError ? actionError : null}
+        onSubmit={(values) => saveMutation.mutate(values)}
       />
       </div>
     </VerticalDataViews>

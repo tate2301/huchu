@@ -6,5 +6,5 @@ import { redirect } from "next/navigation";
  * because links to it exist in the wild.
  */
 export default function SchoolsFinanceInvoicesPage() {
-  redirect("/schools/finance/ledger");
+  redirect("/schools/finance/ledger?view=invoices");
 }

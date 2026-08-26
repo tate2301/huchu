@@ -1,0 +1,68 @@
+<!-- SCREEN: OfflinePage | app-bar title: OfflinePage -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F7F8FA;color:#262A33;
+      font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+    a{color:#0944C2;text-decoration:none}
+    a:hover{color:#08379C;text-decoration:underline}
+    svg{display:block}
+    .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace}
+    .nav:hover{background:#F1F3F6}
+    .row:hover{background:#F7F8FA}
+    .btn:hover{background:#F1F3F6}
+    .pri:hover{background:#0944C2}
+    .scroll::-webkit-scrollbar{width:10px;height:10px}
+    .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box}
+    .scroll::-webkit-scrollbar-track{background:transparent}
+  </style>
+</helmet>
+<div style="width: 1100px; height: 600px; overflow: hidden; background: #F7F8FA; position: relative; --band-h: {{bandH}}; --row-h: {{rowH}}; --head-h: {{headH}}"><div style="height: 100%; display: grid; grid-template-columns: 1fr 1fr">
+      <div style="border-right: 1px solid #E5E8EE; display: flex; flex-direction: column">
+        <div style="padding: 14px 20px; border-bottom: 1px solid #E5E8EE; background: #FFFFFF"><span style="font-size: 12.5px; font-weight: 700; color: #16181D">As built</span> <span style="font-size: 11.5px; color: #8A91A0">&mdash; app/offline/page.tsx, in full</span></div>
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center; background: #FBFCFD">
+          <div style="width: 40px; height: 40px; border-radius: 999px; border: 2px solid #E8EBF0; border-top-color: #0B5DF0"></div>
+        </div>
+        <div style="padding: 13px 20px; border-top: 1px solid #E5E8EE; background: #FFFFFF"><span style="font-size: 11.5px; color: #565C69; line-height: 1.55">A 40px spinner and no words. A screen-reader user hears &ldquo;Loading&rdquo;. Nothing says the connection is gone, nothing says whether their work survived, and the spin never stops.</span></div>
+      </div>
+      <div style="display: flex; flex-direction: column">
+        <div style="padding: 14px 20px; border-bottom: 1px solid #E5E8EE; background: #FFFFFF; display: flex; align-items: center; gap: 9px"><span style="font-size: 12.5px; font-weight: 700; color: #16181D">Proposed</span></div>
+        <div style="flex: 1; display: flex; align-items: center; justify-content: center; padding: 28px">
+          <div style="width: 380px; text-align: center; display: flex; flex-direction: column; align-items: center; gap: 12px">
+            <div style="width: 52px; height: 52px; border-radius: 13px; background: #F4E6C5; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A6415" style="width: 24px; height: 24px; flex-shrink: 0; display: block"><path d="M213.92,210.62a8,8,0,1,1-11.84,10.76l-33.67-37-28.1,33.88A15.93,15.93,0,0,1,128,224h0a15.93,15.93,0,0,1-12.31-5.77L11.65,92.8A15.65,15.65,0,0,1,8.11,80.91,15.93,15.93,0,0,1,14.28,70.1,188.26,188.26,0,0,1,46.6,50.35l-4.29-4.72a8.22,8.22,0,0,1,.13-11.38,8,8,0,0,1,11.48.37Zm34-129.71a15.93,15.93,0,0,0-6.17-10.81A186.67,186.67,0,0,0,128,32a191,191,0,0,0-42.49,4.75,4,4,0,0,0-2,6.59L186,156.07a4,4,0,0,0,6-.14L244.35,92.8A15.65,15.65,0,0,0,247.89,80.91Z"></path></svg></div>
+            <div style="font-size: 17px; font-weight: 700; color: #16181D">No connection</div>
+            <div style="font-size: 13px; color: #565C69; line-height: 1.6">This page needs the school&rsquo;s network, and there is no copy of it on this device.<br><br>Anything you had already marked is saved here and goes up on its own when you are back.</div>
+            <div style="display: flex; gap: 8px; margin-top: 2px">
+              <div class="pri" style="height: 40px; padding: 0 16px; border-radius: 8px; background: #0B5DF0; display: flex; align-items: center; gap: 7px"><svg viewBox="0 0 256 256" fill="#fff" style="width: 15px; height: 15px; flex-shrink: 0; display: block"><path d="M240,56v48a8,8,0,0,1-8,8H184a8,8,0,0,1-5.66-13.66l17-17-10.55-9.65-.25-.24a80,80,0,1,0-1.67,114.78,8,8,0,1,1,11,11.63A95.44,95.44,0,0,1,128,224h-1.32A96,96,0,1,1,195.75,60l10.93,10L226.34,50.3A8,8,0,0,1,240,56Z"></path></svg><span style="font-size: 13px; font-weight: 600; color: #fff">Try again</span></div>
+              <div class="btn" style="height: 40px; padding: 0 16px; border-radius: 8px; border: 1px solid #E5E8EE; background: #FFFFFF; display: flex; align-items: center"><span style="font-size: 13px; font-weight: 600; color: #16181D">What is saved here</span></div>
+            </div>
+            <div style="font-size: 11.5px; color: #8A91A0; margin-top: 2px">Last connected 09:12 &middot; 3 registers waiting</div>
+          </div>
+        </div>
+      </div>
+    </div></div>
+</x-dc>
+<script data-dc-script data-props='{"density":{"editor":"enum","options":["Compact","Cozy"],"default":"Compact"},"$preview":{"width":1100,"height":600}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cozy = (this.props.density ?? 'Compact') === 'Cozy';
+    return {
+      bandH: cozy ? '52px' : '44px',
+      rowH:  cozy ? '44px' : '36px',
+      headH: cozy ? '38px' : '32px',
+    };
+  }
+}
+</script>
+</body>
+</html>

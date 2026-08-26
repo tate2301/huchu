@@ -1,0 +1,46 @@
+{
+ "screen": "ResultsClass",
+ "header": "<!-- SCREEN: ResultsClass | app-bar title: Form 2 marks | caption: Term 2 &middot; 36 sheets -->",
+ "filters": [
+  "Class = Every class",
+  "Status = Any status"
+ ],
+ "columns": [],
+ "cards": [],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Draft"
+ ],
+ "allCopy": [
+  "Draft",
+  "9",
+  "Submitted",
+  "14",
+  "Approved",
+  "8",
+  "Published",
+  "5",
+  "Class",
+  "Every class",
+  "Status",
+  "Any status",
+  "Search mark sheets",
+  "Mathematics — end of term",
+  "2A · Term 2 · 32 marks · average 64.2",
+  "English Language — end of term",
+  "2A · Term 2 · 32 marks · average 58.9",
+  "Combined Science — end of term",
+  "2A · Term 2 · 31 marks · average 61.4",
+  "Shona — end of term",
+  "2A · Term 2 · 32 marks · average 70.1",
+  "Sent back",
+  "Geography — end of term",
+  "2A · Term 2 · 0 marks",
+  "2B · Term 2 · 31 marks · average 59.8",
+  "Moderation and publishing act on these sheets —",
+  "moderation queue",
+  "and",
+  "publishing"
+ ]
+}

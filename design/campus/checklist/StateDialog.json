@@ -1,0 +1,45 @@
+{
+ "screen": "StateDialog",
+ "header": "<!-- SCREEN: StateDialog | app-bar title: Fee ledger | caption: Term 2 -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "As built",
+  "Proposed &mdash; resting",
+  "Proposed &mdash; refused"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Cancel",
+  "Record receipt"
+ ],
+ "allCopy": [
+  "As built",
+  "Student ID",
+  "Term ID",
+  "Amount",
+  "Two UUID boxes, no picker, and no validation until the server answers.",
+  "Proposed &mdash; resting",
+  "Pupil",
+  "Search by name or number",
+  "Term",
+  "Term 2 — 4 May to 10 Sep",
+  "USD 0.00",
+  "Charged against the pupil’s fee account.",
+  "Proposed &mdash; refused",
+  "Choose the pupil this invoice is for.",
+  "Validation lands on the field, on blur, before the request is made — not as a red alert above the dialog after a round trip.",
+  "Record a receipt",
+  "A payment larger than the invoice is accepted; the surplus becomes credit on the family’s account.",
+  "Invoice",
+  "INV-2026-0412 — Mutasa, Tanaka — USD 310.00 outstanding",
+  "USD 310.00",
+  "Payment method",
+  "Mobile money",
+  "Reference",
+  "Ecocash 8841 2290",
+  "Cancel",
+  "Record receipt"
+ ]
+}

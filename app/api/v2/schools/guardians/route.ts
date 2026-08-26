@@ -17,6 +17,20 @@ const guardianQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   studentId: z.string().uuid().optional(),
   /**
+   * The year group of a child this guardian is responsible for.
+   *
+   * The office works a year group at a time — Form 2's fee letters, Form 4's
+   * results evening — and the parents of Form 2 were not a list the system
+   * could produce. Filtered through the link rather than on the guardian,
+   * because a guardian with children in two forms belongs to both.
+   */
+  classId: z.string().uuid().optional(),
+  /**
+   * Mother, father, aunt. Free text on the link, so matched case-insensitively
+   * — imports have written it both ways and neither is wrong.
+   */
+  relationship: z.string().trim().min(1).max(120).optional(),
+  /**
    * Whether the guardian has claimed a portal account. The list is where
    * invitations are issued from, so "who is still not on the portal" is the
    * question it is asked most often and there was no way to ask it.
@@ -56,6 +70,10 @@ const guardianInclude = {
           firstName: true,
           lastName: true,
           status: true,
+          // The year group, so the list can say "Form 2A" beside the child
+          // rather than making the reader open the guardian to find out which
+          // form the filter just matched on.
+          currentClass: { select: { id: true, code: true, name: true } },
         },
       },
     },
@@ -81,6 +99,8 @@ export async function GET(request: NextRequest) {
     const query = guardianQuerySchema.parse({
       search: searchParams.get("search") ?? undefined,
       studentId: searchParams.get("studentId") ?? undefined,
+      classId: searchParams.get("classId") ?? undefined,
+      relationship: searchParams.get("relationship") ?? undefined,
       hasPortalAccount: searchParams.get("hasPortalAccount") ?? undefined,
     });
 
@@ -101,10 +121,18 @@ export async function GET(request: NextRequest) {
     if (query.hasPortalAccount !== undefined) {
       where.userId = query.hasPortalAccount ? { not: null } : null;
     }
-    if (query.studentId) {
+    // One `some` for all three link filters, not three. Written separately they
+    // would each match a *different* child — "a parent of someone in Form 2 who
+    // is also somebody's mother" — where what the office asks for is "the
+    // mothers of Form 2".
+    if (query.studentId || query.classId || query.relationship) {
       where.studentLinks = {
         some: {
-          studentId: query.studentId,
+          ...(query.studentId ? { studentId: query.studentId } : {}),
+          ...(query.relationship
+            ? { relationship: { equals: query.relationship, mode: "insensitive" } }
+            : {}),
+          ...(query.classId ? { student: { currentClassId: query.classId } } : {}),
         },
       };
     }

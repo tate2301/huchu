@@ -1,0 +1,53 @@
+{
+ "screen": "Syllabus",
+ "header": "<!-- SCREEN: Syllabus | app-bar title: Scheme of work | caption: Mathematics &middot; Form 2 &middot; Term 2 -->",
+ "filters": [
+  "Subject = Mathematics",
+  "Form = Form 2",
+  "Term = Term 1 · 2026 Academic Year (current)"
+ ],
+ "columns": [],
+ "cards": [
+  "Mathematics — Form 2"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Save the scheme",
+  "Remove",
+  "Add a week"
+ ],
+ "allCopy": [
+  "Each subject’s term written week by week — and what the lesson planner drafts from.",
+  "Subject",
+  "Mathematics",
+  "Form",
+  "Form 2",
+  "Term",
+  "Term 1 · 2026 Academic Year (current)",
+  "Mathematics — Form 2",
+  "3 weeks laid out. A week with no topic is dropped on save.",
+  "Save the scheme",
+  "Week 1",
+  "Remove",
+  "Topic",
+  "Simultaneous equations — elimination",
+  "Objectives",
+  "Solve a pair of linear equations by elimination, and check the answer by substitution.",
+  "Activities",
+  "Worked examples on the board, then exercise 4 in pairs. Board race on Friday.",
+  "Resources",
+  "New General Mathematics Bk 2, ch. 7. Squared paper.",
+  "Week 2",
+  "Simultaneous equations — substitution and graphs",
+  "Solve the same pairs graphically and say why the two methods agree.",
+  "Graph plotting on squared paper; one problem set for homework.",
+  "Bk 2, ch. 7–8. Graph paper, rulers.",
+  "Week 3",
+  "What is taught this week",
+  "By the end of the week, pupils can…",
+  "How the week runs",
+  "Textbook chapters, equipment, handouts",
+  "Add a week"
+ ]
+}

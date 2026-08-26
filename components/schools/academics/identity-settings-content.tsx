@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { useSession } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, SegmentedControl, Skeleton, Switch } from "@corelithzw/react";
@@ -88,9 +88,17 @@ export function IdentitySettingsContent() {
     queryFn: () => fetchJson<IdentityResponse>("/api/v2/schools/settings/identity"),
   });
 
-  useEffect(() => {
-    if (query.data) setForm(toForm(query.data));
-  }, [query.data]);
+  /*
+   * Adopt the saved settings during render, keyed on the object the query
+   * handed back. An effect ran after the first paint, so the form showed its
+   * empty defaults for a frame — and an administrator who typed immediately had
+   * their first keystrokes overwritten when the fetch landed.
+   */
+  const [adopted, setAdopted] = useState<IdentityResponse | null>(null);
+  if (query.data && query.data !== adopted) {
+    setAdopted(query.data);
+    setForm(toForm(query.data));
+  }
 
   const save = useMutation({
     mutationFn: () =>

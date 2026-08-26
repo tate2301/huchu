@@ -23,6 +23,12 @@ import {
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),
   studentId: z.string().uuid().optional(),
+  /**
+   * The pupil's current year group. Filtered through the student, because the
+   * class belongs to the child; a copy held here would give two answers the
+   * moment they move up.
+   */
+  classId: z.string().uuid().optional(),
   termId: z.string().uuid().optional(),
   invoiceId: z.string().uuid().optional(),
   status: z
@@ -60,11 +66,13 @@ export async function GET(request: NextRequest) {
       studentId: searchParams.get("studentId") ?? undefined,
       termId: searchParams.get("termId") ?? undefined,
       invoiceId: searchParams.get("invoiceId") ?? undefined,
+      classId: searchParams.get("classId") ?? undefined,
       status: searchParams.get("status") ?? undefined,
     });
 
     const where: Prisma.SchoolFeeWaiverWhereInput = { companyId };
     if (query.studentId) where.studentId = query.studentId;
+    if (query.classId) where.student = { currentClassId: query.classId };
     if (query.termId) where.termId = query.termId;
     if (query.invoiceId) where.invoiceId = query.invoiceId;
     if (query.status) where.status = query.status;
