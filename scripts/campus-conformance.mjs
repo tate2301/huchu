@@ -38,6 +38,7 @@ const SCREENS = {
   Overview: '/schools',
   OverviewAsBuilt: null,
   Attendance: '/schools/attendance',
+  AttendanceFollowUp: '/schools/attendance/follow-up',
   Notices: '/schools/notices',
   Documents: '/schools/documents',
   Reports: '/schools/reports',

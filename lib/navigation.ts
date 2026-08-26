@@ -330,7 +330,16 @@ export const navSections: NavSection[] = [
         label: "Identity and records",
         group: "academics",
       },
-      { href: "/schools/academics/rooms", icon: MapPin, label: "Rooms", group: "academics" },
+      // Rooms are one half of `school-day-content` — the periods a day is cut
+      // into, and the rooms lessons run in, which are the two axes of the same
+      // timetable. Pointing at the tab beats a second rooms screen that would
+      // drift from it.
+      {
+        href: "/management/master-data/schools/periods?view=rooms",
+        icon: MapPin,
+        label: "Rooms",
+        group: "academics",
+      },
       { href: "/schools/academics/syllabus", icon: Layers, label: "Scheme of work", group: "academics" },
 
       { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "teaching" },
