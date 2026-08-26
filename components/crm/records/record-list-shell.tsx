@@ -31,6 +31,7 @@ export function RecordListShell({
   layout,
   filters,
   display,
+  count,
   createLabel,
   onCreate,
   error,
@@ -56,6 +57,14 @@ export function RecordListShell({
   filters?: ReactNode;
   /** Display controls — column picker, card fields — right-aligned with search. */
   display?: ReactNode;
+  /**
+   * How many rows are showing, out of how many there are — "50 of 214".
+   *
+   * Sits in the toolbar beside the display controls, which is where the
+   * artboards put it: it answers whatever the filters just asked, and belongs
+   * next to the question rather than at the foot of the table.
+   */
+  count?: ReactNode;
   /** Omit both to get a list with no create button — quotes and invoices are
    *  raised against a deal, never from a directory of them. */
   createLabel?: string;
@@ -98,6 +107,7 @@ export function RecordListShell({
             noun={searchNoun ?? title.toLowerCase()}
           />
         }
+        count={count}
         end={display}
       />
 

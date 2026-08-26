@@ -1,18 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import {
   ReportTable,
   badge,
-  nm,
+  bar,
+  node,
   num,
   txt,
+  type ReportRow,
 } from "@/components/accounting/report-table";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -35,10 +36,23 @@ import {
 } from "@/components/ui/select";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowDownward, ArrowUpward, Plus, Trash2 } from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, ChevronRight, Lock, Plus, Trash2 } from "@/lib/icons";
 import { fetchCrmPipelines, type CrmPipelineRecord } from "@/lib/crm/crm-v2";
 import { STAGE_OUTCOME_TONE } from "@/lib/crm/tones";
 import { validateStages, type StageInput } from "@/lib/crm/pipelines";
+import { cn } from "@/lib/utils";
+
+import { SetupNote, SetupPanel } from "./setup-chrome";
+
+/**
+ * The stage dot. Open is the brand, and the two outcomes are the tones that
+ * mean won and lost everywhere else in the module.
+ */
+const STAGE_DOT: Record<string, string> = {
+  OPEN: "bg-[var(--brand)]",
+  WON: "bg-[var(--tone-success)]",
+  LOST: "bg-[var(--tone-danger)]",
+};
 
 type StageDraft = StageInput & { dealCount?: number };
 
@@ -311,11 +325,39 @@ function StageEditor({
   );
 }
 
-export function PipelinesPanel() {
+/**
+ * The pipelines, and what each stage in the selected one actually does.
+ *
+ * The artboard makes two changes to what was a stack of pipelines each with
+ * its own table.
+ *
+ * The pipelines become a row of cards you pick from, so the page shows one
+ * pipeline properly rather than every pipeline partially. With two or three
+ * pipelines the old shape was two or three tables down the page, and no way to
+ * compare a stage in one against the same stage in another.
+ *
+ * And a stage opens. A stage is a name, the probability the forecast is
+ * weighted by, the idle period after which a deal goes stale, what it gates,
+ * how many deals are sitting in it, and the checklist that has to be cleared
+ * before a deal may leave. All of that was behind the editor dialog, so the one
+ * screen somebody comes here to audit was the screen that showed the least.
+ *
+ * Read-only, deliberately: this is the audit view, and "Edit stages" is the
+ * door to changing any of it. Reordering lives there too, which is why no drag
+ * handle is drawn here — a handle that does not drag is worse than none.
+ */
+export function PipelinesPanel({
+  createOpen,
+  onCreateOpenChange,
+}: {
+  createOpen: boolean;
+  onCreateOpenChange: (open: boolean) => void;
+}) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   const [editing, setEditing] = useState<CrmPipelineRecord | null>(null);
-  const [createOpen, setCreateOpen] = useState(false);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [openStage, setOpenStage] = useState<string | null>(null);
   const [newName, setNewName] = useState("");
   const [template, setTemplate] = useState<"DEFAULT" | "BLANK">("DEFAULT");
 
@@ -324,7 +366,8 @@ export function PipelinesPanel() {
     queryFn: () => fetchCrmPipelines(),
   });
 
-  const pipelines = pipelinesQuery.data?.data ?? [];
+  const pipelines = useMemo(() => pipelinesQuery.data?.data ?? [], [pipelinesQuery.data]);
+  const selected = pipelines.find((entry) => entry.id === selectedId) ?? pipelines[0] ?? null;
 
   const create = useMutation({
     mutationFn: () =>
@@ -334,7 +377,7 @@ export function PipelinesPanel() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "pipelines"] });
-      setCreateOpen(false);
+      onCreateOpenChange(false);
       setNewName("");
       toast({ title: "Pipeline created" });
     },
@@ -350,6 +393,7 @@ export function PipelinesPanel() {
     mutationFn: (id: string) => fetchJson(`/api/v2/crm/pipelines/${id}`, { method: "DELETE" }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["crm", "pipelines"] });
+      setSelectedId(null);
       toast({ title: "Pipeline deleted" });
     },
     onError: (error) =>
@@ -372,125 +416,240 @@ export function PipelinesPanel() {
     },
   });
 
-  if (pipelinesQuery.isLoading) {
-    return <Skeleton className="h-64 w-full" />;
-  }
-
-  return (
-    <Card>
-      {/* No title here. The settings shell draws "Pipelines" and its
-          description immediately above this card, and the panel repeating both
-          in slightly different words spent the whole first screen of a phone
-          saying the same thing twice before a single pipeline appeared. */}
-      <CardHeader className="flex flex-row items-center justify-end gap-2">
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
-          <Plus className="h-4 w-4" />
-          New pipeline
-        </Button>
-      </CardHeader>
-      <CardContent className="space-y-3">
-        {pipelines.map((pipeline) => (
-          <div
-            key={pipeline.id}
-            className="space-y-2 rounded-[var(--card-radius)] border border-[var(--border)] p-3"
-          >
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="font-medium">{pipeline.name}</span>
-                  {pipeline.isDefault ? <Badge variant="secondary">Default</Badge> : null}
-                  <span className="text-sm text-[var(--text-muted)]">
-                    {pipeline._count?.deals ?? 0} deal
-                    {(pipeline._count?.deals ?? 0) === 1 ? "" : "s"}
-                  </span>
-                </div>
-                {pipeline.description ? (
-                  <p className="text-sm text-[var(--text-muted)]">{pipeline.description}</p>
-                ) : null}
-              </div>
-              <div className="flex items-center gap-1.5">
-                {!pipeline.isDefault ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={() => makeDefault.mutate(pipeline.id)}
-                  >
-                    Make default
-                  </Button>
-                ) : null}
-                <Button size="sm" variant="outline" onClick={() => setEditing(pipeline)}>
-                  Edit stages
-                </Button>
-                {!pipeline.isDefault ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 px-0"
-                    aria-label={`Delete ${pipeline.name}`}
-                    onClick={() => remove.mutate(pipeline.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                ) : null}
-              </div>
-            </div>
-
-            {/*
-              The stages, with what each one actually does.
-
-              This was a row of name-only badges. A stage is not just a name —
-              it carries the probability the forecast is weighted by, the idle
-              period after which a deal goes stale, and the fields and checks
-              that gate leaving it. None of that was visible without opening
-              the editor, so the one screen somebody comes to this page to
-              audit was the one screen that showed the least.
-
-              Read-only here, on purpose: this is the audit view, and "Edit
-              stages" directly above is the door to changing any of it.
-            */}
-            <ReportTable
-              label={`Stages in ${pipeline.name}`}
-              tracks="minmax(0,1fr) 110px 90px 90px 110px"
-              columns={[
-                { label: "Stage" },
-                { label: "Status" },
-                { label: "Win %", align: "right" },
-                { label: "Stale after", align: "right" },
-                { label: "Gates", align: "right" },
-              ]}
-              rows={pipeline.stages.map((stage) => {
-                const gates =
-                  (stage.requiredFields?.length ?? 0) + (stage.checklist?.length ?? 0);
-                return {
-                  id: stage.id,
-                  cells: [
-                    nm(stage.name),
-                    badge(
-                      stage.status === "OPEN"
-                        ? "Open"
-                        : stage.status === "WON"
-                          ? "Won"
-                          : "Lost",
-                      stage.status === "WON" ? "ok" : stage.status === "LOST" ? "bad" : "mute",
-                    ),
-                    num(`${stage.probability ?? 0}%`),
-                    // A stage with no idle rule never goes stale, which is a
-                    // real setting rather than a missing one — so it reads as
-                    // "never" rather than as an empty cell.
-                    stage.inactivityDays
-                      ? num(`${stage.inactivityDays}d`)
-                      : txt("never", { align: "right", tone: "dim" }),
-                    gates === 0
-                      ? txt("none", { align: "right", tone: "dim" })
-                      : num(`${gates}`, { tone: "warn" }),
-                  ],
-                };
-              })}
-              emptyLabel="This pipeline has no stages yet."
+  const createDialog = (
+    <Dialog open={createOpen} onOpenChange={onCreateOpenChange}>
+      <DialogContent>
+        <DialogHeader>
+          <DialogTitle>New pipeline</DialogTitle>
+          <DialogDescription>
+            Start from the standard sales path, or from a bare pipeline you shape yourself.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="new-pipeline-name">Name</Label>
+            <Input
+              id="new-pipeline-name"
+              value={newName}
+              onChange={(event) => setNewName(event.target.value)}
+              placeholder="e.g. Commercial installations"
+              maxLength={80}
+              autoFocus
             />
           </div>
-        ))}
-      </CardContent>
+          <div className="space-y-1.5">
+            <Label htmlFor="new-pipeline-template">Starting point</Label>
+            <Select
+              value={template}
+              onValueChange={(value) => setTemplate(value as "DEFAULT" | "BLANK")}
+            >
+              <SelectTrigger id="new-pipeline-template">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="DEFAULT">Standard sales and site visits</SelectItem>
+                <SelectItem value="BLANK">Open, won, lost</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onCreateOpenChange(false)}>
+            Cancel
+          </Button>
+          <Button onClick={() => create.mutate()} disabled={!newName.trim() || create.isPending}>
+            {create.isPending ? "Creating…" : "Create pipeline"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  if (pipelinesQuery.isLoading) return <Skeleton className="h-96 w-full" />;
+
+  if (!selected) {
+    return (
+      <>
+        <SetupPanel title="Stages">
+          <p className="text-sm text-[var(--text-muted)]">
+            No pipelines yet. Create one to give deals a path to move along.
+          </p>
+        </SetupPanel>
+        {createDialog}
+      </>
+    );
+  }
+
+  /** The busiest stage sets the scale every bar in the column is drawn to. */
+  const busiest = Math.max(1, ...selected.stages.map((stage) => stage._count?.deals ?? 0));
+
+  const rows: ReportRow[] = selected.stages.map((stage) => {
+    const deals = stage._count?.deals ?? 0;
+    const checks = stage.checklist?.length ?? 0;
+    const gates = [
+      stage.requiresSiteVisit ? "Site visit" : null,
+      stage.requiresQuotation ? "Quotation" : null,
+    ].filter((gate): gate is string => gate !== null);
+    const isOpen = openStage === stage.id;
+
+    return {
+      id: stage.id,
+      expanded: isOpen,
+      onSelect: () => setOpenStage(isOpen ? null : stage.id),
+      cells: [
+        node(
+          <span className="flex min-w-0 items-center gap-2">
+            <span
+              className={cn(
+                "size-2 shrink-0 rounded-[2px]",
+                STAGE_DOT[stage.status] ?? STAGE_DOT.OPEN,
+              )}
+            />
+            <span className="truncate text-sm font-semibold text-[var(--text-strong)]">
+              {stage.name}
+            </span>
+            {/* Won and Lost can be renamed but not removed or moved off the
+                ends. The lock says so where the rule applies, rather than only
+                in the note underneath the table. */}
+            {stage.status === "OPEN" ? null : (
+              <Lock aria-hidden="true" className="size-3 shrink-0 text-[var(--text-subtle)]" />
+            )}
+          </span>,
+        ),
+        badge(
+          stage.status === "OPEN" ? "Open" : stage.status === "WON" ? "Won" : "Lost",
+          stage.status === "WON" ? "ok" : stage.status === "LOST" ? "bad" : "mute",
+        ),
+        num(`${stage.probability ?? 0}%`, { tone: "strong", bold: true }),
+        // A stage with no idle rule never goes stale. That is a real setting
+        // rather than a missing one, so it reads as a word, not an empty cell.
+        stage.inactivityDays
+          ? txt(`${stage.inactivityDays} days`, { mono: true })
+          : txt("never", { mono: true, tone: "dim" }),
+        gates.length > 0 ? badge(gates.join(" + "), "warn") : txt("—", { tone: "dim" }),
+        checks > 0 ? txt(`${checks} check${checks === 1 ? "" : "s"}`) : txt("none", { tone: "dim" }),
+        bar(String(deals), (deals / busiest) * 100, {
+          tone: stage.status === "WON" ? "ok" : stage.status === "LOST" ? "bad" : "body",
+        }),
+        node(
+          <ChevronRight
+            aria-hidden="true"
+            className={cn(
+              "size-3.5 text-[var(--text-disabled)] transition-transform",
+              isOpen && "rotate-90",
+            )}
+          />,
+          { align: "right" },
+        ),
+      ],
+      detail: (
+        <div>
+          <p className="acct-rail-heading mb-1.5">Checklist before leaving this stage</p>
+          {checks === 0 ? (
+            <p className="text-sm text-[var(--text-subtle)]">No checklist on this stage.</p>
+          ) : (
+            <ul className="flex flex-col gap-1">
+              {(stage.checklist ?? []).map((item) => (
+                <li key={item.key} className="flex items-center gap-2.5">
+                  <span className="size-3.5 shrink-0 rounded-[3px] border-[1.5px] border-[var(--border-strong)] bg-[var(--surface-base)]" />
+                  <span className="text-sm text-[var(--text-body)]">{item.label}</span>
+                  <span className="acct-rail-sub">{item.key}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ),
+    };
+  });
+
+  return (
+    <div className="min-w-0">
+      {/* Pick a pipeline. A card each, carrying the two things that decide
+          which one you want: whether it is the default, and how much is in it. */}
+      <div className="mb-2.5 flex flex-wrap gap-2">
+        {pipelines.map((pipeline) => {
+          const active = pipeline.id === selected.id;
+          const deals = pipeline._count?.deals ?? 0;
+          return (
+            <button
+              key={pipeline.id}
+              type="button"
+              aria-current={active}
+              onClick={() => {
+                setSelectedId(pipeline.id);
+                setOpenStage(null);
+              }}
+              className={cn(
+                "min-w-[210px] rounded-[var(--card-radius)] border px-3 py-2.5 text-left",
+                active
+                  ? "border-[var(--action-primary-bg)] bg-[var(--surface-base)]"
+                  : "border-[var(--border)] bg-[var(--canvas)] hover:bg-[var(--surface-base)]",
+              )}
+            >
+              <span className="flex items-center gap-2">
+                <span className="truncate text-sm font-bold text-[var(--text-strong)]">
+                  {pipeline.name}
+                </span>
+                {pipeline.isDefault ? (
+                  <span className="acct-badge shrink-0" data-tone="info">
+                    Default
+                  </span>
+                ) : null}
+              </span>
+              <span className="acct-caption mt-0.5 block">
+                {pipeline.stages.length} stage{pipeline.stages.length === 1 ? "" : "s"} · {deals}{" "}
+                open deal{deals === 1 ? "" : "s"}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      <SetupPanel title="Stages" hint="click a stage to see its checklist" flush>
+        <ReportTable
+          label={`Stages in ${selected.name}`}
+          tracks="150px 86px 70px 92px 132px minmax(0,1fr) 150px 34px"
+          columns={[
+            { label: "Stage" },
+            { label: "Outcome" },
+            { label: "Win %", align: "right" },
+            { label: "Idle after" },
+            { label: "Requires" },
+            { label: "Checklist" },
+            { label: "In it now" },
+            { label: "" },
+          ]}
+          rows={rows}
+          emptyLabel="This pipeline has no stages yet."
+        />
+        <div className="flex flex-wrap items-center gap-2 border-t border-[var(--border-subtle)] px-[13px] py-2.5">
+          <Button size="sm" variant="outline" onClick={() => setEditing(selected)}>
+            Edit stages
+          </Button>
+          {selected.isDefault ? null : (
+            <>
+              <Button size="sm" variant="ghost" onClick={() => makeDefault.mutate(selected.id)}>
+                Make default
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="ml-auto size-8 px-0"
+                aria-label={`Delete ${selected.name}`}
+                onClick={() => remove.mutate(selected.id)}
+              >
+                <Trash2 aria-hidden="true" className="size-4 text-[var(--text-subtle)]" />
+              </Button>
+            </>
+          )}
+        </div>
+      </SetupPanel>
+
+      <SetupNote icon={Lock} tone="info">
+        Won and Lost can be renamed but not removed, and not moved off the ends — every pipeline has
+        to be able to answer &ldquo;did we win this?&rdquo;. The server enforces the same rule.
+      </SetupNote>
 
       <Dialog open={Boolean(editing)} onOpenChange={(next) => (!next ? setEditing(null) : undefined)}>
         <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-3xl">
@@ -505,55 +664,7 @@ export function PipelinesPanel() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>New pipeline</DialogTitle>
-            <DialogDescription>
-              Start from the standard sales path, or from a bare pipeline you shape yourself.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-3">
-            <div className="space-y-1.5">
-              <Label htmlFor="new-pipeline-name">Name</Label>
-              <Input
-                id="new-pipeline-name"
-                value={newName}
-                onChange={(event) => setNewName(event.target.value)}
-                placeholder="e.g. Commercial installations"
-                maxLength={80}
-                autoFocus
-              />
-            </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="new-pipeline-template">Starting point</Label>
-              <Select
-                value={template}
-                onValueChange={(value) => setTemplate(value as "DEFAULT" | "BLANK")}
-              >
-                <SelectTrigger id="new-pipeline-template">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="DEFAULT">Standard sales and site visits</SelectItem>
-                  <SelectItem value="BLANK">Open, won, lost</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateOpen(false)}>
-              Cancel
-            </Button>
-            <Button
-              onClick={() => create.mutate()}
-              disabled={!newName.trim() || create.isPending}
-            >
-              {create.isPending ? "Creating…" : "Create pipeline"}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-    </Card>
+      {createDialog}
+    </div>
   );
 }

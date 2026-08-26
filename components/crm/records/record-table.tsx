@@ -6,7 +6,7 @@ import Link from "next/link";
 import { EmptyState, Skeleton } from "@corelithzw/react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import type { LucideIcon } from "@/lib/icons";
+import { ChevronRight, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
@@ -224,6 +224,17 @@ export function RecordTable<T extends { id: string }>({
                   </th>
                 );
               })}
+
+              {/* The chevron column. Unlabelled — it is an affordance, not a
+                  field — but it still needs a header cell, or the body rows
+                  carry one more cell than the head and every column below it
+                  shifts by one. */}
+              <th
+                scope="col"
+                className="w-10 border-b border-[var(--border)] bg-[var(--table-header-bg)] px-2 py-1.5 @5xl:sticky @5xl:top-[var(--stack-top,0px)] @5xl:z-[2]"
+              >
+                <span className="sr-only">Open</span>
+              </th>
             </tr>
           </thead>
 
@@ -288,6 +299,26 @@ export function RecordTable<T extends { id: string }>({
                       )}
                     </td>
                   ))}
+
+                  {/* "This row opens."
+
+                      The first cell is the link and the rest of the row is
+                      inert, which is the right trade — but it left a table
+                      where nothing at the end of a 46rem row said there was
+                      anywhere to go. The artboards close the row with a
+                      chevron, and it is a link to the same place rather than
+                      decoration, so a reader who has scanned across to the
+                      last column does not have to scan back. */}
+                  <td className="border-b border-[var(--table-divider)] px-2 py-1.5 align-middle">
+                    <Link
+                      href={rowHref(row)}
+                      tabIndex={-1}
+                      aria-hidden="true"
+                      className="flex items-center justify-center"
+                    >
+                      <ChevronRight className="size-3.5 text-[var(--text-disabled)] group-hover/row:text-[var(--text-subtle)]" />
+                    </Link>
+                  </td>
                 </tr>
               );
             })}

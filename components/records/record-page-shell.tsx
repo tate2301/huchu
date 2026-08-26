@@ -90,6 +90,8 @@ export function RecordPageShell({
   reference,
   status,
   subtitle,
+  bandValue,
+  related,
   leading,
   primaryAction,
   actions,
@@ -116,6 +118,22 @@ export function RecordPageShell({
   reference?: string | null;
   status?: { label: string; status: CanonicalUiStatus } | null;
   subtitle?: ReactNode;
+  /**
+   * The record's headline figure, pinned in the band — a lead's worth, a
+   * deal's value, a company's balance.
+   *
+   * The artboards put it between the identity and the stage controls, for the
+   * same reason the stage ladder came back to the band: it is the number you
+   * are deciding *against* while working the record, and in the standing
+   * column it was three screens above a long conversation by the time you had
+   * read enough to decide anything.
+   */
+  bandValue?: ReactNode;
+  /**
+   * Records this one points at — the company, the site, the deal it became.
+   * Drawn under the section rail, below a "Related" heading.
+   */
+  related?: ReactNode;
   /** An avatar or monogram for the identity strip. */
   leading?: ReactNode;
   primaryAction?: ReactNode;
@@ -356,12 +374,17 @@ export function RecordPageShell({
   // The columns fill whatever the viewport has left after the app bar and
   // `main`'s padding, which is what `--content-viewport` is; longer content
   // still grows past it, since this is a floor and not a height.
+  // 11rem and 21.25rem are the artboard's 176 and 340. The section rail was
+  // 13rem: the longest label a record carries is "Conversation", and the extra
+  // two rem came off the middle column, which is the one holding the timeline.
   const sectionGrid = cn(
     "min-w-0 md:grid md:min-h-[var(--content-viewport)]",
-    hasSectionRail && !infoOpen && "md:grid-cols-[13rem_minmax(0,1fr)_auto]",
-    hasSectionRail && infoOpen && "md:grid-cols-[13rem_minmax(0,1fr)] lg:grid-cols-[13rem_minmax(0,1fr)_22rem]",
+    hasSectionRail && !infoOpen && "md:grid-cols-[11rem_minmax(0,1fr)_auto]",
+    hasSectionRail &&
+      infoOpen &&
+      "md:grid-cols-[11rem_minmax(0,1fr)] lg:grid-cols-[11rem_minmax(0,1fr)_21.25rem]",
     !hasSectionRail && !infoOpen && "md:grid-cols-[minmax(0,1fr)_auto]",
-    !hasSectionRail && infoOpen && "md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_22rem]",
+    !hasSectionRail && infoOpen && "md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_21.25rem]",
   );
 
   /**
@@ -477,16 +500,28 @@ export function RecordPageShell({
         working the record, pinned — and nothing that the column already says
         better. Hidden below `md`, where the column is the landing view anyway.
       */}
-      {status || reference || beforeTabs ? (
+      {status || reference || bandValue || beforeTabs ? (
         <div className="band-shell sticky top-0 z-30 mb-3 hidden min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)] md:flex">
           {status ? <StatusChip status={status.status} label={status.label} /> : null}
           {reference ? (
             <span className="font-mono text-sm text-[var(--text-muted)]">{reference}</span>
           ) : null}
           {subtitle ? (
-            <span className="hidden min-w-0 truncate border-l border-[var(--border)] pl-2.5 text-sm text-[var(--text-muted)] lg:inline">
-              {subtitle}
-            </span>
+            <>
+              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
+              <span className="min-w-0 truncate text-sm text-[var(--text-muted)]">{subtitle}</span>
+            </>
+          ) : null}
+          {/* The figure, mono and heavy, with its own rule before it. It is the
+              one thing in the band that is a number rather than a name, and
+              without the rule it read as the end of the subtitle. */}
+          {bandValue ? (
+            <>
+              <span aria-hidden="true" className="h-4 w-px shrink-0 bg-[var(--border)]" />
+              <span className="shrink-0 font-mono text-sm font-bold tabular-nums text-[var(--text-strong)]">
+                {bandValue}
+              </span>
+            </>
           ) : null}
           {beforeTabs ? (
             <div className="ml-auto flex min-w-0 shrink items-center justify-end">{beforeTabs}</div>
@@ -499,7 +534,19 @@ export function RecordPageShell({
             reach is a rail you stop using on a long timeline. */}
         {hasSectionRail ? (
           <aside className="hidden md:block">
-            <div className="sticky top-0 pr-5">{sectionRail}</div>
+            <div className="sticky top-0 pr-5">
+              {sectionRail}
+              {/* Records this one points at. Under the sections rather than
+                  beside them: these are places to go, the same as a section,
+                  and a second rail on the other side of the page would be two
+                  lists of destinations facing each other. */}
+              {related ? (
+                <div className="mt-4">
+                  <p className="acct-rail-heading px-3 pb-1.5">Related</p>
+                  {related}
+                </div>
+              ) : null}
+            </div>
           </aside>
         ) : null}
 
@@ -540,8 +587,14 @@ export function RecordPageShell({
             reader working through a long document list wants the width — and
             sticky, so it is still there when they scroll back to the top. */}
         {infoOpen ? (
-          <aside className="hidden border-l border-[var(--border-subtle)] pl-5 lg:block">
-            <div className="sticky top-0 space-y-4">
+          /* Its own scrollport, which is what lets the headings inside it pin.
+             `RailSection` draws each heading as a band that sticks to the top
+             of this pane — the artboards' Properties / How warm / Up next /
+             Contact so far strips — and a sticky child only pins against the
+             nearest scrolling ancestor. Without the height and the overflow
+             here, that ancestor is the page, and the headings do nothing. */
+          <aside className="hidden border-l border-[var(--border-subtle)] pl-5 lg:block lg:sticky lg:top-0 lg:max-h-[var(--content-viewport)] lg:overflow-y-auto">
+            <div className="space-y-4">
               <div className="flex justify-end">
                 <IconButton aria-label="Hide record details" onClick={toggleInfo}>
                   <ChevronRight />
@@ -639,22 +692,30 @@ function RecordTitleEditor({
 export function RailSection({
   title,
   action,
+  meta,
   children,
 }: {
   title: string;
   action?: ReactNode;
+  /** A figure the heading carries on its right — "30 · Cold", "4 open". */
+  meta?: ReactNode;
   children: ReactNode;
 }) {
   return (
     <section>
-      <div className="mb-2 flex items-center justify-between gap-2">
-        {/* Uppercase and letter-spaced rather than merely small: at this size
-            a lowercase grey heading reads as another line of body text, which
-            is what left the rail looking like one undifferentiated column. */}
-        <h3 className="text-sm font-semibold uppercase tracking-[0.06em] text-[var(--text-subtle)]">
-          {title}
-        </h3>
-        {action}
+      {/* A band, not a line of text.
+
+          Uppercase and letter-spaced rather than merely small: at this size a
+          lowercase grey heading reads as another line of body text, which is
+          what left the rail looking like one undifferentiated column. The tint
+          and the hairlines are what make it a boundary, and it pins to the top
+          of the column so you can still see which block you are reading eight
+          properties down. Bleeds out by the column's padding so the rules reach
+          both edges instead of floating inside it. */}
+      <div className="sticky top-0 z-10 -mx-5 mb-2 flex h-[30px] items-center gap-2 border-y border-[var(--border-subtle)] bg-[var(--canvas)] px-5">
+        <h3 className="acct-rail-heading">{title}</h3>
+        {meta ? <span className="ml-auto font-mono text-sm font-bold">{meta}</span> : null}
+        {action ? <span className={cn(meta ? "" : "ml-auto")}>{action}</span> : null}
       </div>
       {children}
     </section>

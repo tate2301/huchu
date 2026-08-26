@@ -420,6 +420,7 @@ export function CompaniesContent({ openCreate = false }: { openCreate?: boolean 
       createLabel="New company"
       onCreate={() => setCreateOpen(true)}
       error={companiesQuery.error}
+      count={`${companies.length} of ${total}`}
       display={
         <ColumnPicker
           columns={COMPANY_FIELDS}

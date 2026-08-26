@@ -592,6 +592,8 @@ export type CrmPipelineStageRecord = CrmDealStage & {
   checklist: Array<{ key: string; label: string }> | null;
   requiresSiteVisit: boolean;
   requiresQuotation: boolean;
+  /** Deals sitting in this stage — the setup page's "In it now" column. */
+  _count?: { deals: number };
 };
 
 export type CrmPipelineRecord = {
