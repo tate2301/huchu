@@ -7,6 +7,11 @@ import { generateArrearsAgingReport } from "@/lib/schools/reports";
 const querySchema = z.object({
   termId: z.string().uuid().optional(),
   classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  /** "BOARDING" or "DAY". Absent is both, which is the board's default. */
+  boarding: z.enum(["BOARDING", "DAY"]).optional(),
+  minOutstanding: z.coerce.number().min(0).optional(),
+  oldestAtLeast: z.enum(["days30", "days60", "days90", "days120Plus"]).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -22,9 +27,22 @@ export async function GET(request: NextRequest) {
     const query = querySchema.parse({
       termId: searchParams.get("termId") ?? undefined,
       classId: searchParams.get("classId") ?? undefined,
+      streamId: searchParams.get("streamId") ?? undefined,
+      boarding: searchParams.get("boarding") ?? undefined,
+      minOutstanding: searchParams.get("minOutstanding") ?? undefined,
+      oldestAtLeast: searchParams.get("oldestAtLeast") ?? undefined,
     });
 
-    const report = await generateArrearsAgingReport(session.user.companyId, query);
+    const report = await generateArrearsAgingReport(session.user.companyId, {
+      ...(query.termId ? { termId: query.termId } : {}),
+      ...(query.classId ? { classId: query.classId } : {}),
+      ...(query.streamId ? { streamId: query.streamId } : {}),
+      ...(query.boarding ? { isBoarding: query.boarding === "BOARDING" } : {}),
+      ...(query.minOutstanding !== undefined
+        ? { minOutstanding: query.minOutstanding }
+        : {}),
+      ...(query.oldestAtLeast ? { oldestAtLeast: query.oldestAtLeast } : {}),
+    });
 
     return successResponse({ data: report, summary: getSummary(report) });
   } catch (error) {

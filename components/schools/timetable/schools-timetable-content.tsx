@@ -1,12 +1,14 @@
 "use client";
 
 import { Fragment, useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Alert, Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PageBand } from "@/components/schools/common/page-band";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { LoadError } from "@/components/schools/common/states";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
 import {
@@ -20,7 +22,11 @@ import {
   type SchoolsTimetableSlotRecord,
 } from "@/lib/schools/admin-v2";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { LessonFormSheet, type LessonFormValues } from "./lesson-form-sheet";
+import {
+  LessonFormSheet,
+  type LessonBeingMoved,
+  type LessonFormValues,
+} from "./lesson-form-sheet";
 import {
   AutoFillSheet,
   type AutoFillResult,
@@ -78,11 +84,16 @@ function describeSlot(slot: SchoolsTimetableSlotRecord) {
 export function SchoolsTimetableContent() {
   const queryClient = useQueryClient();
 
+  const access = useSchoolAccess();
+
   const [viewpoint, setViewpoint] = useState<Viewpoint>("class");
   const [classFilter, setClassFilter] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
+  const [termFilter, setTermFilter] = useState("");
+  const [roomFilter, setRoomFilter] = useState("");
   const [selectedDay, setSelectedDay] = useState(todayIsoDay());
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [moving, setMoving] = useState<LessonBeingMoved | null>(null);
   const [sheetDefaults, setSheetDefaults] = useState({ dayOfWeek: 1, periodId: "" });
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
@@ -93,12 +104,25 @@ export function SchoolsTimetableContent() {
   const [autoFillResult, setAutoFillResult] = useState<AutoFillResult | null>(null);
 
   const timetableQuery = useQuery({
-    queryKey: ["schools", "timetable", viewpoint, classFilter, teacherFilter],
+    queryKey: [
+      "schools",
+      "timetable",
+      viewpoint,
+      classFilter,
+      teacherFilter,
+      termFilter,
+      roomFilter,
+    ],
     queryFn: () =>
       fetchSchoolsTimetable({
         classId: viewpoint === "class" && classFilter ? classFilter : undefined,
         teacherProfileId:
           viewpoint === "teacher" && teacherFilter ? teacherFilter : undefined,
+        // Term and room narrow both viewpoints. A timetabler asked "what is in
+        // Lab 1 on Wednesday" is not asking about a class or a teacher, and
+        // before this the only way to answer it was to read the whole grid.
+        termId: termFilter || undefined,
+        roomId: roomFilter || undefined,
       }),
   });
   const classesQuery = useQuery({
@@ -159,6 +183,48 @@ export function SchoolsTimetableContent() {
     return map;
   }, [slots]);
 
+  /**
+   * What the band says: how full the week is, and whether it is legal.
+   *
+   * The cell count is only a denominator worth printing when one class or one
+   * teacher is in view — "15 of 20" for Form 2A means something, the same sum
+   * across the whole school does not — so it is stated as a bare count when
+   * nothing is chosen.
+   */
+  const placement = useMemo(() => {
+    const teaching = periods.filter((period) => period.isTeaching);
+    const cells = teaching.length * days.length;
+    const narrowed =
+      (viewpoint === "class" && classFilter) ||
+      (viewpoint === "teacher" && teacherFilter);
+
+    // A clash is two lessons on the same teacher or in the same room at the
+    // same time. The API refuses to create one, so a number here above zero is
+    // data that drifted — an imported timetable, or a room merged since — and
+    // that is exactly when a timetabler needs to be told.
+    const seen = new Map<string, number>();
+    let clashes = 0;
+    for (const slot of slots) {
+      const at = `${slot.dayOfWeek}:${slot.periodId}`;
+      for (const who of [
+        `t:${slot.classSubject.teacherProfile.id}@${at}`,
+        slot.room ? `r:${slot.room.id}@${at}` : null,
+      ]) {
+        if (!who) continue;
+        const count = (seen.get(who) ?? 0) + 1;
+        seen.set(who, count);
+        if (count === 2) clashes += 1;
+      }
+    }
+
+    return {
+      placed: slots.length,
+      cells: narrowed ? cells : null,
+      free: narrowed ? Math.max(cells - slots.length, 0) : null,
+      clashes,
+    };
+  }, [slots, periods, days, viewpoint, classFilter, teacherFilter]);
+
   const daySlots = useMemo(
     () =>
       slots
@@ -181,6 +247,24 @@ export function SchoolsTimetableContent() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["schools", "timetable"] });
       setSheetOpen(false);
+      setSubmitError(null);
+    },
+    onError: (error) => setSubmitError(getApiErrorMessage(error)),
+  });
+
+  const moveLesson = useMutation({
+    mutationFn: async (values: LessonFormValues) =>
+      fetchJson(`/api/v2/schools/timetable/${moving?.id ?? ""}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          periodId: values.periodId,
+          dayOfWeek: values.dayOfWeek,
+          roomId: values.roomId || null,
+        }),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["schools", "timetable"] });
+      setMoving(null);
       setSubmitError(null);
     },
     onError: (error) => setSubmitError(getApiErrorMessage(error)),
@@ -244,27 +328,72 @@ export function SchoolsTimetableContent() {
     setSheetOpen(true);
   }
 
+  function openMove(slot: SchoolsTimetableSlotRecord) {
+    const described = describeSlot(slot);
+    setSubmitError(null);
+    setMoving({
+      id: slot.id,
+      describe: [described.subject, described.className, described.teacher]
+        .filter(Boolean)
+        .join(" · "),
+      periodId: slot.periodId,
+      dayOfWeek: slot.dayOfWeek,
+      roomId: slot.room?.id ?? "",
+    });
+  }
+
   if (timetableQuery.error) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>Unable to load the timetable</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(timetableQuery.error)}</AlertDescription>
-      </Alert>
+      <LoadError
+        what="the timetable"
+        error={timetableQuery.error}
+        onRetry={() => void timetableQuery.refetch()}
+      />
     );
   }
 
   const teachingPeriods = periods.filter((period) => period.isTeaching);
   const firstTeachingPeriodId = teachingPeriods[0]?.id ?? "";
 
+  // Build and copy-forward both write dozens of lessons at once, so they need
+  // the same grant a single lesson does. Disabled with the reason on them, like
+  // every other campus verb — a timetabler who cannot see the button today
+  // wonders where yesterday's went.
+  const canBuild = access.can("schools.academics", "create");
+  const buildReason = canBuild ? undefined : "This is a school administrator to do.";
+
   return (
     <div className="space-y-4">
+      <PageBand
+        chips={[
+          {
+            label: "Lessons placed",
+            value:
+              placement.cells === null
+                ? placement.placed
+                : `${placement.placed} of ${placement.cells}`,
+            tone: "brand",
+          },
+          {
+            label: "Free periods",
+            value: placement.free === null ? "—" : placement.free,
+          },
+          {
+            label: "Clashes",
+            value: placement.clashes,
+            tone: placement.clashes > 0 ? "danger" : "success",
+          },
+        ]}
+      />
+
       <div className="flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-section-title">The week</h2>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button
             variant="secondary"
             size="sm"
-            disabled={periods.length === 0 || assignments.length === 0}
+            disabled={!canBuild || periods.length === 0 || assignments.length === 0}
+            title={buildReason}
             onClick={() => {
               setAutoFillError(null);
               setAutoFillResult(null);
@@ -276,7 +405,13 @@ export function SchoolsTimetableContent() {
           <Button
             variant="secondary"
             size="sm"
-            disabled={terms.length < 2}
+            disabled={!canBuild || terms.length < 2}
+            title={
+              buildReason ??
+              (terms.length < 2
+                ? "There is only one term to copy from."
+                : undefined)
+            }
             onClick={() => {
               setCopyError(null);
               setCopyResult(null);
@@ -285,23 +420,35 @@ export function SchoolsTimetableContent() {
           >
             Copy forward
           </Button>
-          <Button
-            size="sm"
-            disabled={periods.length === 0 || assignments.length === 0}
-            onClick={() => openSheet(selectedDay, firstTeachingPeriodId)}
-          >
-            Add lesson
-          </Button>
+          <CreateButton
+            resource="schools.academics"
+            label="Add lesson"
+            unavailable={
+              periods.length === 0
+                ? "Set the school day up first — a lesson needs a period to sit in."
+                : assignments.length === 0
+                  ? "No class-subject assignments exist for this term yet."
+                  : undefined
+            }
+            onSelect={() => openSheet(selectedDay, firstTeachingPeriodId)}
+          />
         </div>
       </div>
 
       {periods.length === 0 ? (
-        <Alert>
-          <AlertTitle>No periods yet</AlertTitle>
-          <AlertDescription>
-            A timetable is a grid of days against periods. Set the school day up under
-            Academics before adding lessons.
-          </AlertDescription>
+        <Alert
+          tone="warn"
+          title="No periods yet"
+          actions={
+            <Button asChild variant="secondary" size="sm">
+              <Link href="/management/master-data/schools/periods">
+                Set the school day up
+              </Link>
+            </Button>
+          }
+        >
+          A timetable is a grid of days against periods, and this school has no
+          periods. Set the school day up under Master data before adding lessons.
         </Alert>
       ) : null}
 
@@ -316,7 +463,7 @@ export function SchoolsTimetableContent() {
         {viewpoint === "class" ? (
           <FilterSelect
             label="Class"
-            allLabel="All classes"
+            allLabel="Every year group"
             value={classFilter}
             options={classes.map((schoolClass) => ({
               value: schoolClass.id,
@@ -327,7 +474,7 @@ export function SchoolsTimetableContent() {
         ) : (
           <FilterSelect
             label="Teacher"
-            allLabel="All teachers"
+            allLabel="Every teacher"
             value={teacherFilter}
             options={teachers.map((teacher) => ({
               value: teacher.id,
@@ -336,6 +483,23 @@ export function SchoolsTimetableContent() {
             onChange={setTeacherFilter}
           />
         )}
+        <FilterSelect
+          label="Term"
+          allLabel="The current term"
+          value={termFilter}
+          options={terms.map((term) => ({
+            value: term.id,
+            label: `${term.name} · ${term.academicYear.name}${term.isActive ? " (current)" : ""}`,
+          }))}
+          onChange={setTermFilter}
+        />
+        <FilterSelect
+          label="Room"
+          allLabel="Every room"
+          value={roomFilter}
+          options={rooms.map((room) => ({ value: room.id, label: room.name }))}
+          onChange={setRoomFilter}
+        />
       </FilterBar>
 
       {/* Phone and tablet: one day at a time. */}
@@ -446,15 +610,36 @@ export function SchoolsTimetableContent() {
                                   {described.teacher}
                                 </div>
                                 {described.room ? (
-                                  <Badge variant="outline">{described.room}</Badge>
+                                  <Badge tone="neutral">{described.room}</Badge>
                                 ) : null}
-                                <Button
-                                  variant="ghost"
-                                  size="sm"
-                                  onClick={() => removeLesson.mutate(slot.id)}
-                                >
-                                  Remove
-                                </Button>
+                                <RecordActions
+                                  resource="schools.academics"
+                                  verbs={[
+                                    {
+                                      label: "Move",
+                                      action: "edit",
+                                      onSelect: () => openMove(slot),
+                                    },
+                                    {
+                                      label: "Remove",
+                                      action: "archive",
+                                      tone: "danger",
+                                      loading:
+                                        removeLesson.isPending &&
+                                        removeLesson.variables === slot.id,
+                                      // Every other destructive action in
+                                      // campus confirms; this one deleted on a
+                                      // single tap in a grid of twenty-five
+                                      // cells, with no undo behind it.
+                                      confirm: {
+                                        title: `Remove ${described.subject} from ${DAY_NAMES[day]}`,
+                                        description: `${described.className} loses this lesson in ${period.name}. The class-subject assignment stays; only the slot on the timetable goes, and it has to be placed again by hand.`,
+                                        confirmLabel: "Remove the lesson",
+                                      },
+                                      onSelect: () => removeLesson.mutate(slot.id),
+                                    },
+                                  ]}
+                                />
                               </div>
                             );
                           })}
@@ -484,6 +669,29 @@ export function SchoolsTimetableContent() {
         error={submitError}
         onSubmit={(values) => addLesson.mutate(values)}
       />
+
+      {/* Mounted only while a lesson is being moved, so the sheet opens holding
+          that lesson's day, period and room rather than the last one's. */}
+      {moving ? (
+        <LessonFormSheet
+          open
+          onOpenChange={(open) => {
+            if (!open) {
+              setMoving(null);
+              setSubmitError(null);
+            }
+          }}
+          assignments={assignments}
+          periods={periods}
+          rooms={rooms}
+          defaultDayOfWeek={moving.dayOfWeek}
+          defaultPeriodId={moving.periodId}
+          moving={moving}
+          isSubmitting={moveLesson.isPending}
+          error={submitError}
+          onSubmit={(values) => moveLesson.mutate(values)}
+        />
+      ) : null}
 
       <AutoFillSheet
         open={autoFillOpen}

@@ -44,6 +44,15 @@ export const uploadPolicies = {
     maxBytes: 10 * MB,
     folder: "crm-template-uploads",
   },
+  // A birth certificate, a transfer letter, an immunisation card. The campus
+  // module had a Files tab on every record and no way to put anything in it,
+  // because there was no context here and `crm-attachment` would have filed a
+  // child's paperwork under the CRM's folder.
+  "school-document": {
+    allowedTypes: ["image/jpeg", "image/png", "image/webp", "application/pdf"],
+    maxBytes: 10 * MB,
+    folder: "school-documents",
+  },
 } as const
 
 export type UploadContext = keyof typeof uploadPolicies

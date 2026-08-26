@@ -70,6 +70,12 @@ const createSchema = z
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),
   studentId: z.string().uuid().optional(),
+  /**
+   * The pupil's current year group. Filtered through the student, because the
+   * class belongs to the child; a copy held here would give two answers the
+   * moment they move up.
+   */
+  classId: z.string().uuid().optional(),
   status: z.enum(["REQUESTED", "PAID", "CANCELLED"]).optional(),
 });
 
@@ -88,11 +94,13 @@ export async function GET(request: NextRequest) {
     const query = querySchema.parse({
       search: searchParams.get("search") ?? undefined,
       studentId: searchParams.get("studentId") ?? undefined,
+      classId: searchParams.get("classId") ?? undefined,
       status: searchParams.get("status") ?? undefined,
     });
 
     const where: Prisma.SchoolFeeRefundWhereInput = { companyId };
     if (query.studentId) where.studentId = query.studentId;
+    if (query.classId) where.student = { currentClassId: query.classId };
     if (query.status) where.status = query.status;
     if (query.search) {
       where.OR = [

@@ -1,35 +1,48 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+
 // The repo's `components/ui/select` is the Radix compound API, which is the
 // wrong shape for a four-option picker; its own header says to reach for the DS
-// component when a plain options list is all that is wanted. This also replaces
-// the hand-rolled `<select>` the receipt dialog carried, which had a hard-coded
-// border, height and ring on it.
-import { Select } from "@corelithzw/react";
+// component when a plain options list is all that is wanted.
+import { Alert, Button as DsButton, Select as DsSelect } from "@corelithzw/react";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { NumericCell } from "@/components/ui/numeric-cell";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { PageHeading } from "@/components/layout/page-heading";
+import { PageBand } from "@/components/schools/common/page-band";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
+import {
+  CreateButton,
+  RecordActions,
+  type RecordVerb,
+} from "@/components/schools/common/record-actions";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import {
   allocateReceiptCredit,
+  applySchoolFeeWaiver,
   cancelSchoolFeeRefund,
+  discardSchoolFeeInvoice,
+  discardSchoolFeeWaiver,
+  deleteSchoolFeeStructure,
   fetchSchoolFeeCredits,
   fetchSchoolFeeInvoices,
   fetchSchoolFeeReceipts,
@@ -37,8 +50,14 @@ import {
   fetchSchoolFeeStructures,
   fetchSchoolFeeWaivers,
   fetchSchoolsFeesSummary,
+  fiscaliseSchoolFeeReceipt,
+  issueSchoolFeeInvoice,
   paySchoolFeeRefund,
   requestSchoolFeeRefund,
+  updateSchoolFeeStructure,
+  updateSchoolFeeWaiver,
+  voidSchoolFeeReceipt,
+  writeOffSchoolFeeInvoice,
   type SchoolFeeCreditRecord,
   type SchoolFeeInvoiceRecord,
   type SchoolFeeReceiptRecord,
@@ -46,9 +65,48 @@ import {
   type SchoolFeeStructureRecord,
   type SchoolFeeWaiverRecord,
 } from "@/lib/schools/fees-v2";
+
 import { BulkGenerateInvoicesDialog } from "./bulk-generate-invoices-dialog";
 import { CopyStructureDialog } from "./copy-structure-dialog";
-import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
+import { InvoicePicker } from "./fee-pickers";
+import {
+  InvoiceFormDialog,
+  ReasonDialog,
+  ReceiptFormDialog,
+  StructureFormDialog,
+  WaiverFormDialog,
+} from "./fee-dialogs";
+import {
+  FiscalBadge,
+  InvoiceStatusBadge,
+  ReceiptStatusBadge,
+  RefundStatusBadge,
+  StructureStatusBadge,
+  WaiverStatusBadge,
+} from "./fee-status";
+
+/**
+ * The whole-school fee ledger.
+ *
+ * Six segments over one set of money, and before this pass most of them were
+ * read-only lists with no way out. What changed:
+ *
+ * **The tab comes from the URL.** `lib/navigation.ts` links Receipts, Refunds
+ * and Waivers straight at `?view=…`, and a tab held only in `useState` sent all
+ * three to Invoices and lost itself on every refresh. It is pushed back on
+ * change, so a bursar can send somebody a link to the refund queue.
+ *
+ * **Every verb the API already had now has a control.** Issue, write off, void,
+ * fiscalise, approve, reject, apply, reverse, activate, archive, edit and
+ * discard were nine live endpoints and four unreachable waiver states with
+ * nothing anywhere to reach them.
+ *
+ * **Nothing asks for a UUID.** See `./fee-pickers`.
+ *
+ * **Every segment filters by year group.** A bursar works one form at a time —
+ * that is what `/schools/finance` exists for — and the whole-school view is
+ * only useful if it can be narrowed the same way.
+ */
 
 type FeesView =
   | "structures"
@@ -58,10 +116,72 @@ type FeesView =
   | "refunds"
   | "waivers";
 
-const initialInvoiceForm = { studentId: "", termId: "", description: "", amount: "" };
-const initialReceiptForm = { invoiceId: "", amount: "", method: "", reference: "" };
-const initialRefundForm = { amount: "", method: "CASH", reason: "", reference: "" };
-const initialAllocateForm = { invoiceId: "", amount: "" };
+const VIEWS: FeesView[] = [
+  "invoices",
+  "receipts",
+  "credits",
+  "refunds",
+  "waivers",
+  "structures",
+];
+
+function isFeesView(value: string | null): value is FeesView {
+  return value !== null && (VIEWS as string[]).includes(value);
+}
+
+/**
+ * Every list endpoint caps at 100 rows (`getPaginationParams`), so this is the
+ * page size rather than a number of our own. Asking for 200 — which this file
+ * used to — got 100 and quietly called it the whole school.
+ */
+const PAGE_LIMIT = 100;
+
+const INVOICE_STATUSES = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "ISSUED", label: "Issued" },
+  { value: "PART_PAID", label: "Part paid" },
+  { value: "PAID", label: "Paid" },
+  { value: "WRITEOFF", label: "Written off" },
+  { value: "VOIDED", label: "Voided" },
+];
+
+const RECEIPT_STATUSES = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "POSTED", label: "Posted" },
+  { value: "VOIDED", label: "Voided" },
+];
+
+const WAIVER_STATUSES = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "APPROVED", label: "Approved" },
+  { value: "APPLIED", label: "Applied" },
+  { value: "REJECTED", label: "Rejected" },
+  { value: "REVERSED", label: "Reversed" },
+];
+
+const WAIVER_TYPES = [
+  { value: "SCHOLARSHIP", label: "Scholarship" },
+  { value: "DISCOUNT", label: "Discount" },
+  { value: "HARDSHIP", label: "Hardship" },
+  { value: "OTHER", label: "Other" },
+];
+
+const REFUND_STATUSES = [
+  { value: "REQUESTED", label: "Requested" },
+  { value: "PAID", label: "Paid" },
+  { value: "CANCELLED", label: "Cancelled" },
+];
+
+const STRUCTURE_STATUSES = [
+  { value: "DRAFT", label: "Draft" },
+  { value: "ACTIVE", label: "Active" },
+  { value: "ARCHIVED", label: "Archived" },
+];
+
+const CREDIT_KINDS = [
+  { value: "RECEIPT", label: "Overpayment" },
+  { value: "INVOICE", label: "Over-settled bill" },
+];
 
 const PAYMENT_METHODS = [
   { value: "CASH", label: "Cash" },
@@ -70,12 +190,9 @@ const PAYMENT_METHODS = [
   { value: "MOBILE_MONEY", label: "Mobile money" },
 ];
 
-/**
- * A person, with a face, wherever this screen lists one.
- *
- * The student number stays mono because it is an identifier, per the value
- * formatting table.
- */
+const initialRefundForm = { amount: "", method: "CASH", reason: "", reference: "" };
+
+/** A person, with a face, wherever this screen lists one. */
 function StudentCell({
   student,
 }: {
@@ -84,11 +201,11 @@ function StudentCell({
   return (
     <div className="flex items-center gap-2">
       <PersonAvatar firstName={student.firstName} lastName={student.lastName} />
-      <div>
-        <div className="font-medium">
-          {student.firstName} {student.lastName}
+      <div className="min-w-0">
+        <div className="truncate font-medium">
+          {student.lastName}, {student.firstName}
         </div>
-        <div className="text-xs text-muted-foreground font-mono">
+        <div className="truncate font-mono text-xs text-muted-foreground">
           {student.studentNo}
         </div>
       </div>
@@ -96,351 +213,406 @@ function StudentCell({
   );
 }
 
-function invoiceStatusBadge(status: SchoolFeeInvoiceRecord["status"]) {
-  if (status === "ISSUED") return <Badge variant="secondary">Issued</Badge>;
-  if (status === "PART_PAID") return <Badge variant="secondary">Part Paid</Badge>;
-  if (status === "PAID") return <Badge variant="outline">Paid</Badge>;
-  if (status === "VOIDED") return <Badge variant="destructive">Voided</Badge>;
-  if (status === "WRITEOFF") return <Badge variant="outline">Write-off</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
-}
-
-function receiptStatusBadge(status: SchoolFeeReceiptRecord["status"]) {
-  if (status === "POSTED") return <Badge variant="secondary">Posted</Badge>;
-  if (status === "VOIDED") return <Badge variant="destructive">Voided</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
-}
-
-function waiverStatusBadge(status: SchoolFeeWaiverRecord["status"]) {
-  if (status === "APPLIED") return <Badge variant="secondary">Applied</Badge>;
-  if (status === "APPROVED") return <Badge variant="outline">Approved</Badge>;
-  if (status === "REJECTED") return <Badge variant="destructive">Rejected</Badge>;
-  if (status === "REVERSED") return <Badge variant="outline">Reversed</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
-}
-
-function refundStatusBadge(status: SchoolFeeRefundRecord["status"]) {
-  if (status === "PAID") return <Badge variant="secondary">Paid</Badge>;
-  if (status === "CANCELLED") return <Badge variant="destructive">Cancelled</Badge>;
-  return <Badge variant="outline">Requested</Badge>;
-}
-
-function structureStatusBadge(status: SchoolFeeStructureRecord["status"]) {
-  if (status === "ACTIVE") return <Badge variant="secondary">Active</Badge>;
-  if (status === "ARCHIVED") return <Badge variant="outline">Archived</Badge>;
-  return <Badge variant="outline">Draft</Badge>;
+/**
+ * "Showing the first 100 of 842" — said out loud rather than left to be
+ * discovered. A bursar who cannot see the row they are chasing needs to know
+ * whether it is filtered out or simply off the end of the page.
+ */
+function PageNote({ shown, total, onNarrow }: { shown: number; total: number; onNarrow?: () => void }) {
+  if (total <= shown) return null;
+  return (
+    <Alert
+      tone="info"
+      actions={
+        onNarrow ? (
+          <DsButton size="sm" variant="secondary" onClick={onNarrow}>
+            Clear the filters
+          </DsButton>
+        ) : undefined
+      }
+    >
+      Showing the first {shown} of {total}. Narrow with the filters above to see the rest.
+    </Alert>
+  );
 }
 
 export function SchoolsFeesContent() {
-  const [activeView, setActiveView] = useState<FeesView>("invoices");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
-  // Which fee sheet the "Copy to…" dialog is about. Held as the record rather
-  // than the id so the dialog can name its lines and its total without a second
-  // fetch of a list it is already looking at.
-  const [copySource, setCopySource] = useState<SchoolFeeStructureRecord | null>(null);
-  const [invoiceForm, setInvoiceForm] = useState(initialInvoiceForm);
+  /**
+   * The segment IS the URL, rather than a piece of state the URL happens to
+   * seed.
+   *
+   * `lib/navigation.ts` points Receipts, Refunds and Waivers straight at
+   * `?view=…`; holding the tab in `useState` sent all three to Invoices, and a
+   * refresh lost whichever one you were on. Deriving it means there is one
+   * answer to "which tab is open" and no effect keeping two copies in step.
+   *
+   * `replace` rather than `push`: flicking between six tabs is not six steps
+   * back, and a bursar who pressed Back expects to leave the ledger.
+   */
+  const viewParam = searchParams.get("view");
+  const activeView: FeesView = isFeesView(viewParam) ? viewParam : "invoices";
 
-  const [bulkGenerateDialogOpen, setBulkGenerateDialogOpen] = useState(false);
-
-  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
-  const [receiptForm, setReceiptForm] = useState(initialReceiptForm);
-
-  const createInvoiceMutation = useMutation({
-    mutationFn: async (payload: typeof invoiceForm) =>
-      fetchJson("/api/v2/schools/fees/invoices", {
-        method: "POST",
-        body: JSON.stringify({
-          studentId: payload.studentId,
-          termId: payload.termId,
-          description: payload.description || undefined,
-          amount: parseFloat(payload.amount) || 0,
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "invoices"] });
-      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "summary"] });
-      setInvoiceForm(initialInvoiceForm);
-      setInvoiceDialogOpen(false);
+  const changeView = useCallback(
+    (next: string) => {
+      if (!isFeesView(next)) return;
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("view", next);
+      router.replace(`${pathname}?${params.toString()}`, { scroll: false });
     },
+    [pathname, router, searchParams],
+  );
+
+  /* ── filters, one set per segment ─────────────────────────────────────── */
+
+  const [invoiceClass, setInvoiceClass] = useState("");
+  const [invoiceTerm, setInvoiceTerm] = useState("");
+  const [invoiceStatus, setInvoiceStatus] = useState("");
+  const [invoiceDueFrom, setInvoiceDueFrom] = useState("");
+  const [invoiceDueTo, setInvoiceDueTo] = useState("");
+  const [invoiceMinOutstanding, setInvoiceMinOutstanding] = useState("");
+
+  const [receiptClass, setReceiptClass] = useState("");
+  const [receiptStatus, setReceiptStatus] = useState("");
+  const [receiptFrom, setReceiptFrom] = useState("");
+  const [receiptTo, setReceiptTo] = useState("");
+
+  const [creditClass, setCreditClass] = useState("");
+  const [creditKind, setCreditKind] = useState("");
+
+  const [refundClass, setRefundClass] = useState("");
+  const [refundStatus, setRefundStatus] = useState("");
+
+  const [waiverClass, setWaiverClass] = useState("");
+  const [waiverTerm, setWaiverTerm] = useState("");
+  const [waiverStatus, setWaiverStatus] = useState("");
+  const [waiverType, setWaiverType] = useState("");
+
+  const [structureClass, setStructureClass] = useState("");
+  const [structureTerm, setStructureTerm] = useState("");
+  const [structureStatus, setStructureStatus] = useState("");
+
+  const clearInvoiceFilters = () => {
+    setInvoiceClass("");
+    setInvoiceTerm("");
+    setInvoiceStatus("");
+    setInvoiceDueFrom("");
+    setInvoiceDueTo("");
+    setInvoiceMinOutstanding("");
+  };
+
+  /* ── the lists that fill the filters ──────────────────────────────────── */
+
+  const classesQuery = useQuery({
+    queryKey: ["schools", "grades"],
+    queryFn: () => fetchSchoolsClasses({ page: 1, limit: PAGE_LIMIT }),
+  });
+  const termsQuery = useQuery({
+    queryKey: ["schools", "terms", "list"],
+    queryFn: () => fetchSchoolsTerms({ page: 1, limit: PAGE_LIMIT }),
   });
 
-  const createReceiptMutation = useMutation({
-    mutationFn: async (payload: typeof receiptForm) =>
-      fetchJson("/api/v2/schools/fees/receipts", {
-        method: "POST",
-        body: JSON.stringify({
-          invoiceId: payload.invoiceId,
-          amount: parseFloat(payload.amount) || 0,
-          method: payload.method,
-          reference: payload.reference || undefined,
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "receipts"] });
-      queryClient.invalidateQueries({ queryKey: ["schools", "fees", "summary"] });
-      setReceiptForm(initialReceiptForm);
-      setReceiptDialogOpen(false);
-    },
-  });
+  const classOptions = useMemo(
+    () =>
+      (classesQuery.data?.data ?? []).map((row) => ({ value: row.id, label: row.name })),
+    [classesQuery.data],
+  );
+  const termOptions = useMemo(
+    () => (termsQuery.data?.data ?? []).map((row) => ({ value: row.id, label: row.name })),
+    [termsQuery.data],
+  );
 
-  const handleInvoiceDialogOpenChange = (open: boolean) => {
-    setInvoiceDialogOpen(open);
-    if (!open) {
-      setInvoiceForm(initialInvoiceForm);
-      createInvoiceMutation.reset();
-    }
-  };
-
-  const handleReceiptDialogOpenChange = (open: boolean) => {
-    setReceiptDialogOpen(open);
-    if (!open) {
-      setReceiptForm(initialReceiptForm);
-      createReceiptMutation.reset();
-    }
-  };
-
-  const handleInvoiceSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!invoiceForm.studentId || !invoiceForm.termId || !invoiceForm.amount) return;
-    createInvoiceMutation.mutate(invoiceForm);
-  };
-
-  const handleReceiptSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!receiptForm.invoiceId || !receiptForm.amount || !receiptForm.method) return;
-    createReceiptMutation.mutate(receiptForm);
-  };
-
-  // S-2.5 / S-2.6. A credit is picked from the list and then either spent on an
-  // invoice or handed back, so both dialogs are anchored on the row the bursar
-  // clicked rather than asking them to type an id twice.
-  const [creditSource, setCreditSource] = useState<SchoolFeeCreditRecord | null>(null);
-  const [allocateForm, setAllocateForm] = useState(initialAllocateForm);
-  const [refundSource, setRefundSource] = useState<SchoolFeeCreditRecord | null>(null);
-  const [refundForm, setRefundForm] = useState(initialRefundForm);
-  const [cancelTarget, setCancelTarget] = useState<SchoolFeeRefundRecord | null>(null);
-  const [cancelReason, setCancelReason] = useState("");
-
-  const invalidateMoney = () => {
-    queryClient.invalidateQueries({ queryKey: ["schools", "fees", "summary"] });
-    queryClient.invalidateQueries({ queryKey: ["schools", "fees", "invoices"] });
-    queryClient.invalidateQueries({ queryKey: ["schools", "fees", "receipts"] });
-    queryClient.invalidateQueries({ queryKey: ["schools", "fees", "credits"] });
-    queryClient.invalidateQueries({ queryKey: ["schools", "fees", "refunds"] });
-  };
-
-  const allocateCreditMutation = useMutation({
-    mutationFn: async (payload: {
-      receiptId: string;
-      invoiceId: string;
-      amount: string;
-    }) =>
-      allocateReceiptCredit(payload.receiptId, [
-        {
-          invoiceId: payload.invoiceId,
-          // Left blank, the credit settles the invoice as far as it goes.
-          ...(payload.amount ? { allocatedAmount: parseFloat(payload.amount) } : {}),
-        },
-      ]),
-    onSuccess: () => {
-      invalidateMoney();
-      setCreditSource(null);
-      setAllocateForm(initialAllocateForm);
-    },
-  });
-
-  const requestRefundMutation = useMutation({
-    mutationFn: async (payload: {
-      source: SchoolFeeCreditRecord;
-      form: typeof initialRefundForm;
-    }) =>
-      requestSchoolFeeRefund({
-        ...(payload.source.kind === "RECEIPT"
-          ? { receiptId: payload.source.sourceId }
-          : { invoiceId: payload.source.sourceId }),
-        amount: parseFloat(payload.form.amount) || 0,
-        method: payload.form.method as "CASH",
-        reason: payload.form.reason,
-        reference: payload.form.reference || undefined,
-      }),
-    onSuccess: () => {
-      invalidateMoney();
-      setRefundSource(null);
-      setRefundForm(initialRefundForm);
-    },
-  });
-
-  const payRefundMutation = useMutation({
-    mutationFn: async (refundId: string) => paySchoolFeeRefund(refundId),
-    onSuccess: invalidateMoney,
-  });
-
-  const cancelRefundMutation = useMutation({
-    mutationFn: async (payload: { refundId: string; reason: string }) =>
-      cancelSchoolFeeRefund(payload.refundId, payload.reason),
-    onSuccess: () => {
-      invalidateMoney();
-      setCancelTarget(null);
-      setCancelReason("");
-    },
-  });
-
-  const handleAllocateDialogOpenChange = (open: boolean) => {
-    if (!open) {
-      setCreditSource(null);
-      setAllocateForm(initialAllocateForm);
-      allocateCreditMutation.reset();
-    }
-  };
-
-  const handleRefundDialogOpenChange = (open: boolean) => {
-    if (!open) {
-      setRefundSource(null);
-      setRefundForm(initialRefundForm);
-      requestRefundMutation.reset();
-    }
-  };
-
-  const handleCancelDialogOpenChange = (open: boolean) => {
-    if (!open) {
-      setCancelTarget(null);
-      setCancelReason("");
-      cancelRefundMutation.reset();
-    }
-  };
-
-  const handleAllocateSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!creditSource || !allocateForm.invoiceId) return;
-    allocateCreditMutation.mutate({
-      receiptId: creditSource.sourceId,
-      invoiceId: allocateForm.invoiceId,
-      amount: allocateForm.amount,
-    });
-  };
-
-  const handleRefundSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!refundSource || !refundForm.amount || !refundForm.reason) return;
-    requestRefundMutation.mutate({ source: refundSource, form: refundForm });
-  };
-
-  const handleCancelSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!cancelTarget || !cancelReason.trim()) return;
-    cancelRefundMutation.mutate({
-      refundId: cancelTarget.id,
-      reason: cancelReason.trim(),
-    });
-  };
+  /* ── the money ────────────────────────────────────────────────────────── */
 
   const summaryQuery = useQuery({
     queryKey: ["schools", "fees", "summary"],
     queryFn: () => fetchSchoolsFeesSummary(),
   });
+
+  const invoicesQuery = useQuery({
+    queryKey: [
+      "schools",
+      "fees",
+      "invoices",
+      { invoiceClass, invoiceTerm, invoiceStatus },
+    ],
+    queryFn: () =>
+      fetchSchoolFeeInvoices({
+        page: 1,
+        limit: PAGE_LIMIT,
+        classId: invoiceClass || undefined,
+        termId: invoiceTerm || undefined,
+        status: (invoiceStatus || undefined) as SchoolFeeInvoiceRecord["status"] | undefined,
+      }),
+  });
+
+  const receiptsQuery = useQuery({
+    queryKey: [
+      "schools",
+      "fees",
+      "receipts",
+      { receiptClass, receiptStatus, receiptFrom, receiptTo },
+    ],
+    queryFn: () =>
+      fetchSchoolFeeReceipts({
+        page: 1,
+        limit: PAGE_LIMIT,
+        classId: receiptClass || undefined,
+        status: (receiptStatus || undefined) as SchoolFeeReceiptRecord["status"] | undefined,
+        from: receiptFrom || undefined,
+        to: receiptTo || undefined,
+      }),
+  });
+
+  const creditsQuery = useQuery({
+    queryKey: ["schools", "fees", "credits", { creditClass }],
+    queryFn: () =>
+      fetchSchoolFeeCredits({
+        page: 1,
+        limit: PAGE_LIMIT,
+        classId: creditClass || undefined,
+      }),
+  });
+
+  const refundsQuery = useQuery({
+    queryKey: ["schools", "fees", "refunds", { refundClass, refundStatus }],
+    queryFn: () =>
+      fetchSchoolFeeRefunds({
+        page: 1,
+        limit: PAGE_LIMIT,
+        classId: refundClass || undefined,
+        status: (refundStatus || undefined) as SchoolFeeRefundRecord["status"] | undefined,
+      }),
+  });
+
+  const waiversQuery = useQuery({
+    queryKey: ["schools", "fees", "waivers", { waiverClass, waiverTerm, waiverStatus }],
+    queryFn: () =>
+      fetchSchoolFeeWaivers({
+        page: 1,
+        limit: PAGE_LIMIT,
+        classId: waiverClass || undefined,
+        termId: waiverTerm || undefined,
+        status: (waiverStatus || undefined) as SchoolFeeWaiverRecord["status"] | undefined,
+      }),
+  });
+
   const structuresQuery = useQuery({
-    queryKey: ["schools", "fees", "structures"],
+    queryKey: [
+      "schools",
+      "fees",
+      "structures",
+      { structureClass, structureTerm, structureStatus },
+    ],
     // `includeLines` is what makes the totals real. Without it the route has no
     // lines to add up and every structure in this table read "$0.00 a term" — a
     // fee sheet that appears to charge nothing, which is worse than no column.
-    queryFn: () => fetchSchoolFeeStructures({ page: 1, limit: 200, includeLines: true }),
-  });
-  const invoicesQuery = useQuery({
-    queryKey: ["schools", "fees", "invoices"],
-    queryFn: () => fetchSchoolFeeInvoices({ page: 1, limit: 200 }),
-  });
-  const receiptsQuery = useQuery({
-    queryKey: ["schools", "fees", "receipts"],
-    queryFn: () => fetchSchoolFeeReceipts({ page: 1, limit: 200 }),
-  });
-  const waiversQuery = useQuery({
-    queryKey: ["schools", "fees", "waivers"],
-    queryFn: () => fetchSchoolFeeWaivers({ page: 1, limit: 200 }),
-  });
-  const creditsQuery = useQuery({
-    queryKey: ["schools", "fees", "credits"],
-    queryFn: () => fetchSchoolFeeCredits({ page: 1, limit: 200 }),
-  });
-  const refundsQuery = useQuery({
-    queryKey: ["schools", "fees", "refunds"],
-    queryFn: () => fetchSchoolFeeRefunds({ page: 1, limit: 200 }),
+    queryFn: () =>
+      fetchSchoolFeeStructures({
+        page: 1,
+        limit: PAGE_LIMIT,
+        includeLines: true,
+        classId: structureClass || undefined,
+        termId: structureTerm || undefined,
+        status: (structureStatus || undefined) as
+          | SchoolFeeStructureRecord["status"]
+          | undefined,
+      }),
   });
 
-  const structures = useMemo(() => structuresQuery.data?.data ?? [], [structuresQuery.data]);
-  const invoices = useMemo(() => invoicesQuery.data?.data ?? [], [invoicesQuery.data]);
+  /* ── the rows, after the filters the endpoints cannot take ────────────── */
+
+  const invoices = useMemo(() => {
+    const rows = invoicesQuery.data?.data ?? [];
+    const minOutstanding = invoiceMinOutstanding ? Number(invoiceMinOutstanding) : null;
+    return rows.filter((invoice) => {
+      // Money crosses JSON as a number here — `successResponse` serialises every
+      // Decimal on the way out — so this is arithmetic, not a string compare.
+      if (minOutstanding !== null && invoice.balanceAmount < minOutstanding) return false;
+      const due = invoice.dueDate.slice(0, 10);
+      if (invoiceDueFrom && due < invoiceDueFrom) return false;
+      if (invoiceDueTo && due > invoiceDueTo) return false;
+      return true;
+    });
+  }, [invoicesQuery.data, invoiceMinOutstanding, invoiceDueFrom, invoiceDueTo]);
+
   const receipts = useMemo(() => receiptsQuery.data?.data ?? [], [receiptsQuery.data]);
-  const waivers = useMemo(() => waiversQuery.data?.data ?? [], [waiversQuery.data]);
-  const credits = useMemo(() => creditsQuery.data?.data ?? [], [creditsQuery.data]);
+
+  const credits = useMemo(() => {
+    const rows = creditsQuery.data?.data ?? [];
+    return creditKind ? rows.filter((row) => row.kind === creditKind) : rows;
+  }, [creditsQuery.data, creditKind]);
+
   const refunds = useMemo(() => refundsQuery.data?.data ?? [], [refundsQuery.data]);
 
-  const structuresColumns = useMemo<ColumnDef<SchoolFeeStructureRecord>[]>(
-    () => [
-      {
-        id: "name",
-        header: "Fee Structure",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.class.name} / {row.original.term.name}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => structureStatusBadge(row.original.status),
-      },
-      {
-        id: "lines",
-        header: "Lines",
-        cell: ({ row }) => <NumericCell>{row.original._count.lines}</NumericCell>,
-      },
-      {
-        id: "amount",
-        header: "Total Amount",
-        cell: ({ row }) => (
-          <NumericCell>
-            {formatSchoolMoney(row.original.totals?.amount ?? 0, row.original.currency)}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "mandatoryAmount",
-        header: "Mandatory Amount",
-        cell: ({ row }) => (
-          <NumericCell>
-            {formatSchoolMoney(
-              row.original.totals?.mandatoryAmount ?? 0,
-              row.original.currency,
-            )}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "currency",
-        header: "Currency",
-        cell: ({ row }) => <NumericCell align="left">{row.original.currency}</NumericCell>,
-      },
-      {
-        id: "copy",
-        header: "",
-        cell: ({ row }) => (
-          <Button
-            size="sm"
-            variant="outline"
-            onClick={() => setCopySource(row.original)}
-          >
-            Copy to…
-          </Button>
-        ),
-      },
-    ],
-    [],
-  );
+  const waivers = useMemo(() => {
+    const rows = waiversQuery.data?.data ?? [];
+    return waiverType ? rows.filter((row) => row.waiverType === waiverType) : rows;
+  }, [waiversQuery.data, waiverType]);
+
+  const structures = useMemo(() => structuresQuery.data?.data ?? [], [structuresQuery.data]);
+
+  /* ── what the verbs open ──────────────────────────────────────────────── */
+
+  const [invoiceDialog, setInvoiceDialog] = useState<{
+    open: boolean;
+    record: SchoolFeeInvoiceRecord | null;
+  }>({ open: false, record: null });
+  const [receiptDialogOpen, setReceiptDialogOpen] = useState(false);
+  const [waiverDialog, setWaiverDialog] = useState<{
+    open: boolean;
+    record: SchoolFeeWaiverRecord | null;
+  }>({ open: false, record: null });
+  const [structureDialog, setStructureDialog] = useState<{
+    open: boolean;
+    record: SchoolFeeStructureRecord | null;
+  }>({ open: false, record: null });
+  const [bulkGenerateOpen, setBulkGenerateOpen] = useState(false);
+  const [copySource, setCopySource] = useState<SchoolFeeStructureRecord | null>(null);
+
+  const [writeOffTarget, setWriteOffTarget] = useState<SchoolFeeInvoiceRecord | null>(null);
+  const [voidTarget, setVoidTarget] = useState<SchoolFeeReceiptRecord | null>(null);
+  const [rejectTarget, setRejectTarget] = useState<SchoolFeeWaiverRecord | null>(null);
+  const [reverseTarget, setReverseTarget] = useState<SchoolFeeWaiverRecord | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<SchoolFeeRefundRecord | null>(null);
+
+  const [creditSource, setCreditSource] = useState<SchoolFeeCreditRecord | null>(null);
+  const [allocateInvoiceId, setAllocateInvoiceId] = useState("");
+  const [allocateAmount, setAllocateAmount] = useState("");
+  const [refundSource, setRefundSource] = useState<SchoolFeeCreditRecord | null>(null);
+  const [refundForm, setRefundForm] = useState(initialRefundForm);
+
+  /** Everything on this screen is one pot of money; one invalidation covers it. */
+  const invalidateMoney = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["schools", "fees"] });
+  }, [queryClient]);
+
+  /* ── the verbs themselves ─────────────────────────────────────────────── */
+
+  const issueInvoice = useMutation({
+    mutationFn: (invoiceId: string) => issueSchoolFeeInvoice(invoiceId),
+    onSuccess: invalidateMoney,
+  });
+  const writeOffInvoice = useMutation({
+    mutationFn: (input: { invoiceId: string; reason: string }) =>
+      writeOffSchoolFeeInvoice(input.invoiceId, input.reason),
+    onSuccess: () => {
+      invalidateMoney();
+      setWriteOffTarget(null);
+    },
+  });
+  const discardInvoice = useMutation({
+    mutationFn: (invoiceId: string) => discardSchoolFeeInvoice(invoiceId),
+    onSuccess: invalidateMoney,
+  });
+
+  const voidReceipt = useMutation({
+    mutationFn: (input: { receiptId: string; reason: string }) =>
+      voidSchoolFeeReceipt(input.receiptId, input.reason),
+    onSuccess: () => {
+      invalidateMoney();
+      setVoidTarget(null);
+    },
+  });
+  const fiscaliseReceipt = useMutation({
+    mutationFn: (receiptId: string) => fiscaliseSchoolFeeReceipt(receiptId),
+    onSuccess: invalidateMoney,
+  });
+
+  const approveWaiver = useMutation({
+    mutationFn: (waiverId: string) => updateSchoolFeeWaiver(waiverId, { status: "APPROVED" }),
+    onSuccess: invalidateMoney,
+  });
+  const rejectWaiver = useMutation({
+    mutationFn: (input: { waiverId: string; reason: string }) =>
+      updateSchoolFeeWaiver(input.waiverId, { status: "REJECTED", reason: input.reason }),
+    onSuccess: () => {
+      invalidateMoney();
+      setRejectTarget(null);
+    },
+  });
+  const applyWaiver = useMutation({
+    mutationFn: (waiverId: string) => applySchoolFeeWaiver(waiverId),
+    onSuccess: invalidateMoney,
+  });
+  const reverseWaiver = useMutation({
+    mutationFn: (input: { waiverId: string; reason: string }) =>
+      updateSchoolFeeWaiver(input.waiverId, { status: "REVERSED", reason: input.reason }),
+    onSuccess: () => {
+      invalidateMoney();
+      setReverseTarget(null);
+    },
+  });
+  const discardWaiver = useMutation({
+    mutationFn: (waiverId: string) => discardSchoolFeeWaiver(waiverId),
+    onSuccess: invalidateMoney,
+  });
+
+  const setStructureStatusMutation = useMutation({
+    mutationFn: (input: {
+      structureId: string;
+      status: SchoolFeeStructureRecord["status"];
+    }) => updateSchoolFeeStructure(input.structureId, { status: input.status }),
+    onSuccess: invalidateMoney,
+  });
+  const deleteStructure = useMutation({
+    mutationFn: (structureId: string) => deleteSchoolFeeStructure(structureId),
+    onSuccess: invalidateMoney,
+  });
+
+  const payRefund = useMutation({
+    mutationFn: (refundId: string) => paySchoolFeeRefund(refundId),
+    onSuccess: invalidateMoney,
+  });
+  const cancelRefund = useMutation({
+    mutationFn: (input: { refundId: string; reason: string }) =>
+      cancelSchoolFeeRefund(input.refundId, input.reason),
+    onSuccess: () => {
+      invalidateMoney();
+      setCancelTarget(null);
+    },
+  });
+
+  const allocateCredit = useMutation({
+    mutationFn: (input: { receiptId: string; invoiceId: string; amount: string }) =>
+      allocateReceiptCredit(input.receiptId, [
+        {
+          invoiceId: input.invoiceId,
+          // Left blank, the credit settles the invoice as far as it goes.
+          ...(input.amount ? { allocatedAmount: Number(input.amount) } : {}),
+        },
+      ]),
+    onSuccess: () => {
+      invalidateMoney();
+      setCreditSource(null);
+      setAllocateInvoiceId("");
+      setAllocateAmount("");
+    },
+  });
+
+  const requestRefund = useMutation({
+    mutationFn: (input: { source: SchoolFeeCreditRecord; form: typeof initialRefundForm }) =>
+      requestSchoolFeeRefund({
+        ...(input.source.kind === "RECEIPT"
+          ? { receiptId: input.source.sourceId }
+          : { invoiceId: input.source.sourceId }),
+        amount: Number(input.form.amount) || 0,
+        method: input.form.method as "CASH",
+        reason: input.form.reason,
+        reference: input.form.reference || undefined,
+      }),
+    onSuccess: () => {
+      invalidateMoney();
+      setRefundSource(null);
+      setRefundForm(initialRefundForm);
+    },
+  });
+
+  /* ── columns ──────────────────────────────────────────────────────────── */
 
   const invoiceColumns = useMemo<ColumnDef<SchoolFeeInvoiceRecord>[]>(
     () => [
@@ -454,36 +626,38 @@ export function SchoolsFeesContent() {
         header: "Student",
         cell: ({ row }) => <StudentCell student={row.original.student} />,
       },
-      {
-        id: "term",
-        header: "Term",
-        cell: ({ row }) => row.original.term.name,
-      },
+      { id: "term", header: "Term", cell: ({ row }) => row.original.term.name },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => invoiceStatusBadge(row.original.status),
+        cell: ({ row }) => <InvoiceStatusBadge status={row.original.status} />,
       },
       {
         id: "totalAmount",
         header: "Total",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.totalAmount, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "paidAmount",
         header: "Paid",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.paidAmount, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "balanceAmount",
         header: "Outstanding",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.balanceAmount, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "dueDate",
@@ -491,18 +665,73 @@ export function SchoolsFeesContent() {
         cell: ({ row }) => <NumericCell>{formatSchoolDate(row.original.dueDate)}</NumericCell>,
       },
       {
-        id: "print",
+        id: "actions",
         header: "",
-        cell: ({ row }) => (
-          <PrintDocumentButton
-            sourceKey="schools.fee.invoice"
-            recordId={row.original.id}
-            label="Print"
-          />
-        ),
+        cell: ({ row }) => {
+          const invoice = row.original;
+          const settled =
+            invoice.status === "PAID" ||
+            invoice.status === "VOIDED" ||
+            invoice.status === "WRITEOFF";
+          const verbs: RecordVerb[] = [];
+
+          if (invoice.status === "DRAFT") {
+            verbs.push({
+              label: "Issue",
+              action: "issue",
+              loading: issueInvoice.isPending,
+              confirm: {
+                title: `Issue ${invoice.invoiceNo}`,
+                description: `${formatSchoolMoney(invoice.totalAmount, invoice.currency)} is added to the family's outstanding balance and the bill is posted to the ledger.`,
+                confirmLabel: "Issue it",
+              },
+              onSelect: () => issueInvoice.mutate(invoice.id),
+            });
+          }
+          verbs.push({
+            label: "Edit",
+            action: "edit",
+            unavailable: settled ? "A settled bill cannot be edited." : undefined,
+            onSelect: () => setInvoiceDialog({ open: true, record: invoice }),
+          });
+          if (invoice.status === "ISSUED" || invoice.status === "PART_PAID") {
+            verbs.push({
+              label: "Write off",
+              action: "write-off",
+              tone: "danger",
+              onSelect: () => setWriteOffTarget(invoice),
+            });
+          }
+          if (invoice.status === "DRAFT") {
+            verbs.push({
+              label: "Discard",
+              action: "void",
+              tone: "danger",
+              loading: discardInvoice.isPending,
+              confirm: {
+                title: `Discard ${invoice.invoiceNo}`,
+                description:
+                  "The draft is deleted outright and its number is released. Nothing has reached the family, so nothing is withdrawn.",
+                confirmLabel: "Discard it",
+              },
+              onSelect: () => discardInvoice.mutate(invoice.id),
+            });
+          }
+
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <RecordActions resource="schools.fees" verbs={verbs} />
+              <PrintDocumentButton
+                sourceKey="schools.fee.invoice"
+                recordId={invoice.id}
+                label="Print"
+              />
+            </div>
+          );
+        },
       },
     ],
-    [],
+    [issueInvoice, discardInvoice],
   );
 
   const receiptColumns = useMemo<ColumnDef<SchoolFeeReceiptRecord>[]>(
@@ -525,47 +754,86 @@ export function SchoolsFeesContent() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => receiptStatusBadge(row.original.status),
+        cell: ({ row }) => <ReceiptStatusBadge status={row.original.status} />,
       },
       {
         id: "amountReceived",
         header: "Received",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.amountReceived, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "amountAllocated",
         header: "Allocated",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.amountAllocated, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "amountUnallocated",
         header: "Unallocated",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.amountUnallocated, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "receiptDate",
         header: "Receipt Date",
-        cell: ({ row }) => <NumericCell>{formatSchoolDate(row.original.receiptDate)}</NumericCell>,
-      },
-      {
-        id: "print",
-        header: "",
         cell: ({ row }) => (
-          <PrintDocumentButton
-            sourceKey="schools.fee.receipt"
-            recordId={row.original.id}
-            label="Print"
-          />
+          <NumericCell>{formatSchoolDate(row.original.receiptDate)}</NumericCell>
         ),
       },
+      {
+        id: "fiscal",
+        header: "Fiscal",
+        cell: ({ row }) => <FiscalBadge fiscal={row.original.fiscalReceipt} />,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const receipt = row.original;
+          const verbs: RecordVerb[] = [];
+
+          if (receipt.status !== "VOIDED") {
+            verbs.push({
+              label: "Void",
+              action: "void",
+              tone: "danger",
+              onSelect: () => setVoidTarget(receipt),
+            });
+            // S-2.7. The fiscal number is what a parent quotes back; a receipt
+            // that never reached ZIMRA is re-sent from here rather than from
+            // the accounting replay endpoint no bursar can reach.
+            verbs.push({
+              label: receipt.fiscalReceipt?.fiscalNumber ? "Re-send to ZIMRA" : "Fiscalise",
+              action: "issue",
+              loading: fiscaliseReceipt.isPending,
+              onSelect: () => fiscaliseReceipt.mutate(receipt.id),
+            });
+          }
+
+          return (
+            <div className="flex items-center justify-end gap-2">
+              <RecordActions resource="schools.fees" verbs={verbs} />
+              <PrintDocumentButton
+                sourceKey="schools.fee.receipt"
+                recordId={receipt.id}
+                label="Print"
+              />
+            </div>
+          );
+        },
+      },
     ],
-    [],
+    [fiscaliseReceipt],
   );
 
   const creditColumns = useMemo<ColumnDef<SchoolFeeCreditRecord>[]>(
@@ -622,40 +890,41 @@ export function SchoolsFeesContent() {
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            {/* An invoice credit has no receipt to allocate from — it is
-                already sitting on the bill it over-settled. Only a receipt
-                surplus can be moved to another invoice. */}
-            {row.original.kind === "RECEIPT" ? (
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={row.original.available <= 0}
-                onClick={() => {
-                  setCreditSource(row.original);
-                  setAllocateForm(initialAllocateForm);
-                }}
-              >
-                Allocate
-              </Button>
-            ) : null}
-            <Button
-              size="sm"
-              variant="outline"
-              disabled={row.original.available <= 0}
-              onClick={() => {
-                setRefundSource(row.original);
-                setRefundForm({
-                  ...initialRefundForm,
-                  amount: row.original.available.toFixed(2),
-                });
-              }}
-            >
-              Refund
-            </Button>
-          </div>
-        ),
+        cell: ({ row }) => {
+          const credit = row.original;
+          const spent = credit.available <= 0;
+          const verbs: RecordVerb[] = [];
+
+          // An invoice credit has no receipt to allocate from — it is already
+          // sitting on the bill it over-settled. Only a receipt surplus moves.
+          if (credit.kind === "RECEIPT") {
+            verbs.push({
+              label: "Allocate",
+              action: "receive-payment",
+              unavailable: spent ? "Every cent of this is already spoken for." : undefined,
+              onSelect: () => {
+                setCreditSource(credit);
+                setAllocateInvoiceId("");
+                setAllocateAmount("");
+              },
+            });
+          }
+          verbs.push({
+            label: "Refund",
+            action: "refund",
+            unavailable: spent ? "Every cent of this is already spoken for." : undefined,
+            onSelect: () => {
+              setRefundSource(credit);
+              setRefundForm({ ...initialRefundForm, amount: credit.available.toFixed(2) });
+            },
+          });
+
+          return (
+            <div className="flex justify-end">
+              <RecordActions resource="schools.fees" verbs={verbs} />
+            </div>
+          );
+        },
       },
     ],
     [],
@@ -678,16 +947,14 @@ export function SchoolsFeesContent() {
         header: "From",
         cell: ({ row }) => (
           <NumericCell align="left">
-            {row.original.receipt?.receiptNo ??
-              row.original.invoice?.invoiceNo ??
-              "—"}
+            {row.original.receipt?.receiptNo ?? row.original.invoice?.invoiceNo ?? "—"}
           </NumericCell>
         ),
       },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => refundStatusBadge(row.original.status),
+        cell: ({ row }) => <RefundStatusBadge status={row.original.status} />,
       },
       {
         id: "amount",
@@ -702,8 +969,8 @@ export function SchoolsFeesContent() {
         id: "method",
         header: "Method",
         cell: ({ row }) =>
-          PAYMENT_METHODS.find((method) => method.value === row.original.method)
-            ?.label ?? row.original.method,
+          PAYMENT_METHODS.find((method) => method.value === row.original.method)?.label ??
+          row.original.method,
       },
       {
         id: "refundDate",
@@ -715,33 +982,41 @@ export function SchoolsFeesContent() {
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) =>
-          row.original.status === "REQUESTED" ? (
-            <div className="flex justify-end gap-2">
-              <Button
-                size="sm"
-                onClick={() => payRefundMutation.mutate(row.original.id)}
-                disabled={payRefundMutation.isPending}
-              >
-                Pay
-              </Button>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => {
-                  setCancelTarget(row.original);
-                  setCancelReason("");
-                }}
-              >
-                Cancel
-              </Button>
+        cell: ({ row }) => {
+          const refund = row.original;
+          if (refund.status !== "REQUESTED") {
+            return <span className="text-xs text-muted-foreground">No action left</span>;
+          }
+          return (
+            <div className="flex justify-end">
+              <RecordActions
+                resource="schools.fees"
+                verbs={[
+                  {
+                    label: "Pay",
+                    action: "refund",
+                    loading: payRefund.isPending,
+                    confirm: {
+                      title: `Pay ${refund.refundNo}`,
+                      description: `${formatSchoolMoney(refund.amount, refund.currency)} leaves the school's account and the credit it was held against is spent.`,
+                      confirmLabel: "Pay it",
+                    },
+                    onSelect: () => payRefund.mutate(refund.id),
+                  },
+                  {
+                    label: "Cancel",
+                    action: "refund",
+                    tone: "danger",
+                    onSelect: () => setCancelTarget(refund),
+                  },
+                ]}
+              />
             </div>
-          ) : (
-            <span className="text-muted-foreground text-xs">No action left</span>
-          ),
+          );
+        },
       },
     ],
-    [payRefundMutation],
+    [payRefund],
   );
 
   const waiverColumns = useMemo<ColumnDef<SchoolFeeWaiverRecord>[]>(
@@ -754,19 +1029,23 @@ export function SchoolsFeesContent() {
       {
         id: "waiverType",
         header: "Waiver Type",
-        cell: ({ row }) => row.original.waiverType,
+        cell: ({ row }) =>
+          WAIVER_TYPES.find((type) => type.value === row.original.waiverType)?.label ??
+          row.original.waiverType,
       },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => waiverStatusBadge(row.original.status),
+        cell: ({ row }) => <WaiverStatusBadge status={row.original.status} />,
       },
       {
         id: "amount",
         header: "Amount",
-        cell: ({ row }) => <NumericCell>
+        cell: ({ row }) => (
+          <NumericCell>
             {formatSchoolMoney(row.original.amount, row.original.currency)}
-          </NumericCell>,
+          </NumericCell>
+        ),
       },
       {
         id: "invoice",
@@ -783,141 +1062,590 @@ export function SchoolsFeesContent() {
         header: "Created",
         cell: ({ row }) => <NumericCell>{formatSchoolDate(row.original.createdAt)}</NumericCell>,
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => {
+          const waiver = row.original;
+          const verbs: RecordVerb[] = [];
+
+          if (waiver.status === "DRAFT") {
+            verbs.push({
+              label: "Approve",
+              action: "waive",
+              loading: approveWaiver.isPending,
+              onSelect: () => approveWaiver.mutate(waiver.id),
+            });
+          }
+          if (waiver.status === "DRAFT" || waiver.status === "APPROVED") {
+            verbs.push({
+              label: "Apply",
+              action: "waive",
+              loading: applyWaiver.isPending,
+              confirm: {
+                title: "Apply this waiver",
+                description: `${formatSchoolMoney(waiver.amount, waiver.currency)} comes off ${waiver.invoice ? waiver.invoice.invoiceNo : "the oldest bill still owing for that term"}, and the family owes that much less.`,
+                confirmLabel: "Apply it",
+              },
+              onSelect: () => applyWaiver.mutate(waiver.id),
+            });
+            verbs.push({
+              label: "Reject",
+              action: "waive",
+              tone: "danger",
+              onSelect: () => setRejectTarget(waiver),
+            });
+          }
+          if (waiver.status === "APPLIED") {
+            verbs.push({
+              label: "Reverse",
+              action: "waive",
+              tone: "danger",
+              onSelect: () => setReverseTarget(waiver),
+            });
+          }
+          verbs.push({
+            label: "Edit",
+            action: "edit",
+            unavailable:
+              waiver.status === "DRAFT"
+                ? undefined
+                : "Only a draft can be re-typed. Reverse it and raise another.",
+            onSelect: () => setWaiverDialog({ open: true, record: waiver }),
+          });
+          if (waiver.status === "DRAFT") {
+            verbs.push({
+              label: "Discard",
+              action: "waive",
+              tone: "danger",
+              loading: discardWaiver.isPending,
+              confirm: {
+                title: "Discard this waiver",
+                description:
+                  "The draft is deleted outright. Nothing has come off a bill, so nothing is put back.",
+                confirmLabel: "Discard it",
+              },
+              onSelect: () => discardWaiver.mutate(waiver.id),
+            });
+          }
+
+          return (
+            <div className="flex justify-end">
+              <RecordActions resource="schools.fees" verbs={verbs} />
+            </div>
+          );
+        },
+      },
     ],
-    [],
+    [approveWaiver, applyWaiver, discardWaiver],
   );
 
+  const structureColumns = useMemo<ColumnDef<SchoolFeeStructureRecord>[]>(
+    () => [
+      {
+        id: "name",
+        header: "Fee Structure",
+        cell: ({ row }) => (
+          <div>
+            <div className="font-medium">{row.original.name}</div>
+            <div className="text-xs text-muted-foreground">
+              {row.original.class.name} / {row.original.term.name}
+            </div>
+          </div>
+        ),
+      },
+      {
+        id: "status",
+        header: "Status",
+        cell: ({ row }) => <StructureStatusBadge status={row.original.status} />,
+      },
+      {
+        id: "lines",
+        header: "Lines",
+        cell: ({ row }) => <NumericCell>{row.original._count.lines}</NumericCell>,
+      },
+      {
+        id: "amount",
+        header: "Total Amount",
+        cell: ({ row }) => (
+          <NumericCell>
+            {formatSchoolMoney(row.original.totals?.amount ?? 0, row.original.currency)}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "mandatoryAmount",
+        header: "Mandatory Amount",
+        cell: ({ row }) => (
+          <NumericCell>
+            {formatSchoolMoney(
+              row.original.totals?.mandatoryAmount ?? 0,
+              row.original.currency,
+            )}
+          </NumericCell>
+        ),
+      },
+      {
+        id: "currency",
+        header: "Currency",
+        cell: ({ row }) => <NumericCell align="left">{row.original.currency}</NumericCell>,
+      },
+      {
+        id: "actions",
+        header: "",
+        cell: ({ row }) => {
+          const structure = row.original;
+          const billed = structure._count.invoices > 0;
+          const verbs: RecordVerb[] = [];
+
+          if (structure.status === "DRAFT") {
+            verbs.push({
+              label: "Activate",
+              action: "edit",
+              loading: setStructureStatusMutation.isPending,
+              confirm: {
+                title: `Make ${structure.name} active`,
+                description:
+                  "Invoices can be raised against it from now on, and it appears in the bulk generator.",
+                confirmLabel: "Make it active",
+              },
+              onSelect: () =>
+                setStructureStatusMutation.mutate({
+                  structureId: structure.id,
+                  status: "ACTIVE",
+                }),
+            });
+          }
+          verbs.push({
+            label: "Copy to…",
+            action: "create",
+            onSelect: () => setCopySource(structure),
+          });
+          verbs.push({
+            label: "Edit",
+            action: "edit",
+            onSelect: () => setStructureDialog({ open: true, record: structure }),
+          });
+          if (structure.status !== "ARCHIVED") {
+            verbs.push({
+              label: "Archive",
+              action: "edit",
+              tone: "warning",
+              loading: setStructureStatusMutation.isPending,
+              confirm: {
+                title: `Archive ${structure.name}`,
+                description:
+                  "It stops appearing when raising bills. Invoices already quoting it are untouched, and it can be made active again.",
+                confirmLabel: "Archive it",
+              },
+              onSelect: () =>
+                setStructureStatusMutation.mutate({
+                  structureId: structure.id,
+                  status: "ARCHIVED",
+                }),
+            });
+          }
+          verbs.push({
+            label: "Delete",
+            action: "archive",
+            tone: "danger",
+            loading: deleteStructure.isPending,
+            unavailable: billed
+              ? "Invoices quote this sheet. Archive it instead."
+              : undefined,
+            confirm: {
+              title: `Delete ${structure.name}`,
+              description:
+                "The sheet and every line on it are removed for good. No bill quotes it, so nothing else changes.",
+              confirmLabel: "Delete it",
+            },
+            onSelect: () => deleteStructure.mutate(structure.id),
+          });
+
+          return (
+            <div className="flex justify-end">
+              <RecordActions resource="schools.fees" verbs={verbs} />
+            </div>
+          );
+        },
+      },
+    ],
+    [setStructureStatusMutation, deleteStructure],
+  );
+
+  /* ── the page ─────────────────────────────────────────────────────────── */
+
   const summary = summaryQuery.data?.summary;
-  const primaryError =
+  const currency = summary?.currency ?? "USD";
+
+  const loadError =
     summaryQuery.error ||
-    structuresQuery.error ||
     invoicesQuery.error ||
     receiptsQuery.error ||
-    waiversQuery.error ||
     creditsQuery.error ||
-    refundsQuery.error;
-  const isLoading =
-    summaryQuery.isLoading ||
-    structuresQuery.isLoading ||
-    invoicesQuery.isLoading ||
-    receiptsQuery.isLoading ||
-    waiversQuery.isLoading ||
-    creditsQuery.isLoading ||
-    refundsQuery.isLoading;
+    refundsQuery.error ||
+    waiversQuery.error ||
+    structuresQuery.error;
+
+  const caption = summary
+    ? `${formatSchoolMoney(summary.outstandingBalance, currency)} outstanding · ${summary.issuedInvoices} unpaid`
+    : undefined;
+
+  /** The primary action belongs to the segment on screen, not to the page. */
+  const primaryAction = (() => {
+    if (activeView === "invoices") {
+      return (
+        <CreateButton
+          resource="schools.fees"
+          label="Create invoice"
+          onSelect={() => setInvoiceDialog({ open: true, record: null })}
+        />
+      );
+    }
+    if (activeView === "receipts") {
+      return (
+        <CreateButton
+          resource="schools.fees"
+          label="Record receipt"
+          action="receive-payment"
+          onSelect={() => setReceiptDialogOpen(true)}
+        />
+      );
+    }
+    if (activeView === "waivers") {
+      return (
+        <CreateButton
+          resource="schools.fees"
+          label="New waiver"
+          action="waive"
+          onSelect={() => setWaiverDialog({ open: true, record: null })}
+        />
+      );
+    }
+    if (activeView === "structures") {
+      return (
+        <CreateButton
+          resource="schools.fees"
+          label="New fee sheet"
+          onSelect={() => setStructureDialog({ open: true, record: null })}
+        />
+      );
+    }
+    // Credits and refunds are both raised from a credit row rather than from a
+    // blank form: a refund with no named source is the thing S-2.6 refuses.
+    return undefined;
+  })();
+
+  const secondaryActions =
+    activeView === "invoices" ? (
+      <Button variant="outline" onClick={() => setBulkGenerateOpen(true)}>
+        Bulk generate
+      </Button>
+    ) : undefined;
 
   return (
     <div className="space-y-4">
-      {primaryError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load schools fees data</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(primaryError)}</AlertDescription>
-        </Alert>
-      ) : null}
+      <PageHeading
+        title="Fee ledger"
+        description={caption}
+        primaryAction={primaryAction}
+        secondaryActions={secondaryActions}
+      />
 
-      <section className="section-shell grid gap-2 md:grid-cols-5">
-        <div>
-          <h2 className="text-sm font-semibold">Outstanding Balance</h2>
-          <p className="font-mono tabular-nums">
-            {formatSchoolMoney(summary?.outstandingBalance ?? 0, summary?.currency)}
-          </p>
-        </div>
-        <div>
-          {/* The figure behind this counts ISSUED and PART_PAID — invoices
-              still owing something. It was labelled "Issued Invoices", which
-              read as nought beside three invoices that had been issued and
-              paid. The count is right; the word was wrong. */}
-          <h2 className="text-sm font-semibold">Unpaid invoices</h2>
-          <p className="font-mono tabular-nums">{summary?.issuedInvoices ?? 0}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Posted Receipts</h2>
-          <p className="font-mono tabular-nums">{summary?.receiptsPosted ?? 0}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Applied Waivers</h2>
-          <p className="font-mono tabular-nums">
-            {formatSchoolMoney(summary?.waivedAmount ?? 0, summary?.currency)}
-          </p>
-        </div>
-        {/* S-2.5. Money the school is holding that belongs to families. It sits
-            beside the arrears deliberately: a school can be owed and owing at
-            once, and a bursar chasing the first should see the second. */}
-        <div>
-          <h2 className="text-sm font-semibold">Credit on account</h2>
-          <p className="font-mono tabular-nums">
-            {formatSchoolMoney(summary?.creditOnAccount ?? 0, summary?.currency)}
-          </p>
-        </div>
-      </section>
+      <PageBand
+        chips={[
+          {
+            label: "Outstanding",
+            value: formatSchoolMoney(summary?.outstandingBalance ?? 0, currency),
+            tone: "danger",
+          },
+          // The figure behind this counts ISSUED and PART_PAID — invoices still
+          // owing something. It was labelled "Issued Invoices", which read as
+          // nought beside three invoices that had been issued and paid.
+          { label: "Unpaid invoices", value: summary?.issuedInvoices ?? 0 },
+          { label: "Posted receipts", value: summary?.receiptsPosted ?? 0, tone: "success" },
+          {
+            label: "Applied waivers",
+            value: formatSchoolMoney(summary?.waivedAmount ?? 0, currency),
+          },
+          // S-2.5. Money the school is holding that belongs to families. It sits
+          // beside the arrears deliberately: a school can be owed and owing at
+          // once, and a bursar chasing the first should see the second.
+          {
+            label: "Credit on account",
+            value: formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
+            tone: "warn",
+          },
+        ]}
+      />
+
+      {loadError ? (
+        <LoadError
+          what="the fee ledger"
+          error={loadError}
+          onRetry={() => queryClient.invalidateQueries({ queryKey: ["schools", "fees"] })}
+        />
+      ) : null}
 
       <VerticalDataViews
         items={[
-          { id: "invoices", label: "Invoices", count: invoices.length },
-          { id: "receipts", label: "Receipts", count: receipts.length },
-          { id: "credits", label: "Credits", count: credits.length },
-          { id: "refunds", label: "Refunds", count: refunds.length },
-          { id: "waivers", label: "Waivers", count: waivers.length },
-          { id: "structures", label: "Fee Structures", count: structures.length },
+          {
+            id: "invoices",
+            label: "Invoices",
+            count: invoicesQuery.data?.pagination.total ?? invoices.length,
+          },
+          {
+            id: "receipts",
+            label: "Receipts",
+            count: receiptsQuery.data?.pagination.total ?? receipts.length,
+          },
+          {
+            id: "credits",
+            label: "Credits",
+            count: creditsQuery.data?.pagination.total ?? credits.length,
+          },
+          {
+            id: "refunds",
+            label: "Refunds",
+            count: refundsQuery.data?.pagination.total ?? refunds.length,
+          },
+          {
+            id: "waivers",
+            label: "Waivers",
+            count: waiversQuery.data?.pagination.total ?? waivers.length,
+          },
+          {
+            id: "structures",
+            label: "Fee structures",
+            count: structuresQuery.data?.pagination.total ?? structures.length,
+          },
         ]}
         value={activeView}
-        onValueChange={(value) => setActiveView(value as FeesView)}
-        railLabel="Fee Views"
+        onValueChange={changeView}
+        railLabel="Fee views"
       >
-        <div className={activeView === "invoices" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Fee Invoices</h2>
-            <div className="flex gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => setBulkGenerateDialogOpen(true)}
-              >
-                Bulk Generate
-              </Button>
-              <Button size="sm" onClick={() => setInvoiceDialogOpen(true)}>
-                Create Invoice
-              </Button>
+        {/* ── invoices ─────────────────────────────────────────────────── */}
+        <div className={activeView === "invoices" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Fee invoices</h2>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={invoiceClass}
+              options={classOptions}
+              onChange={setInvoiceClass}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={invoiceTerm}
+              options={termOptions}
+              onChange={setInvoiceTerm}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={invoiceStatus}
+              options={INVOICE_STATUSES}
+              onChange={setInvoiceStatus}
+            />
+            <div className="min-w-0 basis-[150px]">
+              <Label htmlFor="invoice-due-from" className="text-sm text-muted-foreground">
+                Due from
+              </Label>
+              <Input
+                id="invoice-due-from"
+                type="date"
+                value={invoiceDueFrom}
+                onChange={(event) => setInvoiceDueFrom(event.target.value)}
+              />
             </div>
-          </div>
+            <div className="min-w-0 basis-[150px]">
+              <Label htmlFor="invoice-due-to" className="text-sm text-muted-foreground">
+                Due to
+              </Label>
+              <Input
+                id="invoice-due-to"
+                type="date"
+                value={invoiceDueTo}
+                onChange={(event) => setInvoiceDueTo(event.target.value)}
+              />
+            </div>
+            <div className="min-w-0 basis-[150px]">
+              <Label htmlFor="invoice-min" className="text-sm text-muted-foreground">
+                Owing at least
+              </Label>
+              <Input
+                id="invoice-min"
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="Any amount"
+                value={invoiceMinOutstanding}
+                onChange={(event) => setInvoiceMinOutstanding(event.target.value)}
+              />
+            </div>
+          </FilterBar>
+
+          <PageNote
+            shown={invoices.length}
+            total={invoicesQuery.data?.pagination.total ?? invoices.length}
+            onNarrow={clearInvoiceFilters}
+          />
+
           <DataTable
             data={invoices}
             columns={invoiceColumns}
             searchPlaceholder="Search invoices"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading fee invoices..." : "No fee invoices found."}
+            emptyState={
+              invoicesQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, {}, { width: 90 }]}
+                />
+              ) : invoiceClass || invoiceTerm || invoiceStatus || invoiceDueFrom || invoiceDueTo || invoiceMinOutstanding ? (
+                <NothingMatched
+                  what="invoices"
+                  filters={[
+                    classOptions.find((option) => option.value === invoiceClass)?.label ?? "",
+                    termOptions.find((option) => option.value === invoiceTerm)?.label ?? "",
+                    INVOICE_STATUSES.find((option) => option.value === invoiceStatus)?.label ??
+                      "",
+                  ]}
+                  onClear={clearInvoiceFilters}
+                />
+              ) : (
+                <NothingYet
+                  title="No bills raised yet"
+                  body="Raise one for a single pupil, or generate a term's worth from a fee sheet."
+                  action={
+                    <CreateButton
+                      resource="schools.fees"
+                      label="Create invoice"
+                      onSelect={() => setInvoiceDialog({ open: true, record: null })}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
 
-        <div className={activeView === "receipts" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Fee Receipts</h2>
-            <Button size="sm" onClick={() => setReceiptDialogOpen(true)}>
-              Record Receipt
-            </Button>
-          </div>
+        {/* ── receipts ─────────────────────────────────────────────────── */}
+        <div className={activeView === "receipts" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Fee receipts</h2>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={receiptClass}
+              options={classOptions}
+              onChange={setReceiptClass}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={receiptStatus}
+              options={RECEIPT_STATUSES}
+              onChange={setReceiptStatus}
+            />
+            <div className="min-w-0 basis-[150px]">
+              <Label htmlFor="receipt-from" className="text-sm text-muted-foreground">
+                Received from
+              </Label>
+              <Input
+                id="receipt-from"
+                type="date"
+                value={receiptFrom}
+                onChange={(event) => setReceiptFrom(event.target.value)}
+              />
+            </div>
+            <div className="min-w-0 basis-[150px]">
+              <Label htmlFor="receipt-to" className="text-sm text-muted-foreground">
+                Received to
+              </Label>
+              <Input
+                id="receipt-to"
+                type="date"
+                value={receiptTo}
+                onChange={(event) => setReceiptTo(event.target.value)}
+              />
+            </div>
+          </FilterBar>
+
+          <PageNote
+            shown={receipts.length}
+            total={receiptsQuery.data?.pagination.total ?? receipts.length}
+          />
+
           <DataTable
             data={receipts}
             columns={receiptColumns}
             searchPlaceholder="Search receipts"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading fee receipts..." : "No fee receipts found."}
+            emptyState={
+              receiptsQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, {}, { width: 90 }]}
+                />
+              ) : receiptClass || receiptStatus || receiptFrom || receiptTo ? (
+                <NothingMatched
+                  what="receipts"
+                  onClear={() => {
+                    setReceiptClass("");
+                    setReceiptStatus("");
+                    setReceiptFrom("");
+                    setReceiptTo("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No money taken yet"
+                  body="A receipt is recorded against the bill it settles."
+                  action={
+                    <CreateButton
+                      resource="schools.fees"
+                      label="Record receipt"
+                      action="receive-payment"
+                      onSelect={() => setReceiptDialogOpen(true)}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
 
-        <div className={activeView === "credits" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Credit on account</h2>
-          </div>
-          {allocateCreditMutation.error ? (
-            <Alert variant="destructive">
-              <AlertTitle>The credit could not be allocated</AlertTitle>
-              <AlertDescription>
-                {getApiErrorMessage(allocateCreditMutation.error)}
-              </AlertDescription>
-            </Alert>
+        {/* ── credits ──────────────────────────────────────────────────── */}
+        <div className={activeView === "credits" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Credit on account</h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            Money the school is holding that belongs to families — an overpayment, or a bill
+            settled beyond its total. Spend it on another invoice, or hand it back.
+          </p>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={creditClass}
+              options={classOptions}
+              onChange={setCreditClass}
+            />
+            <FilterSelect
+              label="Source"
+              allLabel="Either source"
+              value={creditKind}
+              options={CREDIT_KINDS}
+              onChange={setCreditKind}
+            />
+          </FilterBar>
+
+          {allocateCredit.error ? (
+            <SaveError what="The credit" error={allocateCredit.error} />
           ) : null}
+
           <DataTable
             data={credits}
             columns={creditColumns}
@@ -925,25 +1653,50 @@ export function SchoolsFeesContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={
-              isLoading
-                ? "Fetching credits\u2026"
-                : "No credit on account \u2014 every payment so far has settled a bill exactly."
+              creditsQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ avatar: true, twoLine: true }, {}, { width: 90 }]}
+                />
+              ) : creditClass || creditKind ? (
+                <NothingMatched
+                  what="credits"
+                  onClear={() => {
+                    setCreditClass("");
+                    setCreditKind("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No credit on account"
+                  body="Every payment so far has settled a bill exactly."
+                />
+              )
             }
           />
         </div>
 
-        <div className={activeView === "refunds" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Refunds</h2>
-          </div>
-          {payRefundMutation.error ? (
-            <Alert variant="destructive">
-              <AlertTitle>The refund could not be paid</AlertTitle>
-              <AlertDescription>
-                {getApiErrorMessage(payRefundMutation.error)}
-              </AlertDescription>
-            </Alert>
-          ) : null}
+        {/* ── refunds ──────────────────────────────────────────────────── */}
+        <div className={activeView === "refunds" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Refunds</h2>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={refundClass}
+              options={classOptions}
+              onChange={setRefundClass}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={refundStatus}
+              options={REFUND_STATUSES}
+              onChange={setRefundStatus}
+            />
+          </FilterBar>
+
+          {payRefund.error ? <SaveError what="The refund" error={payRefund.error} /> : null}
+
           <DataTable
             data={refunds}
             columns={refundColumns}
@@ -951,417 +1704,490 @@ export function SchoolsFeesContent() {
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={
-              isLoading
-                ? "Fetching refunds\u2026"
-                : "No refunds \u2014 start one from a credit on account."
+              refundsQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, { width: 90 }]}
+                />
+              ) : refundClass || refundStatus ? (
+                <NothingMatched
+                  what="refunds"
+                  onClear={() => {
+                    setRefundClass("");
+                    setRefundStatus("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No refunds"
+                  body="A refund is always drawn against a named credit — start one from the Credits tab."
+                />
+              )
             }
           />
         </div>
 
-        <div className={activeView === "waivers" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Fee Waivers</h2>
+        {/* ── waivers ──────────────────────────────────────────────────── */}
+        <div className={activeView === "waivers" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Fee waivers</h2>
+          <p className="text-sm text-[var(--text-muted)]">
+            A waiver is decided, then applied. Nothing comes off a bill until it is applied,
+            and an applied one can be reversed if it landed on the wrong invoice.
+          </p>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={waiverClass}
+              options={classOptions}
+              onChange={setWaiverClass}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={waiverTerm}
+              options={termOptions}
+              onChange={setWaiverTerm}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={waiverStatus}
+              options={WAIVER_STATUSES}
+              onChange={setWaiverStatus}
+            />
+            <FilterSelect
+              label="Type"
+              allLabel="Any type"
+              value={waiverType}
+              options={WAIVER_TYPES}
+              onChange={setWaiverType}
+            />
+          </FilterBar>
+
           <DataTable
             data={waivers}
             columns={waiverColumns}
             searchPlaceholder="Search waivers"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading fee waivers..." : "No fee waivers found."}
+            emptyState={
+              waiversQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ avatar: true, twoLine: true }, {}, { width: 90 }]}
+                />
+              ) : waiverClass || waiverTerm || waiverStatus || waiverType ? (
+                <NothingMatched
+                  what="waivers"
+                  onClear={() => {
+                    setWaiverClass("");
+                    setWaiverTerm("");
+                    setWaiverStatus("");
+                    setWaiverType("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No waivers on file"
+                  body="A scholarship, a hardship discount or a one-off reduction all start here."
+                  action={
+                    <CreateButton
+                      resource="schools.fees"
+                      label="New waiver"
+                      action="waive"
+                      onSelect={() => setWaiverDialog({ open: true, record: null })}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
 
-        <div className={activeView === "structures" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Fee Structures</h2>
+        {/* ── fee structures ───────────────────────────────────────────── */}
+        <div className={activeView === "structures" ? "space-y-3" : "hidden"}>
+          <h2 className="text-section-title">Fee structures</h2>
           <p className="text-sm text-[var(--text-muted)]">
-            A school opens with one fee sheet on the first year group. Copy it up the
-            ladder rather than re-typing it — the copies arrive as drafts.
+            A school opens with one fee sheet on the first year group. Copy it up the ladder
+            rather than re-typing it — the copies arrive as drafts.
           </p>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={structureClass}
+              options={classOptions}
+              onChange={setStructureClass}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={structureTerm}
+              options={termOptions}
+              onChange={setStructureTerm}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={structureStatus}
+              options={STRUCTURE_STATUSES}
+              onChange={setStructureStatus}
+            />
+          </FilterBar>
+
+          {setStructureStatusMutation.error ? (
+            <SaveError what="The fee sheet" error={setStructureStatusMutation.error} />
+          ) : null}
+          {deleteStructure.error ? (
+            <SaveError what="The fee sheet" error={deleteStructure.error} />
+          ) : null}
+
           <DataTable
             data={structures}
-            columns={structuresColumns}
+            columns={structureColumns}
             searchPlaceholder="Search fee structures"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
-            emptyState={isLoading ? "Loading fee structures..." : "No fee structures found."}
+            emptyState={
+              structuresQuery.isPending ? (
+                <TableRowsSkeleton columns={[{ twoLine: true }, {}, { width: 90 }]} />
+              ) : structureClass || structureTerm || structureStatus ? (
+                <NothingMatched
+                  what="fee sheets"
+                  onClear={() => {
+                    setStructureClass("");
+                    setStructureTerm("");
+                    setStructureStatus("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No fee sheets yet"
+                  body="Price one year group's term, then copy it up the ladder."
+                  action={
+                    <CreateButton
+                      resource="schools.fees"
+                      label="New fee sheet"
+                      onSelect={() => setStructureDialog({ open: true, record: null })}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
       </VerticalDataViews>
 
+      {/* ── the forms ────────────────────────────────────────────────────── */}
+
+      <InvoiceFormDialog
+        open={invoiceDialog.open}
+        onOpenChange={(open) => setInvoiceDialog((current) => ({ ...current, open }))}
+        invoice={invoiceDialog.record}
+      />
+      <ReceiptFormDialog open={receiptDialogOpen} onOpenChange={setReceiptDialogOpen} />
+      <WaiverFormDialog
+        open={waiverDialog.open}
+        onOpenChange={(open) => setWaiverDialog((current) => ({ ...current, open }))}
+        waiver={waiverDialog.record}
+      />
+      <StructureFormDialog
+        open={structureDialog.open}
+        onOpenChange={(open) => setStructureDialog((current) => ({ ...current, open }))}
+        structure={structureDialog.record}
+      />
+      <BulkGenerateInvoicesDialog open={bulkGenerateOpen} onOpenChange={setBulkGenerateOpen} />
       <CopyStructureDialog
         structure={copySource}
         open={copySource !== null}
-        onOpenChange={(next) => {
-          if (!next) setCopySource(null);
+        onOpenChange={(open) => {
+          if (!open) setCopySource(null);
         }}
       />
 
-      {/* Create Invoice Dialog */}
-      <Dialog open={invoiceDialogOpen} onOpenChange={handleInvoiceDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Create Invoice</DialogTitle>
-            <DialogDescription>Enter the invoice details below.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleInvoiceSubmit} className="space-y-4">
-            {createInvoiceMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(createInvoiceMutation.error)}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="invoice-studentId" className="text-sm font-medium">
-                Student ID <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="invoice-studentId"
-                value={invoiceForm.studentId}
-                onChange={(e) => setInvoiceForm((f) => ({ ...f, studentId: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="invoice-termId" className="text-sm font-medium">
-                Term ID <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="invoice-termId"
-                value={invoiceForm.termId}
-                onChange={(e) => setInvoiceForm((f) => ({ ...f, termId: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="invoice-description" className="text-sm font-medium">
-                Description
-              </label>
-              <Input
-                id="invoice-description"
-                value={invoiceForm.description}
-                onChange={(e) => setInvoiceForm((f) => ({ ...f, description: e.target.value }))}
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="invoice-amount" className="text-sm font-medium">
-                Amount <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="invoice-amount"
-                type="number"
-                step="0.01"
-                value={invoiceForm.amount}
-                onChange={(e) => setInvoiceForm((f) => ({ ...f, amount: e.target.value }))}
-                required
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleInvoiceDialogOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createInvoiceMutation.isPending}>
-                {createInvoiceMutation.isPending ? "Saving…" : "Create Invoice"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      {/* ── the destructive verbs ────────────────────────────────────────── */}
 
-      {/* Record Receipt Dialog */}
-      <Dialog open={receiptDialogOpen} onOpenChange={handleReceiptDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Record Receipt</DialogTitle>
-            <DialogDescription>Enter the receipt details below.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleReceiptSubmit} className="space-y-4">
-            {createReceiptMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(createReceiptMutation.error)}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="receipt-invoiceId" className="text-sm font-medium">
-                Invoice ID <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="receipt-invoiceId"
-                value={receiptForm.invoiceId}
-                onChange={(e) => setReceiptForm((f) => ({ ...f, invoiceId: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="receipt-amount" className="text-sm font-medium">
-                Amount <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="receipt-amount"
-                type="number"
-                step="0.01"
-                value={receiptForm.amount}
-                onChange={(e) => setReceiptForm((f) => ({ ...f, amount: e.target.value }))}
-                required
-              />
-            </div>
-            <Select
-              id="receipt-method"
-              label="Payment method"
-              value={receiptForm.method}
-              onChange={(e) => setReceiptForm((f) => ({ ...f, method: e.target.value }))}
-              required
-              hint="A payment larger than the invoice is accepted; the surplus becomes credit on the family's account."
-            >
-              <option value="">Select method</option>
-              {PAYMENT_METHODS.map((method) => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </Select>
-            <div className="space-y-2">
-              <label htmlFor="receipt-reference" className="text-sm font-medium">
-                Reference
-              </label>
-              <Input
-                id="receipt-reference"
-                value={receiptForm.reference}
-                onChange={(e) => setReceiptForm((f) => ({ ...f, reference: e.target.value }))}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleReceiptDialogOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createReceiptMutation.isPending}>
-                {createReceiptMutation.isPending ? "Saving…" : "Record Receipt"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Allocate a receipt's surplus to another invoice — S-2.5's second half.
-          The credit that motivated this dialog is named in the description, so
-          the bursar is not working from memory. */}
-      <Dialog
-        open={creditSource !== null}
-        onOpenChange={handleAllocateDialogOpenChange}
-      >
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Allocate credit</DialogTitle>
-            <DialogDescription>
-              {creditSource
-                ? `${formatSchoolMoney(creditSource.available, creditSource.currency)} from ${creditSource.reference}, held for ${creditSource.student.firstName} ${creditSource.student.lastName}.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleAllocateSubmit} className="space-y-4">
-            {allocateCreditMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>The credit could not be allocated</AlertTitle>
-                <AlertDescription>
-                  {getApiErrorMessage(allocateCreditMutation.error)}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="allocate-invoiceId" className="text-sm font-medium">
-                Invoice ID <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="allocate-invoiceId"
-                value={allocateForm.invoiceId}
-                onChange={(e) =>
-                  setAllocateForm((form) => ({ ...form, invoiceId: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="allocate-amount" className="text-sm font-medium">
-                Amount
-              </label>
-              <Input
-                id="allocate-amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                max={creditSource?.available ?? undefined}
-                value={allocateForm.amount}
-                onChange={(e) =>
-                  setAllocateForm((form) => ({ ...form, amount: e.target.value }))
-                }
-                aria-describedby="allocate-amount-help"
-              />
-              <p id="allocate-amount-help" className="text-xs text-muted-foreground">
-                Leave blank to settle as much of the invoice as the credit covers.
-              </p>
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleAllocateDialogOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={allocateCreditMutation.isPending}>
-                {allocateCreditMutation.isPending ? "Allocating…" : "Allocate"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      {/* Ask for money back — S-2.6. Requesting holds the credit; paying is a
-          separate act on the refunds view, because handing cash over and
-          deciding to hand it over are not the same moment. */}
-      <Dialog open={refundSource !== null} onOpenChange={handleRefundDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Refund credit</DialogTitle>
-            <DialogDescription>
-              {refundSource
-                ? `${formatSchoolMoney(refundSource.available, refundSource.currency)} available from ${refundSource.reference}. Requesting holds it; it is not paid until you settle the refund.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleRefundSubmit} className="space-y-4">
-            {requestRefundMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>The refund could not be requested</AlertTitle>
-                <AlertDescription>
-                  {getApiErrorMessage(requestRefundMutation.error)}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="refund-amount" className="text-sm font-medium">
-                Amount <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="refund-amount"
-                type="number"
-                step="0.01"
-                min="0.01"
-                max={refundSource?.available ?? undefined}
-                value={refundForm.amount}
-                onChange={(e) =>
-                  setRefundForm((form) => ({ ...form, amount: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <Select
-              id="refund-method"
-              label="Method"
-              value={refundForm.method}
-              onChange={(e) =>
-                setRefundForm((form) => ({ ...form, method: e.target.value }))
-              }
-              required
-            >
-              {PAYMENT_METHODS.map((method) => (
-                <option key={method.value} value={method.value}>
-                  {method.label}
-                </option>
-              ))}
-            </Select>
-            <div className="space-y-2">
-              <label htmlFor="refund-reason" className="text-sm font-medium">
-                Reason <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="refund-reason"
-                value={refundForm.reason}
-                onChange={(e) =>
-                  setRefundForm((form) => ({ ...form, reason: e.target.value }))
-                }
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="refund-reference" className="text-sm font-medium">
-                Reference
-              </label>
-              <Input
-                id="refund-reference"
-                value={refundForm.reference}
-                onChange={(e) =>
-                  setRefundForm((form) => ({ ...form, reference: e.target.value }))
-                }
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleRefundDialogOpenChange(false)}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={requestRefundMutation.isPending}>
-                {requestRefundMutation.isPending ? "Requesting…" : "Request refund"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <Dialog open={cancelTarget !== null} onOpenChange={handleCancelDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>
-              {cancelTarget ? `Cancel refund ${cancelTarget.refundNo}` : "Cancel refund"}
-            </DialogTitle>
-            <DialogDescription>
-              {cancelTarget
-                ? `This releases ${formatSchoolMoney(cancelTarget.amount, cancelTarget.currency)} back to the family's credit.`
-                : null}
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleCancelSubmit} className="space-y-4">
-            {cancelRefundMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>The refund could not be cancelled</AlertTitle>
-                <AlertDescription>
-                  {getApiErrorMessage(cancelRefundMutation.error)}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="cancel-reason" className="text-sm font-medium">
-                Reason <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="cancel-reason"
-                value={cancelReason}
-                onChange={(e) => setCancelReason(e.target.value)}
-                required
-              />
-            </div>
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => handleCancelDialogOpenChange(false)}
-              >
-                Keep it
-              </Button>
-              <Button type="submit" disabled={cancelRefundMutation.isPending}>
-                {cancelRefundMutation.isPending ? "Cancelling…" : "Cancel refund"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
-
-      <BulkGenerateInvoicesDialog
-        open={bulkGenerateDialogOpen}
-        onOpenChange={setBulkGenerateDialogOpen}
+      <ReasonDialog
+        open={writeOffTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setWriteOffTarget(null);
+        }}
+        title={writeOffTarget ? `Write off ${writeOffTarget.invoiceNo}` : "Write off"}
+        consequence={
+          writeOffTarget
+            ? `${formatSchoolMoney(writeOffTarget.balanceAmount, writeOffTarget.currency)} stops being owed and is posted to the ledger as a loss. The bill keeps its number and the family is not chased again.`
+            : null
+        }
+        reasonLabel="Reason"
+        keepLabel="Keep chasing it"
+        confirmLabel="Write it off"
+        pendingLabel="Writing off…"
+        pending={writeOffInvoice.isPending}
+        error={writeOffInvoice.error}
+        onConfirm={(reason) =>
+          writeOffTarget &&
+          writeOffInvoice.mutate({ invoiceId: writeOffTarget.id, reason })
+        }
       />
+
+      <ReasonDialog
+        open={voidTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setVoidTarget(null);
+        }}
+        title={voidTarget ? `Void ${voidTarget.receiptNo}` : "Void receipt"}
+        consequence={
+          voidTarget
+            ? `${formatSchoolMoney(voidTarget.amountReceived, voidTarget.currency)} is unwound: every invoice this receipt settled goes back to owing, and any surplus stops being credit. This cannot be undone.`
+            : null
+        }
+        reasonLabel="Reason"
+        keepLabel="Keep it posted"
+        confirmLabel="Void the receipt"
+        pendingLabel="Voiding…"
+        pending={voidReceipt.isPending}
+        error={voidReceipt.error}
+        onConfirm={(reason) =>
+          voidTarget && voidReceipt.mutate({ receiptId: voidTarget.id, reason })
+        }
+      />
+
+      <ReasonDialog
+        open={rejectTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setRejectTarget(null);
+        }}
+        title="Reject this waiver"
+        consequence={
+          rejectTarget
+            ? `${formatSchoolMoney(rejectTarget.amount, rejectTarget.currency)} will not come off ${rejectTarget.student.firstName} ${rejectTarget.student.lastName}'s bill. The waiver stays on file with the decision on it.`
+            : null
+        }
+        reasonLabel="Reason"
+        keepLabel="Leave it open"
+        confirmLabel="Reject it"
+        pendingLabel="Rejecting…"
+        pending={rejectWaiver.isPending}
+        error={rejectWaiver.error}
+        onConfirm={(reason) =>
+          rejectTarget && rejectWaiver.mutate({ waiverId: rejectTarget.id, reason })
+        }
+      />
+
+      <ReasonDialog
+        open={reverseTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setReverseTarget(null);
+        }}
+        title="Reverse this waiver"
+        consequence={
+          reverseTarget
+            ? `${formatSchoolMoney(reverseTarget.amount, reverseTarget.currency)} goes back onto ${reverseTarget.invoice?.invoiceNo ?? "the bill it discounted"}, and the family owes it again.`
+            : null
+        }
+        reasonLabel="Reason"
+        keepLabel="Leave it applied"
+        confirmLabel="Reverse it"
+        pendingLabel="Reversing…"
+        pending={reverseWaiver.isPending}
+        error={reverseWaiver.error}
+        onConfirm={(reason) =>
+          reverseTarget && reverseWaiver.mutate({ waiverId: reverseTarget.id, reason })
+        }
+      />
+
+      <ReasonDialog
+        open={cancelTarget !== null}
+        onOpenChange={(open) => {
+          if (!open) setCancelTarget(null);
+        }}
+        title={cancelTarget ? `Cancel refund ${cancelTarget.refundNo}` : "Cancel refund"}
+        consequence={
+          cancelTarget
+            ? `This releases ${formatSchoolMoney(cancelTarget.amount, cancelTarget.currency)} back to the family's credit.`
+            : null
+        }
+        reasonLabel="Reason"
+        keepLabel="Keep it"
+        confirmLabel="Cancel refund"
+        pendingLabel="Cancelling…"
+        pending={cancelRefund.isPending}
+        error={cancelRefund.error}
+        onConfirm={(reason) =>
+          cancelTarget && cancelRefund.mutate({ refundId: cancelTarget.id, reason })
+        }
+      />
+
+      {/* ── spending and returning a credit ──────────────────────────────── */}
+
+      <RecordDialog
+        open={creditSource !== null}
+        onOpenChange={(open) => {
+          if (!open) setCreditSource(null);
+        }}
+        title="Allocate credit"
+        description={
+          creditSource
+            ? `${formatSchoolMoney(creditSource.available, creditSource.currency)} from ${creditSource.reference}, held for ${creditSource.student.firstName} ${creditSource.student.lastName}.`
+            : undefined
+        }
+        size="md"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!creditSource || !allocateInvoiceId) return;
+          allocateCredit.mutate({
+            receiptId: creditSource.sourceId,
+            invoiceId: allocateInvoiceId,
+            amount: allocateAmount,
+          });
+        }}
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setCreditSource(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={allocateCredit.isPending}>
+              {allocateCredit.isPending ? "Allocating…" : "Allocate"}
+            </Button>
+          </>
+        }
+      >
+        {allocateCredit.error ? (
+          <SaveError what="The credit" error={allocateCredit.error} />
+        ) : null}
+        <InvoicePicker
+          value={allocateInvoiceId}
+          onChange={setAllocateInvoiceId}
+          studentId={creditSource?.student.id}
+          required
+        />
+        <div className="field">
+          <Label htmlFor="allocate-amount">Amount</Label>
+          <Input
+            id="allocate-amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            max={creditSource?.available ?? undefined}
+            value={allocateAmount}
+            onChange={(event) => setAllocateAmount(event.target.value)}
+            aria-describedby="allocate-amount-help"
+          />
+          <p
+            id="allocate-amount-help"
+            className="mt-1 text-[length:var(--type-caption)] text-[color:var(--text-muted)]"
+          >
+            Leave blank to settle as much of the invoice as the credit covers.
+          </p>
+        </div>
+      </RecordDialog>
+
+      <RecordDialog
+        open={refundSource !== null}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRefundSource(null);
+            setRefundForm(initialRefundForm);
+          }
+        }}
+        title="Refund credit"
+        description={
+          refundSource
+            ? `${formatSchoolMoney(refundSource.available, refundSource.currency)} available from ${refundSource.reference}. Requesting holds it; it is not paid until you settle the refund.`
+            : undefined
+        }
+        size="md"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (!refundSource || !refundForm.amount || !refundForm.reason) return;
+          requestRefund.mutate({ source: refundSource, form: refundForm });
+        }}
+        footer={
+          <>
+            <Button type="button" variant="outline" onClick={() => setRefundSource(null)}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={requestRefund.isPending}>
+              {requestRefund.isPending ? "Requesting…" : "Request refund"}
+            </Button>
+          </>
+        }
+      >
+        {requestRefund.error ? (
+          <SaveError what="The refund" error={requestRefund.error} />
+        ) : null}
+        <div className="field">
+          <Label htmlFor="refund-amount">
+            Amount <span className="text-[color:var(--tone-danger)]">*</span>
+          </Label>
+          <Input
+            id="refund-amount"
+            type="number"
+            step="0.01"
+            min="0.01"
+            max={refundSource?.available ?? undefined}
+            value={refundForm.amount}
+            onChange={(event) =>
+              setRefundForm((form) => ({ ...form, amount: event.target.value }))
+            }
+            required
+          />
+        </div>
+        <DsSelect
+          id="refund-method"
+          label="Method"
+          value={refundForm.method}
+          onChange={(event) =>
+            setRefundForm((form) => ({ ...form, method: event.target.value }))
+          }
+          required
+        >
+          {PAYMENT_METHODS.map((method) => (
+            <option key={method.value} value={method.value}>
+              {method.label}
+            </option>
+          ))}
+        </DsSelect>
+        <div className="field">
+          <Label htmlFor="refund-reason">
+            Reason <span className="text-[color:var(--tone-danger)]">*</span>
+          </Label>
+          <Input
+            id="refund-reason"
+            value={refundForm.reason}
+            onChange={(event) =>
+              setRefundForm((form) => ({ ...form, reason: event.target.value }))
+            }
+            required
+          />
+        </div>
+        <div className="field">
+          <Label htmlFor="refund-reference">Reference</Label>
+          <Input
+            id="refund-reference"
+            value={refundForm.reference}
+            onChange={(event) =>
+              setRefundForm((form) => ({ ...form, reference: event.target.value }))
+            }
+          />
+        </div>
+      </RecordDialog>
+
+      {/* A verb that failed says so, wherever it was pressed from. */}
+      {issueInvoice.error ? (
+        <Alert tone="danger" title="The invoice was not issued">
+          {getApiErrorMessage(issueInvoice.error)}
+        </Alert>
+      ) : null}
+      {fiscaliseReceipt.error ? (
+        <Alert tone="danger" title="The receipt did not reach ZIMRA">
+          {getApiErrorMessage(fiscaliseReceipt.error)}
+        </Alert>
+      ) : null}
+      {applyWaiver.error ? (
+        <Alert tone="danger" title="The waiver was not applied">
+          {getApiErrorMessage(applyWaiver.error)}
+        </Alert>
+      ) : null}
     </div>
   );
 }

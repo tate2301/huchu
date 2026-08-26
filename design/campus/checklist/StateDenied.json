@@ -1,0 +1,51 @@
+{
+ "screen": "StateDenied",
+ "header": "<!-- SCREEN: StateDenied | app-bar title: Results Moderation | caption: Term 2 &middot; signed in as Bursar -->",
+ "filters": [],
+ "columns": [
+  "Sheet",
+  "Status",
+  "Lines"
+ ],
+ "cards": [
+  "Proposed &mdash; the control is disabled, and says why",
+  "Proposed &mdash; a route the persona cannot enter at all"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Send back",
+  "Approve",
+  "Go to Fees by year group",
+  "Ask for access"
+ ],
+ "allCopy": [
+  "Read only",
+  "You do not have permission to moderate results",
+  "schoolPermissionDenial(session, \"schools.results\", \"moderate\") — 403",
+  "Proposed &mdash; the control is disabled, and says why",
+  "Sheet",
+  "Status",
+  "Lines",
+  "Mathematics — end of term",
+  "Term 2 / Form 2 / 2A",
+  "Submitted",
+  "32",
+  "Send back",
+  "Approve",
+  "English Language — end of term",
+  "Term 2 / Form 2 / 2B",
+  "31",
+  "Only a head of department can approve a sheet",
+  "You can read the queue. Approving and sending back belong to the HOD for the subject — ask",
+  "Mrs Nyathi",
+  ", or the head.",
+  "Proposed &mdash; a route the persona cannot enter at all",
+  "Moderation is not part of your work here",
+  "Your account is set up as a",
+  "Bursar",
+  ". Fees, receipts and school finance are yours; results moderation belongs to heads of department.",
+  "Go to Fees by year group",
+  "Ask for access"
+ ]
+}

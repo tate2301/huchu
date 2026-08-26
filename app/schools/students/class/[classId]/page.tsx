@@ -1,6 +1,5 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
 import { ClassStudentsContent } from "@/components/schools/students/class-students-content";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -30,9 +29,14 @@ export default async function ClassStudentsPage({
   if (!schoolClass) notFound();
 
   return (
+    // The heading is inside the content component: its one primary action adds
+    // a pupil, and the dialog behind that verb is state a server file cannot hold.
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title={schoolClass.name} />
-      <ClassStudentsContent classId={schoolClass.id} initialStreamId={streamId} />
+      <ClassStudentsContent
+        classId={schoolClass.id}
+        className={schoolClass.name}
+        initialStreamId={streamId}
+      />
     </div>
   );
 }

@@ -33,17 +33,21 @@ const EMPTY: AcademicYearFormValues = {
 export function AcademicYearFormSheet({
   open,
   onOpenChange,
+  initial,
   isSubmitting,
   error,
   onSubmit,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  /** The year being edited. Absent means the dialog is opening a new one. */
+  initial?: AcademicYearFormValues;
   isSubmitting: boolean;
   error: string | null;
   onSubmit: (values: AcademicYearFormValues) => void;
 }) {
-  const [values, setValues] = useState<AcademicYearFormValues>(EMPTY);
+  const editing = Boolean(initial);
+  const [values, setValues] = useState<AcademicYearFormValues>(initial ?? EMPTY);
 
   // Reset while rendering rather than in an effect: opening the dialog is a
   // prop change we can respond to directly, and an effect here would render the
@@ -51,7 +55,7 @@ export function AcademicYearFormSheet({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setValues(EMPTY);
+    if (open) setValues(initial ?? EMPTY);
   }
 
   const canSubmit =
@@ -64,7 +68,7 @@ export function AcademicYearFormSheet({
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="New academic year"
+      title={editing ? `Edit ${initial?.name || "academic year"}` : "New academic year"}
       description="The enclosing period that terms, classes and enrolment belong to."
       size="md"
       errors={error ? [error] : undefined}
@@ -83,7 +87,11 @@ export function AcademicYearFormSheet({
             Cancel
           </Button>
           <Button type="submit" disabled={!canSubmit || isSubmitting}>
-            {isSubmitting ? "Creating…" : "Create academic year"}
+            {isSubmitting
+              ? "Saving…"
+              : editing
+                ? "Save the academic year"
+                : "Create academic year"}
           </Button>
         </div>
       }

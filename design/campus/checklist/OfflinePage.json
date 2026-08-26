@@ -1,0 +1,24 @@
+{
+ "screen": "OfflinePage",
+ "header": "<!-- SCREEN: OfflinePage | app-bar title: OfflinePage -->",
+ "filters": [],
+ "columns": [],
+ "cards": [],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [],
+ "allCopy": [
+  "*{box-sizing:border-box} body{margin:0;background:#F7F8FA;color:#262A33; font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif; font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased} a{color:#0944C2;text-decoration:none} a:hover{color:#08379C;text-decoration:underline} svg{display:block} .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace} .nav:hover{background:#F1F3F6} .row:hover{background:#F7F8FA} .btn:hover{background:#F1F3F6} .pri:hover{background:#0944C2} .scroll::-webkit-scrollbar{width:10px;height:10px} .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box} .scroll::-webkit-scrollbar-track{background:transparent}",
+  "As built",
+  "— app/offline/page.tsx, in full",
+  "A 40px spinner and no words. A screen-reader user hears “Loading”. Nothing says the connection is gone, nothing says whether their work survived, and the spin never stops.",
+  "Proposed",
+  "No connection",
+  "This page needs the school’s network, and there is no copy of it on this device.",
+  "Anything you had already marked is saved here and goes up on its own when you are back.",
+  "Try again",
+  "What is saved here",
+  "Last connected 09:12 · 3 registers waiting",
+  "class Component extends DCLogic { renderVals() { const cozy = (this.props.density ?? 'Compact') === 'Cozy'; return { bandH: cozy ? '52px' : '44px', rowH: cozy ? '44px' : '36px', headH: cozy ? '38px' : '32px', }; } }"
+ ]
+}

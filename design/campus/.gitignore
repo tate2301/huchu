@@ -1,0 +1,5 @@
+# The seeded canvases are ~3-6 MB each and are rebuilt from the working files
+# below by `node build-<canvas>.mjs` plus the design skill's seeder. Publishing
+# them is what makes them useful; committing them is 17 MB of generated payload
+# that changes wholesale on every edit.
+campus-*.html

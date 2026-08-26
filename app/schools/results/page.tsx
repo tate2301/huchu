@@ -1,12 +1,13 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
-import { GradePicker } from "@/components/schools/common/grade-picker";
+import { ResultsOverviewContent } from "@/components/schools/results/results-overview-content";
 import { authOptions } from "@/lib/auth";
 
 /**
- * Results start with "whose marks?" — a sheet belongs to a class, so the class
- * is the route. See the note on `GradePicker`.
+ * Results opened on a grid of year-group cards — a picker where a page should
+ * be. Anybody who opens Results is asking what is outstanding and whether the
+ * school can publish yet, and a picker answers neither. The class ladder is
+ * still one click away, from the class name on every row.
  */
 export default async function SchoolsResultsPage() {
   const session = await getServerSession(authOptions);
@@ -16,11 +17,7 @@ export default async function SchoolsResultsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Results" />
-      <GradePicker
-        basePath="/schools/results"
-        emptyHint="A mark sheet belongs to a class. Set the class ladder up under Academics first."
-      />
+      <ResultsOverviewContent />
     </div>
   );
 }

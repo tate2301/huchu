@@ -8,6 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@/lib/api-utils";
+import { buildCustomFieldValues } from "@/lib/crm/custom-fields";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
@@ -19,16 +20,43 @@ import {
   toNullableDate,
 } from "../_helpers";
 
+const booleanParamSchema = z
+  .enum(["true", "false"])
+  .transform((value) => value === "true")
+  .optional();
+
 const studentQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),
   status: schoolStudentStatusSchema.optional(),
   classId: z.string().uuid().optional(),
   streamId: z.string().uuid().optional(),
-  isBoarding: z
-    .enum(["true", "false"])
-    .transform((value) => value === "true")
-    .optional(),
+  isBoarding: booleanParamSchema,
+  /**
+   * Whether the pupil has claimed a portal account. `userId` is set by the
+   * claim, so this is "has the child signed in yet" rather than "were they
+   * invited" — which is the question the roll screen is actually asking.
+   */
+  hasPortalAccount: booleanParamSchema,
+  /**
+   * Opt in to the fee and attendance standing on each row.
+   *
+   * Two extra grouped queries over the page's pupils, so it is asked for
+   * rather than always paid: the register, the attendance roster and every
+   * picker that reads this route want names and nothing else.
+   */
+  withSummary: booleanParamSchema,
 });
+
+/** What the Fees column says about a pupil, in the school's words. */
+type FeeStanding = "PAID" | "PARTIAL" | "OVERDUE" | "WAIVER" | "DUE" | "NOT_BILLED";
+
+type StudentSummary = {
+  fees: FeeStanding;
+  /** Days not marked absent, over days registered. Null before any register. */
+  attendanceRate: number | null;
+  attendanceMarked: number;
+  attendanceAbsent: number;
+};
 
 const studentGuardianLinkSchema = z.object({
   guardianId: z.string().uuid(),
@@ -51,6 +79,15 @@ const createStudentSchema = z.object({
   isBoarding: z.boolean().optional(),
   admissionDate: nullableDateInputSchema,
   guardianLinks: z.array(studentGuardianLinkSchema).optional(),
+  /**
+   * S-4.4 — the school's own fields, at the point the pupil is first written.
+   *
+   * PATCH has taken these since S-4.4; POST did not, so a registrar filling in
+   * "bus route" on the create form saved a child and then silently lost it.
+   * Validated by the same engine, with `partial: false` because a create is the
+   * whole record and a required custom field is required here too.
+   */
+  customFields: z.record(z.string(), z.unknown()).optional(),
 });
 
 const studentInclude = {
@@ -80,6 +117,102 @@ const studentInclude = {
   },
 } satisfies Prisma.SchoolStudentInclude;
 
+/**
+ * Where each pupil on this page stands on fees and on attendance.
+ *
+ * Grouped queries over the page's ids rather than a join on the list itself:
+ * a school with 900 on the roll reads 50 at a time, and two `groupBy` calls
+ * over 50 ids cost less than carrying every invoice line into the include.
+ *
+ * Deliberately no money crosses the wire. A school billing in two currencies
+ * has no meaningful single total — `GET /api/v2/schools/fees` divides each
+ * document by the rate stamped on it for exactly that reason — and the column
+ * this feeds is a badge, not a figure. Whether anything is late is currency-free.
+ */
+async function summariseStudents(
+  companyId: string,
+  studentIds: string[],
+): Promise<Record<string, StudentSummary>> {
+  if (studentIds.length === 0) return {};
+
+  const now = new Date();
+  const [feeTotals, overdue, attendance] = await Promise.all([
+    prisma.schoolFeeInvoice.groupBy({
+      by: ["studentId"],
+      where: {
+        companyId,
+        studentId: { in: studentIds },
+        // Drafts are not a bill yet and voided ones never were.
+        status: { in: ["ISSUED", "PART_PAID", "PAID", "WRITEOFF"] },
+      },
+      _sum: { balanceAmount: true, paidAmount: true, waivedAmount: true },
+      _count: { _all: true },
+    }),
+    prisma.schoolFeeInvoice.groupBy({
+      by: ["studentId"],
+      where: {
+        companyId,
+        studentId: { in: studentIds },
+        status: { in: ["ISSUED", "PART_PAID"] },
+        dueDate: { lt: now },
+        balanceAmount: { gt: 0 },
+      },
+      _count: { _all: true },
+    }),
+    prisma.schoolAttendanceSessionLine.groupBy({
+      by: ["studentId", "status"],
+      where: { companyId, studentId: { in: studentIds } },
+      _count: { _all: true },
+    }),
+  ]);
+
+  const overdueBy = new Set(overdue.map((row) => row.studentId));
+  const summary: Record<string, StudentSummary> = {};
+  for (const id of studentIds) {
+    summary[id] = {
+      fees: "NOT_BILLED",
+      attendanceRate: null,
+      attendanceMarked: 0,
+      attendanceAbsent: 0,
+    };
+  }
+
+  for (const row of feeTotals) {
+    const balance = Number(row._sum.balanceAmount ?? 0);
+    const paid = Number(row._sum.paidAmount ?? 0);
+    const waived = Number(row._sum.waivedAmount ?? 0);
+    const standing: FeeStanding = overdueBy.has(row.studentId)
+      ? "OVERDUE"
+      : balance > 0
+        ? paid > 0
+          ? "PARTIAL"
+          : "DUE"
+        : waived > 0
+          ? "WAIVER"
+          : "PAID";
+    summary[row.studentId] = { ...summary[row.studentId], fees: standing };
+  }
+
+  for (const row of attendance) {
+    const entry = summary[row.studentId];
+    if (!entry) continue;
+    entry.attendanceMarked += row._count._all;
+    // Late and excused are days the child was accounted for. Only an
+    // unexplained absence counts against the rate a parent is shown.
+    if (row.status === "ABSENT") entry.attendanceAbsent += row._count._all;
+  }
+
+  for (const entry of Object.values(summary)) {
+    if (entry.attendanceMarked === 0) continue;
+    entry.attendanceRate =
+      Math.round(
+        ((entry.attendanceMarked - entry.attendanceAbsent) / entry.attendanceMarked) * 1000,
+      ) / 10;
+  }
+
+  return summary;
+}
+
 export async function GET(request: NextRequest) {
   try {
     const sessionResult = await validateSession(request);
@@ -97,6 +230,8 @@ export async function GET(request: NextRequest) {
       classId: searchParams.get("classId") ?? undefined,
       streamId: searchParams.get("streamId") ?? undefined,
       isBoarding: searchParams.get("isBoarding") ?? undefined,
+      hasPortalAccount: searchParams.get("hasPortalAccount") ?? undefined,
+      withSummary: searchParams.get("withSummary") ?? undefined,
     });
 
     const where: Prisma.SchoolStudentWhereInput = {
@@ -115,6 +250,9 @@ export async function GET(request: NextRequest) {
     if (query.classId) where.currentClassId = query.classId;
     if (query.streamId) where.currentStreamId = query.streamId;
     if (query.isBoarding !== undefined) where.isBoarding = query.isBoarding;
+    if (query.hasPortalAccount !== undefined) {
+      where.userId = query.hasPortalAccount ? { not: null } : null;
+    }
 
     const [records, total] = await Promise.all([
       prisma.schoolStudent.findMany({
@@ -138,7 +276,19 @@ export async function GET(request: NextRequest) {
       prisma.schoolStudent.count({ where }),
     ]);
 
-    return successResponse(paginationResponse(records, total, page, limit));
+    const summary = query.withSummary
+      ? await summariseStudents(
+          session.user.companyId,
+          records.map((record) => record.id),
+        )
+      : null;
+
+    return successResponse({
+      ...paginationResponse(records, total, page, limit),
+      // Beside the rows rather than folded into them, so a caller that did not
+      // ask for it gets exactly the shape it always got.
+      ...(summary ? { summary } : {}),
+    });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
@@ -223,9 +373,22 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    let customFields: Prisma.InputJsonValue | undefined;
+    if (validated.customFields !== undefined) {
+      const definitions = await prisma.crmFieldDefinition.findMany({
+        where: { companyId, entity: "STUDENT", archivedAt: null },
+      });
+      const built = buildCustomFieldValues(definitions, validated.customFields);
+      if (built.errors.length > 0) {
+        return errorResponse("Validation failed", 400, built.errors);
+      }
+      customFields = built.values as Prisma.InputJsonValue;
+    }
+
     const student = await prisma.schoolStudent.create({
       data: {
         companyId,
+        ...(customFields !== undefined ? { customFields } : {}),
         studentNo,
         admissionNo: normalizeOptionalNullableString(validated.admissionNo) ?? null,
         firstName: validated.firstName,

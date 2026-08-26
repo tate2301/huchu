@@ -18,6 +18,8 @@ import {
   type SubjectNote,
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
+import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -204,30 +206,20 @@ export function HostelRecordPage({ hostelId }: { hostelId: string }) {
       ),
     },
     {
+      // The board the module already had and nobody could reach — every bed in
+      // the house, empty ones included, with the verb that fills them.
+      value: "beds",
+      label: "Beds",
+      count: beds.length,
+      content: <BedBoardContent hostelId={hostelId} />,
+    },
+    {
       value: "rooms",
       label: "Rooms",
       count: rooms.length,
-      content: (
-        <RelatedList
-          items={rooms}
-          emptyMessage="No rooms have been set up in this hostel."
-          renderItem={(room) => ({
-            href: `/schools/boarding/${hostelId}`,
-            title: room.code,
-            subtitle: [
-              room.floor ? `Floor ${room.floor}` : null,
-              `${(room.beds ?? []).length} beds`,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-            // How full this room is, which is the question a warden asks of a
-            // room rather than how many beds it contains.
-            meta: room._count?.allocations
-              ? `${room._count.allocations} in`
-              : "Empty",
-          })}
-        />
-      ),
+      // Was a read-only list, which meant a hostel could be built once and never
+      // altered: a partition wall or a new bunk had nowhere to be recorded.
+      content: <HostelRoomsPanel hostelId={hostelId} />,
     },
     {
       value: "notes",

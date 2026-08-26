@@ -1,5 +1,6 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
+
 import { PageHeading } from "@/components/layout/page-heading";
 import { ClassFeesContent } from "@/components/schools/fees/class-fees-content";
 import { authOptions } from "@/lib/auth";
@@ -22,13 +23,25 @@ export default async function ClassFeesPage({
 
   const schoolClass = await prisma.schoolClass.findFirst({
     where: { id: classId, companyId: session.user.companyId },
-    select: { id: true, name: true },
+    select: {
+      id: true,
+      name: true,
+      _count: { select: { students: true } },
+    },
   });
   if (!schoolClass) notFound();
 
+  const pupils = schoolClass._count.students;
+
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title={`${schoolClass.name} fees`} />
+      {/* The caption is the size of the room, not a restatement of the title:
+          "118 pupils" is what tells a bursar whether 31 families owing is most
+          of the form or a handful of it. */}
+      <PageHeading
+        title={`${schoolClass.name} fees`}
+        description={`${pupils} ${pupils === 1 ? "pupil" : "pupils"}`}
+      />
       <ClassFeesContent classId={schoolClass.id} initialStreamId={streamId} />
     </div>
   );

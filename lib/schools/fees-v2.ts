@@ -116,6 +116,17 @@ export type SchoolFeeReceiptRecord = {
     firstName: string;
     lastName: string;
   };
+  /**
+   * S-2.7. Null on a school without the ZIMRA add-on, and null on a receipt
+   * that has not reached the revenue authority yet — which is the case the
+   * ledger has to be able to show, because a bursar cannot re-send what they
+   * cannot see has failed.
+   */
+  fiscalReceipt: {
+    id: string;
+    status: string;
+    fiscalNumber: string | null;
+  } | null;
   _count: { allocations: number };
 };
 
@@ -222,6 +233,11 @@ export async function fetchSchoolFeeReceipts(params: {
   limit?: number;
   search?: string;
   studentId?: string;
+  /** Filtered through the pupil's current class — see the route's note. */
+  classId?: string;
+  /** Inclusive receipt-date window, both `YYYY-MM-DD`. */
+  from?: string;
+  to?: string;
   status?: "DRAFT" | "POSTED" | "VOIDED";
 } = {}) {
   const query = buildQuery(params);
@@ -235,6 +251,8 @@ export async function fetchSchoolFeeWaivers(params: {
   limit?: number;
   search?: string;
   studentId?: string;
+  /** Filtered through the pupil's current class. */
+  classId?: string;
   termId?: string;
   status?: "DRAFT" | "APPROVED" | "APPLIED" | "REJECTED" | "REVERSED";
 } = {}) {
@@ -296,6 +314,8 @@ export async function fetchSchoolFeeCredits(params: {
   limit?: number;
   search?: string;
   studentId?: string;
+  /** Filtered through the pupil's current class. */
+  classId?: string;
 } = {}) {
   const query = buildQuery(params);
   return fetchJson<PaginationResponse<SchoolFeeCreditRecord>>(
@@ -308,6 +328,8 @@ export async function fetchSchoolFeeRefunds(params: {
   limit?: number;
   search?: string;
   studentId?: string;
+  /** Filtered through the pupil's current class. */
+  classId?: string;
   status?: "REQUESTED" | "PAID" | "CANCELLED";
 } = {}) {
   const query = buildQuery(params);
@@ -362,5 +384,240 @@ export async function cancelSchoolFeeRefund(refundId: string, reason: string) {
   return fetchJson<SchoolFeeRefundRecord>(
     `/api/v2/schools/finance/refunds/${refundId}/cancel`,
     { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
+/* ── the verbs ───────────────────────────────────────────────────────────
+ *
+ * Every endpoint below existed before any of these functions did. The ledger
+ * could raise an invoice and take a receipt; it could not issue, write off,
+ * void, fiscalise, approve, reject, reverse, edit or discard anything, so nine
+ * routes and four of the five waiver states were unreachable from the product.
+ * These are the client halves.
+ */
+
+/** A bill for one pupil. Lands as a draft unless `issueNow`. */
+export async function createSchoolFeeInvoice(params: {
+  studentId: string;
+  termId: string;
+  description?: string;
+  amount: number;
+  issueDate?: string;
+  dueDate?: string;
+  notes?: string;
+  issueNow?: boolean;
+}) {
+  return fetchJson<ApiResponse<SchoolFeeInvoiceRecord>>("/api/v2/schools/fees/invoices", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function updateSchoolFeeInvoice(
+  invoiceId: string,
+  params: {
+    issueDate?: string;
+    dueDate?: string;
+    description?: string;
+    amount?: number;
+    notes?: string | null;
+  },
+) {
+  return fetchJson<ApiResponse<SchoolFeeInvoiceRecord>>(
+    `/api/v2/schools/fees/invoices/${invoiceId}`,
+    { method: "PATCH", body: JSON.stringify(params) },
+  );
+}
+
+/** Drafts only. An issued bill is withdrawn with a write-off, never deleted. */
+export async function discardSchoolFeeInvoice(invoiceId: string) {
+  return fetchJson<ApiResponse<{ id: string; deleted: true }>>(
+    `/api/v2/schools/fees/invoices/${invoiceId}`,
+    { method: "DELETE" },
+  );
+}
+
+/** Draft → issued: the moment the bill becomes a demand on a family. */
+export async function issueSchoolFeeInvoice(invoiceId: string, issueDate?: string) {
+  return fetchJson<ApiResponse<SchoolFeeInvoiceRecord>>(
+    `/api/v2/schools/fees/invoices/${invoiceId}/issue`,
+    { method: "POST", body: JSON.stringify(issueDate ? { issueDate } : {}) },
+  );
+}
+
+/** Giving up on the money. The reason is required and reaches the audit trail. */
+export async function writeOffSchoolFeeInvoice(invoiceId: string, reason: string) {
+  return fetchJson<ApiResponse<SchoolFeeInvoiceRecord>>(
+    `/api/v2/schools/fees/invoices/${invoiceId}/write-off`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
+export async function createSchoolFeeReceipt(params: {
+  invoiceId?: string;
+  studentId?: string;
+  amount: number;
+  method: string;
+  reference?: string;
+  receiptDate?: string;
+}) {
+  return fetchJson<ApiResponse<SchoolFeeReceiptRecord>>("/api/v2/schools/fees/receipts", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+/** Unwinds the payment and every allocation it made. Irreversible. */
+export async function voidSchoolFeeReceipt(receiptId: string, reason: string) {
+  return fetchJson<ApiResponse<SchoolFeeReceiptRecord>>(
+    `/api/v2/schools/fees/receipts/${receiptId}/void`,
+    { method: "POST", body: JSON.stringify({ reason }) },
+  );
+}
+
+export type SchoolFiscalisationStatus = {
+  receiptId: string;
+  receiptNo: string;
+  receiptStatus: string;
+  /** False on a school without the ZIMRA add-on. */
+  enabled: boolean;
+  ready: boolean;
+  blockedBy: string | null;
+  missing: string[];
+  fiscalReceipt: {
+    id: string;
+    status: string;
+    fiscalNumber: string | null;
+    providerReference: string | null;
+    lastError: string | null;
+    attemptCount: number;
+  } | null;
+};
+
+/** Why a receipt has not reached ZIMRA, without sending anything. */
+export async function fetchSchoolFeeReceiptFiscalisation(receiptId: string) {
+  const response = await fetchJson<ApiResponse<SchoolFiscalisationStatus>>(
+    `/api/v2/schools/fees/receipts/${receiptId}/fiscalise`,
+  );
+  return response.data;
+}
+
+/** Send it. The fiscal number comes back on the response when it lands. */
+export async function fiscaliseSchoolFeeReceipt(receiptId: string) {
+  return fetchJson<
+    ApiResponse<{
+      fiscalStatus: string;
+      fiscalNumber: string | null;
+      providerReference: string | null;
+    }>
+  >(`/api/v2/schools/fees/receipts/${receiptId}/fiscalise`, { method: "POST" });
+}
+
+export type FeeStructureLineInput = {
+  feeCode: string;
+  description: string;
+  amount: number;
+  isMandatory?: boolean;
+  sortOrder?: number;
+};
+
+export async function createSchoolFeeStructure(params: {
+  name: string;
+  termId: string;
+  classId: string;
+  currency?: string;
+  status?: "DRAFT" | "ACTIVE";
+  notes?: string | null;
+  lines: FeeStructureLineInput[];
+}) {
+  return fetchJson<ApiResponse<SchoolFeeStructureRecord>>(
+    "/api/v2/schools/fees/structures",
+    { method: "POST", body: JSON.stringify(params) },
+  );
+}
+
+/**
+ * Rename, reprice, activate a draft, or archive.
+ *
+ * `lines` replaces the sheet wholesale — a caller that sends five where there
+ * were six is saying the sixth is gone.
+ */
+export async function updateSchoolFeeStructure(
+  structureId: string,
+  params: {
+    name?: string;
+    currency?: string;
+    status?: "DRAFT" | "ACTIVE" | "ARCHIVED";
+    notes?: string | null;
+    lines?: FeeStructureLineInput[];
+  },
+) {
+  return fetchJson<ApiResponse<SchoolFeeStructureRecord>>(
+    `/api/v2/schools/fees/structures/${structureId}`,
+    { method: "PATCH", body: JSON.stringify(params) },
+  );
+}
+
+/** Refused once invoices quote the sheet; archive it instead. */
+export async function deleteSchoolFeeStructure(structureId: string) {
+  return fetchJson<ApiResponse<{ id: string; deleted: true }>>(
+    `/api/v2/schools/fees/structures/${structureId}`,
+    { method: "DELETE" },
+  );
+}
+
+export async function createSchoolFeeWaiver(params: {
+  studentId: string;
+  termId: string;
+  invoiceId?: string | null;
+  waiverType: SchoolFeeWaiverRecord["waiverType"];
+  amount: number;
+  reason?: string | null;
+  status?: "DRAFT" | "APPROVED";
+}) {
+  return fetchJson<ApiResponse<SchoolFeeWaiverRecord>>("/api/v2/schools/fees/waivers", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+/**
+ * Re-type a draft, or move a waiver along: APPROVED, REJECTED, REVERSED.
+ *
+ * APPLIED is not here on purpose — that is `applySchoolFeeWaiver`, which has
+ * to pick the invoice and refresh the bill.
+ */
+export async function updateSchoolFeeWaiver(
+  waiverId: string,
+  params: {
+    waiverType?: SchoolFeeWaiverRecord["waiverType"];
+    amount?: number;
+    invoiceId?: string | null;
+    reason?: string | null;
+    status?: "APPROVED" | "REJECTED" | "REVERSED";
+  },
+) {
+  return fetchJson<ApiResponse<SchoolFeeWaiverRecord>>(
+    `/api/v2/schools/fees/waivers/${waiverId}`,
+    { method: "PATCH", body: JSON.stringify(params) },
+  );
+}
+
+/** Drafts only. A decided waiver is rejected or reversed, so it stays on file. */
+export async function discardSchoolFeeWaiver(waiverId: string) {
+  return fetchJson<ApiResponse<{ id: string; deleted: true }>>(
+    `/api/v2/schools/fees/waivers/${waiverId}`,
+    { method: "DELETE" },
+  );
+}
+
+/** Takes the discount off a bill. Picks the oldest unpaid one when none is named. */
+export async function applySchoolFeeWaiver(
+  waiverId: string,
+  params: { invoiceId?: string; reason?: string } = {},
+) {
+  return fetchJson<ApiResponse<SchoolFeeWaiverRecord>>(
+    `/api/v2/schools/fees/waivers/${waiverId}/apply`,
+    { method: "POST", body: JSON.stringify(params) },
   );
 }

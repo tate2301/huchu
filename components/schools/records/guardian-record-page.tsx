@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
@@ -9,7 +10,6 @@ import { RecordMark } from "@/components/records/record-mark";
 import {
   RailSection,
   RecordPageShell,
-  RelatedList,
   type RecordTab,
 } from "@/components/records/record-page-shell";
 import {
@@ -19,9 +19,15 @@ import {
   type SubjectNote,
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import {
+  GuardianChildrenPanel,
+  type GuardianStudentLink,
+} from "@/components/schools/guardians/guardian-children-panel";
+import { GuardianPortalPanel } from "@/components/schools/guardians/guardian-portal-panel";
+import { RecordActions } from "@/components/schools/common/record-actions";
+import { RecordNotFound } from "@/components/schools/common/states";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { recordType } from "@/lib/records/registry";
 
@@ -41,22 +47,6 @@ import { recordType } from "@/lib/records/registry";
  * a guardian for.
  */
 
-type StudentLink = {
-  id: string;
-  relationship: string;
-  isPrimary: boolean;
-  canReceiveFinancials: boolean;
-  canReceiveAcademicResults: boolean;
-  student: {
-    id: string;
-    studentNo: string;
-    firstName: string;
-    lastName: string;
-    status: string;
-    currentClass: { id: string; code: string; name: string } | null;
-  };
-};
-
 type GuardianRecord = {
   id: string;
   guardianNo: string;
@@ -70,11 +60,13 @@ type GuardianRecord = {
   accent: string | null;
   customFields: Record<string, unknown> | null;
   userId: string | null;
-  studentLinks: StudentLink[];
+  studentLinks: GuardianStudentLink[];
 };
 
 export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
   const config = recordType("GUARDIAN");
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("children");
 
   const query = useQuery({
@@ -109,6 +101,15 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
       fetchJson<{ data: SubjectFile[] }>(
         `/api/v2/records/files?subjectType=GUARDIAN&subjectId=${guardianId}`,
       ),
+  });
+
+  const remove = useMutation({
+    mutationFn: () => fetchJson(config.apiPath(guardianId), { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "guardians"] });
+      // Back to the list rather than a record that is no longer there.
+      router.push(config.indexHref);
+    },
   });
 
   const guardian = query.data ?? null;
@@ -158,10 +159,11 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
 
   if (query.isError || !guardian) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>This guardian could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+      <RecordNotFound
+        what="That guardian"
+        backHref={config.indexHref}
+        backLabel="Back to the guardians"
+      />
     );
   }
 
@@ -173,28 +175,23 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
       value: "children",
       label: "Children",
       count: links.length,
+      // The landing view carries both halves of what an office opens a guardian
+      // for: which children they answer for, and whether they can log in at all.
       content: (
-        <RelatedList
-          items={links}
-          emptyMessage="This guardian is not linked to any pupil, so they will receive nothing and can see nothing."
-          renderItem={(link) => ({
-            href: recordType("STUDENT").href(link.student.id),
-            title: `${link.student.firstName} ${link.student.lastName}`,
-            subtitle: [link.relationship, link.student.currentClass?.name]
-              .filter(Boolean)
-              .join(" · "),
-            // What this person is actually allowed to be told. A guardian who
-            // gets neither is a contact of record and nothing more, and that is
-            // worth seeing at a glance rather than opening each child to find.
-            meta: [
-              link.isPrimary ? "Primary" : null,
-              link.canReceiveFinancials ? "Fees" : null,
-              link.canReceiveAcademicResults ? "Results" : null,
-            ]
-              .filter(Boolean)
-              .join(" · "),
-          })}
-        />
+        <div className="space-y-4">
+          <GuardianChildrenPanel
+            guardianId={guardianId}
+            guardianName={name}
+            links={links}
+          />
+          <GuardianPortalPanel
+            guardianId={guardianId}
+            guardianNo={guardian.guardianNo}
+            name={name}
+            email={guardian.email}
+            hasAccount={Boolean(guardian.userId)}
+          />
+        </div>
       ),
     },
     {
@@ -240,6 +237,34 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
           size="lg"
         />
       }
+      // Removing a parent is a record-level act, so it sits in the app bar with
+      // the record's name rather than inside one of its sections. Gated, and
+      // refused outright while a child is still attached — the API says the
+      // same, and hearing it before the click beats hearing it as a 409.
+      primaryAction={
+        <RecordActions
+          resource="schools.students"
+          verbs={[
+            {
+              label: "Delete",
+              action: "archive",
+              tone: "danger",
+              loading: remove.isPending,
+              unavailable:
+                links.length > 0
+                  ? "Detach their children first — a guardian with a child on the roll cannot be removed."
+                  : undefined,
+              confirm: {
+                title: `Delete ${name}?`,
+                description:
+                  "Their contact details and any portal invitation go with them. Nothing about the pupils changes.",
+                confirmLabel: "Delete the guardian",
+              },
+              onSelect: () => remove.mutate(),
+            },
+          ]}
+        />
+      }
       attributes={
         <RecordAttributes
           attributes={[
@@ -259,13 +284,16 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
         <RailSection title="At a glance">
           <dl className="space-y-2 text-sm">
             <Glance label="Children" value={String(links.length)} />
+            {/* Yes or no, not a count. "Gets fee notices: 1" of one child reads
+                as a quantity of notices; what the office is asking is whether
+                this person may be told what the family owes at all. */}
             <Glance
               label="Gets fee notices"
-              value={String(links.filter((link) => link.canReceiveFinancials).length)}
+              value={links.some((link) => link.canReceiveFinancials) ? "Yes" : "No"}
             />
             <Glance
               label="Gets results"
-              value={String(links.filter((link) => link.canReceiveAcademicResults).length)}
+              value={links.some((link) => link.canReceiveAcademicResults) ? "Yes" : "No"}
             />
           </dl>
         </RailSection>

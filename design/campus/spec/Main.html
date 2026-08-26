@@ -1,0 +1,234 @@
+<!-- SCREEN: Main | app-bar title: Receivables -->
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F7F8FA;color:#262A33;
+      font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:13px;line-height:1.5;-webkit-font-smoothing:antialiased}
+    a{color:#0944C2;text-decoration:none}
+    a:hover{color:#08379C;text-decoration:underline}
+    svg{display:block}
+    .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace}
+  </style>
+</helmet>
+
+<div style="width: 1180px; min-height: 1300px; padding: 36px 40px 44px; background: #F7F8FA">
+
+  <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; padding-bottom: 18px; border-bottom: 2px solid #16181D">
+    <div style="max-width: 760px">
+      <div style="font-size: 11px; font-weight: 700; letter-spacing: .11em; text-transform: uppercase; color: #565C69; margin-bottom: 8px">Huchu &middot; Layout system &middot; Sheet 2</div>
+      <h1 style="margin: 0 0 10px; font-size: 34px; line-height: 1.1; letter-spacing: -.021em; font-weight: 800; color: #16181D">A page is named once</h1>
+      <p style="margin: 0; font-size: 14px; line-height: 1.55; color: #565C69; text-wrap: pretty">The module screens name every page three times before the data starts, then spend a fourth line explaining a word that needed no explaining. This sheet is the rule that stops it &mdash; and it is not new: the teacher portal already works this way.</p>
+    </div>
+    <div style="flex-shrink: 0; text-align: right; font-size: 11px; line-height: 1.7; color: #8A91A0">
+      <div style="color: #565C69; font-weight: 700">Named per page</div>
+      <div class="mono" style="font-size: 30px; font-weight: 700; letter-spacing: -.02em; line-height: 1.15"><span style="color:#B83A2A">3</span><span style="font-size:19px;color:#A6AEBD">&rarr;</span><span style="color:#5E8E54">1</span></div>
+      <div>plus <span class="mono">&minus;1</span> caption line</div>
+    </div>
+  </div>
+
+  <div style="margin-top: 30px">
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px">
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: #16181D; color: #fff; font-size: 11px; font-weight: 700">1</span>
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: #16181D">What a destination page says today</h2>
+    </div>
+    <p style="margin: 0 0 16px 30px; font-size: 12.5px; color: #565C69">Accounting &rsaquo; Receivables, drawn at the top of the page. Every band below names the same destination.</p>
+
+    <div style="display: flex; gap: 18px; align-items: flex-start">
+
+      <div style="width: 560px; flex-shrink: 0">
+        <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #B83A2A; margin-bottom: 7px">Today</div>
+        <div style="border: 1px solid #D2D7E0; border-radius: 8px; overflow: hidden; background: #fff">
+
+          <div style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 11px; border-bottom: 1px solid #EEF0F4; background: #FFFFFF">
+            <div style="width: 18px; height: 18px; border-radius: 5px; background: #16181D; flex-shrink: 0"></div>
+            <span style="font-size: 12.5px; font-weight: 700; color: #16181D; background: #F6E2DD; padding: 1px 5px; border-radius: 3px">Accounting</span>
+            <span style="font-size: 10.5px; color: #A6AEBD">app bar &mdash; names the module</span>
+          </div>
+
+          <div style="display: flex; min-height: 132px">
+            <div style="width: 148px; flex-shrink: 0; border-right: 1px solid #EEF0F4; padding: 7px 6px; background: #FFFFFF">
+              <div style="font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #A6AEBD; padding: 3px 6px 4px">Receivables</div>
+              <sc-for list="{{railDemo}}" as="r" hint-placeholder-count="4">
+                <div style="display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 6px; border-radius: 4px; background: {{r.bg}}">
+                  <span style="width: 5px; height: 5px; border-radius: 1px; background: {{r.dot}}; flex-shrink: 0"></span>
+                  <span style="font-size: 11px; font-weight: {{r.weight}}; color: {{r.fg}}">{{r.label}}</span>
+                </div>
+              </sc-for>
+              <div style="margin-top: 5px; padding: 0 6px; font-size: 10px; color: #B83A2A; line-height: 1.35">rail &mdash; marks the destination</div>
+            </div>
+
+            <div style="flex: 1; min-width: 0">
+              <div style="display: flex; align-items: center; gap: 8px; height: 40px; padding: 0 12px; border-bottom: 1px solid #E5E8EE; background: #F7F8FA">
+                <span style="font-size: 13.5px; font-weight: 700; color: #16181D; background: #F6E2DD; padding: 1px 5px; border-radius: 3px">Receivables</span>
+                <span style="font-size: 11px; color: #8A91A0; border-left: 1px solid #E5E8EE; padding-left: 9px; background: #F6E2DD; border-radius: 3px">customers, invoices and the money coming in</span>
+              </div>
+              <div style="padding: 9px 12px; display: flex; flex-direction: column; gap: 6px">
+                <div style="height: 22px; border-radius: 4px; background: #F1F3F6"></div>
+                <div style="height: 22px; border-radius: 4px; background: #F7F8FA"></div>
+                <div style="height: 22px; border-radius: 4px; background: #F7F8FA"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; display: flex; flex-direction: column; gap: 6px">
+          <sc-for list="{{faults}}" as="f" hint-placeholder-count="3">
+            <div style="display: flex; gap: 8px; align-items: flex-start">
+              <span class="mono" style="flex-shrink: 0; width: 16px; height: 16px; border-radius: 3px; background: #F6E2DD; color: #B83A2A; font-size: 10px; font-weight: 700; display: flex; align-items: center; justify-content: center; margin-top: 1px">{{f.n}}</span>
+              <div style="font-size: 12px; color: #565C69; line-height: 1.45; text-wrap: pretty">{{f.text}}</div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="flex: 1; min-width: 0">
+        <div style="font-size: 10.5px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #5E8E54; margin-bottom: 7px">The rule applied</div>
+        <div style="border: 1px solid #D2D7E0; border-radius: 8px; overflow: hidden; background: #fff">
+
+          <div style="display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 11px; border-bottom: 1px solid #EEF0F4; background: #FFFFFF">
+            <div style="width: 18px; height: 18px; border-radius: 5px; background: #16181D; flex-shrink: 0"></div>
+            <span style="font-size: 12.5px; font-weight: 700; color: #16181D; background: #E7EFE0; padding: 1px 5px; border-radius: 3px">Receivables</span>
+            <span style="font-size: 10.5px; color: #A6AEBD">names the page &mdash; the only place it is named</span>
+          </div>
+
+          <div style="display: flex; min-height: 132px">
+            <div style="width: 148px; flex-shrink: 0; border-right: 1px solid #EEF0F4; padding: 7px 6px; background: #FFFFFF">
+              <div style="font-size: 9px; font-weight: 700; letter-spacing: .09em; text-transform: uppercase; color: #A6AEBD; padding: 3px 6px 4px">Receivables</div>
+              <sc-for list="{{railDemo}}" as="r" hint-placeholder-count="4">
+                <div style="display: flex; align-items: center; gap: 6px; height: 22px; padding: 0 6px; border-radius: 4px; background: {{r.bg}}">
+                  <span style="width: 5px; height: 5px; border-radius: 1px; background: {{r.dot}}; flex-shrink: 0"></span>
+                  <span style="font-size: 11px; font-weight: {{r.weight}}; color: {{r.fg}}">{{r.label}}</span>
+                </div>
+              </sc-for>
+              <div style="margin-top: 5px; padding: 0 6px; font-size: 10px; color: #5E8E54; line-height: 1.35">unchanged &mdash; it already marks the spot</div>
+            </div>
+
+            <div style="flex: 1; min-width: 0">
+              <div style="display: flex; align-items: center; gap: 7px; height: 40px; padding: 0 12px; border-bottom: 1px solid #E5E8EE; background: #F7F8FA">
+                <div style="display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 5px; background: #FFFFFF; border: 1px solid #E5E8EE">
+                  <span style="font-size: 10.5px; color: #565C69">Open</span>
+                  <span class="mono" style="font-size: 11px; font-weight: 700; color: #16181D">482,140</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px; height: 22px; padding: 0 8px; border-radius: 5px; background: #FBEFEC; border: 1px solid #F1DAD4">
+                  <span style="font-size: 10.5px; color: #96422F">Overdue</span>
+                  <span class="mono" style="font-size: 11px; font-weight: 700; color: #B83A2A">91,300</span>
+                </div>
+                <div style="flex: 1"></div>
+                <div style="height: 24px; padding: 0 9px; border-radius: 5px; border: 1px solid #E5E8EE; background: #fff; display: flex; align-items: center; font-size: 11px; color: #565C69">Export</div>
+              </div>
+              <div style="padding: 9px 12px; display: flex; flex-direction: column; gap: 6px">
+                <div style="height: 22px; border-radius: 4px; background: #F1F3F6"></div>
+                <div style="height: 22px; border-radius: 4px; background: #F7F8FA"></div>
+                <div style="height: 22px; border-radius: 4px; background: #F7F8FA"></div>
+                <div style="height: 22px; border-radius: 4px; background: #F7F8FA"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="margin-top: 10px; padding: 10px 12px; border: 1px solid #DDE7D6; background: #F1F6EE; border-radius: 7px; font-size: 12px; color: #3D5C36; line-height: 1.5; text-wrap: pretty">
+          The band keeps its height and loses its words. What fills it is the thing a name could never tell you &mdash; how much is open, how much is late &mdash; and it stays pinned while the rows scroll under it.
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top: 34px">
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px">
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: #16181D; color: #fff; font-size: 11px; font-weight: 700">2</span>
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: #16181D">The rule, in four parts</h2>
+    </div>
+    <p style="margin: 0 0 14px 30px; font-size: 12.5px; color: #565C69">Every screen on this canvas is drawn against these. They apply to all modules, not just this one.</p>
+
+    <div style="display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 11px">
+      <sc-for list="{{laws}}" as="l" hint-placeholder-count="4">
+        <div style="border: 1px solid #E5E8EE; border-radius: 9px; background: #fff; padding: 13px 15px">
+          <div style="display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px">
+            <span class="mono" style="font-size: 11px; font-weight: 700; color: #0944C2">{{l.n}}</span>
+            <h3 style="margin: 0; font-size: 13.5px; font-weight: 700; color: #16181D; letter-spacing: -.008em">{{l.title}}</h3>
+          </div>
+          <div style="font-size: 12.5px; color: #565C69; line-height: 1.5; text-wrap: pretty">{{l.body}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <div style="margin-top: 34px">
+    <div style="display: flex; align-items: baseline; gap: 10px; margin-bottom: 4px">
+      <span style="display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 20px; border-radius: 4px; background: #16181D; color: #fff; font-size: 11px; font-weight: 700">3</span>
+      <h2 style="margin: 0; font-size: 17px; font-weight: 700; letter-spacing: -.01em; color: #16181D">The caption line is not deleted &mdash; it is repointed</h2>
+    </div>
+    <p style="margin: 0 0 14px 30px; font-size: 12.5px; color: #565C69">It stops explaining the title and starts carrying the state that changes. This is the teacher portal's rule, lifted verbatim.</p>
+
+    <div style="border: 1px solid #E5E8EE; border-radius: 8px; overflow: hidden; background: #fff">
+      <div style="display: grid; grid-template-columns: 176px minmax(0, 1fr) minmax(0, 1fr); background: #F7F8FA; border-bottom: 1px solid #E5E8EE; height: 30px; align-items: center; font-size: 10px; font-weight: 700; letter-spacing: .07em; text-transform: uppercase; color: #565C69">
+        <div style="padding: 0 13px">Page</div>
+        <div style="padding: 0 13px">Caption today &mdash; explains the title</div>
+        <div style="padding: 0 13px; color: #4A7042">Caption instead &mdash; carries the state</div>
+      </div>
+      <sc-for list="{{captions}}" as="c" hint-placeholder-count="5">
+        <div style="display: grid; grid-template-columns: 176px minmax(0, 1fr) minmax(0, 1fr); border-bottom: 1px solid #EEF0F4; min-height: 34px; align-items: center">
+          <div style="padding: 6px 13px; font-size: 12px; font-weight: 600; color: #16181D">{{c.page}}</div>
+          <div style="padding: 6px 13px; font-size: 11.5px; color: #A6AEBD; text-decoration: line-through; text-decoration-color: #E0B3AA">{{c.was}}</div>
+          <div style="padding: 6px 13px; font-size: 11.5px; color: #4A7042">{{c.now}}</div>
+        </div>
+      </sc-for>
+    </div>
+    <div style="margin-top: 9px; font-size: 12px; color: #8A91A0; line-height: 1.5; text-wrap: pretty">Where nothing changes, there is no caption. A page whose only context is its own name gets a title and nothing else &mdash; that is most of them.</div>
+  </div>
+
+  <div style="margin-top: 26px; padding: 14px 16px; border: 1px solid #DCE5FD; background: #E8EFFE; border-radius: 8px; display: flex; gap: 12px; align-items: flex-start">
+    <svg viewBox="0 0 24 24" fill="none" stroke="#0944C2" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="width: 17px; height: 17px; flex-shrink: 0; margin-top: 1px"><path d="M9 18h6"></path><path d="M10 22h4"></path><path d="M12 2a7 7 0 0 0-4 12.7V18h8v-3.3A7 7 0 0 0 12 2"></path></svg>
+    <div style="font-size: 12.5px; color: #0A2862; line-height: 1.55; text-wrap: pretty">
+      <b>This is already shipped code, not a proposal.</b> <span class="mono" style="background:#DCE5FD;padding:1px 5px;border-radius:3px">teacher-portal-shell.tsx</span> dropped its category line for exactly this reason &mdash; &ldquo;it repeated what the rail already says&rdquo; &mdash; and spends its caption on the term and the class in view. <span class="mono" style="background:#DCE5FD;padding:1px 5px;border-radius:3px">page-intro.tsx</span> already discards its <span class="mono">purpose</span> and <span class="mono">nextStep</span> props. The admin modules are what has not caught up.
+    </div>
+  </div>
+
+</div>
+</x-dc>
+<script data-dc-script data-props='{"$preview":{"width":1180,"height":1300}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const on  = { bg: '#E8EFFE', dot: '#0B5DF0', fg: '#0944C2', weight: '700' };
+    const off = { bg: 'transparent', dot: '#D2D7E0', fg: '#8A91A0', weight: '400' };
+    return {
+      railDemo: [
+        { label: 'Chart of Accounts', ...off },
+        { label: 'Journals',          ...off },
+        { label: 'Receivables',       ...on  },
+        { label: 'Payables',          ...off },
+      ],
+      faults: [
+        { n: '1', text: 'The app bar names the module — but the sidebar header names it too, one column to the left. The bar is spending its most valuable slot on a word already on screen.' },
+        { n: '2', text: 'The band restates the rail’s selection. You cannot reach this page without having clicked that word; being told it again is confirmation of something never in doubt.' },
+        { n: '3', text: 'The caption explains a heading no one misread. “Receivables” means receivables. The line costs a permanent 40px band and pays nothing back.' },
+      ],
+      laws: [
+        { n: '01', title: 'The app bar names the page', body: 'Not the module — the sidebar header already carries that. The bar says where you stand, and it is the only place that says it.' },
+        { n: '02', title: 'The band carries state and action', body: 'Figures that move, the period in force, the primary action, export. Never a name. It stays pinned because the state stays relevant while the rows scroll.' },
+        { n: '03', title: 'A record page names the record', body: 'The rail cannot name a specific lead, pour or student, so the band does — status, reference, who owns it, what it is worth. That identity IS the heading.' },
+        { n: '04', title: 'Headings inside name a part, not the page', body: 'A card heading labels its own contents and stays. It is the page-level restatement that goes, not every heading in the module.' },
+      ],
+      captions: [
+        { page: 'Receivables',        was: 'customers, invoices and the money coming in',   now: 'nothing — the figures in the band say it better' },
+        { page: 'Trial Balance',      was: 'every account, opening through closing',        now: 'FY2026 · Aug · unposted 3' },
+        { page: 'Fiscalisation',      was: 'ZIMRA FDMS — the device, its credentials…',    now: 'Fiscal day 41 · open 106h · 12 queued' },
+        { page: 'Mark the register',  was: 'take attendance for your class',                now: 'Form 2A · Mathematics · Term 2' },
+        { page: 'Attendance',         was: 'who is in school today',                        now: 'Tue 24 Aug · 18 registers outstanding' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

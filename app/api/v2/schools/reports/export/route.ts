@@ -38,6 +38,15 @@ const querySchema = z.object({
   classId: z.string().uuid().optional(),
   startDate: z.string().datetime().optional(),
   endDate: z.string().datetime().optional(),
+  // The board's own filters, so the file a head downloads is the rows they were
+  // looking at. An export that quietly widens back to the whole school is worse
+  // than no export: it is a different report under the same name.
+  academicYearId: z.string().uuid().optional(),
+  feeStructureId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
+  boarding: z.enum(["BOARDING", "DAY"]).optional(),
+  minOutstanding: z.coerce.number().min(0).optional(),
+  oldestAtLeast: z.enum(["days30", "days60", "days90", "days120Plus"]).optional(),
 });
 
 type Column = { key: string; label: string };
@@ -115,6 +124,12 @@ export async function GET(request: NextRequest) {
       classId: searchParams.get("classId") ?? undefined,
       startDate: searchParams.get("startDate") ?? undefined,
       endDate: searchParams.get("endDate") ?? undefined,
+      academicYearId: searchParams.get("academicYearId") ?? undefined,
+      feeStructureId: searchParams.get("feeStructureId") ?? undefined,
+      streamId: searchParams.get("streamId") ?? undefined,
+      boarding: searchParams.get("boarding") ?? undefined,
+      minOutstanding: searchParams.get("minOutstanding") ?? undefined,
+      oldestAtLeast: searchParams.get("oldestAtLeast") ?? undefined,
     });
 
     let rows: Array<Record<string, unknown>> = [];
@@ -125,13 +140,22 @@ export async function GET(request: NextRequest) {
         if (query.startDate) options.startDate = new Date(query.startDate);
         if (query.endDate) options.endDate = new Date(query.endDate);
         if (query.termId) options.termId = query.termId;
+        if (query.academicYearId) options.academicYearId = query.academicYearId;
+        if (query.classId) options.classId = query.classId;
+        if (query.feeStructureId) options.feeStructureId = query.feeStructureId;
         rows = await generateCollectionsReport(companyId, options);
         break;
       }
       case "arrears": {
         rows = await generateArrearsAgingReport(companyId, {
-          termId: query.termId,
-          classId: query.classId,
+          ...(query.termId ? { termId: query.termId } : {}),
+          ...(query.classId ? { classId: query.classId } : {}),
+          ...(query.streamId ? { streamId: query.streamId } : {}),
+          ...(query.boarding ? { isBoarding: query.boarding === "BOARDING" } : {}),
+          ...(query.minOutstanding !== undefined
+            ? { minOutstanding: query.minOutstanding }
+            : {}),
+          ...(query.oldestAtLeast ? { oldestAtLeast: query.oldestAtLeast } : {}),
         });
         break;
       }

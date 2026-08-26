@@ -27,6 +27,23 @@ export type LessonFormValues = {
   roomId: string;
 };
 
+/**
+ * The lesson being moved, when the sheet is opened on an existing one.
+ *
+ * Only where it sits is editable — day, period, room — which is the same line
+ * `PATCH /api/v2/schools/timetable/[id]` draws. Which class, subject and
+ * teacher a lesson is belongs to the assignment, and letting the timetable
+ * restate it here would give the school two opinions on who teaches what.
+ */
+export type LessonBeingMoved = {
+  id: string;
+  /** "Mathematics · Form 2A · Mrs Nyathi" — fixed, and shown rather than offered. */
+  describe: string;
+  periodId: string;
+  dayOfWeek: number;
+  roomId: string;
+};
+
 function emptyValues(dayOfWeek: number, periodId: string): LessonFormValues {
   return { classSubjectId: "", periodId, dayOfWeek, roomId: "" };
 }
@@ -51,6 +68,7 @@ export function LessonFormSheet({
   rooms,
   defaultDayOfWeek,
   defaultPeriodId,
+  moving = null,
   isSubmitting,
   error,
   onSubmit,
@@ -62,14 +80,24 @@ export function LessonFormSheet({
   rooms: SchoolsRoomRecord[];
   defaultDayOfWeek: number;
   defaultPeriodId: string;
+  /** Set to move an existing lesson rather than place a new one. */
+  moving?: LessonBeingMoved | null;
   isSubmitting: boolean;
   /** The clash sentences from the API, already joined. */
   error: string | null;
   onSubmit: (values: LessonFormValues) => void;
 }) {
-  const [values, setValues] = useState<LessonFormValues>(
-    emptyValues(defaultDayOfWeek, defaultPeriodId),
-  );
+  const seed = () =>
+    moving
+      ? {
+          classSubjectId: moving.id,
+          periodId: moving.periodId,
+          dayOfWeek: moving.dayOfWeek,
+          roomId: moving.roomId,
+        }
+      : emptyValues(defaultDayOfWeek, defaultPeriodId);
+
+  const [values, setValues] = useState<LessonFormValues>(seed);
 
   // Reset during render rather than in an effect: the form is a fresh sheet
   // each time it opens, and an effect would render the previous lesson's
@@ -77,18 +105,24 @@ export function LessonFormSheet({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setValues(emptyValues(defaultDayOfWeek, defaultPeriodId));
+    if (open) setValues(seed());
   }
 
   const teachingPeriods = periods.filter((period) => period.isTeaching);
-  const canSubmit = Boolean(values.classSubjectId && values.periodId);
+  const canSubmit = moving
+    ? Boolean(values.periodId)
+    : Boolean(values.classSubjectId && values.periodId);
 
   return (
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Add a lesson"
-      description="Choose an existing class-subject assignment and where it sits in the week."
+      title={moving ? "Move the lesson" : "Add a lesson"}
+      description={
+        moving
+          ? "Only where it sits in the week changes. Who teaches it belongs to the assignment."
+          : "Choose an existing class-subject assignment and where it sits in the week."
+      }
       footer={
         <div className="flex flex-wrap justify-end gap-2">
           <Button variant="secondary" onClick={() => onOpenChange(false)}>
@@ -98,7 +132,13 @@ export function LessonFormSheet({
             disabled={!canSubmit || isSubmitting}
             onClick={() => onSubmit(values)}
           >
-            {isSubmitting ? "Adding…" : "Add lesson"}
+            {isSubmitting
+              ? moving
+                ? "Moving…"
+                : "Adding…"
+              : moving
+                ? "Move the lesson"
+                : "Add lesson"}
           </Button>
         </div>
       }
@@ -111,6 +151,17 @@ export function LessonFormSheet({
           </Alert>
         ) : null}
 
+        {moving ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="lesson-fixed">Lesson</Label>
+            <p
+              id="lesson-fixed"
+              className="rounded-[var(--radius-md)] border border-[var(--edge-subtle)] bg-[var(--surface-muted)] px-3 py-2 text-sm"
+            >
+              {moving.describe}
+            </p>
+          </div>
+        ) : (
         <div className="space-y-1.5">
           <Label htmlFor="lesson-assignment">Lesson</Label>
           <Select
@@ -140,6 +191,7 @@ export function LessonFormSheet({
             </p>
           ) : null}
         </div>
+        )}
 
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="space-y-1.5">

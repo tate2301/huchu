@@ -65,6 +65,9 @@ export async function GET(request: NextRequest) {
               lastName: true,
               status: true,
               isBoarding: true,
+              // The board filters by year group, and an allocation only knows
+              // which house a child is in. Their class comes from the child.
+              currentClass: { select: { id: true, code: true, name: true } },
             },
           },
           term: { select: { id: true, code: true, name: true, isActive: true } },

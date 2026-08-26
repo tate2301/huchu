@@ -7,6 +7,7 @@ import {
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import { canViewAnyPortalSubject } from "@/lib/schools/portal-identity";
 
 /**
@@ -105,5 +106,47 @@ export async function PATCH(
     }
     console.error("[API] PATCH /api/v2/schools/guardian-links/[id] error:", error);
     return errorResponse("Failed to update the guardian link");
+  }
+}
+
+/**
+ * Detach a guardian from a pupil.
+ *
+ * The `archive` grant rather than `edit`: withdrawing a link is how a parent
+ * stops receiving everything about a child at once, and getting it wrong is
+ * not a typo somebody notices on the next screen. The row goes rather than
+ * being flagged, because a link is the consent — a dormant one that could be
+ * re-read as live is the state this was meant to prevent.
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.students", "archive");
+    if (denied) return errorResponse(denied, 403);
+
+    if (!canViewAnyPortalSubject(session.user.role)) {
+      return errorResponse("Guardian consent is managed by school staff", 403);
+    }
+
+    const { id } = await context.params;
+    if (!isValidUUID(id)) return errorResponse("Invalid link id", 400);
+
+    const existing = await prisma.schoolStudentGuardian.findFirst({
+      where: { id, companyId: session.user.companyId },
+      select: { id: true },
+    });
+    if (!existing) return errorResponse("Guardian link not found", 404);
+
+    await prisma.schoolStudentGuardian.delete({ where: { id: existing.id } });
+    return successResponse({ id: existing.id, deleted: true });
+  } catch (error) {
+    console.error("[API] DELETE /api/v2/schools/guardian-links/[id] error:", error);
+    return errorResponse("Failed to remove the guardian link");
   }
 }

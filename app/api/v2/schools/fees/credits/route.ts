@@ -35,6 +35,12 @@ import { availableInvoiceCredit, availableReceiptCredit } from "../_helpers";
 
 const querySchema = z.object({
   studentId: z.string().uuid().optional(),
+  /**
+   * The pupil's current year group. Filtered through the student, because the
+   * class belongs to the child; a copy held here would give two answers the
+   * moment they move up.
+   */
+  classId: z.string().uuid().optional(),
   search: z.string().trim().min(1).optional(),
 });
 
@@ -52,6 +58,7 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const query = querySchema.parse({
       studentId: searchParams.get("studentId") ?? undefined,
+      classId: searchParams.get("classId") ?? undefined,
       search: searchParams.get("search") ?? undefined,
     });
 
@@ -59,15 +66,24 @@ export async function GET(request: NextRequest) {
       select: { id: true, studentNo: true, firstName: true, lastName: true },
     } as const;
 
-    const studentFilter: Prisma.SchoolStudentWhereInput | undefined = query.search
-      ? {
-          OR: [
-            { studentNo: { contains: query.search, mode: "insensitive" } },
-            { firstName: { contains: query.search, mode: "insensitive" } },
-            { lastName: { contains: query.search, mode: "insensitive" } },
-          ],
-        }
-      : undefined;
+    // The search and the year group narrow the same relation, so they are
+    // built as one object rather than two `student:` keys that would overwrite
+    // each other in the spread below.
+    const studentFilter: Prisma.SchoolStudentWhereInput | undefined =
+      query.search || query.classId
+        ? {
+            ...(query.classId ? { currentClassId: query.classId } : {}),
+            ...(query.search
+              ? {
+                  OR: [
+                    { studentNo: { contains: query.search, mode: "insensitive" } },
+                    { firstName: { contains: query.search, mode: "insensitive" } },
+                    { lastName: { contains: query.search, mode: "insensitive" } },
+                  ],
+                }
+              : {}),
+          }
+        : undefined;
 
     const [receipts, invoices] = await Promise.all([
       prisma.schoolFeeReceipt.findMany({

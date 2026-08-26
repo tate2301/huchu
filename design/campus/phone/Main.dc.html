@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F7F8FA;color:#262A33;
+      font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+    a{color:#0944C2;text-decoration:none}
+    a:hover{color:#08379C;text-decoration:underline}
+    svg{display:block}
+    .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace}
+    .nav:hover{background:#F1F3F6}
+    .row:hover{background:#F7F8FA}
+    .btn:hover{background:#F1F3F6}
+    .pri:hover{background:#0944C2}
+    .scroll::-webkit-scrollbar{width:10px;height:10px}
+    .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box}
+    .scroll::-webkit-scrollbar-track{background:transparent}
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden; background: #F7F8FA; position: relative; --band-h: {{bandH}}; --row-h: {{rowH}}; --head-h: {{headH}}">
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: #FFFFFF; border-bottom: 1px solid #E5E8EE">
+    <h1 style="margin: 0; flex: 1; min-width: 0; font-size: 17px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; color: #16181D; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Home</h1>
+    <div style="position: relative; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+      <svg viewBox="0 0 256 256" fill="#565C69" style="width: 18px; height: 18px; flex-shrink: 0; display: block"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"></path></svg>
+      <span class="mono" style="position: absolute; top: 1px; right: 1px; min-width: 14px; height: 14px; border-radius: 999px; background: #B83A2A; color: #fff; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center">3</span>
+    </div>
+    <span style="width: 32px; height: 32px; border-radius: 999px; background: #FDEEE0; color: #A24E08; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0">TM</span>
+  </div>
+  <div class="scroll" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 20px">
+      <div style="font-size: 12px; color: #565C69">Form 2 &middot; 2A &middot; Term 2</div>
+      <h2 style="margin: 4px 0 0; font-size: 21px; font-weight: 700; letter-spacing: -.015em; color: #16181D">Good morning, Tanaka</h2>
+      
+  <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 14px 0 8px">
+    <span style="font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">Your next class</span>
+    <span style="font-size: 12px; font-weight: 500; color: #0944C2">See timetable</span>
+  </div>
+      <div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="display: flex; align-items: center; gap: 12px">
+          <div style="width: 56px; flex-shrink: 0; text-align: center; padding: 7px 0; border-radius: 9px; background: #F1F3F6">
+            <div class="mono" style="font-size: 14px; font-weight: 700; color: #16181D">08:40</div>
+            <div style="font-size: 10px; color: #8A91A0">Per 2</div>
+          </div>
+          <div style="flex: 1; min-width: 0">
+            <div style="font-size: 15px; font-weight: 700; color: #16181D">Mathematics</div>
+            <div style="font-size: 12px; color: #565C69">Mrs Nyathi &middot; Period 2</div>
+            <div style="font-size: 11.5px; color: #8A91A0; margin-top: 2px">Rm 4 &middot; 08:40 &ndash; 09:20</div>
+          </div>
+          <svg viewBox="0 0 256 256" fill="#A6AEBD" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"></path></svg>
+        </div></div></div>
+      
+  <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 14px 0 8px">
+    <span style="font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">This week</span>
+    <span style="font-size: 12px; font-weight: 500; color: #0944C2">Whole week</span>
+  </div>
+      <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px">
+        <div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="font-size: 11px; color: #565C69">Lessons today</div><div class="mono" style="font-size: 26px; font-weight: 700; color: #16181D; line-height: 1.1; margin-top: 3px">6</div><div style="font-size: 11px; color: #8A91A0; margin-top: 2px">6 periods on your day</div></div></div>
+        <div style="border-radius: 12px; background: #16181D; padding: 13px 14px">
+          <div style="font-size: 11px; color: rgba(255,255,255,.7)">Right now</div>
+          <div style="font-size: 16px; font-weight: 700; color: #fff; line-height: 1.2; margin-top: 4px">Mathematics</div>
+          <div style="font-size: 11px; color: rgba(255,255,255,.66); margin-top: 3px">08:40 &ndash; 09:20</div>
+        </div>
+      </div>
+      
+  <div style="display: flex; align-items: baseline; justify-content: space-between; padding: 14px 0 8px">
+    <span style="font-size: 11.5px; font-weight: 500; letter-spacing: .08em; text-transform: uppercase; color: #8A91A0">Quick links</span>
+    
+  </div>
+      <div style="display: flex; flex-direction: column; gap: 9px">
+        <div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="display: flex; align-items: center; gap: 11px">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: #F1F3F6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 256 256" fill="#565C69" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M200,32H163.74a47.92,47.92,0,0,0-71.48,0H56A16,16,0,0,0,40,48V216a16,16,0,0,0,16,16H200a16,16,0,0,0,16-16V48A16,16,0,0,0,200,32Zm-72,0a32,32,0,0,1,32,32H96A32,32,0,0,1,128,32Zm32,128H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Zm0-32H96a8,8,0,0,1,0-16h64a8,8,0,0,1,0,16Z"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 13.5px; font-weight: 700; color: #16181D">Homework</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">See all</span></span><span style="display: block; font-size: 11.5px; color: #8A91A0; margin-top: 1px">What is set and what you handed in</span></span>
+                <svg viewBox="0 0 256 256" fill="#A6AEBD" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"></path></svg>
+              </div></div></div><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="display: flex; align-items: center; gap: 11px">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: #F1F3F6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 256 256" fill="#565C69" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M240,56V200a8,8,0,0,1-8,8H160a24,24,0,0,0-24,23.94,7.9,7.9,0,0,1-5.12,7.55A8,8,0,0,1,120,232a24,24,0,0,0-24-24H24a8,8,0,0,1-8-8V56a8,8,0,0,1,8-8H88a32,32,0,0,1,32,32v87.73a8.17,8.17,0,0,0,7.47,8.25,8,8,0,0,0,8.53-8V80a32,32,0,0,1,32-32h64A8,8,0,0,1,240,56Z"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 13.5px; font-weight: 700; color: #16181D">Library</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Books out</span></span><span style="display: block; font-size: 11.5px; color: #8A91A0; margin-top: 1px">Borrow a book, or see what you have</span></span>
+                <svg viewBox="0 0 256 256" fill="#A6AEBD" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"></path></svg>
+              </div></div></div><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="display: flex; align-items: center; gap: 11px">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: #F1F3F6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 256 256" fill="#565C69" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M221.87,83.16A104.1,104.1,0,1,1,195.67,49l22.67-22.68a8,8,0,0,1,11.32,11.32L167.6,99.71h0l-37.71,37.71-23.95,23.95a40,40,0,0,0,62-35.67,8,8,0,1,1,16-.9,56,56,0,0,1-95.5,42.79h0a56,56,0,0,1,73.13-84.43L184.3,60.39a87.88,87.88,0,1,0,23.13,29.67,8,8,0,0,1,14.44-6.9Z"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 13.5px; font-weight: 700; color: #16181D">My goals</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">Your targets</span></span><span style="display: block; font-size: 11.5px; color: #8A91A0; margin-top: 1px">What you are aiming for each subject</span></span>
+                <svg viewBox="0 0 256 256" fill="#A6AEBD" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"></path></svg>
+              </div></div></div><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="display: flex; align-items: center; gap: 11px">
+                <span style="width: 34px; height: 34px; border-radius: 9px; background: #F1F3F6; display: flex; align-items: center; justify-content: center; flex-shrink: 0"><svg viewBox="0 0 256 256" fill="#565C69" style="width: 17px; height: 17px; flex-shrink: 0; display: block"><path d="M224,48H32a8,8,0,0,0-8,8V192a16,16,0,0,0,16,16H216a16,16,0,0,0,16-16V56A8,8,0,0,0,224,48ZM98.71,128,40,181.81V74.19Zm11.84,10.85,12,11.05a8,8,0,0,0,10.82,0l12-11.05,58,53.15H52.57ZM157.29,128,216,74.18V181.82Z"></path></svg></span>
+                <span style="flex: 1; min-width: 0"><span style="display: flex; align-items: center; gap: 7px"><span style="font-size: 13.5px; font-weight: 700; color: #16181D">Messages</span><span style="display: inline-flex; align-items: center; height: 19px; padding: 0 7px; border-radius: 5px; background: #F1F3F6; color: #565C69; border: 1px solid #E5E8EE; font-size: 10.5px; font-weight: 600; white-space: nowrap; flex-shrink: 0">From school</span></span><span style="display: block; font-size: 11.5px; color: #8A91A0; margin-top: 1px">School news · marks · homework</span></span>
+                <svg viewBox="0 0 256 256" fill="#A6AEBD" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M184.49,136.49l-80,80a12,12,0,0,1-17-17L159,128,87.51,56.49a12,12,0,1,1,17-17l80,80A12,12,0,0,1,184.49,136.49Z"></path></svg>
+              </div></div></div>
+      </div>
+      <div style="margin-top: 14px"></div>
+    </div>
+  
+  <div style="height: 64px; flex-shrink: 0; display: flex; align-items: center; padding: 6px; background: #FFFFFF; border-top: 1px solid #E5E8EE; box-shadow: 0 -6px 18px -8px rgba(22,24,29,.1)">
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#0B5DF0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 700; color: #0B5DF0">Home</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Timetable</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1,0-16h8V136a8,8,0,0,1,8-8H72a8,8,0,0,1,8,8v64H96V88a8,8,0,0,1,8-8h32a8,8,0,0,1,8,8V200h16V40a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V200h8A8,8,0,0,1,232,208Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Marks</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M172,120a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,120Zm60,8A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.09,88.09,0,0,0-91.47-87.93C77.43,41.89,39.87,81.12,40,128.25a87.65,87.65,0,0,0,22.24,58.16A79.71,79.71,0,0,1,84,165.1a4,4,0,0,1,4.83.32,59.83,59.83,0,0,0,78.28,0,4,4,0,0,1,4.83-.32,79.71,79.71,0,0,1,21.79,21.31A87.62,87.62,0,0,0,216,128Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Profile</span>
+          
+        </div>
+  </div>
+  
+</div>
+</x-dc>
+<script data-dc-script data-props='{"density":{"editor":"enum","options":["Compact","Cozy"],"default":"Compact"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cozy = (this.props.density ?? 'Compact') === 'Cozy';
+    return {
+      bandH: cozy ? '52px' : '44px',
+      rowH:  cozy ? '44px' : '36px',
+      headH: cozy ? '38px' : '32px',
+    };
+  }
+}
+</script>
+</body>
+</html>

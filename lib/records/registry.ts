@@ -194,8 +194,10 @@ const CONFIGS: RecordTypeConfig[] = [
     module: "schools",
     kind: "class",
     isPerson: false,
-    indexHref: "/schools/classes",
-    href: (id) => `/schools/classes/${id}`,
+    // The academic ladder moved into Management > Master Data; the old
+    // `/schools/classes` routes still redirect here.
+    indexHref: "/management/master-data/schools/classes",
+    href: (id) => `/management/master-data/schools/classes/${id}`,
     apiPath: (id) => `/api/v2/schools/classes/${id}`,
     queryKey: (id) => ["schools", "class", id],
   },
@@ -206,8 +208,8 @@ const CONFIGS: RecordTypeConfig[] = [
     module: "schools",
     kind: "subject",
     isPerson: false,
-    indexHref: "/schools/subjects",
-    href: (id) => `/schools/subjects/${id}`,
+    indexHref: "/management/master-data/schools/subjects",
+    href: (id) => `/management/master-data/schools/subjects/${id}`,
     apiPath: (id) => `/api/v2/schools/subjects/${id}`,
     queryKey: (id) => ["schools", "subject", id],
   },

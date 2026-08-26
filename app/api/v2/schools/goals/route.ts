@@ -17,6 +17,13 @@ const querySchema = z.object({
 
 const saveSchema = z.object({
   studentId: z.string().uuid().optional(),
+  /**
+   * The term the target belongs to. Staff only, and absent means the school's
+   * current one: the oversight board can be read on any term, and writing a
+   * target into today's term because that is what the server assumed would put
+   * it on a screen nobody was looking at.
+   */
+  termId: z.string().uuid().optional(),
   subjectId: z.string().uuid(),
   targetMark: z.number().min(0).max(100).nullish(),
   plan: z.string().trim().max(2000).nullish(),
@@ -107,7 +114,10 @@ export async function POST(request: NextRequest) {
       return errorResponse("Only a teacher writes the teacher's note", 403);
     }
 
-    const termId = (await getCurrentTerm(companyId))?.id;
+    if (validated.termId && !isStaff) {
+      return errorResponse("You may only set goals in the current term", 403);
+    }
+    const termId = validated.termId ?? (await getCurrentTerm(companyId))?.id;
     if (!termId) return errorResponse("This school has no active term", 400);
 
     const goal = await saveGoal({

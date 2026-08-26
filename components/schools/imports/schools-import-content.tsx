@@ -13,7 +13,16 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import {
+  LoadError,
+  NothingYet,
+  SaveError,
+  StatsSkeleton,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -22,7 +31,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import { StepProgress } from "@/components/ui/step-progress";
 import {
   Table,
@@ -98,6 +106,9 @@ type CommitResult = {
   anomalies: number;
 };
 
+/** The two entity types `_guard.ts` puts behind the fees permission as well. */
+const MONEY_ENTITIES = new Set(["FEE_STRUCTURE", "OPENING_BALANCE"]);
+
 const STEPS = [
   { id: "choose", label: "Choose and upload" },
   { id: "map", label: "Check the columns" },
@@ -120,6 +131,10 @@ export function SchoolsImportContent() {
   const [dryRun, setDryRun] = useState<DryRun | null>(null);
   const [committed, setCommitted] = useState<CommitResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  /** Which kind of record the history is narrowed to. Client-side: the list
+   *  route takes no entity filter and an import history is a short list. */
+  const [historyFilter, setHistoryFilter] = useState("");
+  const access = useSchoolAccess();
 
   const listQuery = useQuery({
     queryKey: ["schools", "imports"],
@@ -211,22 +226,26 @@ export function SchoolsImportContent() {
   if (listQuery.isPending) {
     return (
       <div className="space-y-4" data-testid="schools-import-loading">
-        <Skeleton className="h-10 w-full" />
-        <Skeleton className="h-48 w-full" />
+        <StatsSkeleton count={4} />
+        <TableRowsSkeleton rows={4} columns={[{}, { width: 140 }, { width: 120 }]} />
       </div>
     );
   }
 
   if (listQuery.isError) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>The import screen could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(listQuery.error)}</AlertDescription>
-      </Alert>
+      <LoadError
+        what="the import screen"
+        error={listQuery.error}
+        onRetry={() => void listQuery.refetch()}
+      />
     );
   }
 
-  const history = listQuery.data?.data ?? [];
+  const allHistory = listQuery.data?.data ?? [];
+  const history = historyFilter
+    ? allHistory.filter((record) => record.entityType === historyFilter)
+    : allHistory;
 
   return (
     <div className="space-y-6" data-testid="schools-import">
@@ -236,12 +255,7 @@ export function SchoolsImportContent() {
         ariaLabel="Importing school records"
       />
 
-      {error ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{error}</AlertDescription>
-        </Alert>
-      ) : null}
+      {error ? <SaveError what="That import" error={error} /> : null}
 
       {/* ── Step 1: what, and from which file ─────────────────────────── */}
       {!job ? (
@@ -508,14 +522,29 @@ export function SchoolsImportContent() {
         <CardHeader>
           <CardTitle>Earlier imports</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
+          <FilterBar>
+            <FilterSelect
+              label="Records"
+              allLabel="Everything imported"
+              value={historyFilter}
+              options={entities.map((candidate) => ({
+                value: candidate.key,
+                label: candidate.label,
+              }))}
+              onChange={setHistoryFilter}
+            />
+          </FilterBar>
+
           {history.length === 0 ? (
-            <Empty>
-              <EmptyTitle>Nothing has been imported yet</EmptyTitle>
-              <EmptyDescription>
-                Every import is listed here with what it did, so it can be undone later.
-              </EmptyDescription>
-            </Empty>
+            <NothingYet
+              title={
+                historyFilter
+                  ? "Nothing of that kind has been imported"
+                  : "Nothing has been imported yet"
+              }
+              body="Every import is listed here with what it did, so it can be undone later."
+            />
           ) : (
             <div className="overflow-x-auto">
               <Table>
@@ -554,14 +583,31 @@ export function SchoolsImportContent() {
                       </TableCell>
                       <TableCell className="text-right">
                         {record.status === "COMMITTED" ? (
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={() => rollbackMutation.mutate(record.id)}
-                            disabled={rollbackMutation.isPending}
-                          >
-                            Undo
-                          </Button>
+                          <RecordActions
+                            resource="schools.students"
+                            verbs={[
+                              {
+                                label: "Undo",
+                                action: "create",
+                                tone: "danger",
+                                loading: rollbackMutation.isPending,
+                                // Loading money is the bursar's, so undoing it
+                                // is too — the same split `_guard.ts` makes on
+                                // the way in.
+                                unavailable:
+                                  MONEY_ENTITIES.has(record.entityType) &&
+                                  !access.can("schools.fees", "create")
+                                    ? "This is the bursar to undo."
+                                    : undefined,
+                                confirm: {
+                                  title: `Undo ${record.fileName}`,
+                                  description: `The ${record.rowsCreated} records this import created are removed, newest first. Anything somebody has since added on top of them — a mark, a receipt, a bed — stops the delete rather than being taken with it.`,
+                                  confirmLabel: "Undo this import",
+                                },
+                                onSelect: () => rollbackMutation.mutate(record.id),
+                              },
+                            ]}
+                          />
                         ) : null}
                       </TableCell>
                     </TableRow>

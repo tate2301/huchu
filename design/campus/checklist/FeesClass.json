@@ -1,0 +1,48 @@
+{
+ "screen": "FeesClass",
+ "header": "<!-- SCREEN: FeesClass | app-bar title: Form 2 fees | caption: Term 2 &middot; 118 pupils -->",
+ "filters": [
+  "Class = Every class",
+  "Status = Any status"
+ ],
+ "columns": [],
+ "cards": [],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Families",
+  "Chikwanda, Rutendo",
+  "Dube, Tapiwa",
+  "Moyo, Farai",
+  "Mutasa, Tanaka",
+  "Zimuto, Nyasha"
+ ],
+ "allCopy": [
+  "Outstanding",
+  "9,610",
+  "Families",
+  "31",
+  "Settled",
+  "87",
+  "Class",
+  "Every class",
+  "Status",
+  "Any status",
+  "Search invoices",
+  "USD 9,610.00 outstanding across 31 students, from 118 invoices.",
+  "Chikwanda, Rutendo",
+  "INV-2026-0388 · Term 2 · USD 310.00 billed",
+  "Paid",
+  "Dube, Tapiwa",
+  "INV-2026-0402 · Term 2 · USD 310.00 billed · USD 155.00 outstanding",
+  "Part paid",
+  "Moyo, Farai",
+  "INV-2026-0407 · Term 2 · USD 310.00 billed · USD 310.00 outstanding",
+  "Issued",
+  "Mutasa, Tanaka",
+  "INV-2026-0412 · Term 2 · USD 310.00 billed · USD 310.00 outstanding",
+  "Zimuto, Nyasha",
+  "INV-2026-0421 · Term 2 · USD 310.00 billed",
+  "Written off"
+ ]
+}

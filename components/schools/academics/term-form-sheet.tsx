@@ -47,6 +47,7 @@ export function TermFormSheet({
   open,
   onOpenChange,
   years,
+  initial,
   isSubmitting,
   error,
   onSubmit,
@@ -54,12 +55,17 @@ export function TermFormSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   years: SchoolsAcademicYearRecord[];
+  /** The term being edited. Absent means the dialog is opening a new one. */
+  initial?: TermFormValues;
   isSubmitting: boolean;
   error: string | null;
   onSubmit: (values: TermFormValues) => void;
 }) {
+  const editing = Boolean(initial);
   const defaultYearId = years.find((year) => year.isActive)?.id ?? years[0]?.id ?? "";
-  const [values, setValues] = useState<TermFormValues>(() => emptyValues(defaultYearId));
+  const [values, setValues] = useState<TermFormValues>(
+    () => initial ?? emptyValues(defaultYearId),
+  );
 
   // Reset while rendering rather than in an effect: opening the dialog is a
   // prop change we can respond to directly, and an effect here would render the
@@ -67,7 +73,7 @@ export function TermFormSheet({
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
-    if (open) setValues(emptyValues(defaultYearId));
+    if (open) setValues(initial ?? emptyValues(defaultYearId));
   }
 
   const selectedYear = years.find((year) => year.id === values.academicYearId);
@@ -82,7 +88,7 @@ export function TermFormSheet({
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="New term"
+      title={editing ? `Edit ${initial?.name || "term"}` : "New term"}
       description="Registers, invoices and result sheets are all recorded against a term."
       size="md"
       errors={error ? [error] : undefined}
@@ -101,7 +107,7 @@ export function TermFormSheet({
             Cancel
           </Button>
           <Button type="submit" disabled={!canSubmit || isSubmitting}>
-            {isSubmitting ? "Creating…" : "Create term"}
+            {isSubmitting ? "Saving…" : editing ? "Save the term" : "Create term"}
           </Button>
         </div>
       }
@@ -111,6 +117,7 @@ export function TermFormSheet({
           <Label htmlFor="term-year">Academic year</Label>
           <Select
             value={values.academicYearId}
+            disabled={editing}
             onValueChange={(value) =>
               setValues((current) => ({ ...current, academicYearId: value }))
             }

@@ -2,12 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import {
+  Alert,
+  Badge,
+  Button,
+  MobileList,
+  MobileListSectionHeader,
+} from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  LoadError,
+  NothingLeftToDo,
+  NothingYet,
+  SaveError,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import {
   Select,
   SelectContent,
@@ -174,22 +185,46 @@ export function YearRollUpContent() {
 
   return (
     <div className="space-y-4">
+      {/* The four numbers this screen exists to weigh, and the one verb that
+          acts on them. The verb sits in the band rather than the header because
+          it is only meaningful once a plan has been worked out. */}
+      <PageBand
+        chips={[
+          { label: "Moving up", value: plan?.summary.PROMOTE ?? "—", tone: "success" },
+          { label: "Leaving", value: plan?.summary.GRADUATE ?? "—" },
+          { label: "No ladder", value: plan?.summary.REPEAT ?? "—", tone: "warn" },
+          {
+            label: `Below ${plan?.passMark ?? 50}%`,
+            value: flagged,
+            tone: flagged > 0 ? "danger" : "neutral",
+          },
+        ]}
+        actions={
+          <Button
+            variant="primary"
+            size="sm"
+            loading={applyMutation.isPending}
+            disabled={applyMutation.isPending || toDo === 0}
+            onClick={() => applyMutation.mutate()}
+          >
+            {applyMutation.isPending
+              ? "Rolling up…"
+              : `Roll ${toDo} student${toDo === 1 ? "" : "s"} up`}
+          </Button>
+        }
+      />
+
       {planQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to work the roll-up out</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(planQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="the roll-up"
+          error={planQuery.error}
+          onRetry={() => void planQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      {actionError ? <SaveError what="The roll-up" error={actionError} /> : null}
       {result ? (
-        <Alert>
-          <AlertTitle>Done</AlertTitle>
-          <AlertDescription>{result}</AlertDescription>
+        <Alert tone="success" title="Done">
+          {result}
         </Alert>
       ) : null}
 
@@ -218,45 +253,40 @@ export function YearRollUpContent() {
       </FilterBar>
 
       {plan && plan.source === "current-class" ? (
-        <Alert>
-          <AlertTitle>Built from where each child sits now</AlertTitle>
-          <AlertDescription>
-            {plan.fromTerm.name} has no enrolment records, so this list came from
-            each student&rsquo;s current year group instead. That is a weaker fact
-            than an enrolment — worth a look before rolling {rows.length} records
-            over.
-          </AlertDescription>
+        <Alert tone="warn" title="Built from where each child sits now">
+          {plan.fromTerm.name} has no enrolment records, so this list came from each
+          student&rsquo;s current year group instead. That is a weaker fact than an
+          enrolment — worth a look before rolling {rows.length} records over.
         </Alert>
       ) : null}
 
       {plan ? (
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-          <p className="text-sm text-muted-foreground">
-            {plan.fromTerm.name} → {plan.toTerm.name} · {plan.summary.PROMOTE} moving up,{" "}
-            {plan.summary.GRADUATE} leaving, {plan.summary.REPEAT} with no ladder
-            {flagged > 0 ? ` · ${flagged} below ${plan.passMark}%` : ""}
-          </p>
-          <Button
-            onClick={() => applyMutation.mutate()}
-            disabled={applyMutation.isPending || toDo === 0}
-          >
-            {applyMutation.isPending
-              ? "Rolling up…"
-              : `Roll ${toDo} student${toDo === 1 ? "" : "s"} up`}
-          </Button>
-        </div>
+        <p className="text-sm text-muted-foreground">
+          {plan.fromTerm.name} → {plan.toTerm.name} · {plan.summary.PROMOTE} moving up,{" "}
+          {plan.summary.GRADUATE} leaving, {plan.summary.REPEAT} with no ladder
+          {flagged > 0 ? ` · ${flagged} below ${plan.passMark}%` : ""}
+        </p>
+      ) : null}
+
+      {grouped.length === 0 && planQuery.isLoading ? (
+        <TableRowsSkeleton rows={6} columns={[{ twoLine: true }, { width: 170 }]} />
+      ) : null}
+      {grouped.length === 0 && !planQuery.isLoading ? (
+        resolvedFrom && resolvedTo ? (
+          <NothingLeftToDo
+            title="Nobody to roll up"
+            body="There are no active enrolments in that term, so nothing would move."
+          />
+        ) : (
+          <NothingYet
+            title="Choose the two terms"
+            body="Pick the term to roll up from and the one to roll into, and this becomes a list of every child and what would happen to them."
+          />
+        )
       ) : null}
 
       <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {planQuery.isLoading
-              ? "Working out what would happen…"
-              : resolvedFrom && resolvedTo
-                ? "Nobody to roll up — there are no active enrolments in that term."
-                : "Choose the term to roll up from and the one to roll into."}
-          </MobileListEmpty>
-        ) : (
+        {grouped.length === 0 ? null : (
           grouped.map(([heading, groupRows]) => (
             <div key={heading}>
               <MobileListSectionHeader>
@@ -278,12 +308,16 @@ export function YearRollUpContent() {
                             : ""}
                         </span>
                         {row.flagged ? (
-                          <Badge variant="destructive">
-                            Below {plan?.passMark ?? 50}%
-                          </Badge>
+                          <Badge tone="danger">Below {plan?.passMark ?? 50}%</Badge>
+                        ) : null}
+                        {/* Nothing above this year group, so "move up" has
+                            nowhere to move to. Said once, as a chip, rather
+                            than buried in the reason line. */}
+                        {!row.toClass && row.proposed === "GRADUATE" ? (
+                          <Badge tone="warn">No ladder</Badge>
                         ) : null}
                         {row.alreadyRolled ? (
-                          <Badge variant="secondary">Already done</Badge>
+                          <Badge tone="neutral">Already done</Badge>
                         ) : (
                           <Select
                             value={action}

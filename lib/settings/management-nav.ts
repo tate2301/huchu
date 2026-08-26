@@ -116,6 +116,58 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
       icon: UserRound,
       description: "Seller identity records used by scrap purchases and compliance checks.",
     },
+
+    // A school's academic ladder — years, terms, classes, streams, subjects, the
+    // school day, grading and the publishing window — is reference data set up
+    // once a year by an administrator, and everything else in the module hangs
+    // off it. It sat in the school's own sidebar next to the daily work, where a
+    // registrar creating pupils all day could restructure the year. It is master
+    // data, so it lives with the rest of the company's master data.
+    {
+      id: "schools-years",
+      label: "Years and Terms",
+      href: "/management/master-data/schools/years",
+      icon: Dataset,
+      description:
+        "Academic years, their terms, and the school calendar everything else is dated against.",
+    },
+    {
+      id: "schools-classes",
+      label: "Classes and Streams",
+      href: "/management/master-data/schools/classes",
+      icon: Grid3x3,
+      description: "The year-group ladder and the streams inside each one.",
+    },
+    {
+      id: "schools-subjects",
+      label: "Subjects",
+      href: "/management/master-data/schools/subjects",
+      icon: MedusaBookOpenIcon,
+      description: "What the school teaches, and which classes take each subject.",
+    },
+    {
+      id: "schools-school-day",
+      label: "The School Day",
+      href: "/management/master-data/schools/periods",
+      icon: MedusaCircleSlidersIcon,
+      description: "Periods and rooms — the grid a timetable is laid out on.",
+    },
+    {
+      id: "schools-grading",
+      label: "Grading and Publishing",
+      href: "/management/master-data/schools/grading",
+      icon: FileCheck,
+      description:
+        "Grade boundaries, and the windows in which results may be published.",
+    },
+    {
+      id: "schools-identity",
+      label: "School Records",
+      href: "/management/master-data/schools/identity",
+      icon: MedusaIdBadgeIcon,
+      description:
+        "Admission numbering, and the extra fields every pupil and guardian record carries.",
+    },
   ],
   compliance: [
     { id: "permits", label: "Permits", href: "/compliance/permits", icon: FileCheck },

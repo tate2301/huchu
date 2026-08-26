@@ -18,7 +18,6 @@ import {
   Fuel,
   Funnel,
   History,
-  Layers,
   Zap,
   LocalShipping,
   ManageAccounts,
@@ -244,19 +243,32 @@ export const navSections: NavSection[] = [
       { href: "/stores/price-lists", icon: Scale, label: "Price lists", group: "selling" },
     ],
   },
-  // A school's sidebar is organised by *record*, not by department. The people
-  // who use it — a registrar, a bursar, a boarding master, an examinations
-  // officer — each go straight to the thing they run: Students, Fees, Boarding,
-  // Results. So every entity with more than one page is its own top-level entry
-  // that expands to its pages, and an entity with exactly one page is a
-  // top-level link with no ceremony. Nothing is buried two levels down under a
-  // department heading nobody says out loud.
+  // ONE sidebar, not two.
+  //
+  // `flattenGroups` makes every group below a root-level entry that opens on
+  // its own, so the campus nav *is* the sidebar rather than a second rail
+  // hanging off a "School Operations" link. That only works if almost nothing
+  // is left ungrouped: eleven loose items used to render as a flat wall of
+  // links beside the groups, which is what made it read as two navigations.
+  // Overview is the single exception, because an overview is a destination and
+  // not a category to expand.
+  //
+  // The bands are the jobs people come here to do, in the order a school day
+  // touches them — who is on the roll, who is in tonight, what is being taught,
+  // what was marked, what is owed, what is lent, what has been said, what gets
+  // printed. A registrar, a bursar, a boarding master and an examinations
+  // officer each own one band and can ignore the rest.
   //
   // Classroom work is deliberately absent. Lesson plans, teaching resources,
-  // homework and mark capture live in the teacher portal, because a teacher
-  // does them and an administrator does not. The office keeps oversight —
-  // who has not marked, moderation, publishing — which is a different question
-  // asked of the same tables.
+  // the scheme of work and mark capture live in the teacher portal, because a
+  // teacher does them and an administrator does not. The office keeps
+  // oversight — who has not marked, moderation, publishing — which is a
+  // different question asked of the same tables.
+  //
+  // The academic ladder is absent for a different reason: years, terms,
+  // classes, subjects, periods and grading are master data and live under
+  // Management. Two entries reach across to them — "Identity and records" and
+  // "Academic setup" — so nobody has to know they moved.
   //
   // Every group shares `schools.core`, so a tenant without the module loses the
   // whole set rather than being left with empty headings.
@@ -267,55 +279,78 @@ export const navSections: NavSection[] = [
     featureKey: "schools.core",
     flattenGroups: true,
     groups: [
-      { id: "students", label: "Students" },
+      { id: "admissions", label: "Admissions" },
       { id: "boarding", label: "Boarding" },
-      { id: "academics", label: "Academic setup" },
+      { id: "academics", label: "Academics" },
       { id: "results", label: "Results" },
-      { id: "fees", label: "Fees" },
+      { id: "finance", label: "Finance" },
+      { id: "services", label: "Services" },
+      { id: "communication", label: "Communication" },
       { id: "paperwork", label: "Reports and documents" },
     ],
     items: [
-      { href: "/schools", icon: Building2, label: "School Overview" },
+      { href: "/schools", icon: Building2, label: "Overview" },
 
-      // The registrar's desk: the roll and everything that changes it.
-      { href: "/schools/students", icon: Users, label: "All students", group: "students" },
-      { href: "/schools/admissions", icon: NoteAdd, label: "Admissions", group: "students" },
-      { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "students" },
-      { href: "/schools/imports", icon: Upload, label: "Import records", group: "students" },
-
-      // One page each, so one click each. Top level, no expansion to open.
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians" },
-      { href: "/schools/teachers", icon: ManageAccounts, label: "Teachers" },
-      { href: "/schools/attendance", icon: UserCheck, label: "Attendance" },
+      // Everyone on the roll and everything that changes it. The band is named
+      // for the door people come in through.
+      { href: "/schools/admissions", icon: NoteAdd, label: "Applications", group: "admissions" },
+      { href: "/schools/students", icon: Users, label: "Students", group: "admissions" },
+      { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "admissions" },
+      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "admissions" },
+      { href: "/schools/imports", icon: Upload, label: "Import records", group: "admissions" },
+      {
+        href: "/management/master-data/schools/identity",
+        icon: TableRows,
+        label: "Identity and records",
+        group: "admissions",
+      },
 
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
       { href: "/schools/boarding/welfare", icon: ShieldCheck, label: "Health and welfare", group: "boarding" },
 
-      { href: "/schools/academics", icon: TableRows, label: "Years and terms", group: "academics" },
-      { href: "/schools/classes", icon: Checklist, label: "Classes", group: "academics" },
-      { href: "/schools/subjects", icon: Dataset, label: "Subjects", group: "academics" },
-      { href: "/schools/academics/syllabus", icon: Layers, label: "Scheme of work", group: "academics" },
-      { href: "/schools/academics/identity", icon: UserRound, label: "Identity and records", group: "academics" },
+      // Attendance sits here rather than on its own: a register is a class's
+      // record of a lesson, and the person chasing a missing one at 09:15 is
+      // the same person who looks at the timetable to see whose it was.
+      { href: "/schools/attendance", icon: UserCheck, label: "Attendance", group: "academics" },
+      { href: "/schools/timetable", icon: Calendar, label: "Timetable", group: "academics" },
+      { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "academics" },
+      { href: "/schools/goals", icon: TrendingUp, label: "Subject targets", group: "academics" },
+      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings", group: "academics" },
+      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "academics" },
+      {
+        href: "/management/master-data/schools/years",
+        icon: Dataset,
+        label: "Academic setup",
+        group: "academics",
+      },
 
-      { href: "/schools/timetable", icon: Calendar, label: "Timetable" },
-      { href: "/schools/homework", icon: ClipboardList, label: "Homework" },
-      { href: "/schools/goals", icon: TrendingUp, label: "Subject targets" },
-      { href: "/schools/meetings", icon: CalendarCheck, label: "Parent meetings" },
-
+      // A band of its own because it is a workflow, not a screen: a sheet is
+      // submitted, moderated, sent back or approved, then published, and each
+      // of those is somebody different's move.
       { href: "/schools/results", icon: FileCheck, label: "Results overview", group: "results" },
       { href: "/schools/results/sheets", icon: Checklist, label: "Result sheets", group: "results" },
       { href: "/schools/results/moderation", icon: Scale, label: "Moderation", group: "results" },
       { href: "/schools/results/publish", icon: FileCheck, label: "Publishing", group: "results" },
 
-      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "fees" },
-      { href: "/schools/finance/ledger", icon: Payments, label: "Ledger and structures", group: "fees" },
-      { href: "/schools/finance/receipts", icon: ReceiptLong, label: "Receipts", group: "fees" },
-      { href: "/schools/finance/refunds", icon: Wallet, label: "Refunds", group: "fees" },
-      { href: "/schools/finance/waivers", icon: Scale, label: "Waivers", group: "fees" },
+      // Each of these opens the ledger on the tab it names. They used to be
+      // routes of their own that redirected to the year-group PICKER, so
+      // "Waivers" landed a bursar on a grid of class cards — three labels
+      // pointing at a fourth screen. One ledger, one tab per label.
+      { href: "/schools/finance", icon: ReceiptLong, label: "Fees by year group", group: "finance" },
+      { href: "/schools/finance/ledger", icon: Payments, label: "Ledger and structures", group: "finance" },
+      { href: "/schools/finance/ledger?view=receipts", icon: ReceiptLong, label: "Receipts", group: "finance" },
+      { href: "/schools/finance/ledger?view=waivers", icon: Scale, label: "Waivers", group: "finance" },
+      { href: "/schools/finance/ledger?view=refunds", icon: Wallet, label: "Refunds", group: "finance" },
 
-      { href: "/schools/library", icon: Dataset, label: "Library" },
-      { href: "/schools/transport", icon: LocalShipping, label: "Transport" },
-      { href: "/schools/notices", icon: EventNote, label: "Notices" },
+      { href: "/schools/library", icon: Dataset, label: "Library", group: "services" },
+      { href: "/schools/transport", icon: LocalShipping, label: "Transport", group: "services" },
+
+      // What the school has said, and what has been said to it. A notice goes
+      // out to many and cannot be replied to; a message is one family and one
+      // member of staff. Keeping them adjacent is how somebody learns which
+      // one they wanted.
+      { href: "/schools/notices", icon: EventNote, label: "Notices", group: "communication" },
+      { href: "/schools/messages", icon: Phone, label: "Messages", group: "communication" },
 
       { href: "/schools/reports", icon: BarChart3, label: "School reports", group: "paperwork" },
       { href: "/schools/documents", icon: FileText, label: "Documents", group: "paperwork" },

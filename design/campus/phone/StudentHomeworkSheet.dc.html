@@ -1,0 +1,107 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap">
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#F7F8FA;color:#262A33;
+      font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif;
+      font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased}
+    a{color:#0944C2;text-decoration:none}
+    a:hover{color:#08379C;text-decoration:underline}
+    svg{display:block}
+    .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace}
+    .nav:hover{background:#F1F3F6}
+    .row:hover{background:#F7F8FA}
+    .btn:hover{background:#F1F3F6}
+    .pri:hover{background:#0944C2}
+    .scroll::-webkit-scrollbar{width:10px;height:10px}
+    .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box}
+    .scroll::-webkit-scrollbar-track{background:transparent}
+  </style>
+</helmet>
+
+<div style="width: 390px; height: 844px; display: flex; flex-direction: column; overflow: hidden; background: #F7F8FA; position: relative; --band-h: {{bandH}}; --row-h: {{rowH}}; --head-h: {{headH}}">
+  <div style="height: 52px; flex-shrink: 0; display: flex; align-items: center; gap: 8px; padding: 0 12px 0 16px; background: #FFFFFF; border-bottom: 1px solid #E5E8EE">
+    <h1 style="margin: 0; flex: 1; min-width: 0; font-size: 17px; font-weight: 700; line-height: 1.2; letter-spacing: -.01em; color: #16181D; overflow: hidden; text-overflow: ellipsis; white-space: nowrap">Homework</h1>
+    <div style="position: relative; width: 36px; height: 36px; border-radius: 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0">
+      <svg viewBox="0 0 256 256" fill="#565C69" style="width: 18px; height: 18px; flex-shrink: 0; display: block"><path d="M221.8,175.94C216.25,166.38,208,139.33,208,104a80,80,0,1,0-160,0c0,35.34-8.26,62.38-13.81,71.94A16,16,0,0,0,48,200H88.81a40,40,0,0,0,78.38,0H208a16,16,0,0,0,13.8-24.06ZM128,216a24,24,0,0,1-22.62-16h45.24A24,24,0,0,1,128,216Z"></path></svg>
+      <span class="mono" style="position: absolute; top: 1px; right: 1px; min-width: 14px; height: 14px; border-radius: 999px; background: #B83A2A; color: #fff; font-size: 9px; font-weight: 700; line-height: 14px; text-align: center">3</span>
+    </div>
+    <span style="width: 32px; height: 32px; border-radius: 999px; background: #FDEEE0; color: #A24E08; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex-shrink: 0">TM</span>
+  </div>
+  <div class="scroll" style="flex: 1; min-height: 0; overflow-y: auto; padding: 14px 16px 20px"><div style="opacity: .35; display: flex; flex-direction: column; gap: 10px"><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="height: 78px"></div></div></div><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="height: 78px"></div></div></div><div style="border: 1px solid #E5E8EE; border-radius: 12px; background: #FFFFFF; overflow: hidden"><div style="padding: 13px 14px"><div style="height: 78px"></div></div></div></div></div>
+  
+  <div style="height: 64px; flex-shrink: 0; display: flex; align-items: center; padding: 6px; background: #FFFFFF; border-top: 1px solid #E5E8EE; box-shadow: 0 -6px 18px -8px rgba(22,24,29,.1)">
+    <div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#0B5DF0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M224,120v96a8,8,0,0,1-8,8H160a8,8,0,0,1-8-8V164a4,4,0,0,0-4-4H108a4,4,0,0,0-4,4v52a8,8,0,0,1-8,8H40a8,8,0,0,1-8-8V120a16,16,0,0,1,4.69-11.31l80-80a16,16,0,0,1,22.62,0l80,80A16,16,0,0,1,224,120Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 700; color: #0B5DF0">Home</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M208,32H184V24a8,8,0,0,0-16,0v8H88V24a8,8,0,0,0-16,0v8H48A16,16,0,0,0,32,48V208a16,16,0,0,0,16,16H208a16,16,0,0,0,16-16V48A16,16,0,0,0,208,32Zm0,48H48V48H72v8a8,8,0,0,0,16,0V48h80v8a8,8,0,0,0,16,0V48h24Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Timetable</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M232,208a8,8,0,0,1-8,8H32a8,8,0,0,1,0-16h8V136a8,8,0,0,1,8-8H72a8,8,0,0,1,8,8v64H96V88a8,8,0,0,1,8-8h32a8,8,0,0,1,8,8V200h16V40a8,8,0,0,1,8-8h40a8,8,0,0,1,8,8V200h8A8,8,0,0,1,232,208Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Marks</span>
+          
+        </div><div style="flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; position: relative">
+          <span style="width: 22px; height: 22px; display: flex; align-items: center; justify-content: center"><svg viewBox="0 0 256 256" fill="#8A91A0" style="width: 22px; height: 22px; flex-shrink: 0; display: block"><path d="M172,120a44,44,0,1,1-44-44A44.05,44.05,0,0,1,172,120Zm60,8A104,104,0,1,1,128,24,104.11,104.11,0,0,1,232,128Zm-16,0a88.09,88.09,0,0,0-91.47-87.93C77.43,41.89,39.87,81.12,40,128.25a87.65,87.65,0,0,0,22.24,58.16A79.71,79.71,0,0,1,84,165.1a4,4,0,0,1,4.83.32,59.83,59.83,0,0,0,78.28,0,4,4,0,0,1,4.83-.32,79.71,79.71,0,0,1,21.79,21.31A87.62,87.62,0,0,0,216,128Z"></path></svg></span>
+          <span style="font-size: 10.5px; font-weight: 500; color: #8A91A0">Profile</span>
+          
+        </div>
+  </div>
+  <div style="position: absolute; inset: 0; background: rgba(22,24,29,.4); display: flex; align-items: flex-end">
+      <div style="width: 100%; max-height: 82%; border-radius: 18px 18px 0 0; background: #FFFFFF; box-shadow: 0 -20px 40px -10px rgba(22,24,29,.3); display: flex; flex-direction: column; overflow: hidden">
+        <div style="padding: 10px 0 0; display: flex; justify-content: center"><span style="width: 36px; height: 4px; border-radius: 999px; background: #D2D7E0"></span></div>
+        <div style="padding: 14px 18px 10px">
+          <div style="font-size: 16px; font-weight: 700; color: #16181D; line-height: 1.35">Simultaneous equations, exercise 4</div>
+          <div style="font-size: 12px; color: #565C69; margin-top: 3px">Mathematics &middot; Mrs Nyathi &middot; due 21 August</div>
+        </div>
+        <div style="padding: 0 18px 16px; display: flex; flex-direction: column; gap: 12px; overflow-y: auto">
+          <div style="display: flex; gap: 10px; padding: 11px 13px; border: 1px solid #ECCBC0; border-radius: 11px; background: #F6E2DD">
+            <svg viewBox="0 0 256 256" fill="#B83A2A" style="width: 16px; height: 16px; flex-shrink: 0; display: block"><path d="M236.8,188.09,149.35,36.22h0a24.76,24.76,0,0,0-42.7,0L19.2,188.09a23.51,23.51,0,0,0,0,23.72A24.35,24.35,0,0,0,40.55,224h174.9a24.35,24.35,0,0,0,21.33-12.19A23.51,23.51,0,0,0,236.8,188.09ZM120,104a8,8,0,0,1,16,0v40a8,8,0,0,1-16,0Zm8,88a12,12,0,1,1,12-12A12,12,0,0,1,128,192Z"></path></svg>
+            <div><div style="font-size: 12.5px; font-weight: 700; color: #B83A2A">This is past its date</div><div style="font-size: 12px; color: #B83A2A; opacity: .9; margin-top: 2px; line-height: 1.55">Hand it in anyway. Your teacher would rather have it late than not at all, and they will see that it came in late.</div></div>
+          </div>
+          <div>
+            <div style="font-size: 11.5px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: #8A91A0">What to do</div>
+            <div style="font-size: 12.5px; color: #262A33; line-height: 1.6; margin-top: 6px">Questions 1 to 12 in exercise 4. Show your working for every one &mdash; a right answer with no method scores half. Use elimination for 1&ndash;6 and substitution for 7&ndash;12.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px">
+            <span style="font-size: 11.5px; font-weight: 600; color: #262A33">Your answer</span>
+            <div style="min-height: 84px; padding: 11px 12px; border: 1px solid #E5E8EE; border-radius: 10px; background: #FFFFFF; font-size: 12.5px; color: #8A91A0; line-height: 1.55">Type your work here, or say what you are handing to your teacher on paper.</div>
+          </div>
+          <div style="display: flex; flex-direction: column; gap: 5px">
+            <span style="font-size: 11.5px; font-weight: 600; color: #262A33">Link to your work</span>
+            <div style="height: 42px; padding: 11px 12px; border: 1px solid #E5E8EE; border-radius: 10px; background: #FFFFFF; font-size: 12.5px; color: #8A91A0">https://</div>
+            <span style="font-size: 11px; color: #8A91A0">Leave this empty unless your work is somewhere your teacher can open.</span>
+          </div>
+        </div>
+        <div style="padding: 12px 18px; border-top: 1px solid #EEF0F4; display: flex; flex-direction: column; gap: 8px">
+          <div style="display: flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 18px; border-radius: 11px; font-size: 13.5px; font-weight: 600; background: #0B5DF0; color: #fff; border: 1px solid transparent">Hand in late</div>
+          <div style="display: flex; align-items: center; justify-content: center; min-height: 46px; padding: 12px 18px; border-radius: 11px; font-size: 13.5px; font-weight: 600; background: #FFFFFF; color: #16181D; border: 1px solid #E5E8EE">Close</div>
+        </div>
+      </div>
+    </div>
+</div>
+</x-dc>
+<script data-dc-script data-props='{"density":{"editor":"enum","options":["Compact","Cozy"],"default":"Compact"},"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const cozy = (this.props.density ?? 'Compact') === 'Cozy';
+    return {
+      bandH: cozy ? '52px' : '44px',
+      rowH:  cozy ? '44px' : '36px',
+      headH: cozy ? '38px' : '32px',
+    };
+  }
+}
+</script>
+</body>
+</html>

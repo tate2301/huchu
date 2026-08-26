@@ -179,6 +179,9 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/management/master-data/operations/sections", featureKey: "admin.sites-sections" },
   { scope: "page", prefix: "/management/master-data/operations/downtime-codes", featureKey: "maintenance.breakdowns" },
   { scope: "page", prefix: "/management/master-data/operations/gold-expense-types", featureKey: "gold.payouts" },
+  // The academic ladder is master data for schools only — without the module
+  // these entries would be six dead rows in every other tenant's Master Data.
+  { scope: "page", prefix: "/management/master-data/schools", featureKey: "schools.core" },
   // ST-1.3 — the scrap materials and scrap sellers master-data screens went
   // with the module. They fall back to the bare `/management/master-data` entry
   // below, so they answer `admin.sites-sections` until ST-2 removes the pages.

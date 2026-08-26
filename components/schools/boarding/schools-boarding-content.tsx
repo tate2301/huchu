@@ -3,74 +3,238 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Badge, StatCard } from "@corelithzw/react";
+
+import { PageHeading } from "@/components/layout/page-heading";
+import { PageBand } from "@/components/schools/common/page-band";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  CreateButton,
+  RecordActions,
+  type RecordVerb,
+} from "@/components/schools/common/record-actions";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  StatsSkeleton,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
+import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
+
 import {
-  fetchSchoolsBoardingLeaveRequests,
-  fetchSchoolsBoardingData,
-  type SchoolsBoardingLeaveRequestData,
-  type SchoolsBoardingData,
-} from "@/lib/schools/schools-v2";
+  ALLOCATION_STATUSES,
+  LEAVE_STATUSES,
+  fetchBoardingDashboard,
+  fetchLeaveRequests,
+  genderPolicyLabel,
+  leaveStatusLabel,
+  type AllocationStatus,
+  type BoardingAllocation,
+  type BoardingHostel,
+  type LeaveRequest,
+  type LeaveStatus,
+} from "./boarding-data";
+import {
+  AllocateBedDialog,
+  AllocationDialog,
+  HostelDialog,
+  LeaveRequestDialog,
+} from "./boarding-dialogs";
 
 type BoardingView = "allocations" | "hostels" | "leaveRequests";
 
-function formatDate(value?: string | null) {
-  if (!value) return "-";
+/** `4 May`. The board is read a term at a time, so the year is noise. */
+const SHORT_DATE = new Intl.DateTimeFormat("en-GB", { day: "numeric", month: "short" });
+
+function shortDate(value?: string | null) {
+  if (!value) return "—";
   const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toISOString().slice(0, 10);
+  if (Number.isNaN(date.getTime())) return "—";
+  return SHORT_DATE.format(date);
 }
 
-function allocationStatusBadge(status: string) {
-  if (status === "ACTIVE") return <Badge variant="secondary">Active</Badge>;
-  if (status === "TRANSFERRED") return <Badge variant="outline">Transferred</Badge>;
-  if (status === "ENDED") return <Badge variant="outline">Ended</Badge>;
-  return <Badge variant="outline">{status}</Badge>;
+/** `29 Aug – 1 Sep`, collapsed to one date when leave starts and ends the same day. */
+function dateWindow(start: string, end: string) {
+  const from = shortDate(start);
+  const to = shortDate(end);
+  return from === to ? from : `${from} – ${to}`;
 }
 
+function allocationTone(status: AllocationStatus) {
+  if (status === "ACTIVE") return "success" as const;
+  if (status === "TRANSFERRED") return "info" as const;
+  return "neutral" as const;
+}
+
+function leaveTone(status: LeaveStatus) {
+  if (status === "APPROVED" || status === "CHECKED_IN") return "success" as const;
+  if (status === "CHECKED_OUT") return "warn" as const;
+  if (status === "REJECTED" || status === "CANCELED") return "danger" as const;
+  return "neutral" as const;
+}
+
+/**
+ * The boarding board.
+ *
+ * Three cuts of one thing — who is in a bed, what the houses hold, and who is
+ * out of the gate — and every row now carries the verb that changes it. Before
+ * this the page was three read-only tables: a warden could see that Tanaka was
+ * in bed B3 of room 12 and had no way from that screen to move her, end her
+ * allocation, or approve the leave request sitting in the third tab.
+ *
+ * The bed board itself lives on the hostel record page, because a bed belongs
+ * to a room and a room belongs to a house; this screen is the school-wide view
+ * that tells you which house to open.
+ */
 export function SchoolsBoardingContent() {
-  const [activeView, setActiveView] = useState<BoardingView>("allocations");
+  const queryClient = useQueryClient();
+  const [view, setView] = useState<BoardingView>("allocations");
 
-  const query = useQuery({
-    queryKey: ["schools", "boarding", "dashboard"],
-    queryFn: () => fetchSchoolsBoardingData({ page: 1, limit: 200 }),
-  });
-  const leaveRequestsQuery = useQuery({
-    queryKey: ["schools", "boarding", "leave-requests"],
-    queryFn: () => fetchSchoolsBoardingLeaveRequests({ page: 1, limit: 200 }),
+  const [hostelFilter, setHostelFilter] = useState("");
+  const [classFilter, setClassFilter] = useState("");
+  const [allocationStatus, setAllocationStatus] = useState("");
+  const [leaveStatus, setLeaveStatus] = useState("");
+  const [leaveType, setLeaveType] = useState("");
+  const [hostelState, setHostelState] = useState("");
+
+  const [allocating, setAllocating] = useState(false);
+  const [editingAllocation, setEditingAllocation] = useState<BoardingAllocation | null>(
+    null,
+  );
+  const [editingHostel, setEditingHostel] = useState<BoardingHostel | null>(null);
+  const [addingHostel, setAddingHostel] = useState(false);
+  const [editingLeave, setEditingLeave] = useState<LeaveRequest | null>(null);
+  const [addingLeave, setAddingLeave] = useState(false);
+  const [pendingId, setPendingId] = useState<string | null>(null);
+
+  const boardQuery = useQuery({
+    queryKey: ["schools", "boarding", "dashboard", hostelFilter, allocationStatus],
+    queryFn: () =>
+      fetchBoardingDashboard({
+        ...(hostelFilter ? { hostelId: hostelFilter } : {}),
+        ...(allocationStatus ? { status: allocationStatus as AllocationStatus } : {}),
+      }),
   });
 
-  const allocationsRows = useMemo(() => query.data?.data ?? [], [query.data]);
-  const hostelsRows = useMemo(() => query.data?.hostels ?? [], [query.data]);
-  const leaveRequestRows = useMemo(
-    () => leaveRequestsQuery.data?.data ?? [],
-    [leaveRequestsQuery.data],
+  const leaveQuery = useQuery({
+    queryKey: ["schools", "boarding", "leave-requests", hostelFilter, leaveStatus, leaveType],
+    queryFn: () =>
+      fetchLeaveRequests({
+        ...(hostelFilter ? { hostelId: hostelFilter } : {}),
+        ...(leaveStatus ? { status: leaveStatus as LeaveStatus } : {}),
+        ...(leaveType ? { requestType: leaveType as "LEAVE" | "OUTING" } : {}),
+      }),
+  });
+
+  const classesQuery = useQuery({
+    queryKey: ["schools", "grades"],
+    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
+  });
+
+  const hostels = useMemo(() => boardQuery.data?.hostels ?? [], [boardQuery.data]);
+  const summary = boardQuery.data?.summary;
+  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
+
+  // Year group is not a query the boarding endpoints take — an allocation knows
+  // a house, not a class — so it is applied here against the child's class.
+  const allocations = useMemo(
+    () =>
+      (boardQuery.data?.data ?? []).filter(
+        (row) => !classFilter || row.student.currentClass?.id === classFilter,
+      ),
+    [boardQuery.data, classFilter],
   );
 
-  const allocationColumns = useMemo<
-    ColumnDef<SchoolsBoardingData["data"][number]>[]
-  >(
+  const leaveRequests = useMemo(
+    () =>
+      (leaveQuery.data ?? []).filter(
+        (row) => !classFilter || row.student.currentClass?.id === classFilter,
+      ),
+    [leaveQuery.data, classFilter],
+  );
+
+  const visibleHostels = useMemo(
+    () =>
+      hostels.filter((hostel) => {
+        if (hostelState === "open") return hostel.isActive;
+        if (hostelState === "closed") return !hostel.isActive;
+        return true;
+      }),
+    [hostels, hostelState],
+  );
+
+  const invalidate = () => {
+    void queryClient.invalidateQueries({ queryKey: ["schools", "boarding"] });
+  };
+
+  const allocationAction = useMutation({
+    mutationFn: (input: { id: string; body?: Record<string, unknown>; remove?: boolean }) =>
+      fetchJson(`/api/v2/schools/boarding/allocations/${input.id}`, {
+        method: input.remove ? "DELETE" : "PATCH",
+        ...(input.remove ? {} : { body: JSON.stringify(input.body ?? {}) }),
+      }),
+    onSettled: () => setPendingId(null),
+    onSuccess: invalidate,
+  });
+
+  const hostelAction = useMutation({
+    mutationFn: (input: { id: string; body?: Record<string, unknown>; remove?: boolean }) =>
+      fetchJson(`/api/v2/schools/boarding/hostels/${input.id}`, {
+        method: input.remove ? "DELETE" : "PATCH",
+        ...(input.remove ? {} : { body: JSON.stringify(input.body ?? {}) }),
+      }),
+    onSettled: () => setPendingId(null),
+    onSuccess: invalidate,
+  });
+
+  const leaveAction = useMutation({
+    mutationFn: (input: { id: string; step: string; body?: Record<string, unknown> }) =>
+      input.step === "cancel"
+        ? fetchJson(`/api/v2/schools/boarding/leave-requests/${input.id}`, {
+            method: "DELETE",
+          })
+        : fetchJson(`/api/v2/schools/boarding/leave-requests/${input.id}/${input.step}`, {
+            method: "POST",
+            body: JSON.stringify(input.body ?? {}),
+          }),
+    onSettled: () => setPendingId(null),
+    onSuccess: invalidate,
+  });
+
+  const allocationColumns = useMemo<ColumnDef<BoardingAllocation>[]>(
     () => [
       {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <Link
-            href={`/schools/students/${row.original.student.id}`}
-            className="text-primary hover:underline"
-          >
-            <div className="font-medium">
-              {row.original.student.firstName} {row.original.student.lastName}
-            </div>
-            <div className="text-xs text-muted-foreground font-mono">
-              {row.original.student.studentNo}
-            </div>
-          </Link>
+          <div className="flex items-center gap-2">
+            <PersonAvatar
+              firstName={row.original.student.firstName}
+              lastName={row.original.student.lastName}
+            />
+            <Link
+              href={`/schools/students/${row.original.student.id}`}
+              className="min-w-0 hover:underline"
+            >
+              <div className="truncate font-medium">
+                {row.original.student.lastName}, {row.original.student.firstName}
+              </div>
+              <div className="truncate font-mono text-xs text-muted-foreground">
+                {row.original.student.studentNo}
+                {row.original.student.currentClass
+                  ? ` · ${row.original.student.currentClass.name}`
+                  : ""}
+              </div>
+            </Link>
+          </div>
         ),
       },
       {
@@ -80,12 +244,12 @@ export function SchoolsBoardingContent() {
           <div>
             <Link
               href={`/schools/boarding/${row.original.hostel.id}`}
-              className="text-primary hover:underline"
+              className="hover:underline"
             >
               {row.original.hostel.name}
             </Link>
-            <div className="text-xs text-muted-foreground font-mono">
-              {row.original.room?.code ?? "-"} / {row.original.bed?.code ?? "-"}
+            <div className="font-mono text-xs text-muted-foreground">
+              {row.original.room?.code ?? "—"} / {row.original.bed?.code ?? "—"}
             </div>
           </div>
         ),
@@ -98,25 +262,79 @@ export function SchoolsBoardingContent() {
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => allocationStatusBadge(row.original.status),
+        cell: ({ row }) => (
+          <Badge tone={allocationTone(row.original.status)}>
+            {ALLOCATION_STATUSES.find((s) => s.value === row.original.status)?.label ??
+              row.original.status}
+          </Badge>
+        ),
       },
       {
         id: "start",
         header: "Start",
-        cell: ({ row }) => <NumericCell>{formatDate(row.original.startDate)}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{shortDate(row.original.startDate)}</NumericCell>,
       },
       {
         id: "end",
         header: "End",
-        cell: ({ row }) => <NumericCell>{formatDate(row.original.endDate)}</NumericCell>,
+        cell: ({ row }) => <NumericCell>{shortDate(row.original.endDate)}</NumericCell>,
+      },
+      {
+        id: "verbs",
+        header: "",
+        cell: ({ row }) => {
+          const allocation = row.original;
+          const verbs: RecordVerb[] = [
+            {
+              label: "Edit",
+              action: "allocate-bed",
+              onSelect: () => setEditingAllocation(allocation),
+            },
+          ];
+          if (allocation.status === "ACTIVE") {
+            verbs.push({
+              label: "Free the bed",
+              action: "allocate-bed",
+              tone: "warning",
+              loading: pendingId === allocation.id,
+              confirm: {
+                title: "Free the bed",
+                description: `${allocation.student.firstName} ${allocation.student.lastName} moves out of ${allocation.hostel.name}, bed ${allocation.bed?.code ?? "—"} goes back on the board, and they stop counting as a boarder if this was their only bed.`,
+                confirmLabel: "Free it",
+              },
+              onSelect: () => {
+                setPendingId(allocation.id);
+                allocationAction.mutate({
+                  id: allocation.id,
+                  body: { status: "ENDED" },
+                });
+              },
+            });
+          }
+          verbs.push({
+            label: "Delete",
+            action: "archive",
+            tone: "danger",
+            loading: pendingId === allocation.id,
+            confirm: {
+              title: "Delete this allocation",
+              description:
+                "The row goes for good, as though the child was never given this bed. Use it only for an allocation made in error — a child who left is ended, not deleted.",
+              confirmLabel: "Delete it",
+            },
+            onSelect: () => {
+              setPendingId(allocation.id);
+              allocationAction.mutate({ id: allocation.id, remove: true });
+            },
+          });
+          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+        },
       },
     ],
-    [],
+    [allocationAction, pendingId],
   );
 
-  const hostelColumns = useMemo<
-    ColumnDef<SchoolsBoardingData["hostels"][number]>[]
-  >(
+  const hostelColumns = useMemo<ColumnDef<BoardingHostel>[]>(
     () => [
       {
         id: "code",
@@ -130,11 +348,13 @@ export function SchoolsBoardingContent() {
           <div>
             <Link
               href={`/schools/boarding/${row.original.id}`}
-              className="font-medium text-primary hover:underline"
+              className="font-medium hover:underline"
             >
               {row.original.name}
             </Link>
-            <div className="text-xs text-muted-foreground">{row.original.genderPolicy}</div>
+            <div className="text-xs text-muted-foreground">
+              Takes {genderPolicyLabel(row.original.genderPolicy).toLowerCase()}
+            </div>
           </div>
         ),
       },
@@ -154,46 +374,106 @@ export function SchoolsBoardingContent() {
         cell: ({ row }) => <NumericCell>{row.original._count.allocations}</NumericCell>,
       },
       {
-        id: "active",
+        id: "status",
         header: "Status",
-        cell: ({ row }) =>
-          row.original.isActive ? (
-            <Badge variant="secondary">Active</Badge>
-          ) : (
-            <Badge variant="outline">Inactive</Badge>
-          ),
+        cell: ({ row }) => (
+          <Badge tone={row.original.isActive ? "success" : "neutral"}>
+            {row.original.isActive ? "In use" : "Closed"}
+          </Badge>
+        ),
+      },
+      {
+        id: "verbs",
+        header: "",
+        cell: ({ row }) => {
+          const hostel = row.original;
+          const verbs: RecordVerb[] = [
+            { label: "Edit", action: "edit", onSelect: () => setEditingHostel(hostel) },
+            {
+              label: hostel.isActive ? "Close" : "Reopen",
+              action: "edit",
+              tone: hostel.isActive ? "warning" : "default",
+              loading: pendingId === hostel.id,
+              ...(hostel.isActive
+                ? {
+                    confirm: {
+                      title: `Close ${hostel.name}`,
+                      description:
+                        "The house stops being offered when a bed is allocated. Everyone already in it stays where they are.",
+                      confirmLabel: "Close it",
+                    },
+                  }
+                : {}),
+              onSelect: () => {
+                setPendingId(hostel.id);
+                hostelAction.mutate({
+                  id: hostel.id,
+                  body: { isActive: !hostel.isActive },
+                });
+              },
+            },
+            {
+              label: "Delete",
+              action: "archive",
+              tone: "danger",
+              loading: pendingId === hostel.id,
+              unavailable:
+                hostel._count.allocations > 0
+                  ? "Children have boarded here. Close it instead."
+                  : undefined,
+              confirm: {
+                title: `Delete ${hostel.name}`,
+                description:
+                  "The house, its rooms and its beds go for good. Only a house nobody has ever boarded in can be deleted.",
+                confirmLabel: "Delete it",
+              },
+              onSelect: () => {
+                setPendingId(hostel.id);
+                hostelAction.mutate({ id: hostel.id, remove: true });
+              },
+            },
+          ];
+          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+        },
       },
     ],
-    [],
+    [hostelAction, pendingId],
   );
 
-  const leaveRequestColumns = useMemo<
-    ColumnDef<SchoolsBoardingLeaveRequestData["data"][number]>[]
-  >(
+  const leaveColumns = useMemo<ColumnDef<LeaveRequest>[]>(
     () => [
       {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <Link
-            href={`/schools/students/${row.original.student.id}`}
-            className="text-primary hover:underline"
-          >
-            <div className="font-medium">
-              {row.original.student.firstName} {row.original.student.lastName}
-            </div>
-            <div className="text-xs text-muted-foreground font-mono">
-              {row.original.student.studentNo}
-            </div>
-          </Link>
+          <div className="flex items-center gap-2">
+            <PersonAvatar
+              firstName={row.original.student.firstName}
+              lastName={row.original.student.lastName}
+            />
+            <Link
+              href={`/schools/students/${row.original.student.id}`}
+              className="min-w-0 hover:underline"
+            >
+              <div className="truncate font-medium">
+                {row.original.student.lastName}, {row.original.student.firstName}
+              </div>
+              <div className="truncate font-mono text-xs text-muted-foreground">
+                {row.original.student.studentNo}
+                {row.original.allocation
+                  ? ` · ${row.original.allocation.hostel.name}`
+                  : ""}
+              </div>
+            </Link>
+          </div>
         ),
       },
       {
-        id: "requestType",
+        id: "type",
         header: "Type",
         cell: ({ row }) => (
-          <Badge variant={row.original.requestType === "LEAVE" ? "secondary" : "outline"}>
-            {row.original.requestType}
+          <Badge tone={row.original.requestType === "LEAVE" ? "brand" : "info"}>
+            {row.original.requestType === "LEAVE" ? "Leave" : "Outing"}
           </Badge>
         ),
       },
@@ -201,135 +481,442 @@ export function SchoolsBoardingContent() {
         id: "window",
         header: "Window",
         cell: ({ row }) => (
-          <div>
-            <div className="font-mono text-xs">{formatDate(row.original.startDateTime)}</div>
-            <div className="font-mono text-xs text-muted-foreground">
-              {formatDate(row.original.endDateTime)}
-            </div>
-          </div>
+          <NumericCell align="left">
+            {dateWindow(row.original.startDateTime, row.original.endDateTime)}
+          </NumericCell>
         ),
       },
       {
         id: "destination",
-        header: "Destination",
+        header: "Going to",
         cell: ({ row }) => (
-          <div>
-            <div>{row.original.destination}</div>
-            <div className="text-xs text-muted-foreground">{row.original.guardianContact}</div>
+          <div className="min-w-0">
+            <div className="truncate">{row.original.destination}</div>
+            <div className="truncate text-xs text-muted-foreground">
+              {row.original.guardianContact}
+            </div>
           </div>
         ),
       },
       {
         id: "status",
         header: "Status",
-        cell: ({ row }) => {
-          if (row.original.status === "APPROVED" || row.original.status === "CHECKED_IN") {
-            return <Badge variant="secondary">{row.original.status}</Badge>;
-          }
-          if (row.original.status === "REJECTED" || row.original.status === "CANCELED") {
-            return <Badge variant="destructive">{row.original.status}</Badge>;
-          }
-          return <Badge variant="outline">{row.original.status}</Badge>;
-        },
+        cell: ({ row }) => (
+          <Badge tone={leaveTone(row.original.status)}>
+            {leaveStatusLabel(row.original.status)}
+          </Badge>
+        ),
       },
       {
-        id: "logs",
-        header: "Movement Logs",
-        cell: ({ row }) => <NumericCell>{row.original.movementLogs.length}</NumericCell>,
+        id: "verbs",
+        header: "",
+        cell: ({ row }) => {
+          const request = row.original;
+          const busy = pendingId === request.id;
+          const verbs: RecordVerb[] = [];
+
+          if (request.status === "SUBMITTED") {
+            verbs.push({
+              label: "Approve",
+              action: "approve-leave",
+              loading: busy,
+              onSelect: () => {
+                setPendingId(request.id);
+                leaveAction.mutate({
+                  id: request.id,
+                  step: "approve",
+                  body: { approved: true },
+                });
+              },
+            });
+            verbs.push({
+              label: "Refuse",
+              action: "approve-leave",
+              tone: "danger",
+              loading: busy,
+              confirm: {
+                title: "Refuse this request",
+                description: `${request.student.firstName} stays at school over ${dateWindow(request.startDateTime, request.endDateTime)}. The family is not told by this screen — ring them.`,
+                confirmLabel: "Refuse it",
+              },
+              onSelect: () => {
+                setPendingId(request.id);
+                leaveAction.mutate({
+                  id: request.id,
+                  step: "approve",
+                  body: { approved: false },
+                });
+              },
+            });
+          }
+
+          if (request.status === "APPROVED") {
+            verbs.push({
+              label: "Sign out",
+              action: "check-out",
+              loading: busy,
+              onSelect: () => {
+                setPendingId(request.id);
+                leaveAction.mutate({ id: request.id, step: "check-out", body: {} });
+              },
+            });
+          }
+
+          if (request.status === "CHECKED_OUT") {
+            verbs.push({
+              label: "Sign in",
+              action: "check-in",
+              loading: busy,
+              onSelect: () => {
+                setPendingId(request.id);
+                leaveAction.mutate({ id: request.id, step: "check-in", body: {} });
+              },
+            });
+          }
+
+          verbs.push({
+            label: "Edit",
+            action: "edit",
+            unavailable:
+              request.status === "CHECKED_OUT" || request.status === "CHECKED_IN"
+                ? "A movement that has happened cannot be edited."
+                : undefined,
+            onSelect: () => setEditingLeave(request),
+          });
+
+          verbs.push({
+            label: "Call it off",
+            action: "approve-leave",
+            tone: "danger",
+            loading: busy,
+            unavailable:
+              request.status === "CHECKED_OUT"
+                ? "This child is signed out. Sign them back in first."
+                : request.status === "CANCELED"
+                  ? "Already called off."
+                  : undefined,
+            confirm: {
+              title: "Call off this request",
+              description:
+                "The request is marked called off and stays on the list, so it is still the answer to why the child was not signed out.",
+              confirmLabel: "Call it off",
+            },
+            onSelect: () => {
+              setPendingId(request.id);
+              leaveAction.mutate({ id: request.id, step: "cancel" });
+            },
+          });
+
+          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+        },
       },
     ],
-    [],
+    [leaveAction, pendingId],
   );
 
-  const summary = query.data?.summary;
-  const hasError = query.error || leaveRequestsQuery.error;
+  const beds = summary?.beds ?? 0;
+  const taken = summary?.activeAllocations ?? 0;
+  const activeTerm = boardQuery.data?.data?.find((row) => row.term.isActive)?.term ?? null;
+  const waiting = leaveRequests.filter((row) => row.status === "SUBMITTED").length;
+  const out = leaveRequests.filter((row) => row.status === "CHECKED_OUT").length;
+
+  const filterNames = [
+    hostels.find((hostel) => hostel.id === hostelFilter)?.name,
+    classes.find((row) => row.id === classFilter)?.name,
+  ].filter((name): name is string => Boolean(name));
+
+  const clearFilters = () => {
+    setHostelFilter("");
+    setClassFilter("");
+    setAllocationStatus("");
+    setLeaveStatus("");
+    setLeaveType("");
+  };
+
+  const primaryAction =
+    view === "hostels" ? (
+      <CreateButton
+        resource="schools.boarding"
+        label="Add a hostel"
+        onSelect={() => setAddingHostel(true)}
+      />
+    ) : view === "leaveRequests" ? (
+      <CreateButton
+        resource="schools.boarding"
+        action="approve-leave"
+        label="Record a leave request"
+        onSelect={() => setAddingLeave(true)}
+      />
+    ) : (
+      <CreateButton
+        resource="schools.boarding"
+        action="allocate-bed"
+        label="Allocate a bed"
+        onSelect={() => setAllocating(true)}
+        unavailable={hostels.length === 0 ? "There is no hostel to put anybody in." : undefined}
+      />
+    );
 
   return (
     <div className="space-y-4">
-      {hasError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load boarding data</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(query.error || leaveRequestsQuery.error)}
-          </AlertDescription>
-        </Alert>
+      <PageHeading title="Boarding Management" primaryAction={primaryAction} />
+
+      <PageBand
+        chips={[
+          { label: "Term", value: activeTerm?.name ?? "—" },
+          { label: "Beds", value: `${taken} of ${beds}`, tone: "brand" },
+          {
+            label: "Waiting on you",
+            value: waiting,
+            tone: waiting > 0 ? "warn" : "neutral",
+          },
+          { label: "Out of the gate", value: out, tone: out > 0 ? "warn" : "neutral" },
+        ]}
+      />
+
+      {boardQuery.error ? (
+        <LoadError
+          what="the boarding board"
+          error={boardQuery.error}
+          onRetry={() => void boardQuery.refetch()}
+        />
+      ) : null}
+      {allocationAction.error ? (
+        <SaveError what="That allocation" error={allocationAction.error} />
+      ) : null}
+      {hostelAction.error ? (
+        <SaveError what="That hostel" error={hostelAction.error} />
+      ) : null}
+      {leaveAction.error ? (
+        <SaveError what="That leave request" error={leaveAction.error} />
       ) : null}
 
-      <section className="section-shell grid gap-2 md:grid-cols-5">
-        <div>
-          <h2 className="text-sm font-semibold">Active Allocations</h2>
-          <p className="font-mono tabular-nums">{summary?.activeAllocations ?? 0}</p>
+      {boardQuery.isLoading ? (
+        <StatsSkeleton count={5} />
+      ) : (
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <StatCard label="Active allocations" value={summary?.activeAllocations ?? 0} />
+          <StatCard label="Total allocations" value={summary?.totalAllocations ?? 0} />
+          <StatCard label="Hostels" value={summary?.hostels ?? 0} />
+          <StatCard label="Rooms" value={summary?.rooms ?? 0} />
+          <StatCard label="Beds" value={summary?.beds ?? 0} />
         </div>
-        <div>
-          <h2 className="text-sm font-semibold">Total Allocations</h2>
-          <p className="font-mono tabular-nums">{summary?.totalAllocations ?? 0}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Hostels</h2>
-          <p className="font-mono tabular-nums">{summary?.hostels ?? 0}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Rooms</h2>
-          <p className="font-mono tabular-nums">{summary?.rooms ?? 0}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Beds</h2>
-          <p className="font-mono tabular-nums">{summary?.beds ?? 0}</p>
-        </div>
-      </section>
+      )}
 
       <VerticalDataViews
         items={[
-          { id: "allocations", label: "Allocations", count: allocationsRows.length },
-          { id: "hostels", label: "Hostels", count: hostelsRows.length },
+          { id: "allocations", label: "Allocations", count: allocations.length },
+          { id: "hostels", label: "Hostels", count: visibleHostels.length },
           {
             id: "leaveRequests",
             label: "Leave / Outing Requests",
-            count: leaveRequestRows.length,
+            count: leaveRequests.length,
           },
         ]}
-        value={activeView}
-        onValueChange={(value) => setActiveView(value as BoardingView)}
-        railLabel="Boarding Views"
+        value={view}
+        onValueChange={(value) => setView(value as BoardingView)}
+        railLabel="Boarding views"
       >
-        <div className={activeView === "allocations" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Boarding Allocations</h2>
-          <DataTable
-            data={allocationsRows}
-            columns={allocationColumns}
-            searchPlaceholder="Search allocations"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            emptyState={query.isLoading ? "Loading allocations..." : "No allocations available."}
-          />
+        <div className={view === "allocations" ? "space-y-3" : "hidden"}>
+          <FilterBar>
+            <FilterSelect
+              label="Hostel"
+              allLabel="Every hostel"
+              value={hostelFilter}
+              options={hostels.map((hostel) => ({
+                value: hostel.id,
+                label: hostel.name,
+              }))}
+              onChange={setHostelFilter}
+            />
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Every status"
+              value={allocationStatus}
+              options={ALLOCATION_STATUSES}
+              onChange={setAllocationStatus}
+            />
+          </FilterBar>
+
+          {boardQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[{ avatar: true, twoLine: true }, { twoLine: true }, { width: 90 }, { width: 90 }, { width: 70 }, { width: 70 }, { width: 220 }]}
+            />
+          ) : (
+            <DataTable
+              data={allocations}
+              columns={allocationColumns}
+              searchPlaceholder="Search allocations"
+              searchSubmitLabel="Search"
+              pagination={{ enabled: true }}
+              emptyState={
+                hostels.length === 0 ? (
+                  <NothingYet
+                    title="No beds have been given out"
+                    body="A boarding house, its rooms and its beds come first; after that this is where the term's allocations live."
+                  />
+                ) : hostelFilter || classFilter || allocationStatus ? (
+                  <NothingMatched
+                    what="allocations"
+                    filters={filterNames}
+                    onClear={clearFilters}
+                  />
+                ) : (
+                  <NothingYet
+                    title="Nobody is in a bed yet"
+                    body="Allocate a bed to start the term's boarding list."
+                  />
+                )
+              }
+            />
+          )}
         </div>
-        <div className={activeView === "hostels" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Hostel Capacity</h2>
-          <DataTable
-            data={hostelsRows}
-            columns={hostelColumns}
-            searchPlaceholder="Search hostels"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            emptyState={query.isLoading ? "Loading hostels..." : "No hostels available."}
-          />
+
+        <div className={view === "hostels" ? "space-y-3" : "hidden"}>
+          <FilterBar>
+            <FilterSelect
+              label="In use"
+              allLabel="Every hostel"
+              value={hostelState}
+              options={[
+                { value: "open", label: "Open houses" },
+                { value: "closed", label: "Closed houses" },
+              ]}
+              onChange={setHostelState}
+            />
+          </FilterBar>
+
+          {boardQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[{ width: 70 }, { twoLine: true }, { width: 70 }, { width: 70 }, { width: 90 }, { width: 90 }, { width: 220 }]}
+            />
+          ) : (
+            <DataTable
+              data={visibleHostels}
+              columns={hostelColumns}
+              searchPlaceholder="Search hostels"
+              searchSubmitLabel="Search"
+              pagination={{ enabled: true }}
+              emptyState={
+                hostelState ? (
+                  <NothingMatched
+                    what="hostels"
+                    filters={[hostelState === "open" ? "Open houses" : "Closed houses"]}
+                    onClear={() => setHostelState("")}
+                  />
+                ) : (
+                  <NothingYet
+                    title="No boarding houses yet"
+                    body="A hostel holds the rooms, the rooms hold the beds, and the beds are what a child is allocated to."
+                  />
+                )
+              }
+            />
+          )}
         </div>
-        <div className={activeView === "leaveRequests" ? "space-y-2" : "hidden"}>
-          <h2 className="text-section-title">Leave and Outing Workflow</h2>
-          <DataTable
-            data={leaveRequestRows}
-            columns={leaveRequestColumns}
-            searchPlaceholder="Search leave requests"
-            searchSubmitLabel="Search"
-            pagination={{ enabled: true }}
-            emptyState={
-              leaveRequestsQuery.isLoading
-                ? "Loading leave requests..."
-                : "No leave requests available."
-            }
-          />
+
+        <div className={view === "leaveRequests" ? "space-y-3" : "hidden"}>
+          <FilterBar>
+            <FilterSelect
+              label="Hostel"
+              allLabel="Every hostel"
+              value={hostelFilter}
+              options={hostels.map((hostel) => ({
+                value: hostel.id,
+                label: hostel.name,
+              }))}
+              onChange={setHostelFilter}
+            />
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Every status"
+              value={leaveStatus}
+              options={LEAVE_STATUSES}
+              onChange={setLeaveStatus}
+            />
+            <FilterSelect
+              label="Kind"
+              allLabel="Leave and outings"
+              value={leaveType}
+              options={[
+                { value: "LEAVE", label: "Leave" },
+                { value: "OUTING", label: "Outings" },
+              ]}
+              onChange={setLeaveType}
+            />
+          </FilterBar>
+
+          {leaveQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[{ avatar: true, twoLine: true }, { width: 80 }, { width: 110 }, { twoLine: true }, { width: 130 }, { width: 240 }]}
+            />
+          ) : (
+            <DataTable
+              data={leaveRequests}
+              columns={leaveColumns}
+              searchPlaceholder="Search leave requests"
+              searchSubmitLabel="Search"
+              pagination={{ enabled: true }}
+              emptyState={
+                hostelFilter || classFilter || leaveStatus || leaveType ? (
+                  <NothingMatched
+                    what="requests"
+                    filters={filterNames}
+                    onClear={clearFilters}
+                  />
+                ) : (
+                  <NothingYet
+                    title="Nobody has asked to go out"
+                    body="Leave and outings are recorded here, approved by the warden, and signed out and back in at the gate."
+                  />
+                )
+              }
+            />
+          )}
         </div>
       </VerticalDataViews>
+
+      <HostelDialog
+        open={addingHostel || editingHostel !== null}
+        hostel={editingHostel}
+        onClose={() => {
+          setAddingHostel(false);
+          setEditingHostel(null);
+        }}
+      />
+      <AllocateBedDialog
+        open={allocating}
+        hostels={hostels}
+        defaultHostelId={hostelFilter || undefined}
+        onClose={() => setAllocating(false)}
+      />
+      <AllocationDialog
+        open={editingAllocation !== null}
+        allocation={editingAllocation}
+        onClose={() => setEditingAllocation(null)}
+      />
+      <LeaveRequestDialog
+        open={addingLeave || editingLeave !== null}
+        leaveRequest={editingLeave}
+        onClose={() => {
+          setAddingLeave(false);
+          setEditingLeave(null);
+        }}
+      />
     </div>
   );
 }

@@ -1,29 +1,106 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, Badge, Button, Card } from "@corelithzw/react";
+
+import { PageHeading } from "@/components/layout/page-heading";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { PageBand } from "@/components/schools/common/page-band";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { LoadError, NothingMatched, NothingYet } from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import {
+  fetchSchoolsClasses,
   fetchSchoolsStudents,
+  fetchSchoolsTerms,
   type SchoolsStudentRecord,
 } from "@/lib/schools/admin-v2";
+import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
+
+/**
+ * The paperwork a school office prints.
+ *
+ * Four documents, one filter row. The filter row is the change: the class list
+ * and the attendance register kept the student-search state and never rendered
+ * the box, so both printed all 842 pupils with no way to narrow to a class —
+ * which is the only way anybody has ever wanted them. Year group, stream, term
+ * and status now narrow every tab, including those two.
+ *
+ * The two per-pupil documents fetch what they are for. The report card printed
+ * a single row reading "Results data will be populated from the results module"
+ * and the fee invoice printed three dashes; both are the whole point of the
+ * document, and a blank one handed to a parent is worse than none. They read
+ * `/assessments/term-marks` and `/fees/invoices` for the term in view.
+ */
 
 type DocumentView = "report-card" | "fee-invoice" | "class-list" | "attendance-register";
 
+type TermMark = {
+  studentId: string;
+  subject: { id: string; code: string; name: string };
+  mark: number | null;
+  grade: { grade: string; remark?: string | null } | null;
+  caveat: string | null;
+};
+
+type InvoiceLine = {
+  id: string;
+  description: string;
+  lineTotal: string;
+};
+
+type Invoice = {
+  id: string;
+  invoiceNo: string;
+  issueDate: string;
+  dueDate: string;
+  status: string;
+  currency: string;
+  totalAmount: string;
+  paidAmount: string;
+  balanceAmount: string;
+  lines: InvoiceLine[];
+};
+
+const STATUSES = [
+  { value: "ACTIVE", label: "Active pupils" },
+  { value: "SUSPENDED", label: "Suspended" },
+  { value: "GRADUATED", label: "Left, graduated" },
+  { value: "WITHDRAWN", label: "Left, withdrawn" },
+  { value: "APPLICANT", label: "Applicants" },
+];
+
+const CELL = {
+  border: "1px solid #e5e7eb",
+  padding: "6px 8px",
+  textAlign: "left" as const,
+};
+const HEAD_ROW = { backgroundColor: "#f9fafb" };
+
+/**
+ * Printing, and saying so when it does not happen.
+ *
+ * A hand-rolled `window.open` is what the browser will actually print from, so
+ * it stays — but a blocked pop-up used to return silently, and a button that
+ * does nothing and says nothing is the worst thing on a screen. The caller gets
+ * told, and puts it on the page.
+ */
 function usePrint(ref: React.RefObject<HTMLDivElement | null>) {
-  return () => {
+  const [blocked, setBlocked] = useState(false);
+
+  const print = () => {
     if (!ref.current) return;
     const content = ref.current.innerHTML;
     const printWindow = window.open("", "_blank");
-    if (!printWindow) return;
+    if (!printWindow) {
+      setBlocked(true);
+      return;
+    }
+    setBlocked(false);
     printWindow.document.write(`
       <!DOCTYPE html>
       <html>
@@ -44,31 +121,107 @@ function usePrint(ref: React.RefObject<HTMLDivElement | null>) {
     printWindow.focus();
     printWindow.print();
   };
+
+  return { print, blocked, dismiss: () => setBlocked(false) };
 }
 
-function ReportCardPreview({ student }: { student: SchoolsStudentRecord | null }) {
-  const printRef = useRef<HTMLDivElement | null>(null);
-  const handlePrint = usePrint(printRef);
+/** The banner a blocked pop-up earns. */
+function PopupBlocked({ onDismiss }: { onDismiss: () => void }) {
+  return (
+    <Alert tone="warn" title="Your browser blocked the print window" onDismiss={onDismiss}>
+      Allow pop-ups for this site and press Print again — the document is ready, it just has
+      nowhere to open.
+    </Alert>
+  );
+}
 
-  if (!student) {
-    return (
-      <div className="text-sm text-muted-foreground py-8 text-center">
-        Select a student to generate a report card.
-      </div>
-    );
-  }
+/** A document, its Print button and whatever the print attempt had to say. */
+function DocumentFrame({
+  title,
+  children,
+}: {
+  title: string;
+  children: (ref: React.RefObject<HTMLDivElement | null>) => React.ReactNode;
+}) {
+  const printRef = useRef<HTMLDivElement | null>(null);
+  const printer = usePrint(printRef);
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Report Card Preview</h3>
-        <Button size="sm" onClick={handlePrint}>
+        <h3 className="text-[length:var(--type-body-sm)] font-semibold">{title}</h3>
+        <Button size="sm" onClick={printer.print}>
           Print / Save PDF
         </Button>
       </div>
-      <div ref={printRef}>
+      {printer.blocked ? <PopupBlocked onDismiss={printer.dismiss} /> : null}
+      <div ref={printRef} className="overflow-x-auto">
+        {children(printRef)}
+      </div>
+    </div>
+  );
+}
+
+/* ── report card ─────────────────────────────────────────────────────── */
+
+function ReportCardPreview({
+  student,
+  termId,
+  termName,
+}: {
+  student: SchoolsStudentRecord | null;
+  termId: string;
+  termName: string;
+}) {
+  const marksQuery = useQuery({
+    queryKey: [
+      "schools",
+      "term-marks",
+      student?.currentClass?.id,
+      student?.currentStream?.id,
+      termId,
+    ],
+    // The endpoint answers for a whole class in one read, which is also what a
+    // form teacher printing thirty cards needs; the card takes its own rows out.
+    queryFn: () => {
+      const params = new URLSearchParams({ classId: student?.currentClass?.id ?? "" });
+      if (student?.currentStream?.id) params.set("streamId", student.currentStream.id);
+      if (termId) params.set("termId", termId);
+      return fetchJson<{ marks: TermMark[] }>(
+        `/api/v2/schools/assessments/term-marks?${params.toString()}`,
+      );
+    },
+    enabled: Boolean(student?.currentClass?.id),
+  });
+
+  if (!student) {
+    return (
+      <NothingYet
+        title="No pupil chosen"
+        body="Pick a pupil from the list to build their report card."
+      />
+    );
+  }
+
+  if (!student.currentClass) {
+    return (
+      <Alert tone="info" title="This pupil is not in a year group">
+        A report card is built from a class&rsquo;s marks, so {student.firstName} needs a
+        year group before one can be printed.
+      </Alert>
+    );
+  }
+
+  const mine = (marksQuery.data?.marks ?? []).filter(
+    (mark) => mark.studentId === student.id,
+  );
+
+  return (
+    <DocumentFrame title="Report Card Preview">
+      {() => (
         <PdfTemplate
           title="Student Report Card"
+          subtitle={termName}
           meta={[
             { label: "Student No", value: student.studentNo },
             { label: "Admission No", value: student.admissionNo || "-" },
@@ -80,19 +233,42 @@ function ReportCardPreview({ student }: { student: SchoolsStudentRecord | null }
         >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f9fafb" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Subject</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "center" }}>Mark</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "center" }}>Grade</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Comment</th>
+              <tr style={HEAD_ROW}>
+                <th style={CELL}>Subject</th>
+                <th style={{ ...CELL, textAlign: "center" }}>Mark</th>
+                <th style={{ ...CELL, textAlign: "center" }}>Grade</th>
+                <th style={CELL}>Comment</th>
               </tr>
             </thead>
             <tbody>
-              <tr>
-                <td colSpan={4} style={{ border: "1px solid #e5e7eb", padding: "12px 8px", textAlign: "center", color: "#6b7280" }}>
-                  Results data will be populated from the results module for the selected term.
-                </td>
-              </tr>
+              {marksQuery.isPending ? (
+                <tr>
+                  <td colSpan={4} style={{ ...CELL, textAlign: "center", color: "#6b7280" }}>
+                    Working the marks out…
+                  </td>
+                </tr>
+              ) : mine.length === 0 ? (
+                <tr>
+                  <td colSpan={4} style={{ ...CELL, textAlign: "center", color: "#6b7280" }}>
+                    No marks have been recorded for {student.firstName} this term.
+                  </td>
+                </tr>
+              ) : (
+                mine.map((mark) => (
+                  <tr key={mark.subject.id}>
+                    <td style={CELL}>{mark.subject.name}</td>
+                    <td style={{ ...CELL, textAlign: "center", fontFamily: "monospace" }}>
+                      {mark.mark === null ? "-" : Math.round(mark.mark)}
+                    </td>
+                    <td style={{ ...CELL, textAlign: "center" }}>
+                      {mark.grade?.grade ?? "-"}
+                    </td>
+                    <td style={{ ...CELL, color: "#6b7280" }}>
+                      {mark.grade?.remark ?? mark.caveat ?? ""}
+                    </td>
+                  </tr>
+                ))
+              )}
             </tbody>
           </table>
           <div style={{ marginTop: "24px", borderTop: "1px solid #e5e7eb", paddingTop: "12px" }}>
@@ -108,176 +284,247 @@ function ReportCardPreview({ student }: { student: SchoolsStudentRecord | null }
             </div>
           </div>
         </PdfTemplate>
-      </div>
-    </div>
+      )}
+    </DocumentFrame>
   );
 }
 
-function FeeInvoicePreview({ student }: { student: SchoolsStudentRecord | null }) {
-  const printRef = useRef<HTMLDivElement | null>(null);
-  const handlePrint = usePrint(printRef);
+/* ── fee invoice ─────────────────────────────────────────────────────── */
+
+function FeeInvoicePreview({
+  student,
+  termId,
+  termName,
+}: {
+  student: SchoolsStudentRecord | null;
+  termId: string;
+  termName: string;
+}) {
+  const invoiceQuery = useQuery({
+    queryKey: ["schools", "invoice", "document", student?.id, termId],
+    queryFn: () => {
+      const params = new URLSearchParams({
+        studentId: student?.id ?? "",
+        includeLines: "true",
+        limit: "1",
+      });
+      if (termId) params.set("termId", termId);
+      return fetchJson<{ data: Invoice[] }>(
+        `/api/v2/schools/fees/invoices?${params.toString()}`,
+      );
+    },
+    enabled: Boolean(student?.id),
+  });
 
   if (!student) {
     return (
-      <div className="text-sm text-muted-foreground py-8 text-center">
-        Select a student to generate a fee invoice.
-      </div>
+      <NothingYet
+        title="No pupil chosen"
+        body="Pick a pupil from the list to print their invoice."
+      />
+    );
+  }
+
+  const invoice = invoiceQuery.data?.data[0] ?? null;
+
+  if (invoiceQuery.error) {
+    return (
+      <LoadError
+        what="the invoice"
+        error={invoiceQuery.error}
+        onRetry={() => void invoiceQuery.refetch()}
+      />
+    );
+  }
+
+  if (!invoiceQuery.isPending && !invoice) {
+    return (
+      <Alert tone="info" title="Nothing has been billed yet">
+        {student.firstName} has no invoice for {termName}. The bursar raises one from the
+        fee ledger, and it can be printed here as soon as it exists.
+      </Alert>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Fee Invoice Preview</h3>
-        <Button size="sm" onClick={handlePrint}>
-          Print / Save PDF
-        </Button>
-      </div>
-      <div ref={printRef}>
+    <DocumentFrame title="Fee Invoice Preview">
+      {() => (
         <PdfTemplate
           title="Fee Invoice"
+          subtitle={termName}
           meta={[
+            { label: "Invoice No", value: invoice?.invoiceNo ?? "-" },
             { label: "Student No", value: student.studentNo },
             { label: "Class", value: student.currentClass?.name ?? "-" },
-            { label: "Invoice Date", value: new Date().toLocaleDateString() },
-            { label: "Due Date", value: "-" },
+            { label: "Invoice Date", value: formatSchoolDate(invoice?.issueDate) },
+            { label: "Due Date", value: formatSchoolDate(invoice?.dueDate) },
+            { label: "Status", value: invoice?.status ?? "-" },
           ]}
         >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f9fafb" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Description</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "right" }}>Amount</th>
+              <tr style={HEAD_ROW}>
+                <th style={CELL}>Description</th>
+                <th style={{ ...CELL, textAlign: "right" }}>Amount</th>
               </tr>
             </thead>
             <tbody>
+              {invoiceQuery.isPending ? (
+                <tr>
+                  <td colSpan={2} style={{ ...CELL, textAlign: "center", color: "#6b7280" }}>
+                    Fetching the invoice…
+                  </td>
+                </tr>
+              ) : (invoice?.lines.length ?? 0) === 0 ? (
+                <tr>
+                  <td style={CELL}>{`Fees, ${termName}`}</td>
+                  <td style={{ ...CELL, textAlign: "right", fontFamily: "monospace" }}>
+                    {formatSchoolMoney(invoice?.totalAmount, invoice?.currency)}
+                  </td>
+                </tr>
+              ) : (
+                invoice?.lines.map((line) => (
+                  <tr key={line.id}>
+                    <td style={CELL}>{line.description}</td>
+                    <td style={{ ...CELL, textAlign: "right", fontFamily: "monospace" }}>
+                      {formatSchoolMoney(line.lineTotal, invoice.currency)}
+                    </td>
+                  </tr>
+                ))
+              )}
               <tr>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>Tuition Fee</td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "right", fontFamily: "monospace" }}>-</td>
-              </tr>
-              <tr>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>Boarding Fee</td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "right", fontFamily: "monospace" }}>-</td>
+                <td style={CELL}>Paid to date</td>
+                <td style={{ ...CELL, textAlign: "right", fontFamily: "monospace" }}>
+                  {formatSchoolMoney(invoice?.paidAmount, invoice?.currency)}
+                </td>
               </tr>
               <tr style={{ fontWeight: 600 }}>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>Total Due</td>
-                <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "right", fontFamily: "monospace" }}>-</td>
+                <td style={CELL}>Total due</td>
+                <td style={{ ...CELL, textAlign: "right", fontFamily: "monospace" }}>
+                  {formatSchoolMoney(invoice?.balanceAmount, invoice?.currency)}
+                </td>
               </tr>
             </tbody>
           </table>
-          <div style={{ marginTop: "16px", fontSize: "11px", color: "#6b7280" }}>
-            <p>Fee invoice amounts will be populated from the fee structures configured for the current term.</p>
-          </div>
         </PdfTemplate>
-      </div>
-    </div>
+      )}
+    </DocumentFrame>
   );
 }
 
-function ClassListPreview({ students }: { students: SchoolsStudentRecord[] }) {
-  const printRef = useRef<HTMLDivElement | null>(null);
-  const handlePrint = usePrint(printRef);
+/* ── class list and register ─────────────────────────────────────────── */
 
+function ClassListPreview({
+  students,
+  scope,
+}: {
+  students: SchoolsStudentRecord[];
+  scope: string;
+}) {
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Class List Preview</h3>
-        <Button size="sm" onClick={handlePrint}>
-          Print / Save PDF
-        </Button>
-      </div>
-      <div ref={printRef}>
+    <DocumentFrame title="Class List Preview">
+      {() => (
         <PdfTemplate
           title="Class List"
+          subtitle={scope}
           meta={[
-            { label: "Total Students", value: String(students.length) },
-            { label: "Date", value: new Date().toLocaleDateString() },
+            { label: "Pupils", value: String(students.length) },
+            { label: "Date", value: formatSchoolDate(new Date()) },
           ]}
         >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "12px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f9fafb" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>#</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Student No</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Name</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Class</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Stream</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "6px 8px", textAlign: "left" }}>Status</th>
+              <tr style={HEAD_ROW}>
+                <th style={CELL}>#</th>
+                <th style={CELL}>Student No</th>
+                <th style={CELL}>Name</th>
+                <th style={CELL}>Class</th>
+                <th style={CELL}>Stream</th>
+                <th style={CELL}>Status</th>
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan={6} style={{ border: "1px solid #e5e7eb", padding: "12px 8px", textAlign: "center", color: "#6b7280" }}>
-                    No students found.
+                  <td colSpan={6} style={{ ...CELL, textAlign: "center", color: "#6b7280" }}>
+                    Nothing is left after the filters in force.
                   </td>
                 </tr>
               ) : (
-                students.map((s, i) => (
-                  <tr key={s.id}>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>{i + 1}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px", fontFamily: "monospace" }}>{s.studentNo}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>{s.firstName} {s.lastName}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>{s.currentClass?.name ?? "-"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>{s.currentStream?.name ?? "-"}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "6px 8px" }}>{s.status}</td>
+                students.map((student, index) => (
+                  <tr key={student.id}>
+                    <td style={CELL}>{index + 1}</td>
+                    <td style={{ ...CELL, fontFamily: "monospace" }}>{student.studentNo}</td>
+                    <td style={CELL}>
+                      {student.firstName} {student.lastName}
+                    </td>
+                    <td style={CELL}>{student.currentClass?.name ?? "-"}</td>
+                    <td style={CELL}>{student.currentStream?.name ?? "-"}</td>
+                    <td style={CELL}>{student.status}</td>
                   </tr>
                 ))
               )}
             </tbody>
           </table>
         </PdfTemplate>
-      </div>
-    </div>
+      )}
+    </DocumentFrame>
   );
 }
 
-function AttendanceRegisterPreview({ students }: { students: SchoolsStudentRecord[] }) {
-  const printRef = useRef<HTMLDivElement | null>(null);
-  const handlePrint = usePrint(printRef);
-
+function AttendanceRegisterPreview({
+  students,
+  scope,
+}: {
+  students: SchoolsStudentRecord[];
+  scope: string;
+}) {
   const weekDays = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h3 className="text-sm font-semibold">Attendance Register Preview</h3>
-        <Button size="sm" onClick={handlePrint}>
-          Print / Save PDF
-        </Button>
-      </div>
-      <div ref={printRef}>
+    <DocumentFrame title="Attendance Register Preview">
+      {() => (
         <PdfTemplate
           title="Attendance Register"
+          subtitle={scope}
           meta={[
-            { label: "Week Of", value: new Date().toLocaleDateString() },
-            { label: "Total Students", value: String(students.length) },
+            { label: "Week of", value: formatSchoolDate(new Date()) },
+            { label: "Pupils", value: String(students.length) },
           ]}
         >
           <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "11px" }}>
             <thead>
-              <tr style={{ backgroundColor: "#f9fafb" }}>
-                <th style={{ border: "1px solid #e5e7eb", padding: "4px 6px", textAlign: "left" }}>#</th>
-                <th style={{ border: "1px solid #e5e7eb", padding: "4px 6px", textAlign: "left" }}>Name</th>
+              <tr style={HEAD_ROW}>
+                <th style={CELL}>#</th>
+                <th style={CELL}>Name</th>
                 {weekDays.map((day) => (
-                  <th key={day} style={{ border: "1px solid #e5e7eb", padding: "4px 6px", textAlign: "center", minWidth: "40px" }}>{day}</th>
+                  <th key={day} style={{ ...CELL, textAlign: "center", minWidth: "40px" }}>
+                    {day}
+                  </th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {students.length === 0 ? (
                 <tr>
-                  <td colSpan={2 + weekDays.length} style={{ border: "1px solid #e5e7eb", padding: "12px 8px", textAlign: "center", color: "#6b7280" }}>
-                    No students found.
+                  <td
+                    colSpan={2 + weekDays.length}
+                    style={{ ...CELL, textAlign: "center", color: "#6b7280" }}
+                  >
+                    Nothing is left after the filters in force.
                   </td>
                 </tr>
               ) : (
-                students.map((s, i) => (
-                  <tr key={s.id}>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{i + 1}</td>
-                    <td style={{ border: "1px solid #e5e7eb", padding: "4px 6px" }}>{s.firstName} {s.lastName}</td>
+                students.map((student, index) => (
+                  <tr key={student.id}>
+                    <td style={CELL}>{index + 1}</td>
+                    <td style={CELL}>
+                      {student.firstName} {student.lastName}
+                    </td>
                     {weekDays.map((day) => (
-                      <td key={day} style={{ border: "1px solid #e5e7eb", padding: "4px 6px", textAlign: "center" }}>&nbsp;</td>
+                      <td key={day} style={{ ...CELL, textAlign: "center" }}>
+                        &nbsp;
+                      </td>
                     ))}
                   </tr>
                 ))
@@ -285,113 +532,258 @@ function AttendanceRegisterPreview({ students }: { students: SchoolsStudentRecor
             </tbody>
           </table>
         </PdfTemplate>
-      </div>
-    </div>
+      )}
+    </DocumentFrame>
   );
 }
+
+/* ── the screen ──────────────────────────────────────────────────────── */
 
 export function SchoolDocumentsContent() {
   const [activeView, setActiveView] = useState<DocumentView>("report-card");
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
+  const [search, setSearch] = useState("");
+  const [classId, setClassId] = useState("");
+  const [streamId, setStreamId] = useState("");
+  const [termId, setTermId] = useState("");
+  const [status, setStatus] = useState("ACTIVE");
 
-  const studentsQuery = useQuery({
-    queryKey: ["schools", "students", "documents"],
-    queryFn: () => fetchSchoolsStudents({ page: 1, limit: 200 }),
+  const classesQuery = useQuery({
+    queryKey: ["schools", "classes", "documents"],
+    queryFn: () => fetchSchoolsClasses({ limit: 100 }),
+  });
+  const termsQuery = useQuery({
+    queryKey: ["schools", "terms", "documents"],
+    queryFn: () => fetchSchoolsTerms({ limit: 100 }),
   });
 
-  const students = studentsQuery.data?.data ?? [];
-  const selectedStudent = students.find((s) => s.id === selectedStudentId) ?? null;
+  // The filters go to the API, not to a client-side slice: a class list has to
+  // be able to print a whole year group, and the roll is longer than one page.
+  const studentsQuery = useQuery({
+    queryKey: ["schools", "students", "documents", classId, streamId, status],
+    queryFn: () =>
+      fetchSchoolsStudents({
+        page: 1,
+        limit: 100,
+        ...(classId ? { classId } : {}),
+        ...(streamId ? { streamId } : {}),
+        ...(status ? { status } : {}),
+      }),
+  });
 
-  const filteredStudents = searchTerm
-    ? students.filter(
-        (s) =>
-          `${s.firstName} ${s.lastName}`.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          s.studentNo.toLowerCase().includes(searchTerm.toLowerCase()),
-      )
-    : students;
+  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
+  const terms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
+  const activeTerm = useMemo(
+    () => terms.find((term) => term.isActive) ?? terms[0] ?? null,
+    [terms],
+  );
+  const term = termId ? (terms.find((row) => row.id === termId) ?? activeTerm) : activeTerm;
+  const effectiveTermId = term?.id ?? "";
+  const termName = term ? `${term.name} · ${term.academicYear.name}` : "This term";
 
-  const hasError = studentsQuery.error;
+  const streams = useMemo(() => {
+    const source = classId ? classes.filter((row) => row.id === classId) : classes;
+    return source.flatMap((row) =>
+      (row.streams ?? []).map((stream) => ({ value: stream.id, label: stream.name })),
+    );
+  }, [classes, classId]);
+
+  const students = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
+  const total = studentsQuery.data?.pagination.total ?? 0;
+
+  const searched = useMemo(() => {
+    if (!search.trim()) return students;
+    const needle = search.trim().toLowerCase();
+    return students.filter(
+      (student) =>
+        `${student.firstName} ${student.lastName}`.toLowerCase().includes(needle) ||
+        student.studentNo.toLowerCase().includes(needle),
+    );
+  }, [students, search]);
+
+  const selectedStudent = students.find((row) => row.id === selectedStudentId) ?? null;
+  const scopeLabel = [
+    classId ? classes.find((row) => row.id === classId)?.name : "The whole school",
+    streamId ? streams.find((row) => row.value === streamId)?.label : null,
+    STATUSES.find((row) => row.value === status)?.label,
+    termName,
+  ]
+    .filter(Boolean)
+    .join(" · ");
+
+  const perPupil = activeView === "report-card" || activeView === "fee-invoice";
 
   return (
-    <div className="space-y-4">
-      {hasError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load student data</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(studentsQuery.error)}</AlertDescription>
-        </Alert>
+    <div className="space-y-3">
+      <PageHeading title="School Documents" />
+
+      <PageBand
+        chips={[
+          {
+            label: "Year group",
+            value: classId
+              ? (classes.find((row) => row.id === classId)?.name ?? "—")
+              : "Every year group",
+          },
+          { label: "Pupils", value: total.toLocaleString() },
+          { label: "Term", value: term ? term.name : "—" },
+        ]}
+      />
+
+      <FilterBar>
+        <FilterSelect
+          label="Year group"
+          allLabel="Every year group"
+          value={classId}
+          options={classes.map((row) => ({ value: row.id, label: row.name }))}
+          onChange={(value) => {
+            setClassId(value);
+            setStreamId("");
+            setSelectedStudentId(null);
+          }}
+        />
+        <FilterSelect
+          label="Stream"
+          allLabel="Every stream"
+          value={streamId}
+          options={streams}
+          onChange={(value) => {
+            setStreamId(value);
+            setSelectedStudentId(null);
+          }}
+        />
+        <FilterSelect
+          label="Term"
+          allLabel={activeTerm ? `${activeTerm.name} · ${activeTerm.academicYear.name}` : "This term"}
+          value={termId}
+          options={terms.map((row) => ({
+            value: row.id,
+            label: `${row.name} · ${row.academicYear.name}`,
+          }))}
+          onChange={setTermId}
+        />
+        <FilterSelect
+          label="Status"
+          allLabel="Anybody on the roll"
+          value={status}
+          options={STATUSES}
+          onChange={(value) => {
+            setStatus(value);
+            setSelectedStudentId(null);
+          }}
+        />
+      </FilterBar>
+
+      {studentsQuery.error ? (
+        <LoadError
+          what="the roll"
+          error={studentsQuery.error}
+          onRetry={() => void studentsQuery.refetch()}
+        />
       ) : null}
 
       <VerticalDataViews
         items={[
           { id: "report-card", label: "Report Cards" },
           { id: "fee-invoice", label: "Fee Invoices" },
-          { id: "class-list", label: "Class Lists" },
-          { id: "attendance-register", label: "Attendance Registers" },
+          { id: "class-list", label: "Class Lists", count: searched.length },
+          { id: "attendance-register", label: "Attendance Registers", count: searched.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as DocumentView)}
         railLabel="Document Types"
       >
-        {activeView === "report-card" || activeView === "fee-invoice" ? (
+        {perPupil ? (
           <div className="space-y-4">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-sm">Select Student</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="space-y-3">
-                  <div>
-                    <Label htmlFor="doc-student-search">Search students</Label>
-                    <Input
-                      id="doc-student-search"
-                      placeholder="Search by name or student number..."
-                      value={searchTerm}
-                      onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                  </div>
-                  <div className="max-h-48 overflow-y-auto space-y-1">
-                    {studentsQuery.isLoading ? (
-                      <div className="text-sm text-muted-foreground py-2">Loading students...</div>
-                    ) : filteredStudents.length === 0 ? (
-                      <div className="text-sm text-muted-foreground py-2">No students found.</div>
-                    ) : (
-                      filteredStudents.slice(0, 20).map((s) => (
-                        <button
-                          key={s.id}
-                          type="button"
-                          className={`w-full text-left px-3 py-2 rounded text-sm hover:bg-accent transition-colors ${
-                            selectedStudentId === s.id ? "bg-accent font-medium" : ""
-                          }`}
-                          onClick={() => setSelectedStudentId(s.id)}
-                        >
-                          <span className="font-mono text-xs text-muted-foreground">{s.studentNo}</span>{" "}
-                          {s.firstName} {s.lastName}
-                          {s.currentClass ? (
-                            <Badge variant="outline" className="ml-2">{s.currentClass.name}</Badge>
-                          ) : null}
-                        </button>
-                      ))
-                    )}
-                  </div>
+            <Card
+              title="Select a pupil"
+              subtitle={`${searched.length} of ${total.toLocaleString()} on the roll`}
+            >
+              <div className="space-y-3">
+                <div>
+                  <Label htmlFor="doc-student-search">Search students</Label>
+                  <Input
+                    id="doc-student-search"
+                    placeholder="Search by name or student number…"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                  />
                 </div>
-              </CardContent>
+                <div className="max-h-56 space-y-1 overflow-y-auto">
+                  {studentsQuery.isPending ? (
+                    <div className="py-2 text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                      Loading the roll…
+                    </div>
+                  ) : searched.length === 0 ? (
+                    <NothingMatched
+                      what="pupils"
+                      filters={[
+                        classId ? classes.find((row) => row.id === classId)?.name : null,
+                        STATUSES.find((row) => row.value === status)?.label,
+                      ].filter((value): value is string => Boolean(value))}
+                      onClear={() => {
+                        setClassId("");
+                        setStreamId("");
+                        setStatus("ACTIVE");
+                        setSearch("");
+                      }}
+                    />
+                  ) : (
+                    searched.slice(0, 20).map((student) => (
+                      <button
+                        key={student.id}
+                        type="button"
+                        className={`w-full rounded px-3 py-2 text-left text-[length:var(--type-body-sm)] transition-colors hover:bg-[color:var(--surface-muted)] ${
+                          selectedStudentId === student.id
+                            ? "bg-[color:var(--surface-muted)] font-medium"
+                            : ""
+                        }`}
+                        onClick={() => setSelectedStudentId(student.id)}
+                      >
+                        <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                          {student.studentNo}
+                        </span>{" "}
+                        {student.firstName} {student.lastName}
+                        {student.currentClass ? (
+                          <Badge tone="outline" className="ml-2">
+                            {student.currentClass.name}
+                          </Badge>
+                        ) : null}
+                      </button>
+                    ))
+                  )}
+                </div>
+                {searched.length > 20 ? (
+                  <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                    Showing the first 20 matches of {searched.length}. Narrow the year group
+                    to see the rest.
+                  </p>
+                ) : null}
+              </div>
             </Card>
 
             {activeView === "report-card" ? (
-              <ReportCardPreview student={selectedStudent} />
+              <ReportCardPreview
+                student={selectedStudent}
+                termId={effectiveTermId}
+                termName={termName}
+              />
             ) : (
-              <FeeInvoicePreview student={selectedStudent} />
+              <FeeInvoicePreview
+                student={selectedStudent}
+                termId={effectiveTermId}
+                termName={termName}
+              />
             )}
           </div>
         ) : null}
 
         {activeView === "class-list" ? (
-          <ClassListPreview students={filteredStudents} />
+          <ClassListPreview students={searched} scope={scopeLabel} />
         ) : null}
 
         {activeView === "attendance-register" ? (
-          <AttendanceRegisterPreview students={filteredStudents} />
+          <AttendanceRegisterPreview students={searched} scope={scopeLabel} />
         ) : null}
       </VerticalDataViews>
     </div>
