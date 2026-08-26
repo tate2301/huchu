@@ -40,8 +40,16 @@ const CHECKS = [
 /** Only screens that actually list something need the full set. */
 const LISTS = /DataTable|MobileList|\.map\(\(/
 
-/** Files that are dialogs, panels or helpers rather than screens. */
-const NOT_A_SCREEN = /-(dialog|sheet|form|shell|context|state|data|views|tabs|caption)\.tsx$|use-[a-z-]+\.tsx?$/
+/**
+ * Files that are not screens.
+ *
+ * Dialogs, sheets and form bodies report through their caller. A filter
+ * control renders a dropdown of options, not a list of records — a skeleton
+ * inside a `<Select>` would be furniture around furniture. Panels stay in,
+ * because a panel that fetches its own rows owns its own states.
+ */
+const NOT_A_SCREEN =
+  /-(dialog|dialogs|sheet|form|shell|context|state|data|views|tabs|caption|pickers|picker|filter|cell)\.tsx$|use-[a-z-]+\.tsx?$|common\/(class-filter|grade-picker|filter-select|table-controls)\.tsx$/
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
