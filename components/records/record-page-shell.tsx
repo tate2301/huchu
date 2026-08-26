@@ -374,18 +374,21 @@ export function RecordPageShell({
   // The columns fill whatever the viewport has left after the app bar and
   // `main`'s padding, which is what `--content-viewport` is; longer content
   // still grows past it, since this is a floor and not a height.
-  // 11rem and 21.25rem are the artboard's 176 and 340. The section rail was
-  // 13rem: the longest label a record carries is "Conversation", and the extra
-  // two rem came off the middle column, which is the one holding the timeline.
-  const sectionGrid = cn(
-    "min-w-0 md:grid md:min-h-[var(--content-viewport)]",
-    hasSectionRail && !infoOpen && "md:grid-cols-[11rem_minmax(0,1fr)_auto]",
-    hasSectionRail &&
-      infoOpen &&
-      "md:grid-cols-[11rem_minmax(0,1fr)] lg:grid-cols-[11rem_minmax(0,1fr)_21.25rem]",
-    !hasSectionRail && !infoOpen && "md:grid-cols-[minmax(0,1fr)_auto]",
-    !hasSectionRail && infoOpen && "md:grid-cols-1 lg:grid-cols-[minmax(0,1fr)_21.25rem]",
-  );
+  /*
+    The panes row.
+
+    Not a grid any more. The artboard's three columns are not tracks on a
+    scrolling page — they are three scroll containers side by side inside a
+    shell that does not scroll at all, and a grid cell cannot be one without a
+    height to bound it. Flex gives each pane `min-h-0` against a parent that
+    already has the viewport's height, which is what makes `overflow-y: auto`
+    inside them mean anything.
+
+    11rem and 21.25rem are the artboard's 176 and 340. The section rail was
+    13rem: the longest label a record carries is "Conversation", and the two
+    rem came off the middle column, which is the one holding the timeline.
+  */
+  const panes = "min-w-0 md:flex md:min-h-0 md:flex-1 md:overflow-hidden";
 
   /**
    * The record's actions, in the top app bar.
@@ -456,7 +459,8 @@ export function RecordPageShell({
   }, [actions, narrow, primaryAction]);
 
   return (
-    <div className="space-y-4">
+    // A page below `md`, a fixed shell above it — see `.record-shell`.
+    <div className="record-shell space-y-4 md:space-y-0">
       {/* Drilled into a section on a phone, "up" is the record — not the list
           it came from. Getting that wrong is what makes a drilldown feel like
           a trapdoor: you open Documents, press back, and you are in the leads
@@ -501,7 +505,12 @@ export function RecordPageShell({
         better. Hidden below `md`, where the column is the landing view anyway.
       */}
       {status || reference || bandValue || beforeTabs ? (
-        <div className="band-shell sticky top-0 z-30 mb-3 hidden min-h-[var(--page-band-h)] items-center gap-2.5 border-b border-[var(--border)] bg-[var(--canvas)] md:flex">
+        /* Not sticky any more, and it does not need to be: it is a row of the
+           shell rather than the first thing in a scroller, so there is nothing
+           for it to scroll away from. White, as the artboard draws it — the
+           panes below carry the canvas tint, and the band reads as part of the
+           chrome with them. */
+        <div className="hidden min-h-[var(--page-band-h)] shrink-0 items-center gap-2.5 border-b border-[var(--border)] bg-[var(--surface-base)] px-[var(--content-gutter-x)] md:flex">
           {status ? <StatusChip status={status.status} label={status.label} /> : null}
           {reference ? (
             <span className="font-mono text-sm text-[var(--text-muted)]">{reference}</span>
@@ -529,33 +538,36 @@ export function RecordPageShell({
         </div>
       ) : null}
 
-      <div className={sectionGrid}>
-        {/* The sections. Sticky, because a rail you have to scroll back up to
-            reach is a rail you stop using on a long timeline. */}
+      <div className={panes}>
+        {/* The sections, in a pane of their own. It scrolls independently, so a
+            record with thirteen sections keeps every one reachable without
+            scrolling the conversation back to the top to get at them. */}
         {hasSectionRail ? (
-          <aside className="hidden md:block">
-            <div className="sticky top-0 pr-5">
-              {sectionRail}
-              {/* Records this one points at. Under the sections rather than
-                  beside them: these are places to go, the same as a section,
-                  and a second rail on the other side of the page would be two
-                  lists of destinations facing each other. */}
-              {related ? (
-                <div className="mt-4">
-                  <p className="acct-rail-heading px-3 pb-1.5">Related</p>
-                  {related}
-                </div>
-              ) : null}
-            </div>
+          <aside className="hidden shrink-0 overflow-y-auto border-r border-[var(--border-subtle)] bg-[var(--surface-base)] p-2 md:block md:w-[11rem]">
+            {sectionRail}
+            {/* Records this one points at. Under the sections rather than
+                beside them: these are places to go, the same as a section, and
+                a second rail on the other side of the page would be two lists
+                of destinations facing each other. */}
+            {related ? (
+              <div className="mt-4">
+                <p className="acct-rail-heading px-3 pb-1.5">Related</p>
+                {related}
+              </div>
+            ) : null}
           </aside>
         ) : null}
 
+        {/* The section being read. The canvas tint, so the cards inside it read
+            as raised off something; the rails either side stay white.
+
+            `scroll-padding-top` is the artboard's 130: a composer or a table
+            header pinned inside this pane must never be what keyboard focus
+            lands underneath. */}
         <div
           className={cn(
             "min-w-0 space-y-4",
-            // The rule between columns, and the room either side of it.
-            hasSectionRail && "md:border-l md:border-[var(--border-subtle)] md:pl-5",
-            infoOpen && "lg:pr-5",
+            "md:flex-1 md:space-y-0 md:overflow-y-auto md:bg-[var(--canvas)] md:px-4 md:py-3 md:[scroll-padding-top:130px]",
           )}
         >
           {/* The record, at the head of the landing view, where a phone has no
@@ -582,20 +594,20 @@ export function RecordPageShell({
           ) : null}
         </div>
 
-        {/* The standing column: what this record is, and what it is worth,
+        {/* The standing column: what this record is and what it is worth,
             beside whichever section is being read. Collapsible, because a
-            reader working through a long document list wants the width — and
-            sticky, so it is still there when they scroll back to the top. */}
+            reader working through a long document list wants the width.
+
+            Its own scrollport, which is what lets the headings inside it pin.
+            `RailSection` draws each heading as a band that sticks to the top of
+            this pane — the artboard's Properties / How warm / Up next / Contact
+            so far strips — and a sticky child only pins against the nearest
+            scrolling ancestor. Without the overflow here that ancestor is the
+            page, and the headings do nothing. */}
         {infoOpen ? (
-          /* Its own scrollport, which is what lets the headings inside it pin.
-             `RailSection` draws each heading as a band that sticks to the top
-             of this pane — the artboards' Properties / How warm / Up next /
-             Contact so far strips — and a sticky child only pins against the
-             nearest scrolling ancestor. Without the height and the overflow
-             here, that ancestor is the page, and the headings do nothing. */
-          <aside className="hidden border-l border-[var(--border-subtle)] pl-5 lg:block lg:sticky lg:top-0 lg:max-h-[var(--content-viewport)] lg:overflow-y-auto">
-            <div className="space-y-4">
-              <div className="flex justify-end">
+          <aside className="hidden shrink-0 overflow-y-auto border-l border-[var(--border-subtle)] bg-[var(--surface-base)] px-5 lg:block lg:w-[21.25rem]">
+            <div className="space-y-4 pb-5">
+              <div className="flex justify-end pt-2">
                 <IconButton aria-label="Hide record details" onClick={toggleInfo}>
                   <ChevronRight />
                 </IconButton>
@@ -604,12 +616,10 @@ export function RecordPageShell({
             </div>
           </aside>
         ) : (
-          <aside className="hidden border-l border-[var(--border-subtle)] pl-2 lg:block">
-            <div className="sticky top-0">
-              <IconButton aria-label="Show record details" onClick={toggleInfo}>
-                <ChevronLeftIcon />
-              </IconButton>
-            </div>
+          <aside className="hidden shrink-0 border-l border-[var(--border-subtle)] bg-[var(--surface-base)] px-2 pt-2 lg:block">
+            <IconButton aria-label="Show record details" onClick={toggleInfo}>
+              <ChevronLeftIcon />
+            </IconButton>
           </aside>
         )}
       </div>

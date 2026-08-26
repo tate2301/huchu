@@ -1074,6 +1074,41 @@
     max-width: none;
   }
 
+  /* The record page's frame.
+
+     A record is the one surface in the module that does not scroll as a page.
+     The artboard draws it as a fixed shell — an identity band that never moves,
+     and three panes beside each other that each scroll on their own — so
+     reading forty messages in the conversation never takes the properties or
+     the section rail off the screen with it.
+
+     Two things that asks of `main`. The shell fills the scrollport exactly, so
+     `main` itself has nothing left to scroll: `--content-viewport` is defined
+     as the height `main` actually has, which is why it can be trusted here. And
+     it bleeds back out of the page gutter, because the seams between the panes
+     are full-height rules that have to meet the frame — stopping 16px short at
+     each end reads as three floating columns rather than one divided surface.
+
+     Written as a class rather than utilities because the negation has to be a
+     `calc()`. Tailwind's leading-minus shorthand cannot negate a bare custom
+     property — it emits a literal ellipsis, which is not CSS, and Turbopack
+     then fails the whole stylesheet, so every page 500s rather than this one
+     merely looking wrong.
+
+     Below `md` none of it applies: a phone gets the landing view and drills
+     into one section at a time, which is a page that scrolls like any other. */
+  @media (min-width: 48rem) {
+    .record-shell {
+      display: flex;
+      flex-direction: column;
+      height: var(--content-viewport);
+      overflow: hidden;
+      width: calc(100% + (var(--content-gutter-x) * 2));
+      margin-inline: calc(var(--content-gutter-x) * -1);
+      max-width: none;
+    }
+  }
+
   /* `--stack-top` is "the next free offset in this scrollport".
      Each band that pins reads it, then republishes it one band lower to its
      own children. The bands compose without any of them knowing what is above:
