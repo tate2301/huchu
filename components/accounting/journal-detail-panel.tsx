@@ -5,8 +5,45 @@ import { format } from "date-fns";
 
 import { ReportPanel } from "@/components/ui/breakdown-panel";
 import { ReportTable, amt, dim, txt, type ReportRow } from "@/components/accounting/report-table";
+import { Button } from "@/components/ui/button";
 import type { JournalEntryRecord } from "@/lib/api";
+import { formatAmount } from "@/lib/accounting/format";
 import { cn } from "@/lib/utils";
+
+/**
+ * The lifecycle a journal actually has.
+ *
+ * `JournalEntryRecord.status` is still typed DRAFT | POSTED in lib/api.ts, but
+ * the schema's JournalStatus enum has four states and the reverse endpoint
+ * writes the third of them — reversing a posted entry leaves it REVERSED. Read
+ * through this type, a reversed journal is drawn as itself; read through the
+ * narrower one it came back as "not posted", which is to say as a draft.
+ * Widening the shared record type belongs in lib/api.ts, not here.
+ */
+export type JournalStatus = "DRAFT" | "POSTED" | "REVERSED" | "VOIDED";
+
+export const journalStatusLabel: Record<JournalStatus, string> = {
+  DRAFT: "Draft",
+  POSTED: "Posted",
+  REVERSED: "Reversed",
+  VOIDED: "Voided",
+};
+
+/**
+ * Work still owed reads warn, work done reads ok. A reversed entry is muted
+ * because it is history rather than a problem — something later cancelled it
+ * out — and a voided one is danger because it is an entry that should never
+ * have been written.
+ */
+export const journalStatusTone: Record<JournalStatus, "warn" | "ok" | "mute" | "bad"> = {
+  DRAFT: "warn",
+  POSTED: "ok",
+  REVERSED: "mute",
+  VOIDED: "bad",
+};
+
+export const journalStatusOf = (entry: JournalEntryRecord): JournalStatus =>
+  entry.status as JournalStatus;
 
 /**
  * One journal entry, opened.
@@ -25,10 +62,20 @@ import { cn } from "@/lib/utils";
 export function JournalDetailPanel({
   entry,
   accountsById,
+  onPost,
+  posting = false,
+  onReverse,
+  reversing = false,
   className,
 }: {
   entry: JournalEntryRecord | null;
   accountsById: Map<string, { code: string; name: string }>;
+  /** Posts the open entry. Omitted where the caller has nothing to post with. */
+  onPost?: () => void;
+  posting?: boolean;
+  /** Reverses the open entry. Omitted where the caller has nothing to reverse with. */
+  onReverse?: () => void;
+  reversing?: boolean;
   className?: string;
 }) {
   const { rows, totalDebit, totalCredit } = useMemo(() => {
@@ -74,6 +121,7 @@ export function JournalDetailPanel({
   }
 
   const balanced = Math.round((totalDebit - totalCredit) * 100) === 0;
+  const status = journalStatusOf(entry);
   const period = entry.period
     ? `${format(new Date(entry.period.startDate), "d MMM")} – ${format(
         new Date(entry.period.endDate),
@@ -85,7 +133,7 @@ export function JournalDetailPanel({
     <ReportPanel
       className={className}
       title={`JE-${entry.entryNumber}`}
-      note={entry.status === "POSTED" ? "Posted" : "Draft"}
+      note={journalStatusLabel[status] ?? entry.status}
     >
       <div className="px-[13px] pb-1.5 pt-2.5">
         <div className="text-sm font-bold text-[var(--text-strong)]">
@@ -120,22 +168,59 @@ export function JournalDetailPanel({
             className={cn("pr-3 text-right font-mono text-sm font-bold tabular-nums")}
             style={{ color: balanced ? "var(--brand-strong)" : "var(--badge-bad-fg)" }}
           >
-            {totalDebit.toFixed(2)}
+            {formatAmount(totalDebit)}
           </span>
           <span
             className="text-right font-mono text-sm font-bold tabular-nums"
             style={{ color: balanced ? "var(--brand-strong)" : "var(--badge-bad-fg)" }}
           >
-            {totalCredit.toFixed(2)}
+            {formatAmount(totalCredit)}
           </span>
         </div>
       ) : null}
 
       {rows.length > 0 && !balanced ? (
         <p className="border-t border-[var(--border-subtle)] px-[13px] py-2 text-sm text-[var(--badge-bad-fg)]">
-          Debits and credits differ by {Math.abs(totalDebit - totalCredit).toFixed(2)}. This entry
+          Debits and credits differ by {formatAmount(Math.abs(totalDebit - totalCredit))}. This entry
           cannot be posted until they agree.
         </p>
+      ) : null}
+
+      {/* The actions belong to the entry you have just read, so they close the
+          panel rather than sitting on a row in the list.
+
+          Each is offered only where the ledger would accept it. Posting applies
+          to a draft, and to a balanced one — an entry whose sides disagree is
+          refused, which is what the line above already says. Reversing applies
+          only to a posted entry: there is nothing to cancel out in a draft, and
+          an entry that has already been reversed or voided is finished. The
+          design draws both side by side, but a button the API would turn away
+          is worse than an absent one. */}
+      {status === "DRAFT" && onPost ? (
+        <div className="flex gap-1.5 px-[13px] pb-[13px] pt-[11px]">
+          <Button
+            type="button"
+            size="sm"
+            className="h-[30px] flex-1"
+            onClick={onPost}
+            disabled={posting || rows.length === 0 || !balanced}
+          >
+            {posting ? "Posting…" : "Post this journal"}
+          </Button>
+        </div>
+      ) : status === "POSTED" && onReverse ? (
+        <div className="flex gap-1.5 px-[13px] pb-[13px] pt-[11px]">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="h-[30px]"
+            onClick={onReverse}
+            disabled={reversing}
+          >
+            {reversing ? "Reversing…" : "Reverse"}
+          </Button>
+        </div>
       ) : null}
     </ReportPanel>
   );

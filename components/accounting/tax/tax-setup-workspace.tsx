@@ -3,6 +3,7 @@
 import {
   useMemo,
   useState,
+  type CSSProperties,
   type FormEvent,
   type ReactNode,
 } from "react";
@@ -10,13 +11,20 @@ import { useSearchParams } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
+import { Switch } from "@corelithzw/react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Card,
+  CardContent,
+  CardFooter,
+  CardHeader,
+  CardTitle,
+} from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -27,17 +35,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetDescription,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
 import { Textarea } from "@/components/ui/textarea";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { useToast } from "@/components/ui/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
+import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import {
   type AccountingPeriodRecord,
   type TaxCategoryRecord,
@@ -60,7 +62,8 @@ import {
   reviewVatReturn,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { EditSquare, Plus, Trash2 } from "@/lib/icons";
+import { Plus, X } from "@/lib/icons";
+import { cn } from "@/lib/utils";
 
 const TAX_VIEWS = [
   "codes",
@@ -199,34 +202,139 @@ function toApiDateValue(value: string): string | null {
   return value ? `${value}T00:00:00.000Z` : null;
 }
 
-function buildRuleWindow(rule: TaxRuleRecord): string {
-  if (!rule.effectiveFrom && !rule.effectiveTo) return "Always on";
-  const start = rule.effectiveFrom ? format(new Date(rule.effectiveFrom), "yyyy-MM-dd") : "Open";
-  const end = rule.effectiveTo ? format(new Date(rule.effectiveTo), "yyyy-MM-dd") : "Open";
-  return `${start} to ${end}`;
-}
+const APPLIES_TO_LABEL: Record<string, string> = {
+  BOTH: "Both",
+  SALES: "Sales",
+  PURCHASE: "Purchase",
+};
+
+const SCOPE_LABEL: Record<string, string> = {
+  BOTH: "Both",
+  CUSTOMER: "Customer",
+  VENDOR: "Vendor",
+};
+
+const SCHEDULE_LABEL: Record<string, string> = {
+  NONE: "None",
+  FX: "Foreign currency",
+  RTGS: "RTGS",
+  WITHHOLDING: "Withholding",
+};
+
+/**
+ * The type a tax code can carry.
+ *
+ * The column is a free string in the schema, documented there as VAT,
+ * WITHHOLDING or OTHER. The select offers those three and folds in whatever
+ * types the company's own codes already use, so opening a code created before
+ * this list existed cannot silently retype it on save.
+ */
+const KNOWN_TAX_CODE_TYPES = ["VAT", "WITHHOLDING", "OTHER"];
+
+const RETURN_STATUS: Record<
+  VatReturnRecord["status"],
+  { label: string; tone: string }
+> = {
+  DRAFT: { label: "Draft", tone: "warn" },
+  REVIEWED: { label: "Reviewed", tone: "info" },
+  FINALIZED: { label: "Finalized", tone: "info" },
+  FILED: { label: "Filed", tone: "ok" },
+  VOIDED: { label: "Voided", tone: "mute" },
+};
 
 function summarizeTemplateLines(template: TaxTemplateRecord): string {
   if (!template.lines?.length) return "No tax codes linked";
   return template.lines
     .map((line) => {
       const code = line.taxCode?.code ?? "Unknown";
-      const appliesTo = line.appliesTo === "BOTH" ? "" : ` ${line.appliesTo.toLowerCase()}`;
-      return line.isDefault ? `${code}${appliesTo} default` : `${code}${appliesTo}`.trim();
+      return line.isDefault ? `${code} (default)` : code;
     })
-    .join(" • ");
-}
-
-/** VAT money, grouped and to the cent — the chip and the tiles agree. */
-function formatVatFigure(value: number) {
-  return value.toLocaleString(undefined, {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
-  });
+    .join(", ");
 }
 
 function countActiveRows(rows: Array<{ isActive: boolean }>): number {
   return rows.filter((row) => row.isActive).length;
+}
+
+/** Accounting negatives: a deduction is bracketed, never signed. */
+function formatPositionAmount(value: number): string {
+  return value < 0 ? `(${formatAmount(Math.abs(value))})` : formatAmount(value);
+}
+
+/**
+ * When a code or a rule is in force.
+ *
+ * An open end is an arrow rather than a second date, because "1 Jan 2024 →"
+ * and "1 Jan 2024 → 31 Dec 2099" mean different things: the first is a code
+ * still in force, the second is one somebody has already scheduled to stop.
+ */
+function formatEffectiveWindow(from?: string | null, to?: string | null): string {
+  if (!from && !to) return "—";
+  const start = from ? format(new Date(from), "d MMM yyyy") : "Open";
+  return to ? `${start} → ${format(new Date(to), "d MMM yyyy")}` : `${start} →`;
+}
+
+/**
+ * A VAT period, named the way somebody filing it would name it.
+ *
+ * A whole calendar month reads as "August 2026". Anything else keeps its two
+ * dates — calling a part-month period by a month it does not cover would
+ * misstate what the return includes.
+ */
+function formatPeriodLabel(startIso: string, endIso: string): string {
+  const start = new Date(startIso);
+  const end = new Date(endIso);
+  const lastOfEndMonth = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+  const isWholeMonth =
+    start.getDate() === 1 &&
+    start.getMonth() === end.getMonth() &&
+    start.getFullYear() === end.getFullYear() &&
+    end.getDate() === lastOfEndMonth;
+  if (isWholeMonth) return format(start, "MMMM yyyy");
+  return `${format(start, "d MMM yyyy")} – ${format(end, "d MMM yyyy")}`;
+}
+
+function StatusBadge({ isActive }: { isActive: boolean }) {
+  return (
+    <span className="acct-badge" data-tone={isActive ? "ok" : "mute"}>
+      {isActive ? "Active" : "Inactive"}
+    </span>
+  );
+}
+
+/**
+ * The row's handle.
+ *
+ * The design draws no Edit column — a record is opened by its own identity,
+ * and the one currently in the editor is the one printed in brand ink. So the
+ * first cell of every setup table is the control that opens it.
+ */
+function RecordButton({
+  label,
+  mono,
+  selected,
+  onSelect,
+}: {
+  label: string;
+  mono?: boolean;
+  selected: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={cn(
+        "block min-w-0 max-w-full truncate text-left text-sm hover:underline",
+        mono && "font-mono",
+        selected
+          ? "font-bold text-[var(--brand-strong)]"
+          : "font-medium text-[var(--text-strong)]",
+      )}
+    >
+      {label}
+    </button>
+  );
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -239,6 +347,178 @@ function FieldLabel({ children }: { children: ReactNode }) {
 
 function FieldHint({ children }: { children: ReactNode }) {
   return <p className="mt-1 acct-caption">{children}</p>;
+}
+
+function Field({
+  label,
+  required,
+  wide,
+  hint,
+  children,
+}: {
+  label: string;
+  required?: boolean;
+  wide?: boolean;
+  hint?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <div className={cn("min-w-0", wide && "col-span-2")}>
+      <FieldLabel>
+        {label}
+        {required ? <span className="text-[var(--tone-danger)]"> *</span> : null}
+      </FieldLabel>
+      {children}
+      {hint ? <FieldHint>{hint}</FieldHint> : null}
+    </div>
+  );
+}
+
+/**
+ * Active/inactive as a switch rather than a checkbox.
+ *
+ * A checkbox reads as "include this"; the state it actually sets is whether
+ * the record keeps appearing on new documents, which is a two-state mode. The
+ * hint carries the part the interface enforces but cannot show — that history
+ * already posted against the record survives being switched off.
+ */
+function StatusField({
+  checked,
+  onChange,
+  hint,
+}: {
+  checked: boolean;
+  onChange: (next: boolean) => void;
+  hint: string;
+}) {
+  return (
+    <Field label="Status" wide hint={hint}>
+      <label className="flex h-[30px] items-center gap-2.5">
+        <Switch
+          checked={checked}
+          onChange={(event) => onChange(event.target.checked)}
+          aria-label="Record is active"
+        />
+        <span
+          className={cn(
+            "text-sm font-semibold",
+            checked ? "text-[var(--badge-ok-fg)]" : "text-[var(--text-subtle)]",
+          )}
+        >
+          {checked ? "Active" : "Inactive"}
+        </span>
+      </label>
+    </Field>
+  );
+}
+
+/**
+ * The right-hand pane.
+ *
+ * The design keeps the record you are working on beside the list rather than
+ * over it: a sheet hides the very rows you are editing against — the other
+ * rates, the other priorities — which is exactly the context a tax rule is
+ * written from. It pins one toolbar below the view switcher so it stays put
+ * while the list scrolls under its own header.
+ */
+function SidePanel({
+  chip,
+  chipTone,
+  title,
+  onSubmit,
+  children,
+  extra,
+  footer,
+}: {
+  chip: string;
+  chipTone: "info" | "warn";
+  title: string;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  children: ReactNode;
+  extra?: ReactNode;
+  footer: ReactNode;
+}) {
+  return (
+    <Card
+      className="sticky"
+      style={{ top: "calc(var(--stack-top, 0px) + var(--list-toolbar-h))" }}
+    >
+      <form onSubmit={onSubmit}>
+        <CardHeader className="justify-start gap-2">
+          <span className="acct-badge" data-tone={chipTone}>
+            {chip}
+          </span>
+          <CardTitle className="min-w-0 truncate">{title}</CardTitle>
+        </CardHeader>
+        <CardContent className="grid grid-cols-2 items-start gap-x-3 gap-y-2.5">
+          {children}
+        </CardContent>
+        {extra}
+        <CardFooter className="justify-start gap-2">{footer}</CardFooter>
+      </form>
+    </Card>
+  );
+}
+
+/** Save, cancel, and the separated destructive action the design keeps right. */
+function PanelFooter({
+  saveLabel,
+  saving,
+  onCancel,
+  destructive,
+}: {
+  saveLabel: string;
+  saving: boolean;
+  onCancel: () => void;
+  destructive?: ReactNode;
+}) {
+  return (
+    <>
+      <Button type="submit" size="sm" disabled={saving}>
+        {saveLabel}
+      </Button>
+      <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+        Cancel
+      </Button>
+      {destructive ? <div className="ml-auto">{destructive}</div> : null}
+    </>
+  );
+}
+
+/** The destructive action, outlined in danger ink rather than filled. */
+function DestructiveButton({
+  label,
+  disabled,
+  onClick,
+}: {
+  label: string;
+  disabled?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      type="button"
+      size="sm"
+      variant="outline"
+      disabled={disabled}
+      onClick={onClick}
+      className="border-[var(--tone-danger-bd)] text-[var(--badge-bad-fg)]"
+    >
+      {label}
+    </Button>
+  );
+}
+
+/**
+ * The note over a list.
+ *
+ * Not a title: the band already says Tax and the pill already says which view
+ * this is, so a heading here would name the page twice. What is left is the
+ * one line that states a rule the table itself cannot show — which of two
+ * competing rules wins, what a template actually is.
+ */
+function ListNote({ children }: { children: ReactNode }) {
+  return <p className="acct-caption">{children}</p>;
 }
 
 export function TaxSetupWorkspace() {
@@ -306,6 +586,20 @@ export function TaxSetupWorkspace() {
     queryFn: () => fetchVatReturns({ limit: 200 }),
     enabled: activeView === "vat-returns",
   });
+  /*
+    What the draft would come to.
+
+    The same summary the VAT summary view reads, scoped to the period being
+    prepared. It is the figure the server will compute from the same journals,
+    so previewing it here is a read of the real position rather than a guess —
+    and preparing a return you have already seen the bottom line of is the
+    difference between filing and finding out.
+  */
+  const returnPreviewQuery = useQuery({
+    queryKey: ["accounting", "vat-summary", "return-preview", vatReturnPeriodId],
+    queryFn: () => fetchVatSummary({ periodId: vatReturnPeriodId }),
+    enabled: activeView === "vat-returns" && Boolean(vatReturnPeriodId),
+  });
 
   const taxCodes = taxCodesQuery.data ?? [];
   const taxCategories = taxCategoriesQuery.data ?? [];
@@ -328,6 +622,43 @@ export function TaxSetupWorkspace() {
     periodsQuery.error ??
     vatSummaryQuery.error ??
     vatReturnsQuery.error;
+
+  const editingCodeId = editor?.kind === "code" ? editor.recordId : undefined;
+  const editingCategoryId = editor?.kind === "category" ? editor.recordId : undefined;
+  const editingTemplateId = editor?.kind === "template" ? editor.recordId : undefined;
+  const editingRuleId = editor?.kind === "rule" ? editor.recordId : undefined;
+
+  /*
+    Counts the client can already answer.
+
+    Every rule is in memory, so how many of them point at a category or a
+    template is a question this page can settle without another endpoint. It
+    is the figure that tells you whether deactivating a template is safe.
+  */
+  const rulesByCategory = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const rule of taxRules) {
+      if (!rule.taxCategoryId) continue;
+      counts.set(rule.taxCategoryId, (counts.get(rule.taxCategoryId) ?? 0) + 1);
+    }
+    return counts;
+  }, [taxRules]);
+
+  const rulesByTemplate = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const rule of taxRules) {
+      counts.set(rule.templateId, (counts.get(rule.templateId) ?? 0) + 1);
+    }
+    return counts;
+  }, [taxRules]);
+
+  const taxCodeTypeOptions = useMemo(() => {
+    const seen = new Set(KNOWN_TAX_CODE_TYPES);
+    for (const code of taxCodes) {
+      if (code.type) seen.add(code.type);
+    }
+    return Array.from(seen);
+  }, [taxCodes]);
 
   function closeEditor() {
     setEditor(null);
@@ -795,6 +1126,32 @@ export function TaxSetupWorkspace() {
     });
   }
 
+  /*
+    Deactivate is a one-field PATCH, not a delete.
+
+    Nothing in tax is ever removed: a code that priced last quarter's invoices
+    has to keep existing for those invoices to still add up. Switching it off
+    takes it out of the pickers on new documents and leaves the history alone,
+    which is the only safe meaning "delete" could have had here.
+  */
+  function deactivateEditingRecord() {
+    if (!editor || editor.mode !== "edit" || !editor.recordId) return;
+    const input = { mode: "edit" as const, id: editor.recordId, payload: { isActive: false } };
+    if (editor.kind === "code") {
+      saveTaxCodeMutation.mutate(input);
+      return;
+    }
+    if (editor.kind === "category") {
+      saveCategoryMutation.mutate(input);
+      return;
+    }
+    if (editor.kind === "template") {
+      saveTemplateMutation.mutate(input);
+      return;
+    }
+    saveRuleMutation.mutate(input);
+  }
+
   function addTemplateLine() {
     setTemplateForm((current) => ({
       ...current,
@@ -845,240 +1202,177 @@ export function TaxSetupWorkspace() {
     if (value) setSummaryPeriodId("");
   }
 
+  /*
+    The pills say what the cut is, not what the module is. "Tax codes" under a
+    band already titled Tax says Tax twice; "Codes" says it once.
+  */
   const viewItems = useMemo(
     () => [
-      { id: "codes", label: "Tax Codes", count: taxCodes.length },
+      { id: "codes", label: "Codes", count: taxCodes.length },
       { id: "categories", label: "Categories", count: taxCategories.length },
       { id: "templates", label: "Templates", count: taxTemplates.length },
       { id: "rules", label: "Rules", count: taxRules.length },
-      { id: "vat-summary", label: "VAT Summary", count: vatRows.length },
-      { id: "vat-returns", label: "VAT Returns", count: vatReturns.length },
+      { id: "vat-summary", label: "VAT summary", count: vatRows.length },
+      { id: "vat-returns", label: "VAT returns", count: vatReturns.length },
     ],
     [taxCodes.length, taxCategories.length, taxTemplates.length, taxRules.length, vatRows.length, vatReturns.length],
-  );
-
-  const viewCopy = useMemo<Record<TaxView, { title: string; description: string }>>(
-    () => ({
-      codes: {
-        title: "Rate library",
-        description:
-          "Tax codes hold statutory percentages, VAT box mapping, and the low-level rates your templates reuse.",
-      },
-      categories: {
-        title: "Counterparty grouping",
-        description:
-          "Categories label customer and vendor tax treatment so downstream rules can resolve the right template without guesswork.",
-      },
-      templates: {
-        title: "Reusable tax mixes",
-        description:
-          "Templates package one or more tax codes into a repeatable combination for sales, purchases, and special handling.",
-      },
-      rules: {
-        title: "Resolution logic",
-        description:
-          "Rules choose the winning template by priority, party category, and optional currency or effective date boundaries.",
-      },
-      "vat-summary": {
-        title: "VAT position",
-        description:
-          "Review current output, input, and net VAT before drafting or refreshing returns.",
-      },
-      "vat-returns": {
-        title: "Return workflow",
-        description:
-          "Move draft VAT returns through review, finalisation, and filing without leaving the accounting module.",
-      },
-    }),
-    [],
   );
 
   const codeColumns: ColumnDef<TaxCodeRecord>[] = [
     {
       id: "code",
       header: "Code",
-      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
+      cell: ({ row }) => (
+        <RecordButton
+          label={row.original.code}
+          mono
+          selected={editingCodeId === row.original.id}
+          onSelect={() => openTaxCodeEdit(row.original)}
+        />
+      ),
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
+    },
+    { id: "name", header: "Name", accessorKey: "name" },
+    {
+      id: "rate",
+      header: "Rate",
+      cell: ({ row }) => <NumericCell>{row.original.rate}%</NumericCell>,
+      size: 80,
+      minSize: 80,
+      maxSize: 80,
+    },
+    {
+      id: "appliesTo",
+      header: "Applies to",
+      cell: ({ row }) => APPLIES_TO_LABEL[row.original.appliesTo ?? "BOTH"] ?? "Both",
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
+    },
+    {
+      id: "schedule",
+      header: "Schedule",
+      cell: ({ row }) => {
+        const schedule = row.original.scheduleType ?? "NONE";
+        return (
+          // A code on no statutory schedule is the ordinary case, so it recedes
+          // rather than competing with the codes that do report on one.
+          <span className={schedule === "NONE" ? "text-[var(--text-disabled)]" : undefined}>
+            {SCHEDULE_LABEL[schedule] ?? schedule}
+          </span>
+        );
+      },
       size: 120,
       minSize: 120,
       maxSize: 120,
     },
     {
-      id: "name",
-      header: "Tax Name",
+      id: "effective",
+      header: "Effective",
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="truncate acct-caption">{row.original.type}</div>
-        </div>
+        <span className="font-mono text-[var(--text-muted)]">
+          {formatEffectiveWindow(row.original.effectiveFrom, row.original.effectiveTo)}
+        </span>
       ),
-    },
-    {
-      id: "rate",
-      header: "Rate",
-      cell: ({ row }) => <span className="font-mono">{row.original.rate}%</span>,
-      size: 96,
-      minSize: 96,
-      maxSize: 96,
-    },
-    {
-      id: "appliesTo",
-      header: "Applies To",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="font-mono">
-          {row.original.appliesTo ?? "BOTH"}
-        </Badge>
-      ),
-      size: 140,
-      minSize: 140,
-      maxSize: 140,
+      size: 150,
+      minSize: 150,
+      maxSize: 150,
     },
     {
       id: "status",
       header: "Status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? "secondary" : "outline"}>
-          {row.original.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" className="h-8" onClick={() => openTaxCodeEdit(row.original)}>
-            <EditSquare className="mr-2 size-4" />
-            Edit
-          </Button>
-        </div>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      cell: ({ row }) => <StatusBadge isActive={row.original.isActive} />,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
   ];
 
   const categoryColumns: ColumnDef<TaxCategoryRecord>[] = [
     {
-      id: "code",
-      header: "Code",
-      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      id: "name",
+      header: "Category",
+      cell: ({ row }) => (
+        <RecordButton
+          label={row.original.name}
+          selected={editingCategoryId === row.original.id}
+          onSelect={() => openCategoryEdit(row.original)}
+        />
+      ),
     },
-    { id: "name", header: "Category", accessorKey: "name" },
     {
       id: "scope",
       header: "Scope",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="font-mono">
-          {row.original.scope}
-        </Badge>
-      ),
+      cell: ({ row }) => SCOPE_LABEL[row.original.scope] ?? row.original.scope,
       size: 140,
       minSize: 140,
       maxSize: 140,
     },
     {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? "secondary" : "outline"}>
-          {row.original.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      id: "ruleCount",
+      header: "Rules using it",
+      cell: ({ row }) => <NumericCell>{rulesByCategory.get(row.original.id) ?? 0}</NumericCell>,
+      size: 130,
+      minSize: 130,
+      maxSize: 130,
     },
     {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" className="h-8" onClick={() => openCategoryEdit(row.original)}>
-            <EditSquare className="mr-2 size-4" />
-            Edit
-          </Button>
-        </div>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      id: "status",
+      header: "Status",
+      cell: ({ row }) => <StatusBadge isActive={row.original.isActive} />,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
   ];
 
   const templateColumns: ColumnDef<TaxTemplateRecord>[] = [
     {
-      id: "code",
-      header: "Code",
-      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.code}</span>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
       id: "name",
       header: "Template",
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="line-clamp-2 acct-caption">
-            {row.original.description?.trim() || "No description added"}
-          </div>
-        </div>
+        <RecordButton
+          label={row.original.name}
+          selected={editingTemplateId === row.original.id}
+          onSelect={() => openTemplateEdit(row.original)}
+        />
       ),
+    },
+    {
+      id: "mix",
+      header: "Codes on it",
+      cell: ({ row }) => (
+        <span className="block truncate">{summarizeTemplateLines(row.original)}</span>
+      ),
+      size: 220,
+      minSize: 180,
+      maxSize: 320,
     },
     {
       id: "lineCount",
       header: "Lines",
-      cell: ({ row }) => <span className="font-mono acct-caption">{row.original.lines?.length ?? 0}</span>,
-      size: 92,
-      minSize: 92,
-      maxSize: 92,
+      cell: ({ row }) => <NumericCell>{row.original.lines?.length ?? 0}</NumericCell>,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
     {
-      id: "mix",
-      header: "Tax Mix",
-      cell: ({ row }) => (
-        <div className="min-w-0 acct-caption">
-          <div className="line-clamp-2">{summarizeTemplateLines(row.original)}</div>
-        </div>
-      ),
-      size: 320,
-      minSize: 260,
-      maxSize: 420,
+      id: "ruleCount",
+      header: "Used by rules",
+      cell: ({ row }) => <NumericCell>{rulesByTemplate.get(row.original.id) ?? 0}</NumericCell>,
+      size: 130,
+      minSize: 130,
+      maxSize: 130,
     },
     {
       id: "status",
       header: "Status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? "secondary" : "outline"}>
-          {row.original.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" className="h-8" onClick={() => openTemplateEdit(row.original)}>
-            <EditSquare className="mr-2 size-4" />
-            Edit
-          </Button>
-        </div>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      cell: ({ row }) => <StatusBadge isActive={row.original.isActive} />,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
   ];
 
@@ -1087,86 +1381,71 @@ export function TaxSetupWorkspace() {
       id: "name",
       header: "Rule",
       cell: ({ row }) => (
-        <div className="min-w-0">
-          <div className="truncate font-medium text-[var(--text-strong)]">{row.original.name}</div>
-          <div className="truncate acct-caption">
-            Template: {row.original.template?.name ?? "Unknown"}
-          </div>
-        </div>
+        <RecordButton
+          label={row.original.name}
+          selected={editingRuleId === row.original.id}
+          onSelect={() => openRuleEdit(row.original)}
+        />
       ),
     },
     {
       id: "appliesTo",
-      header: "Applies To",
-      cell: ({ row }) => (
-        <Badge variant="outline" className="font-mono">
-          {row.original.appliesTo}
-        </Badge>
-      ),
-      size: 140,
-      minSize: 140,
-      maxSize: 140,
-    },
-    {
-      id: "priority",
-      header: "Priority",
-      cell: ({ row }) => <span className="font-mono">{row.original.priority}</span>,
+      header: "Applies to",
+      cell: ({ row }) => APPLIES_TO_LABEL[row.original.appliesTo] ?? row.original.appliesTo,
       size: 100,
       minSize: 100,
       maxSize: 100,
     },
     {
+      id: "priority",
+      header: "Priority",
+      cell: ({ row }) => <NumericCell>{row.original.priority}</NumericCell>,
+      size: 90,
+      minSize: 90,
+      maxSize: 90,
+    },
+    {
       id: "category",
       header: "Category",
       cell: ({ row }) => (
-        <div className="min-w-0 acct-caption">
-          <div className="truncate">{row.original.taxCategory?.name ?? "All counterparties"}</div>
-          <div className="truncate font-mono">{row.original.taxCategory?.code ?? "GLOBAL"}</div>
-        </div>
+        <span className="block truncate">
+          {row.original.taxCategory?.name ?? "All counterparties"}
+        </span>
       ),
-      size: 200,
-      minSize: 180,
-      maxSize: 260,
+      size: 150,
+      minSize: 140,
+      maxSize: 200,
     },
     {
-      id: "window",
-      header: "Effective Window",
+      id: "template",
+      header: "Template",
       cell: ({ row }) => (
-        <div className="min-w-0 acct-caption">
-          <div className="truncate font-mono">{buildRuleWindow(row.original)}</div>
-          <div className="truncate">Currency: {row.original.currency ?? "Any"}</div>
-        </div>
+        <span className="block truncate">{row.original.template?.name ?? "Unknown"}</span>
       ),
-      size: 220,
-      minSize: 200,
-      maxSize: 280,
+      size: 150,
+      minSize: 140,
+      maxSize: 200,
+    },
+    {
+      id: "currency",
+      header: "Currency",
+      cell: ({ row }) =>
+        row.original.currency ? (
+          <span className="font-mono">{row.original.currency}</span>
+        ) : (
+          <span className="text-[var(--text-disabled)]">Any</span>
+        ),
+      size: 90,
+      minSize: 90,
+      maxSize: 90,
     },
     {
       id: "status",
       header: "Status",
-      cell: ({ row }) => (
-        <Badge variant={row.original.isActive ? "secondary" : "outline"}>
-          {row.original.isActive ? "Active" : "Inactive"}
-        </Badge>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "actions",
-      header: "",
-      cell: ({ row }) => (
-        <div className="flex justify-end">
-          <Button size="sm" variant="outline" className="h-8" onClick={() => openRuleEdit(row.original)}>
-            <EditSquare className="mr-2 size-4" />
-            Edit
-          </Button>
-        </div>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
+      cell: ({ row }) => <StatusBadge isActive={row.original.isActive} />,
+      size: 100,
+      minSize: 100,
+      maxSize: 100,
     },
   ];
 
@@ -1175,39 +1454,31 @@ export function TaxSetupWorkspace() {
       id: "code",
       header: "Code",
       cell: ({ row }) => <span className="font-mono">{row.original.code}</span>,
-      size: 140,
-      minSize: 140,
-      maxSize: 140,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
-    { id: "name", header: "Tax Name", accessorKey: "name" },
+    { id: "name", header: "Name", accessorKey: "name" },
     {
       id: "rate",
       header: "Rate",
-      cell: ({ row }) => <span className="font-mono">{row.original.rate}%</span>,
-      size: 88,
-      minSize: 88,
-      maxSize: 88,
+      cell: ({ row }) => <NumericCell>{row.original.rate}%</NumericCell>,
+      size: 90,
+      minSize: 90,
+      maxSize: 90,
     },
     {
       id: "output",
-      header: "Output VAT",
-      cell: ({ row }) => <NumericCell>{row.original.outputTax.toFixed(2)}</NumericCell>,
+      header: "Output",
+      cell: ({ row }) => <NumericCell>{formatAmount(row.original.outputTax)}</NumericCell>,
       size: 120,
       minSize: 120,
       maxSize: 120,
     },
     {
       id: "input",
-      header: "Input VAT",
-      cell: ({ row }) => <NumericCell>{row.original.inputTax.toFixed(2)}</NumericCell>,
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "net",
-      header: "Net VAT",
-      cell: ({ row }) => <NumericCell>{row.original.netTax.toFixed(2)}</NumericCell>,
+      header: "Input",
+      cell: ({ row }) => <NumericCell>{formatAmount(row.original.inputTax)}</NumericCell>,
       size: 120,
       minSize: 120,
       maxSize: 120,
@@ -1216,129 +1487,112 @@ export function TaxSetupWorkspace() {
 
   const activeCreateLabel =
     activeView === "codes"
-      ? "New Tax Code"
+      ? "New tax code"
       : activeView === "categories"
-        ? "New Category"
+        ? "New category"
         : activeView === "templates"
-          ? "New Template"
+          ? "New template"
           : activeView === "rules"
-            ? "New Rule"
+            ? "New rule"
             : null;
 
   const createDisabled =
     (activeView === "templates" && taxCodes.length === 0) ||
     (activeView === "rules" && taxTemplates.length === 0);
 
+  /*
+    The panel is titled with the record, not with the operation.
+
+    "Edit Tax Code" is a label for a mode; VAT15 — Standard rated is a label
+    for the thing on screen, and it is the only one that tells you which of six
+    codes you are about to change. Only a record that does not exist yet has
+    nothing better to be called.
+  */
+  const editingCode = taxCodes.find((row) => row.id === editingCodeId);
   const editorTitle = !editor
     ? ""
     : editor.kind === "code"
       ? editor.mode === "create"
-        ? "New Tax Code"
-        : "Edit Tax Code"
+        ? "New tax code"
+        : `${editingCode?.code ?? ""} — ${taxCodeForm.name || "Untitled"}`
       : editor.kind === "category"
         ? editor.mode === "create"
-          ? "New Tax Category"
-          : "Edit Tax Category"
+          ? "New category"
+          : categoryForm.name || "Untitled category"
         : editor.kind === "template"
           ? editor.mode === "create"
-            ? "New Tax Template"
-            : "Edit Tax Template"
+            ? "New template"
+            : templateForm.name || "Untitled template"
           : editor.mode === "create"
-            ? "New Tax Rule"
-            : "Edit Tax Rule";
+            ? "New rule"
+            : ruleForm.name || "Untitled rule";
 
-  const editorDescription = !editor
-    ? ""
-    : editor.kind === "code"
-      ? "Define the statutory rate and reporting boxes that your templates reuse."
-      : editor.kind === "category"
-        ? "Group counterparties so rules can resolve the right template consistently."
-        : editor.kind === "template"
-          ? "Bundle tax codes into a reusable mix for sales and purchase documents."
-          : "Control how the system resolves templates when more than one option exists.";
+  /*
+    Deactivating is a save with one field flipped, so it goes through the same
+    mutation the form does — there is no separate endpoint and no separate
+    outcome. It only appears on a record that exists and is still active.
+  */
+  const canDeactivate = editor?.mode === "edit" && editor.recordId !== undefined;
 
   const vatReturnColumns: ColumnDef<VatReturnRecord>[] = [
     {
       id: "period",
       header: "Period",
       cell: ({ row }) => (
-        <span className="font-mono acct-caption">
-          {format(new Date(row.original.periodStart), "yyyy-MM-dd")} to{" "}
-          {format(new Date(row.original.periodEnd), "yyyy-MM-dd")}
+        <span className="font-medium text-[var(--text-strong)]">
+          {formatPeriodLabel(row.original.periodStart, row.original.periodEnd)}
         </span>
       ),
+      size: 150,
+      minSize: 150,
+      maxSize: 180,
     },
     {
-      id: "status",
-      header: "Status",
-      cell: ({ row }) => (
-        <Badge
-          variant={row.original.status === "FILED" ? "secondary" : "outline"}
-          className="font-mono"
-        >
-          {row.original.status}
-        </Badge>
-      ),
-      size: 120,
-      minSize: 120,
-      maxSize: 120,
-    },
-    {
-      id: "dueDates",
-      header: "Due Dates",
-      cell: ({ row }) => (
-        <div className="acct-caption">
-          <div className="font-mono">
-            Return:{" "}
-            {row.original.returnDueDate
-              ? format(new Date(row.original.returnDueDate), "yyyy-MM-dd")
-              : "-"}
-          </div>
-          <div className="font-mono">
-            Payment:{" "}
-            {row.original.paymentDueDate
-              ? format(new Date(row.original.paymentDueDate), "yyyy-MM-dd")
-              : "-"}
-          </div>
-        </div>
-      ),
-      size: 180,
-      minSize: 180,
-      maxSize: 220,
+      id: "category",
+      header: "Category",
+      cell: ({ row }) => row.original.filingCategory ?? "General",
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
     {
       id: "outputTax",
-      header: "Output Tax",
-      cell: ({ row }) => <NumericCell>{row.original.outputTax.toFixed(2)}</NumericCell>,
+      header: "Output VAT",
+      cell: ({ row }) => <NumericCell>{formatAmount(row.original.outputTax)}</NumericCell>,
       size: 120,
       minSize: 120,
       maxSize: 120,
     },
     {
       id: "inputTax",
-      header: "Input Tax",
-      cell: ({ row }) => <NumericCell>{row.original.inputTax.toFixed(2)}</NumericCell>,
+      header: "Input VAT",
+      cell: ({ row }) => <NumericCell>{formatAmount(row.original.inputTax)}</NumericCell>,
       size: 120,
       minSize: 120,
       maxSize: 120,
     },
     {
-      id: "payableRefundable",
-      header: "Payable / Refundable",
+      id: "netTax",
+      header: "Net",
+      cell: ({ row }) => <NumericCell>{formatAmount(row.original.netTax)}</NumericCell>,
+      size: 120,
+      minSize: 120,
+      maxSize: 120,
+    },
+    {
+      id: "status",
+      header: "Status",
       cell: ({ row }) => {
-        const boxes = row.original.vat7Boxes ?? {};
-        const payable = Number(boxes.vatPayable ?? 0);
-        const refundable = Number(boxes.vatRefundable ?? 0);
+        const status = RETURN_STATUS[row.original.status];
         return (
-          <div className="text-right font-mono acct-caption">
-            <div>Payable: {payable.toFixed(2)}</div>
-            <div>Refund: {refundable.toFixed(2)}</div>
-          </div>
+          <span className="acct-badge" data-tone={status.tone}>
+            {status.label}
+          </span>
         );
       },
-      size: 150,
-      minSize: 150,
-      maxSize: 180,
+      size: 110,
+      minSize: 110,
+      maxSize: 110,
     },
     {
       id: "actions",
@@ -1410,6 +1664,67 @@ export function TaxSetupWorkspace() {
     },
   ];
 
+  /*
+    The VAT position, the way a return reads it.
+
+    Output is split by rate because a zero-rated sale is still a line on the
+    VAT7 even though it carries no tax, and input is the reclaim set against
+    it. The design also draws a capital-goods split and an adjustments line;
+    neither exists in the summary this reads from — adjustments belong to a
+    return, not to the period, and nothing on a purchase marks it as capital —
+    so those two lines are absent rather than filled with a likely number.
+  */
+  const vatPosition = useMemo(
+    () => [
+      {
+        label: "Output VAT on standard-rated sales",
+        value: vatRows.filter((row) => row.rate > 0).reduce((total, row) => total + row.outputTax, 0),
+      },
+      {
+        label: "Output VAT on zero-rated sales",
+        value: vatRows.filter((row) => row.rate === 0).reduce((total, row) => total + row.outputTax, 0),
+      },
+      { label: "Input VAT on purchases", value: -vatTotals.inputTax },
+    ],
+    [vatRows, vatTotals.inputTax],
+  );
+
+  const activeCodeCount = countActiveRows(taxCodes);
+  const inactiveCodeCount = taxCodes.length - activeCodeCount;
+
+  const selectedReturnPeriod = periods.find(
+    (period: AccountingPeriodRecord) => period.id === vatReturnPeriodId,
+  );
+  const returnPreviewNet = returnPreviewQuery.data
+    ? returnPreviewQuery.data.totals.netTax + (Number(vatReturnAdjustmentsTax) || 0)
+    : null;
+
+  const isRecordView =
+    activeView === "codes" ||
+    activeView === "categories" ||
+    activeView === "templates" ||
+    activeView === "rules";
+
+  /*
+    The list is written to run edge to edge across a whole page. Here it shares
+    the row with a 400px editor, so the gutter it bleeds by is zero: the column
+    it sits in *is* its panel, and a list that reached past it would slide under
+    the editor beside it.
+  */
+  const columnScoped = { "--content-gutter-x": "0px" } as CSSProperties;
+  const splitColumns = (open: boolean): CSSProperties => ({
+    ...columnScoped,
+    gridTemplateColumns: open ? "minmax(0, 1fr) 400px" : "minmax(0, 1fr)",
+  });
+
+  const appliesToOptions = (
+    <SelectContent>
+      <SelectItem value="BOTH">Both</SelectItem>
+      <SelectItem value="SALES">Sales</SelectItem>
+      <SelectItem value="PURCHASE">Purchase</SelectItem>
+    </SelectContent>
+  );
+
   return (
     <AccountingShell
       activeTab="tax"
@@ -1424,7 +1739,7 @@ export function TaxSetupWorkspace() {
         */
         <BandChip
           label="Net VAT"
-          value={formatVatFigure(vatTotals.netTax)}
+          value={formatHeadline(vatTotals.netTax)}
           tone={vatTotals.netTax > 0 ? "warn" : "ok"}
         />
       }
@@ -1444,556 +1759,822 @@ export function TaxSetupWorkspace() {
         </Alert>
       ) : null}
 
-      {/*
-        Four counts, each against its total.
-
-        These printed a bare active count — "12" — which cannot be read: twelve
-        active codes out of twelve is a healthy setup and twelve out of forty is
-        a chart somebody has been switching off. The total is the context that
-        makes the count mean something, so it goes in the note.
-      */}
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MetricTile
-          title="Tax codes"
-          value={countActiveRows(taxCodes)}
-          valueLabel={String(countActiveRows(taxCodes))}
-          delta="active"
-          detail={`of ${taxCodes.length} defined`}
-          tone={countActiveRows(taxCodes) === 0 ? "warn" : "neutral"}
-        />
-        <MetricTile
-          title="Categories"
-          value={countActiveRows(taxCategories)}
-          valueLabel={String(countActiveRows(taxCategories))}
-          delta="active"
-          detail={`of ${taxCategories.length} defined`}
-          tone={countActiveRows(taxCategories) === 0 ? "warn" : "neutral"}
-        />
-        <MetricTile
-          title="Templates"
-          value={countActiveRows(taxTemplates)}
-          valueLabel={String(countActiveRows(taxTemplates))}
-          delta="active"
-          detail={`of ${taxTemplates.length} defined`}
-          tone="neutral"
-        />
-        <MetricTile
-          title="Rules"
-          value={countActiveRows(taxRules)}
-          valueLabel={String(countActiveRows(taxRules))}
-          delta="active"
-          detail={`of ${taxRules.length} defined`}
-          tone={countActiveRows(taxRules) === 0 ? "warn" : "neutral"}
-        />
-      </div>
-
-      <section className="rounded-[10px] border border-[var(--border)] bg-[var(--surface-muted)] px-[13px] py-3">
-        <div className="flex flex-wrap items-start gap-3">
-          <Badge variant="secondary">
-            Seeded logic stays editable
-          </Badge>
-          <div className="min-w-0 flex-1 space-y-2">
-            <p className="text-sm font-medium text-[var(--text-strong)]">
-              Build tax behaviour in four layers, then review VAT from the same module.
-            </p>
-            <p className="max-w-3xl text-sm text-[var(--text-muted)]">
-              Codes define rates, categories describe counterparties, templates bundle the mixes,
-              and rules decide which template wins. That keeps seeded defaults visible while still
-              giving finance teams room for custom treatment.
-            </p>
-          </div>
-        </div>
-      </section>
-
       <VerticalDataViews
         items={viewItems}
         value={activeView}
         onValueChange={(value) => setActiveView(value as TaxView)}
-        railLabel="Tax Views"
+        railLabel="Tax views"
       >
-        <section className="space-y-3">
-          <div className="rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-[13px] py-3">
-            <p className="text-sm font-semibold text-[var(--text-strong)]">
-              {viewCopy[activeView].title}
-            </p>
-            <p className="mt-1 max-w-3xl text-sm text-[var(--text-muted)]">
-              {viewCopy[activeView].description}
-            </p>
-          </div>
-          <div className={activeView === "codes" ? "space-y-3" : "hidden"}>
-            <DataTable
-              data={taxCodes}
-              columns={codeColumns}
-              groupBy="type"
-              searchPlaceholder="Search tax codes"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              emptyState={taxCodesQuery.isLoading ? "Loading tax codes..." : "No tax codes found."}
-            />
-          </div>
-
-          <div className={activeView === "categories" ? "space-y-3" : "hidden"}>
-            <DataTable
-              data={taxCategories}
-              columns={categoryColumns}
-              groupBy="scope"
-              searchPlaceholder="Search tax categories"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              emptyState={
-                taxCategoriesQuery.isLoading
-                  ? "Loading tax categories..."
-                  : "No tax categories found."
-              }
-            />
-          </div>
-
-          <div className={activeView === "templates" ? "space-y-3" : "hidden"}>
-            <DataTable
-              data={taxTemplates}
-              columns={templateColumns}
-              groupBy={(row) =>
-                row.lines && row.lines.length > 1 ? "Composite templates" : "Single-code templates"
-              }
-              searchPlaceholder="Search tax templates"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              emptyState={
-                taxTemplatesQuery.isLoading
-                  ? "Loading tax templates..."
-                  : "No tax templates found."
-              }
-            />
-          </div>
-
-          <div className={activeView === "rules" ? "space-y-3" : "hidden"}>
-            <DataTable
-              data={taxRules}
-              columns={ruleColumns}
-              groupBy="appliesTo"
-              searchPlaceholder="Search tax rules"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              emptyState={taxRulesQuery.isLoading ? "Loading tax rules..." : "No tax rules found."}
-            />
-          </div>
-
-          <div className={activeView === "vat-summary" ? "space-y-3" : "hidden"}>
-            {/*
-              Output, input, and what that leaves. Net VAT is the only one of
-              the three anybody files, so it carries the direction: amber when
-              it is a liability, green when it is a refund or nil.
-            */}
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MetricTile
-                title="Output VAT"
-                value={vatTotals.outputTax}
-                valueLabel={formatVatFigure(vatTotals.outputTax)}
-                delta="charged"
-                detail="on what we sold"
-                tone="neutral"
-              />
-              <MetricTile
-                title="Input VAT"
-                value={vatTotals.inputTax}
-                valueLabel={formatVatFigure(vatTotals.inputTax)}
-                delta="reclaimable"
-                detail="on what we bought"
-                tone="neutral"
-              />
-              <MetricTile
-                title="Net VAT"
-                value={vatTotals.netTax}
-                valueLabel={formatVatFigure(vatTotals.netTax)}
-                delta={vatTotals.netTax > 0 ? "payable to ZIMRA" : "refundable"}
-                detail="output less input"
-                tone={vatTotals.netTax > 0 ? "warn" : "good"}
+        <div
+          className={cn("grid items-start gap-2.5", !isRecordView && "hidden")}
+          style={splitColumns(editor !== null)}
+        >
+          <div className="min-w-0">
+            <div className={activeView === "codes" ? "space-y-1.5" : "hidden"}>
+              <ListNote>The rate a document actually carries.</ListNote>
+              <DataTable
+                data={taxCodes}
+                columns={codeColumns}
+                groupBy="type"
+                searchPlaceholder="Code or name"
+                searchSubmitLabel="Search"
+                pagination={{ enabled: true }}
+                emptyState={taxCodesQuery.isLoading ? "Loading tax codes..." : "No tax codes found."}
               />
             </div>
-            <DataTable
-              data={vatRows}
-              columns={vatSummaryColumns}
-              groupBy={(row) => `${row.rate}%`}
-              searchPlaceholder="Search VAT summary"
-              searchSubmitLabel="Search"
-              pagination={{ enabled: true }}
-              toolbar={
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={summaryPeriodId} onValueChange={handlePeriodChange}>
-                    <SelectTrigger size="sm" className="h-8 w-[220px]">
-                      <SelectValue placeholder="Filter by period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">All Periods</SelectItem>
-                      {periods.map((period: AccountingPeriodRecord) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {format(new Date(period.startDate), "yyyy-MM-dd")} to{" "}
-                          {format(new Date(period.endDate), "yyyy-MM-dd")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+
+            <div className={activeView === "categories" ? "space-y-1.5" : "hidden"}>
+              <ListNote>Who a rule applies to.</ListNote>
+              <DataTable
+                data={taxCategories}
+                columns={categoryColumns}
+                groupBy="scope"
+                searchPlaceholder="Category name"
+                searchSubmitLabel="Search"
+                pagination={{ enabled: true }}
+                emptyState={
+                  taxCategoriesQuery.isLoading
+                    ? "Loading tax categories..."
+                    : "No tax categories found."
+                }
+              />
+            </div>
+
+            <div className={activeView === "templates" ? "space-y-1.5" : "hidden"}>
+              <ListNote>The set of codes a rule applies together.</ListNote>
+              <DataTable
+                data={taxTemplates}
+                columns={templateColumns}
+                groupBy={(row) =>
+                  row.lines && row.lines.length > 1 ? "Composite templates" : "Single-code templates"
+                }
+                searchPlaceholder="Template name"
+                searchSubmitLabel="Search"
+                pagination={{ enabled: true }}
+                emptyState={
+                  taxTemplatesQuery.isLoading
+                    ? "Loading tax templates..."
+                    : "No tax templates found."
+                }
+              />
+            </div>
+
+            <div className={activeView === "rules" ? "space-y-1.5" : "hidden"}>
+              <ListNote>Lowest priority number wins.</ListNote>
+              <DataTable
+                data={taxRules}
+                columns={ruleColumns}
+                groupBy="appliesTo"
+                searchPlaceholder="Rule name"
+                searchSubmitLabel="Search"
+                pagination={{ enabled: true }}
+                emptyState={taxRulesQuery.isLoading ? "Loading tax rules..." : "No tax rules found."}
+              />
+            </div>
+          </div>
+
+          {editor && editor.kind === "code" ? (
+            <SidePanel
+              chip={editor.mode === "create" ? "NEW" : "EDIT"}
+              chipTone="info"
+              title={editorTitle}
+              onSubmit={handleTaxCodeSubmit}
+              footer={
+                <PanelFooter
+                  saveLabel="Save changes"
+                  saving={
+                    saveTaxCodeMutation.isPending ||
+                    (editor.mode === "create" && (isReserving || !reservedId))
+                  }
+                  onCancel={closeEditor}
+                  destructive={
+                    canDeactivate && taxCodeForm.isActive ? (
+                      <DestructiveButton
+                        label="Deactivate"
+                        disabled={saveTaxCodeMutation.isPending}
+                        onClick={deactivateEditingRecord}
+                      />
+                    ) : null
+                  }
+                />
+              }
+            >
+              {editor.mode === "create" ? (
+                <Field
+                  label="Code"
+                  wide
+                  hint={reserveError ?? "Reserved when the editor opens, and fixed from then on so template references stay stable."}
+                >
                   <Input
-                    type="date"
-                    value={summaryStartDate}
-                    onChange={(event) => handleStartDateChange(event.target.value)}
-                    className="h-8"
+                    value={reservedId}
+                    readOnly
+                    className="font-mono"
+                    placeholder={isReserving ? "Reserving..." : "Auto-generated"}
                   />
-                  <Input
-                    type="date"
-                    value={summaryEndDate}
-                    onChange={(event) => handleEndDateChange(event.target.value)}
-                    className="h-8"
-                  />
+                </Field>
+              ) : null}
+              <Field label="Name" required wide>
+                <Input
+                  value={taxCodeForm.name}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field label="Rate (%)" required>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={taxCodeForm.rate}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, rate: event.target.value }))
+                  }
+                  className="text-right font-mono"
+                  required
+                />
+              </Field>
+              <Field label="Type">
+                <Select
+                  value={taxCodeForm.type}
+                  onValueChange={(value) =>
+                    setTaxCodeForm((current) => ({ ...current, type: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taxCodeTypeOptions.map((option) => (
+                      <SelectItem key={option} value={option}>
+                        {option}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Applies to" wide>
+                <Select
+                  value={taxCodeForm.appliesTo}
+                  onValueChange={(value) =>
+                    setTaxCodeForm((current) => ({ ...current, appliesTo: value as AppliesTo }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Applies to" />
+                  </SelectTrigger>
+                  {appliesToOptions}
+                </Select>
+              </Field>
+              <Field label="VAT-7 output box">
+                <Input
+                  value={taxCodeForm.vat7OutputBox}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, vat7OutputBox: event.target.value }))
+                  }
+                  className="font-mono"
+                />
+              </Field>
+              <Field label="VAT-7 input box">
+                <Input
+                  value={taxCodeForm.vat7InputBox}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, vat7InputBox: event.target.value }))
+                  }
+                  className="font-mono"
+                />
+              </Field>
+              <Field
+                label="Schedule type"
+                wide
+                hint="Decides which ZIMRA schedule the code reports on."
+              >
+                <Select
+                  value={taxCodeForm.scheduleType}
+                  onValueChange={(value) =>
+                    setTaxCodeForm((current) => ({ ...current, scheduleType: value as ScheduleType }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Schedule type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(SCHEDULE_LABEL).map(([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Effective from">
+                <Input
+                  type="date"
+                  value={taxCodeForm.effectiveFrom}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, effectiveFrom: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label="Effective to" hint="Blank leaves the code open-ended.">
+                <Input
+                  type="date"
+                  value={taxCodeForm.effectiveTo}
+                  onChange={(event) =>
+                    setTaxCodeForm((current) => ({ ...current, effectiveTo: event.target.value }))
+                  }
+                />
+              </Field>
+              <StatusField
+                checked={taxCodeForm.isActive}
+                onChange={(next) => setTaxCodeForm((current) => ({ ...current, isActive: next }))}
+                hint="Deactivating keeps history; the code stops appearing on new documents."
+              />
+            </SidePanel>
+          ) : null}
+
+          {editor && editor.kind === "category" ? (
+            <SidePanel
+              chip={editor.mode === "create" ? "NEW" : "EDIT"}
+              chipTone="info"
+              title={editorTitle}
+              onSubmit={handleCategorySubmit}
+              footer={
+                <PanelFooter
+                  saveLabel="Save changes"
+                  saving={saveCategoryMutation.isPending}
+                  onCancel={closeEditor}
+                  destructive={
+                    canDeactivate && categoryForm.isActive ? (
+                      <DestructiveButton
+                        label="Deactivate"
+                        disabled={saveCategoryMutation.isPending}
+                        onClick={deactivateEditingRecord}
+                      />
+                    ) : null
+                  }
+                />
+              }
+            >
+              <Field label="Name" required wide>
+                <Input
+                  value={categoryForm.name}
+                  onChange={(event) =>
+                    setCategoryForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field
+                label="Scope"
+                wide
+                hint="Counterparties join a category from their own record, not from here."
+              >
+                <Select
+                  value={categoryForm.scope}
+                  onValueChange={(value) =>
+                    setCategoryForm((current) => ({ ...current, scope: value as CategoryScope }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Scope" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="BOTH">Both</SelectItem>
+                    <SelectItem value="CUSTOMER">Customer</SelectItem>
+                    <SelectItem value="VENDOR">Vendor</SelectItem>
+                  </SelectContent>
+                </Select>
+              </Field>
+              <StatusField
+                checked={categoryForm.isActive}
+                onChange={(next) => setCategoryForm((current) => ({ ...current, isActive: next }))}
+                hint="Deactivating keeps history; rules stop resolving against the category."
+              />
+            </SidePanel>
+          ) : null}
+
+          {editor && editor.kind === "template" ? (
+            <SidePanel
+              chip={editor.mode === "create" ? "NEW" : "EDIT"}
+              chipTone="info"
+              title={editorTitle}
+              onSubmit={handleTemplateSubmit}
+              extra={
+                <div className="border-t border-[var(--border-subtle)]">
+                  <div className="flex items-center gap-2 px-[13px] py-1.5">
+                    <span className="acct-rail-heading">Codes on this template</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="quiet"
+                      className="ml-auto"
+                      onClick={addTemplateLine}
+                    >
+                      <Plus className="mr-1 size-3.5" />
+                      Add line
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-[minmax(0,1fr)_112px_52px_28px] items-center gap-2 border-y border-[var(--border-subtle)] bg-[var(--surface-muted)] px-[13px] py-1">
+                    <span className="acct-col-head">Tax code</span>
+                    <span className="acct-col-head">Applies to</span>
+                    <span className="acct-col-head text-center">Default</span>
+                    <span />
+                  </div>
+                  {templateForm.lines.map((line) => (
+                    <div
+                      key={line.key}
+                      className="grid grid-cols-[minmax(0,1fr)_112px_52px_28px] items-center gap-2 border-b border-[var(--border-subtle)] px-[13px] py-1.5"
+                    >
+                      <Select
+                        value={line.taxCodeId}
+                        onValueChange={(value) => updateTemplateLine(line.key, { taxCodeId: value })}
+                      >
+                        <SelectTrigger size="sm">
+                          <SelectValue placeholder="Select tax code" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {taxCodes.map((taxCode) => (
+                            <SelectItem key={taxCode.id} value={taxCode.id}>
+                              {taxCode.code} — {taxCode.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Select
+                        value={line.appliesTo}
+                        onValueChange={(value) =>
+                          updateTemplateLine(line.key, { appliesTo: value as AppliesTo })
+                        }
+                      >
+                        <SelectTrigger size="sm">
+                          <SelectValue placeholder="Applies to" />
+                        </SelectTrigger>
+                        {appliesToOptions}
+                      </Select>
+                      <div className="flex justify-center">
+                        <Checkbox
+                          checked={line.isDefault}
+                          onCheckedChange={(checked) =>
+                            updateTemplateLine(line.key, { isDefault: checked === true })
+                          }
+                          aria-label="Default line"
+                        />
+                      </div>
+                      <Button
+                        type="button"
+                        size="icon-sm"
+                        variant="ghost"
+                        aria-label="Remove line"
+                        onClick={() => removeTemplateLine(line.key)}
+                      >
+                        <X className="size-3.5" />
+                      </Button>
+                    </div>
+                  ))}
                 </div>
               }
-              emptyState={vatSummaryQuery.isLoading ? "Loading VAT summary..." : "No VAT summary data."}
+              footer={
+                <PanelFooter
+                  saveLabel="Save changes"
+                  saving={saveTemplateMutation.isPending}
+                  onCancel={closeEditor}
+                  destructive={
+                    canDeactivate && templateForm.isActive ? (
+                      <DestructiveButton
+                        label="Deactivate"
+                        disabled={saveTemplateMutation.isPending}
+                        onClick={deactivateEditingRecord}
+                      />
+                    ) : null
+                  }
+                />
+              }
+            >
+              <Field label="Name" required wide>
+                <Input
+                  value={templateForm.name}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field label="Description" wide>
+                <Textarea
+                  value={templateForm.description}
+                  onChange={(event) =>
+                    setTemplateForm((current) => ({ ...current, description: event.target.value }))
+                  }
+                  rows={2}
+                />
+              </Field>
+              <StatusField
+                checked={templateForm.isActive}
+                onChange={(next) => setTemplateForm((current) => ({ ...current, isActive: next }))}
+                hint="Deactivating keeps history; rules stop being able to target the template."
+              />
+            </SidePanel>
+          ) : null}
+
+          {editor && editor.kind === "rule" ? (
+            <SidePanel
+              chip={editor.mode === "create" ? "NEW" : "EDIT"}
+              chipTone="info"
+              title={editorTitle}
+              onSubmit={handleRuleSubmit}
+              footer={
+                <PanelFooter
+                  saveLabel="Save changes"
+                  saving={saveRuleMutation.isPending}
+                  onCancel={closeEditor}
+                  destructive={
+                    canDeactivate && ruleForm.isActive ? (
+                      <DestructiveButton
+                        label="Deactivate"
+                        disabled={saveRuleMutation.isPending}
+                        onClick={deactivateEditingRecord}
+                      />
+                    ) : null
+                  }
+                />
+              }
+            >
+              <Field label="Name" required wide>
+                <Input
+                  value={ruleForm.name}
+                  onChange={(event) =>
+                    setRuleForm((current) => ({ ...current, name: event.target.value }))
+                  }
+                  required
+                />
+              </Field>
+              <Field label="Applies to">
+                <Select
+                  value={ruleForm.appliesTo}
+                  onValueChange={(value) =>
+                    setRuleForm((current) => ({ ...current, appliesTo: value as AppliesTo }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Applies to" />
+                  </SelectTrigger>
+                  {appliesToOptions}
+                </Select>
+              </Field>
+              <Field label="Priority" hint="Lower wins.">
+                <Input
+                  type="number"
+                  min="1"
+                  max="1000"
+                  value={ruleForm.priority}
+                  onChange={(event) =>
+                    setRuleForm((current) => ({ ...current, priority: event.target.value }))
+                  }
+                  className="text-right font-mono"
+                />
+              </Field>
+              <Field label="Tax category" wide>
+                <Select
+                  value={ruleForm.taxCategoryId || "__all__"}
+                  onValueChange={(value) =>
+                    setRuleForm((current) => ({
+                      ...current,
+                      taxCategoryId: value === "__all__" ? "" : value,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="All counterparties" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__all__">All counterparties</SelectItem>
+                    {taxCategories.map((category) => (
+                      <SelectItem key={category.id} value={category.id}>
+                        {category.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Template" required wide>
+                <Select
+                  value={ruleForm.templateId}
+                  onValueChange={(value) =>
+                    setRuleForm((current) => ({ ...current, templateId: value }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select template" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {taxTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id}>
+                        {template.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </Field>
+              <Field label="Currency" hint="Blank matches any.">
+                <Input
+                  value={ruleForm.currency}
+                  onChange={(event) =>
+                    setRuleForm((current) => ({
+                      ...current,
+                      currency: event.target.value.toUpperCase(),
+                    }))
+                  }
+                  placeholder="USD"
+                  className="font-mono"
+                />
+              </Field>
+              <Field label="Effective from">
+                <Input
+                  type="date"
+                  value={ruleForm.effectiveFrom}
+                  onChange={(event) =>
+                    setRuleForm((current) => ({ ...current, effectiveFrom: event.target.value }))
+                  }
+                />
+              </Field>
+              <Field label="Effective to" hint="Blank leaves the rule open-ended.">
+                <Input
+                  type="date"
+                  value={ruleForm.effectiveTo}
+                  onChange={(event) =>
+                    setRuleForm((current) => ({ ...current, effectiveTo: event.target.value }))
+                  }
+                />
+              </Field>
+              <StatusField
+                checked={ruleForm.isActive}
+                onChange={(next) => setRuleForm((current) => ({ ...current, isActive: next }))}
+                hint="Deactivating keeps history; the rule stops competing for new documents."
+              />
+            </SidePanel>
+          ) : null}
+        </div>
+
+        <div
+          className={cn("space-y-2.5", activeView !== "vat-summary" && "hidden")}
+          style={columnScoped}
+        >
+          <div className="grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4">
+            <MetricTile
+              title="Active tax codes"
+              value={activeCodeCount}
+              valueLabel={String(activeCodeCount)}
+              delta={`of ${taxCodes.length}`}
+              detail={inactiveCodeCount ? `${inactiveCodeCount} switched off` : "all in use"}
+              tone="neutral"
+            />
+            <MetricTile
+              title="Output VAT"
+              value={vatTotals.outputTax}
+              valueLabel={formatHeadline(vatTotals.outputTax)}
+              delta="charged"
+              detail="on what we sold"
+              tone="neutral"
+            />
+            <MetricTile
+              title="Input VAT"
+              value={vatTotals.inputTax}
+              valueLabel={formatHeadline(vatTotals.inputTax)}
+              delta="reclaimable"
+              detail="on what we bought"
+              tone="neutral"
+            />
+            {/*
+              Net VAT is the only one of the three anybody files, so it carries
+              the direction: amber when it is a liability, green when it is a
+              refund or nil.
+            */}
+            <MetricTile
+              title="Net VAT due"
+              value={vatTotals.netTax}
+              valueLabel={formatHeadline(vatTotals.netTax)}
+              delta={vatTotals.netTax > 0 ? "payable" : "refundable"}
+              detail="to ZIMRA"
+              tone={vatTotals.netTax > 0 ? "warn" : "good"}
             />
           </div>
 
-          <div className={activeView === "vat-returns" ? "space-y-3" : "hidden"}>
+          <div className="grid gap-2.5 xl:grid-cols-12">
+            <Card className="xl:col-span-5">
+              <CardHeader className="justify-start gap-2">
+                <CardTitle>VAT position</CardTitle>
+                <span className="ml-auto acct-caption">from posted journals</span>
+              </CardHeader>
+              <div>
+                {vatPosition.map((line) => (
+                  <div
+                    key={line.label}
+                    className="flex min-h-[30px] items-center gap-3 border-b border-[var(--border-subtle)] px-[13px]"
+                  >
+                    <span className="min-w-0 flex-1 truncate text-sm">{line.label}</span>
+                    <span className="w-[130px] shrink-0">
+                      <NumericCell>{formatPositionAmount(line.value)}</NumericCell>
+                    </span>
+                  </div>
+                ))}
+                <div className="flex min-h-[30px] items-center gap-3 px-[13px]">
+                  <span className="min-w-0 flex-1 truncate text-sm font-bold text-[var(--text-strong)]">
+                    Net VAT payable
+                  </span>
+                  <span className="w-[130px] shrink-0 font-bold text-[var(--brand-strong)]">
+                    <NumericCell>{formatAmount(vatTotals.netTax)}</NumericCell>
+                  </span>
+                </div>
+              </div>
+            </Card>
+
+            <div className="min-w-0 space-y-1.5 xl:col-span-7">
+              <ListNote>What drove the position.</ListNote>
+              <DataTable
+                data={vatRows}
+                columns={vatSummaryColumns}
+                groupBy={(row) => `${row.rate}%`}
+                searchPlaceholder="Code or name"
+                searchSubmitLabel="Search"
+                pagination={{ enabled: true }}
+                toolbar={
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Select value={summaryPeriodId} onValueChange={handlePeriodChange}>
+                      <SelectTrigger size="sm" className="h-8 w-[220px]">
+                        <SelectValue placeholder="Filter by period" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="">All periods</SelectItem>
+                        {periods.map((period: AccountingPeriodRecord) => (
+                          <SelectItem key={period.id} value={period.id}>
+                            {formatPeriodLabel(period.startDate, period.endDate)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      type="date"
+                      value={summaryStartDate}
+                      onChange={(event) => handleStartDateChange(event.target.value)}
+                      className="h-8"
+                    />
+                    <Input
+                      type="date"
+                      value={summaryEndDate}
+                      onChange={(event) => handleEndDateChange(event.target.value)}
+                      className="h-8"
+                    />
+                  </div>
+                }
+                emptyState={
+                  vatSummaryQuery.isLoading ? "Loading VAT summary..." : "No VAT summary data."
+                }
+              />
+            </div>
+          </div>
+        </div>
+
+        <div
+          className={cn("grid items-start gap-2.5", activeView !== "vat-returns" && "hidden")}
+          style={splitColumns(true)}
+        >
+          <div className="min-w-0">
             <DataTable
               data={vatReturns}
               columns={vatReturnColumns}
               groupBy="status"
-              searchPlaceholder="Search VAT returns"
+              searchPlaceholder="Period or category"
               searchSubmitLabel="Search"
               pagination={{ enabled: true }}
-              toolbar={
-                <div className="flex flex-wrap items-center gap-2">
-                  <Select value={vatReturnPeriodId} onValueChange={setVatReturnPeriodId}>
-                    <SelectTrigger size="sm" className="h-8 w-[220px]">
-                      <SelectValue placeholder="Select period" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="">Select period</SelectItem>
-                      {periods.map((period: AccountingPeriodRecord) => (
-                        <SelectItem key={period.id} value={period.id}>
-                          {format(new Date(period.startDate), "yyyy-MM-dd")} to{" "}
-                          {format(new Date(period.endDate), "yyyy-MM-dd")}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <Input
-                    type="number"
-                    min="-999999999"
-                    step="0.01"
-                    value={vatReturnAdjustmentsTax}
-                    onChange={(event) => setVatReturnAdjustmentsTax(event.target.value)}
-                    placeholder="Adjustments tax"
-                    className="h-8 w-[180px] text-right font-mono"
-                  />
-                  <Select value={vatReturnFilingCategory} onValueChange={setVatReturnFilingCategory}>
-                    <SelectTrigger size="sm" className="h-8 w-[180px]">
-                      <SelectValue placeholder="Filing category" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="GENERAL">General</SelectItem>
-                      <SelectItem value="CATEGORY_A">Category A</SelectItem>
-                      <SelectItem value="CATEGORY_C">Category C</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <Button
-                    size="sm"
-                    onClick={() => createVatReturnMutation.mutate()}
-                    disabled={createVatReturnMutation.isPending || !vatReturnPeriodId}
-                  >
-                    Create Draft
-                  </Button>
-                </div>
+              emptyState={
+                vatReturnsQuery.isLoading ? "Loading VAT returns..." : "No VAT returns found."
               }
-              emptyState={vatReturnsQuery.isLoading ? "Loading VAT returns..." : "No VAT returns found."}
             />
           </div>
-        </section>
+
+          <SidePanel
+            chip="DUE"
+            chipTone="warn"
+            title={
+              selectedReturnPeriod
+                ? `Prepare ${formatPeriodLabel(selectedReturnPeriod.startDate, selectedReturnPeriod.endDate)}`
+                : "Prepare a return"
+            }
+            onSubmit={(event) => {
+              event.preventDefault();
+              createVatReturnMutation.mutate();
+            }}
+            extra={
+              /*
+                The bottom line before it is committed.
+
+                Read from the same summary the server recomputes the draft
+                from, plus whatever adjustment is typed above it — so what the
+                panel shows and what the draft comes out at are the same
+                arithmetic on the same journals.
+              */
+              <div className="px-[13px] pb-3">
+                <div className="flex items-center gap-2 rounded-[7px] border border-[var(--brand-100)] bg-[var(--brand-soft)] px-[11px] py-2.5">
+                  <span className="text-sm text-[var(--brand-strong)]">Net payable</span>
+                  <span className="ml-auto font-mono text-base font-bold tabular-nums text-[var(--brand-strong)]">
+                    {returnPreviewNet === null
+                      ? returnPreviewQuery.isLoading
+                        ? "…"
+                        : "—"
+                      : formatAmount(returnPreviewNet)}
+                  </span>
+                </div>
+              </div>
+            }
+            footer={
+              <>
+                <Button
+                  type="submit"
+                  size="sm"
+                  disabled={!vatReturnPeriodId || createVatReturnMutation.isPending}
+                >
+                  Prepare return
+                </Button>
+                <div className="ml-auto">
+                  <DestructiveButton
+                    label="Discard"
+                    disabled={!vatReturnPeriodId && !vatReturnAdjustmentsTax}
+                    onClick={() => {
+                      setVatReturnPeriodId("");
+                      setVatReturnAdjustmentsTax("");
+                      setVatReturnFilingCategory("GENERAL");
+                    }}
+                  />
+                </div>
+              </>
+            }
+          >
+            <Field label="Period" required wide hint="Only an open period can be drafted.">
+              <Select value={vatReturnPeriodId} onValueChange={setVatReturnPeriodId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select period" />
+                </SelectTrigger>
+                <SelectContent>
+                  {periods.map((period: AccountingPeriodRecord) => (
+                    <SelectItem key={period.id} value={period.id}>
+                      {formatPeriodLabel(period.startDate, period.endDate)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Filing category" required wide>
+              <Select value={vatReturnFilingCategory} onValueChange={setVatReturnFilingCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Filing category" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="GENERAL">General</SelectItem>
+                  <SelectItem value="CATEGORY_A">Category A</SelectItem>
+                  <SelectItem value="CATEGORY_C">Category C</SelectItem>
+                </SelectContent>
+              </Select>
+            </Field>
+            <Field label="Start date">
+              <Input
+                readOnly
+                className="font-mono"
+                value={
+                  selectedReturnPeriod
+                    ? format(new Date(selectedReturnPeriod.startDate), "dd/MM/yyyy")
+                    : ""
+                }
+                placeholder="from the period"
+              />
+            </Field>
+            <Field label="End date">
+              <Input
+                readOnly
+                className="font-mono"
+                value={
+                  selectedReturnPeriod
+                    ? format(new Date(selectedReturnPeriod.endDate), "dd/MM/yyyy")
+                    : ""
+                }
+                placeholder="from the period"
+              />
+            </Field>
+            <Field label="Adjustments tax" wide hint="Credit notes and prior-period corrections.">
+              <Input
+                type="number"
+                min="-999999999"
+                step="0.01"
+                value={vatReturnAdjustmentsTax}
+                onChange={(event) => setVatReturnAdjustmentsTax(event.target.value)}
+                placeholder="0.00"
+                className="text-right font-mono"
+              />
+            </Field>
+          </SidePanel>
+        </div>
       </VerticalDataViews>
-
-      <Sheet open={editor !== null} onOpenChange={(open) => (!open ? closeEditor() : null)}>
-        <SheetContent size="lg" className="w-full p-6 sm:p-8">
-          {editor ? (
-            <>
-              <SheetHeader className="pr-10">
-                <SheetTitle>{editorTitle}</SheetTitle>
-                <SheetDescription>{editorDescription}</SheetDescription>
-              </SheetHeader>
-
-              {editor.kind === "code" ? (
-                <form onSubmit={handleTaxCodeSubmit} className="mt-6 space-y-4">
-                  <div>
-                    <FieldLabel>Code</FieldLabel>
-                    <Input
-                      value={
-                        editor.mode === "create"
-                          ? reservedId
-                          : taxCodes.find((row) => row.id === editor.recordId)?.code ?? ""
-                      }
-                      readOnly
-                      placeholder={isReserving ? "Reserving..." : "Auto-generated"}
-                    />
-                    <FieldHint>
-                      {editor.mode === "create"
-                        ? reserveError ?? "Code is reserved automatically when the sheet opens."
-                        : "Tax codes remain fixed after creation so template references stay stable."}
-                    </FieldHint>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <FieldLabel>Name</FieldLabel>
-                      <Input value={taxCodeForm.name} onChange={(event) => setTaxCodeForm((current) => ({ ...current, name: event.target.value }))} required />
-                    </div>
-                    <div>
-                      <FieldLabel>Rate (%)</FieldLabel>
-                      <Input type="number" min="0" step="0.01" value={taxCodeForm.rate} onChange={(event) => setTaxCodeForm((current) => ({ ...current, rate: event.target.value }))} className="text-right font-mono" required />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div>
-                      <FieldLabel>Type</FieldLabel>
-                      <Input value={taxCodeForm.type} onChange={(event) => setTaxCodeForm((current) => ({ ...current, type: event.target.value }))} />
-                    </div>
-                    <div>
-                      <FieldLabel>Applies To</FieldLabel>
-                      <Select value={taxCodeForm.appliesTo} onValueChange={(value) => setTaxCodeForm((current) => ({ ...current, appliesTo: value as AppliesTo }))}>
-                        <SelectTrigger><SelectValue placeholder="Applies to" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="BOTH">Both</SelectItem>
-                          <SelectItem value="SALES">Sales</SelectItem>
-                          <SelectItem value="PURCHASE">Purchase</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <FieldLabel>Schedule Type</FieldLabel>
-                      <Select value={taxCodeForm.scheduleType} onValueChange={(value) => setTaxCodeForm((current) => ({ ...current, scheduleType: value as ScheduleType }))}>
-                        <SelectTrigger><SelectValue placeholder="Schedule type" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="NONE">None</SelectItem>
-                          <SelectItem value="FX">Foreign Currency</SelectItem>
-                          <SelectItem value="RTGS">RTGS</SelectItem>
-                          <SelectItem value="WITHHOLDING">Withholding</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <FieldLabel>VAT-7 Output Box</FieldLabel>
-                      <Input value={taxCodeForm.vat7OutputBox} onChange={(event) => setTaxCodeForm((current) => ({ ...current, vat7OutputBox: event.target.value }))} />
-                    </div>
-                    <div>
-                      <FieldLabel>VAT-7 Input Box</FieldLabel>
-                      <Input value={taxCodeForm.vat7InputBox} onChange={(event) => setTaxCodeForm((current) => ({ ...current, vat7InputBox: event.target.value }))} />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-2">
-                    <div>
-                      <FieldLabel>Effective From</FieldLabel>
-                      <Input type="date" value={taxCodeForm.effectiveFrom} onChange={(event) => setTaxCodeForm((current) => ({ ...current, effectiveFrom: event.target.value }))} />
-                    </div>
-                    <div>
-                      <FieldLabel>Effective To</FieldLabel>
-                      <Input type="date" value={taxCodeForm.effectiveTo} onChange={(event) => setTaxCodeForm((current) => ({ ...current, effectiveTo: event.target.value }))} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-[20px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3">
-                    <Checkbox checked={taxCodeForm.isActive} onCheckedChange={(checked) => setTaxCodeForm((current) => ({ ...current, isActive: checked === true }))} />
-                    <span className="text-sm text-[var(--text-strong)]">Keep this tax code active</span>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" className="flex-1" disabled={saveTaxCodeMutation.isPending || (editor.mode === "create" && (isReserving || !reservedId))}>
-                      {editor.mode === "create" ? "Save Tax Code" : "Update Tax Code"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={closeEditor}>Cancel</Button>
-                  </div>
-                </form>
-              ) : null}
-              {editor.kind === "category" ? (
-                <form onSubmit={handleCategorySubmit} className="mt-6 space-y-4">
-                  <div>
-                    <FieldLabel>Name</FieldLabel>
-                    <Input value={categoryForm.name} onChange={(event) => setCategoryForm((current) => ({ ...current, name: event.target.value }))} required />
-                  </div>
-                  <div>
-                    <FieldLabel>Scope</FieldLabel>
-                    <Select value={categoryForm.scope} onValueChange={(value) => setCategoryForm((current) => ({ ...current, scope: value as CategoryScope }))}>
-                      <SelectTrigger><SelectValue placeholder="Scope" /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="BOTH">Both</SelectItem>
-                        <SelectItem value="CUSTOMER">Customer</SelectItem>
-                        <SelectItem value="VENDOR">Vendor</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-[20px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3">
-                    <Checkbox checked={categoryForm.isActive} onCheckedChange={(checked) => setCategoryForm((current) => ({ ...current, isActive: checked === true }))} />
-                    <span className="text-sm text-[var(--text-strong)]">Keep this category active</span>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" className="flex-1" disabled={saveCategoryMutation.isPending}>
-                      {editor.mode === "create" ? "Save Tax Category" : "Update Tax Category"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={closeEditor}>Cancel</Button>
-                  </div>
-                </form>
-              ) : null}
-              {editor.kind === "template" ? (
-                <form onSubmit={handleTemplateSubmit} className="mt-6 space-y-4">
-                  <div>
-                    <FieldLabel>Name</FieldLabel>
-                    <Input value={templateForm.name} onChange={(event) => setTemplateForm((current) => ({ ...current, name: event.target.value }))} required />
-                  </div>
-                  <div>
-                    <FieldLabel>Description</FieldLabel>
-                    <Textarea value={templateForm.description} onChange={(event) => setTemplateForm((current) => ({ ...current, description: event.target.value }))} rows={3} />
-                  </div>
-                  <div className="flex items-center gap-3 rounded-[20px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3">
-                    <Checkbox checked={templateForm.isActive} onCheckedChange={(checked) => setTemplateForm((current) => ({ ...current, isActive: checked === true }))} />
-                    <span className="text-sm text-[var(--text-strong)]">Keep this template active</span>
-                  </div>
-                  <div className="space-y-3 rounded-[10px] border border-[var(--border)] bg-[var(--surface)] px-[13px] py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-[var(--text-strong)]">Tax Lines</p>
-                        <FieldHint>Add at least one tax code to the template.</FieldHint>
-                      </div>
-                      <Button type="button" size="sm" variant="outline" onClick={addTemplateLine}>
-                        <Plus className="mr-2 size-4" />
-                        Add Line
-                      </Button>
-                    </div>
-                    {templateForm.lines.map((line, index) => (
-                      <div key={line.key} className="grid gap-3 rounded-[20px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-4 md:grid-cols-[minmax(0,1fr)_180px_140px_auto]">
-                        <div>
-                          <FieldLabel>Tax Code {index + 1}</FieldLabel>
-                          <Select value={line.taxCodeId} onValueChange={(value) => updateTemplateLine(line.key, { taxCodeId: value })}>
-                            <SelectTrigger><SelectValue placeholder="Select tax code" /></SelectTrigger>
-                            <SelectContent>
-                              {taxCodes.map((taxCode) => (
-                                <SelectItem key={taxCode.id} value={taxCode.id}>
-                                  {taxCode.code} - {taxCode.name}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <FieldLabel>Applies To</FieldLabel>
-                          <Select value={line.appliesTo} onValueChange={(value) => updateTemplateLine(line.key, { appliesTo: value as AppliesTo })}>
-                            <SelectTrigger><SelectValue placeholder="Applies to" /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="BOTH">Both</SelectItem>
-                              <SelectItem value="SALES">Sales</SelectItem>
-                              <SelectItem value="PURCHASE">Purchase</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div className="flex items-end pb-2">
-                          <label className="flex items-center gap-3 text-sm text-[var(--text-strong)]">
-                            <Checkbox checked={line.isDefault} onCheckedChange={(checked) => updateTemplateLine(line.key, { isDefault: checked === true })} />
-                            Default
-                          </label>
-                        </div>
-                        <div className="flex items-end justify-end pb-1">
-                          <Button type="button" size="sm" variant="ghost" onClick={() => removeTemplateLine(line.key)}>
-                            <Trash2 className="mr-2 size-4" />
-                            Remove
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" className="flex-1" disabled={saveTemplateMutation.isPending}>
-                      {editor.mode === "create" ? "Save Tax Template" : "Update Tax Template"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={closeEditor}>Cancel</Button>
-                  </div>
-                </form>
-              ) : null}
-              {editor.kind === "rule" ? (
-                <form onSubmit={handleRuleSubmit} className="mt-6 space-y-4">
-                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_180px]">
-                    <div>
-                      <FieldLabel>Name</FieldLabel>
-                      <Input value={ruleForm.name} onChange={(event) => setRuleForm((current) => ({ ...current, name: event.target.value }))} required />
-                    </div>
-                    <div>
-                      <FieldLabel>Priority</FieldLabel>
-                      <Input type="number" min="1" max="1000" value={ruleForm.priority} onChange={(event) => setRuleForm((current) => ({ ...current, priority: event.target.value }))} className="text-right font-mono" />
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div>
-                      <FieldLabel>Applies To</FieldLabel>
-                      <Select value={ruleForm.appliesTo} onValueChange={(value) => setRuleForm((current) => ({ ...current, appliesTo: value as AppliesTo }))}>
-                        <SelectTrigger><SelectValue placeholder="Applies to" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="BOTH">Both</SelectItem>
-                          <SelectItem value="SALES">Sales</SelectItem>
-                          <SelectItem value="PURCHASE">Purchase</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <FieldLabel>Template</FieldLabel>
-                      <Select value={ruleForm.templateId} onValueChange={(value) => setRuleForm((current) => ({ ...current, templateId: value }))}>
-                        <SelectTrigger><SelectValue placeholder="Select template" /></SelectTrigger>
-                        <SelectContent>
-                          {taxTemplates.map((template) => (
-                            <SelectItem key={template.id} value={template.id}>
-                              {template.code} - {template.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div>
-                      <FieldLabel>Tax Category</FieldLabel>
-                      <Select value={ruleForm.taxCategoryId || "__all__"} onValueChange={(value) => setRuleForm((current) => ({ ...current, taxCategoryId: value === "__all__" ? "" : value }))}>
-                        <SelectTrigger><SelectValue placeholder="All counterparties" /></SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="__all__">All counterparties</SelectItem>
-                          {taxCategories.map((category) => (
-                            <SelectItem key={category.id} value={category.id}>
-                              {category.code} - {category.name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  </div>
-                  <div className="grid gap-4 md:grid-cols-3">
-                    <div>
-                      <FieldLabel>Currency</FieldLabel>
-                      <Input value={ruleForm.currency} onChange={(event) => setRuleForm((current) => ({ ...current, currency: event.target.value.toUpperCase() }))} placeholder="USD" />
-                      <FieldHint>Leave blank to match any currency.</FieldHint>
-                    </div>
-                    <div>
-                      <FieldLabel>Effective From</FieldLabel>
-                      <Input type="date" value={ruleForm.effectiveFrom} onChange={(event) => setRuleForm((current) => ({ ...current, effectiveFrom: event.target.value }))} />
-                    </div>
-                    <div>
-                      <FieldLabel>Effective To</FieldLabel>
-                      <Input type="date" value={ruleForm.effectiveTo} onChange={(event) => setRuleForm((current) => ({ ...current, effectiveTo: event.target.value }))} />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3 rounded-[20px] border border-[var(--edge-subtle)] bg-[var(--surface-subtle)] px-4 py-3">
-                    <Checkbox checked={ruleForm.isActive} onCheckedChange={(checked) => setRuleForm((current) => ({ ...current, isActive: checked === true }))} />
-                    <span className="text-sm text-[var(--text-strong)]">Keep this rule active</span>
-                  </div>
-                  <div className="flex flex-col gap-2 sm:flex-row">
-                    <Button type="submit" className="flex-1" disabled={saveRuleMutation.isPending}>
-                      {editor.mode === "create" ? "Save Tax Rule" : "Update Tax Rule"}
-                    </Button>
-                    <Button type="button" variant="outline" onClick={closeEditor}>Cancel</Button>
-                  </div>
-                </form>
-              ) : null}
-            </>
-          ) : null}
-        </SheetContent>
-      </Sheet>
     </AccountingShell>
   );
 }

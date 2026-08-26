@@ -1,18 +1,23 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { BandChip } from "@/components/accounting/band-chip";
 import { ReportPanel } from "@/components/ui/breakdown-panel";
-import { ReportTable, amt, nm } from "@/components/accounting/report-table";
+import {
+  ReportTable,
+  amt,
+  dim,
+  nm,
+  txt,
+  type ReportRow,
+} from "@/components/accounting/report-table";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { AlertTriangle, Check } from "@/lib/icons";
 import {
   Select,
   SelectContent,
@@ -20,13 +25,23 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { formatAmount, formatCount } from "@/lib/accounting/format";
 import {
   type AccountingPeriodRecord,
-  type TrialBalanceRow,
   fetchAccountingPeriods,
   fetchTrialBalance,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
+
+/**
+ * A date input hands back `yyyy-mm-dd`, which `new Date` reads as midnight UTC
+ * and then prints back in local time — so west of Greenwich a report filtered
+ * to the 20th announces itself as being drawn at the 19th. Anchoring the
+ * string to local midnight keeps the label and the filter saying the same day.
+ */
+function asLocalDate(value: string) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? new Date(`${value}T00:00:00`) : new Date(value);
+}
 
 export default function TrialBalancePage() {
   const [periodId, setPeriodId] = useState("");
@@ -55,84 +70,6 @@ export default function TrialBalancePage() {
   const periods = periodsData?.data ?? [];
   const rows = report?.rows ?? [];
 
-  const columns = useMemo<ColumnDef<TrialBalanceRow>[]>(
-    () => [
-      {
-        id: "name",
-        header: "Account",
-        accessorKey: "name",
-        cell: ({ row }) => <span className="font-medium">{row.original.name}</span>,
-        size: 280,
-        minSize: 240,
-        maxSize: 420},
-      {
-        id: "type",
-        header: "Type",
-        accessorKey: "type",
-        cell: ({ row }) => <Badge variant="outline">{row.original.type}</Badge>,
-        size: 140,
-        minSize: 140,
-        maxSize: 140},
-      {
-        id: "openingDebit",
-        header: "Opening Dr",
-        accessorKey: "openingDebit",
-        cell: ({ row }) => <NumericCell>{row.original.openingDebit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "openingCredit",
-        header: "Opening Cr",
-        accessorKey: "openingCredit",
-        cell: ({ row }) => <NumericCell>{row.original.openingCredit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "debit",
-        header: "Period Dr",
-        accessorKey: "debit",
-        cell: ({ row }) => <NumericCell>{row.original.debit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "credit",
-        header: "Period Cr",
-        accessorKey: "credit",
-        cell: ({ row }) => <NumericCell>{row.original.credit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "closingDebit",
-        header: "Closing Dr",
-        accessorKey: "closingDebit",
-        cell: ({ row }) => <NumericCell>{row.original.closingDebit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "closingCredit",
-        header: "Closing Cr",
-        accessorKey: "closingCredit",
-        cell: ({ row }) => <NumericCell>{row.original.closingCredit.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-      {
-        id: "total",
-        header: "Total",
-        accessorKey: "total",
-        cell: ({ row }) => <NumericCell>{row.original.total.toFixed(2)}</NumericCell>,
-        size: 128,
-        minSize: 128,
-        maxSize: 128},
-    ],
-    [],
-  );
-
   const totals = report?.totals ?? {
     openingDebit: 0,
     openingCredit: 0,
@@ -153,6 +90,73 @@ export default function TrialBalancePage() {
    */
   const difference = Math.round((totals.closingDebit - totals.closingCredit) * 100) / 100;
   const balanced = difference === 0;
+
+  /**
+   * The day the balance is struck at.
+   *
+   * A trial balance is a position rather than a movement, so the panel head
+   * has to say which day it is a position on. The report itself carries no
+   * `asOf` field, so this is read back off whichever filter is applied — the
+   * end date typed in, or the closing date of the selected period. With
+   * neither applied the report runs to the present and the head stays undated
+   * rather than asserting a cut-off nobody chose.
+   */
+  const asOfLabel = useMemo(() => {
+    const source =
+      endDate || (periodId ? periods.find((period) => period.id === periodId)?.endDate : undefined);
+    if (!source) return null;
+    return format(asLocalDate(source), "d MMMM yyyy");
+  }, [endDate, periodId, periods]);
+
+  /**
+   * Every account, then the line they must add up to.
+   *
+   * The total is the last row of this table rather than a panel of its own.
+   * That is only possible because the grid no longer paginates: the reason a
+   * trial balance is read at all is to see the closing columns agree, and a
+   * total stranded on page four of five leaves every other page a column of
+   * figures with no sum.
+   */
+  const tableRows = useMemo<ReportRow[]>(() => {
+    // An empty debit or credit is absent, not zero. Printing `0.00` in the
+    // credit column of a cash account is a factual claim that something was
+    // credited to it and netted off, which is not what happened.
+    const figure = (value: number) => (value ? amt(formatAmount(value)) : dim());
+    const tone = balanced ? ("total" as const) : ("bad" as const);
+
+    const lines: ReportRow[] = rows.map((row) => ({
+      id: row.accountId,
+      cells: [
+        txt(row.code, { mono: true, tone: "subtle" }),
+        nm(row.name),
+        figure(row.openingDebit),
+        figure(row.openingCredit),
+        figure(row.debit),
+        figure(row.credit),
+        figure(row.closingDebit),
+        figure(row.closingCredit),
+      ],
+    }));
+
+    if (lines.length === 0) return lines;
+
+    lines.push({
+      id: "totals",
+      emphasis: true,
+      cells: [
+        txt(""),
+        nm("Total", { tone }),
+        amt(formatAmount(totals.openingDebit), { tone }),
+        amt(formatAmount(totals.openingCredit), { tone }),
+        amt(formatAmount(totals.debit), { tone }),
+        amt(formatAmount(totals.credit), { tone }),
+        amt(formatAmount(totals.closingDebit), { tone }),
+        amt(formatAmount(totals.closingCredit), { tone }),
+      ],
+    });
+
+    return lines;
+  }, [balanced, rows, totals]);
 
   const handlePeriodChange = (value: string) => {
     setPeriodId(value);
@@ -180,7 +184,7 @@ export default function TrialBalancePage() {
       bandSlot={
         <BandChip
           label="Difference"
-          value={difference.toFixed(2)}
+          value={formatAmount(difference)}
           tone={balanced ? "ok" : "bad"}
         />
       }
@@ -192,32 +196,11 @@ export default function TrialBalancePage() {
         </Alert>
       ) : null}
 
-      {/*
-        The totals, once, under the table.
-
-        There were three stat cards above it — "Opening Credits", "Closing
-        Credits" and "Total" — and none of them was a fact anybody comes to a
-        trial balance for. Opening credits in isolation answers nothing; the
-        question this report exists to settle is whether closing debits equal
-        closing credits, and that now lives in the band as a Difference chip
-        that stays in view however far you scroll.
-
-        The full totals row sits below the table rather than inside it, because
-        the table paginates: a total row as the last row would appear only on
-        the final page, and on every other page the reader would see a column
-        of figures with no sum at all.
-      */}
-      <DataTable
-        data={rows}
-        columns={columns}
-        groupBy="type"
-        searchPlaceholder="Search accounts"
-        searchSubmitLabel="Search"
-        pagination={{ enabled: true }}
-        toolbar={
-          <div className="flex flex-wrap items-center gap-2">
+      <Card>
+        <CardContent className="pt-4">
+          <div className="grid gap-2.5 md:grid-cols-3">
             <Select value={periodId} onValueChange={handlePeriodChange}>
-              <SelectTrigger size="sm" className="h-8 w-[220px]">
+              <SelectTrigger>
                 <SelectValue placeholder="Filter by period" />
               </SelectTrigger>
               <SelectContent>
@@ -234,25 +217,90 @@ export default function TrialBalancePage() {
               type="date"
               value={startDate}
               onChange={(event) => handleStartDateChange(event.target.value)}
-              className="h-8"
             />
             <Input
               type="date"
               value={endDate}
               onChange={(event) => handleEndDateChange(event.target.value)}
-              className="h-8"
             />
           </div>
-        }
-        emptyState={isLoading ? "Loading trial balance..." : "No trial balance data."}
-      />
+        </CardContent>
+      </Card>
 
-      <ReportPanel title="Totals" note="every account, summed">
+      {/*
+        The verdict, before the evidence.
+
+        The band carries the difference as a chip, but the chip is a bare
+        figure: it says 0.00 without saying zero what, or at what size. This
+        states the reconciliation in words and gives the total the two closing
+        columns agree at, which is the one number a reader carries away from a
+        trial balance.
+
+        The design's trailing caption also counts the journals posted in the
+        period. That count has no source — the trial balance response carries
+        rows and totals and nothing about the entries behind them — so the
+        caption states the account count alone rather than inventing the other.
+
+        Withheld until there are rows, because with nothing loaded every figure
+        is zero and the banner would announce a ledger in perfect agreement at
+        nothing — the most reassuring possible way to render a failed fetch.
+      */}
+      {rows.length > 0 ? (
+        <div
+          className="flex items-center gap-2.5 rounded-[9px] border px-[13px] py-[11px]"
+          style={{
+            background: balanced ? "var(--badge-ok-bg)" : "var(--badge-bad-bg)",
+            borderColor: balanced ? "var(--tone-success-bd)" : "var(--tone-danger-bd)",
+          }}
+        >
+          {balanced ? (
+            <Check
+              className="size-4 shrink-0"
+              style={{ color: "var(--badge-ok-fg)" }}
+              aria-hidden="true"
+            />
+          ) : (
+            <AlertTriangle
+              className="size-4 shrink-0"
+              style={{ color: "var(--badge-bad-fg)" }}
+              aria-hidden="true"
+            />
+          )}
+          <p
+            className="flex-1 text-sm"
+            style={{ color: balanced ? "var(--badge-ok-fg)" : "var(--badge-bad-fg)" }}
+          >
+            {balanced ? (
+              <>
+                Debits and credits agree at <b>${formatAmount(totals.closingDebit)}</b>. Difference
+                is zero.
+              </>
+            ) : (
+              <>
+                Debits and credits differ by <b>${formatAmount(Math.abs(difference))}</b>. The
+                ledger will not close until this is nil.
+              </>
+            )}
+          </p>
+          <span
+            className="shrink-0 font-mono text-sm tabular-nums"
+            style={{ color: balanced ? "var(--badge-ok-fg)" : "var(--badge-bad-fg)" }}
+          >
+            {formatCount(rows.length, "account")}
+          </span>
+        </div>
+      ) : null}
+
+      <ReportPanel
+        title={asOfLabel ? `Trial balance — at ${asOfLabel}` : "Trial balance"}
+        note="opening, movement and closing per account"
+      >
         <ReportTable
-          label="Trial balance totals"
-          tracks="minmax(0,1fr) 108px 108px 108px 108px 112px 112px"
+          label="Trial balance"
+          tracks="86px minmax(0,1fr) 108px 108px 108px 108px 112px 112px"
           columns={[
-            { label: "" },
+            { label: "Code" },
+            { label: "Account" },
             { label: "Opening Dr", align: "right" },
             { label: "Opening Cr", align: "right" },
             { label: "Movement Dr", align: "right" },
@@ -260,28 +308,9 @@ export default function TrialBalancePage() {
             { label: "Closing Dr", align: "right" },
             { label: "Closing Cr", align: "right" },
           ]}
-          rows={[
-            {
-              id: "totals",
-              emphasis: true,
-              cells: [
-                nm("Total", { tone: balanced ? "total" : "bad" }),
-                amt(totals.openingDebit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-                amt(totals.openingCredit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-                amt(totals.debit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-                amt(totals.credit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-                amt(totals.closingDebit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-                amt(totals.closingCredit.toFixed(2), { tone: balanced ? "total" : "bad" }),
-              ],
-            },
-          ]}
+          rows={tableRows}
+          emptyLabel={isLoading ? "Loading trial balance…" : "No trial balance data."}
         />
-        {!balanced ? (
-          <p className="border-t border-[var(--border-subtle)] px-[13px] py-2 text-sm text-[var(--badge-bad-fg)]">
-            Closing debits and credits differ by {difference.toFixed(2)}. The ledger will not close
-            until this is nil.
-          </p>
-        ) : null}
       </ReportPanel>
     </AccountingShell>
   );

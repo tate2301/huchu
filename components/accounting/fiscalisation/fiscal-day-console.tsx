@@ -6,7 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
-import { PageSection } from "@/components/ui/page-section";
+import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { Separator } from "@/components/ui/separator";
 import { StatusChip } from "@/components/ui/status-chip";
 import { TimeAgo } from "@/components/ui/time-ago";
@@ -42,9 +42,13 @@ import type {
  *    The refusal lands in the device's own card and stays until it is dismissed
  *    or the day actually closes.
  *
+ * 3. **A day past 24 hours is stated, not left to be worked out.** The device
+ *    card gives the day's age; the banner above gives it ZIMRA's rule and the
+ *    close it is asking for. An age is history, a breach is a task.
+ *
  * Everything here composes existing design-system pieces (`Card`, `Alert`,
- * `StatusChip`, `Table`, `Button`, `PageSection`, `TimeAgo`); no colour, size
- * or font is introduced.
+ * `MetricTile`, `StatusChip`, `ReportTable`, `Button`, `TimeAgo`); no colour,
+ * size or font is introduced.
  */
 
 /** `FiscalDay.status` → the design system's canonical tones. Mapped rather than
@@ -56,7 +60,25 @@ const DAY_TONE: Record<FiscalDayStatusWire, { tone: string; label: string }> = {
   CLOSED: { tone: "inactive", label: "Closed" },
 };
 
-const FLEET_KEY = ["accounting", "fiscalisation", "fiscal-days"] as const;
+/** Shared with the page, which reads the same fleet for its band chip. One key,
+ *  so the two observers share a cache entry instead of fetching twice. */
+export const FISCAL_DAY_FLEET_KEY = ["accounting", "fiscalisation", "fiscal-days"] as const;
+
+export function fetchFiscalDayFleet() {
+  return fetchJson<FiscalDayFleetResponse>("/api/accounting/fiscalisation/fiscal-days");
+}
+
+/** What ZIMRA expects, in hours. A day past this is not merely untidy: the
+ *  regulator treats a day that never closed as a day that never reconciled. */
+export const ZIMRA_MAX_OPEN_HOURS = 24;
+
+/** Whole hours since a day opened. Whole, because "106h" is the figure the
+ *  supervisor repeats down the phone; the minutes are noise. */
+export function hoursOpen(openedAt: string): number {
+  const opened = new Date(openedAt).getTime();
+  if (Number.isNaN(opened)) return 0;
+  return Math.max(0, Math.floor((Date.now() - opened) / 3_600_000));
+}
 
 type CloseRefusal = {
   message: string;
@@ -247,9 +269,8 @@ export function FiscalDayConsole() {
   const [busyProviderId, setBusyProviderId] = useState<string | null>(null);
 
   const { data, isLoading, error } = useQuery({
-    queryKey: FLEET_KEY,
-    queryFn: () =>
-      fetchJson<FiscalDayFleetResponse>("/api/accounting/fiscalisation/fiscal-days"),
+    queryKey: FISCAL_DAY_FLEET_KEY,
+    queryFn: fetchFiscalDayFleet,
     // A fiscal day changes underneath this screen every time a till rings a
     // sale, and the number that matters most — the oldest pending receipt — only
     // gets worse with time. Stale data here reads as "nothing to do".
@@ -257,7 +278,7 @@ export function FiscalDayConsole() {
   });
 
   const invalidate = () => {
-    queryClient.invalidateQueries({ queryKey: FLEET_KEY });
+    queryClient.invalidateQueries({ queryKey: FISCAL_DAY_FLEET_KEY });
     // The receipts view lists the same rows, and a closed day changes them.
     queryClient.invalidateQueries({ queryKey: ["accounting", "fiscalisation", "receipts"] });
   };
@@ -328,6 +349,35 @@ export function FiscalDayConsole() {
 
   const devices = useMemo(() => data?.devices ?? [], [data]);
   const summary = data?.summary;
+  const canManage = Boolean(data?.canManage);
+
+  /**
+   * The days that have already broken the rule.
+   *
+   * A day open past 24 hours is the one thing on this screen that gets worse
+   * on its own, and the device card states it as an age — "opened 4d ago" —
+   * which reads as history rather than as a breach. Lifted out and said in the
+   * regulator's own terms, with the close it is asking for attached.
+   */
+  const overdueDays = useMemo(
+    () =>
+      devices.flatMap((device) => {
+        const day = device.activeDay;
+        if (!day) return [];
+        const hours = hoursOpen(day.openedAt);
+        return hours >= ZIMRA_MAX_OPEN_HOURS ? [{ device, day, hours }] : [];
+      }),
+    [devices],
+  );
+
+  const closeDay = (device: FiscalDeviceWire) => {
+    if (!device.activeDay) return;
+    setBusyProviderId(device.providerConfigId);
+    closeMutation.mutate({
+      dayId: device.activeDay.id,
+      providerConfigId: device.providerConfigId,
+    });
+  };
 
   if (error) {
     return (
@@ -339,41 +389,84 @@ export function FiscalDayConsole() {
   }
 
   return (
-    <div className="space-y-4">
-      <PageSection
-        title="Fiscal days across all sites and tills"
-        description="Every registered ZIMRA device in this tenant, with the day it is on and what is holding it open."
-      >
-        {summary ? (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-5">
-            <Metric label="Devices" value={summary.devices} />
-            <Metric label="Days open" value={summary.daysOpen} />
-            <Metric
-              label="Stuck closing"
-              value={summary.daysClosing}
-              hint={summary.daysClosing > 0 ? "Z-report not accepted" : undefined}
-            />
-            <Metric
-              label="No day open"
-              value={summary.devicesWithoutOpenDay}
-              hint={summary.devicesWithoutOpenDay > 0 ? "cannot fiscalise" : undefined}
-            />
-            <Metric
-              label="Blocking receipts"
-              value={summary.blockingReceipts}
-              hint={
-                summary.oldestBlockingAt ? (
-                  <>oldest <TimeAgo value={summary.oldestBlockingAt} /></>
-                ) : undefined
-              }
-            />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">
-            {isLoading ? "Loading fiscal days..." : "No fiscalisation devices configured."}
-          </p>
-        )}
-      </PageSection>
+    <div className="space-y-2.5">
+      {overdueDays.map(({ device, day, hours }) => (
+        <Alert variant="destructive" key={device.providerConfigId}>
+          <AlertTitle>
+            Fiscal day {day.fiscalDayNo}
+            {device.siteLabel || device.deviceId
+              ? ` on ${device.siteLabel ?? device.deviceId}`
+              : ""}{" "}
+            has been open {hours} hours
+          </AlertTitle>
+          <AlertDescription>
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="min-w-0 flex-1">
+                ZIMRA expects it closed within {ZIMRA_MAX_OPEN_HOURS}
+                {device.receiptCounts.blocking > 0
+                  ? `, and the ${device.receiptCounts.blocking} queued receipt${
+                      device.receiptCounts.blocking === 1 ? "" : "s"
+                    } will not drain until it is`
+                  : ""}
+                .
+              </span>
+              <Button
+                size="sm"
+                onClick={() => closeDay(device)}
+                disabled={!canManage || busyProviderId === device.providerConfigId}
+              >
+                Close day {day.fiscalDayNo}
+              </Button>
+            </div>
+          </AlertDescription>
+        </Alert>
+      ))}
+
+      {/* No heading: the view switcher above already says Fiscal Days, and the
+          five figures name themselves. */}
+      {summary ? (
+        <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-5">
+          <MetricTile title="Devices" value={summary.devices} valueLabel={String(summary.devices)} tone="neutral" />
+          <MetricTile
+            title="Days open"
+            value={summary.daysOpen}
+            valueLabel={String(summary.daysOpen)}
+            tone="neutral"
+          />
+          <MetricTile
+            title="Stuck closing"
+            value={summary.daysClosing}
+            valueLabel={String(summary.daysClosing)}
+            tone={summary.daysClosing > 0 ? "danger" : "neutral"}
+            detail={summary.daysClosing > 0 ? "Z-report not accepted" : undefined}
+          />
+          <MetricTile
+            title="No day open"
+            value={summary.devicesWithoutOpenDay}
+            valueLabel={String(summary.devicesWithoutOpenDay)}
+            tone={summary.devicesWithoutOpenDay > 0 ? "danger" : "neutral"}
+            detail={summary.devicesWithoutOpenDay > 0 ? "cannot fiscalise" : undefined}
+          />
+          <MetricTile
+            title="Blocking receipts"
+            value={summary.blockingReceipts}
+            valueLabel={String(summary.blockingReceipts)}
+            tone={summary.blockingReceipts > 0 ? "warn" : "neutral"}
+            // The date rather than an age: the tile's qualifier is a plain
+            // string, and a relative age computed here would differ between
+            // the server render and the first paint.
+            detail={
+              summary.oldestBlockingAt
+                ? `oldest ${summary.oldestBlockingAt.slice(0, 10)}`
+                : undefined
+            }
+          />
+        </div>
+      ) : (
+        <p className="text-sm text-[var(--text-muted)]">
+          {isLoading ? "Loading fiscal days..." : "No fiscalisation devices configured."}
+        </p>
+      )}
 
       {/* A tenant with no devices is the pre-FD-1 state, not an error: say what
           is missing rather than showing an empty grid that looks broken. */}
@@ -392,21 +485,14 @@ export function FiscalDayConsole() {
           <DeviceCard
             key={device.providerConfigId}
             device={device}
-            canManage={Boolean(data?.canManage)}
+            canManage={canManage}
             refusal={refusals[device.providerConfigId] ?? null}
             busy={busyProviderId === device.providerConfigId}
             onOpen={() => {
               setBusyProviderId(device.providerConfigId);
               openMutation.mutate(device.providerConfigId);
             }}
-            onClose={() => {
-              if (!device.activeDay) return;
-              setBusyProviderId(device.providerConfigId);
-              closeMutation.mutate({
-                dayId: device.activeDay.id,
-                providerConfigId: device.providerConfigId,
-              });
-            }}
+            onClose={() => closeDay(device)}
             onDismissRefusal={() =>
               setRefusals((prev) => {
                 const next = { ...prev };

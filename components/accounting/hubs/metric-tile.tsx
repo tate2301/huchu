@@ -78,6 +78,19 @@ type MetricTileProps = {
    */
   tone?: MetricTone;
   /**
+   * The delta's own tone, when it disagrees with the figure's.
+   *
+   * The artboards decouple these more often than not: Expenses carries a
+   * neutral mark — spending is not in itself good or bad news — over an amber
+   * delta, because the *direction* is the part worth watching. Driven from one
+   * tone the mark had to turn amber with it, and a row of six tiles came out
+   * as a row of warnings.
+   *
+   * Falls back to the figure's tone, which is what every tile that does agree
+   * already gets.
+   */
+  deltaTone?: MetricTone;
+  /**
    * For figures where down is the good direction — liabilities, overdue
    * balances, a trial-balance difference. Only consulted when `tone` is not
    * given.
@@ -104,6 +117,7 @@ export function MetricTile({
   delta,
   detail,
   tone,
+  deltaTone,
   negativeIsBetter = false,
   href,
   icon: Icon,
@@ -126,6 +140,9 @@ export function MetricTile({
         : value > 0
           ? "good"
           : "danger");
+
+  // The delta follows the figure unless the caller has separated them.
+  const deltaInk: MetricTone = deltaTone ?? resolved;
 
   const body = (
     <>
@@ -156,7 +173,7 @@ export function MetricTile({
       {delta || detail ? (
         <div className="mt-1.5 flex min-w-0 items-center gap-1.5">
           {delta ? (
-            <span className="acct-stat-delta shrink-0" style={{ color: TONE_INK[resolved] }}>
+            <span className="acct-stat-delta shrink-0" style={{ color: TONE_INK[deltaInk] }}>
               {delta}
             </span>
           ) : null}

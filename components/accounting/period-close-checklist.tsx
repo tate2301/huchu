@@ -3,6 +3,7 @@
 import Link from "next/link";
 
 import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { Button } from "@/components/ui/button";
 import { Check } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +27,11 @@ import { cn } from "@/lib/utils";
  * Items whose data this app does not yet hold — bank reconciliation,
  * depreciation runs — are deliberately absent rather than shown as permanently
  * unchecked. A gate that can never go green trains people to ignore the list.
+ *
+ * The close itself hangs off the bottom of the list rather than living in the
+ * table or a toolbar, because the gates are the reason it is disabled: a button
+ * greyed out somewhere else on the page is a mystery, and the same button under
+ * the two items still failing explains itself.
  */
 
 export type ChecklistItem = {
@@ -37,24 +43,31 @@ export type ChecklistItem = {
   href?: string;
 };
 
+export type PeriodCloseAction = {
+  /** Names the period it closes — "Close August 2026". */
+  label: string;
+  onClick: () => void;
+  pending?: boolean;
+};
+
 export function PeriodCloseChecklist({
   items,
   className,
+  closeAction,
 }: {
   items: ChecklistItem[];
   className?: string;
+  /** Omitted when there is no open period to close. */
+  closeAction?: PeriodCloseAction;
 }) {
   const outstanding = items.filter((item) => !item.done).length;
+  const done = items.length - outstanding;
 
   return (
     <ReportPanel
       className={className}
       title="Before this period can close"
-      note={
-        outstanding === 0
-          ? "nothing outstanding"
-          : `${outstanding} to clear`
-      }
+      note={`${done} of ${items.length} done`}
     >
       <div className="py-1">
         {items.map((item) => {
@@ -117,6 +130,24 @@ export function PeriodCloseChecklist({
           );
         })}
       </div>
+
+      {closeAction ? (
+        <div className="px-[13px] pb-[13px] pt-1.5">
+          <Button
+            type="button"
+            className="w-full"
+            disabled={outstanding > 0 || closeAction.pending}
+            onClick={closeAction.onClick}
+          >
+            {closeAction.label}
+          </Button>
+          {outstanding > 0 ? (
+            <p className="acct-caption mt-1.5 text-center">
+              {outstanding === 1 ? "1 item still open" : `${outstanding} items still open`}
+            </p>
+          ) : null}
+        </div>
+      ) : null}
     </ReportPanel>
   );
 }

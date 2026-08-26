@@ -4,8 +4,10 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { BandChip } from "@/components/accounting/band-chip";
 import { PostingRuleList } from "@/components/accounting/posting-rule-list";
 import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
+import { PageActions } from "@/components/layout/page-actions";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -368,20 +370,25 @@ function RuleLibraryView({
 
   return (
     <div className="space-y-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-sm text-[var(--text-muted)]">
-          {rules.length} rule{rules.length !== 1 ? "s" : ""} configured
-        </p>
-        <div className="flex gap-2">
-          <Button variant="ghost" size="sm" onClick={onRefetch} aria-label="Refresh rules">
-            <RefreshCw className="h-4 w-4" />
-          </Button>
-          <Button size="sm" onClick={openNew}>
-            <Plus className="h-4 w-4 mr-1" />
-            New rule
-          </Button>
-        </div>
-      </div>
+      {/*
+        The actions belong in the app bar, not in a strip above the list.
+
+        They are registered from inside this view rather than passed down as
+        the shell's `actions` prop because "New rule" opens the editor sheet,
+        and the sheet's form state lives here — hoisting all of it to the page
+        just so the button could be declared one level higher would put the
+        form's state two components away from the form. The row they replace
+        also carried a rule count, which the Rules panel head already prints.
+      */}
+      <PageActions>
+        <Button variant="ghost" size="sm" onClick={onRefetch} aria-label="Refresh rules">
+          <RefreshCw className="h-4 w-4" />
+        </Button>
+        <Button size="sm" onClick={openNew}>
+          <Plus className="h-4 w-4 mr-1" />
+          New rule
+        </Button>
+      </PageActions>
 
       {isLoading ? (
         <div className="py-12 text-center text-sm text-[var(--text-muted)]">Loading rules…</div>
@@ -1839,22 +1846,30 @@ export default function PostingStudioPage() {
     queryFn: () => fetchIntegrationEvents({ status: "FAILED", limit: 1 }).then((data) => data.meta.total),
     refetchInterval: 60_000,
   });
-
-  const viewItems = VIEWS.map((v) => ({
-    ...v,
-    ...(v.id === "failures" && (failuresData ?? 0) > 0
-      ? { count: failuresData as number }
-      : {}),
-  }));
+  const failedEvents = failuresData ?? 0;
 
   return (
     <AccountingShell
       activeTab="posting-rules"
       title="Posting Rules"
       description="what each kind of business event posts to the ledger"
+      bandSlot={
+        <BandChip
+          label="Failed"
+          value={String(failedEvents)}
+          tone={failedEvents > 0 ? "bad" : "mute"}
+        />
+      }
     >
+      {/*
+        The failed count used to ride on the "Failures & replay" pill as well.
+        It is in the band alone now: the band never scrolls away, so the one
+        number that says "something the ledger expected never arrived" stays in
+        view while you read a rule, and printing it twice in two sticky rows
+        only invites the reader to check whether the two agree.
+      */}
       <VerticalDataViews
-        items={viewItems}
+        items={VIEWS}
         value={activeView}
         onValueChange={setActiveView}
         railLabel="Views"
