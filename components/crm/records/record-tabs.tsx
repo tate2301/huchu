@@ -124,9 +124,25 @@ export function conversationTab({
     label: "Conversation",
     icon: Clock,
     content: (
-      <div className="space-y-4">
-        <ConversationComposer target={conversationTarget(ref)} />
-        <RecordStory events={events} emptyMessage={emptyMessage} />
+      <div className="space-y-4 md:space-y-0">
+        {/* The composer pins to the top of the conversation pane.
+
+            A record's conversation is the one section people arrive at with
+            something to say, and on a lead with forty messages the reply box
+            was forty messages up. Pinned, "add a note" is always one click
+            away and the timeline runs underneath it.
+
+            It bleeds out of the pane's padding and puts it back as its own, so
+            the hairline reaches both edges and no row shows through the strip
+            above the box on the way past. The pane's background rather than
+            white: the composer card is what should read as raised, not the
+            band holding it. */}
+        <div className="md:sticky md:top-0 md:z-20 md:-mx-4 md:-mt-3 md:border-b md:border-[var(--border)] md:bg-[var(--canvas)] md:px-4 md:pb-2.5 md:pt-3">
+          <ConversationComposer target={conversationTarget(ref)} />
+        </div>
+        <div className="md:pb-6 md:pt-1">
+          <RecordStory events={events} emptyMessage={emptyMessage} />
+        </div>
       </div>
     ),
   };

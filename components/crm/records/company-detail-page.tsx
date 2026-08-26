@@ -236,6 +236,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       title={company.name}
       onTitleCommit={(next) => edit.save.mutate({ name: next })}
       reference={company.clientNo}
+      bandValue={wonValue > 0 ? formatMoney(wonValue, currency) : undefined}
       status={ACCOUNT_STATUS_PRESENTATION[company.accountStatus] ?? null}
       subtitle={subtitle}
       activeTab={tab}

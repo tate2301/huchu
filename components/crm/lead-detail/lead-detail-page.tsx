@@ -68,7 +68,7 @@ import { RecordAttributes } from "@/components/records/record-attributes";
 // RailSection comes from the shell rather than being redefined here: this
 // file had its own copy, which is why the rail on a lead kept its frames
 // when every other record lost theirs.
-import { RailSection, RecordPageShell } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { buildStory } from "@/lib/crm/story";
@@ -312,6 +312,26 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
         </>
       }
       bandValue={formatLeadValue(lead.estimatedValue, lead.currency)}
+      related={
+        <RecordRelated
+          items={[
+            lead.clientId && lead.client
+              ? {
+                  href: `/crm/companies/${lead.clientId}`,
+                  label: lead.client.name,
+                  dot: "bg-[var(--brand)]",
+                }
+              : null,
+            lead.convertedDealId
+              ? {
+                  href: `/crm/deals/${lead.convertedDealId}`,
+                  label: "The deal it became",
+                  dot: "bg-[var(--tone-warn)]",
+                }
+              : null,
+          ].filter((item) => item !== null)}
+        />
+      }
       primaryAction={
         // Converting is the one thing a qualified lead exists to do — until it
         // has done it. A converted lead is history, and the useful move from

@@ -42,7 +42,7 @@ import {
   Users,
 } from "@/lib/icons";
 
-import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { DealFormSheet } from "./deal-form-sheet";
 import { PersonFormSheet } from "./person-form-sheet";
@@ -291,6 +291,21 @@ export function PersonDetailPage({ personId }: { personId: string }) {
       subtitle={subtitle}
       activeTab={tab}
       onTabChange={setTab}
+      related={
+        <RecordRelated
+          items={
+            person.client
+              ? [
+                  {
+                    href: `/crm/companies/${person.client.id}`,
+                    label: person.client.name,
+                    dot: "bg-[var(--brand)]",
+                  },
+                ]
+              : []
+          }
+        />
+      }
       attributes={
         <RecordAttributes
           attributes={[

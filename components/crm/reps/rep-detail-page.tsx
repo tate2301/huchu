@@ -178,6 +178,7 @@ export function RepDetailPage({ repId }: { repId: string }) {
   return (
     <RecordPageShell
       icon={UserRound}
+      bandValue={openPipeline > 0 ? formatMoney(openPipeline, "USD") : undefined}
       backHref="/crm/reps"
       backLabel="Sales reps"
       title={rep.name ?? rep.email ?? "Unnamed"}

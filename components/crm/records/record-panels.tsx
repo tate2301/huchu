@@ -69,14 +69,24 @@ export function MeetingCard({
         </Badge>
       </div>
 
+      {/* The marks are a step lighter than the lines they label. A solid
+          Phosphor glyph at the text's own ink reads heavier than the text — it
+          is a filled shape against letterforms — so matching the two makes the
+          icon the loudest thing in a row whose point is the date. */}
       <p className="flex items-center gap-1.5 text-sm text-[var(--text-muted)]">
-        <CalendarCheck className="size-4 shrink-0" aria-hidden="true" />
+        <CalendarCheck
+          className="size-4 shrink-0 text-[var(--text-subtle)]"
+          aria-hidden="true"
+        />
         <ClientDate value={meeting.scheduledStart} mode="datetime" />
       </p>
 
       {place.kind === "map" ? (
         <p className="flex items-start gap-1.5 text-sm text-[var(--text-muted)]">
-          <MapPin className="mt-0.5 size-4 shrink-0" aria-hidden="true" />
+          <MapPin
+            className="mt-0.5 size-4 shrink-0 text-[var(--text-subtle)]"
+            aria-hidden="true"
+          />
           <span className="min-w-0">{place.text}</span>
         </p>
       ) : null}

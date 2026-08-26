@@ -66,8 +66,8 @@ import { RecordAttributes } from "@/components/records/record-attributes";
 import { RelationAttribute } from "./relation-attribute";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
-import { DealStageBar } from "./deal-stage-bar";
-import { RailSection, RecordPageShell } from "@/components/records/record-page-shell";
+import { DealStageBar, StageChecklist } from "./deal-stage-bar";
+import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
 
@@ -303,6 +303,32 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         title={deal.title}
       onTitleCommit={(next) => edit.save.mutate({ title: next })}
         reference={deal.dealNo}
+        related={
+          <RecordRelated
+            items={
+              deal.clientId && deal.client
+                ? [
+                    {
+                      href: `/crm/companies/${deal.clientId}`,
+                      label: deal.client.name,
+                      dot: "bg-[var(--brand)]",
+                    },
+                  ]
+                : []
+            }
+          />
+        }
+        bandValue={deal.value == null ? undefined : formatMoney(deal.value, deal.currency)}
+        beforeTabs={
+          <DealStageBar
+            compact
+            dealId={dealId}
+            stages={deal.pipeline.stages}
+            currentStageId={deal.stage.id}
+            checklist={deal.stage.checklist}
+            pipelineName={deal.pipeline.name}
+          />
+        }
         status={{
           label: deal.stage.name,
           status: STATUS_PRESENTATION[deal.status] ?? "pending",
@@ -532,15 +558,14 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
-            <RailSection title="Stage">
-              <DealStageBar
-                dealId={dealId}
-                stages={deal.pipeline.stages}
-                currentStageId={deal.stage.id}
-                checklist={deal.stage.checklist}
-                pipelineName={deal.pipeline.name}
-              />
-            </RailSection>
+            {/* The stage control itself is in the band now — see `beforeTabs`.
+                What stays here is the stage's checklist, which is a stack and
+                has nowhere to go in a 44px row. */}
+            {deal.stage.checklist && deal.stage.checklist.length > 0 ? (
+              <RailSection title="At this stage">
+                <StageChecklist checklist={deal.stage.checklist} />
+              </RailSection>
+            ) : null}
 
             <RailSection title="Up next">
               <NextInteractionCard

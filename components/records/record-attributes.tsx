@@ -277,21 +277,41 @@ export function RecordAttributes({
             // `items-start`, not `items-center`: a value that wraps to two
             // lines should hang off its label, not push the label into the
             // middle of it.
-            <div key={attribute.id} className="flex items-start gap-3">
+            <div key={attribute.id} className="flex items-start gap-2">
               {/* Narrower on a phone. A 144px label column out of the ~358px a
                   390px screen has left barely 200px for the value, which is
                   what pushed emails, company names and the pickers beside them
                   off the right edge. */}
+              {/* 116px, which is the artboard's label column, and the subtle
+                  ink rather than the muted one.
+
+                  It was 144 on a desktop. In a 340px standing column that left
+                  under 190px for the value, so an email or a company name
+                  truncated in a pane with room to spare — and the label, which
+                  is the half you already know, was taking more width than the
+                  half you came to read. The lighter ink is the same trade: at
+                  this size a label as dark as its value reads as two values. */}
               <dt
                 className={cn(
-                  "flex w-28 shrink-0 items-start gap-2 text-[var(--text-muted)] @md:w-36",
+                  "flex w-28 shrink-0 items-start gap-2 text-[var(--text-subtle)] @md:w-[116px]",
                   ATTRIBUTE_ROW,
                 )}
               >
                 {/* `mt-px` against a 20px line box, which is where the optical
                     centre of a 16px glyph actually falls — the old `mt-0.5`
                     was tuned against a line box the value no longer uses. */}
-                {Icon ? <Icon className="mt-px size-4 shrink-0" aria-hidden="true" /> : null}
+                {/* A step lighter than the label it sits beside, which is
+                    already a step lighter than the value. The mark is the
+                    quietest thing in the row — it is how you find "Owner"
+                    without reading, not a third thing to read — and at the
+                    label's own ink a column of sixteen of them was the first
+                    thing the eye landed on in the pane. */}
+                {Icon ? (
+                  <Icon
+                    className="mt-px size-4 shrink-0 text-[var(--text-disabled)]"
+                    aria-hidden="true"
+                  />
+                ) : null}
                 {/* Wraps rather than truncates. In a 112px column "Primary
                     contact" became "Primary cont…", which is a label somebody
                     has to guess at — and a label is the half of the row that
