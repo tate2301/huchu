@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card } from "@corelithzw/react";
+import { Badge, Card } from "@corelithzw/react";
 import type { CrmFieldType } from "@prisma/client";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
@@ -10,7 +10,9 @@ import { FilterBar, FilterSelect } from "@/components/schools/common/filter-sele
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
+  NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { Button } from "@/components/ui/button";
@@ -96,7 +98,6 @@ export function SchoolCustomFieldsPanel() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<FieldDefinitionRecord | null>(null);
   const [values, setValues] = useState<FieldFormValues>(EMPTY);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const fieldsQuery = useQuery({
     queryKey: ["schools", "field-definitions"],
@@ -147,7 +148,6 @@ export function SchoolCustomFieldsPanel() {
             }),
           }),
     onSuccess: () => {
-      setActionError(null);
       setDialogOpen(false);
       setEditing(null);
       invalidate();
@@ -157,11 +157,7 @@ export function SchoolCustomFieldsPanel() {
   const archive = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/field-definitions/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const openCreate = () => {
@@ -212,15 +208,9 @@ export function SchoolCustomFieldsPanel() {
           />
         ) : null}
 
-        {actionError ? (
-          <Alert
-            tone="danger"
-            title="That change was not applied"
-            onDismiss={() => setActionError(null)}
-          >
-            {actionError}
-          </Alert>
-        ) : null}
+        {/* Retiring is refused while the field is the only thing a form asks
+            for, so the failure names the field rather than the panel. */}
+        {archive.error ? <SaveError what="The field" error={archive.error} /> : null}
 
         <FilterBar>
           <FilterSelect
@@ -236,11 +226,21 @@ export function SchoolCustomFieldsPanel() {
         </FilterBar>
 
         {fieldsQuery.isPending ? (
-          <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }, { width: 160 }]} rows={4} />
-        ) : visible.length === 0 ? (
+          <TableRowsSkeleton
+            headers={["Field", "On lists", ""]}
+            columns={[{ twoLine: true }, { width: 90, badge: true }, { width: 60 }]}
+            rows={4}
+          />
+        ) : definitions.length === 0 ? (
           <NothingYet
             title="No extra fields"
             body="Every pupil and parent record carries what the system asks for and nothing more. Add a field when the school needs an answer this does not have a box for."
+          />
+        ) : visible.length === 0 ? (
+          <NothingMatched
+            what="fields"
+            filters={[CRM_FIELD_ENTITY_LABELS[entityFilter as SchoolRecordType]]}
+            onClear={() => setEntityFilter("")}
           />
         ) : (
           <ul className="divide-y divide-[color:var(--border-subtle)]">

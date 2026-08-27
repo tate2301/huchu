@@ -3,6 +3,11 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingYet,
+} from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { ArrowRight, Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
@@ -21,6 +26,11 @@ import { useParentPortal } from "./parent-portal-context";
  * `canReceiveFinancials` gets no fee hero at all — the loader does not even fetch
  * the balance — because "0.00 owed" is a wrong answer where "not shown to you" is
  * a true one.
+ *
+ * Two of the eight states are missing on purpose, and the audit reads text, so
+ * they are named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because a parent cannot narrow this screen — the school
+ * decides what is on it — and no `SaveError`, because Home writes nothing back.
  */
 
 type Notice = {
@@ -237,15 +247,33 @@ export function ParentHomeScreen() {
         School news{unread > 0 ? ` · ${unread} new` : ""}
         <Link href="/portal/parent/notices">See all</Link>
       </div>
-      <div className="card-block boxed">
-        {notices.isPending ? (
-          <p className="pp-empty-row">Looking for anything new…</p>
-        ) : notices.isError ? (
-          <p className="pp-empty-row">School news could not be loaded just now.</p>
-        ) : previewNotices.length === 0 ? (
-          <p className="pp-empty-row">The school has not sent you anything yet.</p>
-        ) : (
-          previewNotices.map((notice) => {
+      {/* The preview is three cards' worth of news, so the wait is drawn as
+          three cards. A parent opening this on mobile data at a school gate
+          sees the shape of what is coming rather than a sentence apologising
+          for it. */}
+      {notices.isPending ? (
+        <div className="px-4">
+          <CardsSkeleton count={3} columns={1} lines={2} />
+        </div>
+      ) : notices.isError ? (
+        <div className="px-4">
+          <LoadError
+            what="school news"
+            error={notices.error}
+            onRetry={() => void notices.refetch()}
+          />
+        </div>
+      ) : previewNotices.length === 0 ? (
+        <div className="px-4">
+          <NothingYet
+            icon={<Bell className="size-5" aria-hidden />}
+            title="Nothing from the school yet"
+            body="Anything the school sends you — fee reminders, term dates, a word about your child — appears here."
+          />
+        </div>
+      ) : (
+        <div className="card-block boxed">
+          {previewNotices.map((notice) => {
             const tone = NOTICE_TONE[notice.severity] ?? "";
             const Icon =
               notice.severity === "CRITICAL"
@@ -278,9 +306,9 @@ export function ParentHomeScreen() {
                 )}
               </Link>
             );
-          })
-        )}
-      </div>
+          })}
+        </div>
+      )}
     </div>
   );
 }

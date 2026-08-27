@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, EmptyState, Progress, Skeleton } from "@corelithzw/react";
+import { Alert, Badge, Button, EmptyState, Progress } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,14 @@ import {
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
@@ -255,11 +263,7 @@ export function TeacherHomeworkScreen() {
   };
 
   if (portalError) {
-    return (
-      <Alert tone="danger" title="Your classes would not load">
-        {getApiErrorMessage(portalError)}
-      </Alert>
-    );
+    return <LoadError what="your classes" error={portalError} />;
   }
 
   if (classes.length === 0) {
@@ -277,10 +281,17 @@ export function TeacherHomeworkScreen() {
   return (
     <div className="flex flex-col gap-4">
       {list.error ? (
-        <Alert tone="danger" title="Your homework would not load">
-          {getApiErrorMessage(list.error)}
-        </Alert>
+        <LoadError
+          what="your homework"
+          error={list.error}
+          onRetry={() => void list.refetch()}
+        />
       ) : null}
+      {/* Setting and withdrawing happen from the row and from the board, and
+          the board closes on success — so the failure is said out here where
+          it stays put. Marking's failure lives in the board with the marks. */}
+      {create.error ? <SaveError what="That homework" error={create.error} /> : null}
+      {publish.error ? <SaveError what="That change" error={publish.error} /> : null}
       {saved ? <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} /> : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -324,16 +335,44 @@ export function TeacherHomeworkScreen() {
       </FilterBar>
 
       {list.isPending ? (
-        <Skeleton variant="text" height={240} />
+        <TableRowsSkeleton
+          headers={["Homework", "Handed in", "Marked"]}
+          columns={[{ twoLine: true }, { width: 180 }, { width: 180 }]}
+          rows={6}
+        />
       ) : assignments.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="Nothing set yet"
           body="Homework you set appears here, with how much of it has come back. Nobody sees a draft until you set it."
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                setDraft((current) => ({
+                  ...current,
+                  classSubjectId: current.classSubjectId || classSubjectId || "",
+                }));
+                create.reset();
+                setFormOpen(true);
+              }}
+            >
+              Set homework
+            </Button>
+          }
         />
       ) : shown.length === 0 ? (
-        <EmptyState
-          title="No homework matches these filters"
-          body="Widen the class or the state above to see the rest of the term."
+        <NothingMatched
+          what="homework"
+          filters={[
+            classFilter
+              ? classes.find((row) => row.classSubjectId === classFilter)?.className
+              : null,
+            filter === "all" ? null : FILTERS.find((row) => row.value === filter)?.label,
+          ].filter((value): value is string => Boolean(value))}
+          onClear={() => {
+            setClassFilter("");
+            setFilter("all");
+          }}
         />
       ) : (
         <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
@@ -621,104 +660,117 @@ export function TeacherHomeworkScreen() {
         ) : null}
 
         {board.isPending ? (
-          <Skeleton variant="text" height={200} />
+          <TableRowsSkeleton
+            headers={["Pupil", "State", "Mark"]}
+            columns={[
+              { avatar: true, twoLine: true },
+              { width: 96, badge: true },
+              { width: 88, align: "right" },
+            ]}
+            rows={8}
+          />
         ) : boardData && boardData.rows.length === 0 ? (
-          <EmptyState
+          <NothingYet
             title="Nobody is on this class list"
             body="No active pupil has this class as their year group, so there is nobody to hand it in."
           />
         ) : (
-          <ul className="flex flex-col">
-            {(boardData?.rows ?? []).map((row) => {
-              const submission = row.submission;
-              const pending = mark.isPending && mark.variables?.submissionId === submission?.id;
-              return (
-                <li
-                  key={row.student.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] py-3 last:border-b-0"
-                >
-                  <PersonAvatar
-                    firstName={row.student.firstName}
-                    lastName={row.student.lastName}
-                  />
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                      {row.student.lastName}, {row.student.firstName}
-                    </p>
-                    <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {row.student.studentNo}
-                      {submission
-                        ? ` · ${TIME.format(new Date(submission.submittedAt))}`
-                        : ""}
-                    </p>
-                  </div>
-
-                  {submission === null ? (
-                    <Badge tone="danger" dot>
-                      Not in
-                    </Badge>
-                  ) : (
-                    <Badge tone={STATUS_TONES[submission.status]} dot>
-                      {STATUS_LABELS[submission.status]}
-                    </Badge>
-                  )}
-
-                  {submission && submission.score !== null ? (
-                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] tabular-nums text-[color:var(--text-strong)]">
-                      {submission.score}
-                      {openBoard?.maxScore === null ? "" : `/${openBoard?.maxScore}`}
-                    </span>
-                  ) : null}
-
-                  {submission && openBoard?.maxScore !== null ? (
-                    <Input
-                      aria-label={`Mark for ${row.student.firstName} ${row.student.lastName}`}
-                      className="w-20 text-right font-mono tabular-nums"
-                      inputMode="decimal"
-                      placeholder="—"
-                      value={scores[submission.id] ?? ""}
-                      onChange={(event) =>
-                        setScores((current) => ({
-                          ...current,
-                          [submission.id]: event.target.value,
-                        }))
-                      }
+          /* One mark at a time, and the row being written is the one that must
+             stop taking taps — a second number entered mid-save overwrites the
+             first one silently. */
+          <SavingOverlay saving={mark.isPending} label="Saving the mark…">
+            <ul className="flex flex-col">
+              {(boardData?.rows ?? []).map((row) => {
+                const submission = row.submission;
+                const pending = mark.isPending && mark.variables?.submissionId === submission?.id;
+                return (
+                  <li
+                    key={row.student.id}
+                    className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] py-3 last:border-b-0"
+                  >
+                    <PersonAvatar
+                      firstName={row.student.firstName}
+                      lastName={row.student.lastName}
                     />
-                  ) : null}
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                        {row.student.lastName}, {row.student.firstName}
+                      </p>
+                      <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                        {row.student.studentNo}
+                        {submission
+                          ? ` · ${TIME.format(new Date(submission.submittedAt))}`
+                          : ""}
+                      </p>
+                    </div>
 
-                  {submission ? (
-                    <Button
-                      size="sm"
-                      variant="secondary"
-                      loading={pending}
-                      onClick={() => {
-                        const typed = scores[submission.id]?.trim() ?? "";
-                        mark.mutate(
-                          {
-                            submissionId: submission.id,
-                            score: typed === "" ? null : Number(typed),
-                          },
-                          {
-                            // The saved mark comes back on the row itself, so
-                            // the box that put it there empties rather than
-                            // showing the same number twice.
-                            onSuccess: () =>
-                              setScores((current) => {
-                                const next = { ...current };
-                                delete next[submission.id];
-                                return next;
-                              }),
-                          },
-                        );
-                      }}
-                    >
-                      {openBoard?.maxScore === null ? "Mark as seen" : "Save the mark"}
-                    </Button>
-                  ) : null}
-                </li>
-              );
-            })}
-          </ul>
+                    {submission === null ? (
+                      <Badge tone="danger" dot>
+                        Not in
+                      </Badge>
+                    ) : (
+                      <Badge tone={STATUS_TONES[submission.status]} dot>
+                        {STATUS_LABELS[submission.status]}
+                      </Badge>
+                    )}
+
+                    {submission && submission.score !== null ? (
+                      <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] tabular-nums text-[color:var(--text-strong)]">
+                        {submission.score}
+                        {openBoard?.maxScore === null ? "" : `/${openBoard?.maxScore}`}
+                      </span>
+                    ) : null}
+
+                    {submission && openBoard?.maxScore !== null ? (
+                      <Input
+                        aria-label={`Mark for ${row.student.firstName} ${row.student.lastName}`}
+                        className="w-20 text-right font-mono tabular-nums"
+                        inputMode="decimal"
+                        placeholder="—"
+                        value={scores[submission.id] ?? ""}
+                        onChange={(event) =>
+                          setScores((current) => ({
+                            ...current,
+                            [submission.id]: event.target.value,
+                          }))
+                        }
+                      />
+                    ) : null}
+
+                    {submission ? (
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={pending}
+                        onClick={() => {
+                          const typed = scores[submission.id]?.trim() ?? "";
+                          mark.mutate(
+                            {
+                              submissionId: submission.id,
+                              score: typed === "" ? null : Number(typed),
+                            },
+                            {
+                              // The saved mark comes back on the row itself, so
+                              // the box that put it there empties rather than
+                              // showing the same number twice.
+                              onSuccess: () =>
+                                setScores((current) => {
+                                  const next = { ...current };
+                                  delete next[submission.id];
+                                  return next;
+                                }),
+                            },
+                          );
+                        }}
+                      >
+                        {openBoard?.maxScore === null ? "Mark as seen" : "Save the mark"}
+                      </Button>
+                    ) : null}
+                  </li>
+                );
+              })}
+            </ul>
+          </SavingOverlay>
         )}
       </RecordDialog>
     </div>

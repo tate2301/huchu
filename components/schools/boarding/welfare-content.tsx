@@ -4,17 +4,24 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, StatCard } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  ClassFilter,
+  ALL_CLASSES,
+  type ClassFilterValue,
+} from "@/components/schools/common/class-filter";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -23,8 +30,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CONSENT_LABELS, type ConsentKey } from "@/lib/schools/health-consents";
-import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
+import {
+  CONSENT_LABELS,
+  URGENT_GAP,
+  type ConsentKey,
+} from "@/lib/schools/health-consents";
 
 type HealthRecord = {
   id: string;
@@ -91,6 +101,35 @@ const EVENT_KINDS = [
 ];
 
 /**
+ * What the "On file" filter offers, in the order somebody works down it.
+ *
+ * The first three are the sentences `healthGaps` writes onto a row, matched
+ * exactly — an office scanning the badges for "No doctor recorded" wants to
+ * narrow to them, and before this the only cuts available were "something" and
+ * "nothing", which is the difference between a list you can work and a list you
+ * have to read.
+ *
+ * The urgent one leads because it is the one to ring home about, and the two
+ * breadth cuts sit at the bottom because they are what you fall back to once
+ * the specific gaps are cleared.
+ */
+const GAP_FILTERS = [
+  { value: "urgent", label: URGENT_GAP, gap: URGENT_GAP },
+  { value: "no-consent", label: "No consent recorded", gap: "No consent recorded" },
+  { value: "no-doctor", label: "No doctor recorded", gap: "No doctor recorded" },
+  {
+    value: "nothing",
+    label: "Nothing recorded at all",
+    gap: "Nothing recorded at all",
+  },
+  { value: "outstanding", label: "Something still to record", gap: null },
+  { value: "complete", label: "Complete", gap: null },
+] as const;
+
+const gapFilterLabel = (value: string) =>
+  GAP_FILTERS.find((row) => row.value === value)?.label ?? "";
+
+/**
  * The welfare list.
  *
  * Built from the children outward, not from the health records, so a child with
@@ -98,18 +137,25 @@ const EVENT_KINDS = [
  * job of this screen: an allergy nobody has recorded looks exactly like a child
  * with no allergies, and only a list of the gaps tells them apart.
  *
- * The gaps lead each row. "No consent to treat" against a child with a peanut
- * allergy is the sentence a boarding school needs in front of it, and burying
- * it inside a detail page means nobody reads it until the night it matters.
+ * The gaps lead each row, in the words somebody has to act on: "Allergy on
+ * file, no consent to treat" against a child allergic to peanuts is the
+ * sentence a boarding school needs in front of it, and burying it inside a
+ * detail page means nobody reads it until the night it matters. It is also the
+ * page's alert, because a gap that is only visible once you have scrolled to
+ * the right row is a gap nobody has seen.
  *
  * Two verbs, and they are different acts. Recording the standing record is what
  * the family agreed to once; logging a visit is what happened at half past two
  * this morning. Putting the second on the same form as the first would mean a
  * nurse editing consents to write down a nosebleed.
+ *
+ * The whole school is the default view and the year group narrows it, rather
+ * than a picker that makes "show me every child with something outstanding" an
+ * unreachable question. That is the one an office opens this page for.
  */
 export function WelfareContent() {
   const queryClient = useQueryClient();
-  const [classFilter, setClassFilter] = useState("");
+  const [classValue, setClassValue] = useState<ClassFilterValue>(ALL_CLASSES);
   const [boardersOnly, setBoardersOnly] = useState(false);
   const [gapFilter, setGapFilter] = useState("");
   const [search, setSearch] = useState("");
@@ -118,37 +164,30 @@ export function WelfareContent() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [loggingFor, setLoggingFor] = useState<Row | null>(null);
   const [logAnybody, setLogAnybody] = useState(false);
-
-  const classesQuery = useQuery({
-    queryKey: ["schools", "grades"],
-    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
-  });
+  const [clearingId, setClearingId] = useState<string | null>(null);
 
   const listQuery = useQuery({
-    queryKey: ["schools", "health", classFilter, boardersOnly],
+    queryKey: ["schools", "health", classValue.classId, boardersOnly],
     queryFn: () =>
       fetchJson<{ rows: Row[] }>(
         `/api/v2/schools/health?${new URLSearchParams({
-          ...(classFilter ? { classId: classFilter } : {}),
+          ...(classValue.classId ? { classId: classValue.classId } : {}),
           ...(boardersOnly ? { boardingOnly: "true" } : {}),
         }).toString()}`,
       ),
   });
 
-  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
   const allRows = useMemo(() => listQuery.data?.rows ?? [], [listQuery.data]);
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
+    const chosen = GAP_FILTERS.find((row) => row.value === gapFilter) ?? null;
     return allRows.filter((row) => {
       if (gapFilter === "outstanding" && row.gaps.length === 0) return false;
       if (gapFilter === "complete" && row.gaps.length > 0) return false;
-      if (
-        gapFilter === "urgent" &&
-        !row.gaps.some((gap) => gap.includes("Allergy on file"))
-      ) {
-        return false;
-      }
+      // A named gap matches the sentence `healthGaps` wrote onto the row, so
+      // the filter and the badge can never drift apart.
+      if (chosen?.gap && !row.gaps.includes(chosen.gap)) return false;
       if (!needle) return true;
       return `${row.student.firstName} ${row.student.lastName} ${row.student.studentNo}`
         .toLowerCase()
@@ -195,27 +234,41 @@ export function WelfareContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  /**
+   * Clearing a record, as distinct from correcting one.
+   *
+   * For a record entered against the wrong child — the case where leaving it is
+   * worse than losing it, because an allergy filed under the wrong name is a
+   * sentence a nurse will act on. The server refuses once there are visits
+   * logged, and says so.
+   */
+  const clearMutation = useMutation({
+    mutationFn: (row: Row) =>
+      fetchJson(`/api/v2/schools/health/${row.student.id}`, { method: "DELETE" }),
+    onSettled: () => setClearingId(null),
+    onSuccess: () => {
+      setActionError(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "health"] });
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
   const missing = allRows.filter((row) => row.gaps.length > 0).length;
   const complete = allRows.length - missing;
-  const urgent = allRows.filter((row) =>
-    row.gaps.some((gap) => gap.includes("Allergy on file")),
-  ).length;
+  const urgent = allRows.filter((row) => row.gaps.includes(URGENT_GAP)).length;
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Health and welfare"
-        primaryAction={
-          <CreateButton
-            resource="schools.boarding"
-            label="Log a visit"
-            onSelect={() => {
-              setLoggingFor(null);
-              setLogAnybody(true);
-            }}
-          />
-        }
-      />
+      <PageChrome title="Health and welfare">
+        <CreateButton
+          resource="schools.boarding"
+          label="Log a visit"
+          onSelect={() => {
+            setLoggingFor(null);
+            setLogAnybody(true);
+          }}
+        />
+      </PageChrome>
 
       <PageBand
         chips={[
@@ -239,6 +292,11 @@ export function WelfareContent() {
           error={listQuery.error}
           onRetry={() => void listQuery.refetch()}
         />
+      ) : null}
+      {/* The dialog shows its own errors; a refusal to clear happens with no
+          dialog open, so it needs somewhere on the page to land. */}
+      {clearMutation.error ? (
+        <SaveError what="That health record" error={clearMutation.error} />
       ) : null}
 
       {listQuery.isLoading ? (
@@ -265,42 +323,44 @@ export function WelfareContent() {
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <FilterBar>
-          <FilterSelect
-            label="Year group"
-            allLabel="The whole school"
-            value={classFilter}
-            options={classes.map((row) => ({ value: row.id, label: row.name }))}
-            onChange={setClassFilter}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            label="Search the welfare list"
+            placeholder="Name or number"
           />
-          <FilterSelect
-            label="On file"
-            allLabel="Everything on file"
-            value={gapFilter}
-            options={[
-              { value: "urgent", label: "Allergy, no consent" },
-              { value: "outstanding", label: "Something still to record" },
-              { value: "complete", label: "Complete" },
-            ]}
-            onChange={setGapFilter}
-          />
-          <div className="min-w-0 flex-1 basis-[220px] sm:max-w-[280px]">
-            <Label htmlFor="welfare-search" className="text-sm text-muted-foreground">
-              Search the welfare list
-            </Label>
-            <Input
-              id="welfare-search"
-              value={search}
-              placeholder="Name or number"
-              onChange={(event) => setSearch(event.target.value)}
+        }
+        filters={
+          <>
+            <ClassFilter
+              label="Year group"
+              allLabel="The whole school"
+              value={classValue}
+              onChange={setClassValue}
             />
-          </div>
-        </FilterBar>
-        <Button variant="secondary" onClick={() => setBoardersOnly((on) => !on)}>
-          {boardersOnly ? "Everybody" : "Boarders only"}
-        </Button>
-      </div>
+            <FilterSelect
+              label="On file"
+              allLabel="Everything on file"
+              value={gapFilter}
+              options={GAP_FILTERS.map((row) => ({
+                value: row.value,
+                label: row.label,
+              }))}
+              onChange={setGapFilter}
+            />
+          </>
+        }
+        actions={
+          // A toggle rather than a third dropdown: it has two states, one of
+          // them is the whole school, and the button says which one you get by
+          // pressing it.
+          <Button variant="secondary" onClick={() => setBoardersOnly((on) => !on)}>
+            {boardersOnly ? "Everybody" : "Boarders only"}
+          </Button>
+        }
+      />
 
       <p className="text-sm text-muted-foreground">
         {allRows.length} child{allRows.length === 1 ? "" : "ren"}, {missing} with something
@@ -321,19 +381,14 @@ export function WelfareContent() {
           <NothingMatched
             what="children"
             filters={[
-              classes.find((row) => row.id === classFilter)?.name ?? "",
-              gapFilter === "urgent"
-                ? "Allergy, no consent"
-                : gapFilter === "outstanding"
-                  ? "Something still to record"
-                  : gapFilter === "complete"
-                    ? "Complete"
-                    : "",
+              gapFilterLabel(gapFilter),
+              boardersOnly ? "Boarders only" : "",
               search.trim(),
             ].filter(Boolean)}
             onClear={() => {
-              setClassFilter("");
+              setClassValue(ALL_CLASSES);
               setGapFilter("");
+              setBoardersOnly(false);
               setSearch("");
             }}
           />
@@ -386,7 +441,7 @@ export function WelfareContent() {
                         row.gaps.map((gap) => (
                           <Badge
                             key={gap}
-                            tone={gap.includes("Allergy on file") ? "danger" : "warn"}
+                            tone={gap === URGENT_GAP ? "danger" : "warn"}
                           >
                             {gap}
                           </Badge>
@@ -411,6 +466,26 @@ export function WelfareContent() {
                           onSelect: () => {
                             setLogAnybody(false);
                             setLoggingFor(row);
+                          },
+                        },
+                        {
+                          label: "Clear",
+                          action: "archive",
+                          tone: "danger",
+                          loading: clearingId === row.student.id,
+                          unavailable: row.record
+                            ? undefined
+                            : "There is nothing recorded to clear.",
+                          confirm: {
+                            title: `Clear ${row.student.lastName}, ${row.student.firstName}`,
+                            description:
+                              "Every allergy, condition and consent on this child goes for good, and the row goes back to saying nothing is recorded. Use it for a record entered against the wrong child — a record that is merely out of date is corrected, not cleared.",
+                            confirmLabel: "Clear it",
+                          },
+                          onSelect: () => {
+                            setActionError(null);
+                            setClearingId(row.student.id);
+                            clearMutation.mutate(row);
                           },
                         },
                       ]}

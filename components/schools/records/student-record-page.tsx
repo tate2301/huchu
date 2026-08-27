@@ -1,10 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Button } from "@corelithzw/react";
 
-import { Skeleton } from "@/components/ui/skeleton";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
 import { RecordMark } from "@/components/records/record-mark";
@@ -17,11 +18,16 @@ import {
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { SubjectNotes, type SubjectNote } from "@/components/records/subject-tabs";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
+  CardsSkeleton,
   LoadError,
+  NothingMatched,
+  NothingYet,
   RecordNotFound,
   SaveError,
+  StatsSkeleton,
 } from "@/components/schools/common/states";
 import {
   RecordFilesTab,
@@ -29,6 +35,7 @@ import {
 } from "@/components/schools/records/record-files-tab";
 import { StudentPortalPanel } from "@/components/schools/records/student-portal-panel";
 import { StudentAttendanceTab } from "@/components/schools/records/student-attendance-tab";
+import { StudentOverviewTab } from "@/components/schools/records/student-overview-tab";
 import {
   StudentFormSheet,
   type StudentFormValues,
@@ -127,6 +134,10 @@ type Allocation = {
 
 type ResultLine = {
   id: string;
+  subjectCode: string;
+  score: number;
+  grade: string | null;
+  createdAt: string;
   sheet: { id: string; title: string; term: { name: string } | null } | null;
 };
 
@@ -163,13 +174,27 @@ const STATUS_OPTIONS = [
   { value: "WITHDRAWN", label: "Left — withdrawn" },
 ];
 
+/**
+ * The enrolment somebody is looking for, which is nearly always this year's.
+ * A pupil in their fourth year carries a row per term per year, and the one
+ * that matters is the one that is still open.
+ */
+const ENROLMENT_OPTIONS = [
+  { value: "ACTIVE", label: "Current" },
+  { value: "PAST", label: "Finished" },
+];
+
 export function StudentRecordPage({ studentId }: { studentId: string }) {
   const config = recordType("STUDENT");
   const router = useRouter();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("guardians");
+  // The overview is the landing view: it is the only section that answers
+  // "how is this child doing" without a second click, and every other tab is
+  // one of its cards opened up.
+  const [activeTab, setActiveTab] = useState("overview");
   const [formOpen, setFormOpen] = useState(false);
   const [actionError, setActionError] = useState<unknown>(null);
+  const [enrolmentStatus, setEnrolmentStatus] = useState("");
 
   const query = useQuery({
     queryKey: config.queryKey(studentId),
@@ -385,9 +410,19 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
 
   if (query.isPending) {
     return (
-      <div className="space-y-4" data-testid="student-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      // The record's own shape: the standing column carries the mark, the name
+      // and eleven property rows; the section beside it carries the overview's
+      // cards. Two grey slabs meant the page reflowed twice as the real
+      // columns arrived.
+      <div
+        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
+        data-testid="student-record-loading"
+      >
+        <div className="space-y-4">
+          <CardsSkeleton count={1} columns={1} lines={8} />
+          <StatsSkeleton count={3} />
+        </div>
+        <CardsSkeleton count={4} columns={2} lines={4} />
       </div>
     );
   }
@@ -414,6 +449,13 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
 
   const name = `${student.firstName} ${student.lastName}`.trim();
   const offRoll = student.status === "WITHDRAWN" || student.status === "GRADUATED";
+
+  const visibleEnrolments = (student.enrollments ?? []).filter((enrollment) => {
+    if (enrolmentStatus === "ACTIVE") return enrollment.status === "ACTIVE";
+    if (enrolmentStatus === "PAST") return enrollment.status !== "ACTIVE";
+    return true;
+  });
+
   const primaryGuardian =
     (student.guardianLinks ?? []).find((link) => link.isPrimary) ??
     (student.guardianLinks ?? [])[0] ??
@@ -465,74 +507,149 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
 
   const tabs: RecordTab[] = [
     {
+      value: "overview",
+      label: "Overview",
+      content: (
+        <StudentOverviewTab
+          student={{
+            ...student,
+            resultLines: student.resultLines ?? [],
+            guardianLinks: student.guardianLinks ?? [],
+            enrollments: student.enrollments ?? [],
+            feeInvoices: student.feeInvoices ?? [],
+            boardingAllocations: student.boardingAllocations ?? [],
+          }}
+          onOpenSection={setActiveTab}
+        />
+      ),
+    },
+    {
       value: "guardians",
       label: "Guardians",
       count: student.guardianLinks?.length ?? 0,
-      content: (
-        <RelatedList
-          items={student.guardianLinks ?? []}
-          emptyMessage="Nobody is recorded as this child's guardian."
-          renderItem={(link) => ({
-            href: recordType("GUARDIAN").href(link.guardian.id),
-            title: `${link.guardian.firstName} ${link.guardian.lastName}`,
-            subtitle: [link.relationship, link.guardian.phone].filter(Boolean).join(" · "),
-            meta: link.isPrimary ? "Primary" : undefined,
-          })}
-        />
-      ),
+      content:
+        (student.guardianLinks ?? []).length === 0 ? (
+          // A child with nobody attached is the one case on this page that
+          // stops the school working — no fee notice, no result, nobody to
+          // ring — so it names the verb rather than stating the absence.
+          <NothingYet
+            title="Nobody is recorded as this child's guardian"
+            body="There is no one to ring about a register, a mark or a bill. A guardian is attached from their own record, where the consent for each child is held."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/guardians">Open guardians</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <RelatedList
+            items={student.guardianLinks ?? []}
+            emptyMessage="Nobody is recorded as this child's guardian."
+            renderItem={(link) => ({
+              href: recordType("GUARDIAN").href(link.guardian.id),
+              title: `${link.guardian.firstName} ${link.guardian.lastName}`,
+              subtitle: [link.relationship, link.guardian.phone].filter(Boolean).join(" · "),
+              meta: link.isPrimary ? "Primary" : undefined,
+            })}
+          />
+        ),
     },
     {
       value: "enrollments",
       label: "Enrolments",
       count: student.enrollments?.length ?? 0,
-      content: (
-        <RelatedList
-          items={student.enrollments ?? []}
-          emptyMessage="No enrolment has been recorded. The year roll-up reads these, so a pupil without one has no history."
-          renderItem={(enrollment) => ({
-            href: enrollment.class
-              ? recordType("CLASS").href(enrollment.class.id)
-              : config.href(student.id),
-            title: enrollment.class?.name ?? "No class",
-            subtitle: [enrollment.term?.name, enrollment.stream?.name]
-              .filter(Boolean)
-              .join(" · "),
-            meta: enrollment.status === "ACTIVE" ? "Current" : enrollment.status.toLowerCase(),
-          })}
-        />
-      ),
+      content:
+        (student.enrollments ?? []).length === 0 ? (
+          <NothingYet
+            title="No enrolment has been recorded"
+            body="The year roll-up reads these, so a pupil without one has no history to carry forward. Put them in a year group and the first enrolment is written for you."
+          />
+        ) : (
+          <div className="space-y-3">
+            {/* A pupil who has been through four years has twelve enrolment
+                rows and the office is looking at one of them. */}
+            {(student.enrollments ?? []).length > 3 ? (
+              <FilterSelect
+                label="Enrolment"
+                allLabel="Every enrolment"
+                value={enrolmentStatus}
+                options={ENROLMENT_OPTIONS}
+                onChange={setEnrolmentStatus}
+              />
+            ) : null}
+
+            {visibleEnrolments.length === 0 ? (
+              <NothingMatched
+                what="enrolments"
+                filters={[
+                  ENROLMENT_OPTIONS.find((option) => option.value === enrolmentStatus)?.label ??
+                    "",
+                ].filter(Boolean)}
+                onClear={() => setEnrolmentStatus("")}
+              />
+            ) : (
+              <RelatedList
+                items={visibleEnrolments}
+                emptyMessage="No enrolment has been recorded."
+                renderItem={(enrollment) => ({
+                  href: enrollment.class
+                    ? recordType("CLASS").href(enrollment.class.id)
+                    : config.href(student.id),
+                  title: enrollment.class?.name ?? "No class",
+                  subtitle: [enrollment.term?.name, enrollment.stream?.name]
+                    .filter(Boolean)
+                    .join(" · "),
+                  meta:
+                    enrollment.status === "ACTIVE" ? "Current" : enrollment.status.toLowerCase(),
+                })}
+              />
+            )}
+          </div>
+        ),
     },
     {
       value: "attendance",
       label: "Attendance",
-      content: <StudentAttendanceTab studentId={student.id} />,
+      content: <StudentAttendanceTab studentId={student.id} studentName={name} />,
     },
     {
       value: "fees",
       label: "Fees",
       count: student.feeInvoices?.length ?? 0,
-      content: (
-        <RelatedList
-          items={student.feeInvoices ?? []}
-          emptyMessage="Nothing has been billed to this pupil."
-          renderItem={(invoice) => ({
-            href: `/schools/finance?invoice=${invoice.id}`,
-            title: invoice.invoiceNo,
-            subtitle: [invoice.term?.name, formatSchoolDate(invoice.issueDate)]
-              .filter(Boolean)
-              .join(" · "),
-            meta: `${formatSchoolMoney(invoice.balanceAmount, invoice.currency)} outstanding`,
-          })}
-        />
-      ),
+      content:
+        (student.feeInvoices ?? []).length === 0 ? (
+          <NothingYet
+            title="Nothing has been billed to this pupil"
+            body="Fees are raised against a year group a term at a time, so a pupil with no invoice is usually one who joined after the term's billing run."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/fees">Open fees</Link>
+              </Button>
+            }
+          />
+        ) : (
+          <RelatedList
+            items={student.feeInvoices ?? []}
+            emptyMessage="Nothing has been billed to this pupil."
+            renderItem={(invoice) => ({
+              href: `/schools/finance?invoice=${invoice.id}`,
+              title: invoice.invoiceNo,
+              subtitle: [invoice.term?.name, formatSchoolDate(invoice.issueDate)]
+                .filter(Boolean)
+                .join(" · "),
+              meta: `${formatSchoolMoney(invoice.balanceAmount, invoice.currency)} outstanding`,
+            })}
+          />
+        ),
     },
     // Dropped by the shell when the array is empty, rather than advertising an
-    // empty Boarding tab for a day pupil.
+    // empty Welfare tab for a day pupil, who has no hostel and no sick bay
+    // entry to show.
     ...(student.boardingAllocations?.length
       ? [
           {
             value: "boarding",
-            label: "Boarding",
+            label: "Welfare",
             count: student.boardingAllocations.length,
             content: (
               <RelatedList
@@ -557,7 +674,15 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       value: "notes",
       label: "Notes",
       count: notes.data?.data?.length ?? 0,
-      content: (
+      // Scoped to the tab. Notes failing must not take the overview with it —
+      // that is the half of the record somebody is at the counter for.
+      content: notes.error ? (
+        <LoadError
+          what="this pupil's notes"
+          error={notes.error}
+          onRetry={() => void notes.refetch()}
+        />
+      ) : (
         <SubjectNotes
           subject={{ type: "STUDENT", id: studentId }}
           notes={notes.data?.data ?? []}
@@ -567,7 +692,10 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
     },
     {
       value: "files",
-      label: "Files",
+      // "Documents" rather than "Files": what a school keeps here is a birth
+      // certificate and a medical consent, and nobody at a counter asks for
+      // a child's files.
+      label: "Documents",
       count: files.data?.data?.length ?? 0,
       content: (
         <RecordFilesTab
@@ -576,6 +704,8 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
           resource="schools.students"
           files={files.data?.data ?? []}
           isPending={files.isPending}
+          error={files.error}
+          onRetry={() => void files.refetch()}
         />
       ),
     },
@@ -583,7 +713,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       ? [
           {
             value: "results",
-            label: "Results",
+            label: "Academics",
             count: student.resultLines.length,
             content: (
               <RelatedList
@@ -640,7 +770,10 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         status: normalizeUiStatus(student.status),
       }}
       subtitle={
-        [student.currentClass?.name, student.isBoarding ? "Boarder" : "Day pupil"]
+        // The caption the canvas draws: the register class and the pupil's own
+        // number. Not "Boarder" — the badge above already says that, and this
+        // line is for the two facts somebody reads off the screen down a phone.
+        [student.currentStream?.name ?? student.currentClass?.name, student.studentNo]
           .filter(Boolean)
           .join(" · ") || null
       }
@@ -654,16 +787,31 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         />
       }
       attributes={
-        <RecordAttributes
-          attributes={[
-            ...attributes,
-            ...customFieldAttributes({
-              definitions: customFields.data?.data ?? [],
-              values: student.customFields,
-              onCommit: (key, value) => edit.save.mutate({ customFields: { [key]: value } }),
-            }),
-          ]}
-        />
+        <div className="space-y-3">
+          {/* The year-group and class rows choose from this ladder, so a read
+              that failed leaves two property rows that look editable and can
+              only ever offer an empty list. */}
+          {classesQuery.error ? (
+            <LoadError
+              what="the class ladder"
+              error={classesQuery.error}
+              onRetry={() => void classesQuery.refetch()}
+            />
+          ) : null}
+          {/* The property list commits on blur, so a refused write leaves no
+              button holding the fault. */}
+          {edit.save.error ? <SaveError what="That change" error={edit.save.error} /> : null}
+          <RecordAttributes
+            attributes={[
+              ...attributes,
+              ...customFieldAttributes({
+                definitions: customFields.data?.data ?? [],
+                values: student.customFields,
+                onCommit: (key, value) => edit.save.mutate({ customFields: { [key]: value } }),
+              }),
+            ]}
+          />
+        </div>
       }
       tabs={tabs}
       activeTab={activeTab}

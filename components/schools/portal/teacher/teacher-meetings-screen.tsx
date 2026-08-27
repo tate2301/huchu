@@ -12,12 +12,19 @@ import {
   Input,
   Modal,
   Select,
-  Skeleton,
   StatCard,
 } from "@corelithzw/react";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Slot = {
@@ -122,6 +129,12 @@ export function TeacherMeetingsScreen() {
   const [chosenDay, setChosenDay] = useState<string | null>(null);
   const [opening, setOpening] = useState(false);
   const [opened, setOpened] = useState<string | null>(null);
+  /**
+   * A teacher's evening runs to a dozen slots and the one they came to find is
+   * usually the free one, or the one family they need to look up. Both are a
+   * scan otherwise.
+   */
+  const [showing, setShowing] = useState<"ALL" | "BOOKED" | "FREE">("ALL");
 
   const today = day.onDate ?? null;
   const monthKey = chosenMonth ?? (today ? `${today.slice(0, 7)}-01` : null);
@@ -169,6 +182,11 @@ export function TeacherMeetingsScreen() {
     null;
 
   const daySlots = selectedDay ? (byDay.get(selectedDay) ?? []) : [];
+  const visibleSlots = daySlots.filter((slot) => {
+    if (showing === "BOOKED") return Boolean(slot.bookedAt);
+    if (showing === "FREE") return !slot.bookedAt;
+    return true;
+  });
   const booked = daySlots.filter((slot) => slot.bookedAt).length;
   const free = daySlots.length - booked;
   const monthBooked = slots.filter((slot) => slot.bookedAt).length;
@@ -242,11 +260,7 @@ export function TeacherMeetingsScreen() {
   };
 
   if (portalError) {
-    return (
-      <Alert tone="danger" title="Your portal would not load">
-        {getApiErrorMessage(portalError)}
-      </Alert>
-    );
+    return <LoadError what="your portal" error={portalError} />;
   }
 
   if (!day.teacher) {
@@ -272,20 +286,16 @@ export function TeacherMeetingsScreen() {
   return (
     <div className="flex flex-col gap-4">
       {query.error ? (
-        <Alert tone="danger" title="Your meetings would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError
+          what="your meetings"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       ) : null}
       {openEvening.error ? (
-        <Alert tone="danger" title="The evening was not opened">
-          {getApiErrorMessage(openEvening.error)}
-        </Alert>
+        <SaveError what="The evening" error={openEvening.error} />
       ) : null}
-      {release.error ? (
-        <Alert tone="danger" title="The slot was not released">
-          {getApiErrorMessage(release.error)}
-        </Alert>
-      ) : null}
+      {release.error ? <SaveError what="The slot" error={release.error} /> : null}
       {opened ? (
         <Alert tone="success" title={opened} onDismiss={() => setOpened(null)} />
       ) : null}
@@ -352,83 +362,127 @@ export function TeacherMeetingsScreen() {
               : undefined
           }
         >
+          {daySlots.length > 0 ? (
+            <div className="mb-3 flex flex-wrap gap-2">
+              {(
+                [
+                  { value: "ALL", label: `All ${daySlots.length}` },
+                  { value: "BOOKED", label: `Booked ${booked}` },
+                  { value: "FREE", label: `Free ${free}` },
+                ] as const
+              ).map((option) => (
+                <Button
+                  key={option.value}
+                  size="sm"
+                  variant={showing === option.value ? "primary" : "secondary"}
+                  onClick={() => setShowing(option.value)}
+                >
+                  {option.label}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+
           {query.isPending ? (
-            <Skeleton variant="text" height={280} />
+            <TableRowsSkeleton
+              headers={["Time", "Who", "State"]}
+              columns={[
+                { width: 136 },
+                { avatar: true, twoLine: true },
+                { width: 88, badge: true },
+              ]}
+              rows={8}
+            />
           ) : openEvenings.length === 0 ? (
-            <EmptyState
+            <NothingYet
               title="No evening is open this month"
               body="Open one above and every slot in the window appears here as free, ready for a parent to take."
+              action={
+                <Button variant="secondary" onClick={() => setOpening(true)}>
+                  Open an evening
+                </Button>
+              }
             />
           ) : daySlots.length === 0 ? (
-            <EmptyState
+            <NothingYet
               title="Nothing on this evening"
               body="Pick another date on the calendar, or open this one."
             />
+          ) : visibleSlots.length === 0 ? (
+            <NothingMatched
+              what="slots"
+              filters={[showing === "BOOKED" ? "booked" : "free"]}
+              onClear={() => setShowing("ALL")}
+            />
           ) : (
-            <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
-              {daySlots.map((slot) => (
-                <li
-                  key={slot.id}
-                  className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
-                >
-                  <span className="w-[8.5rem] shrink-0 font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] tabular-nums text-[color:var(--text-strong)]">
-                    {formatTime(slot.startsAt)} – {formatTime(slot.endsAt)}
-                  </span>
+            /* Releasing a slot rewrites the row under the teacher's thumb, so
+               the evening stops taking taps until it comes back. */
+            <SavingOverlay saving={release.isPending} label="Releasing the slot…">
+              <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
+                {visibleSlots.map((slot) => (
+                  <li
+                    key={slot.id}
+                    className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
+                  >
+                    <span className="w-[8.5rem] shrink-0 font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] tabular-nums text-[color:var(--text-strong)]">
+                      {formatTime(slot.startsAt)} – {formatTime(slot.endsAt)}
+                    </span>
 
-                  {slot.student ? (
-                    <PersonAvatar
-                      firstName={slot.student.firstName}
-                      lastName={slot.student.lastName}
-                      size="xs"
-                    />
-                  ) : null}
-
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                      {slot.student
-                        ? `${slot.student.lastName}, ${slot.student.firstName}`
-                        : slot.bookedAt
-                          ? "Booked, but the pupil record has gone"
-                          : "Nobody has taken this slot"}
-                    </p>
-                    <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {[
-                        slot.student?.studentNo,
-                        slot.student?.currentClass?.name,
-                        slot.location ?? "No room set",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </p>
-                    {slot.notes ? (
-                      <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                        {slot.notes}
-                      </p>
+                    {slot.student ? (
+                      <PersonAvatar
+                        firstName={slot.student.firstName}
+                        lastName={slot.student.lastName}
+                        size="xs"
+                      />
                     ) : null}
-                  </div>
 
-                  {slot.bookedAt ? (
-                    <>
-                      <Badge tone="success" dot>
-                        Booked
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                        {slot.student
+                          ? `${slot.student.lastName}, ${slot.student.firstName}`
+                          : slot.bookedAt
+                            ? "Booked, but the pupil record has gone"
+                            : "Nobody has taken this slot"}
+                      </p>
+                      <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                        {[
+                          slot.student?.studentNo,
+                          slot.student?.currentClass?.name,
+                          slot.location ?? "No room set",
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </p>
+                      {slot.notes ? (
+                        <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
+                          {slot.notes}
+                        </p>
+                      ) : null}
+                    </div>
+
+                    {slot.bookedAt ? (
+                      <>
+                        <Badge tone="success" dot>
+                          Booked
+                        </Badge>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          loading={release.isPending && release.variables === slot.id}
+                          onClick={() => void askToRelease(slot)}
+                        >
+                          Release
+                        </Button>
+                      </>
+                    ) : (
+                      <Badge tone="neutral" dot>
+                        Free
                       </Badge>
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        loading={release.isPending && release.variables === slot.id}
-                        onClick={() => void askToRelease(slot)}
-                      >
-                        Release
-                      </Button>
-                    </>
-                  ) : (
-                    <Badge tone="neutral" dot>
-                      Free
-                    </Badge>
-                  )}
-                </li>
-              ))}
-            </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            </SavingOverlay>
           )}
         </Card>
       </div>

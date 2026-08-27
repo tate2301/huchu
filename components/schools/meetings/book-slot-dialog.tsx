@@ -23,6 +23,12 @@ export type BookSlotValues = {
   notes: string;
 };
 
+/** What an edit opens holding: the booking already on the slot. */
+export type BookSlotDefaults = BookSlotValues & {
+  /** Seeds the pupil search so the chosen child is in the list on open. */
+  search: string;
+};
+
 /**
  * Taking a booking at the desk.
  *
@@ -37,12 +43,19 @@ export type BookSlotValues = {
  * about nobody. The guardian list narrows to that pupil's own, because the
  * question after "which child" is "which of their people is coming", and
  * offering the whole parent body is how the wrong Moyo gets recorded.
+ *
+ * The same form does the edit. Changing who is coming asks exactly the three
+ * questions booking does, so a second dialog would be the same fields with a
+ * different heading — which is how the two drift apart.
  */
 export function BookSlotDialog({
   open,
   onOpenChange,
   when,
   teacherName,
+  title = "Book for a family",
+  submitLabel = "Book the slot",
+  defaults,
   isSubmitting,
   error,
   onSubmit,
@@ -52,14 +65,19 @@ export function BookSlotDialog({
   /** "17:20 – 17:30 on 12 March 2026" — the slot being filled, stated not chosen. */
   when: string;
   teacherName: string;
+  /** The dialog's heading. An edit says what it is doing. */
+  title?: string;
+  submitLabel?: string;
+  /** Seeded on an edit; absent for a fresh booking. */
+  defaults?: BookSlotDefaults;
   isSubmitting: boolean;
   error: string | null;
   onSubmit: (values: BookSlotValues) => void;
 }) {
-  const [search, setSearch] = useState("");
-  const [studentId, setStudentId] = useState("");
-  const [guardianId, setGuardianId] = useState("");
-  const [notes, setNotes] = useState("");
+  const [search, setSearch] = useState(defaults?.search ?? "");
+  const [studentId, setStudentId] = useState(defaults?.studentId ?? "");
+  const [guardianId, setGuardianId] = useState(defaults?.guardianId ?? "");
+  const [notes, setNotes] = useState(defaults?.notes ?? "");
 
   const studentsQuery = useQuery({
     queryKey: ["schools", "students", "for-booking", search],
@@ -85,7 +103,7 @@ export function BookSlotDialog({
     <RecordDialog
       open={open}
       onOpenChange={onOpenChange}
-      title="Book for a family"
+      title={title}
       description={`${when} with ${teacherName}`}
       size="md"
       onSubmit={(event) => {
@@ -102,7 +120,7 @@ export function BookSlotDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={!studentId} loading={isSubmitting}>
-            Book the slot
+            {submitLabel}
           </Button>
         </div>
       }

@@ -66,16 +66,16 @@ import {
   type SchoolFeeWaiverRecord,
 } from "@/lib/schools/fees-v2";
 
-import { BulkGenerateInvoicesDialog } from "./bulk-generate-invoices-dialog";
-import { CopyStructureDialog } from "./copy-structure-dialog";
-import { InvoicePicker } from "./fee-pickers";
+import { BulkGenerateInvoicesDialog } from "@/components/schools/fees/bulk-generate-invoices-dialog";
+import { CopyStructureDialog } from "@/components/schools/fees/copy-structure-dialog";
+import { InvoicePicker } from "@/components/schools/fees/fee-pickers";
 import {
   InvoiceFormDialog,
   ReasonDialog,
   ReceiptFormDialog,
   StructureFormDialog,
   WaiverFormDialog,
-} from "./fee-dialogs";
+} from "@/components/schools/fees/fee-dialogs";
 import {
   FiscalBadge,
   InvoiceStatusBadge,
@@ -83,7 +83,7 @@ import {
   RefundStatusBadge,
   StructureStatusBadge,
   WaiverStatusBadge,
-} from "./fee-status";
+} from "@/components/schools/fees/fee-status";
 
 /**
  * The whole-school fee ledger.
@@ -2003,10 +2003,11 @@ export function SchoolsFeesContent() {
         title={cancelTarget ? `Cancel refund ${cancelTarget.refundNo}` : "Cancel refund"}
         consequence={
           cancelTarget
-            ? `This releases ${formatSchoolMoney(cancelTarget.amount, cancelTarget.currency)} back to the family's credit.`
+            ? `This releases ${formatSchoolMoney(cancelTarget.amount, cancelTarget.currency)} back to the family’s credit.`
             : null
         }
         reasonLabel="Reason"
+        reasonPlaceholder="Family asked for it to stay on account"
         keepLabel="Keep it"
         confirmLabel="Cancel refund"
         pendingLabel="Cancelling…"

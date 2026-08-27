@@ -47,6 +47,8 @@ export function TermFormSheet({
   open,
   onOpenChange,
   years,
+  presets = [],
+  existingTerms = [],
   initial,
   isSubmitting,
   error,
@@ -55,6 +57,14 @@ export function TermFormSheet({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   years: SchoolsAcademicYearRecord[];
+  /**
+   * The terms a school year is normally cut into, offered as one-press fills.
+   * Owned by the screen rather than the sheet — it is the calendar's shape,
+   * not the dialog's.
+   */
+  presets?: Array<{ code: string; name: string; label: string }>;
+  /** Terms already on the chosen year, so a preset that would collide is off. */
+  existingTerms?: Array<{ code: string; academicYearId: string }>;
   /** The term being edited. Absent means the dialog is opening a new one. */
   initial?: TermFormValues;
   isSubmitting: boolean;
@@ -77,6 +87,9 @@ export function TermFormSheet({
   }
 
   const selectedYear = years.find((year) => year.id === values.academicYearId);
+  const existingCodes = existingTerms
+    .filter((term) => term.academicYearId === values.academicYearId)
+    .map((term) => term.code.toLowerCase());
   const canSubmit =
     values.academicYearId.length > 0 &&
     values.code.trim().length > 0 &&
@@ -113,6 +126,40 @@ export function TermFormSheet({
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
+        {/* Only when creating. Retyping "Term 2" over an existing term's name
+            is not a shortcut, it is a way to rename the wrong row. */}
+        {editing || presets.length === 0 ? null : (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Start from</Label>
+            <div className="flex flex-wrap gap-2">
+              {presets.map((preset) => {
+                const taken = existingCodes.includes(preset.code.toLowerCase());
+                return (
+                  <Button
+                    key={preset.code}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={taken}
+                    title={taken ? `${preset.name} already exists in this year.` : undefined}
+                    onClick={() =>
+                      setValues((current) => ({
+                        ...current,
+                        code: preset.code,
+                        name: preset.name,
+                      }))
+                    }
+                  >
+                    {preset.label}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Fills the code and the name. The dates are the school&rsquo;s own.
+            </p>
+          </div>
+        )}
         <div className="space-y-2 sm:col-span-2">
           <Label htmlFor="term-year">Academic year</Label>
           <Select

@@ -11,6 +11,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -152,6 +153,23 @@ export function SchoolsAdmissionsContent() {
 
   return (
     <div className="space-y-4">
+      {/*
+        The filter reads span three endpoints. If the year groups or the terms
+        will not load the pickers below are empty dropdowns with no explanation,
+        which reads as "this school has no terms" — so the failure says which
+        list is missing rather than letting the control lie about it.
+      */}
+      {classesQuery.error || termsQuery.error ? (
+        <LoadError
+          what="the filter lists"
+          error={classesQuery.error ?? termsQuery.error}
+          onRetry={() => {
+            void classesQuery.refetch();
+            void termsQuery.refetch();
+          }}
+        />
+      ) : null}
+
       <FilterBar>
         <FilterSelect
           label="Year group"
@@ -201,32 +219,59 @@ export function SchoolsAdmissionsContent() {
         </div>
       </section>
 
-      <DataTable
-        data={enrollments}
-        columns={columns}
-        searchPlaceholder="Search enrolments"
-        searchSubmitLabel="Search"
-        pagination={{ enabled: true }}
-        emptyState={
-          enrollmentsQuery.isPending ? (
-            <TableRowsSkeleton
-              rows={6}
-              columns={[{ twoLine: true }, {}, { width: 100 }, { width: 110 }, { width: 110 }]}
-            />
-          ) : namedFilters.length > 0 ? (
-            <NothingMatched
-              what="enrolments"
-              filters={namedFilters}
-              onClear={clearFilters}
-            />
-          ) : (
-            <NothingYet
-              title="Nobody has been enrolled yet"
-              body="An enrolment is written when an accepted applicant is put on the roll, or when the year is rolled up."
-            />
-          )
-        }
-      />
+      {enrollmentsQuery.isPending ? (
+        /*
+          The skeleton is the table, not a message inside an empty one.
+          `emptyState` is where "nothing matched" goes; putting the loading bars
+          there made the table draw its own chrome around a placeholder and
+          reflow twice as the rows landed.
+        */
+        <TableRowsSkeleton
+          headers={["Student", "Class / Stream", "Status", "Enrolled", "Ended"]}
+          columns={[
+            { twoLine: true },
+            {},
+            { width: 100, badge: true },
+            { width: 110, align: "right" },
+            { width: 110, align: "right" },
+          ]}
+          rows={8}
+        />
+      ) : (
+        /*
+          This screen only reads — an enrolment is written from the pipeline
+          when an accepted applicant goes on the roll, and corrected there. The
+          dim is still the right interlock while a filter change is in flight:
+          rows from the old filter under the new one's controls are rows
+          somebody will read as the answer to a question they did not ask.
+        */
+        <SavingOverlay
+          saving={enrollmentsQuery.isFetching}
+          label="Narrowing the list…"
+        >
+          <DataTable
+            data={enrollments}
+            columns={columns}
+            searchPlaceholder="Search enrolments"
+            searchSubmitLabel="Search"
+            pagination={{ enabled: true }}
+            emptyState={
+              namedFilters.length > 0 ? (
+                <NothingMatched
+                  what="enrolments"
+                  filters={namedFilters}
+                  onClear={clearFilters}
+                />
+              ) : (
+                <NothingYet
+                  title="Nobody has been enrolled yet"
+                  body="An enrolment is written when an accepted applicant is put on the roll, or when the year is rolled up."
+                />
+              )
+            }
+          />
+        </SavingOverlay>
+      )}
     </div>
   );
 }

@@ -9,6 +9,15 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -134,6 +143,21 @@ export function ClassAssessmentsContent({
     [assessments, subjectFilter, kindFilter],
   );
 
+  // The filters in the office's own words, so an emptied list can repeat them
+  // back. Read off the option lists rather than the ids, which mean nothing to
+  // anybody looking at the screen.
+  const narrowing = [
+    streams.find((stream) => stream.id === streamFilter)?.name,
+    subjectOptions.find((option) => option.value === subjectFilter)?.label,
+    kindFilter ? ASSESSMENT_KIND_LABELS[kindFilter as AssessmentKind] : undefined,
+  ].filter((entry): entry is string => Boolean(entry));
+
+  const clearFilters = () => {
+    setStreamFilter("");
+    setSubjectFilter("");
+    setKindFilter("");
+  };
+
   // Grouped by subject, which is how a mark book is laid out. The API already
   // orders by subject name, so this preserves the order rather than imposing
   // its own.
@@ -220,19 +244,13 @@ export function ClassAssessmentsContent({
   return (
     <div className="space-y-4">
       {assessmentsQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load assessments</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(assessmentsQuery.error)}
-          </AlertDescription>
-        </Alert>
+        <LoadError
+          what="the assessments"
+          error={assessmentsQuery.error}
+          onRetry={() => void assessmentsQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      {actionError ? <SaveError what="That change" error={actionError} /> : null}
       {rollUpNote ? (
         <Alert>
           <AlertTitle>Rolled up</AlertTitle>
@@ -299,15 +317,49 @@ export function ClassAssessmentsContent({
               </Alert>
             ) : null}
 
-            <MobileList>
-              {grouped.length === 0 ? (
-                <MobileListEmpty>
-                  {assessmentsQuery.isLoading
-                    ? "Loading assessments…"
-                    : "No work set for this year group yet."}
-                </MobileListEmpty>
-              ) : (
-                grouped.map(([heading, rows]) => (
+            {assessmentsQuery.isPending ? (
+              <TableRowsSkeleton
+                headers={["Assessment", "Out of", "Marked"]}
+                columns={[{ twoLine: true }, { width: 110 }, { width: 90, badge: true }]}
+                rows={6}
+              />
+            ) : (
+              /*
+                Locking, reopening and removing all write to the same list, so
+                the whole list dims while one of them is in flight — a second
+                Lock pressed on the row below while the first is still going is
+                two writes racing for the same refetch.
+              */
+              <SavingOverlay
+                saving={lockMutation.isPending || deleteMutation.isPending}
+                label="Saving…"
+              >
+                <MobileList>
+                  {grouped.length === 0 ? (
+                    <MobileListEmpty>
+                      {narrowing.length > 0 ? (
+                        <NothingMatched
+                          what="assessments"
+                          filters={narrowing}
+                          onClear={clearFilters}
+                        />
+                      ) : (
+                        <NothingYet
+                          title="No work set for this year group yet"
+                          body="A test, a paper or a practical set here becomes a mark sheet, and the term mark is what they add up to."
+                          action={
+                            <Button
+                              onClick={() => setFormOpen(true)}
+                              disabled={subjects.length === 0}
+                            >
+                              New assessment
+                            </Button>
+                          }
+                        />
+                      )}
+                    </MobileListEmpty>
+                  ) : (
+                    grouped.map(([heading, rows]) => (
                   <div key={heading}>
                     <MobileListSectionHeader>{heading}</MobileListSectionHeader>
                     {rows.map((assessment) => (
@@ -369,9 +421,11 @@ export function ClassAssessmentsContent({
                       />
                     ))}
                   </div>
-                ))
-              )}
-            </MobileList>
+                    ))
+                  )}
+                </MobileList>
+              </SavingOverlay>
+            )}
           </div>
         ) : null}
 
@@ -400,23 +454,48 @@ export function ClassAssessmentsContent({
             </div>
 
             {marksQuery.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Unable to work out the term marks</AlertTitle>
-                <AlertDescription>
-                  {getApiErrorMessage(marksQuery.error)}
-                </AlertDescription>
-              </Alert>
+              <LoadError
+                what="the term marks"
+                error={marksQuery.error}
+                onRetry={() => void marksQuery.refetch()}
+              />
             ) : null}
 
-            <MobileList>
-              {marksByStudent.length === 0 ? (
-                <MobileListEmpty>
-                  {marksQuery.isLoading
-                    ? "Working the marks out…"
-                    : "Nothing marked yet, so there is nothing to add up."}
-                </MobileListEmpty>
-              ) : (
-                marksByStudent.map(([student, rows]) => (
+            {marksQuery.isPending ? (
+              /*
+                Cards, not table rows: a term mark is read one child at a time,
+                and the list below is grouped under a name rather than laid out
+                in columns.
+              */
+              <CardsSkeleton count={6} columns={2} lines={3} />
+            ) : (
+              /*
+                Writing to the result sheet rewrites every line at once. The
+                list dims while it goes, because a second press halfway through
+                is a second write against marks that are already moving.
+              */
+              <SavingOverlay
+                saving={rollUpMutation.isPending}
+                label="Writing to the result sheet…"
+              >
+                <MobileList>
+                  {marksByStudent.length === 0 ? (
+                    <MobileListEmpty>
+                      {narrowing.length > 0 ? (
+                        <NothingMatched
+                          what="term marks"
+                          filters={narrowing}
+                          onClear={clearFilters}
+                        />
+                      ) : (
+                        <NothingYet
+                          title="Nothing marked yet, so there is nothing to add up"
+                          body="A term mark is what the work set adds up to. Set a test under Work set and enter its marks, and the totals appear here."
+                        />
+                      )}
+                    </MobileListEmpty>
+                  ) : (
+                    marksByStudent.map(([student, rows]) => (
                   <div key={student}>
                     <MobileListSectionHeader>{student}</MobileListSectionHeader>
                     {rows.map((row) => (
@@ -444,9 +523,11 @@ export function ClassAssessmentsContent({
                       />
                     ))}
                   </div>
-                ))
-              )}
-            </MobileList>
+                    ))
+                  )}
+                </MobileList>
+              </SavingOverlay>
+            )}
           </div>
         ) : null}
       </VerticalDataViews>

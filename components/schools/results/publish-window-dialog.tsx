@@ -17,7 +17,7 @@ import {
   updatePublishWindow,
   type PublishWindowRecord,
 } from "@/lib/schools/results-v2";
-import { WINDOW_STATE_OPTIONS } from "./sheet-state";
+import { WINDOW_STATE_OPTIONS } from "@/components/schools/results/sheet-state";
 
 /**
  * When marks are allowed out.

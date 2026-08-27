@@ -1,18 +1,29 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
+  Button,
   Card,
   Chart,
   DayList,
   EmptyState,
-  Skeleton,
   StatCard,
 } from "@corelithzw/react";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  StatsSkeleton,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type AttendanceCounts = {
@@ -173,6 +184,15 @@ function Figure({
  */
 export function TeacherReportsScreen() {
   const { day, error: portalError, classSubjectId, setClassSubjectId } = useTeacherPortal();
+  const queryClient = useQueryClient();
+  /**
+   * The at-risk list is the one part of this screen a teacher acts on, and it
+   * runs long in a bad week. Narrowing it by reason is how "who is missing
+   * registers" gets separated from "who is failing" without reading twenty
+   * rows of small print.
+   */
+  const [reason, setReason] = useState<"ALL" | "ATTENDANCE" | "MARKS">("ALL");
+  const [told, setTold] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["schools", "portal", "teacher", "reports", day.term?.id ?? null],
@@ -193,12 +213,46 @@ export function TeacherReportsScreen() {
   const lowest = rates.length > 0 ? Math.min(...rates) : null;
   const highest = rates.length > 0 ? Math.max(...rates) : null;
 
-  if (portalError) {
-    return (
-      <Alert tone="danger" title="Your portal would not load">
-        {getApiErrorMessage(portalError)}
-      </Alert>
+  const atRisk = useMemo(() => report?.atRisk ?? [], [report]);
+  const shownAtRisk = useMemo(() => {
+    if (reason === "ALL") return atRisk;
+    return atRisk.filter((person) =>
+      reason === "ATTENDANCE"
+        ? person.attendanceRate !== null && person.attendanceRate < 0.8
+        : person.lowestMark !== null && person.lowestMark < 40,
     );
+  }, [atRisk, reason]);
+
+  /**
+   * The verb this screen was missing. Before it, the at-risk list named six
+   * children and left the teacher to find six phone numbers — the same dead
+   * end the arrears board had. A notice addressed to one child's guardians
+   * reaches them in the portal they already read.
+   */
+  const tell = useMutation({
+    mutationFn: (person: { studentId: string; firstName: string; lastName: string }) =>
+      fetchJson<{ recipients: number }>("/api/v2/schools/notices", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${person.firstName} ${person.lastName} — this term so far`,
+          body: `We would like to talk about how ${person.firstName} is getting on this term. Please reply here or ask at the office for a time to come in.`,
+          audience: "PARENTS",
+          studentIds: [person.studentId],
+          severity: "WARNING",
+        }),
+      }),
+    onSuccess: (result, person) => {
+      setTold(
+        result.recipients === 0
+          ? `${person.firstName}'s family has never been invited to the portal, so there was nowhere to send it. The office can invite them.`
+          : `Sent to ${result.recipients} ${result.recipients === 1 ? "guardian" : "guardians"} of ${person.firstName} ${person.lastName}.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
+    },
+  });
+
+  if (portalError) {
+    return <LoadError what="your portal" error={portalError} />;
   }
 
   if (!day.teacher) {
@@ -222,9 +276,15 @@ export function TeacherReportsScreen() {
   return (
     <div className="flex flex-col gap-4">
       {query.error ? (
-        <Alert tone="danger" title="Your reports would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError
+          what="your reports"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : null}
+      {tell.error ? <SaveError what="That message" error={tell.error} /> : null}
+      {told ? (
+        <Alert tone="success" title={told} onDismiss={() => setTold(null)} />
       ) : null}
 
       <div>
@@ -238,9 +298,24 @@ export function TeacherReportsScreen() {
       </div>
 
       {query.isPending ? (
-        <Skeleton variant="text" height={360} />
+        /* Four tiles then the class table, in that order — the same two
+           shapes the loaded screen has, so nothing jumps when it lands. */
+        <div className="flex flex-col gap-4">
+          <StatsSkeleton count={4} />
+          <TableRowsSkeleton
+            headers={["Class", "Attendance", "Average", "Passing", "Homework in"]}
+            columns={[
+              { twoLine: true },
+              { width: 110, align: "right" },
+              { width: 100, align: "right" },
+              { width: 100, align: "right" },
+              { width: 120, align: "right" },
+            ]}
+            rows={5}
+          />
+        </div>
       ) : classes.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="No classes are assigned to you this term"
           body="Reports are built from your timetabled classes. Ask the office to assign you to one and the numbers appear here."
         />
@@ -475,41 +550,86 @@ export function TeacherReportsScreen() {
           <Card
             title="Children to look at"
             subtitle="In for less than 80% of their registers, or holding a term mark under 40%"
+            actions={
+              atRisk.length > 0 ? (
+                <div className="flex flex-wrap gap-2">
+                  {(
+                    [
+                      { value: "ALL", label: `All ${atRisk.length}` },
+                      { value: "ATTENDANCE", label: "Missing registers" },
+                      { value: "MARKS", label: "Low marks" },
+                    ] as const
+                  ).map((option) => (
+                    <Button
+                      key={option.value}
+                      size="sm"
+                      variant={reason === option.value ? "primary" : "secondary"}
+                      onClick={() => setReason(option.value)}
+                    >
+                      {option.label}
+                    </Button>
+                  ))}
+                </div>
+              ) : null
+            }
           >
-            {(report?.atRisk.length ?? 0) === 0 ? (
-              <EmptyState
+            {atRisk.length === 0 ? (
+              /* Good news, so no create button — there is nothing to create. */
+              <NothingLeftToDo
                 title="Nobody is flagged"
                 body="Every child on your rolls is in for most of their registers and above 40% wherever you have marked them."
               />
+            ) : shownAtRisk.length === 0 ? (
+              <NothingMatched
+                what="children"
+                filters={[reason === "ATTENDANCE" ? "missing registers" : "low marks"]}
+                onClear={() => setReason("ALL")}
+              />
             ) : (
-              <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
-                {(report?.atRisk ?? []).map((person) => (
-                  <li
-                    key={person.studentId}
-                    className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
-                  >
-                    <PersonAvatar
-                      firstName={person.firstName}
-                      lastName={person.lastName}
-                      size="xs"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                        {person.lastName}, {person.firstName}
+              /* Writing to a family rewrites nothing on screen, but the list is
+                 where the button lives — it stops taking taps so the same
+                 message is not sent twice to the same household. */
+              <SavingOverlay saving={tell.isPending} label="Sending…">
+                <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
+                  {shownAtRisk.map((person) => (
+                    <li
+                      key={person.studentId}
+                      className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
+                    >
+                      <PersonAvatar
+                        firstName={person.firstName}
+                        lastName={person.lastName}
+                        size="xs"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                          {person.lastName}, {person.firstName}
+                        </p>
+                        <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                          {person.studentNo}
+                          {person.className
+                            ? ` · ${person.className}${person.streamName ? ` ${person.streamName}` : ""}`
+                            : ""}
+                        </p>
+                      </div>
+                      <p className="text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-body)]">
+                        {person.reasons.join(" · ")}
                       </p>
-                      <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                        {person.studentNo}
-                        {person.className
-                          ? ` · ${person.className}${person.streamName ? ` ${person.streamName}` : ""}`
-                          : ""}
-                      </p>
-                    </div>
-                    <p className="text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-body)]">
-                      {person.reasons.join(" · ")}
-                    </p>
-                  </li>
-                ))}
-              </ul>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        loading={tell.isPending && tell.variables?.studentId === person.studentId}
+                        onClick={() => {
+                          setTold(null);
+                          tell.mutate(person);
+                        }}
+                      >
+                        Write to the family
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              </SavingOverlay>
             )}
           </Card>
         </>

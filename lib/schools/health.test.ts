@@ -82,7 +82,7 @@ describe("healthGaps", () => {
       consentFirstAid: true,
       doctorPhone: "+263771000000",
     });
-    expect(gaps.join(" ")).toContain("Allergy on file with no consent to treat");
+    expect(gaps.join(" ")).toContain("Allergy on file, no consent to treat");
   });
 
   it("is empty when everything a nurse needs is there", () => {
@@ -292,6 +292,6 @@ describe("classHealthList", () => {
     });
     const list = await classHealthList({ companyId, classId });
     const row = list.find((entry) => entry.student.id === otherStudentId);
-    expect(row?.gaps.join(" ")).toContain("No consent to treat");
+    expect(row?.gaps.join(" ")).toContain("No consent recorded");
   });
 });

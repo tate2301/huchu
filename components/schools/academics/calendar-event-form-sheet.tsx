@@ -29,6 +29,23 @@ export const CALENDAR_KIND_OPTIONS: { value: Kind; label: string }[] = [
   { value: "EVENT", label: "Event" },
 ];
 
+/**
+ * What a day of each kind is usually called.
+ *
+ * The box used to be permanently hinted "Heroes' Day", which is only ever
+ * right for one of the six kinds — a registrar entering an exam week was
+ * being shown a public holiday. The hint now follows the kind, so it is an
+ * example of the thing being entered rather than an example of something else.
+ */
+const TITLE_HINTS: Record<Kind, string> = {
+  PUBLIC_HOLIDAY: "Heroes’ Day",
+  HOLIDAY: "December holidays",
+  HALF_TERM: "Mid-term break",
+  STAFF_ONLY: "Staff development day",
+  EXAM: "Form 4 mock examinations",
+  EVENT: "Speech and prize giving day",
+};
+
 export type CalendarEventFormValues = {
   title: string;
   kind: Kind;
@@ -119,7 +136,7 @@ export function CalendarEventFormSheet({
           <Input
             id="calendar-title"
             value={values.title}
-            placeholder="Heroes' Day"
+            placeholder={TITLE_HINTS[values.kind]}
             maxLength={200}
             onChange={(event) =>
               setValues((current) => ({ ...current, title: event.target.value }))

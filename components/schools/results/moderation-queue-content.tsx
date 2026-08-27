@@ -13,17 +13,20 @@ import {
   LoadError,
   NothingLeftToDo,
   NothingMatched,
+  NothingYet,
+  NotYourJob,
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import type { ResultSheetLike, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
-import { SheetFormDialog } from "./sheet-form-dialog";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
+import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
 import {
   SHEET_STATE_LABELS,
   SHEET_STATE_OPTIONS,
@@ -31,8 +34,8 @@ import {
   formatDay,
   waitingFor,
   waitingMs,
-} from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+} from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * The moderation queue: what a head of department has to look at, oldest first.
@@ -60,6 +63,7 @@ function waitingSince(sheet: ResultSheetLike) {
 }
 
 export function ModerationQueueContent() {
+  const access = useSchoolAccess();
   const [view, setView] = useState<QueueView>("queue");
   const [classFilter, setClassFilter] = useState("");
   const [streamFilter, setStreamFilter] = useState("");
@@ -229,6 +233,13 @@ export function ModerationQueueContent() {
 
   const rows = view === "queue" ? queueRows : allRows;
 
+  // Approving and sending back are the head of department's grants, and they
+  // are the only reason this screen exists — so whether the person reading it
+  // holds them decides whether the screen is a queue or a window onto one.
+  const canModerate =
+    access.can("schools.results", "approve") ||
+    access.can("schools.results", "moderate");
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -236,9 +247,18 @@ export function ModerationQueueContent() {
         description="Sheets a head of department has to sign off before anything can be published."
       />
 
+      {/*
+        The canvas band on this screen carries the whole term's state, not just
+        the queue's own: a head of department deciding whether to sign one more
+        sheet off tonight needs to know a window is already open (so approving
+        releases marks this evening) or that every window is shut (so it can
+        wait until morning). The five sheet states and the three window states
+        are the eight numbers the artboard draws, in its order.
+      */}
       <PageBand
         chips={[
-          { label: "Waiting", value: summary?.submittedSheets ?? 0, tone: "warn" },
+          { label: "Draft", value: summary?.draftSheets ?? 0 },
+          { label: "Submitted", value: summary?.submittedSheets ?? 0, tone: "warn" },
           { label: "Sent back", value: summary?.hodRejectedSheets ?? 0, tone: "danger" },
           { label: "Approved", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
           {
@@ -247,8 +267,36 @@ export function ModerationQueueContent() {
             tone: "brand",
             href: "/schools/results/publish",
           },
+          {
+            label: "Windows open",
+            value: summary?.openPublishWindows ?? 0,
+            tone: "success",
+            href: "/schools/results/publish",
+          },
+          {
+            label: "Windows scheduled",
+            value: summary?.scheduledPublishWindows ?? 0,
+            href: "/schools/results/publish",
+          },
+          {
+            label: "Windows closed",
+            value: summary?.closedPublishWindows ?? 0,
+            href: "/schools/results/publish",
+          },
         ]}
       />
+
+      {/*
+        The canvas draws the refusal on this screen specifically. A bursar or a
+        subject teacher can read the queue all day; approving and sending back
+        belong to the head of department for the subject. RecordActions already
+        disables each verb with the reason on it, but a row of dead buttons
+        never says why the whole screen is read-only — so the screen says it
+        once, at the top, and names who to ask.
+      */}
+      {canModerate ? null : (
+        <NotYourJob action="approve" resource="schools.results" what="A mark sheet" />
+      )}
 
       {workflow.error ? <SaveError what="That sheet" error={workflow.error} /> : null}
       {resultsQuery.error ? (
@@ -321,13 +369,21 @@ export function ModerationQueueContent() {
           >
             {resultsQuery.isLoading ? (
               <TableRowsSkeleton
+                headers={[
+                  "Waiting",
+                  "Sheet",
+                  "Status",
+                  "Lines",
+                  "Average",
+                  "Published",
+                ]}
                 columns={[
                   { width: 100, twoLine: true },
                   { twoLine: true },
-                  { width: 110 },
-                  { width: 70 },
-                  { width: 80 },
-                  { width: 90 },
+                  { width: 110, badge: true },
+                  { width: 70, align: "right" },
+                  { width: 80, align: "right" },
+                  { width: 90, align: "right" },
                 ]}
               />
             ) : (
@@ -348,9 +404,15 @@ export function ModerationQueueContent() {
                       body="Every sheet handed in has been dealt with. New ones appear the moment a teacher submits."
                     />
                   ) : (
-                    <NothingLeftToDo
+                    /*
+                      An empty queue is good news; an empty school is not the
+                      same sentence. "All sheets" with nothing in it means no
+                      class has written marks to a sheet yet, which is a school
+                      on its first day rather than a cleared desk.
+                    */
+                    <NothingYet
                       title="No result sheets yet"
-                      body="Sheets appear here once a class's marks have been written to one."
+                      body="Sheets appear here once a class's marks have been written to one, from that year group's assessments."
                     />
                   )
                 }

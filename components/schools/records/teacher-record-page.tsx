@@ -9,6 +9,7 @@ import { RecordMark } from "@/components/records/record-mark";
 import {
   RailSection,
   RecordPageShell,
+  RelatedList,
   type RecordTab,
 } from "@/components/records/record-page-shell";
 import {
@@ -19,11 +20,19 @@ import {
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { RecordNotFound } from "@/components/schools/common/states";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  RecordNotFound,
+  SaveError,
+  StatsSkeleton,
+} from "@/components/schools/common/states";
 import { TeacherAssignmentsPanel } from "@/components/schools/teachers/teacher-assignments-panel";
 import { TeacherEmployeePanel } from "@/components/schools/teachers/teacher-employee-panel";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson } from "@/lib/api-client";
+import { ApiError, fetchJson } from "@/lib/api-client";
 import {
   Badge,
   Buildings,
@@ -92,11 +101,22 @@ type TeacherRecord = {
   assignments: Assignment[];
 };
 
+/**
+ * Whether the teacher still takes the form, or took it two terms ago. Retired
+ * lessons stay on the record — a teacher whose Form 4 set ended last term still
+ * taught it — so the filter is how you ask about now.
+ */
+const CLASS_OPTIONS = [
+  { value: "current", label: "Still teaching" },
+  { value: "past", label: "No longer teaching" },
+];
+
 export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
   const config = recordType("TEACHER");
   const router = useRouter();
   const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("assignments");
+  const [classFilter, setClassFilter] = useState("");
 
   const query = useQuery({
     queryKey: config.queryKey(teacherId),
@@ -211,25 +231,81 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
 
   if (query.isPending) {
     return (
-      <div className="space-y-4" data-testid="teacher-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      // Mirrors the record: the standing column with the mark and the property
+      // list, the glance tiles under it, and the timetable panel beside them.
+      <div
+        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
+        data-testid="teacher-record-loading"
+      >
+        <div className="space-y-4">
+          <CardsSkeleton count={1} columns={1} lines={6} />
+          <StatsSkeleton count={3} />
+        </div>
+        <CardsSkeleton count={4} columns={1} lines={2} />
       </div>
     );
   }
 
   if (query.isError || !teacher) {
-    return (
+    // A teacher whose profile was deleted is a stale link, not a fault. Only a
+    // 404 means "gone" — everything else is a read that has to be retried, and
+    // sending somebody back to the staff list would lose the record they were
+    // actually looking at.
+    const notFound = query.error instanceof ApiError && query.error.status === 404;
+    return notFound ? (
       <RecordNotFound
         what="That teacher"
         backHref={config.indexHref}
         backLabel="Back to the teachers"
+      />
+    ) : (
+      <LoadError
+        what="this teacher's record"
+        error={query.error}
+        onRetry={() => void query.refetch()}
       />
     );
   }
 
   const name = teacher.user?.name ?? teacher.user?.email ?? "Teacher";
   const assignments = teacher.assignments ?? [];
+
+  /**
+   * The classes this teacher stands in front of, one row each.
+   *
+   * The rail has counted them since the page existed and there was no way to
+   * open one — a head of department reading "Classes 5" had to go back out to
+   * the class list and find all five by name. Distinct, because a teacher who
+   * takes a form for three subjects is in front of one class, not three.
+   */
+  const classRows = [
+    ...new Map(
+      assignments
+        .filter((assignment) => assignment.class)
+        .map((assignment) => [
+          assignment.class!.id,
+          {
+            id: assignment.class!.id,
+            name: assignment.class!.name,
+            streamName: assignment.stream?.name ?? null,
+            subjects: assignments
+              .filter((other) => other.class?.id === assignment.class!.id)
+              .map((other) => other.subject?.code)
+              .filter((code): code is string => Boolean(code)),
+            anyActive: assignments.some(
+              (other) => other.class?.id === assignment.class!.id && other.isActive,
+            ),
+          },
+        ]),
+    ).values(),
+  ];
+
+  const visibleClasses = classRows.filter((row) => {
+    if (classFilter === "current") return row.anyActive;
+    if (classFilter === "past") return !row.anyActive;
+    return true;
+  });
+
 
   const tabs: RecordTab[] = [
     {
@@ -243,7 +319,6 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
           <TeacherAssignmentsPanel
             teacherProfileId={teacherId}
             teacherName={name}
-            assignments={assignments}
           />
           <TeacherEmployeePanel
             teacherProfileId={teacherId}
@@ -254,10 +329,65 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       ),
     },
     {
+      value: "classes",
+      label: "Classes",
+      count: classRows.length,
+      content:
+        classRows.length === 0 ? (
+          <NothingYet
+            title="This teacher is not in front of a class"
+            body="A class appears here once a subject is timetabled to them. Add an assignment on the Teaches tab and the form it is against shows up."
+          />
+        ) : (
+          <div className="space-y-3">
+            {/* A teacher on their fourth year carries forms they stopped taking
+                two terms ago, and the useful question is which they have now. */}
+            {classRows.length > 3 ? (
+              <FilterSelect
+                label="Class"
+                allLabel="Every class"
+                value={classFilter}
+                options={CLASS_OPTIONS}
+                onChange={setClassFilter}
+              />
+            ) : null}
+
+            {visibleClasses.length === 0 ? (
+              <NothingMatched
+                what="classes"
+                filters={[
+                  CLASS_OPTIONS.find((option) => option.value === classFilter)?.label ?? "",
+                ].filter(Boolean)}
+                onClear={() => setClassFilter("")}
+              />
+            ) : (
+              <RelatedList
+                items={visibleClasses}
+                emptyMessage="This teacher is not in front of a class."
+                renderItem={(row) => ({
+                  href: recordType("CLASS").href(row.id),
+                  title: row.streamName ? `${row.name} · ${row.streamName}` : row.name,
+                  subtitle: row.subjects.join(" · ") || null,
+                  meta: row.anyActive ? undefined : "Retired",
+                })}
+              />
+            )}
+          </div>
+        ),
+    },
+    {
       value: "notes",
       label: "Notes",
       count: notes.data?.data?.length ?? 0,
-      content: (
+      // Scoped to the tab. A Notes read that failed must not take the timetable
+      // down with it — that is the half of the page somebody came for.
+      content: notes.error ? (
+        <LoadError
+          what="this teacher's notes"
+          error={notes.error}
+          onRetry={() => void notes.refetch()}
+        />
+      ) : (
         <SubjectNotes
           subject={{ type: "TEACHER", id: teacherId }}
           notes={notes.data?.data ?? []}
@@ -269,7 +399,15 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       value: "files",
       label: "Files",
       count: files.data?.data?.length ?? 0,
-      content: <SubjectFiles files={files.data?.data ?? []} isPending={files.isPending} />,
+      content: files.error ? (
+        <LoadError
+          what="this teacher's files"
+          error={files.error}
+          onRetry={() => void files.refetch()}
+        />
+      ) : (
+        <SubjectFiles files={files.data?.data ?? []} isPending={files.isPending} />
+      ),
     },
   ];
 
@@ -327,7 +465,20 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
           ]}
         />
       }
-      attributes={<RecordAttributes attributes={attributes} />}
+      attributes={
+        <div className="space-y-3">
+          {/* Two writes, two sentences. The delete is refused while lessons are
+              against the teacher and the verb already says so — what lands here
+              is the refusal nobody could see coming, such as a lesson somebody
+              else timetabled while this page was open. The property list has no
+              button to hold its own fault: it commits on blur. */}
+          {remove.error ? (
+            <SaveError what="That teacher's profile" error={remove.error} />
+          ) : null}
+          {edit.save.error ? <SaveError what="That change" error={edit.save.error} /> : null}
+          <RecordAttributes attributes={attributes} />
+        </div>
+      }
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}

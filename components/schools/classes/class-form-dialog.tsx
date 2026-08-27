@@ -17,6 +17,25 @@ export type ClassFormValues = {
 const EMPTY: ClassFormValues = { code: "", name: "", level: "", capacity: "" };
 
 /**
+ * The secondary ladder as it is actually named here.
+ *
+ * Not specimen data: Form 1 through Form 4 then Lower Sixth and Upper Sixth is
+ * the Zimbabwean secondary school, and the level numbers behind those names are
+ * the thing everybody gets wrong by hand — the two sixths are levels 5 and 6
+ * and sort after Form 4, which typing "Lower Sixth" into a free-text box does
+ * not tell anyone. Pressing one fills the code, the name and the level
+ * together; the places count stays the school’s own.
+ */
+const LADDER = [
+  { code: "F1", name: "Form 1", level: "1" },
+  { code: "F2", name: "Form 2", level: "2" },
+  { code: "F3", name: "Form 3", level: "3" },
+  { code: "F4", name: "Form 4", level: "4" },
+  { code: "L5", name: "Lower Sixth", level: "5" },
+  { code: "U6", name: "Upper Sixth", level: "6" },
+];
+
+/**
  * A year group, created or corrected.
  *
  * `level` is the ladder's ordering rather than the name, and it is asked for
@@ -28,6 +47,7 @@ export function ClassFormDialog({
   open,
   onOpenChange,
   initial,
+  takenCodes = [],
   isSubmitting,
   error,
   onSubmit,
@@ -36,6 +56,8 @@ export function ClassFormDialog({
   onOpenChange: (open: boolean) => void;
   /** The class being edited. Absent means the dialog is opening a new one. */
   initial?: ClassFormValues;
+  /** Codes already on the ladder, so a preset that would collide is off. */
+  takenCodes?: string[];
   isSubmitting: boolean;
   error: string | null;
   onSubmit: (values: ClassFormValues) => void;
@@ -80,6 +102,43 @@ export function ClassFormDialog({
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
+        {/* Only when creating. Pressing "Form 3" over an existing class would
+            rename the wrong row and move it up the ladder with its pupils. */}
+        {editing ? null : (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Start from</Label>
+            <div className="flex flex-wrap gap-2">
+              {LADDER.map((rung) => {
+                const taken = takenCodes.some(
+                  (code) => code.toLowerCase() === rung.code.toLowerCase(),
+                );
+                return (
+                  <Button
+                    key={rung.code}
+                    type="button"
+                    size="sm"
+                    variant="outline"
+                    disabled={taken}
+                    title={taken ? `${rung.name} is already on the ladder.` : undefined}
+                    onClick={() =>
+                      setValues((current) => ({
+                        ...current,
+                        code: rung.code,
+                        name: rung.name,
+                        level: rung.level,
+                      }))
+                    }
+                  >
+                    {rung.name}
+                  </Button>
+                );
+              })}
+            </div>
+            <p className="text-sm text-muted-foreground">
+              Fills the code, the name and where it sits on the ladder.
+            </p>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="class-code">Code</Label>
           <Input

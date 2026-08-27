@@ -16,11 +16,12 @@ import { fetchSchoolsStudents, fetchSchoolsTerms } from "@/lib/schools/admin-v2"
 import {
   ALLOCATION_STATUSES,
   GENDER_POLICIES,
+  personLabel,
   type AllocationStatus,
   type BoardingAllocation,
   type BoardingHostel,
   type LeaveRequest,
-} from "./boarding-data";
+} from "@/components/schools/boarding/boarding-data";
 
 /**
  * The three forms the boarding board opens.
@@ -365,17 +366,22 @@ export function AllocateBedDialog({
       }
     >
       <div className="grid gap-4 sm:grid-cols-2">
-        <FilterSelect
-          label="Child"
-          allLabel="Choose a child"
-          className="space-y-2 sm:col-span-2"
-          value={studentId}
-          options={(studentsQuery.data?.data ?? []).map((student) => ({
-            value: student.id,
-            label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
-          }))}
-          onChange={setStudentId}
-        />
+        <div className="space-y-2 sm:col-span-2">
+          <FilterSelect
+            label="Child"
+            allLabel="Choose a child"
+            className="space-y-2"
+            value={studentId}
+            options={(studentsQuery.data?.data ?? []).map((student) => ({
+              value: student.id,
+              label: personLabel(student),
+            }))}
+            onChange={setStudentId}
+          />
+          <p className="text-sm text-muted-foreground">
+            Surname first, then the admission number — Mutasa, Tanaka · CHS-1219.
+          </p>
+        </div>
         <FilterSelect
           label="Hostel"
           allLabel="Choose a house"
@@ -679,7 +685,7 @@ export function LeaveRequestDialog({
             value={draft.studentId}
             options={(boardersQuery.data?.data ?? []).map((student) => ({
               value: student.id,
-              label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+              label: personLabel(student),
             }))}
             onChange={(value) =>
               setDraft((current) => ({ ...current, studentId: value }))

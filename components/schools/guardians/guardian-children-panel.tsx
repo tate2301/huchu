@@ -6,10 +6,17 @@ import Link from "next/link";
 import { Badge, Button, Card, Combobox, Switch } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { NothingYet, SaveError } from "@/components/schools/common/states";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -72,6 +79,20 @@ const NEW_LINK: LinkDraft = {
   canReceiveAcademicResults: true,
 };
 
+/**
+ * Consent, as a filter.
+ *
+ * "Who among this parent's children may they be told the fees for" is the
+ * question the office opens a guardian to settle, and on a family of five it
+ * means reading five rows of chips. It is a filter because the answer is a
+ * subset, not a number.
+ */
+const CONSENT_OPTIONS = [
+  { value: "fees", label: "May be told the fees" },
+  { value: "results", label: "May be told results" },
+  { value: "neither", label: "Told nothing" },
+];
+
 export function GuardianChildrenPanel({
   guardianId,
   guardianName,
@@ -84,6 +105,8 @@ export function GuardianChildrenPanel({
   const queryClient = useQueryClient();
   const access = useSchoolAccess();
   const [draft, setDraft] = useState<LinkDraft | null>(null);
+  const [relationship, setRelationship] = useState("");
+  const [consent, setConsent] = useState("");
 
   const invalidate = () => {
     void queryClient.invalidateQueries({ queryKey: ["schools", "guardian", guardianId] });
@@ -153,6 +176,31 @@ export function GuardianChildrenPanel({
 
   const canEdit = access.can("schools.students", "edit");
 
+  const visible = links.filter((link) => {
+    if (relationship && link.relationship.toUpperCase() !== relationship) return false;
+    if (consent === "fees" && !link.canReceiveFinancials) return false;
+    if (consent === "results" && !link.canReceiveAcademicResults) return false;
+    if (
+      consent === "neither" &&
+      (link.canReceiveFinancials || link.canReceiveAcademicResults)
+    ) {
+      return false;
+    }
+    return true;
+  });
+
+  const filtersInForce = [
+    relationship
+      ? RELATIONSHIP_OPTIONS.find((option) => option.value === relationship)?.label
+      : null,
+    consent ? CONSENT_OPTIONS.find((option) => option.value === consent)?.label : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const clearFilters = () => {
+    setRelationship("");
+    setConsent("");
+  };
+
   return (
     <>
       <Card
@@ -199,73 +247,112 @@ export function GuardianChildrenPanel({
             />
           </div>
         ) : (
-          <ul className="divide-y divide-[color:var(--border-subtle)]">
-            {links.map((link) => (
-              <li key={link.id} className="flex flex-wrap items-center gap-3 px-3 py-3">
-                <PersonAvatar
-                  firstName={link.student.firstName}
-                  lastName={link.student.lastName}
+          <>
+            {/* Only worth drawing on a family big enough to need reading twice.
+                Two filters over two children is furniture. */}
+            {links.length > 2 ? (
+              <div className="border-b border-[color:var(--border-subtle)] p-3">
+                <FilterBar>
+                  <FilterSelect
+                    label="Relationship"
+                    allLabel="Any relationship"
+                    value={relationship}
+                    options={[...RELATIONSHIP_OPTIONS]}
+                    onChange={setRelationship}
+                  />
+                  <FilterSelect
+                    label="Consent"
+                    allLabel="Whatever they are told"
+                    value={consent}
+                    options={CONSENT_OPTIONS}
+                    onChange={setConsent}
+                  />
+                </FilterBar>
+              </div>
+            ) : null}
+
+            {visible.length === 0 ? (
+              <div className="p-3">
+                <NothingMatched
+                  what="children"
+                  filters={filtersInForce}
+                  onClear={clearFilters}
                 />
-                <span className="min-w-0 flex-1">
-                  <Link
-                    href={recordType("STUDENT").href(link.student.id)}
-                    className="block truncate text-sm font-medium text-[var(--text-link)] hover:underline"
+              </div>
+            ) : (
+              <ul className="divide-y divide-[color:var(--border-subtle)]">
+                {visible.map((link, index) => (
+                  <li
+                    key={link.id}
+                    className="campus-row-in flex flex-wrap items-center gap-3 px-3 py-3"
+                    style={{ animationDelay: `${index * 40}ms` }}
                   >
-                    {link.student.firstName} {link.student.lastName}
-                  </Link>
-                  <span className="block truncate text-sm text-[var(--text-muted)]">
-                    {[relationshipLabel(link.relationship), link.student.currentClass?.name]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </span>
+                    <PersonAvatar
+                      firstName={link.student.firstName}
+                      lastName={link.student.lastName}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <Link
+                        href={recordType("STUDENT").href(link.student.id)}
+                        className="block truncate text-sm font-medium text-[var(--text-link)] hover:underline"
+                      >
+                        {link.student.firstName} {link.student.lastName}
+                      </Link>
+                      <span className="block truncate text-sm text-[var(--text-muted)]">
+                        {[relationshipLabel(link.relationship), link.student.currentClass?.name]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
 
-                {/* What this person is actually allowed to be told. A guardian
-                    who gets neither is a contact of record and nothing more,
-                    and that is worth seeing at a glance rather than opening
-                    each child to find. */}
-                <span className="flex flex-wrap items-center gap-1.5">
-                  {link.isPrimary ? <Badge tone="brand">Primary</Badge> : null}
-                  {link.canReceiveFinancials ? <Badge tone="neutral">Fees</Badge> : null}
-                  {link.canReceiveAcademicResults ? (
-                    <Badge tone="neutral">Results</Badge>
-                  ) : null}
-                </span>
+                    {/* What this person is actually allowed to be told. A guardian
+                        who gets neither is a contact of record and nothing more,
+                        and that is worth seeing at a glance rather than opening
+                        each child to find. */}
+                    <span className="flex flex-wrap items-center gap-1.5">
+                      {link.isPrimary ? <Badge tone="brand">Primary</Badge> : null}
+                      {link.canReceiveFinancials ? <Badge tone="neutral">Fees</Badge> : null}
+                      {link.canReceiveAcademicResults ? (
+                        <Badge tone="neutral">Results</Badge>
+                      ) : null}
+                    </span>
 
-                <RecordActions
-                  resource="schools.students"
-                  verbs={[
-                    {
-                      label: "Edit",
-                      action: "edit",
-                      onSelect: () =>
-                        setDraft({
-                          id: link.id,
-                          studentId: link.student.id,
-                          relationship: link.relationship,
-                          isPrimary: link.isPrimary,
-                          canReceiveFinancials: link.canReceiveFinancials,
-                          canReceiveAcademicResults: link.canReceiveAcademicResults,
-                        }),
-                    },
-                    {
-                      label: "Detach",
-                      action: "archive",
-                      tone: "danger",
-                      loading: detach.isPending && detach.variables?.id === link.id,
-                      confirm: {
-                        title: `Detach ${link.student.firstName} from ${guardianName}?`,
-                        description:
-                          "They stop receiving this pupil's fee notices and results, and lose sight of them on the portal. The pupil's own record is untouched.",
-                        confirmLabel: "Detach the child",
-                      },
-                      onSelect: () => detach.mutate(link),
-                    },
-                  ]}
-                />
-              </li>
-            ))}
-          </ul>
+                    <RecordActions
+                      resource="schools.students"
+                      verbs={[
+                        {
+                          label: "Edit",
+                          action: "edit",
+                          onSelect: () =>
+                            setDraft({
+                              id: link.id,
+                              studentId: link.student.id,
+                              relationship: link.relationship,
+                              isPrimary: link.isPrimary,
+                              canReceiveFinancials: link.canReceiveFinancials,
+                              canReceiveAcademicResults: link.canReceiveAcademicResults,
+                            }),
+                        },
+                        {
+                          label: "Detach",
+                          action: "archive",
+                          tone: "danger",
+                          loading: detach.isPending && detach.variables?.id === link.id,
+                          confirm: {
+                            title: `Detach ${link.student.firstName} from ${guardianName}?`,
+                            description:
+                              "They stop receiving this pupil's fee notices and results, and lose sight of them on the portal. The pupil's own record is untouched.",
+                            confirmLabel: "Detach the child",
+                          },
+                          onSelect: () => detach.mutate(link),
+                        },
+                      ]}
+                    />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </>
         )}
       </Card>
 
@@ -305,18 +392,48 @@ export function GuardianChildrenPanel({
             {draft.id ? null : (
               <div className="space-y-1.5">
                 <Label>Pupil</Label>
-                <Combobox
-                  options={studentOptions}
-                  value={draft.studentId}
-                  onValueChange={(value) =>
-                    setDraft((current) =>
-                      current ? { ...current, studentId: value } : current,
-                    )
-                  }
-                  placeholder={
-                    studentsQuery.isPending ? "Loading the roll…" : "Search the roll"
-                  }
-                />
+                {studentsQuery.isPending ? (
+                  // The rows the picker is about to hold — a face, a name and a
+                  // student number — rather than a box that says "Loading the
+                  // roll…" and cannot be typed into.
+                  <TableRowsSkeleton
+                    columns={[{ avatar: true, twoLine: true }]}
+                    rows={3}
+                  />
+                ) : studentsQuery.error ? (
+                  <LoadError
+                    what="the roll"
+                    error={studentsQuery.error}
+                    onRetry={() => void studentsQuery.refetch()}
+                  />
+                ) : studentOptions.length === 0 ? (
+                  // Two different sentences behind one empty picker: a school
+                  // with no pupils on file at all, and a parent who is already
+                  // attached to every one of them.
+                  <NothingYet
+                    title={
+                      (studentsQuery.data?.data?.length ?? 0) > 0
+                        ? "Every pupil on the roll is already attached"
+                        : "Nobody is on the roll yet"
+                    }
+                    body={
+                      (studentsQuery.data?.data?.length ?? 0) > 0
+                        ? `${guardianName} is already down for every child the school has on file.`
+                        : "A guardian is attached to a pupil, so the roll has to have somebody on it first."
+                    }
+                  />
+                ) : (
+                  <Combobox
+                    options={studentOptions}
+                    value={draft.studentId}
+                    onValueChange={(value) =>
+                      setDraft((current) =>
+                        current ? { ...current, studentId: value } : current,
+                      )
+                    }
+                    placeholder="Search the roll"
+                  />
+                )}
               </div>
             )}
 

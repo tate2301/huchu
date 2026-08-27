@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
@@ -9,12 +9,21 @@ import {
   Card,
   EmptyState,
   SegmentedControl,
-  Skeleton,
 } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { TableSearch } from "@/components/schools/common/table-controls";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
+import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Mark = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";
@@ -52,6 +61,15 @@ const MARKS: Array<{ value: Mark; label: string }> = [
   { value: "EXCUSED", label: "Excused" },
 ];
 
+/** The narrowing above the roll, in the words a teacher would use for it. */
+const SHOWING = [
+  { value: "ALL", label: "Everyone" },
+  { value: "UNMARKED", label: "Not marked" },
+  { value: "AWAY", label: "Not present" },
+] as const;
+
+type Showing = (typeof SHOWING)[number]["value"];
+
 /**
  * Taking the register.
  *
@@ -67,6 +85,7 @@ const MARKS: Array<{ value: Mark; label: string }> = [
 export function TeacherRegisterScreen() {
   const queryClient = useQueryClient();
   const { selectedClass } = useTeacherPortal();
+  const { isOffline } = useOfflineConnectivity();
   /**
    * Empty means "the school's today", which the server decides.
    *
@@ -79,6 +98,13 @@ export function TeacherRegisterScreen() {
   const [onDate, setOnDate] = useState("");
   const [edits, setEdits] = useState<Record<string, Mark>>({});
   const [saved, setSaved] = useState<string | null>(null);
+  /**
+   * Thirty names on a phone is four screens of scrolling. Searching for the
+   * one child who walked in late beats thumbing past everybody else, and
+   * "Not marked" is the question a teacher asks the roll right before saving.
+   */
+  const [search, setSearch] = useState("");
+  const [showing, setShowing] = useState<Showing>("ALL");
 
   const classSubjectId = selectedClass?.classSubjectId ?? null;
 
@@ -94,7 +120,7 @@ export function TeacherRegisterScreen() {
   });
 
   const register = query.data ?? null;
-  const rows = register?.rows ?? [];
+  const rows = useMemo(() => register?.rows ?? [], [register]);
 
   /** What is on screen: the saved mark unless the teacher has changed it. */
   const markFor = (row: Row): Mark | null => edits[row.studentId] ?? row.status;
@@ -112,6 +138,27 @@ export function TeacherRegisterScreen() {
 
   const locked = register?.session?.status === "LOCKED";
   const dirty = Object.keys(edits).length > 0;
+
+  /**
+   * The narrowing runs over the roll, never over what gets saved. A teacher
+   * who searched for one name and then pressed Save would otherwise file a
+   * register naming one child and forgetting thirty.
+   */
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return rows.filter((row) => {
+      const mark = edits[row.studentId] ?? row.status;
+      if (showing === "UNMARKED" && mark !== null) return false;
+      if (showing === "AWAY" && (mark === null || mark === "PRESENT")) return false;
+      if (needle) {
+        const haystack = `${row.firstName} ${row.lastName} ${row.studentNo}`;
+        if (!haystack.toLowerCase().includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [rows, edits, showing, search]);
+
+  const narrowed = showing !== "ALL" || search.trim().length > 0;
 
   const save = useMutation({
     mutationFn: async () => {
@@ -147,6 +194,11 @@ export function TeacherRegisterScreen() {
     setEdits(Object.fromEntries(rows.map((row) => [row.studentId, value])));
   };
 
+  const clearNarrowing = () => {
+    setSearch("");
+    setShowing("ALL");
+  };
+
   if (!classSubjectId) {
     return (
       <EmptyState
@@ -159,15 +211,9 @@ export function TeacherRegisterScreen() {
   return (
     <div className="flex flex-col gap-4">
       {query.error ? (
-        <Alert tone="danger" title="The register would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError what="the register" error={query.error} onRetry={() => void query.refetch()} />
       ) : null}
-      {save.error ? (
-        <Alert tone="danger" title="The register did not save">
-          {getApiErrorMessage(save.error)}
-        </Alert>
-      ) : null}
+      {save.error ? <SaveError what="The register" error={save.error} /> : null}
       {saved ? (
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
@@ -175,6 +221,21 @@ export function TeacherRegisterScreen() {
         <Alert tone="info" title="This register is locked">
           The office has closed this day. Ask them to reopen it if something needs
           changing.
+        </Alert>
+      ) : null}
+      {/*
+        A register gets marked in a classroom, and a classroom is where the
+        signal goes. Nothing here queues the save — the teacher portal is not
+        one of the offline modules — so the honest thing to say is that the
+        marks are still on screen and the sending is what has to wait. Claiming
+        they were safely stored on the device would be a lie that costs a day's
+        attendance.
+      */}
+      {isOffline ? (
+        <Alert tone="warn" title="You are working offline">
+          Everything you tap stays on this screen, but it cannot be sent until the
+          school&apos;s connection is back. Do not close the page — press Save the
+          register again once the bar at the top says Online.
         </Alert>
       ) : null}
 
@@ -248,50 +309,97 @@ export function TeacherRegisterScreen() {
         </Button>
       </div>
 
+      <div className="flex flex-wrap items-end gap-3">
+        <div className="min-w-0 flex-1 basis-[220px]">
+          <TableSearch
+            label="Find a pupil"
+            value={search}
+            onChange={setSearch}
+            placeholder="Search a name or number"
+          />
+        </div>
+        <SegmentedControl<Showing>
+          size="sm"
+          fullWidth={false}
+          aria-label="Which pupils to show"
+          options={SHOWING.map((option) => ({ ...option }))}
+          value={showing}
+          onValueChange={setShowing}
+        />
+      </div>
+
       {query.isPending ? (
-        <Skeleton variant="text" height={240} />
+        <TableRowsSkeleton
+          headers={["Pupil", "", "Mark"]}
+          columns={[{ avatar: true, twoLine: true }, { width: 84, badge: true }, { width: 240 }]}
+          rows={10}
+        />
       ) : rows.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="Nobody is on this class list"
-          body="No active pupil has this class as their year group, so there is no register to take."
+          body="No active pupil has this class as their year group, so there is no register to take. The office puts pupils into a year group under Classes."
+        />
+      ) : visible.length === 0 ? (
+        <NothingMatched
+          what="pupils"
+          filters={[
+            showing === "ALL" ? null : SHOWING.find((row) => row.value === showing)?.label,
+            search.trim() || null,
+          ].filter((value): value is string => Boolean(value))}
+          onClear={clearNarrowing}
         />
       ) : (
-        <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
-          {rows.map((row) => {
-            const mark = markFor(row);
-            return (
-              <li
-                key={row.studentId}
-                className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
-              >
-                <PersonAvatar firstName={row.firstName} lastName={row.lastName} />
-                <div className="min-w-0 flex-1">
-                  <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                    {row.lastName}, {row.firstName}
-                  </p>
-                  <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                    {row.studentNo}
-                    {row.isBoarding ? " · boarder" : ""}
-                  </p>
-                </div>
-                {mark === null ? <Badge tone="neutral">Not marked</Badge> : null}
-                <SegmentedControl<Mark>
-                  size="sm"
-                  fullWidth={false}
-                  aria-label={`Attendance for ${row.firstName} ${row.lastName}`}
-                  options={MARKS}
-                  {...(mark ? { value: mark } : {})}
-                  onValueChange={(value) => {
-                    if (locked) return;
-                    setSaved(null);
-                    setEdits((current) => ({ ...current, [row.studentId]: value }));
-                  }}
-                />
-              </li>
-            );
-          })}
-        </ul>
+        /*
+          From the canvas: "The register dims to 50% and stops taking taps. A
+          save that accepts more marks halfway through is a save that loses
+          them." The whole roll goes under the overlay, not just the button,
+          because the taps are the thing that would be lost.
+        */
+        <SavingOverlay saving={save.isPending} label="Sending the register…">
+          <ul className="flex flex-col rounded-[var(--radius-md)] border border-[color:var(--border)]">
+            {visible.map((row) => {
+              const mark = markFor(row);
+              return (
+                <li
+                  key={row.studentId}
+                  className="flex flex-wrap items-center gap-3 border-b border-[color:var(--border-subtle)] px-4 py-3 last:border-b-0"
+                >
+                  <PersonAvatar firstName={row.firstName} lastName={row.lastName} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                      {row.lastName}, {row.firstName}
+                    </p>
+                    <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                      {row.studentNo}
+                      {row.isBoarding ? " · boarder" : ""}
+                    </p>
+                  </div>
+                  {mark === null ? <Badge tone="neutral">Not marked</Badge> : null}
+                  <SegmentedControl<Mark>
+                    size="sm"
+                    fullWidth={false}
+                    aria-label={`Attendance for ${row.firstName} ${row.lastName}`}
+                    options={MARKS}
+                    {...(mark ? { value: mark } : {})}
+                    onValueChange={(value) => {
+                      if (locked) return;
+                      setSaved(null);
+                      setEdits((current) => ({ ...current, [row.studentId]: value }));
+                    }}
+                  />
+                </li>
+              );
+            })}
+          </ul>
+        </SavingOverlay>
       )}
+
+      {narrowed && visible.length > 0 && visible.length < rows.length ? (
+        <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+          Showing {visible.length} of {rows.length}. Saving files the whole roll, not
+          only what is on screen.
+        </p>
+      ) : null}
 
       <div className="sticky bottom-0 flex flex-wrap items-center gap-3 border-t border-[color:var(--border)] bg-[color:var(--surface)] px-4 py-3">
         <p className="flex-1 text-[length:var(--type-body-sm)] text-[color:var(--text-body)]">

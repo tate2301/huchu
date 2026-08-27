@@ -12,6 +12,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -120,7 +121,6 @@ export function GradingContent() {
   const [termFilter, setTermFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const [schemeDialogOpen, setSchemeDialogOpen] = useState(false);
   const [editingScheme, setEditingScheme] = useState<GradingSchemeRecord | null>(null);
@@ -209,7 +209,6 @@ export function GradingContent() {
         : fetchJson("/api/v2/schools/grading-schemes", { method: "POST", body });
     },
     onSuccess: () => {
-      setActionError(null);
       setSchemeDialogOpen(false);
       setEditingScheme(null);
       invalidateSchemes();
@@ -222,21 +221,13 @@ export function GradingContent() {
         method: "PATCH",
         body: JSON.stringify({ isDefault: true }),
       }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateSchemes();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidateSchemes,
   });
 
   const deleteScheme = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/grading-schemes/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateSchemes();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidateSchemes,
   });
 
   const saveWindow = useMutation({
@@ -259,7 +250,6 @@ export function GradingContent() {
           });
     },
     onSuccess: () => {
-      setActionError(null);
       setWindowDialogOpen(false);
       setEditingWindow(null);
       invalidateWindows();
@@ -272,11 +262,7 @@ export function GradingContent() {
         method: "PATCH",
         body: JSON.stringify({ status: payload.status }),
       }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateWindows();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidateWindows,
   });
 
   const schemeColumns = useMemo<ColumnDef<GradingSchemeRecord>[]>(
@@ -510,14 +496,20 @@ export function GradingContent() {
         />
       ) : null}
 
-      {actionError ? (
-        <Alert
-          tone="danger"
-          title="That change was not applied"
-          onDismiss={() => setActionError(null)}
-        >
-          {actionError}
-        </Alert>
+      {/*
+        One banner per verb rather than one banner for the screen. "Delete
+        refused, the scheme is still the default" and "the window would not
+        open" are different problems, and a shared string meant whichever
+        failed last overwrote the other.
+      */}
+      {makeDefault.error ? (
+        <SaveError what="The default scheme" error={makeDefault.error} />
+      ) : null}
+      {deleteScheme.error ? (
+        <SaveError what="The grading scheme" error={deleteScheme.error} />
+      ) : null}
+      {setWindowStatus.error ? (
+        <SaveError what="The publishing window" error={setWindowStatus.error} />
       ) : null}
 
       {!schemesQuery.isLoading && schemes.length > 0 && !defaultScheme ? (
@@ -551,13 +543,15 @@ export function GradingContent() {
 
           {schemesQuery.isLoading ? (
             <TableRowsSkeleton
+              headers={["Scheme", "Class work / exam", "Pass mark", "Grades", "Status"]}
               columns={[
                 { twoLine: true },
                 { width: 130 },
-                { width: 90 },
+                { width: 90, align: "right" },
                 { width: 160 },
-                { width: 120 },
+                { width: 120, badge: true },
               ]}
+              rows={5}
             />
           ) : schemes.length === 0 ? (
             <NothingYet
@@ -651,7 +645,14 @@ export function GradingContent() {
 
           {windowsQuery.isLoading ? (
             <TableRowsSkeleton
-              columns={[{ twoLine: true }, { width: 170 }, { width: 170 }, { width: 110 }]}
+              headers={["Covers", "Opens", "Closes", "Status"]}
+              columns={[
+                { twoLine: true },
+                { width: 170 },
+                { width: 170 },
+                { width: 110, badge: true },
+              ]}
+              rows={6}
             />
           ) : windows.length === 0 ? (
             <NothingYet

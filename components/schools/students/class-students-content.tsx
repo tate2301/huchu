@@ -2,22 +2,28 @@
 
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import { ClassFilter } from "@/components/schools/common/class-filter";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { PageCaption } from "@/components/schools/records/page-caption";
+import { RecordTabs } from "@/components/schools/records/record-tabs";
 import {
   StudentFormSheet,
   type StudentFormValues,
@@ -27,6 +33,7 @@ import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
   createStudent,
+  deleteStudent,
   fetchStudentRoll,
   updateStudent,
   type StudentRollRecord,
@@ -53,6 +60,9 @@ function statusBadge(status: string) {
   return <Badge tone="neutral">Withdrawn</Badge>;
 }
 
+/** The two cuts of a year group the canvas draws. */
+type ClassTab = "roll" | "boarders";
+
 /**
  * The register for one year group.
  *
@@ -62,6 +72,12 @@ function statusBadge(status: string) {
  * "Form 2 Blue", the unit a class teacher actually works in — unless a single
  * class is already chosen, in which case the heading would repeat itself.
  *
+ * The Class filter still offers every class in the school, and choosing one
+ * navigates rather than filters in place. That is deliberate: the year group
+ * is the route, so "which class am I looking at" and "the address of this
+ * page" have to stay the same fact. A dropdown that quietly showed Form 3 on
+ * the Form 2 URL would break the back button and every link anyone sent.
+ *
  * Guardians are named rather than counted. "2" tells a class teacher ringing
  * home nothing; "Grace Mutasa, Peter Mutasa" is the answer they came for, and
  * "No guardian linked" is a job for the office rather than a zero.
@@ -70,13 +86,19 @@ export function ClassStudentsContent({
   classId,
   className,
   initialStreamId,
+  termName,
 }: {
   classId: string;
   /** The year group's name, resolved on the server so the heading is right on first paint. */
   className: string;
   initialStreamId?: string;
+  /** The term in view, for the caption. Omitted where no term is running. */
+  termName?: string;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const [tab, setTab] = useState<ClassTab>("roll");
+  const [search, setSearch] = useState("");
   const [streamFilter, setStreamFilter] = useState(initialStreamId ?? "");
   const [statusFilter, setStatusFilter] = useState("");
   const [boardingFilter, setBoardingFilter] = useState("");
@@ -89,12 +111,23 @@ export function ClassStudentsContent({
     queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
   });
 
+  /**
+   * The tab wins over the Boarding filter, because a tab replaces the
+   * population and a filter narrows one. Sitting on "Boarders" with the
+   * filter set to day scholars is a contradiction; the tab is the newer
+   * decision, so it is the one honoured.
+   */
+  const boarding =
+    tab === "boarders" ? true : boardingFilter === "" ? undefined : boardingFilter === "boarding";
+
   const studentsQuery = useQuery({
     queryKey: [
       "schools",
       "students",
       "by-class",
       classId,
+      tab,
+      search,
       streamFilter,
       statusFilter,
       boardingFilter,
@@ -104,9 +137,10 @@ export function ClassStudentsContent({
         page: 1,
         limit: 200,
         classId,
+        search: search.trim() || undefined,
         streamId: streamFilter || undefined,
         status: statusFilter || undefined,
-        isBoarding: boardingFilter === "" ? undefined : boardingFilter === "boarding",
+        isBoarding: boarding,
       }),
   });
 
@@ -187,6 +221,20 @@ export function ClassStudentsContent({
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  /**
+   * The hard delete, for a row typed twice this morning and nothing else. The
+   * server refuses the moment a mark, an invoice or a register line exists,
+   * which is right — a school does not erase a child who was here.
+   */
+  const deleteMutation = useMutation({
+    mutationFn: (student: StudentRollRecord) => deleteStudent(student.id),
+    onSuccess: () => {
+      setActionError(null);
+      invalidate();
+    },
+    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
   /** Only worth a heading when more than one class is on screen. */
   const streamGroupFor = useMemo(() => {
     if (streamFilter) return undefined;
@@ -200,12 +248,14 @@ export function ClassStudentsContent({
     streams.find((row) => row.id === streamFilter)?.name,
     STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label,
     BOARDING_OPTIONS.find((option) => option.value === boardingFilter)?.label,
+    search.trim() || undefined,
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
     setStreamFilter("");
     setStatusFilter("");
     setBoardingFilter("");
+    setSearch("");
   }
 
   const columns = useMemo<ColumnDef<StudentRollRecord>[]>(
@@ -317,13 +367,32 @@ export function ClassStudentsContent({
                       onSelect: () =>
                         statusMutation.mutate({ id: student.id, status: "WITHDRAWN" }),
                     },
+                {
+                  label: "Delete",
+                  action: "archive",
+                  tone: "danger" as const,
+                  loading: deleteMutation.isPending,
+                  unavailable:
+                    student._count.resultLines +
+                      student._count.enrollments +
+                      student._count.boardingAllocations >
+                    0
+                      ? "There are marks, enrolments or a bed against this pupil. Take them off the roll instead."
+                      : undefined,
+                  confirm: {
+                    title: `Delete ${student.lastName}, ${student.firstName}`,
+                    description: `The record goes for good, along with ${student._count.guardianLinks} guardian ${student._count.guardianLinks === 1 ? "link" : "links"}. Nothing has been written about this pupil yet, which is the only reason this is allowed.`,
+                    confirmLabel: "Delete the record",
+                  },
+                  onSelect: () => deleteMutation.mutate(student),
+                },
               ]}
             />
           );
         },
       },
     ],
-    [statusMutation],
+    [statusMutation, deleteMutation],
   );
 
   if (studentsQuery.error) {
@@ -340,19 +409,22 @@ export function ClassStudentsContent({
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title={className}
-        primaryAction={
-          <CreateButton
-            resource="schools.students"
-            label="New student"
-            onSelect={() => {
-              setEditing(null);
-              setFormOpen(true);
-            }}
-          />
-        }
-      />
+      {/* The app bar carries the year group's name — the sidebar already says
+          "Students" one column left, so the page does not say it twice. */}
+      <PageChrome title={className} backHref="/schools/students" backLabel="All students">
+        <CreateButton
+          resource="schools.students"
+          label="New student"
+          onSelect={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        />
+      </PageChrome>
+
+      <PageCaption>
+        {[termName, `${tally?.roll ?? "—"} on the roll`].filter(Boolean).join(" · ")}
+      </PageCaption>
 
       <PageBand
         chips={[
@@ -381,40 +453,76 @@ export function ClassStudentsContent({
         }
       />
 
-      {actionError ? <LoadError what="that change" error={actionError} /> : null}
+      {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
-      <FilterBar>
-        {streams.length > 0 ? (
-          <FilterSelect
-            label="Class"
-            allLabel="Every class"
-            value={streamFilter}
-            options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
-            onChange={setStreamFilter}
+      {/* Tabs, search and filters in one row, because all three change what
+          the table under them shows and nothing else on the page. */}
+      <TableControls
+        tabs={
+          <RecordTabs<ClassTab>
+            value={tab}
+            onChange={setTab}
+            tabs={[
+              { id: "roll", label: "On the roll", count: tally?.roll },
+              { id: "boarders", label: "Boarders", count: tally?.boarders },
+            ]}
           />
-        ) : null}
-        <FilterSelect
-          label="Status"
-          allLabel="Any status"
-          value={statusFilter}
-          options={STATUS_OPTIONS}
-          onChange={setStatusFilter}
-        />
-        <FilterSelect
-          label="Boarding"
-          allLabel="Boarders and day"
-          value={boardingFilter}
-          options={BOARDING_OPTIONS}
-          onChange={setBoardingFilter}
-        />
-      </FilterBar>
+        }
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search this year group"
+          />
+        }
+        filters={
+          <>
+            {/* Every class in the school, not just this one's streams: the
+                office lands here from a link and the next question is nearly
+                always another year group. Choosing one changes the route. */}
+            <ClassFilter
+              label="Class"
+              allLabel="Every class"
+              value={{ classId, streamId: streamFilter }}
+              onChange={(next) => {
+                if (next.classId && next.classId !== classId) {
+                  router.push(
+                    next.streamId
+                      ? `/schools/students/class/${next.classId}?streamId=${next.streamId}`
+                      : `/schools/students/class/${next.classId}`,
+                  );
+                  return;
+                }
+                if (!next.classId) {
+                  router.push("/schools/students");
+                  return;
+                }
+                setStreamFilter(next.streamId);
+              }}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={setStatusFilter}
+            />
+            <FilterSelect
+              label="Boarding"
+              allLabel="Boarders and day"
+              value={boardingFilter}
+              options={BOARDING_OPTIONS}
+              onChange={setBoardingFilter}
+            />
+          </>
+        }
+      />
 
       <DataTable
         data={students}
         columns={columns}
-        searchPlaceholder="Search this year group"
-        searchSubmitLabel="Search"
         pagination={{ enabled: true }}
+        features={{ sorting: false, globalFilter: false, pagination: true }}
         rowGroup={streamGroupFor}
         mobileListRenderer={({ rows }) => (
           <MobileList>

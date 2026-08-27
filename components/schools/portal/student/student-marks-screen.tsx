@@ -3,8 +3,14 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import Link from "next/link";
-import { Alert, Badge, EmptyState, Skeleton } from "@corelithzw/react";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Badge } from "@corelithzw/react";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { Shield, TrendingUp } from "@/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
@@ -100,6 +106,10 @@ function movement(now: number, before: number | null) {
  * its own and "78, up 4" is the whole reason a child opens this. The term picker
  * is the demo's segmented tab strip, which scrolls sideways rather than
  * overflowing when a school runs more than three terms.
+ *
+ * There is no `SaveError` or `SavingOverlay` here, and that is deliberate rather
+ * than forgotten: a pupil cannot write a mark. Everything on this screen is the
+ * school's to publish and this child's to read.
  */
 export function StudentMarksScreen() {
   const { student, term: currentTerm } = useStudentPortal();
@@ -179,7 +189,7 @@ export function StudentMarksScreen() {
 
   if (student === null) {
     return (
-      <EmptyState
+      <NothingYet
         title="We cannot find your school record"
         body="Your account is signed in but it is not linked to a pupil yet. Ask the school office to link it and your marks appear here."
       />
@@ -188,27 +198,29 @@ export function StudentMarksScreen() {
 
   if (query.error) {
     return (
-      <Alert tone="danger" title="Your marks would not load">
-        {getApiErrorMessage(query.error)}
-      </Alert>
+      <LoadError
+        what="your marks"
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
   if (query.isPending) {
     return (
+      /* One card per subject: a name, a code, a mark and a bar. */
       <div className="flex flex-col gap-4" role="status" aria-live="polite">
         <span className="sr-only">Fetching your marks…</span>
-        <Skeleton variant="rect" height={132} />
-        <Skeleton variant="text" height={168} />
+        <CardsSkeleton count={5} columns={1} lines={2} />
       </div>
     );
   }
 
   if (lines.length === 0) {
     return (
-      <EmptyState
-        title="No marks yet"
-        body="Your results appear here when the school publishes them. Until then your teachers are still marking."
+      <NothingYet
+        title="No marks published yet"
+        body="Your results appear here when the school publishes them, at the end of each term. Until then your teachers are still marking."
       />
     );
   }
@@ -270,9 +282,13 @@ export function StudentMarksScreen() {
       </div>
 
       {subjects.length === 0 ? (
-        <EmptyState
-          title="Nothing published for this term"
-          body="Pick another term above, or wait for the school to publish this one."
+        /* The term tabs above are the filter, and this is what they emptied,
+           so the sentence names the term rather than telling a child there
+           are no marks — there are, in another tab. */
+        <NothingMatched
+          what="marks"
+          filters={[terms[activeIndex]?.name ?? "this term"]}
+          onClear={() => setChosenTermId("")}
         />
       ) : (
         <ul className="m-0 flex list-none flex-col p-0">
