@@ -1,21 +1,14 @@
-import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { ClassRecordPage } from "@/components/schools/records/class-record-page";
-import { authOptions } from "@/lib/auth";
-
-/** S-4.3 — a class is a record page. See the student route for why no heading. */
+/**
+ * A class record moved with its list. The id is kept through the redirect so
+ * an existing link to one class still lands on that class.
+ */
 export default async function ClassRecordRoute({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
   const { id } = await params;
-
-  return <ClassRecordPage classId={id} />;
+  redirect(`/management/master-data/schools/classes/${id}`);
 }

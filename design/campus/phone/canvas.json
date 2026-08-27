@@ -1,0 +1,282 @@
+{
+  "artboards": [
+    {
+      "file": "Main.dc.html",
+      "title": "Home",
+      "page": "student",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentTimetable.dc.html",
+      "title": "My timetable",
+      "page": "student",
+      "x": 510,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentMarks.dc.html",
+      "title": "My marks",
+      "page": "student",
+      "x": 1020,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentHomework.dc.html",
+      "title": "Homework",
+      "page": "student",
+      "x": 1530,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentHomeworkSheet.dc.html",
+      "title": "Handing work in",
+      "page": "student",
+      "x": 2040,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentGoals.dc.html",
+      "title": "My goals",
+      "page": "student",
+      "x": 2550,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentLibrary.dc.html",
+      "title": "Library",
+      "page": "student",
+      "x": 3060,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentAttendance.dc.html",
+      "title": "My attendance",
+      "page": "student",
+      "x": 3570,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentMessages.dc.html",
+      "title": "Messages",
+      "page": "student",
+      "x": 4080,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentProfile.dc.html",
+      "title": "My profile",
+      "page": "student",
+      "x": 4590,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentSettings.dc.html",
+      "title": "Settings",
+      "page": "student",
+      "x": 5100,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentHelp.dc.html",
+      "title": "Help",
+      "page": "student",
+      "x": 5610,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "StudentLogin.dc.html",
+      "title": "Student Portal — sign in",
+      "page": "student",
+      "x": 6120,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentHome.dc.html",
+      "title": "Home",
+      "page": "parent",
+      "x": 0,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentFees.dc.html",
+      "title": "School fees",
+      "page": "parent",
+      "x": 510,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentAttendance.dc.html",
+      "title": "Attendance",
+      "page": "parent",
+      "x": 1020,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentMarks.dc.html",
+      "title": "Marks",
+      "page": "parent",
+      "x": 1530,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentNotices.dc.html",
+      "title": "School news",
+      "page": "parent",
+      "x": 2040,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentMessages.dc.html",
+      "title": "Messages",
+      "page": "parent",
+      "x": 2550,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentChildSwitcher.dc.html",
+      "title": "Switch child",
+      "page": "parent",
+      "x": 3060,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentProfile.dc.html",
+      "title": "Your details",
+      "page": "parent",
+      "x": 3570,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentHelp.dc.html",
+      "title": "Help",
+      "page": "parent",
+      "x": 4080,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    },
+    {
+      "file": "ParentLogin.dc.html",
+      "title": "Guardian Portal — sign in",
+      "page": "parent",
+      "x": 4590,
+      "y": 0,
+      "w": 390,
+      "h": 844,
+      "expand": "fit"
+    }
+  ],
+  "annotations": [
+    {
+      "id": "student-shell",
+      "x": 0,
+      "y": -430,
+      "w": 760,
+      "text": "STUDENT PORTAL — a phone app, not a dashboard\n\nA 52px header carrying the screen name and nothing else, one screen at a time, and four bottom tabs at 64px. There is no caption line: Home does the greeting, so the bar does not repeat it.\n\nEvery other title is possessive — My marks, My timetable — because on a pupil's phone every screen is about them.\n\nThe orange is the pupil's own identity and appears in exactly two places: the goals hero and the ID card. The portal does not re-point --brand; everything else is the platform blue.\n\nCORRECTION: the previous canvas drew this portal violet with a caption line. Violet belongs to the teacher.",
+      "page": "student"
+    },
+    {
+      "id": "student-attendance-gap",
+      "x": 7140,
+      "y": -430,
+      "w": 480,
+      "text": "THE ONE MISSING SCREEN\n\nPERMISSIONS_BY_PERSONA.STUDENT grants view-own-attendance. There is no attendance screen and no attendance figure anywhere in the pupil's portal.\n\nThe parent has a full one for the same child, reading the same registers. The child cannot see their own.\n\nThat artboard is drawn from the parent's version, including its best decision: a register the teacher has not submitted is labelled as such rather than counted as an absence.",
+      "page": "student"
+    },
+    {
+      "id": "parent-shell",
+      "x": 0,
+      "y": -430,
+      "w": 780,
+      "text": "PARENT PORTAL — four tabs, in the parent's words\n\nHome, Fees, News, You — \"News, not Notices; You, not Profile — while the routes keep the names the code uses\". A 52px bar, title only, and the child switcher as one 26px avatar chip rather than a row of chips eating a line on all seven screens.\n\nTwo rules worth keeping. A figure a parent may not see is never shown as zero: a guardian without financial access gets no fee hero at all, because \"0.00 owed\" is a wrong answer where \"not shown to you\" is a true one. And attendance never reports off a register the teacher has not submitted.\n\nTHE PRODUCT GAP: there is no payment flow. The sticky bar says Statement, not Pay now — honest, and the largest single hole in campus. A parent can see USD 310.00 owed and cannot pay it.",
+      "page": "parent"
+    },
+    {
+      "id": "parent-drift",
+      "x": 8160,
+      "y": -430,
+      "w": 460,
+      "text": "COPY DRIFT TO FIX\n\nThe Help answer to \"I have two children here but only see one\" says: \"Use the row of names at the top of the screen to switch.\"\n\nThere is no row of names. The shipped shell has a single avatar chip that opens a bottom sheet — the Switch child artboard. The help text describes a screen that was replaced.",
+      "page": "parent"
+    }
+  ],
+  "launch": {
+    "view": "canvas",
+    "page": "student"
+  },
+  "pages": [
+    {
+      "id": "student",
+      "name": "Student"
+    },
+    {
+      "id": "parent",
+      "name": "Parent"
+    }
+  ]
+}

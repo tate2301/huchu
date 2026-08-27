@@ -11,7 +11,15 @@ export type MasterDataTab =
   | "downtime-codes"
   | "gold-expense-types"
   | "scrap-materials"
-  | "scrap-sellers";
+  | "scrap-sellers"
+  // A school's academic ladder is reference data too, so it sits in this area
+  // rather than in the school's own sidebar. The ids match `management-nav`.
+  | "schools-years"
+  | "schools-classes"
+  | "schools-subjects"
+  | "schools-school-day"
+  | "schools-grading"
+  | "schools-identity";
 
 type MasterDataShellProps = {
   activeTab: MasterDataTab;

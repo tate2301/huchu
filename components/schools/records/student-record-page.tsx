@@ -1,9 +1,9 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
@@ -16,13 +16,30 @@ import {
 } from "@/components/records/record-page-shell";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
+import { SubjectNotes, type SubjectNote } from "@/components/records/subject-tabs";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import {
-  SubjectFiles,
-  SubjectNotes,
-  type SubjectFile,
-  type SubjectNote,
-} from "@/components/records/subject-tabs";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+  LoadError,
+  RecordNotFound,
+  SaveError,
+} from "@/components/schools/common/states";
+import {
+  RecordFilesTab,
+  type RecordFile,
+} from "@/components/schools/records/record-files-tab";
+import { StudentPortalPanel } from "@/components/schools/records/student-portal-panel";
+import { StudentAttendanceTab } from "@/components/schools/records/student-attendance-tab";
+import {
+  StudentFormSheet,
+  type StudentFormValues,
+} from "@/components/schools/students/student-form-sheet";
+import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
+import {
+  deleteStudent,
+  updateStudent,
+  type StudentRollRecord,
+} from "@/lib/schools/students-v2";
+import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Badge,
@@ -32,6 +49,7 @@ import {
   Home,
   Tag,
   User,
+  UserCheck,
   Users,
 } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
@@ -124,6 +142,8 @@ type StudentRecord = {
   isBoarding: boolean;
   admissionDate: string | null;
   customFields: Record<string, unknown> | null;
+  /** The portal account, set once the child claims their invitation. */
+  userId: string | null;
   avatarUrl: string | null;
   accent: string | null;
   currentClass: { id: string; code: string; name: string } | null;
@@ -145,7 +165,11 @@ const STATUS_OPTIONS = [
 
 export function StudentRecordPage({ studentId }: { studentId: string }) {
   const config = recordType("STUDENT");
+  const router = useRouter();
+  const queryClient = useQueryClient();
   const [activeTab, setActiveTab] = useState("guardians");
+  const [formOpen, setFormOpen] = useState(false);
+  const [actionError, setActionError] = useState<unknown>(null);
 
   const query = useQuery({
     queryKey: config.queryKey(studentId),
@@ -158,6 +182,69 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
   });
 
   const student = query.data ?? null;
+
+  // The ladder the class and stream property rows choose from. Loaded here
+  // rather than inside the attribute list so the two rows share one read.
+  const classesQuery = useQuery({
+    queryKey: ["schools", "grades"],
+    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
+  });
+  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
+  const streams = useMemo(
+    () => classes.find((row) => row.id === student?.currentClass?.id)?.streams ?? [],
+    [classes, student?.currentClass?.id],
+  );
+
+  const refresh = () => {
+    void queryClient.invalidateQueries({ queryKey: config.queryKey(studentId) });
+    void queryClient.invalidateQueries({ queryKey: ["schools", "students"] });
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: (values: StudentFormValues) =>
+      updateStudent(studentId, {
+        firstName: values.firstName.trim(),
+        lastName: values.lastName.trim(),
+        admissionNo: values.admissionNo.trim() || null,
+        dateOfBirth: values.dateOfBirth || null,
+        gender: values.gender || null,
+        status: values.status,
+        currentClassId: values.currentClassId || null,
+        currentStreamId: values.currentStreamId || null,
+        isBoarding: values.isBoarding,
+        admissionDate: values.admissionDate || null,
+        customFields: values.customFields,
+        ...(values.studentNo.trim() ? { studentNo: values.studentNo.trim() } : {}),
+      }),
+    onSuccess: () => {
+      setFormOpen(false);
+      setActionError(null);
+      refresh();
+    },
+    onError: (error) => setActionError(error),
+  });
+
+  const statusMutation = useMutation({
+    mutationFn: (status: string) => updateStudent(studentId, { status }),
+    onSuccess: () => {
+      setActionError(null);
+      refresh();
+    },
+    onError: (error) => setActionError(error),
+  });
+
+  // A hard delete, for the record somebody created by mistake this morning.
+  // The endpoint refuses the moment anything hangs off the child — a mark, a
+  // register line, an invoice — which is why "take off the roll" is the verb
+  // for everybody else.
+  const deleteMutation = useMutation({
+    mutationFn: () => deleteStudent(studentId),
+    onSuccess: () => {
+      refresh();
+      router.push(config.indexHref);
+    },
+    onError: (error) => setActionError(error),
+  });
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!student) return [];
@@ -174,12 +261,32 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         ...edit.required("studentNo", student.studentNo),
       },
       {
+        id: "yearGroup",
+        label: "Year group",
+        // Moving a child between year groups is the commonest correction the
+        // office makes, and it used to be read-only here — the only way to do
+        // it was a bulk roll-up over the whole school.
+        ...edit.choice(
+          "currentClassId",
+          student.currentClass?.id ?? null,
+          classes.map((row) => ({ value: row.id, label: row.name })),
+          "Not in a year group",
+        ),
+        display: student.currentClass?.name ?? null,
+        placeholder: "Not in a year group",
+      },
+      {
         id: "class",
         label: "Class",
         icon: Users,
-        display: student.currentClass ? student.currentClass.name : null,
-        value: student.currentClass?.name ?? null,
-        placeholder: "Not in a class",
+        ...edit.choice(
+          "currentStreamId",
+          student.currentStream?.id ?? null,
+          streams.map((stream) => ({ value: stream.id, label: stream.name })),
+          "Not in a class",
+        ),
+        display: student.currentStream?.name ?? null,
+        placeholder: student.currentClass ? "Not in a class" : "Choose a year group first",
       },
       {
         id: "status",
@@ -191,10 +298,12 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         id: "dateOfBirth",
         label: "Date of birth",
         icon: Calendar,
-        // Read-only: a text box that accepts "next tuesday" into a date column
-        // is worse than no editor. The date picker belongs with the same work
-        // that gives custom DATE fields one.
-        display: formatSchoolDate(student.dateOfBirth),
+        kind: "date",
+        value: student.dateOfBirth ? student.dateOfBirth.slice(0, 10) : null,
+        formatted: formatSchoolDate(student.dateOfBirth),
+        placeholder: "Not known",
+        onCommit: (next: string) =>
+          edit.save.mutate({ dateOfBirth: next.trim() === "" ? null : next }),
       },
       {
         id: "gender",
@@ -215,16 +324,37 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
         id: "admissionDate",
         label: "Admitted",
         icon: CalendarCheck,
-        display: formatSchoolDate(student.admissionDate),
+        kind: "date",
+        value: student.admissionDate ? student.admissionDate.slice(0, 10) : null,
+        formatted: formatSchoolDate(student.admissionDate),
+        placeholder: "Not recorded",
+        onCommit: (next: string) =>
+          edit.save.mutate({ admissionDate: next.trim() === "" ? null : next }),
       },
       {
         id: "boarding",
         label: "Boarder",
         icon: Home,
-        display: student.isBoarding ? "Yes" : "No",
+        // A choice rather than free text: the column is a boolean, and the
+        // only two answers it has are the two offered here.
+        value: student.isBoarding ? "yes" : "no",
+        options: [
+          { value: "yes", label: "Boarder" },
+          { value: "no", label: "Day pupil" },
+        ],
+        display: student.isBoarding ? "Boarder" : "Day pupil",
+        onCommit: (next: string) => edit.save.mutate({ isBoarding: next === "yes" }),
+      },
+      {
+        id: "portal",
+        label: "Portal account",
+        icon: UserCheck,
+        // Read-only on purpose: an account is claimed by the child from an
+        // invitation, not switched on by the office. The verb is in the rail.
+        display: student.userId ? "Signed in" : "Never signed in",
       },
     ];
-  }, [student, edit]);
+  }, [student, edit, classes, streams]);
 
   // S-4.4 — the school's own fields. Read from the schools door onto the shared
   // engine; `/api/v2/crm/field-definitions` is gated on `crm.settings`, which no
@@ -248,7 +378,7 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
   const files = useQuery({
     queryKey: ["records", "files", "STUDENT", studentId],
     queryFn: () =>
-      fetchJson<{ data: SubjectFile[] }>(
+      fetchJson<{ data: RecordFile[] }>(
         `/api/v2/records/files?subjectType=STUDENT&subjectId=${studentId}`,
       ),
   });
@@ -263,15 +393,75 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
   }
 
   if (query.isError || !student) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>This student could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+    // A 404 is a stale link, not a fault; anything else is. Saying so is the
+    // difference between "go back to the roll" and "try again".
+    const notFound =
+      query.error instanceof ApiError && query.error.status === 404;
+    return notFound ? (
+      <RecordNotFound
+        what="That pupil"
+        backHref={config.indexHref}
+        backLabel="Back to the roll"
+      />
+    ) : (
+      <LoadError
+        what="this pupil's record"
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
   const name = `${student.firstName} ${student.lastName}`.trim();
+  const offRoll = student.status === "WITHDRAWN" || student.status === "GRADUATED";
+  const primaryGuardian =
+    (student.guardianLinks ?? []).find((link) => link.isPrimary) ??
+    (student.guardianLinks ?? [])[0] ??
+    null;
+  const primaryGuardianEmail = primaryGuardian?.guardian.email ?? null;
+
+  /**
+   * Whether the hard delete would be refused. Mirrors the dependency check in
+   * `DELETE /api/v2/schools/students/[id]` closely enough to disable the verb
+   * with a reason instead of letting the server answer with a 409.
+   */
+  const hasHistory =
+    (student.enrollments?.length ?? 0) > 0 ||
+    (student.feeInvoices?.length ?? 0) > 0 ||
+    (student.resultLines?.length ?? 0) > 0 ||
+    (student.boardingAllocations?.length ?? 0) > 0 ||
+    (student.guardianLinks?.length ?? 0) > 0;
+
+  /**
+   * The record, in the shape the create/edit form takes. The form is fed by the
+   * list endpoint everywhere else; the profile endpoint returns a superset, so
+   * this is a narrowing rather than a second fetch.
+   */
+  const formStudent: StudentRollRecord = {
+    id: student.id,
+    studentNo: student.studentNo,
+    admissionNo: student.admissionNo,
+    firstName: student.firstName,
+    lastName: student.lastName,
+    dateOfBirth: student.dateOfBirth,
+    gender: student.gender,
+    status: student.status,
+    isBoarding: student.isBoarding,
+    admissionDate: student.admissionDate,
+    userId: student.userId,
+    customFields: student.customFields,
+    currentClass: student.currentClass,
+    currentStream: student.currentStream
+      ? { ...student.currentStream, classId: student.currentClass?.id ?? "" }
+      : null,
+    guardianLinks: [],
+    _count: {
+      guardianLinks: student.guardianLinks?.length ?? 0,
+      enrollments: student.enrollments?.length ?? 0,
+      boardingAllocations: student.boardingAllocations?.length ?? 0,
+      resultLines: student.resultLines?.length ?? 0,
+    },
+  };
 
   const tabs: RecordTab[] = [
     {
@@ -311,6 +501,11 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
           })}
         />
       ),
+    },
+    {
+      value: "attendance",
+      label: "Attendance",
+      content: <StudentAttendanceTab studentId={student.id} />,
     },
     {
       value: "fees",
@@ -375,7 +570,13 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       label: "Files",
       count: files.data?.data?.length ?? 0,
       content: (
-        <SubjectFiles files={files.data?.data ?? []} isPending={files.isPending} />
+        <RecordFilesTab
+          subjectType="STUDENT"
+          subjectId={studentId}
+          resource="schools.students"
+          files={files.data?.data ?? []}
+          isPending={files.isPending}
+        />
       ),
     },
     ...(student.resultLines?.length
@@ -468,15 +669,89 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       activeTab={activeTab}
       onTabChange={setActiveTab}
       rail={
-        <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="Guardians" value={String(student.guardianLinks?.length ?? 0)} />
-            <Glance label="Enrolments" value={String(student.enrollments?.length ?? 0)} />
-            <Glance label="Invoices" value={String(student.feeInvoices?.length ?? 0)} />
-          </dl>
-        </RailSection>
+        <div className="space-y-6">
+          <RailSection title="At a glance">
+            <dl className="space-y-2 text-sm">
+              <Glance label="Guardians" value={String(student.guardianLinks?.length ?? 0)} />
+              <Glance label="Enrolments" value={String(student.enrollments?.length ?? 0)} />
+              <Glance label="Invoices" value={String(student.feeInvoices?.length ?? 0)} />
+            </dl>
+          </RailSection>
+
+          <RailSection title="The portal">
+            <StudentPortalPanel
+              studentId={studentId}
+              hasAccount={Boolean(student.userId)}
+              suggestedEmail={primaryGuardianEmail}
+            />
+          </RailSection>
+
+          {/* The office's own verbs. In the rail rather than the app bar
+              because the bar already carries the two documents a counter is
+              asked for, and a row of five controls is a row nobody reads. */}
+          <RailSection title="Office">
+            {actionError ? <SaveError what="That change" error={actionError} /> : null}
+            <RecordActions
+              resource="schools.students"
+              verbs={[
+                {
+                  label: "Edit details",
+                  action: "edit",
+                  onSelect: () => setFormOpen(true),
+                },
+                offRoll
+                  ? {
+                      label: "Put back on the roll",
+                      action: "edit",
+                      loading: statusMutation.isPending,
+                      onSelect: () => statusMutation.mutate("ACTIVE"),
+                    }
+                  : {
+                      label: "Take off the roll",
+                      action: "archive",
+                      tone: "danger" as const,
+                      loading: statusMutation.isPending,
+                      confirm: {
+                        title: `Take ${name} off the roll`,
+                        description:
+                          "The record stays and so does everything attached to it — marks, register, fees. They stop counting towards the school's numbers and drop out of the class lists.",
+                        confirmLabel: "Take off the roll",
+                      },
+                      onSelect: () => statusMutation.mutate("WITHDRAWN"),
+                    },
+                {
+                  label: "Delete for good",
+                  action: "archive",
+                  tone: "danger" as const,
+                  loading: deleteMutation.isPending,
+                  // The endpoint refuses while anything references the child.
+                  // Saying so here is kinder than a 409 after a confirmation.
+                  unavailable: hasHistory
+                    ? "There are marks, fees or registers against this child. Take them off the roll instead."
+                    : undefined,
+                  confirm: {
+                    title: `Delete ${name}`,
+                    description:
+                      "The record is removed and cannot be brought back. Only a record created by mistake should go this way.",
+                    confirmLabel: "Delete for good",
+                  },
+                  onSelect: () => deleteMutation.mutate(),
+                },
+              ]}
+            />
+          </RailSection>
+        </div>
       }
-    />
+    >
+      <StudentFormSheet
+        open={formOpen}
+        onOpenChange={setFormOpen}
+        student={formStudent}
+        isSubmitting={saveMutation.isPending}
+        error={saveMutation.isError ? getApiErrorMessage(saveMutation.error) : null}
+        onSubmit={(values) => saveMutation.mutate(values)}
+      />
+    </RecordPageShell>
   );
 }
 

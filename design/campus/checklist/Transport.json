@@ -1,0 +1,41 @@
+{
+ "screen": "Transport",
+ "header": "<!-- SCREEN: Transport | app-bar title: Transport | caption: Term 2 &middot; 6 routes -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "R2 · Chishawasha · Mr Katsande",
+  "R5 · Borrowdale · no driver named"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Routes",
+  "1. Mission Gate",
+  "2. Chishawasha Shops",
+  "3. Dandaro Turn",
+  "4. St Ignatius",
+  "No stops yet"
+ ],
+ "allCopy": [
+  "Routes",
+  "6",
+  "This morning",
+  "6 routes · 214 riders · USD 4,280.00 still to bill this term",
+  "R2 · Chishawasha · Mr Katsande",
+  "29 riding · USD 580.00 to bill",
+  "29 of 32 seats",
+  "1. Mission Gate",
+  "Pick up 06:40 · drop 16:20",
+  "2. Chishawasha Shops",
+  "Pick up 06:52 · drop 16:08",
+  "3. Dandaro Turn",
+  "Pick up 07:04 · drop 15:55",
+  "4. St Ignatius",
+  "No pick-up time set",
+  "R5 · Borrowdale · no driver named",
+  "0 riding",
+  "No stops yet",
+  "A route with no stops is a bus with nowhere to pull in."
+ ]
+}

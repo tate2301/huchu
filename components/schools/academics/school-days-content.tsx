@@ -2,12 +2,22 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import {
+  Alert,
+  Badge,
+  MobileList,
+  MobileListEmpty,
+  MobileListSectionHeader,
+} from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { CALENDAR_KIND_LABELS } from "@/lib/schools/calendar-kinds";
 import {
@@ -74,6 +84,7 @@ export function SchoolDaysContent() {
   const [actionError, setActionError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
+  const [openFilter, setOpenFilter] = useState("");
 
   const calendarQuery = useQuery({
     queryKey: ["schools", "calendar", "events"],
@@ -96,9 +107,11 @@ export function SchoolDaysContent() {
       events.filter((event) => {
         if (kindFilter && event.kind !== kindFilter) return false;
         if (yearFilter && !day(event.startDate).startsWith(yearFilter)) return false;
+        if (openFilter === "open" && !event.isTeachingDay) return false;
+        if (openFilter === "closed" && event.isTeachingDay) return false;
         return true;
       }),
-    [events, kindFilter, yearFilter],
+    [events, kindFilter, yearFilter, openFilter],
   );
 
   // Sorted by date rather than by name: a calendar read out of order is not a
@@ -146,19 +159,24 @@ export function SchoolDaysContent() {
   });
 
   const closedDays = visible.filter((event) => !event.isTeachingDay).length;
+  const narrowed = [
+    CALENDAR_KIND_OPTIONS.find((option) => option.value === kindFilter)?.label,
+    yearFilter,
+    openFilter === "open" ? "School open" : openFilter === "closed" ? "School closed" : "",
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <div className="space-y-4">
       {calendarQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the calendar</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(calendarQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="the school calendar"
+          error={calendarQuery.error}
+          onRetry={() => void calendarQuery.refetch()}
+        />
       ) : null}
       {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not save</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
+        <Alert tone="danger" title="That did not save" onDismiss={() => setActionError(null)}>
+          {actionError}
         </Alert>
       ) : null}
 
@@ -174,6 +192,16 @@ export function SchoolDaysContent() {
             }))}
             onChange={setKindFilter}
           />
+          <FilterSelect
+            label="School"
+            allLabel="Open or shut"
+            value={openFilter}
+            options={[
+              { value: "closed", label: "School closed" },
+              { value: "open", label: "School open" },
+            ]}
+            onChange={setOpenFilter}
+          />
           {years.length > 1 ? (
             <FilterSelect
               label="Year"
@@ -184,7 +212,11 @@ export function SchoolDaysContent() {
             />
           ) : null}
         </FilterBar>
-        <Button onClick={() => setSheetOpen(true)}>Add a day</Button>
+        <CreateButton
+          resource="schools.academics"
+          label="Add a day"
+          onSelect={() => setSheetOpen(true)}
+        />
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -192,15 +224,26 @@ export function SchoolDaysContent() {
         which close the school.
       </p>
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {calendarQuery.isLoading
-              ? "Loading the calendar…"
-              : "Nothing on the calendar yet. Add the public holidays first — they are the ones that make registers look missing."}
-          </MobileListEmpty>
-        ) : (
-          grouped.map(([key, monthEvents]) => (
+      {calendarQuery.isLoading ? (
+        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }, { width: 90 }]} />
+      ) : events.length === 0 ? (
+        <NothingYet
+          title="Nothing on the calendar yet"
+          body="Add the public holidays first — they are the ones that make registers look missing."
+        />
+      ) : grouped.length === 0 ? (
+        <NothingMatched
+          what="days"
+          filters={narrowed}
+          onClear={() => {
+            setKindFilter("");
+            setYearFilter("");
+            setOpenFilter("");
+          }}
+        />
+      ) : (
+        <MobileList>
+          {grouped.map(([key, monthEvents]) => (
             <div key={key}>
               <MobileListSectionHeader>{monthLabel(key)}</MobileListSectionHeader>
               {monthEvents.map((event) => (
@@ -215,26 +258,36 @@ export function SchoolDaysContent() {
                         {event.term ? ` · ${event.term.name}` : ""}
                       </span>
                       {event.isTeachingDay ? (
-                        <Badge variant="secondary">School open</Badge>
+                        <Badge tone="success">School open</Badge>
                       ) : (
-                        <Badge variant="outline">School closed</Badge>
+                        <Badge tone="neutral">School closed</Badge>
                       )}
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        disabled={deleteMutation.isPending}
-                        onClick={() => deleteMutation.mutate(event.id)}
-                      >
-                        Remove
-                      </Button>
+                      <RecordActions
+                        resource="schools.academics"
+                        verbs={[
+                          {
+                            label: "Remove",
+                            action: "archive",
+                            tone: "danger",
+                            loading: deleteMutation.isPending,
+                            confirm: {
+                              title: `Remove ${event.title}?`,
+                              description:
+                                "The register board goes back to treating these as ordinary school days, and missing registers on them start being chased again.",
+                              confirmLabel: "Remove the day",
+                            },
+                            onSelect: () => deleteMutation.mutate(event.id),
+                          },
+                        ]}
+                      />
                     </span>
                   }
                 />
               ))}
             </div>
-          ))
-        )}
-      </MobileList>
+          ))}
+        </MobileList>
+      )}
 
       <CalendarEventFormSheet
         open={sheetOpen}

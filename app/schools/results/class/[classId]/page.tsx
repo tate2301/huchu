@@ -1,6 +1,5 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
 import { ClassResultsContent } from "@/components/schools/results/class-results-content";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -26,10 +25,16 @@ export default async function ClassResultsPage({
   });
   if (!schoolClass) notFound();
 
+  // The heading lives inside the client component because its create button
+  // needs a click handler, which cannot cross the server boundary — so the
+  // year group's name is handed down rather than rendered here.
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title={`${schoolClass.name} marks`} />
-      <ClassResultsContent classId={schoolClass.id} initialStreamId={streamId} />
+      <ClassResultsContent
+        classId={schoolClass.id}
+        yearGroup={schoolClass.name}
+        initialStreamId={streamId}
+      />
     </div>
   );
 }

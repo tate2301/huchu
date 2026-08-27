@@ -10,8 +10,21 @@ const postSchema = z.object({
   body: z.string().trim().min(1).max(4000),
   audience: z.enum(["ALL", "PARENTS", "STUDENTS", "TEACHERS"]),
   classId: z.string().uuid().nullish(),
+  /**
+   * A shortlist of pupils to write to the families of, for the boards that
+   * have already named a set — the arrears reminder, a released meeting slot.
+   * Capped because it is sent in the body and a whole-school list is what
+   * `audience` is for.
+   */
+  studentIds: z.array(z.string().uuid()).max(1000).optional(),
   severity: z.enum(["INFO", "WARNING", "CRITICAL"]).optional(),
   expiresAt: z.string().datetime().nullish(),
+  /**
+   * The notice this one puts right. A notice cannot be recalled, so a follow-up
+   * addressed to the same people is the only correction there is; recording the
+   * pair is what stops the sent list reading as two unrelated letters.
+   */
+  correctsNoticeId: z.string().uuid().nullish(),
 });
 
 function parseAudience(type: string) {
@@ -119,6 +132,14 @@ export async function POST(request: NextRequest) {
       if (!schoolClass) return errorResponse("Class not found", 404);
     }
 
+    if (validated.correctsNoticeId) {
+      const original = await prisma.notification.findFirst({
+        where: { id: validated.correctsNoticeId, companyId },
+        select: { id: true },
+      });
+      if (!original) return errorResponse("The notice being corrected is not here", 404);
+    }
+
     const result = await sendSchoolNotice({
       companyId,
       senderUserId: session.user.id,
@@ -126,8 +147,10 @@ export async function POST(request: NextRequest) {
       body: validated.body,
       audience: validated.audience,
       classId: validated.classId ?? null,
+      studentIds: validated.studentIds ?? null,
       severity: validated.severity ?? "INFO",
       expiresAt: validated.expiresAt ? new Date(validated.expiresAt) : null,
+      correctsNoticeId: validated.correctsNoticeId ?? null,
     });
 
     return successResponse(result, 201);

@@ -1,0 +1,51 @@
+{
+ "screen": "Identity",
+ "header": "<!-- SCREEN: Identity | app-bar title: Identity and records | caption: Signed in as Registrar -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "Student numbers",
+  "Pupil ID card",
+  "Preview"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Dash"
+ ],
+ "allCopy": [
+  "How this school numbers its pupils, what its ID cards look like, and who may change a record’s picture.",
+  "Read-only for your role",
+  "Only a school administrator can change identity settings.",
+  "Student numbers",
+  "842 pupils on the books · current scheme CHS-####",
+  "Declare a format",
+  "Off, the register keeps its own scheme: new pupils continue the numbering the school arrived with. On, every new number follows the format below.",
+  "Prefix",
+  "CHS",
+  "Separator",
+  "None",
+  "Dash",
+  "Slash",
+  "Digits",
+  "4",
+  "Next pupil admitted gets",
+  "CHS-1345",
+  "Pupil ID card",
+  "What a child carries in their pocket.",
+  "Card colour",
+  "#1F4E79",
+  "Motto line",
+  "Doctrina lumen vitae",
+  "Show the pupil’s photograph",
+  "Show a guardian’s phone number",
+  "So a found card can be returned to the family, not just to the school.",
+  "Preview",
+  "STUDENT IDENTITY CARD",
+  "2026",
+  "PHOTO",
+  "Tendai Moyo",
+  "Form 2 Blue",
+  "Guardian: 0772 000 111"
+ ]
+}

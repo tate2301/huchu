@@ -1,7 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { allThreads, closeThread, MessageError, openThread } from "@/lib/schools/messages";
+import {
+  allThreads,
+  assignThread,
+  closeThread,
+  MessageError,
+  openThread,
+} from "@/lib/schools/messages";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
 /**
@@ -14,10 +20,22 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
  */
 
 const querySchema = z.object({ threadId: z.string().uuid().optional() });
-const postSchema = z.object({
-  action: z.literal("close"),
-  threadId: z.string().uuid(),
-});
+/**
+ * Two writes the office owns. Closing ends a conversation; assigning decides
+ * who answers it — and `teacherProfileId: null` hands it back to the office
+ * queue, which is why the field is nullable rather than absent.
+ */
+const postSchema = z.discriminatedUnion("action", [
+  z.object({
+    action: z.literal("close"),
+    threadId: z.string().uuid(),
+  }),
+  z.object({
+    action: z.literal("assign"),
+    threadId: z.string().uuid(),
+    teacherProfileId: z.string().uuid().nullable(),
+  }),
+]);
 
 export async function GET(request: NextRequest) {
   try {
@@ -66,7 +84,18 @@ export async function POST(request: NextRequest) {
     if (denied) return errorResponse(denied, 403);
 
     const validated = postSchema.parse(await request.json());
-    await closeThread({ companyId: session.user.companyId, threadId: validated.threadId });
+    const companyId = session.user.companyId;
+
+    if (validated.action === "assign") {
+      await assignThread({
+        companyId,
+        threadId: validated.threadId,
+        teacherProfileId: validated.teacherProfileId,
+      });
+      return successResponse({ assigned: true });
+    }
+
+    await closeThread({ companyId, threadId: validated.threadId });
     return successResponse({ closed: true });
   } catch (error) {
     if (error instanceof z.ZodError) {
@@ -74,6 +103,6 @@ export async function POST(request: NextRequest) {
     }
     if (error instanceof MessageError) return errorResponse(error.message, 404);
     console.error("[API] POST /api/v2/schools/messages error:", error);
-    return errorResponse("Failed to close the conversation");
+    return errorResponse("Failed to update the conversation");
   }
 }

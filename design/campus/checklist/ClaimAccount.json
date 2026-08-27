@@ -1,0 +1,37 @@
+{
+ "screen": "ClaimAccount",
+ "header": "<!-- SCREEN: ClaimAccount | app-bar title: ClaimAccount -->",
+ "filters": [],
+ "columns": [],
+ "cards": [],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Sign in",
+  "Ask the office for a new link"
+ ],
+ "allCopy": [
+  "*{box-sizing:border-box} body{margin:0;background:#F7F8FA;color:#262A33; font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif; font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased} a{color:#0944C2;text-decoration:none} a:hover{color:#08379C;text-decoration:underline} svg{display:block} .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace} .nav:hover{background:#F1F3F6} .row:hover{background:#F7F8FA} .btn:hover{background:#F1F3F6} .pri:hover{background:#0944C2} .scroll::-webkit-scrollbar{width:10px;height:10px} .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box} .scroll::-webkit-scrollbar-track{background:transparent}",
+  "The invite, unclaimed",
+  "Chishawasha High",
+  "Set up your portal account",
+  "Chishawasha High has invited you to follow",
+  "Tanaka Mutasa",
+  "in Form 2A. Choose a password and the portal is yours.",
+  "Your name",
+  "Grace Mutasa",
+  "Email",
+  "g.mutasa@example.co.zw",
+  "Choose a password",
+  "•••••••••",
+  "At least 10 characters. You will use this every time.",
+  "Open my portal",
+  "This link was sent to you by the school office and works once. If it has stopped working, ask the office to send another.",
+  "Already claimed, or expired",
+  "This invite has already been used",
+  "The link the school sent works once, and this one has been claimed. If it was you, sign in with the password you chose. If it was not, tell the school office.",
+  "Sign in",
+  "Ask the office for a new link",
+  "class Component extends DCLogic { renderVals() { const cozy = (this.props.density ?? 'Compact') === 'Cozy'; return { bandH: cozy ? '52px' : '44px', rowH: cozy ? '44px' : '36px', headH: cozy ? '38px' : '32px', }; } }"
+ ]
+}

@@ -94,6 +94,15 @@ export async function updateSchoolApplication(
     assessmentAt?: string | null;
     appliedForClassId?: string | null;
     notes?: string | null;
+    /**
+     * Who to ring about this child. The route has accepted these three since it
+     * was written and this signature did not offer them, so the office could
+     * move an application between stages but not correct a mistyped phone
+     * number — which is the commonest correction there is.
+     */
+    guardianName?: string | null;
+    guardianPhone?: string | null;
+    guardianEmail?: string | null;
   },
 ) {
   return fetchJson<{ id: string; applicationNo: string; stage: ApplicationStage }>(

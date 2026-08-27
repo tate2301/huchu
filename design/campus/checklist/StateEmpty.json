@@ -1,0 +1,43 @@
+{
+ "screen": "StateEmpty",
+ "header": "<!-- SCREEN: StateEmpty | app-bar title: Students | caption: Term 2 &middot; Chishawasha High -->",
+ "filters": [],
+ "columns": [],
+ "cards": [
+  "As built &mdash; an Alert",
+  "Proposed &mdash; an empty state",
+  "Nothing yet",
+  "Nothing matched",
+  "Nothing left to do"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Set up the class ladder",
+  "Send a notice",
+  "Clear filters",
+  "Show everything out"
+ ],
+ "allCopy": [
+  "As built &mdash; an Alert",
+  "No classes yet",
+  "Everything here is organised by year group. Set the class ladder up under Academics first.",
+  "Proposed &mdash; an empty state",
+  "Set up the class ladder",
+  "Nothing yet",
+  "The school has not sent a notice yet",
+  "Anything you send appears in parents’ and pupils’ portals straight away.",
+  "Send a notice",
+  "Nothing matched",
+  "No students found",
+  "No pupil in Form 2 matches",
+  "chikwanda",
+  "with status",
+  "Suspended",
+  "Clear filters",
+  "Nothing left to do",
+  "Nothing is late",
+  "Every book that is out is inside its return date.",
+  "Show everything out"
+ ]
+}

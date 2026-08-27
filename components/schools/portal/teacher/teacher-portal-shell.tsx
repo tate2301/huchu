@@ -41,6 +41,7 @@ const TITLES: Record<string, string> = {
   "/portal/teacher/messages": "Messages",
   "/portal/teacher/timetable": "Your week",
   "/portal/teacher/lessons": "Lesson plans",
+  "/portal/teacher/syllabus": "Scheme of work",
   "/portal/teacher/homework": "Homework and tasks",
   "/portal/teacher/files": "Shared files",
   "/portal/teacher/reports": "Reports",
@@ -58,6 +59,7 @@ const DAILY = [
   { href: "/portal/teacher/messages", label: "Messages", icon: ChatCircle },
   { href: "/portal/teacher/timetable", label: "Timetable", icon: Calendar },
   { href: "/portal/teacher/lessons", label: "Lesson plans", icon: Layers },
+  { href: "/portal/teacher/syllabus", label: "Scheme of work", icon: ListBullets },
 ];
 
 const MORE = [

@@ -379,6 +379,59 @@ export async function closeThread(input: {
   });
 }
 
+/**
+ * Give a conversation to a member of staff — or hand it back to the office.
+ *
+ * A thread with no `teacherProfileId` is a general enquiry addressed to the
+ * school rather than to a person. That is the case this model was built for and
+ * the one nobody could act on: the office could read such a thread and close
+ * it, but not put it in front of the person who can actually answer it.
+ *
+ * Assignment is deliberately one mutable field rather than a join table. A
+ * conversation has exactly one member of staff on it at a time — that is what
+ * lets a safeguarding officer answer "who could read this" a year later — so
+ * handing it over is a move, not an addition, and the family sees who holds it
+ * rather than having to write again.
+ *
+ * Passing `null` returns it to the office queue, which is what happens when a
+ * teacher is away and somebody else has to pick it up.
+ */
+export async function assignThread(input: {
+  companyId: string;
+  threadId: string;
+  teacherProfileId: string | null;
+}): Promise<void> {
+  const thread = await prisma.schoolMessageThread.findFirst({
+    where: { id: input.threadId, companyId: input.companyId },
+    select: { id: true, closedAt: true },
+  });
+  if (!thread) throw new MessageError("That conversation was not found");
+  if (thread.closedAt) {
+    throw new MessageError("That conversation is finished, so it cannot be passed on");
+  }
+
+  if (input.teacherProfileId) {
+    // Scoped to the company on purpose: an id from another tenant would
+    // otherwise attach a stranger to a family's conversation.
+    const staff = await prisma.schoolTeacherProfile.findFirst({
+      where: { id: input.teacherProfileId, companyId: input.companyId },
+      select: { id: true },
+    });
+    if (!staff) throw new MessageError("That member of staff was not found");
+  }
+
+  await prisma.schoolMessageThread.update({
+    where: { id: thread.id },
+    data: {
+      teacherProfileId: input.teacherProfileId,
+      // The new holder has not read it, whoever had it before. Clearing this is
+      // what puts the thread on their "your reply" list rather than leaving it
+      // looking answered because somebody else once opened it.
+      staffReadAt: null,
+    },
+  });
+}
+
 /** How many threads are waiting on this side. Drives the bell and the tab badge. */
 export function countUnread(threads: ThreadSummary[]): number {
   return threads.filter((thread) => thread.unread).length;

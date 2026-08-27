@@ -1,45 +1,73 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty } from "@corelithzw/react";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import Link from "next/link";
+
+import { PageHeading } from "@/components/layout/page-heading";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { EmployeeLinkCell } from "./employee-link-cell";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+  CreateButton,
+  RecordActions,
+} from "@/components/schools/common/record-actions";
 import {
-  BulkAllocationSheet,
-  type BulkAllocationResult,
-  type BulkAllocationValues,
-} from "./bulk-allocation-sheet";
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { DataTable } from "@/components/ui/data-table";
+import { NumericCell } from "@/components/ui/numeric-cell";
+import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
-  fetchTeacherProfileUsers,
+  fetchSchoolsClasses,
   fetchTeacherAssignments,
   fetchTeacherProfiles,
   fetchTeacherSubjects,
-  fetchSchoolsClasses,
   type TeacherAssignmentRecord,
   type TeacherProfileRecord,
-  type TeacherProfileUserRecord,
   type TeacherSubjectRecord,
 } from "@/lib/schools/admin-v2";
+import {
+  AssignmentFormDialog,
+  EMPTY_ASSIGNMENT,
+  type AssignmentFormValues,
+} from "./assignment-form-dialog";
+import { BulkAllocationSheet, type BulkAllocationResult, type BulkAllocationValues } from "./bulk-allocation-sheet";
+import { EmployeeLinkCell } from "./employee-link-cell";
+import {
+  EMPTY_SUBJECT,
+  SubjectFormDialog,
+  type SubjectFormValues,
+} from "./subject-form-dialog";
+import {
+  EMPTY_TEACHER,
+  TeacherFormDialog,
+  type TeacherFormValues,
+} from "./teacher-form-dialog";
+
+/**
+ * The staff list, and the two tables that hang off it.
+ *
+ * Three things this page could not do, all of them the same omission — the
+ * only verbs it carried were creates. A teacher typed in with the wrong staff
+ * number stayed wrong; a subject renamed by the ministry stayed under its old
+ * name; a lesson allocated to the wrong set could be added again but never
+ * moved. Every row now carries edit and archive, gated the way the endpoint
+ * behind it is gated.
+ *
+ * The subject verbs are gated differently from the subject *create*, and that
+ * is deliberate rather than an oversight: creating goes through
+ * `teachers/subjects` under `schools.teachers`, amending goes through
+ * `schools/subjects/[id]` under `schools.academics`. The buttons match the
+ * endpoints, because a screen that offers a verb the API will refuse teaches
+ * the permission model one red alert at a time.
+ */
 
 type TeachersView = "profiles" | "subjects" | "assignments";
 
@@ -49,148 +77,165 @@ type TeachersView = "profiles" | "subjects" | "assignments";
  * list neither alphabetical nor filterable. It is a filter now, and the order
  * is plain alphabetical.
  */
-type ActiveFilter = "all" | "active" | "inactive";
+type ActiveFilter = "" | "active" | "inactive";
 
 const ACTIVE_OPTIONS = [
   { value: "active", label: "Active" },
   { value: "inactive", label: "Inactive" },
 ];
 
+const TAUGHT_OPTIONS = [
+  { value: "active", label: "Still taught" },
+  { value: "inactive", label: "Retired" },
+];
+
 function activeParam(filter: ActiveFilter) {
-  return filter === "all" ? undefined : filter === "active";
+  return filter === "" ? undefined : filter === "active";
 }
 
-const initialSubjectForm = { code: "", name: "", isCore: false, passMark: "50" };
-const initialTeacherForm = {
-  userId: "",
-  employeeCode: "",
-  department: "",
-  isClassTeacher: false,
-  isHod: false,
-};
-
 export function SchoolsTeachersContent() {
-  const [activeView, setActiveView] = useState<TeachersView>("profiles");
   const queryClient = useQueryClient();
-  const [profileActiveFilter, setProfileActiveFilter] = useState<ActiveFilter>("all");
-  const [subjectActiveFilter, setSubjectActiveFilter] = useState<ActiveFilter>("all");
+  const [activeView, setActiveView] = useState<TeachersView>("profiles");
+
+  const [profileActive, setProfileActive] = useState<ActiveFilter>("");
+  const [department, setDepartment] = useState("");
+  const [subjectActive, setSubjectActive] = useState<ActiveFilter>("");
+  const [assignmentClassId, setAssignmentClassId] = useState("");
+  const [assignmentSubjectId, setAssignmentSubjectId] = useState("");
+  const [assignmentActive, setAssignmentActive] = useState<ActiveFilter>("");
+
+  const [teacherDialog, setTeacherDialog] = useState<TeacherFormValues | null>(null);
+  const [subjectDialog, setSubjectDialog] = useState<SubjectFormValues | null>(null);
+  const [assignmentDialog, setAssignmentDialog] = useState<AssignmentFormValues | null>(null);
+
   const [allocateOpen, setAllocateOpen] = useState(false);
   const [allocateError, setAllocateError] = useState<string | null>(null);
   const [allocateResult, setAllocateResult] = useState<BulkAllocationResult | null>(null);
 
-  const [subjectDialogOpen, setSubjectDialogOpen] = useState(false);
-  const [subjectForm, setSubjectForm] = useState(initialSubjectForm);
+  /* ── the data ──────────────────────────────────────────────────────── */
 
-  const [teacherDialogOpen, setTeacherDialogOpen] = useState(false);
-  const [teacherForm, setTeacherForm] = useState(initialTeacherForm);
-
-  const createSubjectMutation = useMutation({
-    mutationFn: async (payload: typeof subjectForm) =>
-      fetchJson("/api/v2/schools/teachers/subjects", {
-        method: "POST",
-        body: JSON.stringify({
-          code: payload.code,
-          name: payload.name,
-          isCore: payload.isCore,
-          passMark: parseFloat(payload.passMark) || 50,
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools", "teachers", "subjects"] });
-      setSubjectForm(initialSubjectForm);
-      setSubjectDialogOpen(false);
-    },
-  });
-
-  const createTeacherMutation = useMutation({
-    mutationFn: async (payload: typeof teacherForm) =>
-      fetchJson("/api/v2/schools/teachers/profiles", {
-        method: "POST",
-        body: JSON.stringify({
-          userId: payload.userId,
-          employeeCode: payload.employeeCode,
-          department: payload.department || undefined,
-          isClassTeacher: payload.isClassTeacher,
-          isHod: payload.isHod,
-        }),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["schools", "teachers", "profiles"] });
-      setTeacherForm(initialTeacherForm);
-      setTeacherDialogOpen(false);
-    },
-  });
-
-  const handleSubjectDialogOpenChange = (open: boolean) => {
-    setSubjectDialogOpen(open);
-    if (!open) {
-      setSubjectForm(initialSubjectForm);
-      createSubjectMutation.reset();
-    }
-  };
-
-  const handleTeacherDialogOpenChange = (open: boolean) => {
-    setTeacherDialogOpen(open);
-    if (!open) {
-      setTeacherForm(initialTeacherForm);
-      createTeacherMutation.reset();
-    }
-  };
-
-  const handleSubjectSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!subjectForm.code || !subjectForm.name) return;
-    createSubjectMutation.mutate(subjectForm);
-  };
-
-  const handleTeacherSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!teacherForm.userId || !teacherForm.employeeCode) return;
-    createTeacherMutation.mutate(teacherForm);
-  };
-
-  const teacherUsersQuery = useQuery({
-    queryKey: ["schools", "teachers", "profile-users"],
-    queryFn: () => fetchTeacherProfileUsers({ page: 1, limit: 500, active: true }),
-  });
   const profilesQuery = useQuery({
-    queryKey: ["schools", "teachers", "profiles", profileActiveFilter],
+    queryKey: ["schools", "teachers", "profiles", "list", profileActive],
     queryFn: () =>
-      fetchTeacherProfiles({
-        page: 1,
-        limit: 200,
-        isActive: activeParam(profileActiveFilter),
-      }),
+      fetchTeacherProfiles({ page: 1, limit: 200, isActive: activeParam(profileActive) }),
   });
+
+  /**
+   * Every profile, whatever the filter, for the band's two numbers and the
+   * department list. The filtered query cannot supply either: a page narrowed
+   * to "Inactive" would report seven staff and offer one department.
+   */
+  const staffTallyQuery = useQuery({
+    queryKey: ["schools", "teachers", "profiles", "tally"],
+    queryFn: () => fetchTeacherProfiles({ page: 1, limit: 200 }),
+  });
+
   const subjectsQuery = useQuery({
-    queryKey: ["schools", "teachers", "subjects", subjectActiveFilter],
+    queryKey: ["schools", "teachers", "subjects", "list", subjectActive],
     queryFn: () =>
-      fetchTeacherSubjects({
+      fetchTeacherSubjects({ page: 1, limit: 200, isActive: activeParam(subjectActive) }),
+  });
+
+  const assignmentsQuery = useQuery({
+    queryKey: [
+      "schools",
+      "teachers",
+      "assignments",
+      "list",
+      assignmentClassId,
+      assignmentSubjectId,
+      assignmentActive,
+    ],
+    queryFn: () =>
+      fetchTeacherAssignments({
         page: 1,
         limit: 200,
-        isActive: activeParam(subjectActiveFilter),
+        classId: assignmentClassId || undefined,
+        subjectId: assignmentSubjectId || undefined,
+        isActive: activeParam(assignmentActive),
       }),
   });
-  const assignmentsQuery = useQuery({
-    queryKey: ["schools", "teachers", "assignments"],
-    queryFn: () => fetchTeacherAssignments({ page: 1, limit: 200 }),
-  });
+
   const classesQuery = useQuery({
     queryKey: ["schools", "teachers", "classes"],
     queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
   });
 
-  const profiles = useMemo(() => profilesQuery.data?.data ?? [], [profilesQuery.data]);
+  const allSubjectsQuery = useQuery({
+    queryKey: ["schools", "teachers", "subjects", "all"],
+    queryFn: () => fetchTeacherSubjects({ page: 1, limit: 200 }),
+  });
+
+  const allProfiles = useMemo(
+    () => staffTallyQuery.data?.data ?? [],
+    [staffTallyQuery.data],
+  );
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
   const assignments = useMemo(
     () => assignmentsQuery.data?.data ?? [],
     [assignmentsQuery.data],
   );
-  const teacherUsers = useMemo<TeacherProfileUserRecord[]>(
-    () => teacherUsersQuery.data?.data ?? [],
-    [teacherUsersQuery.data],
-  );
   const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
+
+  /**
+   * Department is filtered here rather than in the query: the profiles route
+   * takes no `department` param, only a free-text `search` that also matches
+   * names and emails — so "Sciences" would have returned Mrs Sciencewala too.
+   */
+  const profiles = useMemo(() => {
+    const rows = profilesQuery.data?.data ?? [];
+    if (!department) return rows;
+    return rows.filter((profile) => (profile.department ?? "") === department);
+  }, [profilesQuery.data, department]);
+
+  const departmentOptions = useMemo(() => {
+    const seen = new Set<string>();
+    for (const profile of allProfiles) {
+      if (profile.department) seen.add(profile.department);
+    }
+    return [...seen]
+      .sort((a, b) => a.localeCompare(b))
+      .map((value) => ({ value, label: value }));
+  }, [allProfiles]);
+
+  const tally = useMemo(
+    () => ({
+      total: allProfiles.length,
+      active: allProfiles.filter((profile) => profile.isActive).length,
+      withoutHr: allProfiles.filter((profile) => !profile.employee).length,
+    }),
+    [allProfiles],
+  );
+
+  /* ── the verbs ─────────────────────────────────────────────────────── */
+
+  const deleteTeacher = useMutation({
+    mutationFn: (profile: TeacherProfileRecord) =>
+      fetchJson(`/api/v2/schools/teachers/profiles/${profile.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+    },
+  });
+
+  const deleteSubject = useMutation({
+    mutationFn: (subject: TeacherSubjectRecord) =>
+      fetchJson(`/api/v2/schools/subjects/${subject.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+      void queryClient.invalidateQueries({ queryKey: ["schools", "subjects"] });
+    },
+  });
+
+  const deleteAssignment = useMutation({
+    mutationFn: (assignment: TeacherAssignmentRecord) =>
+      fetchJson(`/api/v2/schools/teachers/assignments/${assignment.id}`, {
+        method: "DELETE",
+      }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+      void queryClient.invalidateQueries({ queryKey: ["schools", "timetable"] });
+    },
+  });
 
   const allocate = useMutation({
     mutationFn: async (values: BulkAllocationValues) =>
@@ -204,8 +249,8 @@ export function SchoolsTeachersContent() {
       }),
     onSuccess: (result) => {
       // Kept open: "3 lessons now clash" is the part that needs acting on.
-      queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
-      queryClient.invalidateQueries({ queryKey: ["schools", "timetable"] });
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+      void queryClient.invalidateQueries({ queryKey: ["schools", "timetable"] });
       setAllocateResult(result);
       setAllocateError(null);
     },
@@ -215,20 +260,43 @@ export function SchoolsTeachersContent() {
     },
   });
 
-  const profiledUserIds = useMemo(() => new Set(profiles.map((profile) => profile.user.id)), [profiles]);
-  const availableTeacherUsers = useMemo(
-    () => teacherUsers.filter((user) => !profiledUserIds.has(user.id)),
-    [teacherUsers, profiledUserIds],
-  );
-
-  const openTeacherDialog = () => {
-    createTeacherMutation.reset();
-    setTeacherForm({
-      ...initialTeacherForm,
-      userId: availableTeacherUsers[0]?.id ?? "",
+  const editTeacher = useCallback((profile: TeacherProfileRecord) => {
+    setTeacherDialog({
+      id: profile.id,
+      userId: profile.user.id,
+      employeeCode: profile.employeeCode,
+      department: profile.department ?? "",
+      isClassTeacher: profile.isClassTeacher,
+      isHod: profile.isHod,
+      isActive: profile.isActive,
+      userLabel: `${profile.user.name} · ${profile.user.email}`,
     });
-    setTeacherDialogOpen(true);
-  };
+  }, []);
+
+  const editSubject = useCallback((subject: TeacherSubjectRecord) => {
+    setSubjectDialog({
+      id: subject.id,
+      code: subject.code,
+      name: subject.name,
+      isCore: subject.isCore,
+      isActive: subject.isActive,
+      passMark: String(subject.passMark),
+    });
+  }, []);
+
+  const editAssignment = useCallback((assignment: TeacherAssignmentRecord) => {
+    setAssignmentDialog({
+      id: assignment.id,
+      termId: assignment.term.id,
+      classId: assignment.class.id,
+      streamId: assignment.stream?.id ?? "",
+      subjectId: assignment.subject.id,
+      teacherProfileId: assignment.teacherProfile.id,
+      isActive: assignment.isActive,
+    });
+  }, []);
+
+  /* ── the columns ───────────────────────────────────────────────────── */
 
   const profileColumns = useMemo<ColumnDef<TeacherProfileRecord>[]>(
     () => [
@@ -238,11 +306,16 @@ export function SchoolsTeachersContent() {
         // Staff get a face for the same reason pupils do: a directory is
         // scanned, not read.
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
+          <div className="flex min-w-0 items-center gap-2">
             <PersonAvatar name={row.original.user.name} />
             <div className="min-w-0">
-              <div className="font-medium">{row.original.user.name}</div>
-              <div className="text-xs text-muted-foreground">
+              <Link
+                href={`/schools/teachers/${row.original.id}`}
+                className="block truncate font-medium text-[var(--text-link)] hover:underline"
+              >
+                {row.original.user.name}
+              </Link>
+              <div className="truncate font-mono text-sm text-[var(--text-muted)]">
                 {row.original.employeeCode} / {row.original.user.email}
               </div>
             </div>
@@ -252,17 +325,17 @@ export function SchoolsTeachersContent() {
       {
         id: "department",
         header: "Department",
-        cell: ({ row }) => row.original.department || "-",
+        cell: ({ row }) => row.original.department || "—",
       },
       {
         id: "roles",
         header: "Profile Flags",
         cell: ({ row }) => (
-          <div className="flex gap-1">
-            {row.original.isClassTeacher ? <Badge variant="secondary">Class Teacher</Badge> : null}
-            {row.original.isHod ? <Badge variant="secondary">HOD</Badge> : null}
+          <div className="flex flex-wrap gap-1.5">
+            {row.original.isClassTeacher ? <Badge tone="brand">Class Teacher</Badge> : null}
+            {row.original.isHod ? <Badge tone="info">HOD</Badge> : null}
             {!row.original.isClassTeacher && !row.original.isHod ? (
-              <Badge variant="outline">General</Badge>
+              <Badge tone="neutral">General</Badge>
             ) : null}
           </div>
         ),
@@ -284,13 +357,43 @@ export function SchoolsTeachersContent() {
         id: "active",
         header: "Active",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+          <Badge tone={row.original.isActive ? "success" : "neutral"}>
             {row.original.isActive ? "Active" : "Inactive"}
           </Badge>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <RecordActions
+            resource="schools.teachers"
+            verbs={[
+              { label: "Edit", action: "edit", onSelect: () => editTeacher(row.original) },
+              {
+                label: "Delete",
+                action: "archive",
+                tone: "danger",
+                loading:
+                  deleteTeacher.isPending && deleteTeacher.variables?.id === row.original.id,
+                unavailable:
+                  row.original._count.assignments > 0
+                    ? "Remove their assignments first — a teacher with lessons against them cannot be deleted."
+                    : undefined,
+                confirm: {
+                  title: `Delete ${row.original.user.name}'s profile?`,
+                  description:
+                    "The school stops seeing them as a teacher. Their staff account and their HR record are untouched — turn the profile off instead if they have simply left.",
+                  confirmLabel: "Delete the profile",
+                },
+                onSelect: () => deleteTeacher.mutate(row.original),
+              },
+            ]}
+          />
+        ),
+      },
     ],
-    [],
+    [editTeacher, deleteTeacher],
   );
 
   const subjectColumns = useMemo<ColumnDef<TeacherSubjectRecord>[]>(
@@ -301,9 +404,11 @@ export function SchoolsTeachersContent() {
         // Name first: the list is sorted by name, and leading with the code
         // made an alphabetical list look arbitrary.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">{row.original.code}</div>
+          <div className="min-w-0">
+            <div className="truncate font-medium">{row.original.name}</div>
+            <div className="font-mono text-sm text-[var(--text-muted)]">
+              {row.original.code}
+            </div>
           </div>
         ),
       },
@@ -311,7 +416,7 @@ export function SchoolsTeachersContent() {
         id: "core",
         header: "Core",
         cell: ({ row }) => (
-          <Badge variant={row.original.isCore ? "secondary" : "outline"}>
+          <Badge tone={row.original.isCore ? "brand" : "neutral"}>
             {row.original.isCore ? "Core" : "Elective"}
           </Badge>
         ),
@@ -330,13 +435,46 @@ export function SchoolsTeachersContent() {
         id: "active",
         header: "Active",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
-            {row.original.isActive ? "Active" : "Inactive"}
+          <Badge tone={row.original.isActive ? "success" : "neutral"}>
+            {row.original.isActive ? "Active" : "Retired"}
           </Badge>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <RecordActions
+            // Amending a subject is `schools.academics`, which is what
+            // `/api/v2/schools/subjects/[id]` checks. Creating one is
+            // `schools.teachers`. See the note at the top of the file.
+            resource="schools.academics"
+            verbs={[
+              { label: "Edit", action: "edit", onSelect: () => editSubject(row.original) },
+              {
+                label: "Delete",
+                action: "archive",
+                tone: "danger",
+                loading:
+                  deleteSubject.isPending && deleteSubject.variables?.id === row.original.id,
+                unavailable:
+                  row.original._count.classSubjects > 0
+                    ? "It is on a timetable. Turn it off with Edit instead — the marks recorded in it stay readable."
+                    : undefined,
+                confirm: {
+                  title: `Delete ${row.original.name}?`,
+                  description:
+                    "The subject leaves the syllabus entirely. A subject the school has simply stopped offering should be turned off instead, so its results stay readable.",
+                  confirmLabel: "Delete the subject",
+                },
+                onSelect: () => deleteSubject.mutate(row.original),
+              },
+            ]}
+          />
+        ),
+      },
     ],
-    [],
+    [editSubject, deleteSubject],
   );
 
   const assignmentColumns = useMemo<ColumnDef<TeacherAssignmentRecord>[]>(
@@ -345,9 +483,14 @@ export function SchoolsTeachersContent() {
         id: "teacher",
         header: "Teacher",
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.teacherProfile.user.name}</div>
-            <div className="text-xs text-muted-foreground">
+          <div className="min-w-0">
+            <Link
+              href={`/schools/teachers/${row.original.teacherProfile.id}`}
+              className="block truncate font-medium text-[var(--text-link)] hover:underline"
+            >
+              {row.original.teacherProfile.user.name}
+            </Link>
+            <div className="font-mono text-sm text-[var(--text-muted)]">
               {row.original.teacherProfile.employeeCode}
             </div>
           </div>
@@ -357,13 +500,13 @@ export function SchoolsTeachersContent() {
         id: "classSubject",
         header: "Class / Subject",
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">
+          <div className="min-w-0">
+            <div className="truncate font-medium">
               {row.original.class.name}
               {row.original.stream ? ` / ${row.original.stream.name}` : ""}
             </div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.subject.code} - {row.original.subject.name}
+            <div className="truncate text-sm text-[var(--text-muted)]">
+              {row.original.subject.code} — {row.original.subject.name}
             </div>
           </div>
         ),
@@ -382,33 +525,143 @@ export function SchoolsTeachersContent() {
         id: "active",
         header: "Active",
         cell: ({ row }) => (
-          <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
-            {row.original.isActive ? "Active" : "Inactive"}
+          <Badge tone={row.original.isActive ? "success" : "neutral"}>
+            {row.original.isActive ? "Active" : "Retired"}
           </Badge>
         ),
       },
+      {
+        id: "actions",
+        header: "Actions",
+        cell: ({ row }) => (
+          <RecordActions
+            resource="schools.teachers"
+            verbs={[
+              {
+                label: "Edit",
+                action: "edit",
+                onSelect: () => editAssignment(row.original),
+              },
+              {
+                label: "Remove",
+                action: "archive",
+                tone: "danger",
+                loading:
+                  deleteAssignment.isPending &&
+                  deleteAssignment.variables?.id === row.original.id,
+                confirm: {
+                  title: "Remove this assignment?",
+                  description: `${row.original.teacherProfile.user.name} stops teaching ${row.original.subject.name} to ${row.original.class.name}. Marks recorded against the lesson go with it — turn it off instead if the term simply ended.`,
+                  confirmLabel: "Remove the assignment",
+                },
+                onSelect: () => deleteAssignment.mutate(row.original),
+              },
+            ]}
+          />
+        ),
+      },
     ],
-    [],
+    [editAssignment, deleteAssignment],
   );
 
-  const hasError = profilesQuery.error || subjectsQuery.error || assignmentsQuery.error;
+  /* ── the page ──────────────────────────────────────────────────────── */
+
+  const yearGroupOptions = classes.map((entry) => ({
+    value: entry.id,
+    label: entry.name,
+  }));
+  const subjectFilterOptions = (allSubjectsQuery.data?.data ?? []).map((subject) => ({
+    value: subject.id,
+    label: subject.name,
+  }));
+
+  const profileFilters = [
+    profileActive === "active" ? "Active" : profileActive === "inactive" ? "Inactive" : null,
+    department || null,
+  ].filter((value): value is string => Boolean(value));
+
+  const assignmentFilters = [
+    assignmentClassId
+      ? yearGroupOptions.find((option) => option.value === assignmentClassId)?.label
+      : null,
+    assignmentSubjectId
+      ? subjectFilterOptions.find((option) => option.value === assignmentSubjectId)?.label
+      : null,
+    assignmentActive === "active"
+      ? "Active"
+      : assignmentActive === "inactive"
+        ? "Retired"
+        : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const loadError =
+    profilesQuery.error ?? subjectsQuery.error ?? assignmentsQuery.error ?? null;
 
   return (
     <div className="space-y-4">
-      {hasError ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load teacher management</AlertTitle>
-          <AlertDescription>
-            {getApiErrorMessage(
-              profilesQuery.error || subjectsQuery.error || assignmentsQuery.error,
-            )}
-          </AlertDescription>
-        </Alert>
+      <PageHeading
+        title="Teachers"
+        description={
+          staffTallyQuery.isPending
+            ? undefined
+            : `${tally.total.toLocaleString()} on the staff list`
+        }
+        primaryAction={
+          <CreateButton
+            resource="schools.teachers"
+            label="Add a teacher"
+            onSelect={() => setTeacherDialog(EMPTY_TEACHER)}
+          />
+        }
+      />
+
+      <PageBand
+        chips={[
+          { label: "Active", value: tally.active.toLocaleString(), tone: "success" },
+          { label: "No HR record", value: tally.withoutHr.toLocaleString(), tone: "warn" },
+        ]}
+        actions={
+          <RecordActions
+            resource="schools.teachers"
+            verbs={[
+              {
+                label: "Add a subject",
+                action: "create",
+                onSelect: () => setSubjectDialog(EMPTY_SUBJECT),
+              },
+              {
+                label: "Allocate a teacher",
+                action: "create",
+                unavailable:
+                  subjects.length === 0 || allProfiles.length === 0
+                    ? "There has to be a subject and a teacher to put together."
+                    : undefined,
+                onSelect: () => {
+                  setAllocateError(null);
+                  setAllocateResult(null);
+                  setAllocateOpen(true);
+                },
+              },
+            ]}
+          />
+        }
+      />
+
+      {loadError ? (
+        <LoadError
+          what="teacher management"
+          error={loadError}
+          onRetry={() => {
+            void profilesQuery.refetch();
+            void subjectsQuery.refetch();
+            void assignmentsQuery.refetch();
+          }}
+        />
       ) : null}
 
       <VerticalDataViews
         items={[
-          { id: "profiles", label: "Teacher Profiles", count: profiles.length },
+          { id: "profiles", label: "Teacher Profiles", count: tally.total },
           { id: "subjects", label: "Subjects", count: subjects.length },
           { id: "assignments", label: "Assignments", count: assignments.length },
         ]}
@@ -416,20 +669,21 @@ export function SchoolsTeachersContent() {
         onValueChange={(value) => setActiveView(value as TeachersView)}
         railLabel="Teacher Views"
       >
-        <div className={activeView === "profiles" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Teacher Profiles</h2>
-            <Button size="sm" onClick={openTeacherDialog}>
-              Add Teacher
-            </Button>
-          </div>
+        <div className={activeView === "profiles" ? "space-y-3" : "hidden"}>
           <FilterBar>
             <FilterSelect
               label="Status"
               allLabel="Everyone"
-              value={profileActiveFilter === "all" ? "" : profileActiveFilter}
+              value={profileActive}
               options={ACTIVE_OPTIONS}
-              onChange={(value) => setProfileActiveFilter((value || "all") as ActiveFilter)}
+              onChange={(value) => setProfileActive(value as ActiveFilter)}
+            />
+            <FilterSelect
+              label="Department"
+              allLabel="Every department"
+              value={department}
+              options={departmentOptions}
+              onChange={setDepartment}
             />
           </FilterBar>
           <DataTable
@@ -442,7 +696,7 @@ export function SchoolsTeachersContent() {
               <MobileList>
                 {rows.length === 0 ? (
                   <MobileListEmpty>
-                    {profilesQuery.isLoading ? "Loading profiles…" : "No profiles found."}
+                    {profilesQuery.isPending ? "Loading profiles…" : "No profiles found."}
                   </MobileListEmpty>
                 ) : (
                   rows.map(({ row }) => (
@@ -467,24 +721,52 @@ export function SchoolsTeachersContent() {
                 )}
               </MobileList>
             )}
-            emptyState={profilesQuery.isLoading ? "Loading profiles..." : "No profiles found."}
+            emptyState={
+              profilesQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    { width: 140 },
+                    { width: 185 },
+                    { width: 95 },
+                    { width: 195 },
+                    { width: 85 },
+                  ]}
+                />
+              ) : profileFilters.length > 0 ? (
+                <NothingMatched
+                  what="teachers"
+                  filters={profileFilters}
+                  onClear={() => {
+                    setProfileActive("");
+                    setDepartment("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="No teacher profiles yet"
+                  body="A staff account becomes a teacher here. Until it does, nobody can be put in front of a class, mark a register or enter a result."
+                  action={
+                    <CreateButton
+                      resource="schools.teachers"
+                      label="Add a teacher"
+                      onSelect={() => setTeacherDialog(EMPTY_TEACHER)}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
 
-        <div className={activeView === "subjects" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Subjects</h2>
-            <Button size="sm" onClick={() => setSubjectDialogOpen(true)}>
-              Add Subject
-            </Button>
-          </div>
+        <div className={activeView === "subjects" ? "space-y-3" : "hidden"}>
           <FilterBar>
             <FilterSelect
               label="Status"
               allLabel="All subjects"
-              value={subjectActiveFilter === "all" ? "" : subjectActiveFilter}
-              options={ACTIVE_OPTIONS}
-              onChange={(value) => setSubjectActiveFilter((value || "all") as ActiveFilter)}
+              value={subjectActive}
+              options={TAUGHT_OPTIONS}
+              onChange={(value) => setSubjectActive(value as ActiveFilter)}
             />
           </FilterBar>
           <DataTable
@@ -497,7 +779,7 @@ export function SchoolsTeachersContent() {
               <MobileList>
                 {rows.length === 0 ? (
                   <MobileListEmpty>
-                    {subjectsQuery.isLoading ? "Loading subjects…" : "No subjects found."}
+                    {subjectsQuery.isPending ? "Loading subjects…" : "No subjects found."}
                   </MobileListEmpty>
                 ) : (
                   rows.map(({ row }) => (
@@ -509,7 +791,7 @@ export function SchoolsTeachersContent() {
                         row.code,
                         row.isCore ? "Core" : "Optional",
                         `Pass ${row.passMark}%`,
-                        row.isActive ? null : "Inactive",
+                        row.isActive ? null : "Retired",
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -518,25 +800,58 @@ export function SchoolsTeachersContent() {
                 )}
               </MobileList>
             )}
-            emptyState={subjectsQuery.isLoading ? "Loading subjects..." : "No subjects found."}
+            emptyState={
+              subjectsQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[{ twoLine: true }, { width: 90 }, { width: 110 }, { width: 110 }, { width: 90 }]}
+                />
+              ) : subjectActive !== "" ? (
+                <NothingMatched
+                  what="subjects"
+                  filters={[subjectActive === "active" ? "Still taught" : "Retired"]}
+                  onClear={() => setSubjectActive("")}
+                />
+              ) : (
+                <NothingYet
+                  title="No subjects yet"
+                  body="A subject is what a lesson, a mark sheet and a report card are all about. Nothing can be timetabled until one exists."
+                  action={
+                    <CreateButton
+                      resource="schools.teachers"
+                      label="Add a subject"
+                      onSelect={() => setSubjectDialog(EMPTY_SUBJECT)}
+                    />
+                  }
+                />
+              )
+            }
           />
         </div>
 
-        <div className={activeView === "assignments" ? "space-y-2" : "hidden"}>
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <h2 className="text-section-title">Class-Subject Assignments</h2>
-            <Button
-              size="sm"
-              disabled={subjects.length === 0 || profiles.length === 0}
-              onClick={() => {
-                setAllocateError(null);
-                setAllocateResult(null);
-                setAllocateOpen(true);
-              }}
-            >
-              Allocate a teacher
-            </Button>
-          </div>
+        <div className={activeView === "assignments" ? "space-y-3" : "hidden"}>
+          <FilterBar>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={assignmentClassId}
+              options={yearGroupOptions}
+              onChange={setAssignmentClassId}
+            />
+            <FilterSelect
+              label="Subject"
+              allLabel="Every subject"
+              value={assignmentSubjectId}
+              options={subjectFilterOptions}
+              onChange={setAssignmentSubjectId}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Everyone"
+              value={assignmentActive}
+              options={TAUGHT_OPTIONS}
+              onChange={(value) => setAssignmentActive(value as ActiveFilter)}
+            />
+          </FilterBar>
           <DataTable
             data={assignments}
             columns={assignmentColumns}
@@ -553,7 +868,7 @@ export function SchoolsTeachersContent() {
               <MobileList>
                 {rows.length === 0 ? (
                   <MobileListEmpty>
-                    {assignmentsQuery.isLoading
+                    {assignmentsQuery.isPending
                       ? "Loading assignments…"
                       : "No assignments found."}
                   </MobileListEmpty>
@@ -562,7 +877,7 @@ export function SchoolsTeachersContent() {
                     <MobileList.Row
                       key={row.id}
                       static
-                      title={`${row.subject.code} - ${row.subject.name}`}
+                      title={`${row.subject.code} — ${row.subject.name}`}
                       subtitle={[
                         row.class.name,
                         row.stream?.name,
@@ -577,197 +892,67 @@ export function SchoolsTeachersContent() {
               </MobileList>
             )}
             emptyState={
-              assignmentsQuery.isLoading ? "Loading assignments..." : "No assignments found."
+              assignmentsQuery.isPending ? (
+                <TableRowsSkeleton
+                  columns={[
+                    { twoLine: true },
+                    { twoLine: true },
+                    { width: 120 },
+                    { width: 110 },
+                    { width: 90 },
+                  ]}
+                />
+              ) : assignmentFilters.length > 0 ? (
+                <NothingMatched
+                  what="assignments"
+                  filters={assignmentFilters}
+                  onClear={() => {
+                    setAssignmentClassId("");
+                    setAssignmentSubjectId("");
+                    setAssignmentActive("");
+                  }}
+                />
+              ) : (
+                <NothingYet
+                  title="Nothing timetabled yet"
+                  body="An assignment is one line of the timetable: who teaches what, to which form, in which term."
+                  action={
+                    <CreateButton
+                      resource="schools.teachers"
+                      label="Add an assignment"
+                      onSelect={() => setAssignmentDialog(EMPTY_ASSIGNMENT)}
+                    />
+                  }
+                />
+              )
             }
           />
         </div>
       </VerticalDataViews>
 
-      {/* Add Subject Dialog */}
-      <Dialog open={subjectDialogOpen} onOpenChange={handleSubjectDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Subject</DialogTitle>
-            <DialogDescription>Enter the subject details below.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleSubjectSubmit} className="space-y-4">
-            {createSubjectMutation.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(createSubjectMutation.error)}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="subject-code" className="text-sm font-medium">
-                Code <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="subject-code"
-                value={subjectForm.code}
-                onChange={(e) => setSubjectForm((f) => ({ ...f, code: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="subject-name" className="text-sm font-medium">
-                Name <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="subject-name"
-                value={subjectForm.name}
-                onChange={(e) => setSubjectForm((f) => ({ ...f, name: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="subject-isCore"
-                type="checkbox"
-                checked={subjectForm.isCore}
-                onChange={(e) => setSubjectForm((f) => ({ ...f, isCore: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <label htmlFor="subject-isCore" className="text-sm font-medium">
-                Core Subject
-              </label>
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="subject-passMark" className="text-sm font-medium">
-                Pass Mark
-              </label>
-              <Input
-                id="subject-passMark"
-                type="number"
-                step="0.01"
-                value={subjectForm.passMark}
-                onChange={(e) => setSubjectForm((f) => ({ ...f, passMark: e.target.value }))}
-              />
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleSubjectDialogOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={createSubjectMutation.isPending}>
-                {createSubjectMutation.isPending ? "Saving…" : "Add Subject"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <TeacherFormDialog
+        open={teacherDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setTeacherDialog(null);
+        }}
+        initial={teacherDialog ?? EMPTY_TEACHER}
+      />
 
-      {/* Add Teacher Dialog */}
-      <Dialog open={teacherDialogOpen} onOpenChange={handleTeacherDialogOpenChange}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Add Teacher</DialogTitle>
-            <DialogDescription>Enter the teacher profile details below.</DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleTeacherSubmit} className="space-y-4">
-            {createTeacherMutation.error || teacherUsersQuery.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>Error</AlertTitle>
-                <AlertDescription>
-                  {getApiErrorMessage(createTeacherMutation.error || teacherUsersQuery.error)}
-                </AlertDescription>
-              </Alert>
-            ) : null}
-            <div className="space-y-2">
-              <label htmlFor="teacher-userId" className="text-sm font-medium">
-                User <span className="text-destructive">*</span>
-              </label>
-              <Select
-                value={teacherForm.userId || undefined}
-                onValueChange={(value) => setTeacherForm((f) => ({ ...f, userId: value }))}
-                disabled={teacherUsersQuery.isLoading || availableTeacherUsers.length === 0}
-              >
-                <SelectTrigger id="teacher-userId">
-                  <SelectValue
-                    placeholder={
-                      teacherUsersQuery.isLoading
-                        ? "Loading users..."
-                        : availableTeacherUsers.length === 0
-                          ? "No available users"
-                          : "Select user"
-                    }
-                  />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableTeacherUsers.map((user) => (
-                    <SelectItem key={user.id} value={user.id}>
-                      {user.name} ({user.email})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              {!teacherUsersQuery.isLoading && availableTeacherUsers.length === 0 ? (
-                <p className="text-xs text-muted-foreground">
-                  No available users without an existing teacher profile.
-                </p>
-              ) : null}
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="teacher-employeeCode" className="text-sm font-medium">
-                Employee Code <span className="text-destructive">*</span>
-              </label>
-              <Input
-                id="teacher-employeeCode"
-                value={teacherForm.employeeCode}
-                onChange={(e) => setTeacherForm((f) => ({ ...f, employeeCode: e.target.value }))}
-                required
-              />
-            </div>
-            <div className="space-y-2">
-              <label htmlFor="teacher-department" className="text-sm font-medium">
-                Department
-              </label>
-              <Input
-                id="teacher-department"
-                value={teacherForm.department}
-                onChange={(e) => setTeacherForm((f) => ({ ...f, department: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="teacher-isClassTeacher"
-                type="checkbox"
-                checked={teacherForm.isClassTeacher}
-                onChange={(e) => setTeacherForm((f) => ({ ...f, isClassTeacher: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <label htmlFor="teacher-isClassTeacher" className="text-sm font-medium">
-                Class Teacher
-              </label>
-            </div>
-            <div className="flex items-center gap-2">
-              <input
-                id="teacher-isHod"
-                type="checkbox"
-                checked={teacherForm.isHod}
-                onChange={(e) => setTeacherForm((f) => ({ ...f, isHod: e.target.checked }))}
-                className="h-4 w-4 rounded border-gray-300"
-              />
-              <label htmlFor="teacher-isHod" className="text-sm font-medium">
-                Head of Department
-              </label>
-            </div>
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => handleTeacherDialogOpenChange(false)}>
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                disabled={
-                  createTeacherMutation.isPending ||
-                  teacherUsersQuery.isLoading ||
-                  availableTeacherUsers.length === 0
-                }
-              >
-                {createTeacherMutation.isPending ? "Saving…" : "Add Teacher"}
-              </Button>
-            </DialogFooter>
-          </form>
-        </DialogContent>
-      </Dialog>
+      <SubjectFormDialog
+        open={subjectDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setSubjectDialog(null);
+        }}
+        initial={subjectDialog ?? EMPTY_SUBJECT}
+      />
+
+      <AssignmentFormDialog
+        open={assignmentDialog !== null}
+        onOpenChange={(open) => {
+          if (!open) setAssignmentDialog(null);
+        }}
+        initial={assignmentDialog ?? EMPTY_ASSIGNMENT}
+      />
 
       <BulkAllocationSheet
         open={allocateOpen}
@@ -779,7 +964,7 @@ export function SchoolsTeachersContent() {
           }
         }}
         subjects={subjects}
-        teachers={profiles}
+        teachers={allProfiles}
         classes={classes}
         isSubmitting={allocate.isPending}
         error={allocateError}

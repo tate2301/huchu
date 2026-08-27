@@ -1,7 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
-import { SchoolsResultsContent } from "@/components/schools/results/schools-results-content";
+import { PublishingContent } from "@/components/schools/results/publishing-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsResultsPublishPage() {
@@ -12,11 +11,7 @@ export default async function SchoolsResultsPublishPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
-        title="Results Publishing"
-      />
-      <SchoolsResultsContent initialView="windows" allowedViews={["windows", "published", "all"]} />
+      <PublishingContent />
     </div>
   );
 }
-

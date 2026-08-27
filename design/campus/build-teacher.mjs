@@ -1,0 +1,154 @@
+/**
+ * Builds the "Campus — Teacher Portal" canvas.
+ *
+ * Run:  node design/campus/build-teacher.mjs
+ */
+import fs from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import * as T from './screens/teacher.mjs'
+
+const HERE = path.dirname(fileURLToPath(import.meta.url))
+const OUT = path.join(HERE, 'teacher')
+
+const PAGES = [
+  { id: 'shell', name: 'The shell' },
+  { id: 'day', name: 'The lesson' },
+  { id: 'week', name: 'The week' },
+  { id: 'planning', name: 'Planning' },
+  { id: 'around', name: 'Around it' },
+]
+
+const LAYOUT = {
+  shell: [
+    ['Main.dc.html', 'The shell, corrected', T.TeacherShell, 1240, 880],
+    ['Login.dc.html', 'Teacher Portal — sign in', T.TeacherLogin, 900, 640],
+    ['HodAffordance.dc.html', 'The HOD gap', T.TeacherHodAffordance, 1240, 880],
+  ],
+  day: [
+    ['Today.dc.html', 'Your day', T.TeacherToday, 1240, 880],
+    ['Register.dc.html', 'Mark the register — mid-task', T.TeacherRegister, 1240, 880],
+    ['RegisterLocked.dc.html', 'Mark the register — locked', T.TeacherRegisterLocked, 1240, 880],
+    ['RegisterOffline.dc.html', 'Mark the register — offline', T.TeacherRegisterOffline, 1240, 880],
+    ['Marks.dc.html', 'Enter marks', T.TeacherMarks, 1240, 880],
+    ['MarksBook.dc.html', 'Marks book', T.TeacherMarksBook, 1240, 880],
+  ],
+  week: [
+    ['Timetable.dc.html', 'Your week', T.TeacherTimetable, 1240, 880],
+    ['Lessons.dc.html', 'Lesson plans', T.TeacherLessons, 1240, 880],
+    ['Homework.dc.html', 'Homework and tasks', T.TeacherHomework, 1240, 880],
+    ['Files.dc.html', 'Shared files', T.TeacherFiles, 1240, 880],
+  ],
+  planning: [
+    ['SchemeZimsec.dc.html', 'Scheme-cum-plan — ZIMSEC', T.TeacherSchemeZimsec, 1240, 880],
+    ['SchemeCambridge.dc.html', 'Scheme of work — Cambridge', T.TeacherSchemeCambridge, 1240, 880],
+    ['LessonPlan.dc.html', 'A lesson plan', T.TeacherLessonPlan, 1240, 880],
+    ['PlanningApproval.dc.html', 'HOD sign-off', T.TeacherPlanningApproval, 1240, 880],
+  ],
+  around: [
+    ['Messages.dc.html', 'Messages', T.TeacherMessages, 1240, 880],
+    ['Meetings.dc.html', 'Parent meetings', T.TeacherMeetings, 1240, 880],
+    ['Reports.dc.html', 'Reports', T.TeacherReports, 1240, 880],
+    ['Profile.dc.html', 'Your profile', T.TeacherProfile, 1240, 880],
+    ['Settings.dc.html', 'Settings', T.TeacherSettings, 1240, 880],
+    ['Help.dc.html', 'Help', T.TeacherHelp, 1240, 880],
+  ],
+}
+
+const ANNOTATIONS = {
+  shell: [
+    {
+      id: 'shell-correction',
+      x: 0,
+      y: -380,
+      w: 780,
+      text: 'THE CORRECTION\n\nThe Campus Module canvas described this portal as GREEN, on a 60px bar, with 44px touch targets throughout, and captions on all three portals.\n\nteacher-portal.css says: VIOLET #7B45D6 — and not as an accent. It re-points the whole brand channel (--brand, --action-primary-bg, --tone-info, --text-link, the focus ring). The bar is 56px. Rail rows are 34px. The caption sits ABOVE the title, which is the one thing the old canvas had right, and which the student and parent portals do NOT do at all.\n\nEvery artboard on this canvas is drawn from the CSS and the shell component, not from the previous drawing.',
+    },
+    {
+      id: 'shell-hod',
+      x: 2720,
+      y: -380,
+      w: 460,
+      text: 'THE ONE GAP IN THE SHELL\n\nportal-isolation.ts sends an HOD here, saying they "use teacher portal with additional permissions". The shell has nothing for them: no rail item, no queue, no banner.\n\nSo a head of department signs in, sees a plain teacher portal, and has to type /schools/results/moderation by hand to do the job they are granted. That artboard proposes the two smallest possible additions.',
+    },
+  ],
+  day: [
+    {
+      id: 'day-band',
+      x: 0,
+      y: -360,
+      w: 760,
+      text: 'THE LESSON — what happens between the bell and the bell\n\nToday, the register in three states, and the two mark screens. This is the portal\'s whole reason for existing, and the register is where its design thinking is best: a counter that moves as you mark, one quick action for "everybody is here" because that is the true answer most days, and Unmarked as its own state rather than being silently treated as present.\n\nThe register is drawn MID-TASK — 28 of 32, four blank — because that is the state a teacher actually sees, and the blanks are what the design has to make obvious.',
+    },
+    {
+      id: 'day-offline',
+      x: 4080,
+      y: 920,
+      w: 460,
+      text: 'OFFLINE IS THE REAL RISK\n\nThere is no queue: every save is a live POST. The portal knows this and says so honestly — but it says it on the HELP screen, nine rows down an accordion, to a teacher standing in a room with no signal holding a tablet.\n\nThe fix is not offline sync. It is telling them BEFORE the first tap rather than after the failed save.',
+    },
+  ],
+  week: [
+    {
+      id: 'week-band',
+      x: 0,
+      y: -340,
+      w: 720,
+      text: 'THE WEEK — planning, and the work that comes back\n\nThe timetable and the lesson planner share one grid on purpose: days across, periods down, free periods drawn rather than omitted, because "a list of lessons throws away the empty space, which is half the information".\n\nLesson plans draft from the scheme of work the admin app writes at /schools/academics/syllabus. That is the only place in campus where an admin screen and a portal screen are two ends of one feature — and neither of them links to the other.',
+    },
+  ],
+  planning: [
+    {
+      id: "planning-boards",
+      x: 0,
+      y: -460,
+      w: 820,
+      text: "PLANNING — what the two boards actually require\n\nThe shipped scheme-of-work screen carries four fields (Topic, Objectives, Activities, Resources) and the lesson-plan drawer carries four more (Topic, What pupils should learn, Materials, Homework). Neither board is satisfied by that set.\n\nZIMSEC / Ministry of Primary and Secondary Education: at secondary level the SCHEME-CUM-PLAN is the expected document — a scheme of work alone is optional, and a separate lesson plan is only drawn where a teacher schemed rather than scheme-cum-planned. It is written TWO WEEKS AHEAD of delivery and its columns are fixed: week ending, topic and content, objectives, source of matter, media, methodology and activities, and an EVALUATION written after the week is taught. It is checked and signed by the head of department.\n\nCambridge International: the scheme of work is a MEDIUM-TERM plan — syllabus units in a teaching order with an HOURS allocation against each, every objective carrying a SYLLABUS REFERENCE, and assessment points planned in rather than added afterwards. The lesson plan carries SUCCESS CRITERIA, a timed starter / main / plenary, resources, DIFFERENTIATION, assessment and homework.\n\nSo the fields the module is missing are: syllabus reference, source of matter, media, time allocation, success criteria, differentiation, assessment and evaluation — plus a board switch, because a Zimbabwean school running both streams needs both documents from the same teacher.",
+    },
+    {
+      id: "planning-signoff",
+      x: 4080,
+      y: -460,
+      w: 480,
+      text: "THE SIGN-OFF IS THE PART NOBODY BUILT\n\nA ZIMSEC scheme is checked and signed by the head of department before it is taught, and it is meant to be a fortnight ahead. Neither the fortnight nor the signature exists anywhere in the product.\n\nThis is the same HOD who has 14 mark sheets waiting and no screen to approve them on. One queue, two kinds of work.",
+    },
+  ],
+  around: [
+    {
+      id: 'around-band',
+      x: 0,
+      y: -340,
+      w: 740,
+      text: 'AROUND IT — the account, and the things the school owns\n\nProfile and Settings are the most quietly principled screens in the product. Profile refuses to draw an Edit button it cannot honour and names the owner of each field instead. Settings refuses to draw a switch with nothing behind it, and says why: "the teacher flips it, the school never behaves differently, and the portal has quietly lied."\n\nBoth are worth holding the admin app to. It does the opposite: a bursar sees a head\'s buttons and finds out by clicking.',
+    },
+  ],
+}
+
+const GAP = 120
+
+function main() {
+  fs.mkdirSync(OUT, { recursive: true })
+  for (const f of fs.readdirSync(OUT)) fs.rmSync(path.join(OUT, f))
+
+  const artboards = []
+  const annotations = []
+  for (const { id } of PAGES) {
+    let x = 0
+    for (const [file, title, render, w, h] of LAYOUT[id]) {
+      fs.writeFileSync(path.join(OUT, file), render(), 'utf8')
+      artboards.push({ file, title, page: id, x, y: 0, w, h, expand: 'fit' })
+      x += w + GAP
+    }
+    for (const a of ANNOTATIONS[id] ?? []) annotations.push({ ...a, page: id })
+  }
+
+  fs.writeFileSync(
+    path.join(OUT, 'canvas.json'),
+    JSON.stringify({ artboards, annotations, launch: { view: 'canvas', page: 'shell' }, pages: PAGES }, null, 2),
+    'utf8',
+  )
+  console.log(`${artboards.length} artboards across ${PAGES.length} pages, ${annotations.length} notes`)
+}
+
+main()

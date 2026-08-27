@@ -1,0 +1,54 @@
+{
+ "screen": "BoardingWelfare",
+ "header": "<!-- SCREEN: BoardingWelfare | app-bar title: Health and welfare | caption: Term 2 &middot; 842 children -->",
+ "filters": [
+  "Year group = The whole school"
+ ],
+ "columns": [],
+ "cards": [
+  "Form 2"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Boarders only",
+  "Chikwanda, Rutendo",
+  "Dube, Tapiwa",
+  "Update",
+  "Moyo, Farai",
+  "Mutasa, Tanaka",
+  "Zimuto, Nyasha"
+ ],
+ "allCopy": [
+  "Complete",
+  "689",
+  "Still to record",
+  "153",
+  "Allergy, no consent",
+  "6",
+  "6 children with an allergy and no consent to treat",
+  "This is the combination a school cannot be caught by. Ring home before anything else on this page.",
+  "Year group",
+  "The whole school",
+  "Boarders only",
+  "Search the welfare list",
+  "842 children, 153 with something still to record.",
+  "Form 2",
+  "118",
+  "Chikwanda, Rutendo",
+  "CHS-1180 · day · allergic to peanuts",
+  "Allergy on file, no consent to treat",
+  "Record",
+  "Dube, Tapiwa",
+  "CHS-1204 · boarder · allergic to penicillin",
+  "Update",
+  "Moyo, Farai",
+  "CHS-1211 · day",
+  "No doctor recorded",
+  "Mutasa, Tanaka",
+  "CHS-1219 · boarder",
+  "Zimuto, Nyasha",
+  "CHS-1240 · boarder",
+  "No consent recorded"
+ ]
+}

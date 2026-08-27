@@ -68,25 +68,49 @@ export type ReportExportFormat = "csv" | "pdf";
 // Collections Report
 // ============================================================================
 
+export type CollectionsReportOptions = {
+  startDate?: Date;
+  endDate?: Date;
+  termId?: string;
+  /** Every term in one academic year, when no single term is named. */
+  academicYearId?: string;
+  /** Only the bills of pupils currently in this year group. */
+  classId?: string;
+  /** Only the bills raised off one fee structure. */
+  feeStructureId?: string;
+};
+
+/**
+ * The narrowing the filter row asks for, as one invoice predicate.
+ *
+ * It is built once and used twice — against the invoices, and again inside the
+ * receipts query's `allocations.some.invoice` — because a receipt is "in scope"
+ * exactly when it settles an invoice that is. Building it in two places is how
+ * the term filter used to count receipts the invoice filter had excluded.
+ */
+function collectionsScope(options: CollectionsReportOptions) {
+  const scope: Prisma.SchoolFeeInvoiceWhereInput = {};
+  if (options.termId) scope.termId = options.termId;
+  if (options.academicYearId) scope.term = { academicYearId: options.academicYearId };
+  if (options.classId) scope.student = { currentClassId: options.classId };
+  if (options.feeStructureId) scope.feeStructureId = options.feeStructureId;
+  return Object.keys(scope).length > 0 ? scope : null;
+}
+
 export async function generateCollectionsReport(
   companyId: string,
-  options: {
-    startDate?: Date;
-    endDate?: Date;
-    termId?: string;
-  } = {},
+  options: CollectionsReportOptions = {},
 ): Promise<CollectionsReportRow[]> {
-  const { startDate, endDate, termId } = options;
+  const { startDate, endDate } = options;
+  const scope = collectionsScope(options);
 
   // Build where clause
   const where: Prisma.SchoolFeeInvoiceWhereInput = {
     companyId,
     status: { in: ["ISSUED", "PART_PAID", "PAID"] },
+    ...(scope ?? {}),
   };
 
-  if (termId) {
-    where.termId = termId;
-  }
   if (startDate && endDate) {
     where.issueDate = { gte: startDate, lte: endDate };
   } else if (startDate) {
@@ -121,8 +145,8 @@ export async function generateCollectionsReport(
     companyId,
     status: { in: ["POSTED"] },
   };
-  if (termId) {
-    receiptWhere.allocations = { some: { invoice: { termId } } };
+  if (scope) {
+    receiptWhere.allocations = { some: { invoice: scope } };
   }
   if (startDate && endDate) {
     receiptWhere.receiptDate = { gte: startDate, lte: endDate };
@@ -189,18 +213,119 @@ export async function generateCollectionsReport(
   return rows;
 }
 
+export type CollectionsByYearGroupRow = {
+  classId: string;
+  className: string;
+  invoiced: number;
+  collected: number;
+  collectionRate: number;
+};
+
+/**
+ * The same collections, cut by year group instead of by term.
+ *
+ * A separate call rather than a second shape on `generateCollectionsReport`,
+ * whose rows the CSV and PDF export renders column by column — widening its
+ * return would put a nested breakdown through a table renderer. The office
+ * reads the two together: the term row says the school is 27 points down, and
+ * this says which four year groups are carrying it.
+ */
+export async function collectionsByYearGroup(
+  companyId: string,
+  options: CollectionsReportOptions = {},
+): Promise<CollectionsByYearGroupRow[]> {
+  const scope = collectionsScope(options);
+
+  const where: Prisma.SchoolFeeInvoiceWhereInput = {
+    companyId,
+    status: { in: ["ISSUED", "PART_PAID", "PAID"] },
+    ...(scope ?? {}),
+  };
+  if (options.startDate && options.endDate) {
+    where.issueDate = { gte: options.startDate, lte: options.endDate };
+  } else if (options.startDate) {
+    where.issueDate = { gte: options.startDate };
+  } else if (options.endDate) {
+    where.issueDate = { lte: options.endDate };
+  }
+
+  const invoices = await prisma.schoolFeeInvoice.findMany({
+    where,
+    select: {
+      totalAmount: true,
+      paidAmount: true,
+      student: {
+        select: { currentClass: { select: { id: true, name: true, level: true } } },
+      },
+    },
+  });
+
+  const byClass = new Map<
+    string,
+    CollectionsByYearGroupRow & { level: number | null }
+  >();
+  for (const invoice of invoices) {
+    const schoolClass = invoice.student.currentClass;
+    // A bill against a pupil who has left and lost their class placement still
+    // has to be somewhere, or the year-group column stops adding up to the term.
+    const key = schoolClass?.id ?? "";
+    const row =
+      byClass.get(key) ??
+      ({
+        classId: key,
+        className: schoolClass?.name ?? "No year group",
+        level: schoolClass?.level ?? null,
+        invoiced: 0,
+        collected: 0,
+        collectionRate: 0,
+      } satisfies CollectionsByYearGroupRow & { level: number | null });
+    row.invoiced += Number(invoice.totalAmount);
+    row.collected += Number(invoice.paidAmount);
+    byClass.set(key, row);
+  }
+
+  // Form 1 before Upper 6, so the panel reads down the school the way the
+  // school talks about itself rather than alphabetically.
+  const ordered = [...byClass.values()].sort(
+    (a, b) =>
+      (a.level ?? 99) - (b.level ?? 99) || a.className.localeCompare(b.className),
+  );
+
+  return ordered.map((row) => ({
+    classId: row.classId,
+    className: row.className,
+    invoiced: row.invoiced,
+    collected: row.collected,
+    collectionRate: row.invoiced > 0 ? (row.collected / row.invoiced) * 100 : 0,
+  }));
+}
+
 // ============================================================================
 // Arrears Aging Report
 // ============================================================================
 
+/** The oldest bucket a family's debt has reached — the arrears board's age filter. */
+export type ArrearsAgeBucket = "days30" | "days60" | "days90" | "days120Plus";
+
+const AGE_ORDER: ArrearsAgeBucket[] = ["days30", "days60", "days90", "days120Plus"];
+
+export type ArrearsAgingOptions = {
+  termId?: string;
+  classId?: string;
+  streamId?: string;
+  /** True for boarders only, false for day pupils only, absent for both. */
+  isBoarding?: boolean;
+  /** Hide the small change: only families owing at least this much. */
+  minOutstanding?: number;
+  /** "Anything that has reached 60 days or worse" — not "exactly 60". */
+  oldestAtLeast?: ArrearsAgeBucket;
+};
+
 export async function generateArrearsAgingReport(
   companyId: string,
-  options: {
-    termId?: string;
-    classId?: string;
-  } = {},
+  options: ArrearsAgingOptions = {},
 ): Promise<ArrearsAgingRow[]> {
-  const { termId, classId } = options;
+  const { termId, classId, streamId, isBoarding } = options;
   const today = new Date();
 
   // Build where clause
@@ -212,6 +337,15 @@ export async function generateArrearsAgingReport(
 
   if (termId) {
     where.termId = termId;
+  }
+  // Stream and boarding are facts about the pupil rather than the bill, so they
+  // narrow the query; the age and the amount are computed from the buckets
+  // below and can only be applied once every invoice has been folded in.
+  if (streamId || isBoarding !== undefined) {
+    where.student = {
+      ...(streamId ? { currentStreamId: streamId } : {}),
+      ...(isBoarding !== undefined ? { isBoarding } : {}),
+    };
   }
 
   // Fetch outstanding invoices
@@ -305,7 +439,25 @@ export async function generateArrearsAgingReport(
     }
   }
 
-  return Array.from(studentMap.values());
+  let rows = Array.from(studentMap.values());
+
+  if (options.minOutstanding !== undefined && options.minOutstanding > 0) {
+    const floor = options.minOutstanding;
+    rows = rows.filter((row) => row.totalOutstanding >= floor);
+  }
+
+  if (options.oldestAtLeast) {
+    // "60 days or worse", not "exactly the 60 bucket": a family whose oldest
+    // debt has run to 90 is not less overdue than one sitting at 60, and
+    // dropping them off the list is how a chase list loses its worst cases.
+    const from = AGE_ORDER.indexOf(options.oldestAtLeast);
+    const buckets = AGE_ORDER.slice(from);
+    rows = rows.filter((row) => buckets.some((bucket) => row[bucket] > 0));
+  }
+
+  // Biggest debt first. The bursar works down this list and stops when the
+  // afternoon runs out, so the order decides who actually gets rung.
+  return rows.sort((a, b) => b.totalOutstanding - a.totalOutstanding);
 }
 
 // ============================================================================

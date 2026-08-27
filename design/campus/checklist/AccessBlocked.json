@@ -1,0 +1,26 @@
+{
+ "screen": "AccessBlocked",
+ "header": "<!-- SCREEN: AccessBlocked | app-bar title: AccessBlocked -->",
+ "filters": [],
+ "columns": [],
+ "cards": [],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [],
+ "allCopy": [
+  "*{box-sizing:border-box} body{margin:0;background:#F7F8FA;color:#262A33; font-family:'Atkinson Hyperlegible Next',system-ui,-apple-system,'Segoe UI',sans-serif; font-size:13px;line-height:1.45;-webkit-font-smoothing:antialiased} a{color:#0944C2;text-decoration:none} a:hover{color:#08379C;text-decoration:underline} svg{display:block} .mono{font-family:'Atkinson Hyperlegible Mono','SF Mono',ui-monospace,monospace} .nav:hover{background:#F1F3F6} .row:hover{background:#F7F8FA} .btn:hover{background:#F1F3F6} .pri:hover{background:#0944C2} .scroll::-webkit-scrollbar{width:10px;height:10px} .scroll::-webkit-scrollbar-thumb{background:#D2D7E0;border-radius:5px;border:3px solid transparent;background-clip:padding-box} .scroll::-webkit-scrollbar-track{background:transparent}",
+  "Access Restricted",
+  "Access blocked for this organization",
+  "Your signed-in account does not currently have permission to use this tenant host.",
+  "Why this happens",
+  "This usually means tenant access is temporarily restricted or your account belongs to a different organization.",
+  "What to do next",
+  "Confirm you are signed in with the correct organization account.",
+  "Ask your platform administrator to verify tenant and subscription status.",
+  "Retry after access is restored.",
+  "Retry Access",
+  "Switch Account",
+  "If access still fails, contact your platform administrator with your company name and expected tenant.",
+  "class Component extends DCLogic { renderVals() { const cozy = (this.props.density ?? 'Compact') === 'Cozy'; return { bandH: cozy ? '52px' : '44px', rowH: cozy ? '44px' : '36px', headH: cozy ? '38px' : '32px', }; } }"
+ ]
+}

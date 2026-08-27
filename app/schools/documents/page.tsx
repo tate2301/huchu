@@ -1,9 +1,15 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
 import { SchoolDocumentsContent } from "@/components/schools/documents/school-documents-content";
 import { authOptions } from "@/lib/auth";
 
+/**
+ * The paperwork a school office prints.
+ *
+ * The heading lives in the client component: the state band under it reports
+ * the year group and the size of the roll in view, and both change with the
+ * filters this file cannot see.
+ */
 export default async function SchoolDocumentsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -12,9 +18,6 @@ export default async function SchoolDocumentsPage() {
 
   return (
     <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
-        title="School Documents"
-      />
       <SchoolDocumentsContent />
     </div>
   );

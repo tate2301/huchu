@@ -1,0 +1,59 @@
+{
+ "screen": "StateOffline",
+ "header": "<!-- SCREEN: StateOffline | app-bar title: Attendance | caption: Term 2 &middot; Tue 24 Aug -->",
+ "filters": [],
+ "columns": [
+  "Class",
+  "Teacher",
+  "Marked",
+  "State"
+ ],
+ "cards": [
+  "Registers",
+  "Proposed &mdash; app/offline"
+ ],
+ "stats": [],
+ "bandChips": [],
+ "buttons": [
+  "Retry now",
+  "Try again"
+ ],
+ "allCopy": [
+  "Offline",
+  "Queued",
+  "3",
+  "Retry now",
+  "You are working offline",
+  "Three registers are marked but not sent. They are safe on this device and will go up on their own when the school’s connection is back — you do not need to stay on this page.",
+  "Registers",
+  "60 today",
+  "Class",
+  "Teacher",
+  "Marked",
+  "State",
+  "Form 2A",
+  "Mrs Nyathi",
+  "32 of 32",
+  "Waiting to send",
+  "Form 2B",
+  "Mr Chirwa",
+  "31 of 31",
+  "Form 3A",
+  "Mr Sibanda",
+  "28 of 30",
+  "Form 3B",
+  "Mrs Moyo",
+  "29 of 29",
+  "Sent",
+  "Form 4A",
+  "Mr Dube",
+  "&mdash;",
+  "Not marked",
+  "Proposed &mdash; app/offline",
+  "No connection",
+  "This page needs the school’s network and cannot be opened from what is stored on this device.",
+  "Anything you have already marked is saved here and will go up on its own.",
+  "Try again",
+  "Last connected 09:12"
+ ]
+}
