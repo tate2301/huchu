@@ -18,6 +18,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -595,7 +596,14 @@ export function SchoolsTeachersContent() {
   ].filter((value): value is string => Boolean(value));
 
   const loadError =
-    profilesQuery.error ?? subjectsQuery.error ?? assignmentsQuery.error ?? null;
+    profilesQuery.error ??
+    subjectsQuery.error ??
+    assignmentsQuery.error ??
+    // The tally is not a table, but it is the band's two numbers and the whole
+    // department dropdown. A page that silently reports "0 on the staff list"
+    // because a count failed is worse than one that says the count failed.
+    staffTallyQuery.error ??
+    null;
 
   return (
     <div className="space-y-4">
@@ -655,8 +663,27 @@ export function SchoolsTeachersContent() {
             void profilesQuery.refetch();
             void subjectsQuery.refetch();
             void assignmentsQuery.refetch();
+            void staffTallyQuery.refetch();
           }}
         />
+      ) : null}
+
+      {/*
+        The three deletes each disable themselves when the endpoint would
+        refuse — a teacher with lessons, a subject on a timetable. What is left
+        is the refusal nobody could predict from the row: a dependency created
+        in another tab, a permission changed under the reader. Named separately
+        rather than as one "that did not save", because a page with three
+        tables needs to say which one.
+      */}
+      {deleteTeacher.error ? (
+        <SaveError what="That teacher's profile" error={deleteTeacher.error} />
+      ) : null}
+      {deleteSubject.error ? (
+        <SaveError what="That subject" error={deleteSubject.error} />
+      ) : null}
+      {deleteAssignment.error ? (
+        <SaveError what="That assignment" error={deleteAssignment.error} />
       ) : null}
 
       <VerticalDataViews

@@ -10,8 +10,10 @@ import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
+  NothingMatched,
   NothingYet,
   SaveError,
+  SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -211,6 +213,13 @@ export function BoardingHostelsContent({
           onRetry={() => void occupancyQuery.refetch()}
         />
       ) : null}
+      {roomsQuery.error ? (
+        <LoadError
+          what="the rooms"
+          error={roomsQuery.error}
+          onRetry={() => void roomsQuery.refetch()}
+        />
+      ) : null}
       {hostelAction.error ? <SaveError what="That hostel" error={hostelAction.error} /> : null}
 
       {hostelsQuery.isLoading ? (
@@ -221,145 +230,178 @@ export function BoardingHostelsContent({
           body="A hostel holds the rooms, the rooms hold the beds, and the beds are what a child is allocated to."
         />
       ) : (
-        <>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <StatCard label="Boarders" value={boarders} />
-            <StatCard
-              label="Beds free"
-              value={bedsFree}
-              tone={bedsFree > 0 ? "success" : "warn"}
+        // Closing or deleting a house rewrites every room and bed under it, so
+        // the whole house stops taking input while that lands. A second Delete
+        // pressed against a house that is already going is a 404 the warden
+        // reads as a failure.
+        <SavingOverlay
+          saving={hostelAction.isPending}
+          label={hostelAction.variables?.remove ? "Deleting the house…" : "Saving the house…"}
+        >
+          {/* The overlay is one box around what used to be a fragment of
+              siblings, so the page's own vertical rhythm has to be restated
+              inside it or the cards close up against each other. */}
+          <div className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <StatCard label="Boarders" value={boarders} />
+              <StatCard
+                label="Beds free"
+                value={bedsFree}
+                tone={bedsFree > 0 ? "success" : "warn"}
+              />
+              <StatCard label="Rooms" value={rooms.length} />
+            </div>
+
+            {unbedded.length > 0 ? (
+              <Alert
+                tone="warn"
+                title={`${unbedded.length} boarder${unbedded.length === 1 ? " has" : "s have"} no bed`}
+              >
+                {unbedded.map((row) => `${row.lastName}, ${row.firstName}`).join(" · ")} —
+                allocated to the house but not to a bed.
+              </Alert>
+            ) : null}
+
+            <TableControls
+              tabs={
+                <div className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[color:var(--surface-muted)] p-1">
+                  {(
+                    [
+                      { id: "rooms" as const, label: "Rooms", count: rooms.length },
+                      { id: "beds" as const, label: "Beds", count: beds.length },
+                    ]
+                  ).map((entry) => (
+                    <button
+                      key={entry.id}
+                      type="button"
+                      onClick={() => setView(entry.id)}
+                      className={
+                        entry.id === view
+                          ? "rounded-[var(--radius-sm)] bg-[color:var(--surface)] px-3 py-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
+                          : "rounded-[var(--radius-sm)] px-3 py-1 text-sm text-muted-foreground"
+                      }
+                    >
+                      {entry.label} {entry.count}
+                    </button>
+                  ))}
+                </div>
+              }
+              search={
+                <TableSearch
+                  value={search}
+                  onChange={setSearch}
+                  placeholder="Search rooms"
+                />
+              }
+              filters={
+                <FilterSelect
+                  label="Hostel"
+                  allLabel={hostel?.name ?? "Choose a house"}
+                  value={chosen}
+                  options={hostels.map((row) => ({
+                    value: row.id,
+                    label: row.isActive ? row.name : `${row.name} · closed`,
+                  }))}
+                  onChange={setChosen}
+                />
+              }
+              actions={<RecordActions resource="schools.boarding" verbs={hostelVerbs} />}
             />
-            <StatCard label="Rooms" value={rooms.length} />
-          </div>
 
-          {unbedded.length > 0 ? (
-            <Alert
-              tone="warn"
-              title={`${unbedded.length} boarder${unbedded.length === 1 ? " has" : "s have"} no bed`}
-            >
-              {unbedded.map((row) => `${row.lastName}, ${row.firstName}`).join(" · ")} —
-              allocated to the house but not to a bed.
-            </Alert>
-          ) : null}
+            <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="space-y-3">
+                <Card
+                  flush
+                  title="Rooms"
+                  subtitle={`${rooms.length} room${rooms.length === 1 ? "" : "s"} · ${beds.length} bed${beds.length === 1 ? "" : "s"}`}
+                  className={view === "rooms" ? undefined : "hidden"}
+                >
+                  {roomsQuery.isLoading ? (
+                    <TableRowsSkeleton
+                      rows={5}
+                      headers={["Room", "Floor", "Beds", "In"]}
+                      columns={[
+                        { twoLine: true },
+                        { width: 90 },
+                        { width: 80, align: "right" },
+                        { width: 80, align: "right" },
+                      ]}
+                    />
+                  ) : (
+                    <div className="px-3 py-3">
+                      {/* The strip of room chips is this card's own cut of the
+                          rooms, narrowed by the search box above. When the search
+                          empties it the chips used to just vanish, which reads as
+                          a house with no rooms — so it says which word did it.
+                          The panel underneath keeps its own list and its own Add
+                          a room button either way; hiding those would take the
+                          verb away at exactly the moment somebody wants it. */}
+                      {rooms.length > 0 && visibleRooms.length === 0 ? (
+                        <NothingMatched
+                          what="rooms"
+                          filters={[search.trim()]}
+                          onClear={() => setSearch("")}
+                        />
+                      ) : (
+                        <RoomSummary rooms={visibleRooms} />
+                      )}
+                      <HostelRoomsPanel hostelId={hostelId} />
+                    </div>
+                  )}
+                </Card>
 
-          <TableControls
-            tabs={
-              <div className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[color:var(--surface-muted)] p-1">
-                {(
-                  [
-                    { id: "rooms" as const, label: "Rooms", count: rooms.length },
-                    { id: "beds" as const, label: "Beds", count: beds.length },
-                  ]
-                ).map((entry) => (
-                  <button
-                    key={entry.id}
-                    type="button"
-                    onClick={() => setView(entry.id)}
-                    className={
-                      entry.id === view
-                        ? "rounded-[var(--radius-sm)] bg-[color:var(--surface)] px-3 py-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
-                        : "rounded-[var(--radius-sm)] px-3 py-1 text-sm text-muted-foreground"
-                    }
-                  >
-                    {entry.label} {entry.count}
-                  </button>
-                ))}
-              </div>
-            }
-            search={
-              <TableSearch
-                value={search}
-                onChange={setSearch}
-                placeholder="Search rooms"
-              />
-            }
-            filters={
-              <FilterSelect
-                label="Hostel"
-                allLabel={hostel?.name ?? "Choose a house"}
-                value={chosen}
-                options={hostels.map((row) => ({
-                  value: row.id,
-                  label: row.isActive ? row.name : `${row.name} · closed`,
-                }))}
-                onChange={setChosen}
-              />
-            }
-            actions={<RecordActions resource="schools.boarding" verbs={hostelVerbs} />}
-          />
-
-          <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-            <div className="space-y-3">
-              <Card
-                flush
-                title="Rooms"
-                subtitle={`${rooms.length} room${rooms.length === 1 ? "" : "s"} · ${beds.length} bed${beds.length === 1 ? "" : "s"}`}
-                className={view === "rooms" ? undefined : "hidden"}
-              >
-                {roomsQuery.isLoading ? (
-                  <TableRowsSkeleton
-                    rows={5}
-                    columns={[{ twoLine: true }, { width: 90 }, { width: 200 }]}
-                  />
-                ) : (
+                <Card
+                  flush
+                  title="The bed board"
+                  subtitle="every bed, free ones included"
+                  className={view === "beds" ? undefined : "hidden"}
+                >
                   <div className="px-3 py-3">
-                    <RoomSummary rooms={visibleRooms} />
-                    <HostelRoomsPanel hostelId={hostelId} />
+                    <BedBoardContent hostelId={hostelId} />
                   </div>
-                )}
-              </Card>
+                </Card>
+              </div>
 
-              <Card
-                flush
-                title="The bed board"
-                subtitle="every bed, free ones included"
-                className={view === "beds" ? undefined : "hidden"}
-              >
-                <div className="px-3 py-3">
-                  <BedBoardContent hostelId={hostelId} />
+              <Card title="Properties">
+                <dl className="space-y-2 text-[length:var(--type-body-sm)]">
+                  <Property label="Name" value={hostel?.name ?? "—"} />
+                  <Property label="Code" value={hostel?.code ?? "—"} mono />
+                  <Property
+                    label="Takes"
+                    value={hostel ? genderPolicyLabel(hostel.genderPolicy) : "—"}
+                  />
+                  <Property
+                    label="Intended capacity"
+                    value={hostel?.capacity != null ? String(hostel.capacity) : "—"}
+                    mono
+                  />
+                  <Property
+                    label="In use"
+                    value={
+                      <Badge tone={hostel?.isActive ? "success" : "neutral"}>
+                        {hostel?.isActive ? "In use" : "Closed"}
+                      </Badge>
+                    }
+                  />
+                </dl>
+                <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                  Intended capacity is what the house is meant to hold. The beds are what it
+                  actually holds, and that is what a boarder is allocated against.
+                </p>
+                <div className="mt-3">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    disabled={!hostel}
+                    onClick={() => hostel && setEditing(hostel)}
+                  >
+                    Correct these
+                  </Button>
                 </div>
               </Card>
             </div>
-
-            <Card title="Properties">
-              <dl className="space-y-2 text-[length:var(--type-body-sm)]">
-                <Property label="Name" value={hostel?.name ?? "—"} />
-                <Property label="Code" value={hostel?.code ?? "—"} mono />
-                <Property
-                  label="Takes"
-                  value={hostel ? genderPolicyLabel(hostel.genderPolicy) : "—"}
-                />
-                <Property
-                  label="Intended capacity"
-                  value={hostel?.capacity != null ? String(hostel.capacity) : "—"}
-                  mono
-                />
-                <Property
-                  label="In use"
-                  value={
-                    <Badge tone={hostel?.isActive ? "success" : "neutral"}>
-                      {hostel?.isActive ? "In use" : "Closed"}
-                    </Badge>
-                  }
-                />
-              </dl>
-              <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                Intended capacity is what the house is meant to hold. The beds are what it
-                actually holds, and that is what a boarder is allocated against.
-              </p>
-              <div className="mt-3">
-                <Button
-                  variant="secondary"
-                  size="sm"
-                  disabled={!hostel}
-                  onClick={() => hostel && setEditing(hostel)}
-                >
-                  Correct these
-                </Button>
-              </div>
-            </Card>
           </div>
-        </>
+        </SavingOverlay>
       )}
 
       <HostelDialog

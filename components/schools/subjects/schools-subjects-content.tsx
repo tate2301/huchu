@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -13,6 +13,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -37,7 +38,6 @@ export function SchoolsSubjectsContent() {
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editing, setEditing] = useState<SchoolsSubjectRecord | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const subjectsQuery = useQuery({
     queryKey: ["schools", "subjects"],
@@ -80,7 +80,6 @@ export function SchoolsSubjectsContent() {
         : fetchJson("/api/v2/schools/subjects", { method: "POST", body });
     },
     onSuccess: () => {
-      setActionError(null);
       setDialogOpen(false);
       setEditing(null);
       invalidate();
@@ -93,21 +92,13 @@ export function SchoolsSubjectsContent() {
         method: "PATCH",
         body: JSON.stringify({ isActive: payload.isActive }),
       }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const remove = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/subjects/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const columns = useMemo<ColumnDef<SchoolsSubjectRecord>[]>(
@@ -259,15 +250,13 @@ export function SchoolsSubjectsContent() {
         />
       ) : null}
 
-      {actionError ? (
-        <Alert
-          tone="danger"
-          title="That change was not applied"
-          onDismiss={() => setActionError(null)}
-        >
-          {actionError}
-        </Alert>
+      {/* Retiring and deleting fail for opposite reasons — one is a state
+          change, the other is refused while a class still takes the subject —
+          so each keeps its own sentence. */}
+      {setTaught.error ? (
+        <SaveError what="Whether the subject is taught" error={setTaught.error} />
       ) : null}
+      {remove.error ? <SaveError what="The subject" error={remove.error} /> : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <FilterBar>
@@ -304,14 +293,16 @@ export function SchoolsSubjectsContent() {
 
       {subjectsQuery.isLoading ? (
         <TableRowsSkeleton
+          headers={["Code", "Name", "Type", "Pass Mark", "Classes", "Status"]}
           columns={[
             { width: 110 },
             {},
-            { width: 100 },
-            { width: 90 },
-            { width: 90 },
-            { width: 100 },
+            { width: 100, badge: true },
+            { width: 90, align: "right" },
+            { width: 90, align: "right" },
+            { width: 100, badge: true },
           ]}
+          rows={8}
         />
       ) : subjects.length === 0 ? (
         <NothingYet

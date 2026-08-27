@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, EmptyState, Skeleton } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -16,6 +16,13 @@ import {
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+} from "@/components/schools/common/states";
 import { ExternalLink } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
@@ -197,20 +204,21 @@ export function TeacherFilesScreen() {
   });
 
   if (portalError) {
-    return (
-      <Alert tone="danger" title="Your classes would not load">
-        {getApiErrorMessage(portalError)}
-      </Alert>
-    );
+    return <LoadError what="your classes" error={portalError} />;
   }
 
   return (
     <div className="flex flex-col gap-4">
       {list.error ? (
-        <Alert tone="danger" title="The shelf would not load">
-          {getApiErrorMessage(list.error)}
-        </Alert>
+        <LoadError
+          what="the shelf"
+          error={list.error}
+          onRetry={() => void list.refetch()}
+        />
       ) : null}
+      {/* The dialog carries the failure too, but it closes on success and a
+          teacher who dismissed it still deserves to know nothing was added. */}
+      {add.error ? <SaveError what="That link" error={add.error} /> : null}
       {saved ? <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} /> : null}
 
       <div className="flex flex-wrap items-end justify-between gap-3">
@@ -263,16 +271,38 @@ export function TeacherFilesScreen() {
       </FilterBar>
 
       {list.isPending ? (
-        <Skeleton variant="text" height={240} />
+        /* Cards, not rows: the shelf below is a grid, and a table skeleton
+           would reflow into a grid the moment the data landed. */
+        <CardsSkeleton count={6} columns={3} lines={2} />
       ) : resources.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="The shelf is empty"
           body="Nothing has been shared with the department yet. Add a link to a worksheet or a past paper and everyone teaching the subject has it."
+          action={
+            <Button
+              variant="secondary"
+              onClick={() => {
+                add.reset();
+                setFormOpen(true);
+              }}
+            >
+              Add a link
+            </Button>
+          }
         />
       ) : shown.length === 0 ? (
-        <EmptyState
-          title="Nothing matches that search"
-          body="Clear the search or widen the subject and year group above to see the rest of the shelf."
+        <NothingMatched
+          what="resources"
+          filters={[
+            subjectFilter ? subjects.find((row) => row.id === subjectFilter)?.name : null,
+            classFilter ? yearGroups.find((row) => row.id === classFilter)?.name : null,
+            search.trim() || null,
+          ].filter((value): value is string => Boolean(value))}
+          onClear={() => {
+            setSearch("");
+            setSubjectFilter("");
+            setClassFilter("");
+          }}
         />
       ) : (
         <>

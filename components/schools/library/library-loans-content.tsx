@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
@@ -28,7 +29,9 @@ import {
   LoadError,
   NothingLeftToDo,
   NothingMatched,
+  NothingYet,
   SaveError,
+  SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -135,19 +138,33 @@ export function LibraryLoansContent() {
       ),
   });
 
+  const loans = useMemo(() => loansQuery.data?.data ?? [], [loansQuery.data]);
+  const summary = loansQuery.data?.summary ?? null;
+
+  const anyFilter = Boolean(search.trim() || classes.classId);
+
   /**
-   * The catalogue, only for the lending dialog's copy list. Fetched lazily
-   * because this screen is about books that have already left the building and
-   * has no other use for the shelf.
+   * An empty register with nothing narrowing it is ambiguous, and the two
+   * readings need different sentences: a school whose books are all on the
+   * shelf has finished the job, and a school with no catalogue has not started
+   * it. Only the shelf can tell them apart — so it is read here too, and only
+   * at the moment the answer is actually needed. Every other time this stays
+   * unfetched, which is the point the lazy `enabled` was making already.
    */
+  const registerLooksEmpty =
+    !loansQuery.isLoading && loans.length === 0 && !anyFilter && !overdueOnly;
+
   const shelfQuery = useQuery({
     queryKey: ["schools", "library", "shelf-for-lending"],
     queryFn: () => fetchJson<{ books: Book[] }>("/api/v2/schools/library"),
-    enabled: lending,
+    enabled: lending || registerLooksEmpty,
   });
 
-  const loans = useMemo(() => loansQuery.data?.data ?? [], [loansQuery.data]);
-  const summary = loansQuery.data?.summary ?? null;
+  // Only once the shelf has actually answered — an undefined book list is "not
+  // asked yet", and treating it as zero flashes "nothing to lend" at a library
+  // that has a thousand titles.
+  const shelfIsBare =
+    registerLooksEmpty && shelfQuery.isSuccess && shelfQuery.data.books.length === 0;
 
   const desk = useMutation({
     mutationFn: (body: Record<string, unknown>) =>
@@ -171,8 +188,6 @@ export function LibraryLoansContent() {
       void queryClient.invalidateQueries({ queryKey: ["schools", "library"] });
     },
   });
-
-  const anyFilter = Boolean(search.trim() || classes.classId);
 
   const verbsFor = (loan: Loan): RecordVerb[] => [
     {
@@ -275,9 +290,15 @@ export function LibraryLoansContent() {
 
       {loansQuery.isLoading ? (
         <TableRowsSkeleton
-          columns={[{ avatar: true, twoLine: true }, { width: 180 }, { width: 200 }]}
+          headers={["Borrower", "What they have", "State", ""]}
+          columns={[
+            { avatar: true, twoLine: true },
+            { width: 180 },
+            { width: 150, badge: true },
+            { width: 200 },
+          ]}
         />
-      ) : loans.length === 0 ? (
+      ) : loansQuery.isError ? null : loans.length === 0 ? (
         anyFilter ? (
           <NothingMatched
             what="loans"
@@ -299,34 +320,54 @@ export function LibraryLoansContent() {
               </Button>
             }
           />
+        ) : shelfIsBare ? (
+          // An empty register means two different things and they get two
+          // different sentences. A library with nothing on the shelf has never
+          // started — the verb that fills it is putting books in the catalogue,
+          // not lending one that does not exist.
+          <NothingYet
+            title="There is nothing to lend yet"
+            body="The register fills itself once the catalogue has books in it. Add them on the catalogue, then lend one from here."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/library">Go to the catalogue</Link>
+              </Button>
+            }
+          />
         ) : (
           <NothingLeftToDo title="Nothing is out" body="Every copy is on the shelf." />
         )
       ) : (
-        <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-          {loans.map((loan) => (
-            <li key={loan.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-              <PersonAvatar
-                firstName={loan.student.firstName}
-                lastName={loan.student.lastName}
-              />
-              <span className="min-w-0 flex-1">
-                <span className="block truncate font-medium">
-                  {loan.student.lastName}, {loan.student.firstName}
+        // Taking a book back and renewing it both rewrite the loan the row
+        // stands for. While one is in flight the register dims: the row still
+        // shows both verbs, and "Take it back" pressed on a loan that is
+        // already being returned settles it twice and fines twice.
+        <SavingOverlay saving={desk.isPending} label="Writing it at the desk…">
+          <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+            {loans.map((loan) => (
+              <li key={loan.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
+                <PersonAvatar
+                  firstName={loan.student.firstName}
+                  lastName={loan.student.lastName}
+                />
+                <span className="min-w-0 flex-1">
+                  <span className="block truncate font-medium">
+                    {loan.student.lastName}, {loan.student.firstName}
+                  </span>
+                  <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                    {loanLine(loan)}
+                  </span>
                 </span>
-                <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                  {loanLine(loan)}
-                </span>
-              </span>
-              <Badge tone={loan.isOverdue ? "danger" : "warn"}>
-                {loan.isOverdue
-                  ? `Late · ${formatSchoolMoney(loan.fineIfReturnedToday)} if back today`
-                  : "Out"}
-              </Badge>
-              <RecordActions resource="schools.academics" verbs={verbsFor(loan)} />
-            </li>
-          ))}
-        </ul>
+                <Badge tone={loan.isOverdue ? "danger" : "warn"}>
+                  {loan.isOverdue
+                    ? `Late · ${formatSchoolMoney(loan.fineIfReturnedToday)} if back today`
+                    : "Out"}
+                </Badge>
+                <RecordActions resource="schools.academics" verbs={verbsFor(loan)} />
+              </li>
+            ))}
+          </ul>
+        </SavingOverlay>
       )}
 
       <LendDialog

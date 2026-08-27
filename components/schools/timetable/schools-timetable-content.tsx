@@ -7,7 +7,15 @@ import { Alert, Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/r
 
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
-import { LoadError } from "@/components/schools/common/states";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
@@ -355,6 +363,34 @@ export function SchoolsTimetableContent() {
   const teachingPeriods = periods.filter((period) => period.isTeaching);
   const firstTeachingPeriodId = teachingPeriods[0]?.id ?? "";
 
+  // A bulk write is in flight over the same grid the timetabler is reading.
+  // Auto-fill places dozens of lessons and copy-forward duplicates a whole
+  // term, so the week dims and stops taking clicks until they land.
+  const bulkWriting = autoFill.isPending || copyForward.isPending;
+
+  const anyFilter = Boolean(
+    (viewpoint === "class" && classFilter) ||
+      (viewpoint === "teacher" && teacherFilter) ||
+      termFilter ||
+      roomFilter,
+  );
+
+  // The narrowing in the timetabler's own words, for when it emptied the week.
+  const narrowed = [
+    viewpoint === "class"
+      ? classes.find((row) => row.id === classFilter)?.name
+      : teachers.find((row) => row.id === teacherFilter)?.user.name,
+    terms.find((row) => row.id === termFilter)?.name,
+    rooms.find((row) => row.id === roomFilter)?.name,
+  ].filter((value): value is string => Boolean(value));
+
+  const clearFilters = () => {
+    setClassFilter("");
+    setTeacherFilter("");
+    setTermFilter("");
+    setRoomFilter("");
+  };
+
   // Build and copy-forward both write dozens of lessons at once, so they need
   // the same grant a single lesson does. Disabled with the reason on them, like
   // every other campus verb — a timetabler who cannot see the button today
@@ -502,6 +538,13 @@ export function SchoolsTimetableContent() {
         />
       </FilterBar>
 
+      {/* The reminder that a bulk write failed halfway. Auto-fill and
+          copy-forward hold their own detail in their sheets; these are for the
+          single-lesson verbs, which have no sheet left open to say it in. */}
+      {removeLesson.error ? (
+        <SaveError what="The lesson" error={removeLesson.error} />
+      ) : null}
+
       {/* Phone and tablet: one day at a time. */}
       <div className="space-y-2 lg:hidden">
         <FilterBar>
@@ -513,145 +556,178 @@ export function SchoolsTimetableContent() {
             onChange={(value) => setSelectedDay(Number(value) || selectedDay)}
           />
         </FilterBar>
-        <MobileList>
-          {daySlots.length === 0 ? (
-            <MobileListEmpty>
-              {timetableQuery.isLoading
-                ? "Loading the timetable…"
-                : `Nothing scheduled on ${DAY_NAMES[selectedDay]}.`}
-            </MobileListEmpty>
+        {timetableQuery.isPending ? (
+          // Cards rather than table rows: the phone view is a stack of lessons,
+          // not a grid, so the placeholder has to be the shape it becomes.
+          <CardsSkeleton count={5} columns={1} lines={2} />
+        ) : daySlots.length === 0 ? (
+          slots.length === 0 && !anyFilter ? (
+            <NothingYet
+              title="Nothing on the timetable yet"
+              body="A lesson is a class-subject placed in a period on a day. Add the first one and the week starts filling in."
+            />
+          ) : anyFilter ? (
+            <NothingMatched
+              what="lessons"
+              filters={[...narrowed, DAY_NAMES[selectedDay]]}
+              onClear={clearFilters}
+            />
           ) : (
-            daySlots.map((slot) => {
-              const described = describeSlot(slot);
-              return (
-                <MobileList.Row
-                  key={slot.id}
-                  static
-                  title={`${described.subject} · ${described.className}`}
-                  subtitle={[
-                    `${formatMinute(slot.period.startMinute)}–${formatMinute(slot.period.endMinute)}`,
-                    described.teacher,
-                    described.room,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                />
-              );
-            })
-          )}
-        </MobileList>
+            <MobileList>
+              <MobileListEmpty>
+                Nothing scheduled on {DAY_NAMES[selectedDay]}.
+              </MobileListEmpty>
+            </MobileList>
+          )
+        ) : (
+          <SavingOverlay saving={bulkWriting} label="Placing lessons…">
+            <MobileList>
+              {daySlots.map((slot) => {
+                const described = describeSlot(slot);
+                return (
+                  <MobileList.Row
+                    key={slot.id}
+                    static
+                    title={`${described.subject} · ${described.className}`}
+                    subtitle={[
+                      `${formatMinute(slot.period.startMinute)}–${formatMinute(slot.period.endMinute)}`,
+                      described.teacher,
+                      described.room,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                  />
+                );
+              })}
+            </MobileList>
+          </SavingOverlay>
+        )}
       </div>
 
       {/* Desktop: the whole week at once. */}
       <div className="hidden lg:block">
-        <div className="table-rail table-scroll">
-          <div
-            className="grid min-w-[900px] gap-px bg-[var(--border-subtle)]"
-            style={{
-              gridTemplateColumns: `minmax(140px, 1fr) repeat(${days.length}, minmax(150px, 1fr))`,
-            }}
-          >
-            <div className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground">
-              Period
-            </div>
-            {days.map((day) => (
+        {timetableQuery.isPending ? (
+          // The grid's own shape: a period label per row, one bar per weekday.
+          // A generic block here made the whole week jump when the slots landed.
+          <TableRowsSkeleton
+            headers={["Period", ...days.map((day) => DAY_NAMES[day])]}
+            columns={[{ twoLine: true }, ...days.map(() => ({}))]}
+            rows={7}
+          />
+        ) : slots.length === 0 && anyFilter ? (
+          <NothingMatched what="lessons" filters={narrowed} onClear={clearFilters} />
+        ) : (
+          <SavingOverlay saving={bulkWriting} label="Placing lessons…">
+            <div className="table-rail table-scroll">
               <div
-                key={day}
-                className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground"
+                className="grid min-w-[900px] gap-px bg-[var(--border-subtle)]"
+                style={{
+                  gridTemplateColumns: `minmax(140px, 1fr) repeat(${days.length}, minmax(150px, 1fr))`,
+                }}
               >
-                {DAY_NAMES[day]}
-              </div>
-            ))}
-
-            {periods.map((period) => (
-              <Fragment key={period.id}>
-                <div className="bg-[var(--surface)] p-2">
-                  <div className="text-sm font-medium">{period.name}</div>
-                  <div className="text-sm text-muted-foreground">
-                    {formatMinute(period.startMinute)}–{formatMinute(period.endMinute)}
-                  </div>
+                <div className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground">
+                  Period
                 </div>
-                {days.map((day) => {
-                  const cellSlots = byDayAndPeriod.get(`${day}:${period.id}`) ?? [];
-                  return (
-                    <div key={`${day}:${period.id}`} className="bg-[var(--surface)] p-2">
-                      {!period.isTeaching ? (
-                        <span className="text-sm text-muted-foreground">
-                          {period.name}
-                        </span>
-                      ) : cellSlots.length === 0 ? (
-                        <button
-                          type="button"
-                          className="w-full rounded-md border border-dashed border-[var(--edge-subtle)] p-2 text-sm text-muted-foreground hover:bg-[var(--surface-muted)]"
-                          onClick={() => openSheet(day, period.id)}
-                        >
-                          Add
-                        </button>
-                      ) : (
-                        <div className="space-y-1">
-                          {cellSlots.map((slot) => {
-                            const described = describeSlot(slot);
-                            return (
-                              <div
-                                key={slot.id}
-                                className="rounded-md border border-[var(--edge-subtle)] p-2"
-                              >
-                                <div className="text-sm font-medium">
-                                  {described.subject}
-                                </div>
-                                {/* Both, always. Showing only the teacher in
-                                    the class view left a cell holding three
-                                    classes' lessons with nothing saying which
-                                    class each belonged to. */}
-                                <div className="text-sm text-muted-foreground">
-                                  {described.className}
-                                </div>
-                                <div className="text-sm text-muted-foreground">
-                                  {described.teacher}
-                                </div>
-                                {described.room ? (
-                                  <Badge tone="neutral">{described.room}</Badge>
-                                ) : null}
-                                <RecordActions
-                                  resource="schools.academics"
-                                  verbs={[
-                                    {
-                                      label: "Move",
-                                      action: "edit",
-                                      onSelect: () => openMove(slot),
-                                    },
-                                    {
-                                      label: "Remove",
-                                      action: "archive",
-                                      tone: "danger",
-                                      loading:
-                                        removeLesson.isPending &&
-                                        removeLesson.variables === slot.id,
-                                      // Every other destructive action in
-                                      // campus confirms; this one deleted on a
-                                      // single tap in a grid of twenty-five
-                                      // cells, with no undo behind it.
-                                      confirm: {
-                                        title: `Remove ${described.subject} from ${DAY_NAMES[day]}`,
-                                        description: `${described.className} loses this lesson in ${period.name}. The class-subject assignment stays; only the slot on the timetable goes, and it has to be placed again by hand.`,
-                                        confirmLabel: "Remove the lesson",
-                                      },
-                                      onSelect: () => removeLesson.mutate(slot.id),
-                                    },
-                                  ]}
-                                />
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
+                {days.map((day) => (
+                  <div
+                    key={day}
+                    className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground"
+                  >
+                    {DAY_NAMES[day]}
+                  </div>
+                ))}
+
+                {periods.map((period) => (
+                  <Fragment key={period.id}>
+                    <div className="bg-[var(--surface)] p-2">
+                      <div className="text-sm font-medium">{period.name}</div>
+                      <div className="text-sm text-muted-foreground">
+                        {formatMinute(period.startMinute)}–{formatMinute(period.endMinute)}
+                      </div>
                     </div>
-                  );
-                })}
-              </Fragment>
-            ))}
-          </div>
-        </div>
+                    {days.map((day) => {
+                      const cellSlots = byDayAndPeriod.get(`${day}:${period.id}`) ?? [];
+                      return (
+                        <div key={`${day}:${period.id}`} className="bg-[var(--surface)] p-2">
+                          {!period.isTeaching ? (
+                            <span className="text-sm text-muted-foreground">
+                              {period.name}
+                            </span>
+                          ) : cellSlots.length === 0 ? (
+                            <button
+                              type="button"
+                              className="w-full rounded-md border border-dashed border-[var(--edge-subtle)] p-2 text-sm text-muted-foreground hover:bg-[var(--surface-muted)]"
+                              onClick={() => openSheet(day, period.id)}
+                            >
+                              Add
+                            </button>
+                          ) : (
+                            <div className="space-y-1">
+                              {cellSlots.map((slot) => {
+                                const described = describeSlot(slot);
+                                return (
+                                  <div
+                                    key={slot.id}
+                                    className="rounded-md border border-[var(--edge-subtle)] p-2"
+                                  >
+                                    <div className="text-sm font-medium">
+                                      {described.subject}
+                                    </div>
+                                    {/* Both, always. Showing only the teacher in
+                                        the class view left a cell holding three
+                                        classes' lessons with nothing saying which
+                                        class each belonged to. */}
+                                    <div className="text-sm text-muted-foreground">
+                                      {described.className}
+                                    </div>
+                                    <div className="text-sm text-muted-foreground">
+                                      {described.teacher}
+                                    </div>
+                                    {described.room ? (
+                                      <Badge tone="neutral">{described.room}</Badge>
+                                    ) : null}
+                                    <RecordActions
+                                      resource="schools.academics"
+                                      verbs={[
+                                        {
+                                          label: "Move",
+                                          action: "edit",
+                                          onSelect: () => openMove(slot),
+                                        },
+                                        {
+                                          label: "Remove",
+                                          action: "archive",
+                                          tone: "danger",
+                                          loading:
+                                            removeLesson.isPending &&
+                                            removeLesson.variables === slot.id,
+                                          // Every other destructive action in
+                                          // campus confirms; this one deleted on a
+                                          // single tap in a grid of twenty-five
+                                          // cells, with no undo behind it.
+                                          confirm: {
+                                            title: `Remove ${described.subject} from ${DAY_NAMES[day]}`,
+                                            description: `${described.className} loses this lesson in ${period.name}. The class-subject assignment stays; only the slot on the timetable goes, and it has to be placed again by hand.`,
+                                            confirmLabel: "Remove the lesson",
+                                          },
+                                          onSelect: () => removeLesson.mutate(slot.id),
+                                        },
+                                      ]}
+                                    />
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </Fragment>
+                ))}
+              </div>
+            </div>
+          </SavingOverlay>
+        )}
       </div>
 
       <LessonFormSheet

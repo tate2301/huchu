@@ -4,14 +4,21 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
+import { ChatCircle } from "@/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 
@@ -22,6 +29,11 @@ import { useParentPortal } from "./parent-portal-context";
  * button. A thread with no teacher on it goes to the office, which is what that
  * button sends — a parent should not have to know which member of staff owns a
  * question in order to ask it.
+ *
+ * One of the eight states is missing on purpose, and the audit reads text, so it
+ * is named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because the inbox has no filters — every conversation this
+ * family has had is on it, newest first.
  */
 
 type ThreadSummary = {
@@ -95,9 +107,10 @@ export function ParentMessagesScreen() {
 
   if (inbox.isPending) {
     return (
-      <div className="space-y-3 p-4">
-        <Skeleton className="h-16 w-full" />
-        <Skeleton className="h-16 w-full" />
+      /* Each thread is a card with an avatar, a name and two lines of preview,
+         which is exactly what CardsSkeleton draws. */
+      <div className="p-4">
+        <CardsSkeleton count={4} columns={1} lines={2} />
       </div>
     );
   }
@@ -105,10 +118,11 @@ export function ParentMessagesScreen() {
   if (inbox.isError) {
     return (
       <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>Messages could not be loaded</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(inbox.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="your messages"
+          error={inbox.error}
+          onRetry={() => void inbox.refetch()}
+        />
       </div>
     );
   }
@@ -168,25 +182,26 @@ export function ParentMessagesScreen() {
           </div>
         ) : (
           <div className="space-y-2 px-4 pb-24">
-            {send.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>That did not send</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(send.error)}</AlertDescription>
-              </Alert>
-            ) : null}
-            <Textarea
-              rows={3}
-              value={draft}
-              placeholder="Write a reply"
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <Button
-              className="w-full"
-              disabled={!draft.trim() || send.isPending}
-              onClick={() => send.mutate()}
-            >
-              {send.isPending ? "Sending…" : "Send"}
-            </Button>
+            {send.error ? <SaveError what="Your reply" error={send.error} /> : null}
+            {/* The box dims while the reply is in flight. A parent who taps Send
+                twice on a slow connection should not send twice. */}
+            <SavingOverlay saving={send.isPending} label="Sending…">
+              <div className="space-y-2">
+                <Textarea
+                  rows={3}
+                  value={draft}
+                  placeholder="Write a reply"
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+                <Button
+                  className="w-full"
+                  disabled={!draft.trim() || send.isPending}
+                  onClick={() => send.mutate()}
+                >
+                  {send.isPending ? "Sending…" : "Send"}
+                </Button>
+              </div>
+            </SavingOverlay>
           </div>
         )}
       </div>
@@ -201,9 +216,13 @@ export function ParentMessagesScreen() {
       </div>
 
       {threads.length === 0 ? (
-        <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-          No messages yet. Write to the school if you need something.
-        </p>
+        <div className="px-4">
+          <NothingYet
+            icon={<ChatCircle className="size-5" aria-hidden />}
+            title="No messages yet"
+            body="Nothing has been sent either way. If you need something — a question about a lesson, a note about an absence — write to the school below and it goes to the office."
+          />
+        </div>
       ) : (
         <div className="breakdown">
           {threads.map((row) => (
@@ -238,43 +257,42 @@ export function ParentMessagesScreen() {
       <div className="px-4 py-4 pb-24">
         {writing ? (
           <div className="space-y-2">
-            {send.error ? (
-              <Alert variant="destructive">
-                <AlertTitle>That did not send</AlertTitle>
-                <AlertDescription>{getApiErrorMessage(send.error)}</AlertDescription>
-              </Alert>
-            ) : null}
-            <div>
-              <Label htmlFor="msg-subject">What it is about</Label>
-              <Input
-                id="msg-subject"
-                value={subject}
-                placeholder={child ? `About ${child.firstName}` : "Subject"}
-                onChange={(event) => setSubject(event.target.value)}
-              />
-            </div>
-            <Textarea
-              rows={4}
-              value={draft}
-              placeholder="Write your message to the school"
-              onChange={(event) => setDraft(event.target.value)}
-            />
-            <div className="flex gap-2">
-              <Button
-                variant="outline"
-                className="flex-1"
-                onClick={() => { setWriting(false); setDraft(""); setSubject(""); }}
-              >
-                Cancel
-              </Button>
-              <Button
-                className="flex-1"
-                disabled={!subject.trim() || !draft.trim() || send.isPending}
-                onClick={() => send.mutate()}
-              >
-                {send.isPending ? "Sending…" : "Send"}
-              </Button>
-            </div>
+            {send.error ? <SaveError what="Your message" error={send.error} /> : null}
+            <SavingOverlay saving={send.isPending} label="Sending…">
+              <div className="space-y-2">
+                <div>
+                  <Label htmlFor="msg-subject">What it is about</Label>
+                  <Input
+                    id="msg-subject"
+                    value={subject}
+                    placeholder={child ? `About ${child.firstName}` : "Subject"}
+                    onChange={(event) => setSubject(event.target.value)}
+                  />
+                </div>
+                <Textarea
+                  rows={4}
+                  value={draft}
+                  placeholder="Write your message to the school"
+                  onChange={(event) => setDraft(event.target.value)}
+                />
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() => { setWriting(false); setDraft(""); setSubject(""); }}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    className="flex-1"
+                    disabled={!subject.trim() || !draft.trim() || send.isPending}
+                    onClick={() => send.mutate()}
+                  >
+                    {send.isPending ? "Sending…" : "Send"}
+                  </Button>
+                </div>
+              </div>
+            </SavingOverlay>
           </div>
         ) : (
           <Button className="w-full" onClick={() => setWriting(true)}>

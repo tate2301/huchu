@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
@@ -12,6 +12,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -68,7 +69,6 @@ export function SchoolsCalendarContent({
   const [termSheetOpen, setTermSheetOpen] = useState(false);
   const [editingYear, setEditingYear] = useState<SchoolsAcademicYearRecord | null>(null);
   const [editingTerm, setEditingTerm] = useState<SchoolsTermRecord | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   // Terms belong to a year, so narrowing by the year is the filter a school
   // actually reaches for — three terms this year, twelve on the list.
   const [yearFilter, setYearFilter] = useState("");
@@ -100,20 +100,12 @@ export function SchoolsCalendarContent({
 
   const activateYear = useMutation({
     mutationFn: (id: string) => updateSchoolsAcademicYear(id, { isActive: true }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const activateTermMutation = useMutation({
     mutationFn: (id: string) => updateSchoolsTerm(id, { isActive: true }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const saveYear = useMutation({
@@ -128,7 +120,6 @@ export function SchoolsCalendarContent({
         ? updateSchoolsAcademicYear(editingYear.id, values)
         : createSchoolsAcademicYear(values),
     onSuccess: () => {
-      setActionError(null);
       setYearSheetOpen(false);
       setEditingYear(null);
       invalidate();
@@ -154,7 +145,6 @@ export function SchoolsCalendarContent({
           })
         : createSchoolsTerm(values),
     onSuccess: () => {
-      setActionError(null);
       setTermSheetOpen(false);
       setEditingTerm(null);
       invalidate();
@@ -165,21 +155,13 @@ export function SchoolsCalendarContent({
   const deleteYear = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/academic-years/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const deleteTerm = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/terms/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const yearColumns = useMemo<ColumnDef<SchoolsAcademicYearRecord>[]>(
@@ -360,11 +342,21 @@ export function SchoolsCalendarContent({
         />
       ) : null}
 
-      {actionError ? (
-        <Alert tone="danger" title="That change was not applied" onDismiss={() => setActionError(null)}>
-          {actionError}
-        </Alert>
+      {/*
+        Four writes, four sentences. "The term would not be deleted" and "the
+        year would not be made current" are acted on differently, and the one
+        shared banner this replaced made every refusal read the same.
+      */}
+      {activateYear.error ? (
+        <SaveError what="The current academic year" error={activateYear.error} />
       ) : null}
+      {activateTermMutation.error ? (
+        <SaveError what="The current term" error={activateTermMutation.error} />
+      ) : null}
+      {deleteYear.error ? (
+        <SaveError what="The academic year" error={deleteYear.error} />
+      ) : null}
+      {deleteTerm.error ? <SaveError what="The term" error={deleteTerm.error} /> : null}
 
       {!yearsQuery.isLoading && !termsQuery.isLoading && !activeTerm ? (
         <Alert tone="warn" title="This school has no current term">
@@ -388,7 +380,14 @@ export function SchoolsCalendarContent({
           </div>
           {yearsQuery.isLoading ? (
             <TableRowsSkeleton
-              columns={[{ twoLine: true }, { width: 90 }, { width: 90 }, { width: 120 }]}
+              headers={["Academic year", "Terms", "Classes", "Status"]}
+              columns={[
+                { twoLine: true },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 120, badge: true },
+              ]}
+              rows={5}
             />
           ) : years.length === 0 ? (
             <NothingYet
@@ -473,13 +472,15 @@ export function SchoolsCalendarContent({
 
           {termsQuery.isLoading ? (
             <TableRowsSkeleton
+              headers={["Term", "Academic year", "Enrolled", "Invoices", "Status"]}
               columns={[
                 { twoLine: true },
                 { width: 160 },
-                { width: 90 },
-                { width: 90 },
-                { width: 120 },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 120, badge: true },
               ]}
+              rows={6}
             />
           ) : allTerms.length === 0 ? (
             <NothingYet

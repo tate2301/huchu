@@ -55,8 +55,14 @@ Everything else is the content component's job.
 | Which class, as a route | `GradePicker` | `@/components/schools/common/grade-picker` |
 | The table | `DataTable` | `@/components/ui/data-table` |
 | Row verbs | `RecordActions` | `@/components/schools/common/record-actions` |
-| Loading / empty / error | `TableRowsSkeleton`, `NothingYet`, `NothingMatched`, `LoadError`, `SaveError` | `@/components/schools/common/states` |
+| Loading / empty / error | `TableRowsSkeleton`, `CardsSkeleton`, `StatsSkeleton`, `SavingOverlay`, `NothingYet`, `NothingMatched`, `NothingLeftToDo`, `LoadError`, `SaveError` | `@/components/schools/common/states` |
 | Person initials | `PersonAvatar` | `@/components/schools/common/person-avatar` |
+
+Every table and every list gets a designed skeleton — one that mirrors the row
+it is about to become, header and all. Never a spinner, never a bare "Loading…".
+The full rules, and the three different sentences the three empty states say,
+are in `11-campus-states-and-motion.md`. `node scripts/campus-states-audit.mjs
+--gaps` tells you which screens are still short.
 
 **Never invent a spinner, an empty state or a filter control.** They exist.
 

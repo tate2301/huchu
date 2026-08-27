@@ -281,11 +281,12 @@ export function TeacherAssignmentsContent() {
 
       {assignmentsQuery.isPending ? (
         <TableRowsSkeleton
+          headers={["Class", "Subject", "Teacher", "Holds"]}
           columns={[
             { twoLine: true },
             { width: 180 },
             { avatar: true, twoLine: true },
-            { width: 140 },
+            { width: 140, badge: true },
             { width: 120 },
           ]}
         />

@@ -327,13 +327,21 @@ export function SchoolStaffContent() {
 
       {staffQuery.isPending ? (
         <TableRowsSkeleton
+          headers={[
+            "Staff member",
+            "Staff number",
+            "Department",
+            "Phone",
+            "Account",
+            "Payroll record",
+          ]}
           columns={[
             { avatar: true, twoLine: true },
             { width: 90 },
             { width: 120 },
             { width: 110 },
-            { width: 140 },
-            { width: 100 },
+            { width: 140, badge: true },
+            { width: 100, badge: true },
           ]}
         />
       ) : staffQuery.isError ? (

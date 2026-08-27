@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import { MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +13,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+} from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 
@@ -47,7 +53,6 @@ export function TeachingResourcesContent() {
   const [formOpen, setFormOpen] = useState(false);
   /** The resource the form is amending. Null means it is adding a new one. */
   const [editing, setEditing] = useState<Resource | null>(null);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     title: "",
     description: "",
@@ -118,7 +123,6 @@ export function TeachingResourcesContent() {
     onSuccess: () => {
       setFormOpen(false);
       setEditing(null);
-      setActionError(null);
       setDraft({
         title: "",
         description: "",
@@ -128,7 +132,6 @@ export function TeachingResourcesContent() {
       });
       void queryClient.invalidateQueries({ queryKey: ["schools", "resources"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   /**
@@ -142,10 +145,8 @@ export function TeachingResourcesContent() {
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/teaching-resources/${id}`, { method: "DELETE" }),
     onSuccess: () => {
-      setActionError(null);
       void queryClient.invalidateQueries({ queryKey: ["schools", "resources"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   function openBlank() {
@@ -157,7 +158,7 @@ export function TeachingResourcesContent() {
       linkUrl: "",
       isShared: true,
     });
-    setActionError(null);
+    saveMutation.reset();
     setFormOpen(true);
   }
 
@@ -172,23 +173,36 @@ export function TeachingResourcesContent() {
       linkUrl: resource.linkUrl ?? "",
       isShared: resource.isShared,
     });
-    setActionError(null);
+    saveMutation.reset();
     setFormOpen(true);
   }
+
+  const anyFilter = Boolean(subjectFilter || search.trim());
+  const narrowed = [
+    subjects.find((subject) => subject.id === subjectFilter)?.name,
+    search.trim() || null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <div className="space-y-4">
       {resourcesQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the shelf</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(resourcesQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="the staff-room shelf"
+          error={resourcesQuery.error}
+          onRetry={() => void resourcesQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not save</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
+      {subjectsQuery.error ? (
+        // Scoped to the subject filter, not the page: the shelf below still
+        // reads fine, it just cannot be narrowed by subject until this lands.
+        <LoadError
+          what="the subject list"
+          error={subjectsQuery.error}
+          onRetry={() => void subjectsQuery.refetch()}
+        />
+      ) : null}
+      {deleteMutation.error ? (
+        <SaveError what="The resource" error={deleteMutation.error} />
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -222,15 +236,30 @@ export function TeachingResourcesContent() {
         {resources.length} resource{resources.length === 1 ? "" : "s"} on the shelf.
       </p>
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {resourcesQuery.isLoading
-              ? "Loading the shelf…"
-              : "Nothing here yet. Add a worksheet or a link."}
-          </MobileListEmpty>
+      {resourcesQuery.isPending ? (
+        // The shelf is a grid of cards, so it gets card placeholders. Table
+        // rows here would be the wrong shape twice over.
+        <CardsSkeleton count={6} columns={2} lines={2} />
+      ) : grouped.length === 0 ? (
+        anyFilter ? (
+          <NothingMatched
+            what="resources"
+            filters={narrowed}
+            onClear={() => {
+              setSubjectFilter("");
+              setSearch("");
+            }}
+          />
         ) : (
-          grouped.map(([subject, rows]) => (
+          <NothingYet
+            title="Nothing on the shelf yet"
+            body="A worksheet, a past paper, a link to a video. Put one up and every teacher in the school can pick it up next term."
+            action={<Button onClick={openBlank}>Add a resource</Button>}
+          />
+        )
+      ) : (
+        <MobileList>
+          {grouped.map(([subject, rows]) => (
             <div key={subject}>
               <MobileListSectionHeader>{subject}</MobileListSectionHeader>
               {rows.map((resource) => (
@@ -293,16 +322,18 @@ export function TeachingResourcesContent() {
                 />
               ))}
             </div>
-          ))
-        )}
-      </MobileList>
+          ))}
+        </MobileList>
+      )}
 
       <RecordDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         title="Add a resource"
         size="md"
-        errors={saveMutation.isError && actionError ? [actionError] : undefined}
+        errors={
+          saveMutation.error ? [getApiErrorMessage(saveMutation.error)] : undefined
+        }
         onSubmit={(event) => {
           event.preventDefault();
           if (draft.title.trim() && draft.linkUrl.trim() && !saveMutation.isPending) {

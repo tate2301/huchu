@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -12,6 +12,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -51,7 +52,6 @@ export function SchoolDayContent() {
   const [teachingFilter, setTeachingFilter] = useState("");
   const [kindFilter, setKindFilter] = useState("");
   const [roomStatusFilter, setRoomStatusFilter] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const [periodDialogOpen, setPeriodDialogOpen] = useState(false);
   const [editingPeriod, setEditingPeriod] = useState<SchoolsPeriodRecord | null>(null);
@@ -144,7 +144,6 @@ export function SchoolDayContent() {
           });
     },
     onSuccess: () => {
-      setActionError(null);
       setPeriodDialogOpen(false);
       setEditingPeriod(null);
       invalidatePeriods();
@@ -154,11 +153,7 @@ export function SchoolDayContent() {
   const deletePeriod = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/periods/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidatePeriods();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidatePeriods,
   });
 
   const saveRoom = useMutation({
@@ -175,7 +170,6 @@ export function SchoolDayContent() {
         : fetchJson("/api/v2/schools/rooms", { method: "POST", body });
     },
     onSuccess: () => {
-      setActionError(null);
       setRoomDialogOpen(false);
       setEditingRoom(null);
       invalidateRooms();
@@ -185,11 +179,7 @@ export function SchoolDayContent() {
   const deleteRoom = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/rooms/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidateRooms();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidateRooms,
   });
 
   const periodColumns = useMemo<ColumnDef<SchoolsPeriodRecord>[]>(
@@ -343,6 +333,29 @@ export function SchoolDayContent() {
     .filter((row) => row.isTeaching)
     .reduce((total, row) => total + (row.endMinute - row.startMinute), 0);
 
+  // The filters in the user's own words, so "nothing matched" repeats what was
+  // asked for rather than leaving somebody to work out which dropdown emptied
+  // the table.
+  const narrowedPeriods = [
+    termFilter === "__every__"
+      ? "Runs all year"
+      : terms.find((term) => term.id === termFilter)?.name,
+    teachingFilter === "teaching"
+      ? "Lessons"
+      : teachingFilter === "break"
+        ? "Break"
+        : "",
+  ].filter((value): value is string => Boolean(value));
+
+  const narrowedRooms = [
+    kindFilter,
+    roomStatusFilter === "active"
+      ? "In use"
+      : roomStatusFilter === "retired"
+        ? "Out of use"
+        : "",
+  ].filter((value): value is string => Boolean(value));
+
   return (
     <div className="space-y-4">
       <PageBand
@@ -371,15 +384,15 @@ export function SchoolDayContent() {
         />
       ) : null}
 
-      {actionError ? (
-        <Alert
-          tone="danger"
-          title="That change was not applied"
-          onDismiss={() => setActionError(null)}
-        >
-          {actionError}
-        </Alert>
+      {/*
+        Named per verb: a period refused because a lesson still sits in it is
+        a different thing to fix from a room that would not go out of use, and
+        one shared banner made them read as the same failure.
+      */}
+      {deletePeriod.error ? (
+        <SaveError what="The period" error={deletePeriod.error} />
       ) : null}
+      {deleteRoom.error ? <SaveError what="The room" error={deleteRoom.error} /> : null}
 
       <VerticalDataViews
         items={[
@@ -429,13 +442,15 @@ export function SchoolDayContent() {
 
           {periodsQuery.isLoading ? (
             <TableRowsSkeleton
+              headers={["Period", "Position", "Term", "Kind", "Lessons"]}
               columns={[
                 { twoLine: true },
-                { width: 90 },
+                { width: 90, align: "right" },
                 { width: 160 },
-                { width: 100 },
-                { width: 90 },
+                { width: 100, badge: true },
+                { width: 90, align: "right" },
               ]}
+              rows={7}
             />
           ) : periods.length === 0 ? (
             <NothingYet
@@ -445,6 +460,7 @@ export function SchoolDayContent() {
           ) : visiblePeriods.length === 0 ? (
             <NothingMatched
               what="periods"
+              filters={narrowedPeriods}
               onClear={() => {
                 setTermFilter("");
                 setTeachingFilter("");
@@ -515,14 +531,16 @@ export function SchoolDayContent() {
 
           {roomsQuery.isLoading ? (
             <TableRowsSkeleton
+              headers={["Code", "Name", "Kind", "Seats", "Lessons", "Status"]}
               columns={[
                 { width: 110 },
                 {},
                 { width: 120 },
-                { width: 90 },
-                { width: 90 },
-                { width: 100 },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 100, badge: true },
               ]}
+              rows={7}
             />
           ) : rooms.length === 0 ? (
             <NothingYet
@@ -532,6 +550,7 @@ export function SchoolDayContent() {
           ) : visibleRooms.length === 0 ? (
             <NothingMatched
               what="rooms"
+              filters={narrowedRooms}
               onClear={() => {
                 setKindFilter("");
                 setRoomStatusFilter("");

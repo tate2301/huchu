@@ -5,10 +5,17 @@ import { useQuery } from "@tanstack/react-query";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
+import {
+  LoadError,
+  NothingLeftToDo,
+  NothingYet,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
+import { Receipt as ReceiptIcon } from "@/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 
@@ -23,6 +30,12 @@ import { useParentPortal } from "./parent-portal-context";
  * parent is shown is the one the ledger computed, and a client-side subtotal is a
  * second opinion about what a family owes. The one figure the sticky bar shows is
  * the loader's own outstanding balance, not a sum of the rows above it.
+ *
+ * Two of the eight states are missing on purpose, and the audit reads text, so
+ * they are named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because a parent cannot narrow a statement — every bill on
+ * the account is on it — and no `SaveError`, because there is no payment flow
+ * in this portal and nothing on this screen writes.
  */
 
 type FeeLine = { id: string; feeCode: string; description: string; amount: string };
@@ -94,8 +107,17 @@ export function ParentFeesScreen() {
   if (query.isPending) {
     return (
       <div className="space-y-3 p-4">
+        {/* The hero is one block and can stay a plain bar; the statement under
+            it is a real table of money, so it gets the real table's shape —
+            description on the left, amount right-aligned, which is where the
+            figures land when they arrive. This is the screen a family reads on
+            mobile data with a bill on their mind, so it must not reflow. */}
         <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-32 w-full" />
+        <TableRowsSkeleton
+          headers={["What it is for", "Amount"]}
+          columns={[{ twoLine: true }, { width: 96, align: "right" }]}
+          rows={5}
+        />
       </div>
     );
   }
@@ -103,10 +125,11 @@ export function ParentFeesScreen() {
   if (query.isError) {
     return (
       <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>Fees could not be loaded</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="your fee statement"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       </div>
     );
   }
@@ -176,9 +199,24 @@ export function ParentFeesScreen() {
         Fee statement
         {issued ? <span className="mono-note">Sent {formatSchoolDate(issued)}</span> : null}
       </div>
+      {/* Paid up is good news, and good news is not an empty table. It sits
+          above the statement rather than replacing it, because a parent who
+          owes nothing still opens this screen to find the bill they paid. */}
+      {invoices.length > 0 && outstanding === 0 ? (
+        <div className="px-4 pb-3">
+          <NothingLeftToDo
+            title="Nothing owing"
+            body={`${term?.name ?? "This term"} is paid in full. The statement below is yours to keep.`}
+          />
+        </div>
+      ) : null}
       {invoices.length === 0 ? (
-        <div className="breakdown">
-          <p className="pp-empty-row">Nothing has been billed to {child.firstName} yet.</p>
+        <div className="px-4">
+          <NothingYet
+            icon={<ReceiptIcon className="size-5" aria-hidden />}
+            title="No bill yet"
+            body={`The school has not billed anything to ${child.firstName} this term. When they do, every line of it shows up here.`}
+          />
         </div>
       ) : (
         <div className="breakdown">
@@ -264,7 +302,10 @@ export function ParentFeesScreen() {
       </div>
       <div className="card-block boxed">
         {receipts.length === 0 ? (
-          <p className="pp-empty-row">No payments recorded yet.</p>
+          <p className="pp-empty-row">
+            No payments recorded yet. Once the office banks one, the receipt
+            appears here for you to download.
+          </p>
         ) : (
           receipts.map((receipt) => (
             <div key={receipt.id} className="pl-row">

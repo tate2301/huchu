@@ -2,14 +2,18 @@
 
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
 
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -287,10 +291,12 @@ function Figure({ label, value, tone }: { label: string; value: string; tone?: s
 /* ── the screen ──────────────────────────────────────────────────────── */
 
 export function SchoolsDashboardContent() {
+  const queryClient = useQueryClient();
   const today = isoToday();
   const [classId, setClassId] = useState("");
   const [termId, setTermId] = useState("");
   const [day, setDay] = useState("");
+  const [reminded, setReminded] = useState<string | null>(null);
 
   const onDate = day || today;
 
@@ -509,6 +515,63 @@ export function SchoolsDashboardContent() {
   const anyError =
     registersQuery.error ?? collectionsQuery.error ?? arrearsQuery.error ?? null;
 
+  /**
+   * Chasing a register from the morning itself.
+   *
+   * The canvas puts "Remind" on every missing row here, and it is the same
+   * notice the register board sends — same route, same audience resolution —
+   * because a reminder that arrives somewhere else is a second inbox for a
+   * teacher to learn. The overview is where somebody notices the register is
+   * missing, so it is where the chase belongs.
+   */
+  const remind = useMutation({
+    mutationFn: (row: RegisterRow) =>
+      fetchJson<{ recipients: number }>("/api/v2/schools/notices", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${row.className} register for ${onDate}`,
+          body: `No register has come in for ${row.className} on ${onDate}. Please take it and send it through.`,
+          audience: "TEACHERS",
+          classId: row.classId,
+          severity: "WARNING",
+        }),
+      }),
+    onSuccess: (result, row) => {
+      setReminded(
+        `Reminder sent to ${result.recipients} ${result.recipients === 1 ? "person" : "people"} who teach ${row.className}.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
+    },
+  });
+
+  // The narrowing in the office's own words. The overview's three filters are
+  // one set — they narrow every panel at once — so an emptied panel repeats all
+  // three rather than guessing which one did it.
+  const narrowing = [
+    classes.find((row) => row.id === classId)?.name ?? null,
+    termId ? (term ? `${term.name} · ${term.academicYear.name}` : null) : null,
+    day ? DAY_LABEL.format(new Date(`${day}T00:00:00.000Z`)) : null,
+  ].filter((entry): entry is string => Boolean(entry));
+
+  const clearFilters = () => {
+    setClassId("");
+    setTermId("");
+    setDay("");
+  };
+
+  // A panel is loading until every endpoint it draws from has landed. Drawing
+  // a row per query as each arrives makes the panel grow under the reader's
+  // eye, which on a screen full of counts is worse than waiting.
+  const waitingPending =
+    sheetsQuery.isPending ||
+    windowsQuery.isPending ||
+    admissionsQuery.isPending ||
+    homeworkQuery.isPending ||
+    goalsQuery.isPending;
+  const thisWeekPending =
+    meetingsQuery.isPending || noticesQuery.isPending || libraryQuery.isPending;
+  const boardingPending = occupancyQuery.isPending || leaveQuery.isPending;
+
   return (
     <div className="space-y-3">
       <PageBand
@@ -579,6 +642,11 @@ export function SchoolsDashboardContent() {
         />
       ) : null}
 
+      {remind.error ? <SaveError what="The reminder" error={remind.error} /> : null}
+      {reminded ? (
+        <Alert tone="success" title={reminded} onDismiss={() => setReminded(null)} />
+      ) : null}
+
       {board?.schoolDay && !board.schoolDay.isSchoolDay ? (
         <Alert tone="info" title={`Not a school day — ${board.schoolDay.reason}`}>
           No registers are expected. Anything below was taken anyway.
@@ -640,12 +708,40 @@ export function SchoolsDashboardContent() {
             linkLabel="Open the register board"
           >
             {registersQuery.isPending ? (
-              <TableRowsSkeleton rows={3} columns={[{ width: 120 }, {}, { width: 90 }]} />
-            ) : missing.length === 0 ? (
-              <NothingLeftToDo
-                title="Every register is in"
-                body={`All ${board?.summary.yearGroups ?? 0} year groups have sent one for ${onDate}.`}
+              /*
+                Three rows, and the same shape a missing register has: the class
+                name, its form teacher underneath, and the "no register yet"
+                tail. Anything squarer than the row it becomes reflows the panel
+                the moment the board lands.
+              */
+              <TableRowsSkeleton
+                rows={3}
+                columns={[{ twoLine: true }, { width: 120, align: "right" }]}
               />
+            ) : registersQuery.error ? (
+              <LoadError
+                what="the register board"
+                error={registersQuery.error}
+                onRetry={() => void registersQuery.refetch()}
+              />
+            ) : missing.length === 0 ? (
+              board && board.rows.length === 0 && narrowing.length > 0 ? (
+                <NothingMatched
+                  what="year groups"
+                  filters={narrowing}
+                  onClear={clearFilters}
+                />
+              ) : board && board.rows.length === 0 ? (
+                <NothingYet
+                  title="No year group is expecting a register"
+                  body="A register belongs to a year group with a class list. Set the year groups up under Classes and the morning fills itself in."
+                />
+              ) : (
+                <NothingLeftToDo
+                  title="Every register is in"
+                  body={`All ${board?.summary.yearGroups ?? 0} year groups have sent one for ${onDate}.`}
+                />
+              )
             ) : (
               missing.map((row) => (
                 <PanelRow
@@ -655,49 +751,89 @@ export function SchoolsDashboardContent() {
                   title={row.className}
                   detail={row.formTeacher?.name ?? "Unassigned — no form teacher"}
                   tail="no register yet"
+                  trailing={
+                    <RecordActions
+                      resource="schools.attendance"
+                      verbs={[
+                        {
+                          label: "Remind",
+                          // Chasing a register is not taking one — a deputy who
+                          // may not mark attendance still has to be able to ask
+                          // for it, so this is the office's `edit`, not
+                          // `capture`.
+                          action: "edit",
+                          loading:
+                            remind.isPending && remind.variables?.classId === row.classId,
+                          unavailable: row.formTeacher
+                            ? undefined
+                            : "Nobody teaches this year group yet, so there is nobody to remind.",
+                          onSelect: () => {
+                            setReminded(null);
+                            remind.mutate(row);
+                          },
+                        },
+                      ]}
+                    />
+                  }
                 />
               ))
             )}
           </Panel>
 
           <Panel title="Waiting on somebody">
-            <PanelRow
-              href="/schools/results/moderation"
-              lead="warn"
-              title="Mark sheets in moderation"
-              detail="Submitted, nobody has approved them yet"
-              tail={sheetsQuery.data?.pagination.total ?? "—"}
-            />
-            {closingWindow ? (
-              <PanelRow
-                href="/schools/results/publish"
-                lead="warn"
-                title={`Publish window closes on ${SHORT_DAY.format(new Date(String(closingWindow.closeAt)))}`}
-                detail={`${closingWindow.term?.name ?? "This term"} · sheets not yet approved`}
-                tail={sheetsQuery.data?.pagination.total ?? "—"}
+            {/*
+              Five counts from five different endpoints. They land at five
+              different moments, so the panel waits for all of them rather than
+              filling itself in a line at a time — a row reading "—" that turns
+              into "12" a second later is a number somebody has already read
+              and believed.
+            */}
+            {waitingPending ? (
+              <TableRowsSkeleton
+                rows={5}
+                columns={[{ twoLine: true }, { width: 60, align: "right" }]}
               />
-            ) : null}
-            <PanelRow
-              href="/schools/admissions"
-              lead="warn"
-              title="Admissions to decide"
-              detail="Applied, no decision recorded"
-              tail={admissionsQuery.data?.applications.length ?? "—"}
-            />
-            <PanelRow
-              href="/schools/homework"
-              lead="danger"
-              title="Homework past its deadline"
-              detail="Work still missing from the class list"
-              tail={homework?.summary.overdue ?? "—"}
-            />
-            <PanelRow
-              href="/schools/goals"
-              lead="neutral"
-              title="Pupils with no subject target"
-              detail="Nobody has set these children anything"
-              tail={goalsQuery.data?.summary.withoutGoal ?? "—"}
-            />
+            ) : (
+              <>
+                <PanelRow
+                  href="/schools/results/moderation"
+                  lead="warn"
+                  title="Mark sheets in moderation"
+                  detail="Submitted, nobody has approved them yet"
+                  tail={sheetsQuery.data?.pagination.total ?? "—"}
+                />
+                {closingWindow ? (
+                  <PanelRow
+                    href="/schools/results/publish"
+                    lead="warn"
+                    title={`Publish window closes on ${SHORT_DAY.format(new Date(String(closingWindow.closeAt)))}`}
+                    detail={`${closingWindow.term?.name ?? "This term"} · sheets not yet approved`}
+                    tail={sheetsQuery.data?.pagination.total ?? "—"}
+                  />
+                ) : null}
+                <PanelRow
+                  href="/schools/admissions"
+                  lead="warn"
+                  title="Admissions to decide"
+                  detail="Applied, no decision recorded"
+                  tail={admissionsQuery.data?.applications.length ?? "—"}
+                />
+                <PanelRow
+                  href="/schools/homework"
+                  lead="danger"
+                  title="Homework past its deadline"
+                  detail="Work still missing from the class list"
+                  tail={homework?.summary.overdue ?? "—"}
+                />
+                <PanelRow
+                  href="/schools/goals"
+                  lead="neutral"
+                  title="Pupils with no subject target"
+                  detail="Nobody has set these children anything"
+                  tail={goalsQuery.data?.summary.withoutGoal ?? "—"}
+                />
+              </>
+            )}
           </Panel>
 
           <Panel
@@ -707,12 +843,34 @@ export function SchoolsDashboardContent() {
             linkLabel="All homework"
           >
             {homeworkQuery.isPending ? (
-              <TableRowsSkeleton rows={3} columns={[{}, { width: 80 }, { width: 80 }]} />
-            ) : overdueHomework.length === 0 ? (
-              <NothingLeftToDo
-                title="Nothing is overdue"
-                body="Every piece of work set this term is either in or not yet due."
+              <TableRowsSkeleton
+                rows={3}
+                columns={[{ twoLine: true }, { width: 130, align: "right" }]}
               />
+            ) : homeworkQuery.error ? (
+              <LoadError
+                what="the overdue homework"
+                error={homeworkQuery.error}
+                onRetry={() => void homeworkQuery.refetch()}
+              />
+            ) : overdueHomework.length === 0 ? (
+              (homework?.rows ?? []).length === 0 && narrowing.length > 0 ? (
+                <NothingMatched
+                  what="homework"
+                  filters={narrowing}
+                  onClear={clearFilters}
+                />
+              ) : (homework?.rows ?? []).length === 0 ? (
+                <NothingYet
+                  title="No homework has been set this term"
+                  body="Anything a teacher sets appears here once its deadline has passed with work still missing."
+                />
+              ) : (
+                <NothingLeftToDo
+                  title="Nothing is overdue"
+                  body="Every piece of work set this term is either in or not yet due."
+                />
+              )
             ) : (
               overdueHomework.map((row) => (
                 <PanelRow
@@ -745,6 +903,20 @@ export function SchoolsDashboardContent() {
           >
             {collectionsQuery.isPending || arrearsQuery.isPending ? (
               <StatsSkeleton count={3} />
+            ) : collectionsQuery.error || arrearsQuery.error ? (
+              /*
+                Scoped to the card, not the page. The registers above and the
+                boarding numbers below are perfectly good answers; a page-wide
+                alert would throw them away to report the one that failed.
+              */
+              <LoadError
+                what="the fee figures"
+                error={collectionsQuery.error ?? arrearsQuery.error}
+                onRetry={() => {
+                  void collectionsQuery.refetch();
+                  void arrearsQuery.refetch();
+                }}
+              />
             ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-3 gap-3">
@@ -774,60 +946,99 @@ export function SchoolsDashboardContent() {
           </Card>
 
           <Panel title="This week">
-            {nextMeeting ? (
-              <PanelRow
-                href="/schools/meetings"
-                title={
-                  nextMeeting.first.student?.currentClass
-                    ? `Parents' evening, ${nextMeeting.first.student.currentClass.name}`
-                    : "Parents' evening"
-                }
-                detail={`${nextMeeting.free} slots free of ${nextMeeting.total} · ${SHORT_DAY.format(new Date(nextMeeting.first.startsAt))} ${CLOCK.format(new Date(nextMeeting.first.startsAt))}`}
-                trailing={<Badge tone="success">Open</Badge>}
+            {thisWeekPending ? (
+              <TableRowsSkeleton
+                rows={3}
+                columns={[{ twoLine: true }, { width: 78, badge: true }]}
               />
-            ) : null}
-            {(noticesQuery.data?.data ?? []).slice(0, 3).map((notice) => (
-              <PanelRow
-                key={notice.id}
-                href="/schools/notices"
-                title={notice.title}
-                detail={`Sent ${SHORT_DAY.format(new Date(notice.createdAt))} · read by ${notice.read.toLocaleString()} of ${notice.recipients.toLocaleString()}`}
-                trailing={severityBadge(notice.severity)}
-              />
-            ))}
-            {libraryQuery.data ? (
-              <PanelRow
-                href="/schools/library"
-                title="Library books past their return date"
-                detail={`${libraryQuery.data.loans.filter((loan) => loan.isOverdue).length} out past their return date`}
-                trailing={<Badge tone="outline">Notice</Badge>}
-              />
-            ) : null}
-            {!nextMeeting &&
-            (noticesQuery.data?.data ?? []).length === 0 &&
-            !libraryQuery.data ? (
-              <NothingLeftToDo
-                title="Nothing is booked this week"
-                body="No parents' evenings, no notices out and nothing overdue at the library."
-              />
-            ) : null}
+            ) : (
+              <>
+                {nextMeeting ? (
+                  <PanelRow
+                    href="/schools/meetings"
+                    title={
+                      nextMeeting.first.student?.currentClass
+                        ? `Parents' evening, ${nextMeeting.first.student.currentClass.name}`
+                        : "Parents' evening"
+                    }
+                    detail={`${nextMeeting.free} slots free of ${nextMeeting.total} · ${SHORT_DAY.format(new Date(nextMeeting.first.startsAt))} ${CLOCK.format(new Date(nextMeeting.first.startsAt))}`}
+                    trailing={<Badge tone="success">Open</Badge>}
+                  />
+                ) : null}
+                {(noticesQuery.data?.data ?? []).slice(0, 3).map((notice) => (
+                  <PanelRow
+                    key={notice.id}
+                    href="/schools/notices"
+                    title={notice.title}
+                    detail={`Sent ${SHORT_DAY.format(new Date(notice.createdAt))} · read by ${notice.read.toLocaleString()} of ${notice.recipients.toLocaleString()}`}
+                    trailing={severityBadge(notice.severity)}
+                  />
+                ))}
+                {libraryQuery.data ? (
+                  <PanelRow
+                    href="/schools/library"
+                    title="Library books past their return date"
+                    detail={`${libraryQuery.data.loans.filter((loan) => loan.isOverdue).length} out past their return date`}
+                    trailing={<Badge tone="outline">Notice</Badge>}
+                  />
+                ) : null}
+                {!nextMeeting &&
+                (noticesQuery.data?.data ?? []).length === 0 &&
+                !libraryQuery.data ? (
+                  <NothingLeftToDo
+                    title="Nothing is booked this week"
+                    body="No parents' evenings, no notices out and nothing overdue at the library."
+                  />
+                ) : null}
+              </>
+            )}
           </Panel>
 
           <Panel title="Boarding" href="/schools/boarding" linkLabel="Open boarding">
-            <PanelRow
-              href="/schools/boarding"
-              title="Beds occupied"
-              tail={
-                occupancy
-                  ? `${occupancy.totalOccupied} of ${occupancy.totalBeds}`
-                  : "—"
-              }
-            />
-            <PanelRow
-              href="/schools/boarding"
-              title="Out on leave tonight"
-              tail={leaveQuery.data?.data.length ?? "—"}
-            />
+            {boardingPending ? (
+              <TableRowsSkeleton
+                rows={2}
+                columns={[{}, { width: 90, align: "right" }]}
+              />
+            ) : occupancyQuery.error ? (
+              <LoadError
+                what="the boarding numbers"
+                error={occupancyQuery.error}
+                onRetry={() => void occupancyQuery.refetch()}
+              />
+            ) : occupancy && occupancy.totalBeds === 0 ? (
+              /*
+                A day school has no hostels, and that is not a missing record —
+                but it is also not "nothing left to do", so it offers the verb
+                that would fill it and stops there.
+              */
+              <NothingYet
+                title="No beds have been set up"
+                body="A boarding house is a hostel with rooms and beds in it. Add one under Boarding and this panel starts counting."
+                action={
+                  <Button asChild variant="secondary">
+                    <Link href="/schools/boarding/hostels">Open boarding houses</Link>
+                  </Button>
+                }
+              />
+            ) : (
+              <>
+                <PanelRow
+                  href="/schools/boarding"
+                  title="Beds occupied"
+                  tail={
+                    occupancy
+                      ? `${occupancy.totalOccupied} of ${occupancy.totalBeds}`
+                      : "—"
+                  }
+                />
+                <PanelRow
+                  href="/schools/boarding"
+                  title="Out on leave tonight"
+                  tail={leaveQuery.data?.data.length ?? "—"}
+                />
+              </>
+            )}
           </Panel>
         </div>
       </div>

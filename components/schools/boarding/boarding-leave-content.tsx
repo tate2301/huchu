@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { Card, StatCard } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -9,7 +9,13 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
-import { LoadError, StatsSkeleton } from "@/components/schools/common/states";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SavingOverlay,
+  StatsSkeleton,
+} from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 
 import {
@@ -66,6 +72,31 @@ export function BoardingLeaveContent() {
   const hostels = useMemo(() => hostelsQuery.data ?? [], [hostelsQuery.data]);
   const all = useMemo(() => allQuery.data ?? [], [allQuery.data]);
 
+  /**
+   * The same narrowing the panel applies, worked out here as well.
+   *
+   * Not duplication for its own sake: the panel below owns the table and its
+   * row verbs, but it cannot tell "this school has never used the gate book"
+   * from "the four filters above me left nothing" — it only ever sees the rows
+   * its own query returned. This screen holds the unfiltered read, so it is the
+   * only thing that can tell those two apart, and they are different sentences.
+   */
+  const inView = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return all.filter((row) => {
+      if (hostelFilter && row.allocation?.hostel.id !== hostelFilter) return false;
+      if (status && row.status !== status) return false;
+      if (requestType && row.requestType !== requestType) return false;
+      if (classValue.classId && row.student.currentClass?.id !== classValue.classId) {
+        return false;
+      }
+      if (!needle) return true;
+      return `${row.student.lastName} ${row.student.firstName} ${row.student.studentNo}`
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [all, hostelFilter, status, requestType, classValue.classId, search]);
+
   const waiting = all.filter((row) => row.status === "SUBMITTED").length;
   const out = all.filter((row) => row.status === "CHECKED_OUT").length;
   const approved = all.filter((row) => row.status === "APPROVED").length;
@@ -85,6 +116,14 @@ export function BoardingLeaveContent() {
     setRequestType("");
     setSearch("");
   };
+
+  /**
+   * Any write in flight. Deliberately unkeyed: the four gate moves live in
+   * `leave-requests-panel.tsx` and its mutation carries no key of its own, so
+   * asking for a keyed subset here would match nothing and the interlock would
+   * quietly never engage. On this screen the only writes are gate writes.
+   */
+  const working = useIsMutating() > 0;
 
   return (
     <>
@@ -106,6 +145,13 @@ export function BoardingLeaveContent() {
         ]}
       />
 
+      {hostelsQuery.error ? (
+        <LoadError
+          what="the hostels"
+          error={hostelsQuery.error}
+          onRetry={() => void hostelsQuery.refetch()}
+        />
+      ) : null}
       {allQuery.error ? (
         <LoadError
           what="the leave requests"
@@ -173,17 +219,55 @@ export function BoardingLeaveContent() {
       />
 
       <Card flush title="Leave and Outing Requests" subtitle="the gate book">
-        <LeaveRequestsPanel
-          filters={{
-            hostelId: hostelFilter,
-            status: status as LeaveStatus | "",
-            requestType: requestType as "LEAVE" | "OUTING" | "",
-            classId: classValue.classId,
-            search,
-          }}
-          filterNames={filterNames}
-          onClearFilters={clearFilters}
-        />
+        {/* The four gate moves live in the panel, and each one rewrites a
+            request's status. While one is in flight the whole book dims: the
+            same row still shows Approve and Sign out, and a second tap while
+            the first is landing signs a child out of a request that has not
+            been approved yet. */}
+        <SavingOverlay saving={working} label="Writing it in the gate book…">
+          {allQuery.isLoading ? (
+            <LeaveRequestsPanel
+              filters={{
+                hostelId: hostelFilter,
+                status: status as LeaveStatus | "",
+                requestType: requestType as "LEAVE" | "OUTING" | "",
+                classId: classValue.classId,
+                search,
+              }}
+              filterNames={filterNames}
+              onClearFilters={clearFilters}
+            />
+          ) : all.length === 0 ? (
+            // Nothing in the book at all, unfiltered — the school has not
+            // started using it. The verb that fills it is in the app bar.
+            <div className="px-3 py-6">
+              <NothingYet
+                title="Nobody has asked to go out"
+                body="Leave and outings are recorded here, approved by the warden, and signed out and back in at the gate."
+              />
+            </div>
+          ) : inView.length === 0 ? (
+            <div className="px-3 py-6">
+              <NothingMatched
+                what="requests"
+                filters={filterNames}
+                onClear={clearFilters}
+              />
+            </div>
+          ) : (
+            <LeaveRequestsPanel
+              filters={{
+                hostelId: hostelFilter,
+                status: status as LeaveStatus | "",
+                requestType: requestType as "LEAVE" | "OUTING" | "",
+                classId: classValue.classId,
+                search,
+              }}
+              filterNames={filterNames}
+              onClearFilters={clearFilters}
+            />
+          )}
+        </SavingOverlay>
       </Card>
 
       <LeaveRequestDialog

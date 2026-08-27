@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   Alert,
   Badge,
   Button,
   Card,
-  EmptyState,
-  Skeleton,
   StatCard,
 } from "@corelithzw/react";
 
@@ -20,7 +19,14 @@ import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
-import { LoadError, SaveError } from "@/components/schools/common/states";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -448,15 +454,14 @@ export function MeetingsAdminContent() {
     setSearch("");
   };
 
-  if (scheduleQuery.error) {
-    return (
-      <LoadError
-        what="the schedule"
-        error={scheduleQuery.error}
-        onRetry={() => void scheduleQuery.refetch()}
-      />
-    );
-  }
+  // The narrowing in the office's own words, for the list to repeat back when
+  // it comes up empty. The term is not in it: there is always a term in view,
+  // so naming it would put a filter nobody set on every empty state.
+  const narrowing = [
+    teachers.find((row) => row.id === teacherProfileId)?.user.name ?? null,
+    evenings.find((evening) => evening.key === eveningKey)?.label ?? null,
+    search.trim() || null,
+  ].filter((entry): entry is string => Boolean(entry));
 
   return (
     <div className="space-y-4">
@@ -661,48 +666,77 @@ export function MeetingsAdminContent() {
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <div className="min-w-0 space-y-4">
         {filtersPending || scheduleQuery.isPending ? (
-          <div className="space-y-3">
-            <Skeleton className="h-40 w-full" />
-            <Skeleton className="h-40 w-full" />
-          </div>
+          /*
+            Cards, one per teacher, because that is what the schedule is — a
+            stack of staff-room evenings, not a table. Two of them is the usual
+            night; a grey block the height of the whole column would move
+            everything below it when the real cards arrive.
+          */
+          <CardsSkeleton count={2} columns={1} lines={5} />
+        ) : scheduleQuery.error ? (
+          /*
+            Scoped to the schedule column, not the page. The band, the tiles and
+            the evenings panel beside it are drawn from what did load; a
+            page-wide alert would throw those away to report the one read that
+            failed.
+          */
+          <LoadError
+            what="the schedule"
+            error={scheduleQuery.error}
+            onRetry={() => void scheduleQuery.refetch()}
+          />
         ) : !term ? (
-          <EmptyState
+          <NothingYet
             title="No term has been set up"
             body="A parents' evening is booked inside a term. Create one under Years and terms, and this screen has a window to open slots in."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/academics">Open years and terms</Link>
+              </Button>
+            }
           />
         ) : teachers.length === 0 ? (
-          <EmptyState
+          <NothingYet
             title="No teachers on the staff list"
             body="Slots are opened against a teacher's profile. Add staff under Teachers first."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/teachers">Open the staff list</Link>
+              </Button>
+            }
           />
         ) : byTeacher.length === 0 ? (
-          <EmptyState
-            title={
-              allSlots.length > 0
-                ? "No slots match those filters"
-                : `No parents' evening is open in ${term.name}`
-            }
-            body={
-              allSlots.length > 0
-                ? "Nothing matches those filters in this window. Clear them to see the whole term."
-                : "Open a window against a teacher and every ten minutes inside it becomes a free row a family can take from their portal."
-            }
-            action={
-              allSlots.length > 0 ? (
-                <Button variant="secondary" onClick={clearFilters}>
-                  Clear the filters
-                </Button>
-              ) : (
+          allSlots.length > 0 ? (
+            <NothingMatched
+              what="slots"
+              filters={narrowing}
+              onClear={clearFilters}
+            />
+          ) : (
+            <NothingYet
+              title={`No parents' evening is open in ${term.name}`}
+              body="Open a window against a teacher and every ten minutes inside it becomes a free row a family can take from their portal."
+              action={
                 <CreateButton
                   resource="schools.students"
                   action="edit"
                   label="Open slots"
                   onSelect={() => setOpening(true)}
                 />
-              )
-            }
-          />
+              }
+            />
+          )
         ) : (
+          /*
+            Booking and releasing both rewrite the schedule this list is drawn
+            from, so the whole thing dims while one is in flight. Two families
+            taking the same ten minutes because the first press had not landed
+            is the failure this stops.
+          */
+          <SavingOverlay
+            saving={release.isPending || bookSlot.isPending}
+            label={release.isPending ? "Releasing…" : "Booking…"}
+          >
           <div className="space-y-4">
             {byTeacher.map((group) => {
               const teacherBooked = group.slots.filter((slot) => slot.bookedAt).length;
@@ -882,6 +916,7 @@ export function MeetingsAdminContent() {
               );
             })}
           </div>
+          </SavingOverlay>
         )}
         </div>
 

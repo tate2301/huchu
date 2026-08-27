@@ -2,8 +2,8 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
-import { Badge, Card, StatCard } from "@corelithzw/react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, Badge, Card, StatCard } from "@corelithzw/react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -12,8 +12,10 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
+  NothingLeftToDo,
   NothingMatched,
   NothingYet,
+  SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -102,12 +104,14 @@ function stateBadge(state: AssignmentState) {
  * and denied the work.
  */
 export function HomeworkOversightContent() {
+  const queryClient = useQueryClient();
   const [termId, setTermId] = useState("");
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [teacherProfileId, setTeacherProfileId] = useState("");
   const [state, setState] = useState("");
   const [openAssignmentId, setOpenAssignmentId] = useState<string | null>(null);
+  const [nudged, setNudged] = useState<string | null>(null);
 
   const termsQuery = useQuery({
     queryKey: ["schools", "terms", "homework-oversight"],
@@ -229,6 +233,35 @@ export function HomeworkOversightContent() {
     setState("");
   };
 
+  /**
+   * Nudging the teacher whose homework has gone past its deadline.
+   *
+   * The row dialog chases the *children* who have not handed in. This chases
+   * the person who set it and has marked none of it — a different problem with
+   * a different audience, and the one a deputy scanning "Nothing marked yet"
+   * against a fortnight-old deadline actually wants. Same notices route, so it
+   * lands where everything else the office sends a teacher lands.
+   */
+  const nudgeTeacher = useMutation({
+    mutationFn: (row: OversightRow) =>
+      fetchJson<{ recipients: number }>("/api/v2/schools/notices", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${row.subjectName} homework for ${row.className}`,
+          body: `"${row.title}" was set for ${row.className}${row.streamName ? ` ${row.streamName}` : ""}${row.dueAt ? ` and was due on ${formatDate(row.dueAt)}` : ""}. ${row.handedIn} of ${row.onRoll} have handed in and ${row.marked === 0 ? "none of it has been marked" : `${row.marked} have been marked`}.`,
+          audience: "TEACHERS",
+          classId: row.classId,
+          severity: "WARNING",
+        }),
+      }),
+    onSuccess: (result, row) => {
+      setNudged(
+        `Sent to ${result.recipients} ${result.recipients === 1 ? "person" : "people"} who teach ${row.subjectName} to ${row.className}.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["schools", "notices"] });
+    },
+  });
+
   const columns = useMemo<ColumnDef<OversightRow>[]>(
     () => [
       {
@@ -326,12 +359,26 @@ export function HomeworkOversightContent() {
                 action: "view",
                 onSelect: () => setOpenAssignmentId(row.original.id),
               },
+              {
+                label: "Nudge the teacher",
+                action: "edit",
+                loading:
+                  nudgeTeacher.isPending &&
+                  nudgeTeacher.variables?.id === row.original.id,
+                unavailable: row.original.teacherName
+                  ? undefined
+                  : "Nobody is assigned to this subject, so there is nobody to write to.",
+                onSelect: () => {
+                  setNudged(null);
+                  nudgeTeacher.mutate(row.original);
+                },
+              },
             ]}
           />
         ),
       },
     ],
-    [],
+    [nudgeTeacher],
   );
 
   return (
@@ -362,6 +409,13 @@ export function HomeworkOversightContent() {
           error={query.error}
           onRetry={() => void query.refetch()}
         />
+      ) : null}
+
+      {nudgeTeacher.error ? (
+        <SaveError what="The nudge" error={nudgeTeacher.error} />
+      ) : null}
+      {nudged ? (
+        <Alert tone="success" title={nudged} onDismiss={() => setNudged(null)} />
       ) : null}
 
       {query.isPending ? (
@@ -430,17 +484,26 @@ export function HomeworkOversightContent() {
         <div className="min-w-0">
           {query.isPending ? (
             <TableRowsSkeleton
+              headers={[
+                "Subject and class",
+                "Homework",
+                "Teacher",
+                "Set",
+                "Due",
+                "Handed in",
+                "State",
+              ]}
               columns={[
                 { twoLine: true },
                 { twoLine: true },
                 { width: 120 },
-                { width: 90 },
-                { width: 90 },
-                { width: 90 },
-                { width: 110 },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 110, badge: true },
               ]}
             />
-          ) : (
+          ) : query.error ? null : (
             <DataTable
               data={rows}
               columns={columns}
@@ -449,13 +512,21 @@ export function HomeworkOversightContent() {
               pagination={{ enabled: true }}
               exportConfig={{ enabled: true, title: "Homework", fileName: "homework" }}
               emptyState={
-                query.error ? (
-                  "Nothing to show while the homework cannot be loaded."
-                ) : narrowing.length > 0 ? (
+                narrowing.length > 0 ? (
                   <NothingMatched
                     what="homework"
                     filters={narrowing}
                     onClear={clearFilters}
+                  />
+                ) : allRows.length > 0 ? (
+                  /*
+                    Work has been set this term and none of it is in the state
+                    asked for. That is a cleared queue rather than an empty
+                    school, so it says so and offers nothing to create.
+                  */
+                  <NothingLeftToDo
+                    title="Nothing is outstanding"
+                    body="Everything set this term is either in or not yet due."
                   />
                 ) : (
                   <NothingYet
@@ -473,10 +544,16 @@ export function HomeworkOversightContent() {
           subtitle="Pieces set this week"
           className="h-fit"
         >
-          {setThisWeek.length === 0 ? (
-            <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-              Nothing has been set this week yet.
-            </p>
+          {query.isPending ? (
+            <TableRowsSkeleton
+              rows={5}
+              columns={[{}, { width: 40, align: "right" }]}
+            />
+          ) : setThisWeek.length === 0 ? (
+            <NothingLeftToDo
+              title="Nothing has been set this week"
+              body="No class is drowning, because no class has been given anything since Monday."
+            />
           ) : (
             <ul className="space-y-2">
               {setThisWeek.map((entry) => (

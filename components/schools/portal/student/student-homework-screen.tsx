@@ -2,18 +2,21 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Alert, BottomSheet, Button } from "@corelithzw/react";
 import {
-  Alert,
-  BottomSheet,
-  Button,
-  EmptyState,
-  Skeleton,
-} from "@corelithzw/react";
+  CardsSkeleton,
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { AlertTriangle, Check, Clock } from "@/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
 
@@ -199,7 +202,7 @@ export function StudentHomeworkScreen() {
 
   if (student === null) {
     return (
-      <EmptyState
+      <NothingYet
         title="We cannot find your school record"
         body="Your account is signed in but it is not linked to a pupil yet. Ask the school office to link it and your homework appears here."
       />
@@ -208,19 +211,21 @@ export function StudentHomeworkScreen() {
 
   if (query.error) {
     return (
-      <Alert tone="danger" title="Your homework would not load">
-        {getApiErrorMessage(query.error)}
-      </Alert>
+      <LoadError
+        what="your homework"
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
   if (query.isPending) {
     return (
+      /* The chip row is a bar; the work under it is cards, one per piece.
+         Drawing both means the page does not jump when the chips arrive. */
       <div className="flex flex-col gap-4" role="status" aria-live="polite">
         <span className="sr-only">Fetching your homework…</span>
-        <Skeleton variant="rect" height={64} />
-        <Skeleton variant="rect" height={132} />
-        <Skeleton variant="rect" height={132} />
+        <CardsSkeleton count={5} columns={1} lines={3} />
       </div>
     );
   }
@@ -241,7 +246,7 @@ export function StudentHomeworkScreen() {
       ) : null}
 
       {assignments.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="No homework set"
           body="Work your teachers set this term shows up here, with the day it has to be in by."
         />
@@ -270,56 +275,72 @@ export function StudentHomeworkScreen() {
           </div>
 
           {shown.length === 0 ? (
-            <EmptyState
-              title="Nothing here"
-              body="Tap one of the other chips above to see the rest of your homework."
-            />
+            /* Two different sentences, because they are two different facts.
+               An empty "To do" is a child who has handed everything in, and
+               telling them to try another chip would bury the good news; any
+               other empty chip really is just a narrowing that hid the rest. */
+            filter === "todo" || filter === "overdue" ? (
+              <NothingLeftToDo
+                title="Nothing to hand in"
+                body="Every piece your teachers have set is in. Well done."
+              />
+            ) : (
+              <NothingMatched
+                what="homework"
+                filters={[FILTERS.find((row) => row.value === filter)?.label ?? filter]}
+                onClear={() => setFilter("all")}
+              />
+            )
           ) : (
-            <ul className="m-0 flex list-none flex-col p-0">
-              {shown.map((row) => {
-                const submission = row.submission;
-                const pill = pillOf(row);
-                return (
-                  <li key={row.id} className={subjectAccentClass(row.subjectName)}>
-                    <button
-                      type="button"
-                      className="sp-row-card"
-                      onClick={() => show(row)}
-                    >
-                      <span className="sp-rc-top">
-                        <span className="sp-tag" />
-                        <span className="sp-rc-info block">
-                          <span className="sp-as-subj block">{row.subjectName}</span>
-                          <span className="sp-rc-nm mt-1 block">{row.title}</span>
-                          <span className="sp-rc-sb block">
-                            {row.teacherName ?? "Your teacher"}
-                            {row.dueAt ? ` · ${dayOf(row.dueAt)}` : ""}
-                          </span>
-                          <span className="sp-as-meta">
-                            <span className={`sp-as-due ${pill.tone}`}>
-                              <pill.Icon className="size-[11px]" aria-hidden />
-                              {pill.label}
+            /* The list dims while a hand-in is in flight. A child who taps
+               twice on a slow connection should not send twice. */
+            <SavingOverlay saving={hand.isPending} label="Handing it in…">
+              <ul className="m-0 flex list-none flex-col p-0">
+                {shown.map((row) => {
+                  const submission = row.submission;
+                  const pill = pillOf(row);
+                  return (
+                    <li key={row.id} className={subjectAccentClass(row.subjectName)}>
+                      <button
+                        type="button"
+                        className="sp-row-card"
+                        onClick={() => show(row)}
+                      >
+                        <span className="sp-rc-top">
+                          <span className="sp-tag" />
+                          <span className="sp-rc-info block">
+                            <span className="sp-as-subj block">{row.subjectName}</span>
+                            <span className="sp-rc-nm mt-1 block">{row.title}</span>
+                            <span className="sp-rc-sb block">
+                              {row.teacherName ?? "Your teacher"}
+                              {row.dueAt ? ` · ${dayOf(row.dueAt)}` : ""}
                             </span>
-                            {submission?.score !== null &&
-                            submission?.score !== undefined ? (
-                              <span className="sp-as-grade">
-                                {submission.score}
-                                {row.maxScore ? `/${row.maxScore}` : ""}
+                            <span className="sp-as-meta">
+                              <span className={`sp-as-due ${pill.tone}`}>
+                                <pill.Icon className="size-[11px]" aria-hidden />
+                                {pill.label}
+                              </span>
+                              {submission?.score !== null &&
+                              submission?.score !== undefined ? (
+                                <span className="sp-as-grade">
+                                  {submission.score}
+                                  {row.maxScore ? `/${row.maxScore}` : ""}
+                                </span>
+                              ) : null}
+                            </span>
+                            {submission?.feedback ? (
+                              <span className="sp-rc-note block">
+                                {submission.feedback}
                               </span>
                             ) : null}
                           </span>
-                          {submission?.feedback ? (
-                            <span className="sp-rc-note block">
-                              {submission.feedback}
-                            </span>
-                          ) : null}
                         </span>
-                      </span>
-                    </button>
-                  </li>
-                );
-              })}
-            </ul>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </SavingOverlay>
           )}
         </>
       )}
@@ -358,11 +379,7 @@ export function StudentHomeworkScreen() {
       >
         {open ? (
           <div className="flex flex-col gap-3">
-            {hand.error ? (
-              <Alert tone="danger" title="That did not go through">
-                {getApiErrorMessage(hand.error)}
-              </Alert>
-            ) : null}
+            {hand.error ? <SaveError what="Your homework" error={hand.error} /> : null}
 
             {open.submission ? (
               <Alert tone="success" title={STATUS_LABELS[open.submission.status]}>

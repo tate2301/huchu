@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Alert, Button, Card, StatCard } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -27,6 +27,9 @@ import {
   LoadError,
   NothingLeftToDo,
   NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -440,6 +443,13 @@ export function ReportsArrearsContent() {
 
   const canRemind = access.can("schools.reports", "create");
 
+  /**
+   * The reminder send lives inside `SendNoticeDialog`. It owns its own error
+   * banner, but not the table underneath it — which is where the row-level
+   * Remind buttons are, and they are still clickable while the send runs.
+   */
+  const sending = useIsMutating() > 0 && reminding !== null;
+
   return (
     <>
       {/*
@@ -510,13 +520,10 @@ export function ReportsArrearsContent() {
         />
 
         {exportError ? (
-          <Alert
-            tone="danger"
-            title="The export did not download"
-            onDismiss={() => setExportError(null)}
-          >
-            {exportError}
-          </Alert>
+          // An export is a write as far as the person pressing it is concerned
+          // — they asked for a file and did not get one — so it takes the same
+          // banner every other failed write on the module takes.
+          <SaveError what="The export" error={exportError} />
         ) : null}
         {sent ? <Alert tone="success" title={sent} onDismiss={() => setSent(null)} /> : null}
 
@@ -561,6 +568,34 @@ export function ReportsArrearsContent() {
             />
           </div>
         )}
+
+        {/*
+          The four tiles read four different endpoints. When one of them fails
+          the other three still have answers, so the fault is named where it
+          sits rather than taking the page — a bursar who came here for the
+          arrears should not lose the arrears because the hostel count is down.
+        */}
+        {collectionsQuery.isError ? (
+          <LoadError
+            what="the collection rate"
+            error={collectionsQuery.error}
+            onRetry={() => void collectionsQuery.refetch()}
+          />
+        ) : null}
+        {enrollmentQuery.isError ? (
+          <LoadError
+            what="the enrolment figures"
+            error={enrollmentQuery.error}
+            onRetry={() => void enrollmentQuery.refetch()}
+          />
+        ) : null}
+        {occupancyQuery.isError ? (
+          <LoadError
+            what="the hostel occupancy"
+            error={occupancyQuery.error}
+            onRetry={() => void occupancyQuery.refetch()}
+          />
+        ) : null}
 
         <h2 className="text-section-title">Arrears Aging Report</h2>
 
@@ -667,38 +702,62 @@ export function ReportsArrearsContent() {
 
             {arrearsQuery.isPending ? (
               <TableRowsSkeleton
+                headers={[
+                  "Student",
+                  "Total Outstanding",
+                  "Current",
+                  "1-30 Days",
+                  "31-60 Days",
+                  "61-90 Days",
+                  "90+ Days",
+                ]}
                 columns={[
                   { avatar: true, twoLine: true },
-                  { width: 110 },
-                  { width: 90 },
-                  { width: 90 },
-                  { width: 90 },
-                  { width: 90 },
-                  { width: 90 },
+                  // Every aging column is money, and money is right-aligned in
+                  // the real row. A skeleton that left-aligns them makes the
+                  // whole table jump right when the figures land.
+                  { width: 110, align: "right" },
+                  { width: 90, align: "right" },
+                  { width: 90, align: "right" },
+                  { width: 90, align: "right" },
+                  { width: 90, align: "right" },
+                  { width: 90, align: "right" },
                 ]}
               />
-            ) : (
-              <DataTable
-                data={visible}
-                columns={columns}
-                pagination={{ enabled: true }}
-                emptyState={
-                  arrearsQuery.error ? (
-                    "Nothing to show while the report cannot be loaded."
-                  ) : narrowing.length > 0 ? (
-                    <NothingMatched
-                      what="families"
-                      filters={narrowing}
-                      onClear={clearFilters}
-                    />
-                  ) : (
-                    <NothingLeftToDo
-                      title="Nobody is in arrears"
-                      body="Every issued bill has been settled. There is nothing to chase."
-                    />
-                  )
-                }
-              />
+            ) : arrearsQuery.error ? null : (
+              // Writing to a set of families is a write, and the dialog that
+              // does it sits over this table. While it is in flight the rows
+              // stop taking clicks — every one of them carries a Remind, and a
+              // second press mid-send writes to the family twice.
+              <SavingOverlay saving={sending} label="Sending the reminders…">
+                <DataTable
+                  data={visible}
+                  columns={columns}
+                  pagination={{ enabled: true }}
+                  emptyState={
+                    narrowing.length > 0 ? (
+                      <NothingMatched
+                        what="families"
+                        filters={narrowing}
+                        onClear={clearFilters}
+                      />
+                    ) : rollNow === 0 ? (
+                      // No arrears because there is no school yet. Different
+                      // sentence from "everybody has paid", and the verb that
+                      // fills it is admitting pupils, not chasing them.
+                      <NothingYet
+                        title="Nobody is on the roll yet"
+                        body="Arrears are worked out from issued bills. Admit pupils and bill them, and this fills itself."
+                      />
+                    ) : (
+                      <NothingLeftToDo
+                        title="Nobody is in arrears"
+                        body="Every issued bill has been settled. There is nothing to chase."
+                      />
+                    )
+                  }
+                />
+              </SavingOverlay>
             )}
           </div>
 

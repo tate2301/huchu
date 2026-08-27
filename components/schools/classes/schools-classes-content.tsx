@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { MobileList, MobileListEmpty } from "@corelithzw/react";
 
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
@@ -12,6 +12,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -55,7 +56,6 @@ export function SchoolsClassesContent() {
   const [levelFilter, setLevelFilter] = useState("");
   const [streamedFilter, setStreamedFilter] = useState("");
   const [classFilter, setClassFilter] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
 
   const [classDialogOpen, setClassDialogOpen] = useState(false);
   const [editingClass, setEditingClass] = useState<SchoolsClassRecord | null>(null);
@@ -150,7 +150,6 @@ export function SchoolsClassesContent() {
         : fetchJson("/api/v2/schools/classes", { method: "POST", body });
     },
     onSuccess: () => {
-      setActionError(null);
       setClassDialogOpen(false);
       setEditingClass(null);
       invalidate();
@@ -160,11 +159,7 @@ export function SchoolsClassesContent() {
   const deleteClass = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/classes/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const saveStream = useMutation({
@@ -190,7 +185,6 @@ export function SchoolsClassesContent() {
           });
     },
     onSuccess: () => {
-      setActionError(null);
       setStreamDialogOpen(false);
       setEditingStream(null);
       invalidate();
@@ -200,11 +194,7 @@ export function SchoolsClassesContent() {
   const deleteStream = useMutation({
     mutationFn: (id: string) =>
       fetchJson(`/api/v2/schools/streams/${id}`, { method: "DELETE" }),
-    onSuccess: () => {
-      setActionError(null);
-      invalidate();
-    },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+    onSuccess: invalidate,
   });
 
   const classColumns = useMemo<ColumnDef<SchoolsClassRecord>[]>(
@@ -392,14 +382,13 @@ export function SchoolsClassesContent() {
         />
       ) : null}
 
-      {actionError ? (
-        <Alert
-          tone="danger"
-          title="That change was not applied"
-          onDismiss={() => setActionError(null)}
-        >
-          {actionError}
-        </Alert>
+      {/* A class refused for still holding pupils and a stream refused for the
+          same reason are two different rows to go and fix, so they say which. */}
+      {deleteClass.error ? (
+        <SaveError what="The class" error={deleteClass.error} />
+      ) : null}
+      {deleteStream.error ? (
+        <SaveError what="The stream" error={deleteStream.error} />
       ) : null}
 
       <VerticalDataViews
@@ -444,14 +433,16 @@ export function SchoolsClassesContent() {
 
           {classesQuery.isLoading ? (
             <TableRowsSkeleton
+              headers={["Code", "Name", "Level", "Capacity", "Streams", "Students"]}
               columns={[
                 { width: 110 },
                 {},
-                { width: 90 },
-                { width: 100 },
-                { width: 90 },
-                { width: 90 },
+                { width: 90, align: "right" },
+                { width: 100, align: "right" },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
               ]}
+              rows={8}
             />
           ) : classes.length === 0 ? (
             <NothingYet
@@ -539,7 +530,9 @@ export function SchoolsClassesContent() {
 
           {classesQuery.isLoading ? (
             <TableRowsSkeleton
-              columns={[{ width: 110 }, {}, { width: 160 }, { width: 100 }]}
+              headers={["Code", "Name", "Class", "Capacity"]}
+              columns={[{ width: 110 }, {}, { width: 160 }, { width: 100, align: "right" }]}
+              rows={8}
             />
           ) : streams.length === 0 ? (
             <NothingYet

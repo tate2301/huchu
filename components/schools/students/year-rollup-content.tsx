@@ -19,10 +19,13 @@ import { RecordTabs } from "@/components/schools/records/record-tabs";
 import {
   LoadError,
   NothingLeftToDo,
+  NothingMatched,
   NothingYet,
   SaveError,
+  SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import {
   Select,
   SelectContent,
@@ -220,6 +223,46 @@ export function YearRollUpContent() {
   }).length;
   const leavingCount = allRows.length - movingCount;
 
+  /**
+   * The counts the confirmation quotes, worked out from the decisions actually
+   * in force rather than from the server's proposal — the office has been
+   * overriding them for the last ten minutes, and a confirmation that names the
+   * plan as it arrived would be describing a roll-up that is not the one about
+   * to run.
+   */
+  const decided = allRows.reduce(
+    (tally, row) => {
+      if (row.alreadyRolled) return tally;
+      const action = overrides[row.studentId] ?? row.proposed;
+      tally[action] += 1;
+      return tally;
+    },
+    { PROMOTE: 0, REPEAT: 0, GRADUATE: 0, TRANSFER: 0, WITHDRAW: 0 } as Record<Action, number>,
+  );
+
+  /**
+   * The one irreversible verb in the module, so it says what it is about to do
+   * before it does it — the counts by action, and the two terms by name. There
+   * is no undo for this; the confirmation is the whole of the safety.
+   */
+  const runRollUp = async () => {
+    const parts = (Object.keys(ACTION_LABELS) as Action[])
+      .filter((action) => decided[action] > 0)
+      .map((action) => `${decided[action]} ${ACTION_LABELS[action].toLowerCase()}`);
+    const confirmed = await dsConfirm({
+      title: `Roll ${toDo} student${toDo === 1 ? "" : "s"} into ${plan?.toTerm.name ?? "the next term"}`,
+      description: `${parts.join(", ")}. Every enrolment named in this plan is written into ${
+        plan?.toTerm.name ?? "the next term"
+      }, including the ones on the tab you are not looking at. There is no undo.`,
+      confirmLabel: `Roll ${toDo} up`,
+      variant: "danger",
+    });
+    if (confirmed) applyMutation.mutate();
+  };
+
+  /** The year group narrows the plan, so an empty plan under one is a filter result. */
+  const narrowed = Boolean(classFilter);
+
   return (
     <div className="space-y-4">
       {/* The page is named in the app bar, and the one verb that acts on every
@@ -235,7 +278,7 @@ export function YearRollUpContent() {
           loading={applyMutation.isPending}
           disabled={applyMutation.isPending || toDo === 0}
           title={toDo === 0 ? "Nothing in this plan would move." : undefined}
-          onClick={() => applyMutation.mutate()}
+          onClick={() => void runRollUp()}
         >
           {applyMutation.isPending
             ? "Rolling up…"
@@ -265,6 +308,23 @@ export function YearRollUpContent() {
         ]}
       />
 
+      {/* The term pickers ARE the screen — with no terms there is nothing to
+          roll from or into — so their read failing is a page-level fault and
+          not a quiet empty dropdown. */}
+      {termsQuery.isError ? (
+        <LoadError
+          what="the terms"
+          error={termsQuery.error}
+          onRetry={() => void termsQuery.refetch()}
+        />
+      ) : null}
+      {classesQuery.isError ? (
+        <LoadError
+          what="the year groups"
+          error={classesQuery.error}
+          onRetry={() => void classesQuery.refetch()}
+        />
+      ) : null}
       {planQuery.error ? (
         <LoadError
           what="the roll-up"
@@ -336,94 +396,113 @@ export function YearRollUpContent() {
       ) : null}
 
       {grouped.length === 0 && planQuery.isLoading ? (
-        <TableRowsSkeleton rows={6} columns={[{ twoLine: true }, { width: 170 }]} />
+        <TableRowsSkeleton
+          rows={6}
+          headers={["Student", "What happens"]}
+          columns={[{ twoLine: true }, { width: 170, badge: true }]}
+        />
       ) : null}
       {grouped.length === 0 && !planQuery.isLoading ? (
-        resolvedFrom && resolvedTo ? (
-          <NothingLeftToDo
-            title="Nobody to roll up"
-            body="There are no active enrolments in that term, so nothing would move."
-          />
-        ) : (
+        !resolvedFrom || !resolvedTo ? (
           <NothingYet
             title="Choose the two terms"
             body="Pick the term to roll up from and the one to roll into, and this becomes a list of every child and what would happen to them."
           />
+        ) : narrowed ? (
+          <NothingMatched
+            what="children"
+            filters={[
+              classes.find((row) => row.id === classFilter)?.name ?? "that year group",
+              tab === "leaving" ? "the leavers" : "those moving up",
+            ]}
+            onClear={() => setClassFilter("")}
+          />
+        ) : (
+          <NothingLeftToDo
+            title="Nobody to roll up"
+            body="There are no active enrolments in that term, so nothing would move."
+          />
         )
       ) : null}
 
-      <MobileList>
-        {grouped.length === 0 ? null : (
-          grouped.map(([heading, groupRows]) => (
-            <div key={heading}>
-              <MobileListSectionHeader>
-                {heading} · {groupRows.length}
-              </MobileListSectionHeader>
-              {groupRows.map((row) => {
-                const action = overrides[row.studentId] ?? row.proposed;
-                return (
-                  <MobileList.Row
-                    key={row.studentId}
-                    static
-                    title={`${row.student.lastName}, ${row.student.firstName}`}
-                    subtitle={
-                      <span className="mt-1 flex flex-wrap items-center gap-2">
-                        <span>
-                          {/* Number, then the move, then the average. The
-                              ladder is the fact the office is checking — "Form
-                              2 → Form 3", or that there is nothing above. */}
-                          {row.student.studentNo} ·{" "}
-                          {row.fromClass?.name ?? "No year group"} →{" "}
-                          {row.toClass?.name ?? "no year group above"}
-                          {row.termAverage !== null
-                            ? ` · average ${row.termAverage}%`
-                            : ""}
-                        </span>
-                        {row.flagged ? (
-                          <Badge tone="danger">Below {plan?.passMark ?? 50}%</Badge>
-                        ) : null}
-                        {/* Nothing above this year group, so "move up" has
-                            nowhere to move to. Said once, as a chip, rather
-                            than buried in the reason line. */}
-                        {!row.toClass && row.proposed === "GRADUATE" ? (
-                          <Badge tone="warn">No ladder</Badge>
-                        ) : null}
-                        {row.alreadyRolled ? (
-                          <Badge tone="neutral">Already done</Badge>
-                        ) : (
-                          <Select
-                            value={action}
-                            onValueChange={(value) =>
-                              setOverrides((current) => ({
-                                ...current,
-                                [row.studentId]: value as Action,
-                              }))
-                            }
-                          >
-                            <SelectTrigger
-                              aria-label={`What happens to ${row.student.lastName}`}
-                              className="w-[170px]"
+      {/* The roll-up rewrites an enrolment for every child in the plan, so the
+          list it was decided on stops taking overrides while it runs. A
+          dropdown changed mid-write is a decision that never reaches the
+          server and looks like it did. */}
+      <SavingOverlay saving={applyMutation.isPending} label="Rolling the year up…">
+        <MobileList>
+          {grouped.length === 0 ? null : (
+            grouped.map(([heading, groupRows]) => (
+              <div key={heading}>
+                <MobileListSectionHeader>
+                  {heading} · {groupRows.length}
+                </MobileListSectionHeader>
+                {groupRows.map((row) => {
+                  const action = overrides[row.studentId] ?? row.proposed;
+                  return (
+                    <MobileList.Row
+                      key={row.studentId}
+                      static
+                      title={`${row.student.lastName}, ${row.student.firstName}`}
+                      subtitle={
+                        <span className="mt-1 flex flex-wrap items-center gap-2">
+                          <span>
+                            {/* Number, then the move, then the average. The
+                                ladder is the fact the office is checking — "Form
+                                2 → Form 3", or that there is nothing above. */}
+                            {row.student.studentNo} ·{" "}
+                            {row.fromClass?.name ?? "No year group"} →{" "}
+                            {row.toClass?.name ?? "no year group above"}
+                            {row.termAverage !== null
+                              ? ` · average ${row.termAverage}%`
+                              : ""}
+                          </span>
+                          {row.flagged ? (
+                            <Badge tone="danger">Below {plan?.passMark ?? 50}%</Badge>
+                          ) : null}
+                          {/* Nothing above this year group, so "move up" has
+                              nowhere to move to. Said once, as a chip, rather
+                              than buried in the reason line. */}
+                          {!row.toClass && row.proposed === "GRADUATE" ? (
+                            <Badge tone="warn">No ladder</Badge>
+                          ) : null}
+                          {row.alreadyRolled ? (
+                            <Badge tone="neutral">Already done</Badge>
+                          ) : (
+                            <Select
+                              value={action}
+                              onValueChange={(value) =>
+                                setOverrides((current) => ({
+                                  ...current,
+                                  [row.studentId]: value as Action,
+                                }))
+                              }
                             >
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              {(Object.keys(ACTION_LABELS) as Action[]).map((option) => (
-                                <SelectItem key={option} value={option}>
-                                  {ACTION_LABELS[option]}
-                                </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
-                        )}
-                      </span>
-                    }
-                  />
-                );
-              })}
-            </div>
-          ))
-        )}
-      </MobileList>
+                              <SelectTrigger
+                                aria-label={`What happens to ${row.student.lastName}`}
+                                className="w-[170px]"
+                              >
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Object.keys(ACTION_LABELS) as Action[]).map((option) => (
+                                  <SelectItem key={option} value={option}>
+                                    {ACTION_LABELS[option]}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          )}
+                        </span>
+                      }
+                    />
+                  );
+                })}
+              </div>
+            ))
+          )}
+        </MobileList>
+      </SavingOverlay>
     </div>
   );
 }

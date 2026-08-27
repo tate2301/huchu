@@ -13,9 +13,12 @@ import {
   LoadError,
   NothingLeftToDo,
   NothingMatched,
+  NothingYet,
+  NotYourJob,
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -60,6 +63,7 @@ function waitingSince(sheet: ResultSheetLike) {
 }
 
 export function ModerationQueueContent() {
+  const access = useSchoolAccess();
   const [view, setView] = useState<QueueView>("queue");
   const [classFilter, setClassFilter] = useState("");
   const [streamFilter, setStreamFilter] = useState("");
@@ -229,6 +233,13 @@ export function ModerationQueueContent() {
 
   const rows = view === "queue" ? queueRows : allRows;
 
+  // Approving and sending back are the head of department's grants, and they
+  // are the only reason this screen exists — so whether the person reading it
+  // holds them decides whether the screen is a queue or a window onto one.
+  const canModerate =
+    access.can("schools.results", "approve") ||
+    access.can("schools.results", "moderate");
+
   return (
     <div className="space-y-4">
       <PageHeading
@@ -249,6 +260,18 @@ export function ModerationQueueContent() {
           },
         ]}
       />
+
+      {/*
+        The canvas draws the refusal on this screen specifically. A bursar or a
+        subject teacher can read the queue all day; approving and sending back
+        belong to the head of department for the subject. RecordActions already
+        disables each verb with the reason on it, but a row of dead buttons
+        never says why the whole screen is read-only — so the screen says it
+        once, at the top, and names who to ask.
+      */}
+      {canModerate ? null : (
+        <NotYourJob action="approve" resource="schools.results" what="A mark sheet" />
+      )}
 
       {workflow.error ? <SaveError what="That sheet" error={workflow.error} /> : null}
       {resultsQuery.error ? (
@@ -321,13 +344,21 @@ export function ModerationQueueContent() {
           >
             {resultsQuery.isLoading ? (
               <TableRowsSkeleton
+                headers={[
+                  "Waiting",
+                  "Sheet",
+                  "Status",
+                  "Lines",
+                  "Average",
+                  "Published",
+                ]}
                 columns={[
                   { width: 100, twoLine: true },
                   { twoLine: true },
-                  { width: 110 },
-                  { width: 70 },
-                  { width: 80 },
-                  { width: 90 },
+                  { width: 110, badge: true },
+                  { width: 70, align: "right" },
+                  { width: 80, align: "right" },
+                  { width: 90, align: "right" },
                 ]}
               />
             ) : (
@@ -348,9 +379,15 @@ export function ModerationQueueContent() {
                       body="Every sheet handed in has been dealt with. New ones appear the moment a teacher submits."
                     />
                   ) : (
-                    <NothingLeftToDo
+                    /*
+                      An empty queue is good news; an empty school is not the
+                      same sentence. "All sheets" with nothing in it means no
+                      class has written marks to a sheet yet, which is a school
+                      on its first day rather than a cleared desk.
+                    */
+                    <NothingYet
                       title="No result sheets yet"
-                      body="Sheets appear here once a class's marks have been written to one."
+                      body="Sheets appear here once a class's marks have been written to one, from that year group's assessments."
                     />
                   )
                 }

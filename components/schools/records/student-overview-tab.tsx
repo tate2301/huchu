@@ -2,11 +2,18 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { LoadError, NothingYet, StatsSkeleton } from "@/components/schools/common/states";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  StatsSkeleton,
+} from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 
@@ -141,6 +148,19 @@ function shortDate(value: string) {
   return Number.isNaN(date.getTime()) ? "—" : SHORT_DATE.format(date);
 }
 
+/**
+ * The four things that happen to a child in a school week, as a filter on the
+ * timeline. Somebody preparing for a guardian meeting is reading one of them —
+ * the marks, or the fees — and thirty rows of morning registers is what buries
+ * it.
+ */
+const ACTIVITY_KINDS = [
+  { value: "register", label: "Registers" },
+  { value: "marks", label: "Marks" },
+  { value: "fees", label: "Fees" },
+  { value: "boarding", label: "Boarding" },
+];
+
 /** One line of the property list under the pupil's face. */
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -218,8 +238,41 @@ export function StudentOverviewTab({
    * filter — and React's rules lint says so.
    */
   const [since] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
-  const activity = [
+  const [activityKind, setActivityKind] = useState("");
+  const [asked, setAsked] = useState<string | null>(null);
+
+  /**
+   * Asking a family to come in about one of the decisions below.
+   *
+   * "Book a meeting" opens the meetings board with a slot to choose, which is
+   * the school's half of the conversation. This is the family's half: a notice
+   * to whoever is on this child's record, so the parent knows to expect the
+   * call rather than finding a booking in their portal with no explanation.
+   */
+  const askThemIn = useMutation({
+    mutationFn: (decision: { title: string; body: string }) =>
+      fetchJson<{ recipients: number }>("/api/v2/schools/notices", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${name} — ${decision.title.toLowerCase()}`,
+          body: `${decision.body} The school would like to speak with you about it. Please contact the office to arrange a time.`,
+          audience: "PARENTS",
+          studentIds: [student.id],
+          severity: "WARNING",
+        }),
+      }),
+    onSuccess: (result) => {
+      setAsked(
+        result.recipients === 0
+          ? "Nobody on this child's record has a portal account, so the message reached no one."
+          : `Sent to ${result.recipients} ${result.recipients === 1 ? "guardian" : "guardians"}.`,
+      );
+    },
+  });
+
+  const allActivity = [
     ...(attendance.data?.recent ?? []).map((entry) => ({
+      kind: "register",
       at: entry.date,
       title:
         entry.status === "PRESENT"
@@ -235,6 +288,7 @@ export function StudentOverviewTab({
       const before = previous.get(line.subjectCode);
       const drop = before === undefined ? null : Math.round(line.score - before);
       return {
+        kind: "marks",
         at: line.createdAt,
         title:
           drop === null
@@ -244,6 +298,7 @@ export function StudentOverviewTab({
       };
     }),
     ...(student.feeInvoices ?? []).map((invoice) => ({
+      kind: "fees",
       at: invoice.issueDate,
       title:
         toNumber(invoice.balanceAmount) === 0
@@ -252,6 +307,7 @@ export function StudentOverviewTab({
       meta: `Bursary · invoice ${invoice.invoiceNo}`,
     })),
     ...(student.boardingAllocations ?? []).map((allocation) => ({
+      kind: "boarding",
       at: allocation.startDate,
       title: `Moved into ${allocation.hostel?.name ?? "the hostel"}${allocation.bed ? `, bed ${allocation.bed.code}` : ""}`,
       meta: "Boarding",
@@ -261,7 +317,13 @@ export function StudentOverviewTab({
       const time = new Date(entry.at).getTime();
       return !Number.isNaN(time) && time >= since;
     })
-    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime())
+    .sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
+
+  // Six is what fits beside the rail without the card becoming the page. The
+  // cap is applied after narrowing, so filtering to Marks shows six marks
+  // rather than whichever marks survived a cut made against the registers.
+  const activity = allActivity
+    .filter((entry) => !activityKind || entry.kind === activityKind)
     .slice(0, 6);
 
   /**
@@ -429,28 +491,57 @@ export function StudentOverviewTab({
           </Card>
         ) : null}
 
-        {activity.length > 0 ? (
-          <Card title="Recent activity" subtitle="last 30 days">
-            <ul className="space-y-2">
-              {activity.map((entry, index) => (
-                <li
-                  key={`${entry.at}-${index}`}
-                  className="flex items-baseline gap-3 border-b border-[color:var(--border-subtle)] pb-2 last:border-b-0 last:pb-0"
-                >
-                  <span className="min-w-0 flex-1">
-                    <span className="block text-[length:var(--type-body-sm)]">
-                      {entry.title}
+        {allActivity.length > 0 ? (
+          <Card
+            title="Recent activity"
+            subtitle="last 30 days"
+            actions={
+              // Only offered once there is enough to bury something. Four rows
+              // do not need narrowing; a boarder's month of registers does.
+              allActivity.length > 6 ? (
+                <FilterSelect
+                  label="Show"
+                  allLabel="Everything"
+                  value={activityKind}
+                  options={ACTIVITY_KINDS}
+                  onChange={setActivityKind}
+                  className="min-w-0 basis-[170px]"
+                />
+              ) : undefined
+            }
+          >
+            {activity.length === 0 ? (
+              <NothingMatched
+                what="entries"
+                filters={[
+                  ACTIVITY_KINDS.find((kind) => kind.value === activityKind)?.label ?? "",
+                  "the last 30 days",
+                ].filter(Boolean)}
+                onClear={() => setActivityKind("")}
+              />
+            ) : (
+              <ul className="space-y-2">
+                {activity.map((entry, index) => (
+                  <li
+                    key={`${entry.at}-${index}`}
+                    className="campus-row-in flex items-baseline gap-3 border-b border-[color:var(--border-subtle)] pb-2 last:border-b-0 last:pb-0"
+                    style={{ animationDelay: `${index * 40}ms` }}
+                  >
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-[length:var(--type-body-sm)]">
+                        {entry.title}
+                      </span>
+                      <span className="block text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                        {entry.meta}
+                      </span>
                     </span>
-                    <span className="block text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {entry.meta}
+                    <span className="shrink-0 font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                      {shortDate(entry.at)}
                     </span>
-                  </span>
-                  <span className="shrink-0 font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                    {shortDate(entry.at)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+                  </li>
+                ))}
+              </ul>
+            )}
           </Card>
         ) : null}
       </div>
@@ -574,17 +665,44 @@ export function StudentOverviewTab({
             tone="warn"
           >
             <div className="space-y-2">
+              {/* One write, one place to report it. The Alerts below carry the
+                  verb; a refusal shown on each of them would say the same thing
+                  three times. */}
+              {askThemIn.isError ? (
+                <SaveError what="The message to the family" error={askThemIn.error} />
+              ) : null}
+              {asked ? (
+                <p className="campus-fade-in text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                  {asked}
+                </p>
+              ) : null}
+
               {decisions.map((decision) => (
                 <Alert
                   key={decision.id}
                   tone="warn"
                   title={decision.title}
                   actions={
-                    <Button asChild variant="secondary" size="sm">
-                      <Link href={`/schools/meetings?student=${student.id}`}>
-                        Book a meeting
-                      </Link>
-                    </Button>
+                    <span className="flex flex-wrap items-center gap-2">
+                      <Button asChild variant="secondary" size="sm">
+                        <Link href={`/schools/meetings?student=${student.id}`}>
+                          Book a meeting
+                        </Link>
+                      </Button>
+                      {/* Booking puts a slot in the diary; this is what tells
+                          the family there is something to come in about. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        loading={askThemIn.isPending}
+                        onClick={() => {
+                          setAsked(null);
+                          askThemIn.mutate(decision);
+                        }}
+                      >
+                        Tell the family
+                      </Button>
+                    </span>
                   }
                 >
                   {decision.body}

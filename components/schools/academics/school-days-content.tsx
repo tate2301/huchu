@@ -2,13 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Badge,
-  MobileList,
-  MobileListEmpty,
-  MobileListSectionHeader,
-} from "@corelithzw/react";
+import { Badge, MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
@@ -16,6 +10,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -81,7 +76,6 @@ function range(value: SchoolsCalendarEventRecord) {
 export function SchoolDaysContent() {
   const queryClient = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
   const [kindFilter, setKindFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
   const [openFilter, setOpenFilter] = useState("");
@@ -143,19 +137,15 @@ export function SchoolDaysContent() {
       }),
     onSuccess: () => {
       setSheetOpen(false);
-      setActionError(null);
       void queryClient.invalidateQueries({ queryKey: ["schools", "calendar"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteSchoolsCalendarEvent(id),
     onSuccess: () => {
-      setActionError(null);
       void queryClient.invalidateQueries({ queryKey: ["schools", "calendar"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const closedDays = visible.filter((event) => !event.isTeachingDay).length;
@@ -174,10 +164,13 @@ export function SchoolDaysContent() {
           onRetry={() => void calendarQuery.refetch()}
         />
       ) : null}
-      {actionError ? (
-        <Alert tone="danger" title="That did not save" onDismiss={() => setActionError(null)}>
-          {actionError}
-        </Alert>
+      {/*
+        Removing a day and adding one fail for different reasons — a delete is
+        refused when registers already lean on the closure — so each says which
+        one it was.
+      */}
+      {deleteMutation.error ? (
+        <SaveError what="The calendar day" error={deleteMutation.error} />
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -225,7 +218,11 @@ export function SchoolDaysContent() {
       </p>
 
       {calendarQuery.isLoading ? (
-        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }, { width: 90 }]} />
+        <TableRowsSkeleton
+          headers={["Day", "Dates", "School"]}
+          columns={[{ twoLine: true }, { width: 150 }, { width: 110, badge: true }]}
+          rows={8}
+        />
       ) : events.length === 0 ? (
         <NothingYet
           title="Nothing on the calendar yet"
@@ -293,7 +290,7 @@ export function SchoolDaysContent() {
         open={sheetOpen}
         onOpenChange={setSheetOpen}
         isSubmitting={createMutation.isPending}
-        error={createMutation.isError ? actionError : null}
+        error={createMutation.error ? getApiErrorMessage(createMutation.error) : null}
         onSubmit={(values) => createMutation.mutate(values)}
       />
     </div>

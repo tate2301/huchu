@@ -18,9 +18,17 @@ import {
   type SubjectNote,
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  RecordNotFound,
+  SaveError,
+  StatsSkeleton,
+} from "@/components/schools/common/states";
+import { ApiError, fetchJson } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -65,9 +73,24 @@ type SubjectRecord = {
   _count?: { classSubjects?: number };
 };
 
+/**
+ * Staffing, as a filter on the class list.
+ *
+ * The rail has always counted the lessons with nobody teaching them and called
+ * it "the number somebody is on this page to fix" — and then left them mixed in
+ * among the forty that are fine. A subject taken by every form in the school is
+ * a list you have to read twice to find the gap in.
+ */
+const STAFFING_OPTIONS = [
+  { value: "unstaffed", label: "Without a teacher" },
+  { value: "staffed", label: "With a teacher" },
+];
+
 export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
   const config = recordType("SUBJECT");
   const [activeTab, setActiveTab] = useState("classes");
+  const [termId, setTermId] = useState("");
+  const [staffing, setStaffing] = useState("");
 
   const query = useQuery({
     queryKey: config.queryKey(subjectId),
@@ -130,19 +153,38 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
 
   if (query.isPending) {
     return (
-      <div className="space-y-4" data-testid="subject-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
+      // The record's own shape, not two grey slabs. The left column is the mark,
+      // the name and the property list; the right is the class list. A
+      // placeholder that does not match is why the page used to reflow twice.
+      <div
+        className="grid items-start gap-4 xl:grid-cols-[320px_minmax(0,1fr)]"
+        data-testid="subject-record-loading"
+      >
+        <div className="space-y-4">
+          <CardsSkeleton count={1} columns={1} lines={5} />
+          <StatsSkeleton count={3} />
+        </div>
+        <CardsSkeleton count={6} columns={2} lines={2} />
       </div>
     );
   }
 
   if (query.isError || !subject) {
-    return (
-      <Alert variant="destructive">
-        <AlertTitle>This subject could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+    // A subject the ministry retired is a stale link, not a fault; anything
+    // else is. "Back to the subjects" and "try again" are different next steps.
+    const notFound = query.error instanceof ApiError && query.error.status === 404;
+    return notFound ? (
+      <RecordNotFound
+        what="That subject"
+        backHref={config.indexHref}
+        backLabel="Back to the subjects"
+      />
+    ) : (
+      <LoadError
+        what="this subject's record"
+        error={query.error}
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
@@ -151,32 +193,97 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
   const teachers = new Set(entries.map((entry) => entry.teacherProfile?.id).filter(Boolean));
   const unstaffed = entries.filter((entry) => !entry.teacherProfile).length;
 
+  // The terms this subject is actually taught in, rather than the school's whole
+  // calendar: a dropdown offering a term with no rows behind it can only ever
+  // empty the list.
+  const termOptions = [
+    ...new Map(
+      entries
+        .map((entry) => entry.term)
+        .filter((term): term is NonNullable<ClassSubject["term"]> => Boolean(term))
+        .map((term) => [term.id, { value: term.id, label: term.name }]),
+    ).values(),
+  ];
+
+  const visible = entries.filter((entry) => {
+    if (termId && entry.term?.id !== termId) return false;
+    if (staffing === "unstaffed" && entry.teacherProfile) return false;
+    if (staffing === "staffed" && !entry.teacherProfile) return false;
+    return true;
+  });
+
+  const filtersInForce = [
+    termId ? termOptions.find((option) => option.value === termId)?.label : null,
+    staffing ? STAFFING_OPTIONS.find((option) => option.value === staffing)?.label : null,
+  ].filter((value): value is string => Boolean(value));
+
+  const clearFilters = () => {
+    setTermId("");
+    setStaffing("");
+  };
+
   const tabs: RecordTab[] = [
     {
       value: "classes",
       label: "Classes",
       count: entries.length,
       content: (
-        <RelatedList
-          items={entries}
-          emptyMessage="No class takes this subject yet."
-          renderItem={(entry) => ({
-            href: entry.class ? recordType("CLASS").href(entry.class.id) : "/schools/classes",
-            title: entry.class?.name ?? "Class",
-            subtitle: [entry.term?.name, entry.stream?.name].filter(Boolean).join(" · "),
-            // A class taking a subject with nobody teaching it is the thing a
-            // timetabler is looking for on this page, so it says so rather than
-            // showing a blank.
-            meta: entry.teacherProfile?.user?.name ?? "No teacher",
-          })}
-        />
+        <div className="space-y-3">
+          <FilterBar>
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={termId}
+              options={termOptions}
+              onChange={setTermId}
+            />
+            <FilterSelect
+              label="Teacher"
+              allLabel="Staffed or not"
+              value={staffing}
+              options={STAFFING_OPTIONS}
+              onChange={setStaffing}
+            />
+          </FilterBar>
+
+          {entries.length === 0 ? (
+            <NothingYet
+              title="No class takes this subject yet"
+              body="A subject reaches a pupil through an assignment — who teaches it, to which form, in which term. Timetable one and the classes appear here."
+            />
+          ) : visible.length === 0 ? (
+            <NothingMatched what="classes" filters={filtersInForce} onClear={clearFilters} />
+          ) : (
+            <RelatedList
+              items={visible}
+              emptyMessage="No class takes this subject yet."
+              renderItem={(entry) => ({
+                href: entry.class ? recordType("CLASS").href(entry.class.id) : "/schools/classes",
+                title: entry.class?.name ?? "Class",
+                subtitle: [entry.term?.name, entry.stream?.name].filter(Boolean).join(" · "),
+                // A class taking a subject with nobody teaching it is the thing a
+                // timetabler is looking for on this page, so it says so rather than
+                // showing a blank.
+                meta: entry.teacherProfile?.user?.name ?? "No teacher",
+              })}
+            />
+          )}
+        </div>
       ),
     },
     {
       value: "notes",
       label: "Notes",
       count: notes.data?.data?.length ?? 0,
-      content: (
+      // Scoped to the tab: a Notes read that failed must not take the class list
+      // down with it, since that is what the page was opened for.
+      content: notes.error ? (
+        <LoadError
+          what="this subject's notes"
+          error={notes.error}
+          onRetry={() => void notes.refetch()}
+        />
+      ) : (
         <SubjectNotes
           subject={{ type: "SUBJECT", id: subjectId }}
           notes={notes.data?.data ?? []}
@@ -188,7 +295,15 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
       value: "files",
       label: "Files",
       count: files.data?.data?.length ?? 0,
-      content: <SubjectFiles files={files.data?.data ?? []} isPending={files.isPending} />,
+      content: files.error ? (
+        <LoadError
+          what="this subject's files"
+          error={files.error}
+          onRetry={() => void files.refetch()}
+        />
+      ) : (
+        <SubjectFiles files={files.data?.data ?? []} isPending={files.isPending} />
+      ),
     },
   ];
 
@@ -217,7 +332,16 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
           size="lg"
         />
       }
-      attributes={<RecordAttributes attributes={attributes} />}
+      attributes={
+        <div className="space-y-3">
+          {/* The property list commits on blur, so a refused write leaves no
+              button holding the fault. Above the list is the only place a
+              reader is still looking — and a pass mark that did not save is a
+              pass mark somebody will quote at a parents' evening. */}
+          {edit.save.error ? <SaveError what="That change" error={edit.save.error} /> : null}
+          <RecordAttributes attributes={attributes} />
+        </div>
+      }
       tabs={tabs}
       activeTab={activeTab}
       onTabChange={setActiveTab}

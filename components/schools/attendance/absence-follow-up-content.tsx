@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge } from "@corelithzw/react";
+import { useIsMutating, useQuery } from "@tanstack/react-query";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -23,6 +23,8 @@ import {
   LoadError,
   NothingMatched,
   NothingLeftToDo,
+  NothingYet,
+  SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -228,6 +230,14 @@ export function AbsenceFollowUpContent() {
 
   const filtered = Boolean(classValue.classId || search || days !== "28" || threshold !== "2");
 
+  /**
+   * The notice send lives inside `SendNoticeDialog`, which owns its own error
+   * banner but not the table underneath it. While a send is in flight the list
+   * is dimmed and stops taking taps: the row verbs open the same dialog, and a
+   * second "Ring home" pressed mid-send is a second letter to the same family.
+   */
+  const sending = useIsMutating() > 0 && ringing !== null;
+
   return (
     <>
       <PageChrome title="Absence follow-up" />
@@ -292,27 +302,59 @@ export function AbsenceFollowUpContent() {
 
       {followUpQuery.isPending ? (
         <TableRowsSkeleton
+          headers={[
+            "Student",
+            "Away, unexplained",
+            "With permission",
+            "Last away",
+            "Who to ring",
+            "",
+          ]}
           columns={[
             { avatar: true, twoLine: true },
-            { width: 130 },
-            { width: 120 },
-            { width: 100 },
+            { width: 130, badge: true },
+            { width: 120, align: "right" },
+            { width: 100, align: "right" },
             { twoLine: true },
             { width: 110 },
           ]}
         />
       ) : followUpQuery.isError ? (
-        <LoadError what="the follow-up list" error={followUpQuery.error} />
+        <LoadError
+          what="the follow-up list"
+          error={followUpQuery.error}
+          onRetry={() => void followUpQuery.refetch()}
+        />
       ) : rows.length === 0 ? (
         filtered ? (
           <NothingMatched
             what="children"
+            filters={[
+              classValue.classId ? "the chosen year group" : "",
+              WINDOWS.find((option) => option.value === days)?.label ?? "",
+              THRESHOLDS.find((option) => option.value === threshold)?.label ?? "",
+              search.trim(),
+            ].filter(Boolean)}
             onClear={() => {
               setClassValue(ALL_CLASSES);
               setDays("28");
               setThreshold("2");
               setSearch("");
             }}
+          />
+        ) : summary && summary.sessions === 0 ? (
+          // No register has been taken in the window at all. That is not "the
+          // chasing is done" — it is a school that has not started marking
+          // attendance, and the two read identically if both say "nobody to
+          // chase". The verb that fills this screen is taking a register.
+          <NothingYet
+            title="No register has been taken yet"
+            body="This list is built from marked registers. Take one and anybody who keeps missing appears here."
+            action={
+              <Button asChild variant="secondary">
+                <Link href="/schools/attendance">Go to the register board</Link>
+              </Button>
+            }
           />
         ) : (
           <NothingLeftToDo
@@ -321,7 +363,9 @@ export function AbsenceFollowUpContent() {
           />
         )
       ) : (
-        <DataTable columns={columns} data={rows} />
+        <SavingOverlay saving={sending} label="Sending it home…">
+          <DataTable columns={columns} data={rows} />
+        </SavingOverlay>
       )}
 
       {ringing ? (

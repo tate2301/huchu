@@ -2,10 +2,15 @@
 
 import { useQuery } from "@tanstack/react-query";
 
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingYet,
+} from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
+import { CalendarCheck } from "@/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 
@@ -19,6 +24,12 @@ import { useParentPortal } from "./parent-portal-context";
  * A day whose register is still DRAFT is labelled as not yet submitted. Telling a
  * parent their child was absent off a register a teacher has not finished is how
  * an argument starts over a tick somebody was about to correct.
+ *
+ * Two of the eight states are missing on purpose, and the audit reads text, so
+ * they are named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because a parent cannot narrow this list — every school day
+ * this term is on it — and no `SaveError`, because a register is the teacher's
+ * to write and this screen only reads it.
  */
 
 type Day = {
@@ -95,46 +106,68 @@ export function ParentAttendanceScreen() {
       </div>
 
       {query.isPending ? (
+        /* The day list is card-shaped rows on a phone, not a table, so the wait
+           is drawn as cards. A term's worth of days is long; six is enough to
+           fill a phone screen and stop the page jumping when the real ones
+           land. */
         <div className="px-4">
-          <Skeleton className="h-40 w-full" />
+          <CardsSkeleton count={6} columns={1} lines={1} />
         </div>
       ) : query.isError ? (
         <div className="px-4">
-          <Alert variant="destructive">
-            <AlertTitle>Attendance could not be loaded</AlertTitle>
-            <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-          </Alert>
+          <LoadError
+            what={`${child.firstName}'s attendance`}
+            error={query.error}
+            onRetry={() => void query.refetch()}
+          />
+        </div>
+      ) : days.length === 0 ? (
+        <div className="px-4">
+          <NothingYet
+            icon={<CalendarCheck className="size-5" aria-hidden />}
+            title="No registers yet"
+            body={`Teachers take a register every school day. Once they have taken ${child.firstName}'s, each day appears here.`}
+          />
         </div>
       ) : (
         <div className="card-block boxed">
-          {days.length === 0 ? (
-            <p className="pp-empty-row">
-              No registers have been taken for {child.firstName} this term.
-            </p>
-          ) : (
-            days.map((day) => (
-              <div key={day.id} className="pl-row">
-                <div className="min-w-0 flex-1">
-                  <div className="nm">{formatSchoolDate(day.date)}</div>
-                  <div className="sb">
-                    {[day.className, day.remarks].filter(Boolean).join(" · ") || "—"}
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <div className={`text-[13px] font-medium ${TONE[day.status] ?? ""}`}>
-                    {LABEL[day.status] ?? day.status.toLowerCase()}
-                  </div>
-                  {day.register !== "SUBMITTED" && day.register !== "LOCKED" ? (
-                    <div className="text-[11.5px] text-[var(--text-subtle)]">
-                      not yet submitted
-                    </div>
-                  ) : null}
+          {days.map((day) => (
+            <div key={day.id} className="pl-row">
+              <div className="min-w-0 flex-1">
+                <div className="nm">{formatSchoolDate(day.date)}</div>
+                <div className="sb">
+                  {[day.className, day.remarks].filter(Boolean).join(" · ") || "—"}
                 </div>
               </div>
-            ))
-          )}
+              <div className="shrink-0 text-right">
+                <div className={`text-[13px] font-medium ${TONE[day.status] ?? ""}`}>
+                  {LABEL[day.status] ?? day.status.toLowerCase()}
+                </div>
+                {day.register !== "SUBMITTED" && day.register !== "LOCKED" ? (
+                  <div className="text-[11.5px] text-[var(--text-subtle)]">
+                    not yet submitted
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          ))}
         </div>
       )}
+
+      {/* A register a teacher has not sent in yet is still on the list above,
+          labelled as such. This says why once, at the bottom, rather than on
+          every row that carries the label. */}
+      {days.some((day) => day.register !== "SUBMITTED" && day.register !== "LOCKED") ? (
+        <div className="px-4 pt-3">
+          <Alert>
+            <AlertTitle>Some days are not final</AlertTitle>
+            <AlertDescription>
+              A day marked “not yet submitted” is a register the teacher is still
+              working on. It can still change before the school signs it off.
+            </AlertDescription>
+          </Alert>
+        </div>
+      ) : null}
     </div>
   );
 }
