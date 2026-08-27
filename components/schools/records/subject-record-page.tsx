@@ -29,6 +29,7 @@ import {
   StatsSkeleton,
 } from "@/components/schools/common/states";
 import { ApiError, fetchJson } from "@/lib/api-client";
+import { FileText, Percent, Tag, ToggleLeft, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -122,12 +123,17 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!subject) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
-      { id: "name", label: "Name", ...edit.required("name", subject.name) },
-      { id: "code", label: "Code", mono: true, ...edit.required("code", subject.code) },
+      { id: "name", label: "Name", icon: FileText, ...edit.required("name", subject.name) },
+      { id: "code", label: "Code", icon: Tag, mono: true, ...edit.required("code", subject.code) },
       {
         id: "isCore",
         label: "Taken by",
+        icon: Users,
         ...edit.choice("isCore", String(subject.isCore), [
           { value: "true", label: "Everybody — core" },
           { value: "false", label: "Optional" },
@@ -136,6 +142,7 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
       {
         id: "passMark",
         label: "Pass mark",
+        icon: Percent,
         // S-1.3 compares a score against this to decide a pass, so it is the one
         // attribute on any record page that changes what a mark means.
         ...edit.numeric("passMark", subject.passMark),
@@ -143,6 +150,7 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
       {
         id: "isActive",
         label: "Taught",
+        icon: ToggleLeft,
         ...edit.choice("isActive", String(subject.isActive), [
           { value: "true", label: "Currently taught" },
           { value: "false", label: "Not taught" },

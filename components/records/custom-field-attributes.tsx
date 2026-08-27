@@ -1,9 +1,23 @@
 "use client";
 
+import {
+  Building2,
+  Calendar,
+  Globe,
+  ListBullets,
+  Mail,
+  MapPin,
+  Payments,
+  Percent,
+  Phone,
+  ToggleLeft,
+  UserRound,
+  type LucideIcon,
+} from "@/lib/icons";
 import { formatFieldValue, type FieldDefinition } from "@/lib/crm/custom-fields";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 
-import type { RecordAttribute } from "./record-attributes";
+import type { RecordAttribute, RecordAttributeTone } from "./record-attributes";
 
 /**
  * An administrator's custom fields, as editable properties.
@@ -36,6 +50,41 @@ import type { RecordAttribute } from "./record-attributes";
 export const TEXT_EDITABLE = new Set(["SHORT_TEXT", "LONG_TEXT", "URL", "EMAIL", "PHONE"]);
 export const NUMBER_EDITABLE = new Set(["NUMBER", "CURRENCY", "PERCENT"]);
 
+/**
+ * A mark per field type, so an administrator's fields sit in the same column
+ * as the built-in properties instead of under a run of identical fallbacks.
+ * A type nobody has a glyph for takes the property list's own default.
+ */
+const FIELD_ICON: Record<string, LucideIcon> = {
+  CURRENCY: Payments,
+  PERCENT: Percent,
+  DATE: Calendar,
+  DATETIME: Calendar,
+  CHECKBOX: ToggleLeft,
+  SINGLE_SELECT: ListBullets,
+  MULTI_SELECT: ListBullets,
+  PHONE: Phone,
+  EMAIL: Mail,
+  URL: Globe,
+  ADDRESS: MapPin,
+  SITE: MapPin,
+  USER: UserRound,
+  PERSON: UserRound,
+  COMPANY: Building2,
+};
+
+/**
+ * And a tone, on the same reasoning the built-in properties use: money is the
+ * figure you act on, a phone number or a reference is read digit by digit and
+ * wants a monospace column, and everything else is prose.
+ */
+const FIELD_TONE: Record<string, RecordAttributeTone> = {
+  CURRENCY: "money",
+  NUMBER: "code",
+  PERCENT: "code",
+  PHONE: "code",
+};
+
 export function customFieldAttributes({
   definitions,
   values,
@@ -55,10 +104,15 @@ export function customFieldAttributes({
         ? `${definition.section} · ${definition.label}`
         : definition.label;
 
+      const icon = FIELD_ICON[definition.type];
+      const tone = FIELD_TONE[definition.type];
+
       if (TEXT_EDITABLE.has(definition.type)) {
         return {
           id: `cf-${definition.key}`,
           label,
+          icon,
+          tone,
           placeholder: "Empty",
           value: raw == null ? null : String(raw),
           onCommit: (next: string) => onCommit(definition.key, next.trim() || null),
@@ -69,7 +123,8 @@ export function customFieldAttributes({
         return {
           id: `cf-${definition.key}`,
           label,
-          mono: true,
+          icon,
+          tone,
           placeholder: "Empty",
           value: raw == null ? null : String(raw),
           onCommit: (next: string) => {
@@ -86,6 +141,8 @@ export function customFieldAttributes({
       return {
         id: `cf-${definition.key}`,
         label,
+        icon,
+        tone,
         value: formatFieldValue(definition as unknown as FieldDefinition, raw),
         placeholder: "Empty",
       };

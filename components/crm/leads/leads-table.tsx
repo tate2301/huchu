@@ -38,7 +38,7 @@ import {
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
-} from "@/components/crm/records/record-table";
+} from "@/components/records/record-table";
 
 import type { LeadFilterOwner } from "./leads-filters";
 import {

@@ -16,6 +16,7 @@ import {
   Mail,
   MapPin,
   Video,
+  type LucideIcon,
 } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
@@ -209,25 +210,20 @@ const INTERACTION_LABEL: Record<NextInteraction["kind"], string> = {
  * One card rather than three, because "what is next on this" does not care
  * whether the answer is a task, a visit or a follow-up — and three panels each
  * showing its own next item makes the reader do the comparison.
+ *
+ * There is deliberately no empty state. Nothing booked is not this panel's
+ * news, it is the next step's: both call sites already render `NextStepCard`
+ * in that case, which says what to do about it rather than only that there is
+ * nothing. A card carried an amber "Nothing scheduled" branch for a while that
+ * neither page could ever reach.
  */
 export function NextInteractionCard({
   interaction,
-  emptyMessage = "Nothing scheduled.",
   action,
 }: {
-  interaction: NextInteraction | null;
-  emptyMessage?: string;
+  interaction: NextInteraction;
   action?: ReactNode;
 }) {
-  if (!interaction) {
-    return (
-      <div className="space-y-1.5">
-        <p className="text-sm text-[var(--text-muted)]">{emptyMessage}</p>
-        {action}
-      </div>
-    );
-  }
-
   const countdown = timeToStart(interaction.at);
 
   // Two lines and one coloured word. The badge that used to sit up here made
@@ -321,6 +317,58 @@ export function EmailPreview({
   );
 }
 
+export type RailTally = {
+  label: string;
+  /** Calls logged, emails sent, days waiting. */
+  value: number;
+  icon: LucideIcon;
+};
+
+/**
+ * "Contact so far" — how much of each thing has happened, a row apiece.
+ *
+ * The whole row is tinted, not just the figure. A zero here is the finding:
+ * nobody has rung, nobody has written, and the row saying so should be the one
+ * that catches the eye on the way down the rail rather than a grey line with a
+ * small red digit at the end of it. A tally with something in it is green for
+ * the same reason — the pair only reads as an answer if both halves are
+ * coloured by it.
+ *
+ * That rule is also the limit of what belongs here: only a fact where nothing
+ * is bad news and something is good news. A wait in days is the opposite way
+ * round and would come out green at eleven days, so it is left to the next
+ * step's own sentence, which can say what a number of days means.
+ *
+ * Deliberately not `ContactList` below, which is the last few things that
+ * actually happened and who they were with. This answers "how much", that one
+ * answers "what".
+ */
+export function ContactTally({ tallies }: { tallies: RailTally[] }) {
+  return (
+    <ul>
+      {tallies.map((tally) => {
+        const Icon = tally.icon;
+        const none = tally.value === 0;
+        return (
+          <li
+            key={tally.label}
+            className={cn(
+              "flex min-h-[26px] items-center gap-2.5",
+              none ? "text-[var(--badge-bad-fg)]" : "text-[var(--badge-ok-fg)]",
+            )}
+          >
+            <Icon className="size-3.5 shrink-0" aria-hidden="true" />
+            <span className="min-w-0 flex-1 truncate text-sm">{tally.label}</span>
+            <span className="shrink-0 font-mono text-sm font-semibold tabular-nums">
+              {tally.value}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
 export type PanelContact = {
   id: string;
   at: string;
@@ -345,11 +393,12 @@ export type PanelContact = {
  * beside a figure saying four emails. Every kind of contact belongs here; the
  * glyph and its colour, shared with the timeline, are what keep them apart.
  *
- * And it is the list alone. The counts that sat above it — "2 calls · 4 emails
- * · 2 notes" — were a second, coarser answer to the question the list below
- * them was already answering better: five rows say how much has been going on
- * *and* what was said, in the order it happened. Two readings of one set of
- * facts, stacked, is how a narrow column runs out of room.
+ * Above it, `ContactTally` — but not the inline strip that used to be there.
+ * "2 calls · 4 emails · 2 notes" was a coarser second answer to the question
+ * this list already answers better, and it was drawn in the same grey whether
+ * the counts were healthy or all zero. The tally earns its place by answering
+ * something the list cannot: a record with no contact at all has an empty list,
+ * which reads as "nothing to show" rather than as the finding it is.
  */
 export function ContactList({
   contacts,

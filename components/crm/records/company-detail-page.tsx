@@ -12,16 +12,22 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Building2,
+  Buildings,
   Clock,
+  ExternalLink,
+  Factory,
+  FileText,
   Funnel,
   Globe,
   Mail,
   MapPin,
   Phone,
   Plus,
+  Receipt,
   UserRound,
   Users,
 } from "@/lib/icons";
+import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
@@ -42,12 +48,15 @@ import {
   useRecordComments,
 } from "./record-tabs";
 import { RecordAttributes } from "@/components/records/record-attributes";
+import { NextStepCard } from "./next-step-card";
+import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import { RailSection, RecordPageShell, RelatedList } from "@/components/records/record-page-shell";
 import { CompanyFormSheet } from "./company-form-sheet";
 import { DealFormSheet } from "./deal-form-sheet";
 import { MergeDialog } from "./merge-dialog";
+import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 const ACCOUNT_STATUS_PRESENTATION: Record<string, { label: string; status: CanonicalUiStatus }> = {
   ACTIVE: { label: "Active", status: "passing" },
@@ -143,6 +152,15 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
   const comments = useRecordComments({ kind: "company", id: companyId });
   const company = companyQuery.data;
 
+  // The work being done for this customer. One sheet raises it — from the
+  // actions menu or from the section itself — and afterwards the section it
+  // landed in opens, so the page is visibly different for having done it.
+  const jobs = useJobsTab({
+    ref: { kind: "company", id: companyId },
+    currentUserId: session?.user?.id,
+    onRaised: () => setTab("jobs"),
+  });
+
   if (companyQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -204,6 +222,20 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
 
   const hasHierarchy = Boolean(company.parent) || company.children.length > 0;
 
+  // An account's next step is the next piece of business, and the reason for it
+  // is what is already open against it and how long ago anybody last spoke.
+  const lastContactAt =
+    company.activities.find((activity) => activity.type in CONTACT_ACTIVITY_KIND)?.occurredAt ??
+    null;
+  const nextStep = resolveNextStep({
+    kind: "company",
+    daysSinceContact: daysSince(lastContactAt),
+    openDeals: openDeals.length,
+    // Without this, a blacklisted account was offered "Open a deal" — in amber,
+    // because nothing is open against it.
+    accountStatus: company.accountStatus,
+  });
+
   return (
     <>
     <RecordPageShell
@@ -223,6 +255,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       actions={[
         { label: "Edit", onSelect: () => setEditOpen(true) },
         { label: "Merge a duplicate", onSelect: () => setMergeOpen(true) },
+        { label: "Raise a job", onSelect: jobs.raise },
       ]}
       leading={
         <RecordMark
@@ -248,6 +281,11 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
               label: "Owner",
               icon: UserRound,
               placeholder: "Unassigned",
+              // Red when nobody owns it. An account that is nobody's job is an
+              // account nobody sells to, and it was reading as faint grey —
+              // the same ink as a field nobody has filled in because nobody
+              // needed to.
+              tone: company.assignedTo ? "strong" : "alert",
               // A choice, not a label: who owns a record is the property that
               // changes most and was the one you could not change from here.
               ...edit.choice(
@@ -262,6 +300,9 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
               label: "Phone",
               icon: Phone,
               placeholder: "Not recorded",
+              // Monospaced, so the digits line up against the registration and
+              // tax numbers below and can be read a group at a time.
+              mono: true,
               ...edit.text("phone", company.phone),
             },
             {
@@ -274,7 +315,9 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
             {
               id: "website",
               label: "Website",
-              icon: Globe,
+              // The globe belongs to Country, three rows down. A website is a
+              // link somebody opens, and that is the mark for it.
+              icon: ExternalLink,
               placeholder: "Not recorded",
               ...edit.text("website", company.website),
             },
@@ -291,24 +334,28 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
             {
               id: "city",
               label: "City",
+              icon: Buildings,
               placeholder: "Not recorded",
               ...edit.text("city", company.city),
             },
             {
               id: "country",
               label: "Country",
+              icon: Globe,
               placeholder: "Not recorded",
               ...edit.text("country", company.country),
             },
             {
               id: "industry",
               label: "Industry",
+              icon: Factory,
               placeholder: "Not recorded",
               ...edit.text("industry", company.industry),
             },
             {
               id: "registration",
               label: "Registration no.",
+              icon: FileText,
               mono: true,
               placeholder: "Not recorded",
               ...edit.text("registrationNumber", company.registrationNumber),
@@ -316,6 +363,7 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
             {
               id: "tax",
               label: "Tax number",
+              icon: Receipt,
               mono: true,
               placeholder: "Not recorded",
               ...edit.text("taxNumber", company.taxNumber),
@@ -396,6 +444,8 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
         },
         tasksTab({ ref: { kind: "company", id: companyId }, currentUserId: session?.user?.id }),
         paperworkTab({ ref: { kind: "company", id: companyId } }),
+        // A job follows the paperwork: it is what the quote turns into.
+        jobs.tab,
         automationTab({ ref: { kind: "company", id: companyId } }),
         historyTab({
           ref: { kind: "company", id: companyId },
@@ -405,6 +455,12 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       ]}
       rail={
         <>
+          {nextStep ? (
+            <RailSection title="Up next">
+              <NextStepCard step={nextStep} onAct={() => setDealOpen(true)} />
+            </RailSection>
+          ) : null}
+
           {hasHierarchy ? (
             <RailSection title="Hierarchy">
               {company.parent ? (
@@ -495,6 +551,8 @@ export function CompanyDetailPage({ companyId }: { companyId: string }) {
       defaultClientId={companyId}
       onCreated={() => companyQuery.refetch()}
     />
+
+    {jobs.sheet}
     </>
   );
 }

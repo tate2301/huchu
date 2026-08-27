@@ -9,9 +9,17 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Pencil, Plus, Trash2 } from "@/lib/icons"
 
-import { EmployeeAvatar } from "@/components/shared/employee-avatar"
 import { EmployeeWizard } from "@/components/people/employee-wizard"
 import { PeopleShell } from "@/components/people/people-shell";
+import {
+  DirectoryCell,
+  DirectoryLine,
+  DirectoryName,
+  DirectoryNote,
+  EmploymentBadge,
+  EMPLOYMENT_TYPE_LABEL,
+} from "@/components/records/people-directory"
+import { ViewToolbarChip } from "@/components/records/view-toolbar"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -24,6 +32,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
@@ -50,15 +64,23 @@ import {
 } from "@/lib/platform/vertical-defaults"
 import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles"
 
-const employmentTypes = [
-  { value: "FULL_TIME", label: "Full Time" },
-  { value: "PART_TIME", label: "Part Time" },
-  { value: "CONTRACT", label: "Contract" },
-  { value: "CASUAL", label: "Casual" },
-] as const
+// The labels come from the shared directory rather than being written again
+// here, so the sheet that sets somebody's employment type and the column that
+// reports it cannot end up calling the same thing two different names.
+const employmentTypes = (["FULL_TIME", "PART_TIME", "CONTRACT", "CASUAL"] as const).map(
+  (value) => ({ value, label: EMPLOYMENT_TYPE_LABEL[value] }),
+)
 
 type EmployeePosition = EmployeePositionValue
 type EmploymentType = (typeof employmentTypes)[number]["value"]
+
+/** What the status chip says it is filtered to. "Anyone" has no meaning here —
+ *  somebody is either on the books or off them. */
+const STATUS_FILTER_LABEL = {
+  active: "Active",
+  inactive: "Inactive",
+  all: "Everyone",
+} as const
 
 const MODULE_LABELS: Record<string, string> = {
   HR: "HR",
@@ -208,6 +230,9 @@ export default function HumanResourcesPage() {
   )
 
   const employees = useMemo(() => data?.data ?? [], [data])
+  // Both counts come off the same filtered query, so they agree until the 500
+  // cap bites — which is the one case where "500 of 812" is worth saying.
+  const employeeTotal = data?.pagination?.total ?? employees.length
   const departments = useMemo(() => departmentsData?.data ?? [], [departmentsData])
   const grades = useMemo(() => gradesData?.data ?? [], [gradesData])
   const templates = useMemo(() => templatesData?.data ?? [], [templatesData])
@@ -546,20 +571,17 @@ export default function HumanResourcesPage() {
           exportValue: (row: EmployeeSummary) => `${row.name} (${row.employeeId})`,
         },
         cell: ({ row }) => (
-          <div className="flex flex-row items-center gap-3 min-w-0">
-            <EmployeeAvatar
-              name={row.original.name}
-              photoUrl={row.original.passportPhotoUrl}
-              size="lg"
-            />
-            <div className="min-w-0 flex-1">
-              <div className="font-semibold truncate">{row.original.name}</div>
-              <div className="font-mono text-xs text-muted-foreground truncate">
-                {row.original.employeeId}
-                {row.original.jobTitle ? ` · ${row.original.jobTitle}` : ""}
-              </div>
-            </div>
-          </div>
+          // The artboard's mono second line is the reference and one word of
+          // context. The department is that word here — it is what tells two
+          // people of the same name apart on a payroll — which frees Position
+          // to carry the job title rather than repeating it.
+          <DirectoryName
+            name={row.original.name}
+            photoUrl={row.original.passportPhotoUrl}
+            subtitle={[row.original.employeeId, row.original.department?.name]
+              .filter(Boolean)
+              .join(" · ")}
+          />
         ),
         size: 280,
         minSize: 220,
@@ -567,31 +589,42 @@ export default function HumanResourcesPage() {
       {
         id: "phone",
         header: "Contact",
-        cell: ({ row }) => <span className="font-mono">{row.original.phone}</span>,
+        cell: ({ row }) => (
+          <DirectoryCell kind="phone" value={row.original.phone} missing="no phone on file" />
+        ),
         size: 160,
         minSize: 160,
         maxSize: 160},
       {
         id: "nationalIdNumber",
         header: "National ID",
-        cell: ({ row }) =>
-          row.original.nationalIdNumber ? (
-            <span className="font-mono">{row.original.nationalIdNumber}</span>
-          ) : (
-            "-"
-          ),
-        size: 112,
-        minSize: 112,
-        maxSize: 112},
+        cell: ({ row }) => (
+          <DirectoryCell
+            kind="code"
+            value={row.original.nationalIdNumber}
+            missing="not on file"
+          />
+        ),
+        size: 132,
+        minSize: 132,
+        maxSize: 132},
       {
         id: "position",
         header: "Position",
         meta: {
           exportValue: (row: EmployeeSummary) =>
-            getPositionLabel(row.position),
+            row.jobTitle || getPositionLabel(row.position),
         },
-        cell: ({ row }) =>
-          getPositionLabel(row.original.position),
+        // The written job title where there is one, and the position it maps
+        // to where there is not. "Site foreman" is what a foreman is called on
+        // site; SUPPORT_STAFF is what the payroll run needs to know, and it is
+        // the worse answer to "who is this".
+        cell: ({ row }) => (
+          <DirectoryCell
+            value={row.original.jobTitle || getPositionLabel(row.original.position)}
+            missing="No position"
+          />
+        ),
         size: 160,
         minSize: 160,
         maxSize: 160},
@@ -599,27 +632,29 @@ export default function HumanResourcesPage() {
         id: "org",
         header: "Org",
         meta: {
+          // The department rides along here even though the cell no longer
+          // draws it. On screen it moved up into the name cell's mono line,
+          // but that column exports the name and the employee ID only — so
+          // narrowing this to the grade dropped the department out of the
+          // spreadsheet altogether, and a payroll export with no department in
+          // it cannot be split by cost centre.
           exportValue: (row: EmployeeSummary) => {
-            const department = row.department
-              ? `${row.department.code} - ${row.department.name}`
-              : "No department";
             const grade = row.grade ? `${row.grade.code} - ${row.grade.name}` : "No grade";
-            return `${department} | ${grade}`;
+            return row.department?.name ? `${row.department.name} | ${grade}` : grade;
           },
         },
+        // One line, because the artboard's rows are one line. The department
+        // has moved up into the name cell, which leaves the grade — the half
+        // of somebody's placement that a manager scans this column for.
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">
-              {row.original.department
-                ? `${row.original.department.code} - ${row.original.department.name}`
-                : "-"}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.grade
+          <DirectoryCell
+            value={
+              row.original.grade
                 ? `${row.original.grade.code} - ${row.original.grade.name}`
-                : "No grade"}
-            </div>
-          </div>
+                : null
+            }
+            missing="No grade"
+          />
         ),
         size: 160,
         minSize: 160,
@@ -629,27 +664,24 @@ export default function HumanResourcesPage() {
         header: "Employment",
         meta: {
           exportValue: (row: EmployeeSummary) => {
-            const employment =
-              employmentTypes.find((type) => type.value === row.employmentType)?.label ??
-              row.employmentType;
+            const employment = row.employmentType
+              ? (EMPLOYMENT_TYPE_LABEL[row.employmentType] ?? row.employmentType)
+              : "not set";
             const hireDate = row.hireDate ? String(row.hireDate).slice(0, 10) : "-";
             return `${employment} | Hire: ${hireDate}`;
           },
         },
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">
-              {employmentTypes.find((type) => type.value === row.original.employmentType)?.label ??
-                row.original.employmentType}
-            </div>
-            <div className="text-xs text-muted-foreground">
-              Hire: {row.original.hireDate ? String(row.original.hireDate).slice(0, 10) : "-"}
-            </div>
-          </div>
+          <DirectoryLine>
+            <EmploymentBadge type={row.original.employmentType} />
+            {row.original.hireDate ? (
+              <DirectoryNote>{String(row.original.hireDate).slice(0, 10)}</DirectoryNote>
+            ) : null}
+          </DirectoryLine>
         ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
+        size: 180,
+        minSize: 180,
+        maxSize: 180},
       {
         id: "access",
         header: "Access",
@@ -665,23 +697,29 @@ export default function HumanResourcesPage() {
             return `${linkedUser} | ${modules}`;
           },
         },
+        // The address is the answer to "can this person sign in", so it is the
+        // link ink and a real `mailto:`; "No linked user" in the faintest ink
+        // is the other answer, and it is a fact worth being able to scan for.
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">
-              {row.original.user ? row.original.user.email : "No linked user"}
-            </div>
-            <div className="text-xs text-muted-foreground">
+          <DirectoryLine>
+            <DirectoryCell
+              kind="email"
+              value={row.original.user?.email}
+              missing="No linked user"
+              className="min-w-0"
+            />
+            <DirectoryNote>
               {row.original.moduleAssignments
                 ?.map((assignment) => assignment.module)
                 .filter((module) => allowedAccessModules.has(module))
                 .map((module) => MODULE_LABELS[module] ?? module)
                 .join(", ") || "HR"}
-            </div>
-          </div>
+            </DirectoryNote>
+          </DirectoryLine>
         ),
-        size: 190,
-        minSize: 190,
-        maxSize: 220},
+        size: 230,
+        minSize: 200,
+        maxSize: 280},
       {
         id: "nextOfKin",
         header: "Next of Kin",
@@ -690,27 +728,49 @@ export default function HumanResourcesPage() {
             `${row.nextOfKinName || "-"} (${row.nextOfKinPhone || "-"})`,
         },
         cell: ({ row }) => (
-          <div>
-            <div className="font-semibold">{row.original.nextOfKinName}</div>
-            <div className="text-xs text-muted-foreground">{row.original.nextOfKinPhone}</div>
-          </div>
+          <DirectoryLine>
+            <DirectoryCell
+              value={row.original.nextOfKinName}
+              missing="nobody named"
+              className="min-w-0"
+            />
+            {row.original.nextOfKinPhone ? (
+              <DirectoryNote>{row.original.nextOfKinPhone}</DirectoryNote>
+            ) : null}
+          </DirectoryLine>
         ),
-        size: 160,
-        minSize: 160,
-        maxSize: 160},
+        size: 200,
+        minSize: 180,
+        maxSize: 220},
       {
-        accessorKey: "villageOfOrigin",
+        id: "villageOfOrigin",
         header: "Village",
+        meta: {
+          exportValue: (row: EmployeeSummary) => row.villageOfOrigin || "not on file",
+        },
+        cell: ({ row }) => (
+          <DirectoryCell value={row.original.villageOfOrigin} missing="not on file" />
+        ),
         size: 160,
         minSize: 160,
         maxSize: 160},
       {
         id: "salaryOwed",
         header: "Salary Owed",
+        meta: {
+          exportValue: (row: EmployeeSummary) => row.salaryOwed.toFixed(2),
+        },
+        // The header already says what the figure is, so the second line that
+        // repeated it in grey was costing every row eight pixels to say
+        // nothing. Money kind, hard right, so the digits line up down the
+        // column the way a payroll is read.
         cell: ({ row }) => (
           <div className="text-right">
-            <div className="font-mono font-semibold">${row.original.salaryOwed.toFixed(2)}</div>
-            <div className="text-xs text-muted-foreground">Outstanding salary</div>
+            <DirectoryCell
+              kind="money"
+              value={`$${row.original.salaryOwed.toFixed(2)}`}
+              missing="—"
+            />
           </div>
         ),
         size: 120,
@@ -1144,26 +1204,47 @@ export default function HumanResourcesPage() {
           features={{ sorting: false, globalFilter: true, pagination: true }}
           pagination={{ enabled: true, server: false }}
           searchPlaceholder="Search by name, ID, or phone"
-          tableClassName="text-sm [--table-row-min-h:0rem] [--table-head-min-h:0rem] [--table-gutter-x:0.6rem] [&_td]:py-1.5 [&_th]:py-1.5"
+          // The row height comes off the tokens rather than being zeroed here:
+          // 36px is the canvas register, and a directory that sets its own is
+          // a directory that drifts from the CRM's the next time either moves.
+          tableClassName="text-sm [--table-gutter-x:0.6rem] [&_td]:py-1.5 [&_th]:py-1.5"
           noResultsText="No employees found."
           toolbar={
             <>
-              <Select
-                value={statusFilter}
-                onValueChange={(value) => {
-                  setStatusFilter(value as "all" | "active" | "inactive")
-                  setQueryState((prev) => ({ ...prev, page: 1 }))
-                }}
-              >
-                <SelectTrigger className="h-8 w-[180px]">
-                  <SelectValue placeholder="Filter status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Employees</SelectItem>
-                  <SelectItem value="active">Active Only</SelectItem>
-                  <SelectItem value="inactive">Inactive Only</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* A chip rather than a select box, because the canvas puts the
+                  question and its current answer in the control itself —
+                  "Status Active" is read at a glance where "Active Only" in a
+                  box has to be worked out from the words around it. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <ViewToolbarChip label="Status" value={STATUS_FILTER_LABEL[statusFilter]} />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {(
+                    Object.keys(STATUS_FILTER_LABEL) as Array<keyof typeof STATUS_FILTER_LABEL>
+                  ).map((value) => (
+                    <DropdownMenuItem
+                      key={value}
+                      onClick={() => {
+                        setStatusFilter(value)
+                        setQueryState((prev) => ({ ...prev, page: 1 }))
+                      }}
+                    >
+                      {STATUS_FILTER_LABEL[value]}
+                    </DropdownMenuItem>
+                  ))}
+                </DropdownMenuContent>
+              </DropdownMenu>
+
+              {/* How many people the search and the status chip have left, in
+                  the CRM's own grammar and ink. This directory had no count at
+                  all: a search that matched nobody and a workspace with nobody
+                  on the books both drew an empty table under an unchanged bar,
+                  and the only figure on the page was at the foot of the pager
+                  below the fold. */}
+              <span className="font-mono text-xs tabular-nums text-[var(--text-subtle)]">
+                {employees.length} of {employeeTotal}
+              </span>
             </>
           }
         />

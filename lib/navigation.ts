@@ -522,12 +522,17 @@ export const navSections: NavSection[] = [
 
       { href: "/crm/tasks", icon: Checklist, label: "Tasks", group: "work" },
       { href: "/crm/appointments", icon: CalendarCheck, label: "Site visits", group: "work" },
+      // Service delivery, not paperwork. A job sat under "Sales documents"
+      // beside quotes and invoices, which is where you look for something to
+      // send a customer — and it is the one entry here that is a crew going
+      // somewhere. Labelled "Jobs" because that is what the page, the button
+      // and everybody in the building already call it.
+      { href: "/crm/work-orders", icon: Wrench, label: "Jobs", group: "work" },
       { href: "/crm/follow-ups", icon: Phone, label: "Follow-ups", group: "work" },
 
       { href: "/crm/quotes", icon: FileText, label: "Quotes", group: "documents" },
       { href: "/crm/invoices", icon: ReceiptLong, label: "Invoices", group: "documents" },
       { href: "/crm/receipts", icon: Payments, label: "Receipts", group: "documents" },
-      { href: "/crm/work-orders", icon: Wrench, label: "Work orders", group: "documents" },
       { href: "/crm/collections", icon: Scale, label: "Collections", group: "documents" },
 
       { href: "/crm/insights", icon: BarChart3, label: "Insights", group: "learn" },

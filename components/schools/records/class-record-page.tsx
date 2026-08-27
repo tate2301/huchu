@@ -24,6 +24,7 @@ import { PrintDocumentButton } from "@/components/schools/common/print-document-
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Calendar, Layers, Tag, UserPlus, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -119,20 +120,26 @@ export function ClassRecordPage({ classId }: { classId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!record) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
-      { id: "name", label: "Name", ...edit.required("name", record.name) },
-      { id: "code", label: "Code", mono: true, ...edit.required("code", record.code) },
+      { id: "name", label: "Name", icon: Users, ...edit.required("name", record.name) },
+      { id: "code", label: "Code", icon: Tag, mono: true, ...edit.required("code", record.code) },
       {
         id: "level",
         label: "Year group",
+        icon: Layers,
         ...edit.numeric("level", record.level),
       },
       {
         id: "capacity",
         label: "Places",
+        icon: UserPlus,
         ...edit.numeric("capacity", record.capacity),
       },
-      { id: "term", label: "Term", display: record.term?.name ?? "—" },
+      { id: "term", label: "Term", icon: Calendar, display: record.term?.name ?? "—" },
     ];
   }, [record, edit]);
 

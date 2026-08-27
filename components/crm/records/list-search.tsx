@@ -47,12 +47,20 @@ export function ListSearch({
         className="pointer-events-none absolute left-2.5 size-4 text-[var(--text-subtle)]"
         aria-hidden="true"
       />
+      {/* 30px and 250px from `sm` up, which is what the canvas draws — the
+          same height as the filter chips beside it, so the toolbar reads as
+          one row of controls rather than as a search box with buttons around
+          it. A phone keeps the taller control: there the row is a search box
+          and one button, and the height is a hit area rather than a saving.
+          The border steps down to `--border` from the input's own
+          `--border-strong`: a toolbar control sits on the page rather than in
+          a form, and the heavier rule made it the loudest thing in the band. */}
       <Input
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={compact ? (noun ? `Search ${noun}` : "Search") : placeholder}
         aria-label={placeholder}
-        className="w-full pl-8 sm:w-64"
+        className="h-9 w-full border-[var(--border)] pl-8 text-sm sm:h-[var(--h-control-sm)] sm:w-[250px]"
       />
     </div>
   );
