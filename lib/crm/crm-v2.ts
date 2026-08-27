@@ -4,6 +4,10 @@
  */
 import { fetchJson } from "@/lib/api-client";
 import type {
+  CrmListRecord,
+  CrmSavedViewRecord,
+} from "@/lib/crm/collections-client";
+import type {
   CrmLeadStage,
   CrmRecurrence,
   CrmTaskOutcome,
@@ -119,19 +123,15 @@ export type CrmBoardColumn = {
   leads: CrmBoardCard[];
 };
 
-export type CrmSavedViewRecord = {
-  id: string;
-  name: string;
-  entity: string;
-  viewType: "TABLE" | "BOARD";
-  filters: LeadViewFilters;
-  sort: LeadSort | null;
-  isShared: boolean;
-  createdById: string;
-  createdBy: CrmLeadOwner | null;
-  createdAt: string;
-  updatedAt: string;
-};
+// Lists and saved views live in `collections-client.ts` (the sidebar renders
+// them on every page and must not compile the whole CRM SDK). Re-exported here
+// so CRM pages keep one import surface.
+export {
+  fetchCrmLists,
+  fetchCrmSavedViews,
+  type CrmListRecord,
+  type CrmSavedViewRecord,
+} from "@/lib/crm/collections-client";
 
 export type CrmVisitItemRecord = SiteVisitItemInput & {
   id: string;
@@ -310,22 +310,6 @@ export function updateCrmDealStage(dealId: string, stageId: string) {
   );
 }
 
-export type CrmListRecord = {
-  id: string;
-  entity: string;
-  name: string;
-  description: string | null;
-  isShared: boolean;
-  createdById: string;
-  createdAt: string;
-  updatedAt: string;
-  _count?: { members: number };
-};
-
-export function fetchCrmLists(entity?: string) {
-  return fetchJson<Envelope<CrmListRecord[]>>(`/api/v2/crm/lists${qs({ entity })}`);
-}
-
 export function fetchCrmList(listId: string) {
   return fetchJson<CrmListRecord & { recordIds: string[] }>(
     `/api/v2/crm/lists/${listId}`,
@@ -353,10 +337,6 @@ export function bulkUpdateCrmLeads(body: CrmBulkLeadAction) {
   return fetchJson<
     { updated: number; unchanged?: number; skipped: number; notFound: number }
   >(`/api/v2/crm/leads/bulk`, { method: "POST", body: JSON.stringify(body) });
-}
-
-export function fetchCrmSavedViews() {
-  return fetchJson<Envelope<CrmSavedViewRecord[]>>(`/api/v2/crm/saved-views`);
 }
 
 export function createCrmSavedView(body: {

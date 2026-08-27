@@ -1,4 +1,4 @@
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { V2SuccessPayload } from "../_shared";
 
 type V2HealthData = {

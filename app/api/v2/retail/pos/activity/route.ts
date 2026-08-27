@@ -25,7 +25,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {

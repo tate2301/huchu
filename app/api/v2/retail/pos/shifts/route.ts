@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { requireRetailSession, resolveRetailSite } from "../../_helpers";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { openRetailShiftTransaction } from "../../_services";

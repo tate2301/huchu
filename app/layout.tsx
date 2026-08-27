@@ -25,7 +25,7 @@ import {
   getEffectiveBrandingForHost,
 } from "@/lib/platform/branding";
 import { authOptions } from "@/lib/auth";
-import { getSiteUrl } from "@/lib/marketing/seo";
+import { getSiteUrl } from "@/lib/site-url";
 import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
 import {
   buildWorkspaceIconHref,

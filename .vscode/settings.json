@@ -1,0 +1,4 @@
+{
+  "typescript.tsserver.maxTsServerMemory": 6144,
+  "typescript.tsdk": "node_modules/typescript/lib"
+}

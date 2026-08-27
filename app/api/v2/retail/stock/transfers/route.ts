@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import { multiplyMoney, toNumberOrZero } from "@/lib/money";
 import { requireRetailPermission } from "@/lib/retail/permissions";

@@ -11,7 +11,12 @@ function parseNumber(value: string | undefined, fallback: number) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function createPrismaClient() {
+// The explicit return annotation is load-bearing for typecheck time: without
+// it, `globalForPrisma.prisma ?? createPrismaClient()` makes tsc structurally
+// unify the default-parameterised PrismaClient with the one inferred from the
+// options object — a 30-second comparison across the generated client types.
+// Annotated, both branches are the same nominal type and the check is instant.
+function createPrismaClient(): PrismaClient {
   // Prisma 7.x client engine requires a driver adapter or accelerateUrl.
   try {
     const connectionString = process.env.DATABASE_URL

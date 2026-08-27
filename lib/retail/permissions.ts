@@ -37,7 +37,7 @@
 
 import { NextResponse } from "next/server";
 
-import { errorResponse } from "@/lib/api-utils";
+import { errorResponse } from "@/lib/api-response";
 
 /**
  * The seven surfaces retail authorises against.

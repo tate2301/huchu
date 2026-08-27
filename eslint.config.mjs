@@ -14,6 +14,8 @@ const eslintConfig = defineConfig([
     "next-env.d.ts",
     // Local multi-agent worktrees used during parallel implementation.
     ".worktrees/**",
+    // Generated Prisma client (prisma-client generator output).
+    "lib/generated/**",
   ]),
   {
     // The type scale has a floor. Anything under `text-sm` was unreadable on a

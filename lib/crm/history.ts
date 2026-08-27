@@ -11,7 +11,14 @@
  */
 import type { Prisma } from "@prisma/client";
 
-type Db = Prisma.TransactionClient | { crmActivity: Prisma.CrmActivityDelegate };
+// Only the delegate this module actually uses. Keeping this narrow is
+// load-bearing for typecheck time: the previous
+// `Prisma.TransactionClient | { crmActivity: ... }` union made every
+// `db.crmActivity.create(...)` call check against BOTH union arms, and
+// TransactionClient is the whole generated client surface (~12s of check time
+// for this one file). TransactionClient is structurally assignable to this
+// shape, so callers pass either without change.
+type Db = { crmActivity: Prisma.CrmActivityDelegate };
 
 export type HistoryEntity = "PERSON" | "COMPANY" | "DEAL" | "SITE" | "LEAD";
 

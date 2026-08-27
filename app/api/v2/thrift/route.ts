@@ -1,5 +1,5 @@
 import { NextRequest } from "next/server";
-import { errorResponse } from "@/lib/api-utils";
+import { errorResponse } from "@/lib/api-response";
 import { buildV2CollectionResponse } from "../_shared";
 
 export async function GET(request: NextRequest) {

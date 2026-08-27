@@ -1,4 +1,4 @@
-import { errorResponse } from "@/lib/api-utils";
+import { errorResponse } from "@/lib/api-response";
 import {
   consentDeniedMessage,
   getGuardianChildLink,

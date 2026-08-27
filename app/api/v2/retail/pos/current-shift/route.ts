@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { successResponse } from "@/lib/api-utils";
+import { successResponse } from "@/lib/api-response";
 import {
   money,
   resolveBaseCurrency,

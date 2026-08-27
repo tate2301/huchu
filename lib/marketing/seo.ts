@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 
 import {
   PLATFORM_BRAND_NAME,
-  PLATFORM_MARKETING_DOMAIN,
   PLATFORM_MARKETING_DESCRIPTION,
 } from "@/lib/platform/brand";
 import {
@@ -14,24 +13,11 @@ import {
 
 export type JsonLd = Record<string, unknown>;
 
-export function getSiteUrl(): string {
-  const configured =
-    process.env.NEXT_PUBLIC_MARKETING_SITE_URL?.trim() ||
-    process.env.NEXT_PUBLIC_SITE_URL?.trim() ||
-    (process.env.VERCEL_PROJECT_PRODUCTION_URL
-      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
-      : "");
-
-  const raw = configured || `https://${PLATFORM_MARKETING_DOMAIN}`;
-  const withProtocol = /^https?:\/\//i.test(raw) ? raw : `https://${raw}`;
-
-  return withProtocol.replace(/\/+$/, "");
-}
-
-export function absoluteUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`;
-  return `${getSiteUrl()}${normalized}`;
-}
+// Moved to `lib/site-url.ts` so the root layout can build `metadataBase`
+// without compiling the pricing tables below. Re-exported for the marketing
+// pages that already import them from here.
+export { getSiteUrl, absoluteUrl } from "@/lib/site-url";
+import { getSiteUrl, absoluteUrl } from "@/lib/site-url";
 
 export type MarketingMetadataInput = {
   title: string;

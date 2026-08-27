@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { successResponse } from "@/lib/api-utils";
+import { successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { parseRetailQuery } from "@/lib/retail/request";

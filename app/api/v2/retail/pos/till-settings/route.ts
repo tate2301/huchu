@@ -62,7 +62,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { resolveBaseCurrency } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";

@@ -8,6 +8,7 @@
     "start": "next start",
     "lint": "eslint",
     "typecheck": "node --max-old-space-size=7168 ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.json",
+    "typecheck:scripts": "node --max-old-space-size=3072 ./node_modules/typescript/lib/tsc.js --noEmit -p tsconfig.scripts.json",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
