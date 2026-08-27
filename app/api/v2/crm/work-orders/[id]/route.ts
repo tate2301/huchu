@@ -8,10 +8,16 @@ import {
   WORK_ORDER_STATUS_LABELS,
   allowedTransitions,
   canTransition,
+  checklistEditRefusal,
   completionBlockers,
+  completionPercent,
+  isOverdueToStart,
+  readInvoiceLink,
   updateWorkOrderSchema,
+  workOrderInvoiceBlockers,
 } from "@/lib/crm/work-orders";
 import { isCompanyUser } from "../../_helpers";
+import { jobRecordRefs, recordJobActivity } from "../_shared";
 
 export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -32,9 +38,21 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     });
     if (!order) return errorResponse("Work order not found", 404);
 
+    // Everything the job's page decides what to offer from: how far through it
+    // is, whether it can be closed, whether it can be billed, and the invoice
+    // it already produced. Working any of that out client-side would put the
+    // rules in two places and let them disagree.
     return successResponse({
       ...order,
       allowedTransitions: allowedTransitions(order.status),
+      completionPercent: completionPercent(order.items),
+      completionBlockers: completionBlockers({
+        items: order.items,
+        signedByName: order.signedByName ?? order.signOffName,
+      }),
+      invoiceBlockers: workOrderInvoiceBlockers(order),
+      invoice: readInvoiceLink(order.customFields),
+      isOverdue: isOverdueToStart(order),
     });
   } catch (error) {
     console.error("[API] GET /api/v2/crm/work-orders/[id] error:", error);
@@ -52,7 +70,13 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     const existing = await prisma.crmWorkOrder.findFirst({
       where: { id, companyId },
-      include: { items: true },
+      include: {
+        items: true,
+        // Read for their company, so the trail this leaves reaches the record
+        // paying for the job even when the job itself names only a site.
+        deal: { select: { clientId: true } },
+        site: { select: { clientId: true } },
+      },
     });
     if (!existing) return errorResponse("Work order not found", 404);
 
@@ -66,6 +90,33 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
 
     if (!(await isCompanyUser(companyId, data.assignedToId))) {
       return errorResponse("Invalid assignee", 400);
+    }
+
+    // The deal is what a finished job is billed against, so it can be attached
+    // after the fact — a callout logged against a site alone was otherwise
+    // unbillable forever. Checked for this tenant the way the create route
+    // checks it, and its company is taken on where the job names none.
+    let deal: { id: string; clientId: string | null } | null = null;
+    if (data.dealId) {
+      deal = await prisma.crmDeal.findFirst({
+        where: { id: data.dealId, companyId },
+        select: { id: true, clientId: true },
+      });
+      if (!deal) return errorResponse("Invalid deal", 400);
+    }
+
+    // Replacing the lines mid-job would throw away the crew's ticks, so the
+    // request is refused with the reason rather than accepted and ignored —
+    // silently dropping half a request is how a page ends up showing a
+    // checklist nobody can explain.
+    if (data.items) {
+      const refusal = checklistEditRefusal(existing.status);
+      if (refusal) {
+        return NextResponse.json(
+          { error: refusal, code: "CHECKLIST_LOCKED" },
+          { status: 409 },
+        );
+      }
     }
 
     if (data.status && data.status !== existing.status) {
@@ -120,9 +171,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         }
       }
 
-      // Items are replaced wholesale when a new list is sent, but never while
-      // a crew is part-way through — that would throw away their progress.
-      if (data.items && existing.status !== "IN_PROGRESS") {
+      // Items are replaced wholesale when a new list is sent. Whether that is
+      // allowed at all was settled above, by `checklistEditRefusal`.
+      if (data.items) {
         await tx.crmWorkOrderItem.deleteMany({ where: { workOrderId: id } });
         if (data.items.length) {
           await tx.crmWorkOrderItem.createMany({
@@ -147,6 +198,10 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           description: data.description,
           status: data.status,
           priority: data.priority,
+          dealId: data.dealId,
+          // Naming the deal answers "who is paying" too, so a job that never
+          // had a company takes the deal's rather than staying unattached.
+          clientId: existing.clientId ? undefined : deal?.clientId,
           scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : undefined,
           scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : undefined,
           assignedToId: data.assignedToId,
@@ -173,18 +228,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
       });
     });
 
-    if (data.status && data.status !== existing.status && existing.dealId) {
-      await prisma.crmActivity.create({
-        data: {
-          companyId,
-          type: "SYSTEM",
-          dealId: existing.dealId,
-          subject: `Work order ${existing.workOrderNo}: ${WORK_ORDER_STATUS_LABELS[data.status].toLowerCase()}`,
-          body: data.status === "BLOCKED" ? data.blockedReason : data.completionNotes,
-          metadata: { kind: "WORK_ORDER", workOrderId: id, status: data.status },
-          createdById: session.user.id,
-          occurredAt: now,
-        },
+    // Against the deal it has just been attached to, not the one it had —
+    // otherwise the news lands nowhere anybody would look for it.
+    if (deal && deal.id !== existing.dealId) {
+      await recordJobActivity(prisma, {
+        companyId,
+        userId: session.user.id,
+        job: existing,
+        refs: jobRecordRefs({ ...existing, dealId: deal.id, deal }),
+        subject: `Work order ${existing.workOrderNo} attached to this deal`,
+        metadata: { status: order.status },
+        occurredAt: now,
+      });
+    }
+
+    if (data.status && data.status !== existing.status) {
+      await recordJobActivity(prisma, {
+        companyId,
+        userId: session.user.id,
+        job: existing,
+        refs: jobRecordRefs(existing),
+        subject: `Work order ${existing.workOrderNo}: ${WORK_ORDER_STATUS_LABELS[data.status].toLowerCase()}`,
+        body: data.status === "BLOCKED" ? data.blockedReason : data.completionNotes,
+        metadata: { status: data.status },
+        occurredAt: now,
       });
     }
 

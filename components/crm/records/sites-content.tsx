@@ -11,7 +11,7 @@ import { Building2, Calendar, Coins, MapPin, UserRound } from "@/lib/icons";
 
 import { SiteFormSheet } from "./site-form-sheet";
 import { RecordList, RecordListPager, type RecordListRow } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordListShell } from "./record-list-shell";

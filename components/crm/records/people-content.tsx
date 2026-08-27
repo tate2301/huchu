@@ -20,9 +20,19 @@ import { useDebounced } from "@/hooks/use-debounced";
 
 import { PersonFormSheet } from "./person-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import {
+  RecordCell,
+  RecordTable,
+  recordCellTone,
+  type RecordTableColumn,
+} from "@/components/records/record-table";
+import { ViewToolbarChip } from "@/components/records/view-toolbar";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
+import {
+  DirectoryCell,
+  DirectoryName,
+} from "@/components/records/people-directory";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@/components/ui/column-picker";
 import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
@@ -60,12 +70,24 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
   const [page, setPage] = useState(1);
   const [createOpen, setCreateOpen] = useState(openCreate);
   const debouncedSearch = useDebounced(search, 300);
+  // The two questions a directory is actually narrowed by: what kind of contact
+  // somebody is, and whose they are. The canvas puts them on the search row as
+  // chips rather than in a panel, because "narrow it down" answered in two
+  // places a band apart is the thing the toolbar pass set out to fix.
+  const [contactType, setContactType] = useState<string>("ALL");
+  const [ownerFilter, setOwnerFilter] = useState<string>("ALL");
 
   const peopleQuery = useQuery({
-    queryKey: ["crm", "people", debouncedSearch, page],
+    queryKey: ["crm", "people", debouncedSearch, contactType, ownerFilter, page],
     queryFn: () =>
       fetchCrmPeople({
-        filters: { q: debouncedSearch },
+        filters: {
+          q: debouncedSearch,
+          contactTypes: contactType === "ALL" ? undefined : [contactType],
+          assignedToIds:
+            ownerFilter === "ALL" || ownerFilter === "UNASSIGNED" ? undefined : [ownerFilter],
+          unassigned: ownerFilter === "UNASSIGNED",
+        },
         // By name, because the page below groups by first letter. On the
         // default `updatedAt` order the headings came out A, S, C, N, F — an
         // alphabet applied to a list that was not in alphabetical order, which
@@ -271,18 +293,18 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
         label: "Name",
         icon: UserRound,
         cell: (person) => (
-          <RecordTableName
-            leading={
-              <RecordMark
-                kind="person"
-                name={person.fullName}
-                emoji={person.emoji}
-                avatarUrl={person.avatarUrl}
-                size="sm"
-              />
+          // The artboard's mono second line is `code · context` — the reference
+          // first, because that is the half that is unique, then the word that
+          // tells two Tendai Moyos apart. The reference alone where there is no
+          // job title, never a blank line under the name.
+          <DirectoryName
+            name={person.fullName}
+            photoUrl={person.avatarUrl}
+            subtitle={
+              [person.personNo, fields.isVisible("role") ? person.jobTitle : null]
+                .filter(Boolean)
+                .join(" · ")
             }
-            title={person.fullName}
-            subtitle={fields.isVisible("role") ? person.jobTitle : null}
           />
         ),
       },
@@ -301,12 +323,17 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
                   {person.client ? (
                     // A related record, so it peeks rather than navigates: the
                     // point of a directory is to stay in it while you check who
-                    // somebody works for.
-                    <EntityLink href={`/crm/companies/${person.client.id}`}>
+                    // somebody works for. It takes the relation ink from the
+                    // same resolver the table's own cells use, so the company
+                    // here and a company in any other list are the one blue.
+                    <EntityLink
+                      href={`/crm/companies/${person.client.id}`}
+                      className={recordCellTone("relation")}
+                    >
                       {person.client.name}
                     </EntityLink>
                   ) : (
-                    <span className="text-[var(--text-subtle)]">—</span>
+                    <span className="text-[var(--text-faint)]">No company</span>
                   )}
                 </span>
               ),
@@ -320,10 +347,17 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
               label: "Contact",
               icon: Mail,
               width: "14rem",
+              // One column, two kinds. The canvas decides a cell's ink on the
+              // value rather than on the column it landed in, so an address
+              // here is the brand blue and a real `mailto:`, and a number
+              // falls back to mono — which is what makes a column of contacts
+              // scannable for "who can I actually write to".
               cell: (person: (typeof people)[number]) => (
-                <span className="block truncate text-[var(--text-body)]">
-                  {person.email ?? person.phone ?? "—"}
-                </span>
+                <DirectoryCell
+                  kind={person.email ? "email" : "phone"}
+                  value={person.email ?? person.phone}
+                  missing="no contact on file"
+                />
               ),
             },
           ]
@@ -352,9 +386,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
               width: "6rem",
               align: "end" as const,
               cell: (person: (typeof people)[number]) => (
-                <span className="font-mono tabular-nums">
-                  {person._count?.dealContacts ?? 0}
-                </span>
+                <RecordCell kind="number" value={person._count?.dealContacts ?? 0} />
               ),
             },
           ]
@@ -367,11 +399,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
               icon: Users,
               width: "11rem",
               cell: (person: (typeof people)[number]) => (
-                <span className="block truncate">
-                  {person.assignedTo?.name ?? (
-                    <span className="text-[var(--text-subtle)]">Unassigned</span>
-                  )}
-                </span>
+                <DirectoryCell value={person.assignedTo?.name} missing="Unassigned" />
               ),
             },
           ]
@@ -421,6 +449,105 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
     ),
   };
 
+  const ownerLabel =
+    ownerFilter === "ALL"
+      ? "Anyone"
+      : ownerFilter === "UNASSIGNED"
+        ? "Nobody"
+        : (owners.find((owner) => owner.id === ownerFilter)?.name ?? "Someone");
+
+  // The chips say what they are filtered *to*, not merely what they filter.
+  // "Type" alone has to be opened to be read; "Type Customer" is read at a
+  // glance, which is the difference between a row of controls you interrogate
+  // and one you scan.
+  const filters = (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <ViewToolbarChip
+            label="Type"
+            value={contactType === "ALL" ? "All" : (CONTACT_TYPE_LABELS[contactType] ?? contactType)}
+          />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start">
+          <DropdownMenuItem
+            onClick={() => {
+              setContactType("ALL");
+              setPage(1);
+            }}
+          >
+            All types
+          </DropdownMenuItem>
+          {Object.entries(CONTACT_TYPE_LABELS).map(([value, label]) => (
+            <DropdownMenuItem
+              key={value}
+              onClick={() => {
+                setContactType(value);
+                setPage(1);
+              }}
+            >
+              {label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <ViewToolbarChip label="Owner" value={ownerLabel} />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+          <DropdownMenuItem
+            onClick={() => {
+              setOwnerFilter("ALL");
+              setPage(1);
+            }}
+          >
+            Anyone
+          </DropdownMenuItem>
+          {/* Worth its own entry rather than being folded into "Anyone": a
+              contact nobody owns is the one this list is most often opened to
+              find. */}
+          <DropdownMenuItem
+            onClick={() => {
+              setOwnerFilter("UNASSIGNED");
+              setPage(1);
+            }}
+          >
+            Unassigned
+          </DropdownMenuItem>
+          {owners.map((owner) => (
+            <DropdownMenuItem
+              key={owner.id}
+              onClick={() => {
+                setOwnerFilter(owner.id);
+                setPage(1);
+              }}
+            >
+              {owner.name ?? "Unnamed"}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </>
+  );
+
+  const filterCount = (contactType === "ALL" ? 0 : 1) + (ownerFilter === "ALL" ? 0 : 1);
+
+  // An empty list has three different causes and they want three different
+  // sentences. "No people yet" over a list a filter has emptied is a lie that
+  // sends somebody off to add a person they already have — and offering "Add
+  // the first person" there makes it an invitation to create a duplicate.
+  const empty =
+    debouncedSearch
+      ? { title: "No people match that search", body: undefined }
+      : filterCount > 0
+        ? { title: "No people match these filters", body: undefined }
+        : {
+            title: "No people yet",
+            body: "Add someone, or convert a lead and its contact comes with it.",
+          };
+
   // The rows arrangement, which is also what the table falls back to on a
   // phone — so it is written once and used twice rather than diverging.
   const directory = (
@@ -429,18 +556,14 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       sections={debouncedSearch ? [{ id: "results", label: "Results", rows }] : sections}
       showJumpStrip={!debouncedSearch && rows.length >= 30}
       isLoading={peopleQuery.isLoading}
-      emptyTitle={debouncedSearch ? "No people match that search" : "No people yet"}
-      emptyBody={
-        debouncedSearch
-          ? undefined
-          : "Add someone, or convert a lead and its contact comes with it."
-      }
+      emptyTitle={empty.title}
+      emptyBody={empty.body}
       emptyAction={
-        debouncedSearch ? undefined : (
+        empty.body ? (
           <Button variant="primary" size="sm" onClick={() => setCreateOpen(true)}>
             Add the first person
           </Button>
-        )
+        ) : undefined
       }
     />
   );
@@ -458,6 +581,8 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
       onCreate={() => setCreateOpen(true)}
       error={peopleQuery.error}
       count={`${people.length} of ${total}`}
+      filters={filters}
+      filterCount={filterCount}
       display={
         <ColumnPicker
           columns={PERSON_FIELDS}
@@ -476,7 +601,7 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           isLoading={peopleQuery.isLoading}
           noun={{ one: "person", many: "people" }}
           emptyLabel="No one of this kind"
-          onMove={(id, contactType) => moveContactType.mutate({ id, contactType })}
+          onMove={(id, type) => moveContactType.mutate({ id, contactType: type })}
           className="min-h-[24rem]"
         />
       ) : layout === "TABLE" ? (
@@ -486,12 +611,8 @@ export function PeopleContent({ openCreate = false }: { openCreate?: boolean }) 
           rowHref={(person) => `/crm/people/${person.id}`}
           isLoading={peopleQuery.isLoading}
           selection={selection}
-          emptyTitle={debouncedSearch ? "No people match that search" : "No people yet"}
-          emptyBody={
-            debouncedSearch
-              ? undefined
-              : "Add someone, or convert a lead and its contact comes with it."
-          }
+          emptyTitle={empty.title}
+          emptyBody={empty.body}
           mobile={directory}
         />
       ) : (

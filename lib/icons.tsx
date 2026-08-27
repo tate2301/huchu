@@ -197,6 +197,9 @@ export const CalendarCheck = createPhosphorIcon("CalendarCheck", "CalendarCheck"
 export const Bell = createPhosphorIcon("Bell", "Bell");
 export const BellRing = createPhosphorIcon("BellRinging", "BellRing");
 export const Building2 = createPhosphorIcon("BuildingOffice", "Building2");
+/* A town rather than an office: the mark on a "City" property, where the
+   single office block reads as the company that owns the record. */
+export const Buildings = createPhosphorIcon("Buildings", "Buildings");
 export const Calendar = createPhosphorIcon("CalendarBlank", "Calendar");
 export const CalendarIcon = createPhosphorIcon(
   "CalendarBlank",
@@ -266,6 +269,9 @@ export const CornerDownLeft = createPhosphorIcon(
   "ArrowElbowDownLeft",
   "CornerDownLeft",
 );
+/* A pinned point on the ground, for a "Coordinates" property — the map pin
+   itself belongs to the street address a row or two above it. */
+export const Crosshair = createPhosphorIcon("Crosshair", "Crosshair");
 export const Delete = createPhosphorIcon("Backspace", "Delete");
 export const DeployedCodeUpdate = createPhosphorIcon(
   "CloudArrowDown",
@@ -385,6 +391,21 @@ export const ShieldAlert = createPhosphorIcon(
 export const ShieldCheck = createPhosphorIcon("ShieldCheck", "ShieldCheck");
 export const SignalWifiOff = createPhosphorIcon("WifiSlash", "SignalWifiOff");
 export const SidebarLeft = createPhosphorIcon("SidebarSimple", "SidebarLeft");
+
+/**
+ * The same panel mark, for a rail on the right-hand edge.
+ *
+ * Phosphor draws `SidebarSimple` with its bar on the left, which is right for
+ * the app's own sidebar and backwards for the record page's properties rail —
+ * a control that collapses the pane on the right should not point at the pane
+ * on the left. Mirrored rather than substituted, because the two controls are
+ * the same gesture and have to read as one family; the chevron that used to
+ * sit there read as "go forward", which is a different promise entirely.
+ */
+function SidebarRightIcon({ className, ...props }: MaterialIconProps) {
+  return <SidebarLeft {...props} className={cn("-scale-x-100", className)} />;
+}
+export const SidebarRight: LucideIcon = SidebarRightIcon;
 export const Sparkles = createPhosphorIcon("Sparkle", "Sparkles");
 export const Spinner = createPhosphorIcon("SpinnerGap", "Spinner");
 export const Square = createPhosphorIcon("Stop", "Square");
@@ -393,6 +414,8 @@ export const Kanban = createPhosphorIcon("Kanban", "Kanban");
 export const ListBullets = createPhosphorIcon("ListBullets", "ListBullets");
 export const SortAscending = createPhosphorIcon("ArrowsDownUp", "SortAscending");
 export const TableRows = createPhosphorIcon("Rows", "TableRows");
+/* Where an enquiry came from, on a record's "Source" property. */
+export const Tag = createPhosphorIcon("Tag", "Tag");
 export const ToggleLeft = createPhosphorIcon("ToggleLeft", "ToggleLeft");
 export const ToggleRight = createPhosphorIcon("ToggleRight", "ToggleRight");
 export const Trash2 = createPhosphorIcon("Trash", "Trash2");

@@ -32,15 +32,21 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import {
   AddressBook,
+  Buildings,
   Building2,
+  ChatCircle,
   Clock,
   Funnel,
   Mail,
   Phone,
   Plus,
+  Work,
   UserRound,
   Users,
 } from "@/lib/icons";
+import { daysSince, resolveNextStep } from "@/lib/crm/tones";
+import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
+import { NextStepCard } from "./next-step-card";
 
 import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
@@ -215,17 +221,52 @@ export function PersonDetailPage({ personId }: { personId: string }) {
     </>
   );
 
+  // When anybody last actually spoke to them, rather than when the record was
+  // last touched: a stage change is not contact.
+  const lastContactAt =
+    person.activities.find((activity) => activity.type in CONTACT_ACTIVITY_KIND)?.occurredAt ??
+    null;
+
   /**
-   * The rail, or nothing at all.
+   * A person's next step is contact — there is no pipeline on this record.
    *
-   * Both its sections are conditional — a second company, and the
-   * administrator's own fields — and most people have neither. Passed as an
-   * always-present fragment, that produced an "Overview" tab on a phone with
-   * four hundred pixels of blank under it, landed on by default: you opened a
-   * person and were shown an empty screen. `undefined` is how the shell is
-   * told there is no summary to offer, and it opens on the timeline instead.
+   * Which kind of contact follows what they have said they prefer, and failing
+   * that what we actually hold for them: offering "Log a call" for somebody
+   * with no phone number is a button that ends in a search.
+   */
+  const nextStep = resolveNextStep({
+    kind: "person",
+    daysSinceContact: daysSince(lastContactAt),
+    prefersEmail:
+      person.preferredChannel === "EMAIL" || (!person.phone && Boolean(person.email)),
+  });
+
+  const takeNextStep = () => {
+    if (nextStep?.action === "email" && person.email) {
+      window.location.href = `mailto:${person.email}`;
+      return;
+    }
+    // The conversation composer is where a call gets written up, and it is on
+    // the timeline.
+    setTab("timeline");
+  };
+
+  /**
+   * The rail.
+   *
+   * Its other two sections are conditional — a second company, and the
+   * administrator's own fields — and most people have neither, which is why
+   * this list used to be allowed to come out empty and hand the shell
+   * `undefined` rather than an "Overview" tab of four hundred blank pixels.
+   * The next step is unconditional, so there is now always something to land
+   * on.
    */
   const railSections = [
+    nextStep ? (
+      <RailSection key="next" title="Up next">
+        <NextStepCard step={nextStep} onAct={takeNextStep} />
+      </RailSection>
+    ) : null,
     person.companyLinks.length > 1 ? (
       <RailSection key="companies" title="Companies">
         <Stack as="ul" gap="xs">
@@ -321,12 +362,19 @@ export function PersonDetailPage({ personId }: { personId: string }) {
               label: "Phone",
               icon: Phone,
               placeholder: "Not recorded",
+              // Monospaced, so the digits line up against the numbers in the
+              // rows above and below and can be read a group at a time.
+              mono: true,
               ...edit.text("phone", person.phone),
             },
             {
               id: "company",
               label: "Company",
               icon: Building2,
+              // The same blue a company wears in the table beside this one.
+              // Left off when there is nothing linked, so the picker's own
+              // placeholder stays the quiet grey a placeholder should be.
+              tone: person.client ? "link" : undefined,
               display: (
                 <RelationAttribute
                   value={person.client?.name ?? null}
@@ -344,6 +392,11 @@ export function PersonDetailPage({ personId }: { personId: string }) {
               label: "Owner",
               icon: UserRound,
               placeholder: "Unassigned",
+              // Red when nobody owns it. A contact that is nobody's job is a
+              // contact nobody rings, and it was reading as faint grey — the
+              // same ink as a field nobody has filled in because nobody needed
+              // to.
+              tone: person.assignedTo ? "strong" : "alert",
               // A choice, not a label: who owns a record is the property that
               // changes most and was the one you could not change from here.
               ...edit.choice(
@@ -368,12 +421,14 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             {
               id: "role",
               label: "Job title",
+              icon: Work,
               placeholder: "Not recorded",
               ...edit.text("jobTitle", person.jobTitle),
             },
             {
               id: "prefers",
               label: "Prefers",
+              icon: ChatCircle,
               placeholder: "No preference",
               ...edit.choice(
                 "preferredChannel",
@@ -385,6 +440,7 @@ export function PersonDetailPage({ personId }: { personId: string }) {
             {
               id: "city",
               label: "City",
+              icon: Buildings,
               placeholder: "Not recorded",
               ...edit.text("city", person.city),
             },

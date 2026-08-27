@@ -23,6 +23,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import { Badge, Lock, Mail, MapPin, Phone, Tag } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -115,30 +116,45 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!guardian) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
       {
         id: "phone",
         label: "Phone",
+        icon: Phone,
         mono: true,
         ...edit.required("phone", guardian.phone),
       },
-      { id: "email", label: "Email", ...edit.text("email", guardian.email ?? "") },
+      { id: "email", label: "Email", icon: Mail, ...edit.text("email", guardian.email ?? "") },
       {
         id: "guardianNo",
         label: "Guardian number",
+        icon: Tag,
         mono: true,
         ...edit.required("guardianNo", guardian.guardianNo),
       },
-      { id: "address", label: "Address", ...edit.text("address", guardian.address ?? "") },
+      {
+        id: "address",
+        label: "Address",
+        icon: MapPin,
+        ...edit.text("address", guardian.address ?? ""),
+      },
       {
         id: "nationalId",
         label: "National ID",
+        // The badge, not the tag: this one is a number on somebody's card,
+        // not a reference this system made up.
+        icon: Badge,
         mono: true,
         ...edit.text("nationalId", guardian.nationalId ?? ""),
       },
       {
         id: "portal",
         label: "Portal account",
+        icon: Lock,
         // Read-only on purpose: an account is claimed through an invitation, not
         // by an administrator typing a flag. Showing it here answers "why can
         // this parent not log in", which is the commonest question about them.

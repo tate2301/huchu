@@ -9,7 +9,7 @@ import { Alert, Badge, Button, EmptyState, StatCard, Stack } from "@corelithzw/r
 import { ClientDate } from "@/components/ui/client-date";
 import { useToast } from "@/components/ui/use-toast";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { ViewToolbar } from "@/components/crm/records/view-toolbar";
+import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { TASK_QUEUE_LABELS, type TaskQueue } from "@/lib/crm/tasks";

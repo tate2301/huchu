@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -15,10 +16,30 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import {
+  RecordPicker,
+  recordRefFor,
+  type PickedRecord,
+} from "@/components/crm/records/record-picker";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
+import { jobHref } from "./job-types";
+
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
+
+type DealsResponse = { data: { id: string; dealNo: string | null; title: string }[] };
+
+/**
+ * "No quote behind this one."
+ *
+ * A value rather than an empty string because Radix refuses `value=""` on an
+ * item, and a placeholder nobody can select is not an option.
+ */
+const NO_CHECKLIST = "none";
+
+/** The same trick for "this job bills against nothing yet". */
+const NO_DEAL = "none";
 
 /** Book it for tomorrow morning, which is when a job realistically starts. */
 function defaultStart(): string {
@@ -35,6 +56,13 @@ function defaultStart(): string {
  * The checklist comes from the quote rather than being retyped, which is where
  * transcription errors come from — a crew installing four panels because
  * somebody typed 4 instead of 14 is a whole second visit.
+ *
+ * Opened from a deal it already knows what the job is for. Opened from the
+ * jobs register it does not, and asks: a deal is the honest answer, because a
+ * job with nothing to bill against cannot be invoiced later, but a site or a
+ * company is accepted too — a callout that turns up in the day's work with no
+ * paperwork behind it is a real thing that happens, and refusing to record it
+ * is how it ends up on a WhatsApp thread instead.
  */
 export function RaiseJobSheet({
   open,
@@ -43,36 +71,52 @@ export function RaiseJobSheet({
   clientId,
   siteId,
   defaultTitle,
-  quotationDocuments,
+  quotationDocuments = [],
   currentUserId,
+  onRaised,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  dealId: string;
+  /** Left off where the job is being raised from the register rather than a deal. */
+  dealId?: string | null;
   clientId?: string | null;
   siteId?: string | null;
   defaultTitle?: string;
   /** Accepted quotes whose lines can seed the checklist. */
-  quotationDocuments: { id: string; label: string }[];
+  quotationDocuments?: { id: string; label: string }[];
   currentUserId?: string;
+  /**
+   * Where the raiser wants the user put afterwards. A record page opens its
+   * own Jobs section; without one there is nowhere on this page that shows the
+   * job, so the sheet falls back to the job's own record.
+   */
+  onRaised?: (jobId: string) => void;
 }) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const { toast } = useToast();
 
   const [title, setTitle] = useState(defaultTitle ?? "");
-  const [documentId, setDocumentId] = useState(quotationDocuments[0]?.id ?? "");
+  const [subject, setSubject] = useState<PickedRecord | null>(null);
+  const [documentId, setDocumentId] = useState("");
+  const [billTo, setBillTo] = useState("");
   const [scheduledStart, setScheduledStart] = useState(defaultStart);
   const [assignedToId, setAssignedToId] = useState(currentUserId ?? "");
   const [addressLine, setAddressLine] = useState("");
   const [accessNotes, setAccessNotes] = useState("");
   const [errors, setErrors] = useState<string[]>([]);
 
+  /** The record is fixed when a page handed one over, and asked for otherwise. */
+  const given = Boolean(dealId || clientId || siteId);
+
   const [wasOpen, setWasOpen] = useState(open);
   if (open !== wasOpen) {
     setWasOpen(open);
     if (open) {
       setTitle(defaultTitle ?? "");
-      setDocumentId(quotationDocuments[0]?.id ?? "");
+      setSubject(null);
+      setDocumentId("");
+      setBillTo("");
       setScheduledStart(defaultStart());
       setAssignedToId(currentUserId ?? "");
       setAddressLine("");
@@ -82,32 +126,60 @@ export function RaiseJobSheet({
   }
 
   const { data: team } = useQuery({
-    queryKey: ["crm-team"],
+    queryKey: ["crm", "team"],
     queryFn: () => fetchJson<TeamResponse>("/api/v2/crm/team"),
     staleTime: 5 * 60_000,
+    enabled: open,
   });
 
+  /**
+   * The deals this customer has, for a job that is being raised against them
+   * rather than against one of those deals.
+   *
+   * Without this a job raised from a company or a site could never be
+   * invoiced: the invoice route bills against a deal, the record page's Deal
+   * row was read-only, and there was no way to name one at any point. Asked
+   * for the customer's own deals rather than searched across the tenant,
+   * because the answer is nearly always one of two or three.
+   */
+  const scope = clientId ? `clientIds=${clientId}` : siteId ? `siteIds=${siteId}` : null;
+  const { data: deals } = useQuery({
+    queryKey: ["crm", "deals", "for-job", scope],
+    queryFn: () => fetchJson<DealsResponse>(`/api/v2/crm/deals?${scope}&limit=50`),
+    enabled: open && Boolean(scope) && !dealId,
+    staleTime: 60_000,
+  });
+  const billable = deals?.data ?? [];
+
   const create = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/v2/crm/work-orders", {
+    mutationFn: () => {
+      const picked = recordRefFor(subject);
+      return fetchJson<{ id: string }>("/api/v2/crm/work-orders", {
         method: "POST",
         body: JSON.stringify({
           title: title.trim(),
-          dealId,
-          clientId: clientId ?? null,
-          siteId: siteId ?? null,
-          documentId: documentId || null,
+          dealId: dealId ?? picked.dealId ?? (billTo || null),
+          clientId: clientId ?? picked.clientId ?? null,
+          siteId: siteId ?? picked.siteId ?? null,
+          documentId: documentId && documentId !== NO_CHECKLIST ? documentId : null,
           scheduledStart: scheduledStart ? new Date(scheduledStart).toISOString() : null,
           assignedToId: assignedToId || null,
           addressLine: addressLine.trim() || null,
           accessNotes: accessNotes.trim() || null,
         }),
-      }),
-    onSuccess: () => {
+      });
+    },
+    onSuccess: (job) => {
       toast({ title: "Job raised", description: "It's on the crew's list." });
-      queryClient.invalidateQueries({ queryKey: ["crm-work-orders"] });
-      queryClient.invalidateQueries({ queryKey: ["crm", "deal", dealId] });
+      queryClient.invalidateQueries({ queryKey: ["crm", "jobs"] });
+      if (dealId) queryClient.invalidateQueries({ queryKey: ["crm", "deal", dealId] });
       onOpenChange(false);
+      // A dialog that closes onto a page looking exactly as it did before is
+      // the shape of "nothing happened". A record page says where to go — its
+      // Jobs section, which the new job is now in. Nothing else has such a
+      // place, so those land on the job's own record instead.
+      if (onRaised) onRaised(job.id);
+      else if (job?.id) router.push(jobHref(job.id));
     },
     onError: (err) => setErrors([getApiErrorMessage(err)]),
   });
@@ -147,14 +219,64 @@ export function RaiseJobSheet({
         />
       </div>
 
+      {given ? null : (
+        <div className="space-y-1.5">
+          <Label htmlFor="job-subject">What is it for</Label>
+          <RecordPicker
+            id="job-subject"
+            value={subject}
+            onChange={setSubject}
+            types={["DEAL", "COMPANY", "SITE"]}
+            placeholder="Search deals, companies and sites"
+          />
+          <p className="text-sm text-[var(--text-muted)]">
+            A deal is what lets this be invoiced when it is done.
+          </p>
+        </div>
+      )}
+
+      {/* Raised from a company or a site, so nothing has said what it bills
+          against. A job with no deal behind it cannot be invoiced when it is
+          done — it can be attached later on the job's own record, but the
+          moment somebody is already looking at this customer is the cheapest
+          moment to ask. Left blank on purpose is a real answer: a callout with
+          no paperwork behind it is a real thing that happens. */}
+      {given && !dealId && billable.length > 0 ? (
+        <div className="space-y-1.5">
+          <Label>Bill it against</Label>
+          <Select value={billTo || NO_DEAL} onValueChange={(next) => setBillTo(next === NO_DEAL ? "" : next)}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value={NO_DEAL}>Nothing yet</SelectItem>
+              {billable.map((deal) => (
+                <SelectItem key={deal.id} value={deal.id}>
+                  {deal.dealNo ? `${deal.dealNo} — ${deal.title}` : deal.title}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <p className="text-sm text-[var(--text-muted)]">
+            This is what the invoice is raised against once the job is signed off.
+          </p>
+        </div>
+      ) : null}
+
       {quotationDocuments.length ? (
         <div className="space-y-1.5">
           <Label>Checklist from</Label>
-          <Select value={documentId} onValueChange={setDocumentId}>
+          {/* Nothing is chosen by default, and "No checklist" is a real item
+              rather than an unreachable placeholder. Defaulting to the first
+              quote meant a job could be seeded from a superseded one's
+              quantities without anybody having picked it — and the crew
+              installs what the checklist says. */}
+          <Select value={documentId || NO_CHECKLIST} onValueChange={setDocumentId}>
             <SelectTrigger>
-              <SelectValue placeholder="Nothing — I'll add items later" />
+              <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value={NO_CHECKLIST}>No checklist — I&apos;ll add the lines</SelectItem>
               {quotationDocuments.map((document) => (
                 <SelectItem key={document.id} value={document.id}>
                   {document.label}
@@ -165,7 +287,8 @@ export function RaiseJobSheet({
         </div>
       ) : (
         <p className="text-sm text-[var(--text-muted)]">
-          No quote on this deal, so the job starts with an empty checklist.
+          No quote to lift a checklist from, so the job starts empty and the crew works to
+          the brief.
         </p>
       )}
 

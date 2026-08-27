@@ -21,6 +21,7 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Home, Tag, ToggleLeft, UserPlus, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
 
@@ -128,22 +129,29 @@ export function HostelRecordPage({ hostelId }: { hostelId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!hostel) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
-      { id: "name", label: "Name", ...edit.required("name", hostel.name) },
-      { id: "code", label: "Code", mono: true, display: hostel.code },
+      { id: "name", label: "Name", icon: Home, ...edit.required("name", hostel.name) },
+      { id: "code", label: "Code", icon: Tag, mono: true, display: hostel.code },
       {
         id: "genderPolicy",
         label: "Takes",
+        icon: Users,
         ...edit.choice("genderPolicy", hostel.genderPolicy, GENDER_OPTIONS),
       },
       {
         id: "capacity",
         label: "Intended capacity",
+        icon: UserPlus,
         ...edit.numeric("capacity", hostel.capacity),
       },
       {
         id: "isActive",
         label: "In use",
+        icon: ToggleLeft,
         ...edit.choice("isActive", String(hostel.isActive), [
           { value: "true", label: "In use" },
           { value: "false", label: "Closed" },

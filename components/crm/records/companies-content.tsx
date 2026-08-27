@@ -15,7 +15,7 @@ import { useDebounced } from "@/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordBoard } from "./record-board";

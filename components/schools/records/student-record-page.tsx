@@ -24,6 +24,16 @@ import {
 } from "@/components/records/subject-tabs";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import {
+  Badge,
+  Calendar,
+  CalendarCheck,
+  FileText,
+  Home,
+  Tag,
+  User,
+  Users,
+} from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { normalizeUiStatus } from "@/lib/ui/status-map";
@@ -151,16 +161,22 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!student) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
       {
         id: "studentNo",
         label: "Student number",
+        icon: Badge,
         mono: true,
         ...edit.required("studentNo", student.studentNo),
       },
       {
         id: "class",
         label: "Class",
+        icon: Users,
         display: student.currentClass ? student.currentClass.name : null,
         value: student.currentClass?.name ?? null,
         placeholder: "Not in a class",
@@ -168,27 +184,43 @@ export function StudentRecordPage({ studentId }: { studentId: string }) {
       {
         id: "status",
         label: "Status",
+        icon: Tag,
         ...edit.choice("status", student.status, STATUS_OPTIONS),
       },
       {
         id: "dateOfBirth",
         label: "Date of birth",
+        icon: Calendar,
         // Read-only: a text box that accepts "next tuesday" into a date column
         // is worse than no editor. The date picker belongs with the same work
         // that gives custom DATE fields one.
         display: formatSchoolDate(student.dateOfBirth),
       },
-      { id: "gender", label: "Gender", ...edit.text("gender", student.gender ?? "") },
+      {
+        id: "gender",
+        label: "Gender",
+        icon: User,
+        ...edit.text("gender", student.gender ?? ""),
+      },
       {
         id: "admissionNo",
         label: "Admission number",
+        // The paperwork mark rather than the badge: the student number is who
+        // they are here, this is the reference on the form they came in on.
+        icon: FileText,
         mono: true,
         ...edit.text("admissionNo", student.admissionNo ?? ""),
       },
-      { id: "admissionDate", label: "Admitted", display: formatSchoolDate(student.admissionDate) },
+      {
+        id: "admissionDate",
+        label: "Admitted",
+        icon: CalendarCheck,
+        display: formatSchoolDate(student.admissionDate),
+      },
       {
         id: "boarding",
         label: "Boarder",
+        icon: Home,
         display: student.isBoarding ? "Yes" : "No",
       },
     ];
