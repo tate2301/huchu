@@ -24,6 +24,16 @@ import { TeacherAssignmentsPanel } from "@/components/schools/teachers/teacher-a
 import { TeacherEmployeePanel } from "@/components/schools/teachers/teacher-employee-panel";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson } from "@/lib/api-client";
+import {
+  Badge,
+  Buildings,
+  Mail,
+  Payments,
+  Phone,
+  ToggleLeft,
+  Users,
+  Work,
+} from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -130,15 +140,21 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!teacher) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
       {
         id: "department",
         label: "Department",
+        icon: Buildings,
         ...edit.text("department", teacher.department ?? ""),
       },
       {
         id: "role",
         label: "Role",
+        icon: Work,
         ...edit.choice("isHod", String(teacher.isHod), [
           { value: "false", label: "Teacher" },
           { value: "true", label: "Head of department" },
@@ -147,6 +163,7 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       {
         id: "classTeacher",
         label: "Holds a form",
+        icon: Users,
         ...edit.choice("isClassTeacher", String(teacher.isClassTeacher), [
           { value: "true", label: "Yes" },
           { value: "false", label: "No" },
@@ -155,6 +172,7 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       {
         id: "isActive",
         label: "Teaching",
+        icon: ToggleLeft,
         ...edit.choice("isActive", String(teacher.isActive), [
           { value: "true", label: "Currently teaching" },
           { value: "false", label: "Not teaching" },
@@ -163,12 +181,29 @@ export function TeacherRecordPage({ teacherId }: { teacherId: string }) {
       // Read-only, and the labels say whose they are. A teacher is one person
       // with two records (S-1.7); a second editor on a shared fact is how the
       // two disagree.
-      { id: "email", label: "Email (account)", display: teacher.user?.email ?? "—" },
-      { id: "phone", label: "Phone (account)", display: teacher.user?.phone ?? "—" },
-      { id: "employeeCode", label: "Staff number", mono: true, display: teacher.employeeCode },
+      {
+        id: "email",
+        label: "Email (account)",
+        icon: Mail,
+        display: teacher.user?.email ?? "—",
+      },
+      {
+        id: "phone",
+        label: "Phone (account)",
+        icon: Phone,
+        display: teacher.user?.phone ?? "—",
+      },
+      {
+        id: "employeeCode",
+        label: "Staff number",
+        icon: Badge,
+        mono: true,
+        display: teacher.employeeCode,
+      },
       {
         id: "employee",
         label: "Payroll record",
+        icon: Payments,
         display: teacher.employeeId ? "Linked" : "Not linked",
       },
     ];

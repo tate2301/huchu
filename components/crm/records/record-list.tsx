@@ -9,6 +9,8 @@ import { DataTableFloatingActions } from "@/components/ui/data-table-floating-ac
 import { ChevronRight } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
+import { RecordCell, type RecordCellKind } from "@/components/records/record-table";
+
 /**
  * The CRM record list.
  *
@@ -28,6 +30,13 @@ export type RecordListFact = {
   /** Short label. Hidden on narrow screens where only the value fits. */
   label?: string;
   value: ReactNode;
+  /**
+   * What the value is — an email, a phone number, a figure. Decides the ink
+   * and the face through the same resolver the table uses, so a person's email
+   * is the same blue whichever arrangement you happen to be looking at. Left
+   * off, the fact stays plain body text.
+   */
+  kind?: RecordCellKind;
   /** Numerals line up when this is set — codes, money, counts. */
   mono?: boolean;
   /**
@@ -170,13 +179,23 @@ export function RecordList({
                 with nothing marked shows no facts on a phone at all: an
                 unlabelled number is worse than a missing one. */}
             {primaryFact ? (
-              <span
-                className={cn(
-                  "flex-none text-right text-sm text-[var(--text-body)] sm:hidden",
-                  primaryFact.mono ? "font-mono tabular-nums" : "",
-                )}
-              >
-                {primaryFact.value}
+              <span className="flex-none text-right text-sm sm:hidden">
+                <RecordCell
+                  kind={primaryFact.kind}
+                  value={primaryFact.value}
+                  linkify={false}
+                  // Only where the fact has not said what it is. A `kind`
+                  // already carries its own face, and `mono` on top of it
+                  // would win the merge and undo the ink with it.
+                  className={
+                    primaryFact.kind
+                      ? undefined
+                      : cn(
+                          "text-[var(--text-body)]",
+                          primaryFact.mono && "font-mono tabular-nums",
+                        )
+                  }
+                />
               </span>
             ) : null}
 
@@ -189,13 +208,20 @@ export function RecordList({
                         {fact.label}
                       </span>
                     ) : null}
-                    <span
-                      className={cn(
-                        "block text-sm text-[var(--text-body)]",
-                        fact.mono ? "font-mono tabular-nums" : "",
-                      )}
-                    >
-                      {fact.value}
+                    <span className="block text-sm">
+                      <RecordCell
+                        kind={fact.kind}
+                        value={fact.value}
+                        linkify={false}
+                        className={
+                          fact.kind
+                            ? undefined
+                            : cn(
+                                "text-[var(--text-body)]",
+                                fact.mono && "font-mono tabular-nums",
+                              )
+                        }
+                      />
                     </span>
                   </span>
                 ))}

@@ -11,7 +11,19 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { StatusChip } from "@/components/ui/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
-import { Building2, CalendarCheck, Clock, Funnel, MapPin, UserRound } from "@/lib/icons";
+import {
+  Building2,
+  Buildings,
+  CalendarCheck,
+  Clock,
+  Crosshair,
+  Funnel,
+  Globe,
+  Lock,
+  MapPin,
+  User,
+} from "@/lib/icons";
+import { resolveNextStep } from "@/lib/crm/tones";
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
@@ -28,6 +40,7 @@ import {
   tasksTab,
 } from "./record-tabs";
 import { RecordAttributes } from "@/components/records/record-attributes";
+import { NextStepCard } from "./next-step-card";
 import { RelationAttribute } from "./relation-attribute";
 import { useToast } from "@/components/ui/use-toast";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
@@ -35,6 +48,7 @@ import { EntityLink } from "@/components/records/entity-link";
 import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { SiteFormSheet } from "./site-form-sheet";
+import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 import { Stack } from "@corelithzw/react";
 
@@ -108,6 +122,18 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const site = siteQuery.data;
 
+  // The work booked at this address. One sheet raises it — from the actions
+  // menu or from the section itself — and afterwards the section it landed in
+  // opens, so the page is visibly different for having done it.
+  const jobs = useJobsTab({
+    ref: { kind: "site", id: siteId },
+    currentUserId: session?.user?.id,
+    links: { clientId: site?.client?.id },
+    // No seeded title: a deal's title is the work, a site's name is only where
+    // it happens, and "Msasa depot" tells a crew nothing about what to do.
+    onRaised: () => setTab("jobs"),
+  });
+
   if (siteQuery.isLoading) {
     return (
       <div className="space-y-4">
@@ -148,6 +174,21 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
       : null;
 
   /**
+   * A site's next step is always somebody going there — what changes is why.
+   *
+   * A place nobody has been to has no measurements to quote from; a place
+   * somebody has been to has measurements as old as that visit. Both are
+   * reasons to send a van, and neither is a reason to shout at a site that has
+   * one booked already.
+   */
+  const nextStep = resolveNextStep({
+    kind: "site",
+    daysSinceContact: null,
+    visitBooked: site.appointments.some((visit) => visit.status === "SCHEDULED"),
+    visitDone: site.appointments.some((visit) => visit.status === "COMPLETED"),
+  });
+
+  /**
    * What the rail has left to say once the properties are at the top.
    *
    * It used to open with Address, Access and Primary contact — all three of
@@ -158,6 +199,11 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
    * administrator's fields.
    */
   const railSections = [
+    nextStep ? (
+      <RailSection key="next" title="Up next">
+        <NextStepCard step={nextStep} onAct={() => setScheduleOpen(true)} />
+      </RailSection>
+    ) : null,
     mapsHref ? (
       <RailSection key="directions" title="Getting there">
         <a href={mapsHref} target="_blank" rel="noreferrer" className="text-sm hover:underline">
@@ -192,7 +238,10 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
           Schedule a visit
         </Button>
       }
-      actions={[{ label: "Edit", onSelect: () => setEditOpen(true) }]}
+      actions={[
+        { label: "Edit", onSelect: () => setEditOpen(true) },
+        { label: "Raise a job", onSelect: jobs.raise },
+      ]}
       backLabel="All sites"
       leading={
         <RecordMark
@@ -231,6 +280,10 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
               id: "company",
               label: "Company",
               icon: Building2,
+              // The same blue a company wears in the table beside this one.
+              // Left off when there is nothing linked, so the picker's own
+              // placeholder stays the quiet grey a placeholder should be.
+              tone: site.client ? "link" : undefined,
               display: (
                 <RelationAttribute
                   value={site.client?.name ?? null}
@@ -246,7 +299,8 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
             {
               id: "contact",
               label: "Primary contact",
-              icon: UserRound,
+              icon: User,
+              tone: site.primaryContact ? "link" : undefined,
               display: (
                 <RelationAttribute
                   value={site.primaryContact?.fullName ?? null}
@@ -272,18 +326,21 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
             {
               id: "city",
               label: "City",
+              icon: Buildings,
               placeholder: "Not recorded",
               ...edit.text("city", site.city),
             },
             {
               id: "country",
               label: "Country",
+              icon: Globe,
               placeholder: "Not recorded",
               ...edit.text("country", site.country),
             },
             {
               id: "coordinates",
               label: "Coordinates",
+              icon: Crosshair,
               placeholder: "Not pinned",
               mono: true,
               // One row, because a pin is one fact and nobody holds a latitude
@@ -319,6 +376,7 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
             {
               id: "access",
               label: "Access",
+              icon: Lock,
               placeholder: "No instructions",
               ...edit.text("accessInstructions", site.accessInstructions),
             },
@@ -403,6 +461,8 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
         },
         tasksTab({ ref: { kind: "site", id: siteId }, currentUserId: session?.user?.id }),
         paperworkTab({ ref: { kind: "site", id: siteId } }),
+        // A job follows the paperwork: it is what the quote turns into.
+        jobs.tab,
         automationTab({ ref: { kind: "site", id: siteId } }),
         // No activity list: a site has no activity foreign key, so its history
         // is the edits made to it and the places it gets referred to.
@@ -445,6 +505,8 @@ export function SiteDetailPage({ siteId }: { siteId: string }) {
         currentUserId={session?.user?.id}
         onScheduled={() => siteQuery.refetch()}
       />
+
+      {jobs.sheet}
     </>
   );
 }

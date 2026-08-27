@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo, type CSSProperties, type ReactNode } from "react";
 
 import { Alert, Button } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -8,7 +8,7 @@ import { Plus } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 import { ListSearch } from "./list-search";
-import { ViewToolbar } from "./view-toolbar";
+import { ViewToolbar } from "@/components/records/view-toolbar";
 import { getApiErrorMessage } from "@/lib/api-client";
 
 /**
@@ -31,6 +31,7 @@ export function RecordListShell({
   layout,
   filters,
   display,
+  filterCount,
   count,
   createLabel,
   onCreate,
@@ -55,8 +56,14 @@ export function RecordListShell({
    */
   layout?: ReactNode;
   filters?: ReactNode;
-  /** Display controls — column picker, card fields — right-aligned with search. */
+  /** Display controls — column picker, card fields — pushed right. */
   display?: ReactNode;
+  /**
+   * How many of `filters` are actually narrowing the list. Only reaches the
+   * phone, where the filters live behind one button and an active one would
+   * otherwise be invisible.
+   */
+  filterCount?: number;
   /**
    * How many rows are showing, out of how many there are — "50 of 214".
    *
@@ -93,7 +100,21 @@ export function RecordListShell({
   );
 
   return (
-    <div className={cn("space-y-4", width === "narrow" && "max-w-3xl")}>
+    <div
+      className={cn(width === "narrow" && "max-w-3xl")}
+      // The next rung of the sticky stack, handed down for the table header to
+      // pin at. It has to be published here rather than on the toolbar: the
+      // toolbar is the table's sibling, not its ancestor, so nothing it
+      // declares reaches the thead. And it cannot be written straight onto
+      // `--stack-top`, because a custom property defined in terms of itself is
+      // a cycle and resolves to nothing — hence the relay through
+      // `--stack-next`, the same one the accounting shells use.
+      style={
+        {
+          "--stack-next": "calc(var(--stack-top, 0px) + var(--list-toolbar-h))",
+        } as CSSProperties
+      }
+    >
       <PageChrome title={title}>{actions}</PageChrome>
 
       <ViewToolbar
@@ -109,15 +130,25 @@ export function RecordListShell({
         }
         count={count}
         end={display}
+        filterCount={filterCount}
       />
 
       {error ? (
-        <Alert tone="danger" title={`Unable to load ${title.toLowerCase()}`}>
+        <Alert
+          tone="danger"
+          title={`Unable to load ${title.toLowerCase()}`}
+          className="mt-4"
+        >
           {getApiErrorMessage(error)}
         </Alert>
       ) : null}
 
-      {children}
+      {/* Flush against the toolbar, with no gap of its own.
+          The toolbar's hairline is the seam between the controls and the
+          records, and the artboards run the column header straight off the
+          underside of it. A gap here put a strip of page between two sticky
+          bands, and rows slid through it as they scrolled. */}
+      <div style={{ "--stack-top": "var(--stack-next)" } as CSSProperties}>{children}</div>
     </div>
   );
 }

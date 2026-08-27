@@ -188,6 +188,18 @@
   --text-tertiary:  var(--text-muted);
   --text-danger:    var(--tone-danger);
 
+  /* The step below `--text-subtle`, which the canvas uses for a value that is
+     not there — "Not scored", "Nobody named" — and for the mark beside a
+     property's label. The package stops at `--text-subtle`, so a rail drawn to
+     the artboards had no ink for "this row is empty" that was not also the ink
+     for "this row is a label".
+
+     `--text-disabled` is the same grey under the spelling eight call sites
+     already use. It had never been declared anywhere, so every one of them was
+     resolving to nothing and inheriting its parent's colour. */
+  --text-faint:    var(--gray-400);
+  --text-disabled: var(--text-faint);
+
   --icon-default: var(--text-muted);
   --icon-strong:  var(--text-strong);
 

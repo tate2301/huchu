@@ -19,10 +19,16 @@ import {
   CalendarCheck,
   Clock,
   Funnel,
+  Mail,
+  NoteAdd,
   Payments,
+  Phone,
+  Tag,
   TrendingUp,
+  User,
   UserRound,
 } from "@/lib/icons";
+import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import {
   fetchCrmFieldDefinitions,
   updateCrmLeadStage,
@@ -56,11 +62,14 @@ import {
 } from "@/components/crm/records/record-tabs";
 import {
   ContactList,
+  ContactTally,
   EmailPreview,
   MeetingCard,
   NextInteractionCard,
   type NextInteraction,
+  type RailTally,
 } from "@/components/crm/records/record-panels";
+import { NextStepCard } from "@/components/crm/records/next-step-card";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
@@ -262,6 +271,27 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
       summary: activity.body ?? activity.subject,
     }));
 
+  // How much has actually been done, as opposed to what the last few things
+  // were. A lead nobody has rung has an empty contact list, which reads as
+  // "nothing to show" rather than as the reason it is going cold.
+  const contactTallies: RailTally[] = [
+    {
+      label: "Calls logged",
+      value: lead.activities.filter((activity) => activity.type === "CALL").length,
+      icon: Phone,
+    },
+    {
+      label: "Emails sent",
+      value: lead.activities.filter((activity) => activity.type === "EMAIL").length,
+      icon: Mail,
+    },
+    {
+      label: "Notes left",
+      value: lead.activities.filter((activity) => activity.type === "NOTE").length,
+      icon: NoteAdd,
+    },
+  ];
+
   const lastEmail = (() => {
     const found = lead.activities.find((activity) => activity.type === "EMAIL");
     return found
@@ -276,6 +306,51 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
     0,
   );
   const latestQuote = lead.documents.find((doc) => doc.type === "QUOTATION");
+
+  /**
+   * What this lead is actually waiting on.
+   *
+   * Read off the record rather than off the stage alone: a lead sitting in
+   * Qualified with a visit already booked wants a different verb from one
+   * nobody has been out to. An archived or converted lead gets no verb at all
+   * — there is no next step on a record that has left the pipeline.
+   */
+  const nextStep = lead.archivedAt
+    ? null
+    : resolveNextStep({
+        kind: "lead",
+        stage: lead.stage,
+        daysSinceContact: daysSince(recentContact[0]?.at ?? lead.firstContactAt),
+        scheduled: Boolean(nextInteraction),
+        visitBooked: Boolean(nextVisit),
+        visitDone: lead.appointments.some((visit) => visit.status === "COMPLETED"),
+        quoteSent: Boolean(latestQuote),
+        quoteAnswered: Boolean(latestQuote?.approval?.respondedAt),
+        owed: totalOutstanding > 0,
+        converted: Boolean(lead.convertedDealId),
+      });
+
+  // Where each verb goes. Every one of these is a sheet or a section this page
+  // already owns — a button that opens nothing is worse than no button.
+  const takeNextStep = () => {
+    switch (nextStep?.action) {
+      case "visit":
+        setScheduleOpen(true);
+        return;
+      case "convert":
+        setConvertOpen(true);
+        return;
+      case "quote":
+      case "chase":
+      case "payment":
+        setTab("documents");
+        return;
+      default:
+        // A call is booked as a follow-up with a date on it, which is what the
+        // tasks section is for.
+        setTab("tasks");
+    }
+  };
 
   return (
     <RecordPageShell
@@ -376,7 +451,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               id: "value",
               label: "Value",
               icon: Payments,
-              mono: true,
+              // The figure the whole record is about, so it is drawn as one:
+              // mono and heavy, in the strongest ink on the page. `mono` alone
+              // made it the same weight and colour as a phone number.
+              tone: "money",
               placeholder: "Not sized",
               ...edit.numeric("estimatedValue", lead.estimatedValue),
               // With its currency, through the same helper the board and the
@@ -402,6 +480,10 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
               id: "company",
               label: "Company",
               icon: Building2,
+              // The same blue a company wears in the table beside this one.
+              // Left off when there is nothing linked, so the picker's own
+              // placeholder stays the quiet grey a placeholder should be.
+              tone: lead.client ? "link" : undefined,
               display: (
                 <RelationAttribute
                   value={lead.client?.name ?? null}
@@ -417,25 +499,51 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             {
               id: "contact",
               label: "Contact",
-              icon: UserRound,
+              icon: User,
               placeholder: "Nobody named",
               ...edit.text("contactName", lead.contactName),
             },
             {
               id: "phone",
               label: "Phone",
+              icon: Phone,
               placeholder: "Not recorded",
+              // Monospaced, so the digits line up against the numbers in the
+              // rows above and below and can be read a group at a time.
+              mono: true,
               ...edit.text("contactPhone", lead.contactPhone),
             },
             {
               id: "email",
               label: "Email",
+              icon: Mail,
               placeholder: "Not recorded",
               ...edit.text("contactEmail", lead.contactEmail),
             },
             {
+              // The canvas puts Owner in the property list, and it is the row
+              // it draws red: a lead nobody owns is nobody's job, which is the
+              // commonest reason one goes cold. It was only ever in the rail's
+              // Details panel, at the bottom of a column, in grey.
+              id: "owner",
+              label: "Owner",
+              icon: UserRound,
+              placeholder: "Unassigned",
+              tone: lead.assignedTo ? "strong" : "alert",
+              ...edit.choice(
+                "assignedToId",
+                lead.assignedTo?.id ?? null,
+                owners.map((member) => ({
+                  value: member.id,
+                  label: member.name ?? "Unnamed",
+                })),
+                "Leave unassigned",
+              ),
+            },
+            {
               id: "source",
               label: "Source",
+              icon: Tag,
               placeholder: "Not recorded",
               ...edit.text("source", lead.source),
             },
@@ -560,24 +668,22 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </RailSection>
           ) : null}
 
+          {/* What is booked, then what to do about it. The card below is the
+              record's one call to action; when something *is* booked it is
+              still the next move, just without the amber. */}
           <RailSection title="Up next">
-            <NextInteractionCard
-              interaction={nextInteraction}
-              emptyMessage="Nothing scheduled — this lead will go quiet."
-              action={
-                nextInteraction ? null : (
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="gap-1.5"
-                    onClick={() => setTab("tasks")}
-                  >
-                    Add a task
-                    <ArrowRight className="h-3.5 w-3.5" />
-                  </Button>
-                )
-              }
-            />
+            {nextInteraction ? (
+              <div className="mb-3">
+                <NextInteractionCard interaction={nextInteraction} />
+              </div>
+            ) : null}
+            {nextStep ? (
+              <NextStepCard step={nextStep} onAct={takeNextStep} />
+            ) : nextInteraction ? null : (
+              <p className="text-sm text-[var(--text-muted)]">
+                This lead has left the pipeline. Nothing is due on it.
+              </p>
+            )}
           </RailSection>
 
           {nextVisit ? (
@@ -598,7 +704,12 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
             </RailSection>
           ) : null}
 
+          {/* How much, then what — the canvas draws this band as the tally,
+              and the list underneath it says who and when. */}
           <RailSection title="Contact so far">
+            <div className="mb-3">
+              <ContactTally tallies={contactTallies} />
+            </div>
             <ContactList contacts={recentContact} />
           </RailSection>
 
@@ -634,7 +745,7 @@ export function LeadDetailPage({ leadId }: { leadId: string }) {
           ) : null}
 
           <RailSection title="Details">
-            <AttributesPanel lead={lead} owners={owners} />
+            <AttributesPanel lead={lead} />
           </RailSection>
         </>
       }

@@ -19,7 +19,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { IconButton } from "@/components/ui/icon-button";
 import { useIsMobile } from "@/hooks/use-mobile";
 import { useRecordTrail } from "@/components/records/record-trail";
-import { ChevronLeftIcon, ChevronRight, DotsThree, type LucideIcon } from "@/lib/icons";
+import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
 import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 import { cn } from "@/lib/utils";
 
@@ -152,9 +152,13 @@ export function RecordPageShell({
    *  they survive a tab change. */
   children?: ReactNode;
   /**
-   * The record's properties, shown above the tabs. Notion-style, because a
-   * property in a right rail is one a phone never shows and a reader looks at
-   * last — which is how they go stale.
+   * The record's properties. The shell puts them under a Properties band at
+   * the head of the pane on a desktop, and at the head of the landing view on
+   * a phone — so the objection that put them above the tabs in the first place
+   * still holds: they are the first thing a phone shows, not the last.
+   *
+   * Given as the rows themselves, not wrapped in a `RailSection`; the shell
+   * owns the band, because the band also carries the pane's collapse control.
    */
   attributes?: ReactNode;
 }) {
@@ -179,6 +183,37 @@ export function RecordPageShell({
       return !open;
     });
   };
+
+  /**
+   * The control that shuts the properties pane, and the one that brings it
+   * back.
+   *
+   * A panel glyph, not a chevron. A chevron promises to move you forward —
+   * it is what a row does when it opens the next thing — and this control
+   * moves nothing: it hides a pane and leaves you where you are. The app bar's
+   * own sidebar control is Phosphor's `SidebarSimple`, so this is the same
+   * glyph mirrored, and collapsing a pane reads as one gesture wherever the
+   * pane happens to be.
+   *
+   * The state shows in the fill rather than in a second glyph: the panel is
+   * solid while it is there and an outline once it is gone. Mirroring it back
+   * to the left would have been the other way to flip it, and it would have
+   * read as the app's own sidebar sitting on the wrong edge of the screen.
+   */
+  const railToggle = (
+    <IconButton
+      size="sm"
+      aria-label={infoOpen ? "Hide properties" : "Show properties"}
+      onClick={toggleInfo}
+      // There is no pane to collapse below `lg` — the same sections are the
+      // landing view there — and a control that visibly does nothing is worse
+      // than one that is not offered.
+      className="-mr-1 hidden lg:inline-flex"
+    >
+      <SidebarRight weight={infoOpen ? "fill" : "regular"} />
+    </IconButton>
+  );
+
   // The width at which the app bar switches to its phone row and stops having
   // room for the record's name. Only ever used for chrome the bar itself owns.
   const narrow = useIsMobile();
@@ -310,7 +345,16 @@ export function RecordPageShell({
   // component defined during render.
   const RecordIcon = icon;
 
-  const infoColumn = (
+  /**
+   * The record's identity — mark, name, reference, status, standfirst.
+   *
+   * Phone only. Above `md` all of this is in the band across the top of the
+   * shell, and the artboard's right rail starts at the Properties strip: a
+   * record whose name is in the app bar, whose status and reference are in the
+   * band, and whose name and status are *also* at the top of the rail is
+   * saying the same three things three times inside 200px of each other.
+   */
+  const identityBlock = (
     <div className="space-y-5">
       <div className="space-y-2">
         <div className="flex items-start gap-2.5">
@@ -348,18 +392,31 @@ export function RecordPageShell({
         ) : null}
       </div>
 
-      {attributes ? (
-        <div className="border-t border-[var(--border-subtle)] pt-4">{attributes}</div>
-      ) : null}
-
       {/* Phone only — above `md` this is in the band, and rendering it twice
           would put two stage ladders on one page. */}
       {beforeTabs ? (
         <div className="border-t border-[var(--border-subtle)] pt-4 md:hidden">{beforeTabs}</div>
       ) : null}
-
-      {rail ? <div className="space-y-7 border-t border-[var(--border-subtle)] pt-4">{rail}</div> : null}
     </div>
+  );
+
+  /**
+   * The rail's contents: banded sections, one after another, no cards.
+   *
+   * Properties always opens it, whether or not the page supplied any. The band
+   * is the pane's own heading — it says what this column is — and it is where
+   * the collapse control lives, so a rail with an empty property list still
+   * has a way to shut itself.
+   */
+  const railSections = (
+    <>
+      <RailSection title="Properties" action={railToggle}>
+        {attributes ?? (
+          <p className="text-sm text-[var(--text-muted)]">Nothing recorded on this one yet.</p>
+        )}
+      </RailSection>
+      {rail}
+    </>
   );
 
   const hasSectionRail = visibleTabs.length > 1;
@@ -574,8 +631,14 @@ export function RecordPageShell({
           )}
         >
           {/* The record, at the head of the landing view, where a phone has no
-              column to stand it in. */}
-          {!openSection ? <div className="lg:hidden">{infoColumn}</div> : null}
+              column to stand it in — identity first, then the same banded
+              sections the pane on a desktop carries. */}
+          {!openSection ? (
+            <div className="space-y-5 lg:hidden">
+              {identityBlock}
+              {railSections}
+            </div>
+          ) : null}
 
           {/* Drilled in on a phone, the section names itself — the bar is
               still carrying the record's name. */}
@@ -597,9 +660,11 @@ export function RecordPageShell({
           ) : null}
         </div>
 
-        {/* The standing column: what this record is and what it is worth,
-            beside whichever section is being read. Collapsible, because a
-            reader working through a long document list wants the width.
+        {/* The properties pane: what this record holds, beside whichever
+            section is being read. Banded sections rather than a stack of
+            cards — Properties, then whatever the page adds. Collapsible,
+            because a reader working through a long document list wants the
+            width.
 
             Its own scrollport, which is what lets the headings inside it pin.
             `RailSection` draws each heading as a band that sticks to the top of
@@ -612,20 +677,15 @@ export function RecordPageShell({
           // the subtle one — this seam separates two panes, where the rail's
           // only separates a rail from its content.
           <aside className="hidden shrink-0 overflow-y-auto border-l border-[var(--border)] bg-[var(--surface-base)] px-3.5 lg:block lg:w-[21.25rem]">
-            <div className="space-y-4 pb-5">
-              <div className="flex justify-end pt-2">
-                <IconButton aria-label="Hide record details" onClick={toggleInfo}>
-                  <ChevronRight />
-                </IconButton>
-              </div>
-              {infoColumn}
-            </div>
+            {/* No padding above the first band: it is the pane's own heading
+                and it pins to the top of the scrollport, so anything stacked
+                over it is a strip that slides underneath on the first
+                scroll. */}
+            <div className="pb-5">{railSections}</div>
           </aside>
         ) : (
           <aside className="hidden shrink-0 border-l border-[var(--border)] bg-[var(--surface-base)] px-2 pt-2 lg:block">
-            <IconButton aria-label="Show record details" onClick={toggleInfo}>
-              <ChevronLeftIcon />
-            </IconButton>
+            {railToggle}
           </aside>
         )}
       </div>
@@ -735,9 +795,12 @@ export function RailSection({
             a disabled label. */}
         <h3 className="acct-rail-heading text-[var(--text-muted)]">{title}</h3>
         {meta ? <span className="ml-auto font-mono text-sm font-bold">{meta}</span> : null}
-        {action ? <span className={cn(meta ? "" : "ml-auto")}>{action}</span> : null}
+        {action ? <span className={cn("flex items-center", meta ? "" : "ml-auto")}>{action}</span> : null}
       </div>
-      {children}
+      {/* The artboard's body inset. Without it the last row of one section and
+          the band opening the next are 8px apart, which reads as the row
+          belonging to the section below it. */}
+      <div className="pb-3">{children}</div>
     </section>
   );
 }

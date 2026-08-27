@@ -10,7 +10,14 @@ import { ChevronRight, type LucideIcon } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 
 /**
- * The CRM's table view.
+ * The register view every module's record list is drawn with.
+ *
+ * It sits in `components/records` rather than under CRM or HR for the reason
+ * `people-directory.tsx` gives: both modules draw the same table, and the
+ * moment it lives in one of them the other becomes the copy that drifts. It
+ * did live under `components/crm/records`, which left the HR directory
+ * importing its cells out of the CRM module; every call site now imports it
+ * from here.
  *
  * A record list has always been rows you open — a title, a supporting line, a
  * fact or two on the right — and that is the right shape when you are looking
@@ -24,8 +31,8 @@ import { cn } from "@/lib/utils";
  *
  *   - one header row, quiet, with the column's own mark beside its name, so a
  *     scan down a column knows what it is looking at without reading the head;
- *   - one line per record, 44px, because a table you can also use with a thumb
- *     is worth more than one that fits six more rows;
+ *   - one line per record, 36px on a mouse and 44 on a thumb, so the register
+ *     is dense where it is read and reachable where it is tapped;
  *   - the first column is the record, and it is the link. Nothing else in the
  *     row navigates, so a cell can hold a chip, an avatar or a figure without
  *     any of them becoming an accidental target.
@@ -51,6 +58,166 @@ export type RecordTableColumn<T> = {
   align?: "start" | "end";
   cell: (row: T) => ReactNode;
 };
+
+/* ────────────────────────────────────────────────────────────────────────────
+   What colour a cell is
+   ──────────────────────────────────────────────────────────────────────────── */
+
+/**
+ * What a value *is*, which is the only thing that decides how it is drawn.
+ *
+ * Not a status: a state gets a `Badge` or a `StatusChip` with a tone out of
+ * `lib/crm/tones.ts`, because a state is a judgement and wants a filled shape.
+ * These are the plain values either side of it.
+ */
+export type RecordCellKind =
+  | "text"
+  /** An address you can write to. */
+  | "email"
+  /** A number you can ring. */
+  | "phone"
+  /** Another record — a company, an owner, a deal. */
+  | "relation"
+  /** A reference, a national ID, an account number: read character by character. */
+  | "code"
+  /** A figure with a currency. */
+  | "money"
+  /** A count, a quantity, a percentage. */
+  | "number"
+  /** A date or a timestamp. */
+  | "date";
+
+/**
+ * The one place a cell's ink and face are decided.
+ *
+ * The canvas colours a table per *value*, not per column — in People's
+ * `renderVals()` an email is `#0944C2` and a missing one is `#A6AEBD`, decided
+ * on the value itself rather than on which column it landed in. That is the
+ * whole rule: the blue an email is set in is the same blue the info badge is
+ * set in (`--brand-strong`, which `--badge-info-text` also resolves to), so a
+ * table full of tinted values and a table full of badges agree with each other
+ * instead of being two colour schemes stacked.
+ *
+ * Kept as one resolver rather than a `cn()` in each column definition because
+ * four lists writing "which grey is a phone number" four times is four lists
+ * that will eventually answer differently.
+ */
+export function recordCellTone(kind: RecordCellKind): string {
+  switch (kind) {
+    // The two things that are somewhere else: an address and a record. Both
+    // are the info badge's ink, because both are the same promise.
+    case "email":
+    case "relation":
+      return "text-[var(--brand-strong)]";
+    // Identifiers are compared, not read. Mono is what lets the eye run down
+    // the column and catch the one that differs by a digit.
+    case "phone":
+    case "code":
+    case "date":
+      return "font-mono tabular-nums text-[var(--text-body)]";
+    // Money is the figure the row is about, so it carries the page's strongest
+    // ink; a quantity beside it is not, and stays at body weight.
+    case "money":
+      return "font-mono tabular-nums font-medium text-[var(--text-strong)]";
+    case "number":
+      return "font-mono tabular-nums text-[var(--text-body)]";
+    default:
+      return "text-[var(--text-body)]";
+  }
+}
+
+/** Figures hang off the right edge so their digits line up; prose does not. */
+export function recordCellAlign(kind: RecordCellKind): "start" | "end" {
+  return kind === "money" || kind === "number" ? "end" : "start";
+}
+
+/**
+ * A value in a table cell, drawn to whatever it is.
+ *
+ * Three things it does that a bare `<span>` in a column definition does not.
+ *
+ * An address is a real `mailto:` and a relation is a real link, so the value
+ * the canvas paints blue behaves like the thing the colour promises. Both stop
+ * the click there: `RecordTable` leaves the rest of the row inert, but the row
+ * lists and the boards wrap everything in one link, and an email inside one of
+ * those would otherwise open the person rather than the mail client.
+ *
+ * A phone number is a `tel:` only where a tap on it could actually place a
+ * call. On a mouse it stays plain text you can select and copy, which is what
+ * it is for there — rendered as two elements swapped by a media query rather
+ * than by a hook, because a hook per cell is five hundred `matchMedia`
+ * listeners on a full page of records.
+ *
+ * And nothing is ever blank. An empty cell reads as a table that failed to
+ * load; an em-dash in the faintest ink reads as "there is nothing here", which
+ * is a fact worth having.
+ */
+export function RecordCell({
+  kind = "text",
+  value,
+  href,
+  linkify = true,
+  className,
+}: {
+  kind?: RecordCellKind;
+  value: ReactNode;
+  /** Where a `relation` points. Ignored by every other kind. */
+  href?: string | null;
+  /**
+   * Off where the cell is already inside a link — the row lists and the first
+   * column of the table both wrap their contents in one. An anchor inside an
+   * anchor is invalid markup and the browser closes the outer one early, which
+   * silently costs the row the rest of its click target. The ink stays either
+   * way, which is what the reader is actually being told.
+   */
+  linkify?: boolean;
+  className?: string;
+}) {
+  const stop = (event: { stopPropagation: () => void }) => event.stopPropagation();
+  const tone = cn("truncate", recordCellTone(kind), className);
+
+  if (value === null || value === undefined || value === "" || value === false) {
+    return (
+      <span className={cn("text-[var(--text-faint)]", className)} title="Not set">
+        —
+      </span>
+    );
+  }
+
+  if (kind === "email" && linkify && typeof value === "string") {
+    return (
+      <a href={`mailto:${value}`} onClick={stop} className={cn(tone, "block hover:underline")}>
+        {value}
+      </a>
+    );
+  }
+
+  if (kind === "phone" && linkify && typeof value === "string") {
+    const dial = value.replace(/[^\d+]/g, "");
+    return (
+      <span className={cn("block", tone)}>
+        <a
+          href={`tel:${dial}`}
+          onClick={stop}
+          className="hidden [@media(pointer:coarse)]:inline"
+        >
+          {value}
+        </a>
+        <span className="[@media(pointer:coarse)]:hidden">{value}</span>
+      </span>
+    );
+  }
+
+  if (kind === "relation" && linkify && href) {
+    return (
+      <Link href={href} onClick={stop} className={cn(tone, "block hover:underline")}>
+        {value}
+      </Link>
+    );
+  }
+
+  return <span className={cn("block", tone)}>{value}</span>;
+}
 
 export function RecordTable<T extends { id: string }>({
   rows,
@@ -163,7 +330,13 @@ export function RecordTable<T extends { id: string }>({
           is the header sticky against the page the way it looks like it should
           be. Narrower than that, the table scrolls and the header goes with it,
           which is the honest trade. */}
-      <div className={cn("@container", className)}>
+      {/* The table reaches the frame.
+          A register is read across, and a page gutter either side of it is
+          16px of nothing on the one axis a wide table is short of — the
+          artboards run the rules edge to edge and let the cells' own padding
+          do the insetting. `table-edge-to-edge` also drops the max-width,
+          which is what stops a list inheriting a cap meant for prose. */}
+      <div className={cn("table-edge-to-edge @container", className)}>
         <div className="overflow-x-auto @5xl:overflow-visible">
         {/* `border-separate` rather than `border-collapse`: a collapsed border
             is owned by the table, and a sticky header carries none of it with
