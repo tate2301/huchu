@@ -9,11 +9,11 @@
 // keeps every database-backed fallback behind a dynamic import, so the static
 // closure stops at the claims helpers.
 //
-// The fallbacks are not re-implemented. When a token is missing a claim the
-// checks need (blank tenantStatus, failed host check with no allowedHosts
-// claim, empty enabledFeatures on a denied feature), the ENTIRE decision is
-// delegated to the unchanged resolveAccessContext, so stale-token behavior is
-// bit-identical to the old path by construction.
+// The token's authorization claims are re-enriched from the database on every
+// read (token-session.ts), matching the old jwt-callback behavior, so the
+// checks below run against fresh values. The delegation fallbacks to the
+// unchanged resolveAccessContext remain as belt-and-braces for any token an
+// enrichment edge case leaves without a claim.
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { getTokenAuthSession } from "@/lib/auth-core/token-session";

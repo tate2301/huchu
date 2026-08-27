@@ -37,7 +37,18 @@ export async function getTokenAuthSession(
     return null;
   }
 
-  return tokenToSession(token);
+  // Parity with getServerSession, which re-runs the jwt callback — and with it
+  // enrichTokenClaims — on EVERY call: tenant status, entitlements and allowed
+  // hosts are re-read from the database per guarded request, so a suspension
+  // or feature revocation takes effect immediately, not at token expiry.
+  // (Codex review P1 on PR #157.) Dynamically imported: session-claims reaches
+  // prisma through the entitlement helpers, and keeping it out of the static
+  // graph is the point of this module. The runtime cost is identical to the
+  // old path, which ran the same lookups inside the jwt callback.
+  const { enrichTokenClaims } = await import("@/lib/auth-core/session-claims");
+  const enriched = await enrichTokenClaims(token);
+
+  return tokenToSession(enriched);
 }
 
 /**
