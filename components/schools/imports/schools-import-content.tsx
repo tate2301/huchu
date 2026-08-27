@@ -43,7 +43,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { formatSchoolDate } from "@/lib/schools/format";
 
 type ImportField = {
   key: string;
@@ -122,6 +121,49 @@ const STEPS = [
 function fieldLabel(fields: ImportField[], key: string): string {
   if (key === "_row") return "The row";
   return fields.find((field) => field.key === key)?.label ?? key;
+}
+
+/**
+ * When an import ran, to the minute.
+ *
+ * `formatSchoolDate` gives "3 August 2026", which is the right format for a
+ * date of birth and the wrong one here: a registrar loads classes, then
+ * students, then guardians before break, and three rows all reading "3 August
+ * 2026" cannot be told apart — which matters, because Undo works newest first
+ * and the wrong row undoes the wrong load. "3 Aug 09:14" is the form the
+ * canvas draws and the shortest one that distinguishes them.
+ *
+ * Locale-pinned for the same reason `lib/schools/format.ts` pins its own: the
+ * server and the browser must render the same string or hydration tears.
+ */
+const IMPORT_STAMP = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function importedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  // en-GB renders "3 Aug, 09:14"; the canvas has no comma between the two.
+  return IMPORT_STAMP.format(date).replace(",", "");
+}
+
+/**
+ * What a past import loaded, named the way the picker names it.
+ *
+ * The registry is the authority — `Parents and guardians`, `Opening balances`,
+ * `Fee structures` — and it is already on the wire beside the history rows.
+ * Falling back to the enum only matters for a job whose entity type has since
+ * been retired from the registry.
+ */
+function entityLabel(entities: EntitySummary[], key: string): string {
+  return (
+    entities.find((candidate) => candidate.key === key)?.label ??
+    key.replace(/_/g, " ").toLowerCase()
+  );
 }
 
 export function SchoolsImportContent() {
@@ -598,18 +640,30 @@ export function SchoolsImportContent() {
                           {record.fileName}
                         </TableCell>
                         <TableCell className="text-[var(--text-muted)]">
-                          {record.entityType.replace(/_/g, " ").toLowerCase()}
+                          {/*
+                            The registry's own name for the kind of record —
+                            "Parents and guardians", "Opening balances". The
+                            enum lower-cased gave "guardian" and "opening
+                            balance", which are not what the picker at the top
+                            of this page called them ten minutes earlier.
+                          */}
+                          {entityLabel(entities, record.entityType)}
                         </TableCell>
-                        <TableCell className="text-[var(--text-muted)]">
-                          {formatSchoolDate(record.createdAt)}
+                        <TableCell className="font-mono text-[var(--text-muted)] tabular-nums">
+                          {importedAt(record.createdAt)}
                         </TableCell>
                         <TableCell>
                           {record.status === "ROLLED_BACK" ? (
                             <Badge variant="outline">Undone</Badge>
                           ) : record.status === "COMMITTED" ? (
                             <span className="text-sm">
-                              {record.rowsCreated} created
-                              {record.rowsFailed > 0 ? `, ${record.rowsFailed} failed` : ""}
+                              {/*
+                                Both halves, always. "18 created" alone reads as
+                                a clean load whether or not anything fell over,
+                                so a run that lost fourteen rows looked exactly
+                                like one that lost none.
+                              */}
+                              {record.rowsCreated} created, {record.rowsFailed} failed
                             </span>
                           ) : (
                             <Badge variant="secondary">Not imported</Badge>

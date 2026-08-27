@@ -38,19 +38,24 @@ import {
   AssignmentFormDialog,
   EMPTY_ASSIGNMENT,
   type AssignmentFormValues,
-} from "./assignment-form-dialog";
-import { BulkAllocationSheet, type BulkAllocationResult, type BulkAllocationValues } from "./bulk-allocation-sheet";
-import { EmployeeLinkCell } from "./employee-link-cell";
+} from "@/components/schools/teachers/assignment-form-dialog";
+import {
+  BulkAllocationSheet,
+  type BulkAllocationResult,
+  type BulkAllocationValues,
+} from "@/components/schools/teachers/bulk-allocation-sheet";
+import { DEPARTMENT_SUGGESTIONS } from "@/components/schools/teachers/departments";
+import { EmployeeLinkCell } from "@/components/schools/teachers/employee-link-cell";
 import {
   EMPTY_SUBJECT,
   SubjectFormDialog,
   type SubjectFormValues,
-} from "./subject-form-dialog";
+} from "@/components/schools/teachers/subject-form-dialog";
 import {
   EMPTY_TEACHER,
   TeacherFormDialog,
   type TeacherFormValues,
-} from "./teacher-form-dialog";
+} from "@/components/schools/teachers/teacher-form-dialog";
 
 /**
  * The staff list, and the two tables that hang off it.
@@ -194,8 +199,24 @@ export function SchoolsTeachersContent() {
     for (const profile of allProfiles) {
       if (profile.department) seen.add(profile.department);
     }
+    /*
+     * Faculty order, not alphabetical order.
+     *
+     * A staff list is read the way a timetable is grouped — Mathematics,
+     * Languages, Sciences, Humanities — and an alphabetical dropdown that
+     * opens on "Commercials" makes somebody hunt for the department they were
+     * already thinking of. Anything the school named for itself and this list
+     * has never heard of keeps its alphabetical place after the known ones,
+     * because inventing a position for it would be a guess.
+     */
+    const rank = (value: string) => {
+      const index = DEPARTMENT_SUGGESTIONS.indexOf(
+        value as (typeof DEPARTMENT_SUGGESTIONS)[number],
+      );
+      return index === -1 ? DEPARTMENT_SUGGESTIONS.length : index;
+    };
     return [...seen]
-      .sort((a, b) => a.localeCompare(b))
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
       .map((value) => ({ value, label: value }));
   }, [allProfiles]);
 
@@ -633,7 +654,7 @@ export function SchoolsTeachersContent() {
             resource="schools.teachers"
             verbs={[
               {
-                label: "Add a subject",
+                label: "Add Subject",
                 action: "create",
                 onSelect: () => setSubjectDialog(EMPTY_SUBJECT),
               },
@@ -845,7 +866,7 @@ export function SchoolsTeachersContent() {
                   action={
                     <CreateButton
                       resource="schools.teachers"
-                      label="Add a subject"
+                      label="Add Subject"
                       onSelect={() => setSubjectDialog(EMPTY_SUBJECT)}
                     />
                   }

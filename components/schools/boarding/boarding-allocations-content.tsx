@@ -35,9 +35,10 @@ import {
   shortDate,
   type AllocationStatus,
   type BoardingAllocation,
-} from "./boarding-data";
-import { AllocateBedDialog, AllocationDialog } from "./boarding-dialogs";
-import { LeaveRequestsPanel } from "./leave-requests-panel";
+} from "@/components/schools/boarding/boarding-data";
+import { AllocateBedDialog, AllocationDialog } from "@/components/schools/boarding/boarding-dialogs";
+import { BoardingViews } from "@/components/schools/boarding/boarding-views";
+import { LeaveRequestsPanel } from "@/components/schools/boarding/leave-requests-panel";
 
 /**
  * Boarding Management — who is in which bed, this term.
@@ -299,6 +300,13 @@ export function BoardingAllocationsContent() {
       )}
 
       <TableControls
+        tabs={
+          <BoardingViews
+            allocations={summary?.totalAllocations}
+            hostels={summary?.hostels}
+            leave={leaveRequests.length}
+          />
+        }
         search={
           <TableSearch
             value={search}

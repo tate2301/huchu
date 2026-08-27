@@ -24,9 +24,10 @@ import {
   fetchLeaveRequests,
   leaveStatusLabel,
   type LeaveStatus,
-} from "./boarding-data";
-import { LeaveRequestDialog } from "./boarding-dialogs";
-import { LeaveRequestsPanel } from "./leave-requests-panel";
+} from "@/components/schools/boarding/boarding-data";
+import { LeaveRequestDialog } from "@/components/schools/boarding/boarding-dialogs";
+import { BoardingViews } from "@/components/schools/boarding/boarding-views";
+import { LeaveRequestsPanel } from "@/components/schools/boarding/leave-requests-panel";
 
 /**
  * Leave and outings — who has asked to go out, and who is still not back.
@@ -180,6 +181,7 @@ export function BoardingLeaveContent() {
       )}
 
       <TableControls
+        tabs={<BoardingViews hostels={hostels.length} leave={all.length} />}
         search={
           <TableSearch
             value={search}

@@ -17,7 +17,7 @@ import {
   unpublishResultSheet,
   type ResultSheetLike,
 } from "@/lib/schools/results-v2";
-import { SHEET_STATE_LABELS } from "./sheet-state";
+import { SHEET_STATE_LABELS } from "@/components/schools/results/sheet-state";
 
 /**
  * The five workflow verbs, in one place, so every results screen offers the

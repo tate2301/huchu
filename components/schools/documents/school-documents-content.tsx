@@ -42,6 +42,19 @@ import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
  * and the fee invoice printed three dashes; both are the whole point of the
  * document, and a blank one handed to a parent is worse than none. They read
  * `/assessments/term-marks` and `/fees/invoices` for the term in view.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * Four filters, each named here with the unnarrowed choice the canvas gives it:
+ *
+ *   Year group = Form 2
+ *   Stream = Every stream
+ *   Term = Term 2 · 2026
+ *   Status = Active pupils
+ *
+ * Year group, stream and status go to the roll endpoint; term picks which
+ * marks and which invoice the two per-pupil documents read. All four narrow
+ * every tab, including the class list and the register.
  */
 
 type DocumentView = "report-card" | "fee-invoice" | "class-list" | "attendance-register";
@@ -296,12 +309,14 @@ function ReportCardPreview({
           <div style={{ marginTop: "24px", borderTop: "1px solid #e5e7eb", paddingTop: "12px" }}>
             <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#6b7280" }}>
               <div>
-                <div style={{ fontWeight: 600 }}>Class Teacher</div>
-                <div style={{ marginTop: "24px", borderTop: "1px solid #000", width: "200px" }}>Signature</div>
+                <div style={{ marginTop: "24px", borderTop: "1px solid #000", width: "200px" }}>
+                  Class Teacher &mdash; Signature
+                </div>
               </div>
               <div>
-                <div style={{ fontWeight: 600 }}>Head Teacher</div>
-                <div style={{ marginTop: "24px", borderTop: "1px solid #000", width: "200px" }}>Signature</div>
+                <div style={{ marginTop: "24px", borderTop: "1px solid #000", width: "200px" }}>
+                  Head Teacher &mdash; Signature
+                </div>
               </div>
             </div>
           </div>
@@ -764,7 +779,7 @@ export function SchoolDocumentsContent() {
         {perPupil ? (
           <div className="space-y-4">
             <Card
-              title="Select a pupil"
+              title="Select Student"
               subtitle={`${searched.length} of ${total.toLocaleString()} on the roll`}
             >
               <div className="space-y-3">
@@ -772,7 +787,7 @@ export function SchoolDocumentsContent() {
                   <Label htmlFor="doc-student-search">Search students</Label>
                   <Input
                     id="doc-student-search"
-                    placeholder="Search by name or student number…"
+                    placeholder="Search by name or student number..."
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
@@ -830,8 +845,8 @@ export function SchoolDocumentsContent() {
                 </div>
                 {searched.length > 20 ? (
                   <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                    Showing the first 20 matches of {searched.length}. Narrow the year group
-                    to see the rest.
+                    Showing the first 20 matches of {searched.length}. Narrow the year
+                    group to see the rest.
                   </p>
                 ) : null}
               </div>
@@ -881,6 +896,43 @@ export function SchoolDocumentsContent() {
           )
         ) : null}
       </VerticalDataViews>
+
+      {/*
+        The three notes the canvas draws under this screen. They are the record
+        of what was wrong with it, kept beside the fix so the next person to
+        open the file knows which decisions were deliberate.
+      */}
+      <div className="grid items-start gap-3 lg:grid-cols-3">
+        <Card title="What ships instead">
+          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+            The report card&rsquo;s subject table used to be a single row reading
+            &ldquo;Results data will be populated from the results module for the
+            selected term.&rdquo; The marks are what the screen is for, so it now reads
+            them from the results module for the term in view, and the fee invoice
+            reads its real lines rather than printing Tuition Fee, Boarding Fee and
+            Total Due each with a literal &ldquo;-&rdquo;.
+          </p>
+        </Card>
+
+        <Card title="The two tabs with no filter">
+          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+            <strong>Class Lists</strong> and <strong>Attendance Registers</strong> reused
+            the student search state but never rendered the search box, so they printed
+            all 842 pupils with no way to narrow to a class. The filter row above is the
+            fix, and it is the same <code>FilterBar</code> every other campus screen
+            already uses.
+          </p>
+        </Card>
+
+        <Card title="Printing">
+          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+            Printing is a hand-rolled <code>window.open</code> plus{" "}
+            <code>document.write</code> of the preview&rsquo;s innerHTML, with its own
+            inline stylesheet — that is what a browser will actually print from, so it
+            stays. A blocked pop-up used to return silently; it now says so on the page.
+          </p>
+        </Card>
+      </div>
     </div>
   );
 }

@@ -47,6 +47,20 @@ import { TermFormSheet } from "./term-form-sheet";
 
 export type SchoolsCalendarView = "years" | "terms";
 
+/**
+ * The three terms a school year is cut into here.
+ *
+ * Not specimen data — it is the shape of the Zimbabwean academic year, and
+ * every school on the pack types the same three codes and the same three names
+ * into the term dialog each January. Offered as one-press fills for the two
+ * fields that never vary; the dates, which always do, stay the school's own.
+ */
+const STANDARD_TERMS = [
+  { code: "T1", name: "Term 1", label: "T1 - Term 1" },
+  { code: "T2", name: "Term 2", label: "T2 - Term 2" },
+  { code: "T3", name: "Term 3", label: "T3 - Term 3" },
+];
+
 function formatDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "-";
@@ -485,7 +499,9 @@ export function SchoolsCalendarContent({
           ) : allTerms.length === 0 ? (
             <NothingYet
               title="No terms yet"
-              body="Add the terms that make up the academic year. Every register, invoice and result sheet is dated inside one."
+              body={`Add the terms that make up the academic year — usually ${STANDARD_TERMS.map(
+                (preset) => preset.label,
+              ).join(", ")}. Every register, invoice and result sheet is dated inside one.`}
             />
           ) : terms.length === 0 ? (
             <NothingMatched
@@ -561,6 +577,11 @@ export function SchoolsCalendarContent({
           if (!open) setEditingTerm(null);
         }}
         years={years}
+        presets={STANDARD_TERMS}
+        existingTerms={allTerms.map((term) => ({
+          code: term.code,
+          academicYearId: term.academicYear.id,
+        }))}
         initial={
           editingTerm
             ? {

@@ -26,7 +26,7 @@ import {
   fetchSchoolsTerms,
   fetchTeacherProfiles,
 } from "@/lib/schools/admin-v2";
-import { AssignmentBoardDialog } from "./assignment-board-dialog";
+import { AssignmentBoardDialog } from "@/components/schools/homework/assignment-board-dialog";
 
 /** Kept in step with `AssignmentState` in `lib/schools/assignments.ts`. */
 type AssignmentState = "DRAFT" | "SET" | "DUE_WEEK" | "OVERDUE";
@@ -102,6 +102,21 @@ function stateBadge(state: AssignmentState) {
  * offers the one send that reaches those families — because a deputy who spots
  * "4 of 31" and cannot find out which twenty-seven is being shown a problem
  * and denied the work.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * Five filters, each named here with the unnarrowed choice the canvas gives it:
+ *
+ *   Term = This term
+ *   Year group = Every year
+ *   Subject = Every subject
+ *   Teacher = Every teacher
+ *   State = Anything set
+ *
+ * The first four go to the endpoint. State is the exception and the reason the
+ * tiles are counted the way they are: it is worked out per row from the
+ * deadline and what has come back, so it narrows the table here and leaves the
+ * tiles above it alone.
  */
 export function HomeworkOversightContent() {
   const queryClient = useQueryClient();
@@ -539,6 +554,13 @@ export function HomeworkOversightContent() {
           )}
         </div>
 
+        {/*
+          The side column: which class is drowning, the roll figure the board
+          turns on, and the two notes explaining why the rows go somewhere and
+          why the tiles do not move. One flex column so they stack under each
+          other rather than each claiming a grid cell of their own.
+        */}
+        <div className="flex flex-col gap-4">
         <Card
           title="Which class is drowning"
           subtitle="Pieces set this week"
@@ -582,6 +604,56 @@ export function HomeworkOversightContent() {
             </ul>
           )}
         </Card>
+
+        {/*
+          The column the whole board turns on, explained once beside it. "4 of
+          32" and "4 of 5" are the same submission count and completely
+          different Tuesdays, which is why the roll travels with every row —
+          and the figure at the top is that same sum across everything in view.
+        */}
+        <Card title="Handed in, of the roll" className="h-fit">
+          {query.isPending ? (
+            <StatsSkeleton count={1} />
+          ) : (
+            <>
+              <p className="font-[family-name:var(--font-mono)] text-[length:var(--type-heading-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
+                {(summary?.handedIn ?? 0).toLocaleString()} of{" "}
+                {(summary?.onRoll ?? 0).toLocaleString()}
+              </p>
+              <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                Across every piece of work in view. A bare tally of what arrived
+                cannot tell a full class from an empty one, so the roll travels with
+                every row rather than the count alone.
+              </p>
+            </>
+          )}
+        </Card>
+
+        {/*
+          Two notes the canvas draws as cards. They are the reasoning a reader
+          needs to trust the numbers above them — why the rows now go
+          somewhere, and why the tiles do not move when the State filter does.
+        */}
+        <Card title="Every row is a dead end" className="h-fit">
+          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+            That was the fault this board was built to fix. Nothing on this table
+            linked anywhere, so a deputy who spots{" "}
+            <strong>4 of 31 handed in</strong> cannot open the homework, see who is
+            missing, or chase them. <strong>Who has not handed in</strong> on the row
+            opens the class list, and <strong>Message the class</strong> writes to the
+            families of exactly the children who are missing.
+          </p>
+        </Card>
+
+        <Card title="Why the tiles ignore the filter" className="h-fit">
+          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+            The three tiles count the term and the class filters, never the{" "}
+            <strong>State</strong> filter below them: a head reads &ldquo;7
+            overdue&rdquo;, then narrows the table to see which seven. Narrowing the
+            tiles too would leave every tile reading its own filter back at itself.
+          </p>
+        </Card>
+        </div>
       </div>
 
       {openAssignmentId ? (

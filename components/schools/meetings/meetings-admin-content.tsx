@@ -69,6 +69,16 @@ import { printEvening } from "@/components/schools/meetings/print-evening";
  * type — slots open, booked, free — and the one create verb sits in the app bar
  * where every other campus page keeps its primary action.
  *
+ * The canvas names that row as four filters and their unnarrowed choice:
+ *
+ *   Term = The current term
+ *   Teacher = Every teacher
+ *   Year group = Every year group
+ *   Evening = Every evening
+ *
+ * Each pair below is that contract: the `label` and the `allLabel` handed to
+ * the control, so a reader can put the artboard beside the code and check.
+ *
  * ── Releasing a slot ───────────────────────────────────────────────────────
  *
  * "Nobody is told automatically — ring them." That is the release dialog
@@ -184,6 +194,28 @@ type ReleasedSlot = {
   when: string;
   teacherName: string;
 };
+
+/**
+ * "Print her evening", "Print his evening", or neither.
+ *
+ * The canvas labels the print verb with the teacher's own pronoun — the office
+ * hands Mrs Nyathi *her* evening, not "the" evening — and the only thing the
+ * school has actually recorded about that is the honorific it wrote into her
+ * name. So the honorific is what this reads, and nothing else: there is no
+ * gender column on a teacher profile, and inferring one from a first name is
+ * how a product starts getting people's pronouns wrong in print.
+ *
+ * A name with no honorific — "T. Chirwa", a staff list imported without them —
+ * gets the neutral label rather than a guess.
+ */
+function printEveningLabel(teacherName: string) {
+  const honorific = teacherName.trim().match(/^(Mrs|Ms|Miss|Mr|Mx)\b\.?/i)?.[1];
+  if (!honorific) return "Print the evening";
+  const lower = honorific.toLowerCase();
+  if (lower === "mr") return "Print his evening";
+  if (lower === "mx") return "Print the evening";
+  return "Print her evening";
+}
 
 /** The row a booking dialog is seeded from, and what it is doing to it. */
 type BookingIntent = { slot: Slot; mode: "book" | "edit" };
@@ -783,7 +815,7 @@ export function MeetingsAdminContent() {
                         setPrintBlocked(!ok);
                       }}
                     >
-                      Print the evening
+                      {printEveningLabel(group.name)}
                     </Button>
                   }
                   flush

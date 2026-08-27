@@ -39,11 +39,23 @@ const EMPTY: never[] = [];
 /**
  * The four reports the office reads, with a way to narrow each of them.
  *
- * This route had no filter of any kind: all four reports rendered whatever the
- * API returned, whole-school, every term, and the only way to answer "how is
- * Form 4 doing on Term 2 fees" was to read a five-term table and do it in your
- * head. Both export buttons called `window.open` on an API URL, so a report
- * that failed to render opened a blank tab and said nothing at all.
+ * The canvas's critique of this route, in its own words:
+ *
+ *   "There is no date-range, term or year-group filter of any kind on this
+ *   route today — the four reports render everything the API returns. The
+ *   filter row above is drawn with the module's own `FilterBar`
+ *   . Both export buttons `window.open`
+ *   an API URL, so a failed export is a blank tab."
+ *
+ * Both halves of that are now closed, and the code below is what closed them,
+ * so the paragraph is kept as the record of why the screen looks like this
+ * rather than as a live caveat. Collections and Arrears take the `FilterBar`
+ * the canvas drew; the only way to answer "how is Form 4 doing on Term 2 fees"
+ * used to be reading a five-term table and doing it in your head. And
+ * `runExport` fetches the file rather than opening it, so a refused export
+ * lands on the screen the button is on instead of in a blank tab. What is
+ * *still* true is on the "What the screen cannot do" card further down, which
+ * names the two reports the filter row does not reach.
  *
  * The arrears view carried the sharper version of the same problem. It names
  * every family in arrears — that is the whole point of it — and offered no way
@@ -1063,6 +1075,25 @@ export function SchoolsReportsEnhancedContent() {
                     ))}
                   </ul>
                 )}
+              </Card>
+
+              {/*
+                The canvas draws this card, and what it says has to keep pace
+                with the screen. It was written against a route with no filter
+                of any kind — that is fixed, and Collections and Arrears now
+                narrow properly — so it names the limit that is actually still
+                here: the other two reports ignore the row above them, because
+                neither endpoint takes a parameter. A caveat that has gone stale
+                is worse than no caveat, since somebody reads it and trusts it.
+              */}
+              <Card title="What the screen cannot do" className="h-fit">
+                <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                  The filter row narrows Collections and Arrears only. Enrollment
+                  and Hostel occupancy render everything their endpoints return,
+                  so a year group or fee structure chosen here does not reach
+                  them. Exports carry the filters of the view they were pressed
+                  on, and nothing else.
+                </p>
               </Card>
             </div>
           </div>

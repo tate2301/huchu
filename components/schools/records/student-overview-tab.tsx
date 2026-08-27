@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
@@ -15,6 +15,7 @@ import {
   StatsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
+import { fetchTeacherAssignments } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 
 /**
@@ -125,6 +126,66 @@ type AttendanceResponse = {
   }>;
 };
 
+/**
+ * The sick bay's own log, which is the fourth thing that happens to a child in
+ * a school week and the one the record page could never show. `/health` is
+ * gated on `schools.boarding` rather than `schools.students` — it is medical
+ * information — so the query is allowed to 403 and the card simply carries no
+ * welfare rows for somebody who may not read them.
+ */
+type HealthResponse = {
+  record: { id: string } | null;
+  events: Array<{
+    id: string;
+    kind: "SANATORIUM_VISIT" | "MEDICATION" | "INJURY" | "REFERRAL" | "SCREENING";
+    summary: string;
+    treatment: string | null;
+    occurredAt: string;
+  }>;
+};
+
+/** What this pupil has out of the library, and when it was due back. */
+type LoansResponse = {
+  data: Array<{
+    id: string;
+    borrowedAt: string;
+    dueAt: string;
+    isOverdue: boolean;
+    copy: { id: string; copyCode: string; book: { id: string; title: string } };
+  }>;
+};
+
+/** The paperwork on file, which the canvas draws as a card of its own. */
+type DocumentsResponse = {
+  data: Array<{
+    id: string;
+    name: string;
+    url: string;
+    note: string | null;
+    createdAt: string;
+  }>;
+};
+
+/**
+ * How a document's own note says it expires.
+ *
+ * `CrmRecordFile` has one free-text `note` and no expiry column, and adding one
+ * belongs to whoever owns the shared record engine — not to this card. So the
+ * convention is the note itself: an office types "Expires 12 Sep" on the
+ * medical consent, and the card reads it back and counts it. A note that says
+ * nothing about expiry simply is not counted, which is the honest reading.
+ */
+const EXPIRY_NOTE = /\bexpires?\b/i;
+
+/** Sick bay, in the words a nurse's log uses rather than the enum's. */
+const HEALTH_EVENT_LABEL: Record<string, string> = {
+  SANATORIUM_VISIT: "Sick bay visit",
+  MEDICATION: "Medication given",
+  INJURY: "Injury recorded",
+  REFERRAL: "Referred on",
+  SCREENING: "Screening",
+};
+
 /** An age in whole years, which is how a school says one. */
 function ageInYears(dateOfBirth: string | null) {
   if (!dateOfBirth) return null;
@@ -149,7 +210,7 @@ function shortDate(value: string) {
 }
 
 /**
- * The four things that happen to a child in a school week, as a filter on the
+ * The six things that happen to a child in a school week, as a filter on the
  * timeline. Somebody preparing for a guardian meeting is reading one of them —
  * the marks, or the fees — and thirty rows of morning registers is what buries
  * it.
@@ -159,6 +220,8 @@ const ACTIVITY_KINDS = [
   { value: "marks", label: "Marks" },
   { value: "fees", label: "Fees" },
   { value: "boarding", label: "Boarding" },
+  { value: "welfare", label: "Welfare" },
+  { value: "library", label: "Library" },
 ];
 
 /** One line of the property list under the pupil's face. */
@@ -187,6 +250,81 @@ export function StudentOverviewTab({
       fetchJson<AttendanceResponse>(`/api/v2/schools/students/${student.id}/attendance`),
   });
 
+  /**
+   * The sick bay's log. Read behind `schools.boarding`, so a bursar looking at
+   * the same page gets a 403 here and no welfare rows — which is the right
+   * answer, not a fault. `retry: false` so the refusal is taken the first time
+   * rather than asked three more times.
+   */
+  const health = useQuery({
+    queryKey: ["schools", "students", student.id, "health"],
+    queryFn: () => fetchJson<HealthResponse>(`/api/v2/schools/health/${student.id}`),
+    retry: false,
+  });
+
+  /** What they have out of the library, for the timeline and for the fact list. */
+  const loans = useQuery({
+    queryKey: ["schools", "students", student.id, "loans"],
+    queryFn: () =>
+      fetchJson<LoansResponse>(`/api/v2/schools/library/loans?studentId=${student.id}&limit=20`),
+    retry: false,
+  });
+
+  /**
+   * The paperwork. Fetched here rather than handed down from the record page:
+   * the Documents card and the Documents tab both want it, and one query key
+   * shared between them means opening the tab does not re-read what the
+   * overview already has.
+   */
+  const documents = useQuery({
+    queryKey: ["records", "files", "STUDENT", student.id],
+    queryFn: () =>
+      fetchJson<DocumentsResponse>(
+        `/api/v2/records/files?subjectType=STUDENT&subjectId=${student.id}`,
+      ),
+  });
+
+  /**
+   * Who teaches each subject to this pupil's class.
+   *
+   * A mark row carries a subject code and a score and nothing about the person
+   * who wrote it, which makes "who do I ring about the Accounts mark" a
+   * question the record page could not answer. The class's own assignments are
+   * the join: one read, indexed by subject code, so the marks table can name
+   * the teacher beside the mark and spell out what the code stands for.
+   */
+  const teaching = useQuery({
+    queryKey: ["schools", "students", student.id, "teaching", student.currentClass?.id],
+    queryFn: () =>
+      fetchTeacherAssignments({
+        classId: student.currentClass?.id,
+        limit: 100,
+        isActive: true,
+      }),
+    enabled: Boolean(student.currentClass?.id),
+  });
+
+  /**
+   * Subject code → the subject's full name and the teacher's short form.
+   *
+   * "R. Makoni" rather than "Rudo Makoni": a mark sheet has a column an inch
+   * wide and every staff room in the country writes an initial and a surname.
+   */
+  const bySubject = useMemo(() => {
+    const index = new Map<string, { name: string; teacher: string | null }>();
+    for (const assignment of teaching.data?.data ?? []) {
+      if (index.has(assignment.subject.code)) continue;
+      const full = assignment.teacherProfile.user.name?.trim() ?? "";
+      const parts = full.split(/\s+/).filter(Boolean);
+      const short =
+        parts.length > 1
+          ? `${parts[0].charAt(0).toUpperCase()}. ${parts[parts.length - 1]}`
+          : full || null;
+      index.set(assignment.subject.code, { name: assignment.subject.name, teacher: short });
+    }
+    return index;
+  }, [teaching.data]);
+
   const name = `${student.firstName} ${student.lastName}`.trim();
   const age = ageInYears(student.dateOfBirth);
 
@@ -212,8 +350,11 @@ export function StudentOverviewTab({
    * every subject in a pupil's first term, and should read as a dash.
    */
   const previous = new Map<string, number>();
+  /** What that earlier term is called, so the timeline can name it. */
+  let previousTermName: string | null = null;
   for (const line of marks) {
     if (line.sheet?.term?.name === termName) continue;
+    if (previousTermName === null) previousTermName = line.sheet?.term?.name ?? null;
     if (!previous.has(line.subjectCode)) previous.set(line.subjectCode, line.score);
   }
 
@@ -240,6 +381,17 @@ export function StudentOverviewTab({
   const [since] = useState(() => Date.now() - 30 * 24 * 60 * 60 * 1000);
   const [activityKind, setActivityKind] = useState("");
   const [asked, setAsked] = useState<string | null>(null);
+  /**
+   * Decisions somebody has looked at and set aside for now.
+   *
+   * Held in the page rather than written back, and that is the design: a
+   * decision here is *read off* the record — a mark that fell, a bill unpaid —
+   * so there is nothing to tick. Persisting a dismissal would mean storing an
+   * override that quietly hides a real problem from the next person to open
+   * the record. Setting it aside clears the card for this sitting; the fact
+   * that raised it is still true tomorrow, and says so again.
+   */
+  const [dismissed, setDismissed] = useState<string[]>([]);
 
   /**
    * Asking a family to come in about one of the decisions below.
@@ -287,14 +439,19 @@ export function StudentOverviewTab({
     ...termMarks.map((line) => {
       const before = previous.get(line.subjectCode);
       const drop = before === undefined ? null : Math.round(line.score - before);
+      const subject = bySubject.get(line.subjectCode);
+      // "down 9 on Term 1" rather than "on the term before": the term the
+      // comparison is against is known, and naming it is what makes the line
+      // readable out loud to a parent.
+      const against = previousTermName ?? "the term before";
       return {
         kind: "marks",
         at: line.createdAt,
         title:
           drop === null
             ? `${line.subjectCode} mark entered: ${Math.round(line.score)}`
-            : `${line.subjectCode} mark entered: ${Math.round(line.score)} — ${drop < 0 ? `down ${Math.abs(drop)}` : `up ${drop}`} on the term before`,
-        meta: line.sheet?.title ?? "Marks",
+            : `${line.subjectCode} mark entered: ${Math.round(line.score)} — ${drop < 0 ? `down ${Math.abs(drop)}` : `up ${drop}`} on ${against}`,
+        meta: subject?.teacher ?? line.sheet?.title ?? "Marks",
       };
     }),
     ...(student.feeInvoices ?? []).map((invoice) => ({
@@ -311,6 +468,20 @@ export function StudentOverviewTab({
       at: allocation.startDate,
       title: `Moved into ${allocation.hostel?.name ?? "the hostel"}${allocation.bed ? `, bed ${allocation.bed.code}` : ""}`,
       meta: "Boarding",
+    })),
+    // The sick bay. Absent entirely for a reader without the welfare grant,
+    // because `health` 403s for them and `data` stays undefined.
+    ...(health.data?.events ?? []).map((event) => ({
+      kind: "welfare",
+      at: event.occurredAt,
+      title: `${HEALTH_EVENT_LABEL[event.kind] ?? "Welfare"} — ${event.summary}`,
+      meta: event.treatment ?? "Sick bay",
+    })),
+    ...(loans.data?.data ?? []).map((loan) => ({
+      kind: "library",
+      at: loan.borrowedAt,
+      title: `${loan.isOverdue ? "Library book overdue" : "Library book out"}: ${loan.copy.book.title}`,
+      meta: "Library",
     })),
   ]
     .filter((entry) => {
@@ -340,10 +511,15 @@ export function StudentOverviewTab({
     if (before === undefined) continue;
     const drop = before - line.score;
     if (drop < 9) continue;
+    const subject = bySubject.get(line.subjectCode);
     decisions.push({
       id: `mark-${line.id}`,
-      title: `${line.subjectCode} has fallen two grades`,
-      body: `${Math.round(line.score)} this term against ${Math.round(before)} last. Worth a guardian conversation before reports publish.`,
+      title: `${subject?.name ?? line.subjectCode} has fallen two grades`,
+      body: `${Math.round(line.score)} this term against ${Math.round(before)} last. ${
+        subject?.teacher
+          ? `${subject.teacher} has flagged it for a guardian conversation before reports publish.`
+          : "The subject teacher has flagged it for a guardian conversation before reports publish."
+      }`,
     });
   }
   if (billed && owing > 0) {
@@ -362,6 +538,19 @@ export function StudentOverviewTab({
   }
 
   const attendanceRate = attendance.data?.rate ?? null;
+
+  /** What is still on the card after this sitting's dismissals. */
+  const openDecisions = decisions.filter((decision) => !dismissed.includes(decision.id));
+
+  /**
+   * The paperwork, and how much of it is running out.
+   *
+   * A document is counted as expiring when its own note says so — see
+   * `EXPIRY_NOTE`. "6 on file · 1 expiring" is the subtitle the canvas draws,
+   * and both halves are counted rather than assumed.
+   */
+  const files = documents.data?.data ?? [];
+  const expiring = files.filter((file) => file.note && EXPIRY_NOTE.test(file.note));
 
   return (
     <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
@@ -446,6 +635,10 @@ export function StudentOverviewTab({
               <thead>
                 <tr className="border-b border-[color:var(--border)] text-left text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
                   <th className="px-4 py-2 font-medium">Subject</th>
+                  {/* Who wrote the mark. A subject code and a number is not
+                      enough to act on: the next move after a mark that fell is
+                      to ring the person who entered it. */}
+                  <th className="px-4 py-2 font-medium">Teacher</th>
                   <th className="px-4 py-2 font-medium">Mark</th>
                   <th className="px-4 py-2 font-medium">Grade</th>
                   {/* "vs T1" rather than "vs last term": the column is two
@@ -458,12 +651,19 @@ export function StudentOverviewTab({
                 {termMarks.map((line) => {
                   const before = previous.get(line.subjectCode);
                   const delta = before === undefined ? null : Math.round(line.score - before);
+                  const subject = bySubject.get(line.subjectCode);
                   return (
                     <tr
                       key={line.id}
                       className="border-b border-[color:var(--border-subtle)] last:border-b-0"
                     >
-                      <td className="px-4 py-2">{line.subjectCode}</td>
+                      {/* The subject's name where the timetable knows it —
+                          "Combined Science" rather than "CSC". The code is the
+                          fallback, not the label. */}
+                      <td className="px-4 py-2">{subject?.name ?? line.subjectCode}</td>
+                      <td className="px-4 py-2 text-[color:var(--text-muted)]">
+                        {subject?.teacher ?? "—"}
+                      </td>
                       <td className="px-4 py-2 font-[family-name:var(--font-mono)] tabular-nums">
                         {Math.round(line.score)}
                       </td>
@@ -658,10 +858,10 @@ export function StudentOverviewTab({
           )}
         </Card>
 
-        {decisions.length > 0 ? (
+        {openDecisions.length > 0 ? (
           <Card
             title="Needs a decision"
-            subtitle={`${decisions.length} open`}
+            subtitle={`${openDecisions.length} open`}
             tone="warn"
           >
             <div className="space-y-2">
@@ -677,7 +877,7 @@ export function StudentOverviewTab({
                 </p>
               ) : null}
 
-              {decisions.map((decision) => (
+              {openDecisions.map((decision) => (
                 <Alert
                   key={decision.id}
                   tone="warn"
@@ -702,6 +902,18 @@ export function StudentOverviewTab({
                       >
                         Tell the family
                       </Button>
+                      {/* Set aside for this sitting. See `dismissed` — nothing
+                          is written, so a fact that is still true is raised
+                          again the next time the record is opened. */}
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() =>
+                          setDismissed((current) => [...current, decision.id])
+                        }
+                      >
+                        Dismiss
+                      </Button>
                     </span>
                   }
                 >
@@ -711,6 +923,76 @@ export function StudentOverviewTab({
             </div>
           </Card>
         ) : null}
+
+        {/*
+          Documents. The same rows the Documents tab lists, summarised: what is
+          on file and what is running out. It is a card and not a count because
+          the two questions a counter asks — "have we got the birth
+          certificate" and "is the medical consent still good" — are answered
+          by seeing the names, not the number.
+        */}
+        <Card
+          title="Documents"
+          subtitle={
+            documents.isPending
+              ? undefined
+              : `${files.length} on file${expiring.length > 0 ? ` · ${expiring.length} expiring` : ""}`
+          }
+          actions={
+            <Button variant="ghost" size="sm" onClick={() => onOpenSection("files")}>
+              Documents
+            </Button>
+          }
+        >
+          {documents.isPending ? (
+            <StatsSkeleton count={1} />
+          ) : documents.error ? (
+            <LoadError
+              what="this pupil's paperwork"
+              error={documents.error}
+              onRetry={() => void documents.refetch()}
+            />
+          ) : files.length === 0 ? (
+            <NothingYet
+              title="Nothing attached"
+              body="A birth certificate, a previous school report, an immunisation card — anything that arrived on paper and belongs with this child."
+            />
+          ) : (
+            <ul className="space-y-2">
+              {files.slice(0, 6).map((file, index) => {
+                const runningOut = Boolean(file.note && EXPIRY_NOTE.test(file.note));
+                return (
+                  <li
+                    key={file.id}
+                    className="campus-row-in flex items-baseline justify-between gap-3"
+                    style={{ animationDelay: `${index * 40}ms` }}
+                  >
+                    <a
+                      href={file.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="min-w-0 truncate text-[length:var(--type-body-sm)] hover:underline"
+                    >
+                      {file.name}
+                    </a>
+                    {/* The note where there is one, because that is where an
+                        office writes "Expires 12 Sep". "Verified" is what a
+                        document with nothing said against it means. */}
+                    <span
+                      className={`shrink-0 text-[length:var(--type-caption)] ${
+                        runningOut
+                          ? "text-[color:var(--tone-warn)]"
+                          : "text-[color:var(--text-muted)]"
+                      }`}
+                    >
+                      {file.note ?? "Verified"}
+                    </span>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </Card>
 
         <Card
           title="Welfare"

@@ -13,7 +13,7 @@ import { SaveError } from "@/components/schools/common/states";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { bulkGenerateInvoices } from "@/lib/schools/fees-v2";
 
-import { ClassPicker, FeeStructurePicker, TermPicker } from "./fee-pickers";
+import { ClassPicker, FeeStructurePicker, TermPicker } from "@/components/schools/fees/fee-pickers";
 
 /**
  * A term's bills, in one pass.
@@ -141,8 +141,8 @@ export function BulkGenerateInvoicesDialog({
     <RecordDialog
       open={open}
       onOpenChange={close}
-      title="Generate a term's invoices"
-      description="One bill per pupil in the year group, from the fee sheet you choose."
+      title="Bulk Generate Invoices"
+      description="Generate fee invoices for multiple students at once using a fee structure template."
       size="md"
       onSubmit={(event) => {
         event.preventDefault();
@@ -155,7 +155,7 @@ export function BulkGenerateInvoicesDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={generate.isPending}>
-            {generate.isPending ? "Generating…" : "Generate invoices"}
+            {generate.isPending ? "Generating…" : "Generate Invoices"}
           </Button>
         </>
       }
@@ -174,7 +174,7 @@ export function BulkGenerateInvoicesDialog({
 
       <ClassPicker
         id="bulk-class"
-        label="Year group"
+        label="Class (Optional)"
         value={classId}
         onChange={(next) => {
           setClassId(next);
@@ -222,7 +222,7 @@ export function BulkGenerateInvoicesDialog({
       </div>
 
       <div className="field">
-        <Label htmlFor="bulk-notes">Notes</Label>
+        <Label htmlFor="bulk-notes">Notes (Optional)</Label>
         <Input
           id="bulk-notes"
           value={notes}
@@ -239,7 +239,7 @@ export function BulkGenerateInvoicesDialog({
             onCheckedChange={(checked) => setSkipExisting(checked === true)}
           />
           <Label htmlFor="bulk-skip-existing" className="cursor-pointer font-normal">
-            Skip pupils who already have an invoice for this term
+            Skip students who already have invoices for this term
           </Label>
         </div>
         <div className="flex items-center gap-2">
@@ -249,7 +249,7 @@ export function BulkGenerateInvoicesDialog({
             onCheckedChange={(checked) => setIssueNow(checked === true)}
           />
           <Label htmlFor="bulk-issue-now" className="cursor-pointer font-normal">
-            Issue them straight away, rather than leaving them drafts
+            Issue immediately (post to accounting)
           </Label>
         </div>
       </div>

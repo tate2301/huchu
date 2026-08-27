@@ -13,7 +13,7 @@ import {
 } from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { StreamFormDialog, type StreamFormValues } from "./stream-form-dialog";
+import { StreamFormDialog, type StreamFormValues } from "@/components/schools/classes/stream-form-dialog";
 
 /**
  * The streams inside one class, with the verbs to change them.
@@ -168,7 +168,13 @@ export function ClassStreamsPanel({
       ) : streams.length === 0 ? (
         <NothingYet
           title="This class is not streamed"
-          body="A stream is the set a class is split into — Alpha, Beta, Blue. Registers, mark sheets and result publishing all narrow by one."
+          body={
+            `A stream is the set ${className} is split into. Most schools here ` +
+            "name them after the class and a Greek letter — Form 2 Alpha, " +
+            "Form 2 Beta, Form 2 Gamma, Form 2 Delta — but Blue, Nyathi House and " +
+            "Sciences are all just as valid. Registers, mark sheets and result " +
+            "publishing all narrow by one."
+          }
         />
       ) : visible.length === 0 ? (
         <NothingMatched

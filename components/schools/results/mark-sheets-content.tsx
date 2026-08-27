@@ -24,10 +24,10 @@ import {
   type ResultSheetLike,
   type ResultSheetStatus,
 } from "@/lib/schools/results-v2";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
-import { SheetFormDialog } from "./sheet-form-dialog";
-import { SHEET_STATE_LABELS, SHEET_STATE_OPTIONS, SheetStateBadge } from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
+import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
+import { SHEET_STATE_LABELS, SHEET_STATE_OPTIONS, SheetStateBadge } from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * The working list of mark sheets — the one the sidebar has always pointed at.

@@ -8,7 +8,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { LoadError, NothingYet, TableRowsSkeleton } from "@/components/schools/common/states";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchResultSheet, type ResultModerationAction } from "@/lib/schools/results-v2";
-import { SheetStateBadge, formatDay } from "./sheet-state";
+import { SheetStateBadge, formatDay } from "@/components/schools/results/sheet-state";
 
 /**
  * What is actually on a sheet, and what has happened to it.

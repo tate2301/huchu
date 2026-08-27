@@ -28,8 +28,8 @@ import {
   type SchoolFeeInvoiceRecord,
 } from "@/lib/schools/fees-v2";
 
-import { InvoiceFormDialog, ReasonDialog, ReceiptFormDialog } from "./fee-dialogs";
-import { InvoiceStatusBadge } from "./fee-status";
+import { InvoiceFormDialog, ReasonDialog, ReceiptFormDialog } from "@/components/schools/fees/fee-dialogs";
+import { InvoiceStatusBadge } from "@/components/schools/fees/fee-status";
 
 const STATUS_OPTIONS = [
   { value: "ISSUED", label: "Issued" },

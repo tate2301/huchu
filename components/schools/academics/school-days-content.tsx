@@ -15,6 +15,7 @@ import {
 } from "@/components/schools/common/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { CALENDAR_KIND_LABELS } from "@/lib/schools/calendar-kinds";
+import { zimbabwePublicHolidays } from "@/components/schools/academics/zimbabwe-public-holidays";
 import {
   createSchoolsCalendarEvent,
   deleteSchoolsCalendarEvent,
@@ -25,7 +26,8 @@ import {
   CalendarEventFormSheet,
   CALENDAR_KIND_OPTIONS,
   type CalendarEventFormValues,
-} from "./calendar-event-form-sheet";
+} from "@/components/schools/academics/calendar-event-form-sheet";
+import { AddPublicHolidaysDialog } from "@/components/schools/academics/add-public-holidays-dialog";
 
 const MONTHS = [
   "January",
@@ -76,6 +78,7 @@ function range(value: SchoolsCalendarEventRecord) {
 export function SchoolDaysContent() {
   const queryClient = useQueryClient();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [holidaysOpen, setHolidaysOpen] = useState(false);
   const [kindFilter, setKindFilter] = useState("");
   const [yearFilter, setYearFilter] = useState("");
   const [openFilter, setOpenFilter] = useState("");
@@ -141,6 +144,50 @@ export function SchoolDaysContent() {
     },
   });
 
+  /**
+   * The thirteen statutory days, in one press.
+   *
+   * Sequential rather than `Promise.all`: the API refuses a day that clashes
+   * with one already on the calendar, and thirteen parallel writes turn "three
+   * of these were already here" into thirteen indistinguishable rejections.
+   * Each is tried on its own and the ones that were already entered are
+   * counted, not treated as a failure.
+   */
+  const seedMutation = useMutation({
+    mutationFn: async (year: number) => {
+      let added = 0;
+      let skipped = 0;
+      const existing = new Set(
+        events.map((event) => `${event.title.toLowerCase()}|${day(event.startDate)}`),
+      );
+      for (const holiday of zimbabwePublicHolidays(year)) {
+        if (existing.has(`${holiday.title.toLowerCase()}|${holiday.date}`)) {
+          skipped += 1;
+          continue;
+        }
+        try {
+          await createSchoolsCalendarEvent({
+            title: holiday.title,
+            kind: holiday.kind,
+            startDate: holiday.date,
+            endDate: holiday.date,
+            isTeachingDay: false,
+          });
+          added += 1;
+        } catch {
+          // Already on the calendar under another spelling, or refused for a
+          // reason the next one does not share. Counted, not fatal.
+          skipped += 1;
+        }
+      }
+      return { added, skipped };
+    },
+    onSuccess: () => {
+      setHolidaysOpen(false);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "calendar"] });
+    },
+  });
+
   const deleteMutation = useMutation({
     mutationFn: (id: string) => deleteSchoolsCalendarEvent(id),
     onSuccess: () => {
@@ -171,6 +218,9 @@ export function SchoolDaysContent() {
       */}
       {deleteMutation.error ? (
         <SaveError what="The calendar day" error={deleteMutation.error} />
+      ) : null}
+      {seedMutation.error ? (
+        <SaveError what="The public holidays" error={seedMutation.error} />
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -205,11 +255,22 @@ export function SchoolDaysContent() {
             />
           ) : null}
         </FilterBar>
-        <CreateButton
-          resource="schools.academics"
-          label="Add a day"
-          onSelect={() => setSheetOpen(true)}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* The statutory thirteen, which every school enters and nobody
+              enjoys entering. Offered beside the hand-entered verb rather than
+              instead of it — half terms and exam weeks are still a school's
+              own. */}
+          <CreateButton
+            resource="schools.academics"
+            label="Add the public holidays"
+            onSelect={() => setHolidaysOpen(true)}
+          />
+          <CreateButton
+            resource="schools.academics"
+            label="Add a day"
+            onSelect={() => setSheetOpen(true)}
+          />
+        </div>
       </div>
 
       <p className="text-sm text-muted-foreground">
@@ -226,7 +287,12 @@ export function SchoolDaysContent() {
       ) : events.length === 0 ? (
         <NothingYet
           title="Nothing on the calendar yet"
-          body="Add the public holidays first — they are the ones that make registers look missing."
+          body={
+            "Add the public holidays first — Heroes’ Day, Defence Forces Day and " +
+            "the eleven others are the ones that make registers look missing. Half terms " +
+            "like Mid-term break and exam weeks like Form 4 mock examinations are the " +
+            "school’s own, so those go in by hand."
+          }
         />
       ) : grouped.length === 0 ? (
         <NothingMatched
@@ -285,6 +351,17 @@ export function SchoolDaysContent() {
           ))}
         </MobileList>
       )}
+
+      <AddPublicHolidaysDialog
+        open={holidaysOpen}
+        onOpenChange={(open) => {
+          setHolidaysOpen(open);
+          if (!open) seedMutation.reset();
+        }}
+        isSubmitting={seedMutation.isPending}
+        error={seedMutation.error ? getApiErrorMessage(seedMutation.error) : null}
+        onSubmit={(year) => seedMutation.mutate(year)}
+      />
 
       <CalendarEventFormSheet
         open={sheetOpen}

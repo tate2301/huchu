@@ -101,6 +101,35 @@ const EVENT_KINDS = [
 ];
 
 /**
+ * What the "On file" filter offers, in the order somebody works down it.
+ *
+ * The first three are the sentences `healthGaps` writes onto a row, matched
+ * exactly — an office scanning the badges for "No doctor recorded" wants to
+ * narrow to them, and before this the only cuts available were "something" and
+ * "nothing", which is the difference between a list you can work and a list you
+ * have to read.
+ *
+ * The urgent one leads because it is the one to ring home about, and the two
+ * breadth cuts sit at the bottom because they are what you fall back to once
+ * the specific gaps are cleared.
+ */
+const GAP_FILTERS = [
+  { value: "urgent", label: URGENT_GAP, gap: URGENT_GAP },
+  { value: "no-consent", label: "No consent recorded", gap: "No consent recorded" },
+  { value: "no-doctor", label: "No doctor recorded", gap: "No doctor recorded" },
+  {
+    value: "nothing",
+    label: "Nothing recorded at all",
+    gap: "Nothing recorded at all",
+  },
+  { value: "outstanding", label: "Something still to record", gap: null },
+  { value: "complete", label: "Complete", gap: null },
+] as const;
+
+const gapFilterLabel = (value: string) =>
+  GAP_FILTERS.find((row) => row.value === value)?.label ?? "";
+
+/**
  * The welfare list.
  *
  * Built from the children outward, not from the health records, so a child with
@@ -152,10 +181,13 @@ export function WelfareContent() {
 
   const rows = useMemo(() => {
     const needle = search.trim().toLowerCase();
+    const chosen = GAP_FILTERS.find((row) => row.value === gapFilter) ?? null;
     return allRows.filter((row) => {
       if (gapFilter === "outstanding" && row.gaps.length === 0) return false;
       if (gapFilter === "complete" && row.gaps.length > 0) return false;
-      if (gapFilter === "urgent" && !row.gaps.includes(URGENT_GAP)) return false;
+      // A named gap matches the sentence `healthGaps` wrote onto the row, so
+      // the filter and the badge can never drift apart.
+      if (chosen?.gap && !row.gaps.includes(chosen.gap)) return false;
       if (!needle) return true;
       return `${row.student.firstName} ${row.student.lastName} ${row.student.studentNo}`
         .toLowerCase()
@@ -312,11 +344,10 @@ export function WelfareContent() {
               label="On file"
               allLabel="Everything on file"
               value={gapFilter}
-              options={[
-                { value: "urgent", label: "Allergy, no consent" },
-                { value: "outstanding", label: "Something still to record" },
-                { value: "complete", label: "Complete" },
-              ]}
+              options={GAP_FILTERS.map((row) => ({
+                value: row.value,
+                label: row.label,
+              }))}
               onChange={setGapFilter}
             />
           </>
@@ -350,13 +381,7 @@ export function WelfareContent() {
           <NothingMatched
             what="children"
             filters={[
-              gapFilter === "urgent"
-                ? "Allergy, no consent"
-                : gapFilter === "outstanding"
-                  ? "Something still to record"
-                  : gapFilter === "complete"
-                    ? "Complete"
-                    : "",
+              gapFilterLabel(gapFilter),
               boardersOnly ? "Boarders only" : "",
               search.trim(),
             ].filter(Boolean)}

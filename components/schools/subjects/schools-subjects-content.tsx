@@ -23,7 +23,9 @@ import {
   fetchSchoolsSubjects,
   type SchoolsSubjectRecord,
 } from "@/lib/schools/admin-v2";
-import { SubjectFormDialog, type SubjectFormValues } from "./subject-form-dialog";
+import { SubjectFormDialog, type SubjectFormValues } from "@/components/schools/subjects/subject-form-dialog";
+import { AddStandardSubjectsDialog } from "@/components/schools/subjects/add-standard-subjects-dialog";
+import type { StandardSubject } from "@/components/schools/subjects/standard-subjects";
 
 /**
  * The subject catalogue — the canonical one.
@@ -37,6 +39,7 @@ export function SchoolsSubjectsContent() {
   const [typeFilter, setTypeFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [standardOpen, setStandardOpen] = useState(false);
   const [editing, setEditing] = useState<SchoolsSubjectRecord | null>(null);
 
   const subjectsQuery = useQuery({
@@ -82,6 +85,37 @@ export function SchoolsSubjectsContent() {
     onSuccess: () => {
       setDialogOpen(false);
       setEditing(null);
+      invalidate();
+    },
+  });
+
+  /**
+   * The standard catalogue, written one row at a time.
+   *
+   * Sequential rather than parallel for the same reason the calendar's seeder
+   * is: the API refuses a duplicate code, and twenty-two parallel writes turn
+   * "three of these were already here" into twenty-two indistinguishable
+   * rejections.
+   */
+  const seed = useMutation({
+    mutationFn: async (chosen: StandardSubject[]) => {
+      let added = 0;
+      for (const subject of chosen) {
+        await fetchJson("/api/v2/schools/subjects", {
+          method: "POST",
+          body: JSON.stringify({
+            code: subject.code,
+            name: subject.name,
+            isCore: subject.isCore,
+            passMark: subject.passMark,
+          }),
+        });
+        added += 1;
+      }
+      return added;
+    },
+    onSuccess: () => {
+      setStandardOpen(false);
       invalidate();
     },
   });
@@ -257,6 +291,9 @@ export function SchoolsSubjectsContent() {
         <SaveError what="Whether the subject is taught" error={setTaught.error} />
       ) : null}
       {remove.error ? <SaveError what="The subject" error={remove.error} /> : null}
+      {seed.error ? (
+        <SaveError what="The standard subjects" error={seed.error} />
+      ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <FilterBar>
@@ -281,14 +318,26 @@ export function SchoolsSubjectsContent() {
             onChange={setStatusFilter}
           />
         </FilterBar>
-        <CreateButton
-          resource="schools.academics"
-          label="New subject"
-          onSelect={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        />
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Offered until the catalogue exists. Once a school has its
+              subjects, a second "add the standard ones" button is a way to
+              create twenty-two duplicates. */}
+          {subjects.length === 0 ? (
+            <CreateButton
+              resource="schools.academics"
+              label="Add the standard subjects"
+              onSelect={() => setStandardOpen(true)}
+            />
+          ) : null}
+          <CreateButton
+            resource="schools.academics"
+            label="New subject"
+            onSelect={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          />
+        </div>
       </div>
 
       {subjectsQuery.isLoading ? (
@@ -307,7 +356,7 @@ export function SchoolsSubjectsContent() {
       ) : subjects.length === 0 ? (
         <NothingYet
           title="Nothing on the catalogue yet"
-          body="A subject is what the school teaches. Timetable slots, mark sheets and report cards all name one."
+          body="A subject is what the school teaches — Mathematics, English Language, Combined Science, Shona, Geography, History, Latin. Timetable slots, mark sheets and report cards all name one. Add the standard catalogue in one press, or enter your own."
         />
       ) : visible.length === 0 ? (
         <NothingMatched
@@ -353,6 +402,19 @@ export function SchoolsSubjectsContent() {
           emptyState={<NothingMatched what="subjects" />}
         />
       )}
+
+      <AddStandardSubjectsDialog
+        open={standardOpen}
+        onOpenChange={(open) => {
+          setStandardOpen(open);
+          if (!open) seed.reset();
+        }}
+        existingCodes={subjects.map((row) => row.code)}
+        existingNames={subjects.map((row) => row.name)}
+        isSubmitting={seed.isPending}
+        error={seed.error ? getApiErrorMessage(seed.error) : null}
+        onSubmit={(chosen) => seed.mutate(chosen)}
+      />
 
       <SubjectFormDialog
         open={dialogOpen}

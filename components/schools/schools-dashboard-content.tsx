@@ -6,7 +6,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
 
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -44,6 +45,17 @@ import { formatSchoolMoney } from "@/lib/schools/format";
  * asked for has no endpoint behind it, the line is left out rather than filled
  * with a plausible number: an overview that guesses is worse than one that is
  * short, because it is the screen people trust without checking.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * Three filters, each named here with the unnarrowed choice the canvas gives it:
+ *
+ *   Year group = Every year group
+ *   Term = Term 2 · 2026
+ *   Day = Today, 25 August
+ *
+ * They are one set and narrow every panel at once, which is why an emptied
+ * panel repeats all three rather than guessing which one did it.
  */
 
 /* ── the shapes the endpoints return ─────────────────────────────────── */
@@ -296,6 +308,7 @@ export function SchoolsDashboardContent() {
   const [classId, setClassId] = useState("");
   const [termId, setTermId] = useState("");
   const [day, setDay] = useState("");
+  const [search, setSearch] = useState("");
   const [reminded, setReminded] = useState<string | null>(null);
 
   const onDate = day || today;
@@ -458,6 +471,27 @@ export function SchoolsDashboardContent() {
       ),
   });
 
+  /**
+   * Children carrying something the boarding staff have to know about.
+   *
+   * The welfare list is the only read that answers it, and it answers it for
+   * the whole school at once — an allergy with no consent to treat, a chronic
+   * condition with no doctor recorded. The canvas puts the count on the
+   * boarding panel because that is who is awake at two in the morning.
+   *
+   * Guarded, not assumed: the welfare route is `schools.boarding` and a
+   * bursar's session is refused it. A refusal must leave the rest of the
+   * morning standing, so the row simply does not draw.
+   */
+  const welfareQuery = useQuery({
+    queryKey: ["schools", "health", "gaps", classId],
+    queryFn: () =>
+      fetchJson<{ rows: Array<{ gaps: string[] }> }>(
+        `/api/v2/schools/health${classId ? `?classId=${classId}` : ""}`,
+      ),
+    retry: false,
+  });
+
   /* ── what the numbers come to ──────────────────────────────────────── */
 
   const board = registersQuery.data ?? null;
@@ -471,6 +505,22 @@ export function SchoolsDashboardContent() {
     () => (board?.rows ?? []).filter((row) => row.state === "MISSING"),
     [board],
   );
+
+  /**
+   * The register queue, narrowed by the search box.
+   *
+   * The overview's search is the one on the canvas and it searches what is on
+   * the screen: the classes still to send a register, and the teacher whose
+   * name is under each of them. Somebody looking for "Banda" at 09:20 wants to
+   * know whether hers is in, and this is the only list of classes here.
+   */
+  const missingInView = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return missing;
+    return missing.filter((row) =>
+      `${row.className} ${row.formTeacher?.name ?? ""}`.toLowerCase().includes(needle),
+    );
+  }, [missing, search]);
   const overdueHomework = useMemo(
     () => (homework?.rows ?? []).filter((row) => row.state === "OVERDUE").slice(0, 5),
     [homework],
@@ -603,32 +653,48 @@ export function SchoolsDashboardContent() {
         }
       />
 
-      <FilterBar>
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
-          value={classId}
-          options={classes.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setClassId}
-        />
-        <FilterSelect
-          label="Term"
-          allLabel={activeTerm ? `${activeTerm.name} · ${activeTerm.academicYear.name}` : "This term"}
-          value={termId}
-          options={terms.map((row) => ({
-            value: row.id,
-            label: `${row.name} · ${row.academicYear.name}`,
-          }))}
-          onChange={setTermId}
-        />
-        <FilterSelect
-          label="Day"
-          allLabel={`Today, ${DAY_LABEL.format(new Date(`${today}T00:00:00.000Z`))}`}
-          value={day}
-          options={dayOptions}
-          onChange={setDay}
-        />
-      </FilterBar>
+      {/*
+        The canvas's one row: the search box and the three filters that narrow
+        every panel below, together, above the panels they govern.
+      */}
+      <TableControls
+        search={
+          <TableSearch
+            label="Search"
+            value={search}
+            onChange={setSearch}
+            placeholder="Search students, classes"
+          />
+        }
+        filters={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classId}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassId}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel={activeTerm ? `${activeTerm.name} · ${activeTerm.academicYear.name}` : "This term"}
+              value={termId}
+              options={terms.map((row) => ({
+                value: row.id,
+                label: `${row.name} · ${row.academicYear.name}`,
+              }))}
+              onChange={setTermId}
+            />
+            <FilterSelect
+              label="Day"
+              allLabel={`Today, ${DAY_LABEL.format(new Date(`${today}T00:00:00.000Z`))}`}
+              value={day}
+              options={dayOptions}
+              onChange={setDay}
+            />
+          </>
+        }
+      />
 
       {anyError ? (
         <LoadError
@@ -724,8 +790,20 @@ export function SchoolsDashboardContent() {
                 error={registersQuery.error}
                 onRetry={() => void registersQuery.refetch()}
               />
-            ) : missing.length === 0 ? (
-              board && board.rows.length === 0 && narrowing.length > 0 ? (
+            ) : missingInView.length === 0 ? (
+              /*
+                Search first: a needle that matched nothing is the reader's own
+                doing and is undone by clearing the box, not by the three
+                filters. Saying "every register is in" here would be a lie
+                about the school rather than about the search.
+              */
+              missing.length > 0 ? (
+                <NothingMatched
+                  what="year groups"
+                  filters={[search.trim()]}
+                  onClear={() => setSearch("")}
+                />
+              ) : board && board.rows.length === 0 && narrowing.length > 0 ? (
                 <NothingMatched
                   what="year groups"
                   filters={narrowing}
@@ -743,14 +821,25 @@ export function SchoolsDashboardContent() {
                 />
               )
             ) : (
-              missing.map((row) => (
+              missingInView.map((row) => (
                 <PanelRow
                   key={row.classId}
                   href={`/schools/attendance?date=${onDate}`}
                   lead="danger"
                   title={row.className}
                   detail={row.formTeacher?.name ?? "Unassigned — no form teacher"}
-                  tail="no register yet"
+                  /*
+                    The canvas's tail is "nothing since 07:40" — the last time
+                    anybody touched that class's register, which is what tells
+                    an office whether the teacher has started and stopped or
+                    never opened it at all. Where nothing has been touched
+                    there is no time to name, so it says that instead.
+                  */
+                  tail={
+                    row.lastActivityAt
+                      ? `nothing since ${CLOCK.format(new Date(row.lastActivityAt))}`
+                      : "no register yet"
+                  }
                   trailing={
                     <RecordActions
                       resource="schools.attendance"
@@ -872,22 +961,57 @@ export function SchoolsDashboardContent() {
                 />
               )
             ) : (
-              overdueHomework.map((row) => (
-                <PanelRow
-                  key={row.id}
-                  href="/schools/homework"
-                  title={`${row.subjectName} · ${row.className}${row.streamName ? row.streamName : ""}`}
-                  detail={row.title}
-                  tail={
-                    <span className="flex items-center gap-3">
-                      <span>{row.dueAt ? SHORT_DAY.format(new Date(row.dueAt)) : "—"}</span>
-                      <span>
+              /*
+                The canvas draws this panel as a table rather than a queue, and
+                it is right to: four homeworks with their subject, deadline and
+                return rate are four rows that want reading down a column, not
+                four sentences. The headers are the canvas's own.
+              */
+              <table className="w-full border-collapse text-left">
+                <thead>
+                  <tr className="border-b border-[color:var(--border-subtle)]">
+                    <th className="px-3.5 py-2 text-[length:var(--type-caption)] font-semibold text-[color:var(--text-muted)]">
+                      Subject and class
+                    </th>
+                    <th className="px-3.5 py-2 text-[length:var(--type-caption)] font-semibold text-[color:var(--text-muted)]">
+                      Homework
+                    </th>
+                    <th className="px-3.5 py-2 text-right text-[length:var(--type-caption)] font-semibold text-[color:var(--text-muted)]">
+                      Due
+                    </th>
+                    <th className="px-3.5 py-2 text-right text-[length:var(--type-caption)] font-semibold text-[color:var(--text-muted)]">
+                      Handed in
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {overdueHomework.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-[color:var(--border-subtle)] last:border-0"
+                    >
+                      <td className="px-3.5 py-2.5">
+                        <Link
+                          href="/schools/homework"
+                          className="text-[length:var(--type-body-sm)] font-semibold hover:underline"
+                        >
+                          {row.subjectName} · {row.className}
+                          {row.streamName ? ` ${row.streamName}` : ""}
+                        </Link>
+                      </td>
+                      <td className="max-w-0 truncate px-3.5 py-2.5 text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                        {row.title}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--tone-danger)]">
+                        {row.dueAt ? SHORT_DAY.format(new Date(row.dueAt)) : "—"}
+                      </td>
+                      <td className="px-3.5 py-2.5 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
                         {row.handedIn} of {row.onRoll}
-                      </span>
-                    </span>
-                  }
-                />
-              ))
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             )}
           </Panel>
         </div>
@@ -1037,6 +1161,26 @@ export function SchoolsDashboardContent() {
                   title="Out on leave tonight"
                   tail={leaveQuery.data?.data.length ?? "—"}
                 />
+                {/*
+                  Only where the session may read welfare. A row reading "—"
+                  because the office is not allowed the number is worse than no
+                  row: it looks like a school with nothing to record.
+                */}
+                {welfareQuery.data ? (
+                  <PanelRow
+                    href="/schools/boarding/welfare"
+                    lead={
+                      welfareQuery.data.rows.some((row) => row.gaps.length > 0)
+                        ? "warn"
+                        : undefined
+                    }
+                    title="Health notes this week"
+                    detail="Children with something still to record"
+                    tail={
+                      welfareQuery.data.rows.filter((row) => row.gaps.length > 0).length
+                    }
+                  />
+                ) : null}
               </>
             )}
           </Panel>

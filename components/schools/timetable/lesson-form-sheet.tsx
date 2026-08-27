@@ -186,8 +186,11 @@ export function LessonFormSheet({
           </Select>
           {assignments.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No class-subject assignments exist for this term yet. Create them under
-              Teachers before building the timetable.
+              No class-subject assignments exist for this term yet — nothing to
+              place. An assignment is a class, a subject and the teacher who
+              takes it: Form 2 Alpha and English Language with Mr Chirwa, or
+              Combined Science with Mr Sibanda. Make them on the class&rsquo;s own
+              record, or under Teachers, then come back and lay out the week.
             </p>
           ) : null}
         </div>
@@ -263,7 +266,9 @@ export function LessonFormSheet({
             </SelectContent>
           </Select>
           <p className="text-sm text-muted-foreground">
-            A school that does not track rooms can leave this empty.
+            {rooms.length === 0
+              ? "No rooms are set up. Add them under The School Day — Rm 4, Rm 7, Rm 9, Rm 11, Lab 1, Field — and a clash in one starts being caught."
+              : "A school that does not track rooms can leave this empty."}
           </p>
         </div>
       </div>

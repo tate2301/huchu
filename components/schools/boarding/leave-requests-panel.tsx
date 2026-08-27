@@ -25,8 +25,8 @@ import {
   leaveTone,
   type LeaveRequest,
   type LeaveStatus,
-} from "./boarding-data";
-import { LeaveRequestDialog } from "./boarding-dialogs";
+} from "@/components/schools/boarding/boarding-data";
+import { LeaveRequestDialog } from "@/components/schools/boarding/boarding-dialogs";
 
 /**
  * Leave and outing requests, as a table with its verbs in the rows.

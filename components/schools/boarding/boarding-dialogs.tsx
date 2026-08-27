@@ -21,7 +21,7 @@ import {
   type BoardingAllocation,
   type BoardingHostel,
   type LeaveRequest,
-} from "./boarding-data";
+} from "@/components/schools/boarding/boarding-data";
 
 /**
  * The three forms the boarding board opens.

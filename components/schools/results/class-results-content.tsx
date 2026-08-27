@@ -21,10 +21,10 @@ import { Label } from "@/components/ui/label";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import type { ResultSheetLike, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
-import { SheetFormDialog } from "./sheet-form-dialog";
-import { SHEET_STATE_LABELS, SHEET_STATE_OPTIONS, SheetStateBadge } from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
+import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
+import { SHEET_STATE_LABELS, SHEET_STATE_OPTIONS, SheetStateBadge } from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * One year group's mark sheets.
@@ -39,6 +39,21 @@ import { useResultSheetWorkflow } from "./use-sheet-workflow";
  * to act on any of it. The verbs are the same ones the moderation queue and the
  * publishing screen carry, from the same place, so a sheet behaves identically
  * wherever it is met.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * The canvas names each filter by its unnarrowed choice:
+ *
+ *   Class = Every class
+ *   Status = Any status
+ *
+ * Class is the stream within this year group — the route has already answered
+ * "which form?", so the only class question left is "which of its streams?" —
+ * and it is offered only when the year group has been split into any. Status is
+ * applied here rather than at the endpoint, so the band chips above go on
+ * counting every state while one of them is in view. Subject and Term narrow
+ * further; the canvas draws neither because its specimen year group has one
+ * term's sheets in view, but a real one accumulates three.
  */
 export function ClassResultsContent({
   classId,

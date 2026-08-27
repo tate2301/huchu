@@ -149,48 +149,60 @@ export function CopyStructureDialog({
         {classesQuery.isPending ? (
           <Skeleton className="h-40 w-full" />
         ) : (
-          <div className="max-h-64 space-y-1 overflow-y-auto">
-            {targets.map((row) => (
-              <label
-                key={row.id}
-                className="flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm hover:bg-[var(--surface-hover)]"
+          <div className="space-y-2">
+            {/* The canvas heads the list "Year groups" and hangs Select all off
+                the same line. It matters on a sixteen-rung ladder: without a
+                heading the checkbox column reads as the dialog's whole subject
+                rather than as the choice inside it. */}
+            <div className="flex items-center gap-2">
+              <h3 className="text-[length:var(--type-caption)] font-semibold uppercase tracking-wide text-[color:var(--text-muted)]">
+                Year groups
+              </h3>
+              <div className="flex-1" />
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() =>
+                  setSelected(
+                    selected.length === targets.length ? [] : targets.map((row) => row.id),
+                  )
+                }
               >
-                <input
-                  type="checkbox"
-                  checked={selected.includes(row.id)}
-                  onChange={() => toggle(row.id)}
-                  className="h-4 w-4"
-                />
-                <span className="font-medium">{row.name}</span>
-                <span className="text-[var(--text-muted)]">
-                  {row._count.students} {row._count.students === 1 ? "pupil" : "pupils"}
-                </span>
-              </label>
-            ))}
+                {selected.length === targets.length ? "Clear" : "Select all"}
+              </Button>
+            </div>
+            <div className="max-h-64 space-y-1 overflow-y-auto">
+              {targets.map((row) => (
+                <label
+                  key={row.id}
+                  className="flex items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm hover:bg-[var(--surface-hover)]"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selected.includes(row.id)}
+                    onChange={() => toggle(row.id)}
+                    className="h-4 w-4"
+                  />
+                  <span className="flex-1 font-medium">{row.name}</span>
+                  <span className="font-[family-name:var(--font-mono)] tabular-nums text-[var(--text-muted)]">
+                    {row._count.students} {row._count.students === 1 ? "pupil" : "pupils"}
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
         )}
 
-        <div className="flex items-center justify-between gap-3">
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            onClick={() =>
-              setSelected(selected.length === targets.length ? [] : targets.map((row) => row.id))
-            }
-          >
-            {selected.length === targets.length ? "Clear" : "Select all"}
-          </Button>
-          <label className="flex items-center gap-2 text-sm">
-            <input
-              type="checkbox"
-              checked={activate}
-              onChange={(event) => setActivate(event.target.checked)}
-              className="h-4 w-4"
-            />
-            Make them active straight away
-          </label>
-        </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            checked={activate}
+            onChange={(event) => setActivate(event.target.checked)}
+            className="h-4 w-4"
+          />
+          Make them active straight away
+        </label>
 
         <DialogFooter>
           <Button type="button" variant="outline" onClick={() => close(false)}>

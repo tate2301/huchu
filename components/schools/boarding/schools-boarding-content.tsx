@@ -10,9 +10,9 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { StatsSkeleton } from "@/components/schools/common/states";
 
-import { BedBoardContent } from "./bed-board-content";
-import { AllocateBedDialog } from "./boarding-dialogs";
-import { fetchBoardingDashboard } from "./boarding-data";
+import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
+import { AllocateBedDialog } from "@/components/schools/boarding/boarding-dialogs";
+import { fetchBoardingDashboard } from "@/components/schools/boarding/boarding-data";
 
 /**
  * The bed board, for the whole school.

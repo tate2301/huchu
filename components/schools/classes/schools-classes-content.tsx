@@ -24,8 +24,8 @@ import {
   fetchSchoolsClasses,
   type SchoolsClassRecord,
 } from "@/lib/schools/admin-v2";
-import { ClassFormDialog, type ClassFormValues } from "./class-form-dialog";
-import { StreamFormDialog, type StreamFormValues } from "./stream-form-dialog";
+import { ClassFormDialog, type ClassFormValues } from "@/components/schools/classes/class-form-dialog";
+import { StreamFormDialog, type StreamFormValues } from "@/components/schools/classes/stream-form-dialog";
 
 /**
  * The year-group ladder and the streams inside it.
@@ -495,6 +495,13 @@ export function SchoolsClassesContent() {
         </div>
 
         <div className={activeView === "streams" ? "space-y-3" : "hidden"}>
+          {/* Not a second list to keep in step with the first — the canvas
+              calls it "the other view" and means it literally: the same ladder
+              read one rung down. */}
+          <p className="text-sm text-muted-foreground">
+            Every stream here belongs to a class on the Classes tab — the same
+            ladder, split. This is the other view of it.
+          </p>
           <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <FilterBar>
               <FilterSelect
@@ -537,7 +544,7 @@ export function SchoolsClassesContent() {
           ) : streams.length === 0 ? (
             <NothingYet
               title="No streams yet"
-              body="A stream is the set a class is split into — Form 2 Alpha, Form 2 Beta. Registers, mark sheets and result publishing all narrow by one."
+              body="A stream is the set a class is split into — Form 2 Alpha, Form 2 Beta, Form 2 Gamma, Form 2 Delta. Registers, mark sheets and result publishing all narrow by one."
             />
           ) : visibleStreams.length === 0 ? (
             <NothingMatched
@@ -602,6 +609,7 @@ export function SchoolsClassesContent() {
               }
             : undefined
         }
+        takenCodes={classes.map((row) => row.code)}
         isSubmitting={saveClass.isPending}
         error={saveClass.error ? getApiErrorMessage(saveClass.error) : null}
         onSubmit={(values) => saveClass.mutate(values)}

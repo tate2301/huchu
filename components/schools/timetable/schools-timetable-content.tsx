@@ -30,21 +30,22 @@ import {
   type SchoolsTimetableSlotRecord,
 } from "@/lib/schools/admin-v2";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   LessonFormSheet,
   type LessonBeingMoved,
   type LessonFormValues,
-} from "./lesson-form-sheet";
+} from "@/components/schools/timetable/lesson-form-sheet";
 import {
   AutoFillSheet,
   type AutoFillResult,
   type AutoFillValues,
-} from "./auto-fill-sheet";
+} from "@/components/schools/timetable/auto-fill-sheet";
 import {
   CopyForwardSheet,
   type CopyForwardResult,
   type CopyForwardValues,
-} from "./copy-forward-sheet";
+} from "@/components/schools/timetable/copy-forward-sheet";
 
 /**
  * The week, as a timetabler reads it.
@@ -56,9 +57,11 @@ import {
  *
  * The grid is desktop-only. A week of periods against days does not survive a
  * 390px screen at a legible size, and shrinking it to fit produces something
- * nobody can read rather than something mobile. Below `lg` the same lessons are
- * a day at a time: pick a day, read the list down. That is genuinely how a
- * phone is used on the way to a lesson.
+ * nobody can read rather than something mobile. So the artboard draws two
+ * shapes for the same lessons and the breakpoint between them is lg: at and
+ * above it, the whole week as a grid; below lg, one day at a time — pick a
+ * day, read the list down. That is genuinely how a phone is used on the way to
+ * a lesson.
  */
 
 /** Monday to Friday. Weekend columns appear only if something is scheduled. */
@@ -99,6 +102,10 @@ export function SchoolsTimetableContent() {
   const [teacherFilter, setTeacherFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
   const [roomFilter, setRoomFilter] = useState("");
+  const [subjectFilter, setSubjectFilter] = useState("");
+  /** Which day the desktop grid is narrowed to. Empty means the whole week. */
+  const [dayFilter, setDayFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [selectedDay, setSelectedDay] = useState(todayIsoDay());
   const [sheetOpen, setSheetOpen] = useState(false);
   const [moving, setMoving] = useState<LessonBeingMoved | null>(null);
@@ -159,7 +166,48 @@ export function SchoolsTimetableContent() {
   });
 
   const timetable = timetableQuery.data;
-  const slots = useMemo(() => timetable?.slots ?? [], [timetable]);
+  const allSlots = useMemo(() => timetable?.slots ?? [], [timetable]);
+
+  /**
+   * The subjects actually on this week, rather than the whole catalogue.
+   *
+   * Offering a subject the timetable does not contain can only ever empty the
+   * grid, and a timetabler narrowing to "Combined Science" wants the four
+   * lessons of it, not a dropdown of twenty-two.
+   */
+  const subjectOptions = useMemo(
+    () => [
+      ...new Map(
+        allSlots.map((slot) => [
+          slot.classSubject.subject.id,
+          { value: slot.classSubject.subject.id, label: slot.classSubject.subject.name },
+        ]),
+      ).values(),
+    ].sort((a, b) => a.label.localeCompare(b.label)),
+    [allSlots],
+  );
+
+  /**
+   * Subject and the search box narrow in the browser rather than at the API.
+   *
+   * The week is already in hand — a term's worth of one class is tens of rows,
+   * not thousands — and a round trip per keystroke would make the grid blink
+   * on every letter. Everything that changes *which* week is fetched (class,
+   * teacher, term, room) stays in the query key above.
+   */
+  const slots = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return allSlots.filter((slot) => {
+      if (subjectFilter && slot.classSubject.subject.id !== subjectFilter) return false;
+      if (!needle) return true;
+      const described = describeSlot(slot);
+      return [described.subject, described.className, described.teacher, described.room]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(needle);
+    });
+  }, [allSlots, subjectFilter, search]);
   const periods = useMemo(
     () => timetable?.periods ?? periodsQuery.data?.data ?? [],
     [timetable, periodsQuery.data],
@@ -173,12 +221,24 @@ export function SchoolsTimetableContent() {
   );
   const terms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
 
-  /** Weekend columns only when the school actually teaches then. */
+  /**
+   * Weekend columns only when the school actually teaches then.
+   *
+   * Read off the unfiltered week: narrowing to one subject must not make
+   * Saturday's column disappear from the Day picker while a Saturday lesson
+   * still exists.
+   */
   const days = useMemo(() => {
-    const scheduled = new Set(slots.map((slot) => slot.dayOfWeek));
+    const scheduled = new Set(allSlots.map((slot) => slot.dayOfWeek));
     const weekend = [6, 7].filter((day) => scheduled.has(day));
     return [...WEEKDAYS, ...weekend];
-  }, [slots]);
+  }, [allSlots]);
+
+  /** The columns the desktop grid draws — the whole week, or the one chosen. */
+  const shownDays = useMemo(
+    () => (dayFilter ? days.filter((day) => String(day) === dayFilter) : days),
+    [days, dayFilter],
+  );
 
   const byDayAndPeriod = useMemo(() => {
     const map = new Map<string, SchoolsTimetableSlotRecord[]>();
@@ -212,7 +272,7 @@ export function SchoolsTimetableContent() {
     // that is exactly when a timetabler needs to be told.
     const seen = new Map<string, number>();
     let clashes = 0;
-    for (const slot of slots) {
+    for (const slot of allSlots) {
       const at = `${slot.dayOfWeek}:${slot.periodId}`;
       for (const who of [
         `t:${slot.classSubject.teacherProfile.id}@${at}`,
@@ -226,12 +286,15 @@ export function SchoolsTimetableContent() {
     }
 
     return {
-      placed: slots.length,
+      placed: allSlots.length,
       cells: narrowed ? cells : null,
-      free: narrowed ? Math.max(cells - slots.length, 0) : null,
+      free: narrowed ? Math.max(cells - allSlots.length, 0) : null,
       clashes,
     };
-  }, [slots, periods, days, viewpoint, classFilter, teacherFilter]);
+    // The band reports the week, not the view. Typing in the search box
+    // narrows what is drawn; it does not free up a period or resolve a clash,
+    // and a chip that moved when you typed would say it had.
+  }, [allSlots, periods, days, viewpoint, classFilter, teacherFilter]);
 
   const daySlots = useMemo(
     () =>
@@ -372,7 +435,9 @@ export function SchoolsTimetableContent() {
     (viewpoint === "class" && classFilter) ||
       (viewpoint === "teacher" && teacherFilter) ||
       termFilter ||
-      roomFilter,
+      roomFilter ||
+      subjectFilter ||
+      search.trim(),
   );
 
   // The narrowing in the timetabler's own words, for when it emptied the week.
@@ -382,6 +447,8 @@ export function SchoolsTimetableContent() {
       : teachers.find((row) => row.id === teacherFilter)?.user.name,
     terms.find((row) => row.id === termFilter)?.name,
     rooms.find((row) => row.id === roomFilter)?.name,
+    subjectOptions.find((option) => option.value === subjectFilter)?.label,
+    search.trim() || null,
   ].filter((value): value is string => Boolean(value));
 
   const clearFilters = () => {
@@ -389,6 +456,8 @@ export function SchoolsTimetableContent() {
     setTeacherFilter("");
     setTermFilter("");
     setRoomFilter("");
+    setSubjectFilter("");
+    setSearch("");
   };
 
   // Build and copy-forward both write dozens of lessons at once, so they need
@@ -488,7 +557,19 @@ export function SchoolsTimetableContent() {
         </Alert>
       ) : null}
 
-      <FilterBar>
+      {/* The canvas's law: the controls that govern the grid sit in one row
+          directly above it — the viewpoint, the search box and every filter.
+          The band above carries state, and nothing in this row moves it. */}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search lessons"
+          />
+        }
+        filters={
+          <FilterBar>
         <FilterSelect
           label="Show"
           allLabel="By class"
@@ -536,7 +617,30 @@ export function SchoolsTimetableContent() {
           options={rooms.map((room) => ({ value: room.id, label: room.name }))}
           onChange={setRoomFilter}
         />
-      </FilterBar>
+        {/* Only once there is more than one subject on the week. A dropdown
+            holding a single option is a control that cannot do anything. */}
+        {subjectOptions.length > 1 ? (
+          <FilterSelect
+            label="Subject"
+            allLabel="Every subject"
+            value={subjectFilter}
+            options={subjectOptions}
+            onChange={setSubjectFilter}
+          />
+        ) : null}
+        {/* The whole week is the desktop default and the thing worth being
+            able to get back to; picking a day drops the grid to that column,
+            which is how a timetabler checks Tuesday against a room booking. */}
+        <FilterSelect
+          label="Day"
+          allLabel="The whole week"
+          value={dayFilter}
+          options={days.map((day) => ({ value: String(day), label: DAY_NAMES[day] }))}
+          onChange={setDayFilter}
+        />
+          </FilterBar>
+        }
+      />
 
       {/* The reminder that a bulk write failed halfway. Auto-fill and
           copy-forward hold their own detail in their sheets; these are for the
@@ -564,7 +668,12 @@ export function SchoolsTimetableContent() {
           slots.length === 0 && !anyFilter ? (
             <NothingYet
               title="Nothing on the timetable yet"
-              body="A lesson is a class-subject placed in a period on a day. Add the first one and the week starts filling in."
+              body={
+                "A lesson is a class-subject placed in a period on a day — " +
+                "Mathematics first thing Monday, Shona on Friday, Geography and " +
+                "Physical Education wherever the field is free. Add the first one " +
+                "and the week starts filling in."
+              }
             />
           ) : anyFilter ? (
             <NothingMatched
@@ -610,25 +719,35 @@ export function SchoolsTimetableContent() {
           // The grid's own shape: a period label per row, one bar per weekday.
           // A generic block here made the whole week jump when the slots landed.
           <TableRowsSkeleton
-            headers={["Period", ...days.map((day) => DAY_NAMES[day])]}
-            columns={[{ twoLine: true }, ...days.map(() => ({}))]}
+            headers={["Period", ...shownDays.map((day) => DAY_NAMES[day])]}
+            columns={[{ twoLine: true }, ...shownDays.map(() => ({}))]}
             rows={7}
           />
         ) : slots.length === 0 && anyFilter ? (
           <NothingMatched what="lessons" filters={narrowed} onClear={clearFilters} />
+        ) : allSlots.length === 0 ? (
+          // Previously an empty twenty-five-cell grid of "Add" buttons, which
+          // reads as a broken page rather than a week nobody has laid out yet.
+          <NothingYet
+            title="Nothing on the timetable yet"
+            body={
+              "A lesson is a class-subject placed in a period on a day. Build the " +
+              "week in one press, or place the first lesson by hand."
+            }
+          />
         ) : (
           <SavingOverlay saving={bulkWriting} label="Placing lessons…">
             <div className="table-rail table-scroll">
               <div
                 className="grid min-w-[900px] gap-px bg-[var(--border-subtle)]"
                 style={{
-                  gridTemplateColumns: `minmax(140px, 1fr) repeat(${days.length}, minmax(150px, 1fr))`,
+                  gridTemplateColumns: `minmax(140px, 1fr) repeat(${shownDays.length}, minmax(150px, 1fr))`,
                 }}
               >
                 <div className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground">
                   Period
                 </div>
-                {days.map((day) => (
+                {shownDays.map((day) => (
                   <div
                     key={day}
                     className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground"
@@ -645,7 +764,7 @@ export function SchoolsTimetableContent() {
                         {formatMinute(period.startMinute)}–{formatMinute(period.endMinute)}
                       </div>
                     </div>
-                    {days.map((day) => {
+                    {shownDays.map((day) => {
                       const cellSlots = byDayAndPeriod.get(`${day}:${period.id}`) ?? [];
                       return (
                         <div key={`${day}:${period.id}`} className="bg-[var(--surface)] p-2">

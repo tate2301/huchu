@@ -23,7 +23,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
-import { RegisterFormDialog, type RegisterDraft } from "./register-form-dialog";
+import { RegisterFormDialog, type RegisterDraft } from "@/components/schools/attendance/register-form-dialog";
 
 /**
  * Which registers have been taken.
@@ -157,6 +157,18 @@ export function RegisterOversightContent({
     classId: "",
     streamId: "",
   });
+  /**
+   * The stream, held apart from the year group rather than inside it.
+   *
+   * `ClassFilter` offers streams as indented options under their class and
+   * encodes the pair into one selected value, which is the right shape where a
+   * stream is only ever reached through its class. The canvas draws two
+   * dropdowns here, so the stream is its own state: folding it back into the
+   * `ClassFilterValue` would hand that control a `stream:…` value it has no
+   * option for, and the Year group trigger would go blank the moment somebody
+   * picked a stream.
+   */
+  const [streamId, setStreamId] = useState("");
   const [state, setState] = useState("");
   const [search, setSearch] = useState("");
   const [copied, setCopied] = useState<string | null>(null);
@@ -165,7 +177,6 @@ export function RegisterOversightContent({
   const [saved, setSaved] = useState<string | null>(null);
 
   const classId = yearGroup.classId;
-  const streamId = yearGroup.streamId;
 
   const boardQuery = useQuery({
     queryKey: ["schools", "attendance", "board", date],
@@ -325,6 +336,34 @@ export function RegisterOversightContent({
       return true;
     });
   }, [rows, classId, streamId, state, search]);
+
+  /**
+   * The streams a Stream filter can offer, read off the ladder itself.
+   *
+   * The canvas draws Year group and Stream as two dropdowns, not as one with
+   * the streams indented under their class. That is the right shape here and
+   * the wrong one on a roll: an office asking "has Green sent its register?" is
+   * asking across every year group at once, and a control that makes them pick
+   * Form 1 first cannot answer it.
+   *
+   * The list narrows to the chosen year group when there is one, because a
+   * stream only exists inside its class and offering Form 4's streams while
+   * Form 1 is selected offers a filter that can only return nothing. Streams
+   * are deduplicated by name rather than by id — "Green" is one choice to an
+   * administrator even though every year group has its own row for it.
+   */
+  const streams = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const row of rows) {
+      if (classId && row.classId !== classId) continue;
+      for (const stream of row.streams) {
+        if (!seen.has(stream.id)) seen.set(stream.id, stream.name);
+      }
+    }
+    return [...seen.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [rows, classId]);
 
   const missing = useMemo(() => rows.filter((row) => row.state === "MISSING"), [rows]);
   const unchaseable = useMemo(
@@ -622,7 +661,7 @@ export function RegisterOversightContent({
       ) : missing.length > 0 ? (
         <Alert
           tone="danger"
-          title={`${inWords(missing.length)} still to come in`}
+          title={`${missing.length} still to come in`}
           actions={
             <Button
               variant="secondary"
@@ -687,8 +726,21 @@ export function RegisterOversightContent({
             <ClassFilter
               label="Year group"
               allLabel="Every year group"
+              includeStreams={false}
               value={yearGroup}
-              onChange={setYearGroup}
+              onChange={(next) => {
+                setYearGroup(next);
+                // A stream belongs to one class, so a stream chosen under the
+                // old year group can only return nothing under the new one.
+                setStreamId("");
+              }}
+            />
+            <FilterSelect
+              label="Stream"
+              allLabel="Every stream"
+              value={streamId}
+              options={streams}
+              onChange={setStreamId}
             />
             <FilterSelect
               label="State"
@@ -733,6 +785,9 @@ export function RegisterOversightContent({
                     what="year groups"
                     filters={[
                       classId ? rows.find((row) => row.classId === classId)?.className : null,
+                      streamId
+                        ? streams.find((row) => row.value === streamId)?.label
+                        : null,
                       state ? STATES.find((row) => row.value === state)?.label : null,
                       search.trim() || null,
                     ].filter((value): value is string => Boolean(value))}
@@ -740,6 +795,7 @@ export function RegisterOversightContent({
                       anyFilter
                         ? () => {
                             setYearGroup({ classId: "", streamId: "" });
+                            setStreamId("");
                             setState("");
                             setSearch("");
                           }
@@ -807,8 +863,13 @@ export function RegisterOversightContent({
           {unchaseable.length > 0 ? (
             <Card title="Nobody to chase">
               <p className="text-[length:var(--type-body-sm)]">
+                {/*
+                  One sentence naming the class, the way the canvas writes it,
+                  rather than a list followed by a full stop. One name is the
+                  common case and it is the one somebody acts on.
+                */}
                 {unchaseable.map((row) => row.className).join(", ")}{" "}
-                {unchaseable.length === 1 ? "has" : "have"} no form teacher.
+                {unchaseable.length === 1 ? "has" : "have"} no form teacher
               </p>
               <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
                 A missing register with nobody attached to it cannot be chased. Assign a

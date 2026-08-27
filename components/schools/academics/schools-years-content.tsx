@@ -10,8 +10,8 @@ import {
   fetchSchoolsCalendar,
   fetchSchoolsTerms,
 } from "@/lib/schools/admin-v2";
-import { SchoolDaysContent } from "./school-days-content";
-import { SchoolsCalendarContent } from "./schools-calendar-content";
+import { SchoolDaysContent } from "@/components/schools/academics/school-days-content";
+import { SchoolsCalendarContent } from "@/components/schools/academics/schools-calendar-content";
 
 /**
  * Years, terms and the school calendar — the frame everything else is dated
@@ -75,7 +75,7 @@ export function SchoolsYearsContent() {
         items={[
           { id: "years", label: "Academic years", count: years.length },
           { id: "terms", label: "Terms", count: terms.length },
-          { id: "calendar", label: "Holidays and events", count: events.length },
+          { id: "calendar", label: "Holidays & Events", count: events.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as YearsView)}
@@ -87,7 +87,7 @@ export function SchoolsYearsContent() {
 
         {activeView === "calendar" ? (
           <div className="space-y-2">
-            <h2 className="text-section-title">Holidays and events</h2>
+            <h2 className="text-section-title">Holidays and Events</h2>
             <SchoolDaysContent />
           </div>
         ) : null}

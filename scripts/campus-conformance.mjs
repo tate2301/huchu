@@ -134,11 +134,15 @@ const NOISE =
  */
 const SPECIMEN = [
   /\bCHS-\d+/i, // pupil numbers
+  /\b(?:GRD|EMP|INV|RCT|REF|WVR)-\d+/i, // the specimen's record numbers
+  /@example\.(?:com|co\.zw)/i, // specimen email addresses
   /\b0\d{2}\s?\d{3}\s?\d{4}\b/, // phone numbers
   /^\d{1,2}:\d{2}\s*[–-]/, // appointment slots
   /\b(?:Mrs|Mr|Ms|Miss)\.?\s+[A-Z]\.?\s*[A-Z][a-z]+/, // "Mrs P. Nyathi"
   /^[A-Z][a-z]+,\s+[A-Z][a-z]+$/, // "Chikwanda, Rutendo"
-  /\b(?:Tanaka|Farai|Rutendo|Tapiwa|Kudzai|Tsitsi|Nyathi|Chikwanda|Mutasa|Chirwa|Katsande|Moyo|Dube|Makoni|Chishawasha)\b/i,
+  /^[A-Z]\.\s*[A-Z][a-z]+$/, // "L. Gwenzi" — a staff initial
+  /^[A-Z][a-z]+ [A-Z][a-z]+$/, // "Chiedza Ncube" — the specimen roster
+  /^\d{1,2}\s+(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)/, // "21 Aug"
   /\bForm \d[A-Z]\b/, // a specific stream
   /^\$?[\d,]+\.\d{2}$/, // money literals
 ]
@@ -236,10 +240,18 @@ function sourceFor(route, depth = 2) {
     } catch {
       continue
     }
-    for (const m of src.matchAll(/from\s+["'](@\/[^"']+)["']/g)) {
-      const rel = m[1].slice(2)
-      for (const ext of ['.tsx', '.ts']) {
-        const cand = path.join(ROOT, rel + ext)
+    // Both import shapes. A screen split across sibling files — the content
+    // component beside its dialogs and its column definitions — imports them
+    // as './boarding-views', and following only '@/' made every one of those
+    // files invisible. The report then scored a screen as missing structure
+    // that was implemented one file away.
+    for (const m of src.matchAll(/from\s+["'](@\/[^"']+|\.\.?\/[^"']+)["']/g)) {
+      const spec = m[1]
+      const base = spec.startsWith('@/')
+        ? path.join(ROOT, spec.slice(2))
+        : path.resolve(path.dirname(file), spec)
+      for (const ext of ['.tsx', '.ts', '/index.tsx', '/index.ts']) {
+        const cand = base + ext
         if (fs.existsSync(cand)) queue.push([cand, d + 1])
       }
     }

@@ -27,10 +27,11 @@ import {
   genderPolicyLabel,
   type BoardingHostel,
   type HostelRoom,
-} from "./boarding-data";
-import { HostelDialog } from "./boarding-dialogs";
-import { BedBoardContent } from "./bed-board-content";
-import { HostelRoomsPanel } from "./hostel-rooms-panel";
+} from "@/components/schools/boarding/boarding-data";
+import { HostelDialog } from "@/components/schools/boarding/boarding-dialogs";
+import { BoardingViews } from "@/components/schools/boarding/boarding-views";
+import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
+import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
 
 /**
  * A boarding house, and everything it is made of.
@@ -264,27 +265,37 @@ export function BoardingHostelsContent({
 
             <TableControls
               tabs={
-                <div className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[color:var(--surface-muted)] p-1">
-                  {(
-                    [
-                      { id: "rooms" as const, label: "Rooms", count: rooms.length },
-                      { id: "beds" as const, label: "Beds", count: beds.length },
-                    ]
-                  ).map((entry) => (
-                    <button
-                      key={entry.id}
-                      type="button"
-                      onClick={() => setView(entry.id)}
-                      className={
-                        entry.id === view
-                          ? "rounded-[var(--radius-sm)] bg-[color:var(--surface)] px-3 py-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
-                          : "rounded-[var(--radius-sm)] px-3 py-1 text-sm text-muted-foreground"
-                      }
-                    >
-                      {entry.label} {entry.count}
-                    </button>
-                  ))}
-                </div>
+                <>
+                  {/*
+                    Two strips, two jobs. The first moves between the three
+                    boarding screens — the canvas's own segmented strip, drawn
+                    on the allocations board and carried here so a warden who
+                    walked into the houses can walk back out. The second is this
+                    screen's own: which face of THIS house is showing.
+                  */}
+                  <BoardingViews hostels={hostels.length} />
+                  <div className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[color:var(--surface-muted)] p-1">
+                    {(
+                      [
+                        { id: "rooms" as const, label: "Rooms", count: rooms.length },
+                        { id: "beds" as const, label: "Beds", count: beds.length },
+                      ]
+                    ).map((entry) => (
+                      <button
+                        key={entry.id}
+                        type="button"
+                        onClick={() => setView(entry.id)}
+                        className={
+                          entry.id === view
+                            ? "rounded-[var(--radius-sm)] bg-[color:var(--surface)] px-3 py-1 text-sm font-semibold shadow-[var(--shadow-xs)]"
+                            : "rounded-[var(--radius-sm)] px-3 py-1 text-sm text-muted-foreground"
+                        }
+                      >
+                        {entry.label} {entry.count}
+                      </button>
+                    ))}
+                  </div>
+                </>
               }
               search={
                 <TableSearch

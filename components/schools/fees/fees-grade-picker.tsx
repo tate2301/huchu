@@ -4,15 +4,18 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@corelithzw/react";
+import { Alert, Button as DsButton, Card } from "@corelithzw/react";
 
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { LoadError, NothingMatched, NothingYet, StatsSkeleton } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
+import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
 
 /**
@@ -23,7 +26,7 @@ import { formatSchoolMoney } from "@/lib/schools/format";
  * not carry what a bursar actually reads down this page: how much of what was
  * billed has come in, form by form, and which of the four is behind.
  *
- * So this is the design's own table rather than the shared cards. Three
+ * So this is the design's own table rather than the shared cards. Four
  * decisions in it:
  *
  * **Collected is a proportion, not a total.** "Form 1 collected 61,040" says
@@ -36,6 +39,10 @@ import { formatSchoolMoney } from "@/lib/schools/format";
  *
  * **The longest-overdue panel is ordered by age, not by amount.** An old small
  * debt is a family nobody has rung.
+ *
+ * **The band's verb writes to the families the page has already named.** The
+ * screen works out exactly who is late; making the bursar re-select them from a
+ * dropdown afterwards is how a reminder meant for the overdue goes to a form.
  */
 
 type ClassFees = {
@@ -83,11 +90,28 @@ function collectionTone(percent: number) {
 
 export function FeesGradePicker() {
   const router = useRouter();
+  const access = useSchoolAccess();
   const [search, setSearch] = useState("");
+  const [reminding, setReminding] = useState(false);
+  const [sent, setSent] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const feesQuery = useQuery({
     queryKey: ["schools", "fees", "by-class"],
     queryFn: () => fetchJson<FeesByClass>("/api/v2/schools/fees/by-class"),
+  });
+
+  // A "class" in the band's sense is a stream — Form 2A, not Form 2 — and the
+  // fee endpoint groups by year group, so the stream count comes from the class
+  // ladder itself. The term is what the collection table is a collection *of*.
+  const classesQuery = useQuery({
+    queryKey: ["schools", "grades"],
+    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 100 }),
+  });
+  const termsQuery = useQuery({
+    queryKey: ["schools", "terms"],
+    queryFn: () => fetchSchoolsTerms({ page: 1, limit: 100 }),
   });
 
   const currency = feesQuery.data?.currency ?? "USD";
@@ -114,6 +138,50 @@ export function FeesGradePicker() {
   const totals = feesQuery.data?.totals;
   const ageing = feesQuery.data?.ageing;
   const overdue = feesQuery.data?.longestOverdue ?? [];
+  const allRows = feesQuery.data?.data ?? [];
+
+  // The canvas band counts the school, not the filtered view: a bursar who has
+  // typed "Form 3" into the search still wants to know how many year groups,
+  // classes and pupils the school has behind it.
+  const yearGroups = allRows.length;
+  const students = allRows.reduce((sum, row) => sum + row.students, 0);
+  const classes = (classesQuery.data?.data ?? []).reduce(
+    (sum, row) => sum + row._count.streams,
+    0,
+  );
+  const activeTerm = (termsQuery.data?.data ?? []).find((term) => term.isActive) ?? null;
+
+  /**
+   * Export, fetched rather than opened. `window.open` on an API URL means a
+   * refused export is a blank tab with nothing to report; fetching it puts the
+   * failure on the screen the button is on.
+   */
+  const runExport = async () => {
+    setExportError(null);
+    setExporting(true);
+    try {
+      const response = await fetch(
+        "/api/v2/schools/reports/export?reportType=arrears&format=csv",
+        { credentials: "include" },
+      );
+      if (!response.ok) throw new Error(`The export failed (${response.status}).`);
+      const blob = await response.blob();
+      const disposition = response.headers.get("content-disposition") ?? "";
+      const named = /filename="([^"]+)"/.exec(disposition)?.[1];
+      const href = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = href;
+      anchor.download = named ?? "fees-by-year-group.csv";
+      anchor.click();
+      setTimeout(() => URL.revokeObjectURL(href), 0);
+    } catch (error) {
+      setExportError(error instanceof Error ? error.message : "The export failed.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  const canRemind = access.can("schools.fees", "create");
 
   const ageingBands = ageing
     ? [
@@ -140,16 +208,67 @@ export function FeesGradePicker() {
             value: formatSchoolMoney(totals?.outstanding ?? 0, currency),
             tone: "danger",
           },
+          { label: "Year groups", value: yearGroups },
+          { label: "Classes", value: classes },
+          { label: "Students", value: students },
+          {
+            label: "Overdue",
+            value: ageing?.accounts ?? 0,
+            tone: "danger",
+            href: "/schools/finance/arrears",
+          },
         ]}
         actions={
-          <Link
-            href="/schools/finance/ledger"
-            className="text-sm font-medium text-primary hover:underline"
-          >
-            Whole-school ledger
-          </Link>
+          <>
+            {/* Both are secondary verbs on somebody else's numbers, so they sit
+                in the band rather than the app bar — the law keeps one primary
+                action per page and this page's is opening a year group. */}
+            <DsButton
+              size="sm"
+              variant="secondary"
+              disabled={!canRemind || (ageing?.accounts ?? 0) === 0}
+              title={
+                !canRemind
+                  ? "Writing to families is the bursar's to do."
+                  : (ageing?.accounts ?? 0) === 0
+                    ? "Nothing is late, so there is nobody to remind."
+                    : undefined
+              }
+              onClick={() => {
+                setSent(null);
+                setReminding(true);
+              }}
+            >
+              Send reminders
+            </DsButton>
+            <DsButton
+              size="sm"
+              variant="secondary"
+              loading={exporting}
+              onClick={() => void runExport()}
+            >
+              Export
+            </DsButton>
+            <Link
+              href="/schools/finance/ledger"
+              className="text-sm font-medium text-primary hover:underline"
+            >
+              Whole-school ledger
+            </Link>
+          </>
         }
       />
+
+      {sent ? (
+        <Alert tone="success" title="Reminders sent" onDismiss={() => setSent(null)}>
+          {sent}
+        </Alert>
+      ) : null}
+      {exportError ? (
+        <Alert tone="danger" title="The export failed" onDismiss={() => setExportError(null)}>
+          {exportError}
+        </Alert>
+      ) : null}
 
       <div className="min-w-0 sm:max-w-[320px]">
         <Label htmlFor="fees-grade-search" className="text-sm text-muted-foreground">
@@ -159,12 +278,12 @@ export function FeesGradePicker() {
           id="fees-grade-search"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Form 2, Grade 5…"
+          placeholder="Search year group or class"
         />
       </div>
 
       <Card
-        title="Collection by year group"
+        title={`${activeTerm ? `${activeTerm.name} ` : ""}collection by year group`}
         actions={
           <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
             {currency} · excludes waivers and refunds
@@ -282,7 +401,7 @@ export function FeesGradePicker() {
           title="Ageing"
           actions={
             <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              from each bill&rsquo;s due date
+              from due date
             </span>
           }
         >
@@ -347,6 +466,38 @@ export function FeesGradePicker() {
           )}
         </Card>
       </div>
+
+      {/*
+        The audience is the pupils this page has already named as overdue, sent
+        by id — not "the whole school", and not a class the bursar picks again
+        in the dialog. `longestOverdue` is the top of that list; anybody in
+        arrears beyond it is reached from the arrears report, which carries the
+        full set and its own filters.
+      */}
+      {reminding ? (
+        <SendNoticeDialog
+          open
+          onOpenChange={setReminding}
+          title={`Remind the ${overdue.length}`}
+          audience={{
+            studentIds: overdue.map((person) => person.id),
+            describe: `the families of the ${overdue.length} longest overdue`,
+          }}
+          severity="WARNING"
+          defaultSubject="School fees outstanding"
+          defaultBody="Our records show school fees still outstanding on your child's account. Please settle the balance, or come and see the bursar to arrange terms. Your statement is on the portal."
+          sendLabel={`Remind the ${overdue.length}`}
+          onSent={(result) => {
+            setSent(
+              `Sent to ${result.recipients} ${result.recipients === 1 ? "family" : "families"}${
+                result.withoutAccount > 0
+                  ? ` · ${result.withoutAccount} have no portal account yet, so ring them`
+                  : ""
+              }.`,
+            );
+          }}
+        />
+      ) : null}
     </div>
   );
 }

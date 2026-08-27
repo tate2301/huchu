@@ -229,6 +229,16 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
       count: entries.length,
       content: (
         <div className="space-y-3">
+          {/* The canvas's line for this card. How many classes take it is what
+              a head of department opens a subject to find out, so it is said
+              in words above the list rather than left to a tab count. */}
+          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+            {entries.length === 0
+              ? "Nothing takes this subject yet."
+              : `${classes.size} take this subject${
+                  unstaffed > 0 ? ` · ${unstaffed} with no teacher` : ""
+                }.`}
+          </p>
           <FilterBar>
             <FilterSelect
               label="Term"
@@ -249,7 +259,13 @@ export function SubjectRecordPage({ subjectId }: { subjectId: string }) {
           {entries.length === 0 ? (
             <NothingYet
               title="No class takes this subject yet"
-              body="A subject reaches a pupil through an assignment — who teaches it, to which form, in which term. Timetable one and the classes appear here."
+              body={
+                "A subject reaches a pupil through an assignment — who teaches it, " +
+                "to which form, in which term. A core one like Mathematics is " +
+                "usually taken all the way up the ladder, Form 1 to Upper Sixth; " +
+                "an elective may only run in Lower Sixth and Upper Sixth. " +
+                "Timetable one and the classes appear here."
+              }
             />
           ) : visible.length === 0 ? (
             <NothingMatched what="classes" filters={filtersInForce} onClear={clearFilters} />

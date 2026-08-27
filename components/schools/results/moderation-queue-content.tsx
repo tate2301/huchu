@@ -25,8 +25,8 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import type { ResultSheetLike, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
-import { SheetFormDialog } from "./sheet-form-dialog";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
+import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
 import {
   SHEET_STATE_LABELS,
   SHEET_STATE_OPTIONS,
@@ -34,8 +34,8 @@ import {
   formatDay,
   waitingFor,
   waitingMs,
-} from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+} from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * The moderation queue: what a head of department has to look at, oldest first.
@@ -247,15 +247,40 @@ export function ModerationQueueContent() {
         description="Sheets a head of department has to sign off before anything can be published."
       />
 
+      {/*
+        The canvas band on this screen carries the whole term's state, not just
+        the queue's own: a head of department deciding whether to sign one more
+        sheet off tonight needs to know a window is already open (so approving
+        releases marks this evening) or that every window is shut (so it can
+        wait until morning). The five sheet states and the three window states
+        are the eight numbers the artboard draws, in its order.
+      */}
       <PageBand
         chips={[
-          { label: "Waiting", value: summary?.submittedSheets ?? 0, tone: "warn" },
+          { label: "Draft", value: summary?.draftSheets ?? 0 },
+          { label: "Submitted", value: summary?.submittedSheets ?? 0, tone: "warn" },
           { label: "Sent back", value: summary?.hodRejectedSheets ?? 0, tone: "danger" },
           { label: "Approved", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
           {
             label: "Published",
             value: summary?.publishedSheets ?? 0,
             tone: "brand",
+            href: "/schools/results/publish",
+          },
+          {
+            label: "Windows open",
+            value: summary?.openPublishWindows ?? 0,
+            tone: "success",
+            href: "/schools/results/publish",
+          },
+          {
+            label: "Windows scheduled",
+            value: summary?.scheduledPublishWindows ?? 0,
+            href: "/schools/results/publish",
+          },
+          {
+            label: "Windows closed",
+            value: summary?.closedPublishWindows ?? 0,
             href: "/schools/results/publish",
           },
         ]}

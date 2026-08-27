@@ -18,13 +18,13 @@ import { FilterSelect } from "@/components/schools/common/filter-select";
 import { fetchJson } from "@/lib/api-client";
 import { normaliseGender } from "@/lib/schools/boarding-rules";
 
-import { AllocateBedDialog } from "./boarding-dialogs";
+import { AllocateBedDialog } from "@/components/schools/boarding/boarding-dialogs";
 import {
   fetchHostelOccupancy,
   fetchHostels,
   type BoardingHostel,
   type HostelOccupancy,
-} from "./boarding-data";
+} from "@/components/schools/boarding/boarding-data";
 
 /**
  * The bed board.
