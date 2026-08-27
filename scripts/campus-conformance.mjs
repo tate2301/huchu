@@ -115,8 +115,50 @@ const SCREENS = {
 const NOISE =
   /^(?:[\d\s.,%/:+-]+|[A-Z]{2,3}|Form \d[A-Z]?|Term \d|USD|—|·|✓|&\w+;|\d+d|\d+%)$/
 
+/**
+ * The canvas is drawn over a specimen school — Chishawasha High, Rudo Makoni,
+ * pupil CHS-1219 — and every artboard is populated with its records so the
+ * shapes can be judged at a glance. None of that is copy a screen implements:
+ * a real page reads those names out of the database, and a page that DID carry
+ * "Tanaka Mutasa" in its source would be a bug.
+ *
+ * The same is true of anything the screen works out at runtime — "21 of 32",
+ * "74% of the slots taken", "$1,240.00". A count in the checklist is the
+ * specimen's count, not a string to match.
+ *
+ * Scoring these against source made the report demand the impossible: a third
+ * of the "missing copy" could only be satisfied by hardcoding demo data into
+ * production. What is left after this filter is the copy a screen genuinely
+ * owns — its labels, headings, empty states, button verbs — and that is what
+ * the coverage number now means.
+ */
+const SPECIMEN = [
+  /\bCHS-\d+/i, // pupil numbers
+  /\b0\d{2}\s?\d{3}\s?\d{4}\b/, // phone numbers
+  /^\d{1,2}:\d{2}\s*[–-]/, // appointment slots
+  /\b(?:Mrs|Mr|Ms|Miss)\.?\s+[A-Z]\.?\s*[A-Z][a-z]+/, // "Mrs P. Nyathi"
+  /^[A-Z][a-z]+,\s+[A-Z][a-z]+$/, // "Chikwanda, Rutendo"
+  /\b(?:Tanaka|Farai|Rutendo|Tapiwa|Kudzai|Tsitsi|Nyathi|Chikwanda|Mutasa|Chirwa|Katsande|Moyo|Dube|Makoni|Chishawasha)\b/i,
+  /\bForm \d[A-Z]\b/, // a specific stream
+  /^\$?[\d,]+\.\d{2}$/, // money literals
+]
+
+/** Values a screen computes from data it has just fetched. */
+const DERIVED = [
+  /^\d[\d,]*$/,
+  /^\d+%/,
+  /\b\d+ of \d+\b/,
+  /\b\d+ (?:slots?|booked|free|in|out|late|marked|pupils?|students?|beds?|rooms?|days?)\b/i,
+  /·.*\d/,
+  /^(?:Term|Week) \d/,
+  /\b20\d\d\b/,
+]
+
+const isSpecimen = (s) =>
+  SPECIMEN.some((r) => r.test(s)) || DERIVED.some((r) => r.test(s))
+
 const isNoise = (s) =>
-  !s || s.length < 3 || s.length > 60 || NOISE.test(s.trim())
+  !s || s.length < 3 || s.length > 60 || NOISE.test(s.trim()) || isSpecimen(s)
 
 function readChecklist(name) {
   const file = path.join(CHECKLIST, `${name}.json`)
