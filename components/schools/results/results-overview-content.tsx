@@ -23,10 +23,10 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import type { ResultSheetLike, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
-import { SheetFormDialog } from "./sheet-form-dialog";
-import { PublishStateBadge, SheetStateBadge } from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
+import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
+import { PublishStateBadge, SheetStateBadge } from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * The state of the term, in one screen.
@@ -338,9 +338,16 @@ export function ResultsOverviewContent() {
             />
           </FilterBar>
 
+          {/*
+            A result sheet is the end-of-term collation, not one of the term's
+            individual assessments — those live in the mark book and never reach
+            moderation. Naming that in the card title is the difference between
+            "here is everything with a mark on it" and "here is what goes on the
+            report", which is the only list this screen is about.
+          */}
           <Card
             flush
-            title={`Result sheets${termInView ? ` — ${termInView.name}` : ""}`}
+            title={`Result sheets${termInView ? ` — ${termInView.name}` : ""} end-of-term`}
             subtitle="Nothing publishes until moderation clears"
           >
             {resultsQuery.isLoading ? (
@@ -364,7 +371,7 @@ export function ResultsOverviewContent() {
                 pagination={{ enabled: true }}
                 exportConfig={{
                   enabled: true,
-                  title: `Result sheets${termInView ? ` — ${termInView.name}` : ""}`,
+                  title: `Result sheets${termInView ? ` — ${termInView.name}` : ""} end-of-term`,
                   fileName: "result-sheets",
                 }}
                 emptyState={

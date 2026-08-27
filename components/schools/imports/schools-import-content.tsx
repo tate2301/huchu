@@ -18,8 +18,10 @@ import { RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {
   LoadError,
+  NothingMatched,
   NothingYet,
   SaveError,
+  SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -41,7 +43,6 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { formatSchoolDate } from "@/lib/schools/format";
 
 type ImportField = {
   key: string;
@@ -120,6 +121,49 @@ const STEPS = [
 function fieldLabel(fields: ImportField[], key: string): string {
   if (key === "_row") return "The row";
   return fields.find((field) => field.key === key)?.label ?? key;
+}
+
+/**
+ * When an import ran, to the minute.
+ *
+ * `formatSchoolDate` gives "3 August 2026", which is the right format for a
+ * date of birth and the wrong one here: a registrar loads classes, then
+ * students, then guardians before break, and three rows all reading "3 August
+ * 2026" cannot be told apart — which matters, because Undo works newest first
+ * and the wrong row undoes the wrong load. "3 Aug 09:14" is the form the
+ * canvas draws and the shortest one that distinguishes them.
+ *
+ * Locale-pinned for the same reason `lib/schools/format.ts` pins its own: the
+ * server and the browser must render the same string or hydration tears.
+ */
+const IMPORT_STAMP = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+function importedAt(value: string): string {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  // en-GB renders "3 Aug, 09:14"; the canvas has no comma between the two.
+  return IMPORT_STAMP.format(date).replace(",", "");
+}
+
+/**
+ * What a past import loaded, named the way the picker names it.
+ *
+ * The registry is the authority — `Parents and guardians`, `Opening balances`,
+ * `Fee structures` — and it is already on the wire beside the history rows.
+ * Falling back to the enum only matters for a job whose entity type has since
+ * been retired from the registry.
+ */
+function entityLabel(entities: EntitySummary[], key: string): string {
+  return (
+    entities.find((candidate) => candidate.key === key)?.label ??
+    key.replace(/_/g, " ").toLowerCase()
+  );
 }
 
 export function SchoolsImportContent() {
@@ -395,92 +439,104 @@ export function SchoolsImportContent() {
             <CardDescription>Nothing has been written yet.</CardDescription>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Summary label="To be created" value={dryRun.totals.create} tone="strong" />
-              <Summary label="Already here" value={dryRun.totals.update} tone="muted" />
-              <Summary
-                label="Cannot be imported"
-                value={dryRun.rejected.length}
-                tone={dryRun.rejected.length > 0 ? "bad" : "muted"}
-              />
-            </div>
-
-            {dryRun.blockers.length > 0 ? (
-              <Alert variant="destructive">
-                <AlertTitle>A required column is not mapped</AlertTitle>
-                <AlertDescription>{dryRun.blockers.join(". ")}</AlertDescription>
-              </Alert>
-            ) : null}
-
-            {dryRun.unmappedHeaders.length > 0 ? (
-              <Alert>
-                <AlertTitle>Columns nothing will read</AlertTitle>
-                <AlertDescription>
-                  {dryRun.unmappedHeaders.join(", ")}. Nothing in these will be imported.
-                </AlertDescription>
-              </Alert>
-            ) : null}
-
-            {dryRun.rejected.length > 0 ? (
-              <div className="space-y-3" data-testid="import-rejected-rows">
-                <div>
-                  <h3 className="text-base font-medium text-[var(--text-strong)]">
-                    {dryRun.rejected.length} rows need fixing
-                  </h3>
-                  <p className="text-sm text-[var(--text-muted)]">
-                    The row numbers are the ones in your spreadsheet. Fix them there and
-                    upload it again, or import the rest without them.
-                  </p>
+            {/* The commit is the only step that writes, and it writes hundreds
+                of records under one button. The whole report dims while it runs
+                — including Start again, which would otherwise throw the job away
+                from under a commit that is still landing, and the Import button
+                itself, which pressed twice loads the file twice. */}
+            <SavingOverlay
+              saving={commitMutation.isPending}
+              label={`Importing ${dryRun.totals.create + dryRun.totals.update} records…`}
+            >
+              <div className="space-y-6">
+                <div className="grid gap-3 sm:grid-cols-3">
+                  <Summary label="To be created" value={dryRun.totals.create} tone="strong" />
+                  <Summary label="Already here" value={dryRun.totals.update} tone="muted" />
+                  <Summary
+                    label="Cannot be imported"
+                    value={dryRun.rejected.length}
+                    tone={dryRun.rejected.length > 0 ? "bad" : "muted"}
+                  />
                 </div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-20">Row</TableHead>
-                        <TableHead className="w-40">Column</TableHead>
-                        <TableHead>What is wrong</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {dryRun.rejected.flatMap((row) =>
-                        row.issues.map((issue, index) => (
-                          <TableRow key={`${row.lineNo}-${issue.field}-${index}`}>
-                            <TableCell className="font-medium text-[var(--text-strong)]">
-                              {index === 0 ? row.lineNo : ""}
-                            </TableCell>
-                            <TableCell className="text-[var(--text-muted)]">
-                              {fieldLabel(job?.fields ?? [], issue.field)}
-                            </TableCell>
-                            <TableCell>{issue.message}</TableCell>
+
+                {dryRun.blockers.length > 0 ? (
+                  <Alert variant="destructive">
+                    <AlertTitle>A required column is not mapped</AlertTitle>
+                    <AlertDescription>{dryRun.blockers.join(". ")}</AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {dryRun.unmappedHeaders.length > 0 ? (
+                  <Alert>
+                    <AlertTitle>Columns nothing will read</AlertTitle>
+                    <AlertDescription>
+                      {dryRun.unmappedHeaders.join(", ")}. Nothing in these will be imported.
+                    </AlertDescription>
+                  </Alert>
+                ) : null}
+
+                {dryRun.rejected.length > 0 ? (
+                  <div className="space-y-3" data-testid="import-rejected-rows">
+                    <div>
+                      <h3 className="text-base font-medium text-[var(--text-strong)]">
+                        {dryRun.rejected.length} rows need fixing
+                      </h3>
+                      <p className="text-sm text-[var(--text-muted)]">
+                        The row numbers are the ones in your spreadsheet. Fix them there and
+                        upload it again, or import the rest without them.
+                      </p>
+                    </div>
+                    <div className="overflow-x-auto">
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead className="w-20">Row</TableHead>
+                            <TableHead className="w-40">Column</TableHead>
+                            <TableHead>What is wrong</TableHead>
                           </TableRow>
-                        )),
-                      )}
-                    </TableBody>
-                  </Table>
+                        </TableHeader>
+                        <TableBody>
+                          {dryRun.rejected.flatMap((row) =>
+                            row.issues.map((issue, index) => (
+                              <TableRow key={`${row.lineNo}-${issue.field}-${index}`}>
+                                <TableCell className="font-medium text-[var(--text-strong)]">
+                                  {index === 0 ? row.lineNo : ""}
+                                </TableCell>
+                                <TableCell className="text-[var(--text-muted)]">
+                                  {fieldLabel(job?.fields ?? [], issue.field)}
+                                </TableCell>
+                                <TableCell>{issue.message}</TableCell>
+                              </TableRow>
+                            )),
+                          )}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  </div>
+                ) : (
+                  <Alert>
+                    <AlertTitle>Every row can be imported</AlertTitle>
+                    <AlertDescription>Nothing in this file needs fixing first.</AlertDescription>
+                  </Alert>
+                )}
+
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    onClick={() => commitMutation.mutate(dryRun.rejected.length > 0)}
+                    disabled={commitMutation.isPending || dryRun.blockers.length > 0}
+                  >
+                    {commitMutation.isPending
+                      ? "Importing…"
+                      : dryRun.rejected.length > 0
+                        ? `Import the other ${dryRun.totals.create + dryRun.totals.update}`
+                        : `Import ${dryRun.totals.create + dryRun.totals.update} records`}
+                  </Button>
+                  <Button variant="outline" onClick={reset}>
+                    Start again
+                  </Button>
                 </div>
               </div>
-            ) : (
-              <Alert>
-                <AlertTitle>Every row can be imported</AlertTitle>
-                <AlertDescription>Nothing in this file needs fixing first.</AlertDescription>
-              </Alert>
-            )}
-
-            <div className="flex flex-wrap gap-2">
-              <Button
-                onClick={() => commitMutation.mutate(dryRun.rejected.length > 0)}
-                disabled={commitMutation.isPending || dryRun.blockers.length > 0}
-              >
-                {commitMutation.isPending
-                  ? "Importing…"
-                  : dryRun.rejected.length > 0
-                    ? `Import the other ${dryRun.totals.create + dryRun.totals.update}`
-                    : `Import ${dryRun.totals.create + dryRun.totals.update} records`}
-              </Button>
-              <Button variant="outline" onClick={reset}>
-                Start again
-              </Button>
-            </div>
+            </SavingOverlay>
           </CardContent>
         </Card>
       ) : null}
@@ -493,26 +549,34 @@ export function SchoolsImportContent() {
             <CardDescription>{job.fileName}</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid gap-3 sm:grid-cols-4">
-              <Summary label="Created" value={committed.created} tone="strong" />
-              <Summary label="Updated" value={committed.updated} tone="muted" />
-              <Summary label="Left out" value={committed.skipped} tone="muted" />
-              <Summary
-                label="Failed"
-                value={committed.failed}
-                tone={committed.failed > 0 ? "bad" : "muted"}
-              />
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={reset}>Import something else</Button>
-              <Button
-                variant="outline"
-                onClick={() => rollbackMutation.mutate(job.id)}
-                disabled={rollbackMutation.isPending}
-              >
-                {rollbackMutation.isPending ? "Undoing…" : "Undo this import"}
-              </Button>
-            </div>
+            {/* Undoing deletes the records the import created, newest first, and
+                it is as long a write as the import was. Same interlock: a
+                second Undo while the first is running deletes half a job twice
+                and reports the second half as a failure. */}
+            <SavingOverlay saving={rollbackMutation.isPending} label="Undoing the import…">
+              <div className="space-y-4">
+                <div className="grid gap-3 sm:grid-cols-4">
+                  <Summary label="Created" value={committed.created} tone="strong" />
+                  <Summary label="Updated" value={committed.updated} tone="muted" />
+                  <Summary label="Left out" value={committed.skipped} tone="muted" />
+                  <Summary
+                    label="Failed"
+                    value={committed.failed}
+                    tone={committed.failed > 0 ? "bad" : "muted"}
+                  />
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={reset}>Import something else</Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => rollbackMutation.mutate(job.id)}
+                    disabled={rollbackMutation.isPending}
+                  >
+                    {rollbackMutation.isPending ? "Undoing…" : "Undo this import"}
+                  </Button>
+                </div>
+              </div>
+            </SavingOverlay>
           </CardContent>
         </Card>
       ) : null}
@@ -537,84 +601,109 @@ export function SchoolsImportContent() {
           </FilterBar>
 
           {history.length === 0 ? (
-            <NothingYet
-              title={
-                historyFilter
-                  ? "Nothing of that kind has been imported"
-                  : "Nothing has been imported yet"
-              }
-              body="Every import is listed here with what it did, so it can be undone later."
-            />
+            historyFilter ? (
+              // The history is narrowed and empty, which is a filter result and
+              // not a school that has never imported. It gets the sentence that
+              // says which narrowing did it, and no Import button — nobody asked
+              // to start an import from the history card.
+              <NothingMatched
+                what="imports"
+                filters={[
+                  entities.find((candidate) => candidate.key === historyFilter)?.label ??
+                    historyFilter,
+                ]}
+                onClear={() => setHistoryFilter("")}
+              />
+            ) : (
+              <NothingYet
+                title="Nothing has been imported yet"
+                body="Every import is listed here with what it did, so it can be undone later."
+              />
+            )
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>File</TableHead>
-                    <TableHead>Records</TableHead>
-                    <TableHead>When</TableHead>
-                    <TableHead>Result</TableHead>
-                    <TableHead />
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {history.map((record) => (
-                    <TableRow key={record.id}>
-                      <TableCell className="font-medium text-[var(--text-strong)]">
-                        {record.fileName}
-                      </TableCell>
-                      <TableCell className="text-[var(--text-muted)]">
-                        {record.entityType.replace(/_/g, " ").toLowerCase()}
-                      </TableCell>
-                      <TableCell className="text-[var(--text-muted)]">
-                        {formatSchoolDate(record.createdAt)}
-                      </TableCell>
-                      <TableCell>
-                        {record.status === "ROLLED_BACK" ? (
-                          <Badge variant="outline">Undone</Badge>
-                        ) : record.status === "COMMITTED" ? (
-                          <span className="text-sm">
-                            {record.rowsCreated} created
-                            {record.rowsFailed > 0 ? `, ${record.rowsFailed} failed` : ""}
-                          </span>
-                        ) : (
-                          <Badge variant="secondary">Not imported</Badge>
-                        )}
-                      </TableCell>
-                      <TableCell className="text-right">
-                        {record.status === "COMMITTED" ? (
-                          <RecordActions
-                            resource="schools.students"
-                            verbs={[
-                              {
-                                label: "Undo",
-                                action: "create",
-                                tone: "danger",
-                                loading: rollbackMutation.isPending,
-                                // Loading money is the bursar's, so undoing it
-                                // is too — the same split `_guard.ts` makes on
-                                // the way in.
-                                unavailable:
-                                  MONEY_ENTITIES.has(record.entityType) &&
-                                  !access.can("schools.fees", "create")
-                                    ? "This is the bursar to undo."
-                                    : undefined,
-                                confirm: {
-                                  title: `Undo ${record.fileName}`,
-                                  description: `The ${record.rowsCreated} records this import created are removed, newest first. Anything somebody has since added on top of them — a mark, a receipt, a bed — stops the delete rather than being taken with it.`,
-                                  confirmLabel: "Undo this import",
-                                },
-                                onSelect: () => rollbackMutation.mutate(record.id),
-                              },
-                            ]}
-                          />
-                        ) : null}
-                      </TableCell>
+            <SavingOverlay saving={rollbackMutation.isPending} label="Undoing the import…">
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>File</TableHead>
+                      <TableHead>Records</TableHead>
+                      <TableHead>When</TableHead>
+                      <TableHead>Result</TableHead>
+                      <TableHead />
                     </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
+                  </TableHeader>
+                  <TableBody>
+                    {history.map((record) => (
+                      <TableRow key={record.id}>
+                        <TableCell className="font-medium text-[var(--text-strong)]">
+                          {record.fileName}
+                        </TableCell>
+                        <TableCell className="text-[var(--text-muted)]">
+                          {/*
+                            The registry's own name for the kind of record —
+                            "Parents and guardians", "Opening balances". The
+                            enum lower-cased gave "guardian" and "opening
+                            balance", which are not what the picker at the top
+                            of this page called them ten minutes earlier.
+                          */}
+                          {entityLabel(entities, record.entityType)}
+                        </TableCell>
+                        <TableCell className="font-mono text-[var(--text-muted)] tabular-nums">
+                          {importedAt(record.createdAt)}
+                        </TableCell>
+                        <TableCell>
+                          {record.status === "ROLLED_BACK" ? (
+                            <Badge variant="outline">Undone</Badge>
+                          ) : record.status === "COMMITTED" ? (
+                            <span className="text-sm">
+                              {/*
+                                Both halves, always. "18 created" alone reads as
+                                a clean load whether or not anything fell over,
+                                so a run that lost fourteen rows looked exactly
+                                like one that lost none.
+                              */}
+                              {record.rowsCreated} created, {record.rowsFailed} failed
+                            </span>
+                          ) : (
+                            <Badge variant="secondary">Not imported</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {record.status === "COMMITTED" ? (
+                            <RecordActions
+                              resource="schools.students"
+                              verbs={[
+                                {
+                                  label: "Undo",
+                                  action: "create",
+                                  tone: "danger",
+                                  loading: rollbackMutation.isPending,
+                                  // Loading money is the bursar's, so undoing it
+                                  // is too — the same split `_guard.ts` makes on
+                                  // the way in.
+                                  unavailable:
+                                    MONEY_ENTITIES.has(record.entityType) &&
+                                    !access.can("schools.fees", "create")
+                                      ? "This is the bursar to undo."
+                                      : undefined,
+                                  confirm: {
+                                    title: `Undo ${record.fileName}`,
+                                    description: `The ${record.rowsCreated} records this import created are removed, newest first. Anything somebody has since added on top of them — a mark, a receipt, a bed — stops the delete rather than being taken with it.`,
+                                    confirmLabel: "Undo this import",
+                                  },
+                                  onSelect: () => rollbackMutation.mutate(record.id),
+                                },
+                              ]}
+                            />
+                          ) : null}
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            </SavingOverlay>
           )}
         </CardContent>
       </Card>

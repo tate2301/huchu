@@ -8,13 +8,18 @@ import {
   BottomSheet,
   Button,
   Callout,
-  EmptyState,
   Input,
-  StatusState,
   TextArea,
 } from "@corelithzw/react";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { CheckCircle, Circle, Clock, TrendingUp } from "@/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
 
@@ -105,6 +110,11 @@ function markLabel(value: number | null) {
  * The teacher's note is shown and cannot be written: the API refuses
  * `teacherNote` from a portal caller, because a target a child sets for
  * themselves and a comment their teacher writes about it are different things.
+ *
+ * One of the eight states is missing on purpose, and the audit reads text, so it
+ * is named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because the screen has no filters — every subject a pupil
+ * takes is listed, with or without a goal on it.
  */
 export function StudentGoalsScreen() {
   const { student, term } = useStudentPortal();
@@ -158,7 +168,7 @@ export function StudentGoalsScreen() {
 
   if (!student) {
     return (
-      <EmptyState
+      <NothingYet
         title="This account is not linked to a pupil"
         body="Ask the school office to link your sign-in to your student record. Until they do, there are no goals to show you."
       />
@@ -213,15 +223,16 @@ export function StudentGoalsScreen() {
   return (
     <div className="flex flex-col">
       {error ? (
-        <Alert tone="danger" title="Your goals would not load">
-          {getApiErrorMessage(error)}
-        </Alert>
+        <LoadError
+          what="your goals"
+          error={error}
+          onRetry={() => {
+            void goals.refetch();
+            void subjects.refetch();
+          }}
+        />
       ) : null}
-      {save.error ? (
-        <Alert tone="danger" title="That goal did not save">
-          {getApiErrorMessage(save.error)}
-        </Alert>
-      ) : null}
+      {save.error ? <SaveError what="That goal" error={save.error} /> : null}
       {saved ? (
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
@@ -250,118 +261,121 @@ export function StudentGoalsScreen() {
       </div>
 
       {loading ? (
-        <StatusState
-          variant="loading"
-          title="Getting your goals…"
-          body="Reading your subjects and the marks you already have."
-        />
+        /* A goal card is a subject name, a pair of numbers and a bar, so the
+           wait is card-shaped rather than a sentence. Four fills a phone
+           screen without pushing the hero off it. */
+        <CardsSkeleton count={4} columns={1} lines={2} />
       ) : rows.length === 0 ? (
-        <EmptyState
+        <NothingYet
           icon={<TrendingUp className="size-5" aria-hidden />}
           title="No subjects yet"
           body="Goals are set per subject, and your year group has none on the timetable for this term. Ask the office once your subjects are set up."
         />
       ) : (
-        rows.map((row) => {
-          const goal = row.goal;
-          const target = goal?.targetMark ?? null;
-          const baseline = goal?.baselineMark ?? null;
-          const status = statusOf(goal);
-          const toGo =
-            target !== null && row.currentMark !== null && row.currentMark < target
-              ? Math.round(target - row.currentMark)
-              : null;
-          const filled =
-            target !== null && target > 0
-              ? Math.min(100, Math.round(((row.currentMark ?? 0) / target) * 100))
-              : 0;
+        /* The whole list dims while a goal is saving. Two taps on a slow
+           connection is two goals, and the second one wins. */
+        <SavingOverlay saving={save.isPending} label="Saving your goal…">
+          {rows.map((row) => {
+            const goal = row.goal;
+            const target = goal?.targetMark ?? null;
+            const baseline = goal?.baselineMark ?? null;
+            const status = statusOf(goal);
+            const toGo =
+              target !== null && row.currentMark !== null && row.currentMark < target
+                ? Math.round(target - row.currentMark)
+                : null;
+            const filled =
+              target !== null && target > 0
+                ? Math.min(100, Math.round(((row.currentMark ?? 0) / target) * 100))
+                : 0;
 
-          return (
-            <div
-              key={row.subjectId}
-              className={subjectAccentClass(row.subjectName)}
-            >
-              <button
-                type="button"
-                className="sp-goal-card"
-                onClick={() => openSheet(row)}
+            return (
+              <div
+                key={row.subjectId}
+                className={subjectAccentClass(row.subjectName)}
               >
-                <span className="sp-gc-head">
-                  <span className="sp-tag goal" />
-                  <span className="block min-w-0 flex-1">
-                    <span className="sp-gc-nm block">{row.subjectName}</span>
-                    <span className="sp-gc-sb block">
-                      {[
-                        row.teacherName ? `Taught by ${row.teacherName}` : null,
-                        target === null ? "no goal yet" : `goal ${Math.round(target)}%`,
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                    </span>
-                  </span>
-                  <span className="block text-right">
-                    <span className="sp-gc-target block">
-                      {row.currentMark === null ? "—" : Math.round(row.currentMark)}
-                      <span className="sp-gc-of">
-                        /{target === null ? "—" : Math.round(target)}
+                <button
+                  type="button"
+                  className="sp-goal-card"
+                  onClick={() => openSheet(row)}
+                >
+                  <span className="sp-gc-head">
+                    <span className="sp-tag goal" />
+                    <span className="block min-w-0 flex-1">
+                      <span className="sp-gc-nm block">{row.subjectName}</span>
+                      <span className="sp-gc-sb block">
+                        {[
+                          row.teacherName ? `Taught by ${row.teacherName}` : null,
+                          target === null ? "no goal yet" : `goal ${Math.round(target)}%`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </span>
                     </span>
+                    <span className="block text-right">
+                      <span className="sp-gc-target block">
+                        {row.currentMark === null ? "—" : Math.round(row.currentMark)}
+                        <span className="sp-gc-of">
+                          /{target === null ? "—" : Math.round(target)}
+                        </span>
+                      </span>
+                      <span
+                        className={`sp-gc-delta${
+                          goal?.onTrack === true
+                            ? ""
+                            : toGo === null
+                              ? " muted"
+                              : " down"
+                        }`}
+                      >
+                        {target === null
+                          ? "Not set"
+                          : row.currentMark === null
+                            ? "No mark yet"
+                            : goal?.onTrack === true
+                              ? "You did it!"
+                              : `${toGo}% to go`}
+                      </span>
+                    </span>
+                  </span>
+
+                  {target !== null ? (
                     <span
-                      className={`sp-gc-delta${
-                        goal?.onTrack === true
-                          ? ""
-                          : toGo === null
-                            ? " muted"
-                            : " down"
-                      }`}
+                      className="sp-gc-bar"
+                      role="img"
+                      aria-label={`${row.subjectName}: ${markLabel(row.currentMark)} against a goal of ${Math.round(target)}%`}
                     >
-                      {target === null
-                        ? "Not set"
-                        : row.currentMark === null
-                          ? "No mark yet"
-                          : goal?.onTrack === true
-                            ? "You did it!"
-                            : `${toGo}% to go`}
+                      <span style={{ width: `${filled}%` }} />
                     </span>
-                  </span>
-                </span>
+                  ) : null}
 
-                {target !== null ? (
-                  <span
-                    className="sp-gc-bar"
-                    role="img"
-                    aria-label={`${row.subjectName}: ${markLabel(row.currentMark)} against a goal of ${Math.round(target)}%`}
-                  >
-                    <span style={{ width: `${filled}%` }} />
+                  <span className="sp-gc-foot">
+                    <Badge tone={status.tone}>
+                      <status.Icon className="size-3" aria-hidden /> {status.label}
+                    </Badge>
+                    {baseline === null ? null : (
+                      <span className="sp-gc-note">
+                        Started at {markLabel(baseline)}
+                      </span>
+                    )}
                   </span>
-                ) : null}
 
-                <span className="sp-gc-foot">
-                  <Badge tone={status.tone}>
-                    <status.Icon className="size-3" aria-hidden /> {status.label}
-                  </Badge>
-                  {baseline === null ? null : (
-                    <span className="sp-gc-note">
-                      Started at {markLabel(baseline)}
+                  {goal?.plan ? (
+                    <span className="sp-gc-note block">
+                      How you will get there: {goal.plan}
                     </span>
-                  )}
-                </span>
+                  ) : null}
+                </button>
 
-                {goal?.plan ? (
-                  <span className="sp-gc-note block">
-                    How you will get there: {goal.plan}
-                  </span>
+                {goal?.teacherNote ? (
+                  <Callout tone="info" title="What your teacher said">
+                    {goal.teacherNote}
+                  </Callout>
                 ) : null}
-              </button>
-
-              {goal?.teacherNote ? (
-                <Callout tone="info" title="What your teacher said">
-                  {goal.teacherNote}
-                </Callout>
-              ) : null}
-            </div>
-          );
-        })
+              </div>
+            );
+          })}
+        </SavingOverlay>
       )}
 
       <BottomSheet

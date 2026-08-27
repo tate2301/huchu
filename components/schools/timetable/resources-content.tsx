@@ -2,9 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import { MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -13,6 +12,14 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+} from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 
@@ -44,7 +51,8 @@ export function TeachingResourcesContent() {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [search, setSearch] = useState("");
   const [formOpen, setFormOpen] = useState(false);
-  const [actionError, setActionError] = useState<string | null>(null);
+  /** The resource the form is amending. Null means it is adding a new one. */
+  const [editing, setEditing] = useState<Resource | null>(null);
   const [draft, setDraft] = useState({
     title: "",
     description: "",
@@ -89,21 +97,32 @@ export function TeachingResourcesContent() {
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
   }, [resources]);
 
-  const createMutation = useMutation({
-    mutationFn: () =>
-      fetchJson("/api/v2/schools/teaching-resources", {
-        method: "POST",
-        body: JSON.stringify({
-          title: draft.title.trim(),
-          description: draft.description.trim() || null,
-          subjectId: draft.subjectId || null,
-          linkUrl: draft.linkUrl.trim() || null,
-          isShared: draft.isShared,
-        }),
-      }),
+  /**
+   * One mutation for both verbs.
+   *
+   * Adding and amending write the same five fields to the same shape, so a
+   * second mutation would only be a second place for the two forms to drift
+   * apart. `editing` decides the method and the URL and nothing else.
+   */
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const body = JSON.stringify({
+        title: draft.title.trim(),
+        description: draft.description.trim() || null,
+        subjectId: draft.subjectId || null,
+        linkUrl: draft.linkUrl.trim() || null,
+        isShared: draft.isShared,
+      });
+      return editing
+        ? fetchJson(`/api/v2/schools/teaching-resources/${editing.id}`, {
+            method: "PATCH",
+            body,
+          })
+        : fetchJson("/api/v2/schools/teaching-resources", { method: "POST", body });
+    },
     onSuccess: () => {
       setFormOpen(false);
-      setActionError(null);
+      setEditing(null);
       setDraft({
         title: "",
         description: "",
@@ -113,22 +132,77 @@ export function TeachingResourcesContent() {
       });
       void queryClient.invalidateQueries({ queryKey: ["schools", "resources"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
+
+  /**
+   * Taking something off the shelf.
+   *
+   * A dead link left sitting there looks usable, and a staff room that opens
+   * two broken worksheets stops trusting the shelf and goes back to memory
+   * sticks. Nothing is written against a resource, so this is a real delete.
+   */
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/teaching-resources/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "resources"] });
+    },
+  });
+
+  function openBlank() {
+    setEditing(null);
+    setDraft({
+      title: "",
+      description: "",
+      subjectId: "",
+      linkUrl: "",
+      isShared: true,
+    });
+    saveMutation.reset();
+    setFormOpen(true);
+  }
+
+  function openFor(resource: Resource) {
+    setEditing(resource);
+    setDraft({
+      title: resource.title,
+      description: resource.description ?? "",
+      subjectId: resource.subject?.id ?? "",
+      // A file-backed resource has no link to edit; the box stays empty and
+      // the PATCH route keeps the file it already has.
+      linkUrl: resource.linkUrl ?? "",
+      isShared: resource.isShared,
+    });
+    saveMutation.reset();
+    setFormOpen(true);
+  }
+
+  const anyFilter = Boolean(subjectFilter || search.trim());
+  const narrowed = [
+    subjects.find((subject) => subject.id === subjectFilter)?.name,
+    search.trim() || null,
+  ].filter((value): value is string => Boolean(value));
 
   return (
     <div className="space-y-4">
       {resourcesQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the shelf</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(resourcesQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="the staff-room shelf"
+          error={resourcesQuery.error}
+          onRetry={() => void resourcesQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not save</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
+      {subjectsQuery.error ? (
+        // Scoped to the subject filter, not the page: the shelf below still
+        // reads fine, it just cannot be narrowed by subject until this lands.
+        <LoadError
+          what="the subject list"
+          error={subjectsQuery.error}
+          onRetry={() => void subjectsQuery.refetch()}
+        />
+      ) : null}
+      {deleteMutation.error ? (
+        <SaveError what="The resource" error={deleteMutation.error} />
       ) : null}
 
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
@@ -155,22 +229,37 @@ export function TeachingResourcesContent() {
             onChange={setSubjectFilter}
           />
         </FilterBar>
-        <Button onClick={() => setFormOpen(true)}>Add a resource</Button>
+        <Button onClick={openBlank}>Add a resource</Button>
       </div>
 
       <p className="text-sm text-muted-foreground">
         {resources.length} resource{resources.length === 1 ? "" : "s"} on the shelf.
       </p>
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {resourcesQuery.isLoading
-              ? "Loading the shelf…"
-              : "Nothing here yet. Add a worksheet or a link."}
-          </MobileListEmpty>
+      {resourcesQuery.isPending ? (
+        // The shelf is a grid of cards, so it gets card placeholders. Table
+        // rows here would be the wrong shape twice over.
+        <CardsSkeleton count={6} columns={2} lines={2} />
+      ) : grouped.length === 0 ? (
+        anyFilter ? (
+          <NothingMatched
+            what="resources"
+            filters={narrowed}
+            onClear={() => {
+              setSubjectFilter("");
+              setSearch("");
+            }}
+          />
         ) : (
-          grouped.map(([subject, rows]) => (
+          <NothingYet
+            title="Nothing on the shelf yet"
+            body="A worksheet, a past paper, a link to a video. Put one up and every teacher in the school can pick it up next term."
+            action={<Button onClick={openBlank}>Add a resource</Button>}
+          />
+        )
+      ) : (
+        <MobileList>
+          {grouped.map(([subject, rows]) => (
             <div key={subject}>
               <MobileListSectionHeader>{subject}</MobileListSectionHeader>
               {rows.map((resource) => (
@@ -178,6 +267,33 @@ export function TeachingResourcesContent() {
                   key={resource.id}
                   static
                   title={resource.title}
+                  trailing={
+                    <RecordActions
+                      resource="schools.academics"
+                      verbs={[
+                        {
+                          label: "Edit",
+                          action: "edit",
+                          onSelect: () => openFor(resource),
+                        },
+                        {
+                          label: "Take it off",
+                          action: "archive",
+                          tone: "danger",
+                          loading:
+                            deleteMutation.isPending &&
+                            deleteMutation.variables === resource.id,
+                          onSelect: () => deleteMutation.mutate(resource.id),
+                          confirm: {
+                            title: `Take “${resource.title}” off the shelf?`,
+                            description:
+                              "It goes for everybody who can see the shelf. Nothing else in the school points at a resource, so this cannot be undone.",
+                            confirmLabel: "Take it off",
+                          },
+                        },
+                      ]}
+                    />
+                  }
                   subtitle={
                     <span className="mt-1 flex flex-wrap items-center gap-2">
                       <span>
@@ -206,20 +322,22 @@ export function TeachingResourcesContent() {
                 />
               ))}
             </div>
-          ))
-        )}
-      </MobileList>
+          ))}
+        </MobileList>
+      )}
 
       <RecordDialog
         open={formOpen}
         onOpenChange={setFormOpen}
         title="Add a resource"
         size="md"
-        errors={createMutation.isError && actionError ? [actionError] : undefined}
+        errors={
+          saveMutation.error ? [getApiErrorMessage(saveMutation.error)] : undefined
+        }
         onSubmit={(event) => {
           event.preventDefault();
-          if (draft.title.trim() && draft.linkUrl.trim() && !createMutation.isPending) {
-            createMutation.mutate();
+          if (draft.title.trim() && draft.linkUrl.trim() && !saveMutation.isPending) {
+            saveMutation.mutate();
           }
         }}
         footer={
@@ -230,10 +348,10 @@ export function TeachingResourcesContent() {
             <Button
               type="submit"
               disabled={
-                !draft.title.trim() || !draft.linkUrl.trim() || createMutation.isPending
+                !draft.title.trim() || !draft.linkUrl.trim() || saveMutation.isPending
               }
             >
-              {createMutation.isPending ? "Saving…" : "Add it"}
+              {saveMutation.isPending ? "Saving…" : "Add it"}
             </Button>
           </div>
         }

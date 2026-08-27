@@ -1,12 +1,30 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  WORK_ORDER_INVOICE_CLAIM_KEY,
+  WORK_ORDER_INVOICE_KEY,
   allowedTransitions,
   canTransition,
+  checklistEditRefusal,
+  clearInvoiceClaim,
   completionBlockers,
   completionPercent,
+  isBillingRefusal,
+  isClaimHeld,
   isOverdueToStart,
+  parseWorkOrderStatuses,
   quoteLinesToWorkItems,
+  readInvoiceClaim,
+  readInvoiceLink,
+  transitionOutcome,
+  invoiceNoteFor,
+  invoiceNotePrefix,
+  workOrderCounts,
+  workOrderCountsFromGroups,
+  workOrderInvoiceBlockers,
+  workOrderInvoiceLines,
+  writeInvoiceClaim,
+  writeInvoiceLink,
 } from "./work-orders";
 
 describe("canTransition", () => {
@@ -138,5 +156,358 @@ describe("quoteLinesToWorkItems", () => {
       { description: "Delivery", quantity: 0 },
     ]);
     expect(items).toEqual([{ description: "Panel", quantity: 4 }]);
+  });
+});
+
+describe("transitionOutcome", () => {
+  it("treats a repeated action as already done rather than as a refusal", () => {
+    // A crew double-tapping Start on a bad signal should get their job back.
+    expect(transitionOutcome("IN_PROGRESS", "IN_PROGRESS")).toBe("SAME");
+    expect(transitionOutcome("COMPLETED", "COMPLETED")).toBe("SAME");
+  });
+
+  it("still refuses a move the machine doesn't allow", () => {
+    expect(transitionOutcome("DRAFT", "COMPLETED")).toBe("REFUSED");
+    expect(transitionOutcome("COMPLETED", "IN_PROGRESS")).toBe("REFUSED");
+  });
+
+  it("allows the ordinary moves", () => {
+    expect(transitionOutcome("SCHEDULED", "IN_PROGRESS")).toBe("ALLOWED");
+    expect(transitionOutcome("BLOCKED", "SCHEDULED")).toBe("ALLOWED");
+  });
+});
+
+describe("workOrderCounts", () => {
+  const now = new Date("2026-03-10T14:00:00Z");
+
+  it("counts a draft as open, because it is work somebody wrote down", () => {
+    const counts = workOrderCounts(
+      [
+        { status: "DRAFT", scheduledStart: null },
+        { status: "COMPLETED", scheduledStart: null },
+        { status: "CANCELLED", scheduledStart: null },
+      ],
+      now,
+    );
+    expect(counts.open).toBe(1);
+    expect(counts.total).toBe(3);
+  });
+
+  it("counts an overdue job in both its status and the overdue tally", () => {
+    const counts = workOrderCounts(
+      [
+        { status: "SCHEDULED", scheduledStart: "2026-03-09T09:00:00Z" },
+        { status: "SCHEDULED", scheduledStart: "2026-03-11T09:00:00Z" },
+      ],
+      now,
+    );
+    expect(counts.scheduled).toBe(2);
+    expect(counts.overdue).toBe(1);
+  });
+
+  it("is all zeroes for a record with no jobs", () => {
+    expect(workOrderCounts([], now)).toMatchObject({ total: 0, open: 0, overdue: 0 });
+  });
+});
+
+describe("workOrderInvoiceLines", () => {
+  const quote = [
+    { description: "Panel", unitPrice: 120, taxRate: 15 },
+    { description: "Cabling", unitPrice: 40 },
+  ];
+
+  it("bills what was done, not what was ordered", () => {
+    const { lines } = workOrderInvoiceLines(
+      [{ description: "Panel", quantity: 4, completedQuantity: 3 }],
+      quote,
+    );
+    expect(lines).toEqual([{ description: "Panel", quantity: 3, unitPrice: 120, taxRate: 15 }]);
+  });
+
+  it("won't bill more than was agreed even when the crew reports more", () => {
+    // Extra work needs a quote of its own before it becomes money owed.
+    const { lines } = workOrderInvoiceLines(
+      [{ description: "Panel", quantity: 4, completedQuantity: 6 }],
+      quote,
+    );
+    expect(lines[0].quantity).toBe(4);
+  });
+
+  it("leaves off anything nobody got to", () => {
+    const { lines } = workOrderInvoiceLines(
+      [
+        { description: "Panel", quantity: 4, completedQuantity: 4 },
+        { description: "Cabling", quantity: 2, completedQuantity: 0 },
+      ],
+      quote,
+    );
+    expect(lines).toHaveLength(1);
+    expect(lines[0].description).toBe("Panel");
+  });
+
+  it("defaults a quote line with no tax rate to none", () => {
+    const { lines } = workOrderInvoiceLines(
+      [{ description: "Cabling", quantity: 2, completedQuantity: 2 }],
+      quote,
+    );
+    expect(lines[0]).toMatchObject({ unitPrice: 40, taxRate: 0 });
+  });
+
+  it("matches a description regardless of case and stray spacing", () => {
+    const { lines, unpriced } = workOrderInvoiceLines(
+      [{ description: "  panel  ", quantity: 1, completedQuantity: 1 }],
+      quote,
+    );
+    expect(unpriced).toEqual([]);
+    expect(lines[0].unitPrice).toBe(120);
+  });
+
+  it("names work it can't price rather than billing it at nothing", () => {
+    // A zero line disappears into the total as a silent discount.
+    const { lines, unpriced } = workOrderInvoiceLines(
+      [{ description: "Made good the plaster", quantity: 1, completedQuantity: 1 }],
+      quote,
+    );
+    expect(lines).toEqual([]);
+    expect(unpriced).toEqual(["Made good the plaster"]);
+  });
+
+  it("takes the first price when a quote lists the same thing twice", () => {
+    const { lines } = workOrderInvoiceLines(
+      [{ description: "Panel", quantity: 1, completedQuantity: 1 }],
+      [
+        { description: "Panel", unitPrice: 120 },
+        { description: "Panel", unitPrice: 95 },
+      ],
+    );
+    expect(lines[0].unitPrice).toBe(120);
+  });
+
+  it("prices nothing when there is no quote behind the job", () => {
+    const { lines, unpriced } = workOrderInvoiceLines([
+      { description: "Panel", quantity: 1, completedQuantity: 1 },
+    ]);
+    expect(lines).toEqual([]);
+    expect(unpriced).toEqual(["Panel"]);
+  });
+});
+
+describe("workOrderInvoiceBlockers", () => {
+  const done = { status: "COMPLETED" as const, dealId: "deal-1", items: [{ quantity: 1, completedQuantity: 1 }] };
+
+  it("lets a completed job through", () => {
+    expect(workOrderInvoiceBlockers(done)).toEqual([]);
+  });
+
+  it("refuses a job that isn't finished", () => {
+    expect(workOrderInvoiceBlockers({ ...done, status: "IN_PROGRESS" })).toContain(
+      "Only a completed job can be invoiced",
+    );
+  });
+
+  it("refuses a job with nobody to bill", () => {
+    expect(workOrderInvoiceBlockers({ ...done, dealId: null })[0]).toMatch(/nothing to bill it against/);
+  });
+
+  it("refuses a job where nothing was actually done", () => {
+    expect(
+      workOrderInvoiceBlockers({ ...done, items: [{ quantity: 3, completedQuantity: 0 }] }),
+    ).toContain("Nothing on this job was completed, so there is nothing to bill");
+  });
+
+  it("gives every reason at once rather than one at a time", () => {
+    expect(workOrderInvoiceBlockers({ status: "DRAFT", dealId: null, items: [] })).toHaveLength(3);
+  });
+});
+
+describe("the job's invoice link", () => {
+  const link = {
+    documentId: "doc-1",
+    invoiceId: "inv-1",
+    invoiceNumber: "INV-0007",
+    invoicedAt: "2026-03-10T14:00:00.000Z",
+  };
+
+  it("survives a round trip through customFields", () => {
+    expect(readInvoiceLink(writeInvoiceLink(null, link))).toEqual(link);
+  });
+
+  it("leaves the customer's own fields alone", () => {
+    const stored = writeInvoiceLink({ roof_type: "tile" }, link);
+    expect(stored.roof_type).toBe("tile");
+    expect(stored[WORK_ORDER_INVOICE_KEY]).toEqual(link);
+  });
+
+  it("reads nothing out of a job that has never been invoiced", () => {
+    expect(readInvoiceLink(null)).toBeNull();
+    expect(readInvoiceLink({})).toBeNull();
+    expect(readInvoiceLink({ roof_type: "tile" })).toBeNull();
+  });
+
+  it("ignores a mangled link rather than trusting half of one", () => {
+    expect(readInvoiceLink({ [WORK_ORDER_INVOICE_KEY]: { invoiceId: "inv-1" } })).toBeNull();
+    expect(readInvoiceLink({ [WORK_ORDER_INVOICE_KEY]: "INV-0007" })).toBeNull();
+  });
+});
+
+
+describe("checklistEditRefusal", () => {
+  it("lets a job that nobody is working on be rewritten", () => {
+    expect(checklistEditRefusal("DRAFT")).toBeNull();
+    expect(checklistEditRefusal("SCHEDULED")).toBeNull();
+    // Blocked is the way to correct a list mid-job: stop, fix, book back in.
+    expect(checklistEditRefusal("BLOCKED")).toBeNull();
+  });
+
+  it("protects a crew's ticks while they are on site", () => {
+    expect(checklistEditRefusal("IN_PROGRESS")).toMatch(/on site/i);
+  });
+
+  it("treats a closed job's checklist as the record it is", () => {
+    expect(checklistEditRefusal("COMPLETED")).toMatch(/signed off/i);
+    expect(checklistEditRefusal("CANCELLED")).toMatch(/cancelled/i);
+  });
+});
+
+describe("parseWorkOrderStatuses", () => {
+  it("reads a multi-select back off the query string", () => {
+    expect(parseWorkOrderStatuses("BLOCKED,IN_PROGRESS")).toEqual(["BLOCKED", "IN_PROGRESS"]);
+  });
+
+  it("is forgiving about spacing and case", () => {
+    expect(parseWorkOrderStatuses(" blocked , DRAFT ")).toEqual(["BLOCKED", "DRAFT"]);
+  });
+
+  it("drops what it cannot name rather than refusing the whole request", () => {
+    // A stale bookmark should narrow to what it can still name, not 400.
+    expect(parseWorkOrderStatuses("BLOCKED,PENDING")).toEqual(["BLOCKED"]);
+    expect(parseWorkOrderStatuses("")).toEqual([]);
+    expect(parseWorkOrderStatuses(null)).toEqual([]);
+  });
+
+  it("asks for each status once", () => {
+    expect(parseWorkOrderStatuses("DRAFT,draft")).toEqual(["DRAFT"]);
+  });
+});
+
+describe("the invoice claim", () => {
+  const now = new Date("2026-03-10T14:00:00.000Z");
+  const claim = { claimedAt: now.toISOString(), userId: "user-1" };
+
+  it("survives a round trip and leaves the customer's fields alone", () => {
+    const stored = writeInvoiceClaim({ roof_type: "tile" }, claim);
+    expect(stored.roof_type).toBe("tile");
+    expect(readInvoiceClaim(stored)).toEqual(claim);
+  });
+
+  it("stands while it is fresh and stops standing once it is stale", () => {
+    expect(isClaimHeld(claim, new Date(now.getTime() + 30_000))).toBe(true);
+    // A process that died mid-bill must not make a job unbillable forever.
+    expect(isClaimHeld(claim, new Date(now.getTime() + 5 * 60_000))).toBe(false);
+  });
+
+  it("counts a job with no claim, and a mangled one, as unclaimed", () => {
+    expect(isClaimHeld(readInvoiceClaim(null), now)).toBe(false);
+    expect(readInvoiceClaim({ [WORK_ORDER_INVOICE_CLAIM_KEY]: { userId: "u" } })).toBeNull();
+    expect(isClaimHeld({ claimedAt: "not a date", userId: null }, now)).toBe(false);
+  });
+
+  it("is lifted by the link it was holding the job for", () => {
+    const stored = writeInvoiceLink(writeInvoiceClaim(null, claim), {
+      documentId: "doc-1",
+      invoiceId: "inv-1",
+      invoiceNumber: "INV-0007",
+      invoicedAt: now.toISOString(),
+    });
+    expect(readInvoiceClaim(stored)).toBeNull();
+    expect(readInvoiceLink(stored)).not.toBeNull();
+  });
+
+  it("is lifted on its own when nothing was billed after all", () => {
+    const stored = clearInvoiceClaim(writeInvoiceClaim({ roof_type: "tile" }, claim));
+    expect(readInvoiceClaim(stored)).toBeNull();
+    expect(stored.roof_type).toBe("tile");
+  });
+});
+
+describe("isBillingRefusal", () => {
+  it("recognises what the bridge says on purpose", () => {
+    expect(isBillingRefusal("This deal has no company; attach one before quoting or invoicing")).toBe(true);
+    expect(isBillingRefusal("Invoice needs at least one line")).toBe(true);
+  });
+
+  it("does not forward raw database text to a browser", () => {
+    expect(
+      isBillingRefusal('Invalid `prisma.salesInvoice.create()` invocation: Unique constraint failed'),
+    ).toBe(false);
+    expect(isBillingRefusal(undefined)).toBe(false);
+    expect(isBillingRefusal("")).toBe(false);
+  });
+});
+
+describe("workOrderCountsFromGroups", () => {
+  const groups = [
+    { status: "DRAFT" as const, count: 2 },
+    { status: "SCHEDULED" as const, count: 40 },
+    { status: "IN_PROGRESS" as const, count: 3 },
+    { status: "BLOCKED" as const, count: 1 },
+    { status: "COMPLETED" as const, count: 900 },
+    { status: "CANCELLED" as const, count: 7 },
+  ];
+
+  it("totals every group, not the ones that fit on a page", () => {
+    const counts = workOrderCountsFromGroups(groups, 0);
+    expect(counts.total).toBe(953);
+    expect(counts.completed).toBe(900);
+  });
+
+  it("counts a draft as open, the way the row-based tally does", () => {
+    // 2 draft + 40 scheduled + 3 on site + 1 blocked. The two tallies have to
+    // agree or a badge would change meaning the day the list grew past a page.
+    expect(workOrderCountsFromGroups(groups, 0).open).toBe(46);
+  });
+
+  it("takes overdue as given — it is a question about the clock", () => {
+    expect(workOrderCountsFromGroups(groups, 12).overdue).toBe(12);
+  });
+
+  it("agrees with workOrderCounts over the same jobs", () => {
+    const now = new Date("2026-08-27T09:00:00.000Z");
+    const rows = [
+      { status: "SCHEDULED" as const, scheduledStart: "2026-08-01T08:00:00.000Z" },
+      { status: "SCHEDULED" as const, scheduledStart: "2026-09-30T08:00:00.000Z" },
+      { status: "COMPLETED" as const, scheduledStart: null },
+    ];
+    const fromRows = workOrderCounts(rows, now);
+    const fromGroups = workOrderCountsFromGroups(
+      [
+        { status: "SCHEDULED", count: 2 },
+        { status: "COMPLETED", count: 1 },
+      ],
+      fromRows.overdue,
+    );
+    expect(fromGroups).toEqual(fromRows);
+  });
+});
+
+describe("the invoice note", () => {
+  it("leads with the job's number", () => {
+    expect(invoiceNoteFor("WO-0007", "Corelith rollout")).toBe(
+      "Work order WO-0007: Corelith rollout",
+    );
+  });
+
+  it("starts with the prefix the recovery read searches on", () => {
+    // This is the whole point of the pair: the note is written inside the
+    // accounting transaction, and it is what a retry finds after a crash
+    // between the invoice committing and its link being written. If these two
+    // ever disagree, the customer gets billed twice.
+    const note = invoiceNoteFor("WO-0042", "Anything the caller wanted to say");
+    expect(note.startsWith(invoiceNotePrefix("WO-0042"))).toBe(true);
+  });
+
+  it("does not match a different job's number", () => {
+    const note = invoiceNoteFor("WO-0042", "Msasa callout");
+    expect(note.startsWith(invoiceNotePrefix("WO-0004"))).toBe(false);
   });
 });

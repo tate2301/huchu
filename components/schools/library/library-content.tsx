@@ -2,14 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  TableControls,
+  TableSearch,
+} from "@/components/schools/common/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -17,20 +20,18 @@ import {
 } from "@/components/schools/common/record-actions";
 import {
   LoadError,
-  NothingLeftToDo,
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
-import { fetchSchoolsClasses, fetchSchoolsStudents } from "@/lib/schools/admin-v2";
-import { BookCover } from "./book-cover";
+import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
+import { BookCover } from "@/components/schools/library/book-cover";
+import { LibraryViews } from "@/components/schools/library/library-views";
 
 type Copy = {
   id: string;
@@ -56,49 +57,56 @@ type Book = {
 
 type Loan = {
   id: string;
-  borrowedAt: string;
   dueAt: string;
-  renewals: number;
   isOverdue: boolean;
-  fineIfReturnedToday: number;
-  copy: { id: string; copyCode: string; book: { id: string; title: string } };
-  student: {
-    id: string;
-    studentNo: string;
-    firstName: string;
-    lastName: string;
-    currentClass: { id: string; name: string } | null;
-  };
 };
 
-type View = "shelves" | "out";
+/**
+ * How the canvas writes a title with its author on the opened book's header:
+ * "Things Fall Apart · Chinua Achebe". A title with nobody credited keeps the
+ * separator off rather than printing a trailing middot into a gap.
+ */
+function bookLabel(book: { title: string; author: string | null }) {
+  return book.author ? `${book.title} · ${book.author}` : book.title;
+}
 
 /**
- * The library, from the issue desk.
+ * The line under a cover, in the canvas's words: "11 of 14 in · AFR 823.9" —
+ * how many are on the shelf out of how many exist, then where to walk to. The
+ * count leads because that is the question asked at the counter; the shelf mark
+ * follows because it is the answer to the next one.
+ */
+function shelfLine(book: Book) {
+  const out = book.copies.filter((copy) => copy.loans.length > 0).length;
+  const total = book.copies.length;
+  return `${total - out} of ${total} in${book.shelfMark ? ` · ${book.shelfMark}` : ""}`;
+}
+
+/**
+ * The shelves — the catalogue half of the library.
  *
- * Two views because a librarian has two jobs. "Shelves" is the catalogue with
- * every copy and who has it — built from the copies outward, so a copy on the
- * shelf is a row you can lend rather than an absence. "Out" is the loan
- * register, which opens on what is overdue, because that is the list somebody
- * works through on a Monday.
+ * The library has two halves and they are now two routes rather than two pieces
+ * of view state: this one, the catalogue, and `/schools/library/loans`, the
+ * register of what is out. A librarian working the overdue list wants to send
+ * somebody that list, and a view living in `useState` has no address to send.
+ * `LibraryViews` keeps them reading as siblings — one segmented strip in the
+ * control row, exactly where the canvas draws it.
  *
- * What was missing was the catalogue itself: the library could lend a book and
- * could not add one, correct a misspelt author, or withdraw a title that fell
- * apart. Those three verbs are what turn this from a loans screen into a
- * library.
+ * The catalogue is built from the copies outward, so a copy on the shelf is a
+ * row you can lend rather than an absence. It is a grid of covers and not a
+ * table because a librarian looking for a title recognises the spine before the
+ * words; the copies of one book open underneath it, since the desk works a book
+ * at a time.
  *
- * "Nothing is late" is good news, so it is a `NothingLeftToDo` — not an alert,
- * and never a create button, which would answer a question nobody asked.
+ * Add, edit, withdraw. Before these the library could lend a book and could not
+ * catalogue one, correct a misspelt author, or retire a title that fell apart.
  */
 export function LibraryContent() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<View>("shelves");
   const [search, setSearch] = useState("");
   const [shelfFilter, setShelfFilter] = useState("");
   const [genreFilter, setGenreFilter] = useState("");
   const [copyFilter, setCopyFilter] = useState("");
-  const [classFilter, setClassFilter] = useState("");
-  const [overdueOnly, setOverdueOnly] = useState(true);
   const [lendingCopy, setLendingCopy] = useState<string | null>(null);
   /** Which cover has been opened. The desk works one book at a time. */
   const [openBook, setOpenBook] = useState<string | null>(null);
@@ -108,13 +116,12 @@ export function LibraryContent() {
   const [note, setNote] = useState<string | null>(null);
 
   const libraryQuery = useQuery({
-    queryKey: ["schools", "library", search, overdueOnly],
+    queryKey: ["schools", "library", "shelves", search],
     queryFn: () =>
       fetchJson<{ books: Book[]; loans: Loan[] }>(
-        `/api/v2/schools/library?${new URLSearchParams({
-          ...(search.trim() ? { search: search.trim() } : {}),
-          ...(overdueOnly ? { overdueOnly: "true" } : {}),
-        }).toString()}`,
+        `/api/v2/schools/library?${new URLSearchParams(
+          search.trim() ? { search: search.trim() } : {},
+        ).toString()}`,
       ),
   });
 
@@ -124,18 +131,18 @@ export function LibraryContent() {
     enabled: lendingCopy !== null,
   });
 
-  const classesQuery = useQuery({
-    queryKey: ["schools", "grades"],
-    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
-  });
-
   const allBooks = useMemo(() => libraryQuery.data?.books ?? [], [libraryQuery.data]);
   const allLoans = useMemo(() => libraryQuery.data?.loans ?? [], [libraryQuery.data]);
-  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
 
   const shelves = useMemo(
     () =>
-      [...new Set(allBooks.map((book) => book.shelfMark).filter((mark): mark is string => Boolean(mark)))]
+      [
+        ...new Set(
+          allBooks
+            .map((book) => book.shelfMark)
+            .filter((mark): mark is string => Boolean(mark)),
+        ),
+      ]
         .sort()
         .map((mark) => ({ value: mark, label: mark })),
     [allBooks],
@@ -143,7 +150,13 @@ export function LibraryContent() {
 
   const genres = useMemo(
     () =>
-      [...new Set(allBooks.map((book) => book.category).filter((genre): genre is string => Boolean(genre)))]
+      [
+        ...new Set(
+          allBooks
+            .map((book) => book.category)
+            .filter((genre): genre is string => Boolean(genre)),
+        ),
+      ]
         .sort()
         .map((genre) => ({ value: genre, label: genre })),
     [allBooks],
@@ -160,16 +173,6 @@ export function LibraryContent() {
         return true;
       }),
     [allBooks, shelfFilter, genreFilter, copyFilter],
-  );
-
-  // Year group is not a query the library endpoint takes — it filters loans by
-  // reader, not by class — so it is applied here against the borrower's class.
-  const loans = useMemo(
-    () =>
-      allLoans.filter(
-        (loan) => !classFilter || loan.student.currentClass?.id === classFilter,
-      ),
-    [allLoans, classFilter],
   );
 
   const deskMutation = useMutation({
@@ -203,8 +206,7 @@ export function LibraryContent() {
     },
   });
 
-  const overdue = loans.filter((loan) => loan.isOverdue);
-  const finesToday = overdue.reduce((sum, loan) => sum + loan.fineIfReturnedToday, 0);
+  const overdue = allLoans.filter((loan) => loan.isOverdue);
   const onShelf = allBooks.reduce(
     (sum, book) => sum + book.copies.filter((copy) => copy.loans.length === 0).length,
     0,
@@ -212,24 +214,24 @@ export function LibraryContent() {
   const copies = allBooks.reduce((sum, book) => sum + book.copies.length, 0);
 
   const desk = deskMutation.isPending;
+  const anyFilter = Boolean(shelfFilter || genreFilter || copyFilter || search.trim());
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Library"
-        primaryAction={
-          <CreateButton
-            resource="schools.academics"
-            label="Add a book"
-            onSelect={() => setAddingBook(true)}
-          />
-        }
-      />
+      <PageChrome title="Library">
+        <CreateButton
+          resource="schools.academics"
+          label="Add a book"
+          onSelect={() => setAddingBook(true)}
+        />
+      </PageChrome>
 
+      {/* State, never the page's own name: how much the school owns, how much
+          of it is somewhere else, and how much of that is late. */}
       <PageBand
         chips={[
-          { label: "Titles", value: allBooks.length },
-          { label: "On the shelf", value: onShelf },
+          { label: "Copies", value: copies.toLocaleString() },
+          { label: "On the shelf", value: onShelf.toLocaleString() },
           { label: "Out", value: allLoans.length, tone: "brand" },
           {
             label: "Late",
@@ -258,384 +260,251 @@ export function LibraryContent() {
         </Alert>
       ) : null}
 
-      <VerticalDataViews
-        items={[
-          { id: "shelves", label: "Shelves", count: allBooks.length },
-          { id: "out", label: "Out", count: allLoans.length },
-        ]}
-        value={view}
-        onValueChange={(value) => setView(value as View)}
-        railLabel="Library views"
-      >
-        {view === "shelves" ? (
-          <div className="space-y-4">
-            <FilterBar>
-              <div className="min-w-0 flex-1 basis-[220px] sm:max-w-[320px]">
-                <Label htmlFor="library-search" className="text-sm text-muted-foreground">
-                  Find a book
-                </Label>
-                <Input
-                  id="library-search"
-                  value={search}
-                  placeholder="Title, author or ISBN"
-                  onChange={(event) => setSearch(event.target.value)}
-                />
-              </div>
-              <FilterSelect
-                label="Shelf"
-                allLabel="Every shelf"
-                value={shelfFilter}
-                options={shelves}
-                onChange={setShelfFilter}
-              />
-              <FilterSelect
-                label="Genre"
-                allLabel="Every genre"
-                value={genreFilter}
-                options={genres}
-                onChange={setGenreFilter}
-              />
-              <FilterSelect
-                label="Copies"
-                allLabel="Every copy"
-                value={copyFilter}
-                options={[
-                  { value: "in", label: "Something on the shelf" },
-                  { value: "out", label: "Something out" },
-                ]}
-                onChange={setCopyFilter}
-              />
-            </FilterBar>
+      <TableControls
+        tabs={<LibraryViews shelves={allBooks.length} out={allLoans.length} />}
+        search={
+          <TableSearch
+            label="Find a book"
+            placeholder="Title, author or ISBN"
+            value={search}
+            onChange={setSearch}
+          />
+        }
+        filters={
+          <>
+            <FilterSelect
+              label="Shelf"
+              allLabel="Every shelf"
+              value={shelfFilter}
+              options={shelves}
+              onChange={setShelfFilter}
+            />
+            <FilterSelect
+              label="Genre"
+              allLabel="Every genre"
+              value={genreFilter}
+              options={genres}
+              onChange={setGenreFilter}
+            />
+            <FilterSelect
+              label="Copies"
+              allLabel="Every copy"
+              value={copyFilter}
+              options={[
+                { value: "in", label: "Something on the shelf" },
+                { value: "out", label: "Something out" },
+              ]}
+              onChange={setCopyFilter}
+            />
+          </>
+        }
+      />
 
-            <p className="text-sm text-muted-foreground">
-              {books.length} title{books.length === 1 ? "" : "s"} · {onShelf} cop
-              {onShelf === 1 ? "y" : "ies"} on the shelf of {copies}
-            </p>
+      <p className="text-sm text-muted-foreground">
+        {books.length.toLocaleString()} title{books.length === 1 ? "" : "s"} ·{" "}
+        {onShelf.toLocaleString()} cop{onShelf === 1 ? "y" : "ies"} on the shelf
+      </p>
 
-            {libraryQuery.isLoading ? (
-              <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }]} rows={6} />
-            ) : books.length === 0 ? (
-              allBooks.length === 0 ? (
-                <NothingYet
-                  title="Nothing is catalogued yet"
-                  body="A title and its accession numbers go in together — a title with no copies is an entry nobody can borrow."
-                  action={
-                    <CreateButton
-                      resource="schools.academics"
-                      label="Add a book"
-                      onSelect={() => setAddingBook(true)}
-                    />
-                  }
-                />
-              ) : (
-                <NothingMatched
-                  what="books"
-                  filters={[shelfFilter, genreFilter, search.trim()].filter(Boolean)}
-                  onClear={() => {
+      {libraryQuery.isLoading ? (
+        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }]} rows={6} />
+      ) : books.length === 0 ? (
+        allBooks.length === 0 ? (
+          <NothingYet
+            title="Nothing is catalogued yet"
+            body="A title and its accession numbers go in together — a title with no copies is an entry nobody can borrow."
+            action={
+              <CreateButton
+                resource="schools.academics"
+                label="Add a book"
+                onSelect={() => setAddingBook(true)}
+              />
+            }
+          />
+        ) : (
+          <NothingMatched
+            what="books"
+            filters={[shelfFilter, genreFilter, search.trim()].filter(Boolean)}
+            onClear={
+              anyFilter
+                ? () => {
                     setShelfFilter("");
                     setGenreFilter("");
                     setCopyFilter("");
                     setSearch("");
-                  }}
-                />
-              )
-            ) : (
-              <>
-                {/* A shelf, not a spreadsheet. A librarian looking for a title
-                    recognises its cover first, so the catalogue is a grid and
-                    the copies of one book open underneath it — the desk works
-                    a book at a time. */}
-                <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
-                  {books.map((book) => {
-                    const total = book.copies.length;
-                    const out = book.copies.filter((copy) => copy.loans.length > 0).length;
-                    const isOpen = openBook === book.id;
-                    return (
-                      <li key={book.id}>
-                        <button
-                          type="button"
-                          aria-expanded={isOpen}
-                          onClick={() => {
-                            setOpenBook(isOpen ? null : book.id);
-                            setLendingCopy(null);
-                          }}
-                          className={[
-                            "flex w-full flex-col gap-2 rounded-[var(--radius-md)] border p-2 text-left",
-                            isOpen
-                              ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)]"
-                              : "border-transparent hover:bg-[color:var(--surface-muted)]",
-                          ].join(" ")}
-                        >
-                          <BookCover title={book.title} author={book.author} size="sm" />
-                          <span className="block truncate text-[length:var(--type-caption)] font-medium text-[color:var(--text-strong)]">
-                            {book.title}
-                          </span>
-                          <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                            {total - out} of {total} in
-                            {book.shelfMark ? ` · ${book.shelfMark}` : ""}
-                          </span>
-                        </button>
-                      </li>
-                    );
-                  })}
-                </ul>
+                  }
+                : undefined
+            }
+          />
+        )
+      ) : (
+        <>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+            {books.map((book) => {
+              const isOpen = openBook === book.id;
+              return (
+                <li key={book.id}>
+                  <button
+                    type="button"
+                    aria-expanded={isOpen}
+                    onClick={() => {
+                      setOpenBook(isOpen ? null : book.id);
+                      setLendingCopy(null);
+                    }}
+                    className={[
+                      "flex w-full flex-col gap-2 rounded-[var(--radius-md)] border p-2 text-left",
+                      isOpen
+                        ? "border-[color:var(--brand)] bg-[color:var(--brand-soft)]"
+                        : "border-transparent hover:bg-[color:var(--surface-muted)]",
+                    ].join(" ")}
+                  >
+                    <BookCover title={book.title} author={book.author} size="sm" />
+                    <span className="block truncate text-[length:var(--type-caption)] font-medium text-[color:var(--text-strong)]">
+                      {book.title}
+                    </span>
+                    <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                      {shelfLine(book)}
+                    </span>
+                  </button>
+                </li>
+              );
+            })}
+          </ul>
 
-                {openBook
-                  ? books
-                      .filter((book) => book.id === openBook)
-                      .map((book) => (
-                        <div
-                          key={book.id}
-                          className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
-                        >
-                          <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-3 py-2">
-                            <span className="font-medium text-[color:var(--text-strong)]">
-                              {book.title}
-                              {book.author ? ` · ${book.author}` : ""}
-                            </span>
-                            <span className="ml-auto">
+          {openBook
+            ? books
+                .filter((book) => book.id === openBook)
+                .map((book) => (
+                  <div
+                    key={book.id}
+                    className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-3 py-2">
+                      <span className="font-medium text-[color:var(--text-strong)]">
+                        {bookLabel(book)}
+                      </span>
+                      <span className="ml-auto">
+                        <RecordActions
+                          resource="schools.academics"
+                          verbs={[
+                            {
+                              label: "Edit",
+                              action: "edit",
+                              onSelect: () => setEditingBook(book),
+                            },
+                            {
+                              label: "Withdraw",
+                              action: "archive",
+                              tone: "danger",
+                              loading: withdrawMutation.isPending,
+                              unavailable: book.copies.some(
+                                (copy) => copy.loans.length > 0,
+                              )
+                                ? "A copy is still out. Take it back first."
+                                : undefined,
+                              confirm: {
+                                title: `Withdraw ${book.title}`,
+                                description: `All ${book.copies.length} cop${book.copies.length === 1 ? "y comes" : "ies come"} off the shelf and the title stops being lendable. The loan history stays, so the school can still answer who had it last.`,
+                                confirmLabel: "Withdraw it",
+                              },
+                              onSelect: () => withdrawMutation.mutate(book.id),
+                            },
+                          ]}
+                        />
+                      </span>
+                    </div>
+                    <ul className="divide-y divide-[color:var(--border-subtle)]">
+                      {book.copies.map((copy) => {
+                        const loan = copy.loans[0] ?? null;
+                        const verbs: RecordVerb[] = loan
+                          ? [
+                              {
+                                label: "Take it back",
+                                action: "edit",
+                                loading: desk,
+                                onSelect: () =>
+                                  deskMutation.mutate({
+                                    action: "return",
+                                    loanId: loan.id,
+                                  }),
+                              },
+                            ]
+                          : [
+                              {
+                                label: "Lend it",
+                                action: "edit",
+                                onSelect: () => {
+                                  setLendingCopy(copy.id);
+                                  setReader("");
+                                },
+                              },
+                            ];
+                        return (
+                          <li key={copy.id} className="px-3 py-2">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)]">
+                                {copy.copyCode}
+                              </span>
+                              <span className="min-w-0 flex-1 truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                                {loan
+                                  ? `${loan.student.lastName}, ${loan.student.firstName} · back by ${loan.dueAt.slice(0, 10)}`
+                                  : (book.shelfMark ?? "On the shelf")}
+                              </span>
+                              <Badge tone={loan ? "brand" : "success"}>
+                                {loan ? "Out" : "In"}
+                              </Badge>
                               <RecordActions
                                 resource="schools.academics"
-                                verbs={[
-                                  {
-                                    label: "Edit",
-                                    action: "edit",
-                                    onSelect: () => setEditingBook(book),
-                                  },
-                                  {
-                                    label: "Withdraw",
-                                    action: "archive",
-                                    tone: "danger",
-                                    loading: withdrawMutation.isPending,
-                                    unavailable: book.copies.some(
-                                      (copy) => copy.loans.length > 0,
-                                    )
-                                      ? "A copy is still out. Take it back first."
-                                      : undefined,
-                                    confirm: {
-                                      title: `Withdraw ${book.title}`,
-                                      description: `All ${book.copies.length} cop${book.copies.length === 1 ? "y comes" : "ies come"} off the shelf and the title stops being lendable. The loan history stays, so the school can still answer who had it last.`,
-                                      confirmLabel: "Withdraw it",
-                                    },
-                                    onSelect: () => withdrawMutation.mutate(book.id),
-                                  },
-                                ]}
+                                verbs={verbs}
                               />
-                            </span>
-                          </div>
-                          <ul className="divide-y divide-[color:var(--border-subtle)]">
-                            {book.copies.map((copy) => {
-                              const loan = copy.loans[0] ?? null;
-                              const verbs: RecordVerb[] = loan
-                                ? [
-                                    {
-                                      label: "Take it back",
-                                      action: "edit",
-                                      loading: desk,
-                                      onSelect: () =>
-                                        deskMutation.mutate({
-                                          action: "return",
-                                          loanId: loan.id,
-                                        }),
-                                    },
-                                  ]
-                                : [
-                                    {
-                                      label: "Lend it",
-                                      action: "edit",
-                                      onSelect: () => {
-                                        setLendingCopy(copy.id);
-                                        setReader("");
-                                      },
-                                    },
-                                  ];
-                              return (
-                                <li key={copy.id} className="px-3 py-2">
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)]">
-                                      {copy.copyCode}
-                                    </span>
-                                    <span className="min-w-0 flex-1 truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                                      {loan
-                                        ? `${loan.student.lastName}, ${loan.student.firstName} · back by ${loan.dueAt.slice(0, 10)}`
-                                        : (book.shelfMark ?? "On the shelf")}
-                                    </span>
-                                    <Badge tone={loan ? "brand" : "success"}>
-                                      {loan ? "Out" : "In"}
-                                    </Badge>
-                                    <RecordActions
-                                      resource="schools.academics"
-                                      verbs={verbs}
-                                    />
-                                  </div>
+                            </div>
 
-                                  {lendingCopy === copy.id ? (
-                                    <div className="mt-2 flex flex-wrap items-end gap-2">
-                                      <FilterSelect
-                                        label="Reader"
-                                        allLabel="Choose a reader"
-                                        value={reader}
-                                        options={(readersQuery.data?.data ?? []).map(
-                                          (student) => ({
-                                            value: student.id,
-                                            label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
-                                          }),
-                                        )}
-                                        onChange={setReader}
-                                      />
-                                      <Button
-                                        variant="primary"
-                                        size="sm"
-                                        disabled={!reader || desk}
-                                        loading={desk}
-                                        onClick={() =>
-                                          deskMutation.mutate({
-                                            action: "issue",
-                                            copyId: copy.id,
-                                            studentId: reader,
-                                          })
-                                        }
-                                      >
-                                        Issue it
-                                      </Button>
-                                      <Button
-                                        variant="ghost"
-                                        size="sm"
-                                        onClick={() => setLendingCopy(null)}
-                                      >
-                                        Cancel
-                                      </Button>
-                                    </div>
-                                  ) : null}
-                                </li>
-                              );
-                            })}
-                          </ul>
-                        </div>
-                      ))
-                  : null}
-              </>
-            )}
-          </div>
-        ) : null}
-
-        {view === "out" ? (
-          <div className="space-y-4">
-            {libraryQuery.isLoading ? (
-              <StatsSkeleton count={3} />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatCard label="Out" value={loans.length} />
-                <StatCard
-                  label="Late"
-                  value={overdue.length}
-                  tone={overdue.length > 0 ? "danger" : "success"}
-                />
-                <StatCard
-                  label="Fines if back today"
-                  value={formatSchoolMoney(finesToday)}
-                />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <FilterBar>
-                <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
-                  value={classFilter}
-                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={setClassFilter}
-                />
-              </FilterBar>
-              <Button variant="secondary" onClick={() => setOverdueOnly((on) => !on)}>
-                {overdueOnly ? "Show everything out" : "Only what is late"}
-              </Button>
-            </div>
-
-            <p className="text-sm text-muted-foreground">
-              {loans.length} book{loans.length === 1 ? "" : "s"} out
-              {overdue.length > 0 ? `, ${overdue.length} late` : ""}
-            </p>
-
-            {libraryQuery.isLoading ? (
-              <TableRowsSkeleton
-                columns={[{ avatar: true, twoLine: true }, { width: 180 }, { width: 200 }]}
-              />
-            ) : loans.length === 0 ? (
-              classFilter ? (
-                <NothingMatched
-                  what="loans"
-                  filters={[classes.find((row) => row.id === classFilter)?.name ?? ""]}
-                  onClear={() => setClassFilter("")}
-                />
-              ) : overdueOnly ? (
-                <NothingLeftToDo
-                  title="Nothing is late"
-                  body="Every book that is out is still within its date. Show everything out to see the rest of the register."
-                  action={
-                    <Button variant="secondary" onClick={() => setOverdueOnly(false)}>
-                      Show everything out
-                    </Button>
-                  }
-                />
-              ) : (
-                <NothingLeftToDo
-                  title="Nothing is out"
-                  body="Every copy is on the shelf."
-                />
-              )
-            ) : (
-              <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-                {loans.map((loan) => (
-                  <li key={loan.id} className="flex flex-wrap items-center gap-3 px-3 py-2">
-                    <PersonAvatar
-                      firstName={loan.student.firstName}
-                      lastName={loan.student.lastName}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate font-medium">
-                        {loan.student.lastName}, {loan.student.firstName}
-                      </span>
-                      <span className="block truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                        {loan.copy.book.title} ({loan.copy.copyCode}) · due{" "}
-                        {loan.dueAt.slice(0, 10)}
-                        {loan.student.currentClass
-                          ? ` · ${loan.student.currentClass.name}`
-                          : ""}
-                      </span>
-                    </span>
-                    <Badge tone={loan.isOverdue ? "danger" : "neutral"}>
-                      {loan.isOverdue
-                        ? `Late · ${formatSchoolMoney(loan.fineIfReturnedToday)} if back today`
-                        : "Out"}
-                    </Badge>
-                    <RecordActions
-                      resource="schools.academics"
-                      verbs={[
-                        {
-                          label: "Take it back",
-                          action: "edit",
-                          loading: desk,
-                          onSelect: () =>
-                            deskMutation.mutate({ action: "return", loanId: loan.id }),
-                        },
-                        {
-                          label: "Renew",
-                          action: "edit",
-                          loading: desk,
-                          onSelect: () =>
-                            deskMutation.mutate({ action: "renew", loanId: loan.id }),
-                        },
-                      ]}
-                    />
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-        ) : null}
-      </VerticalDataViews>
+                            {lendingCopy === copy.id ? (
+                              <div className="mt-2 flex flex-wrap items-end gap-2">
+                                <FilterSelect
+                                  label="Reader"
+                                  allLabel="Choose a reader"
+                                  value={reader}
+                                  options={(readersQuery.data?.data ?? []).map(
+                                    (student) => ({
+                                      value: student.id,
+                                      label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+                                    }),
+                                  )}
+                                  onChange={setReader}
+                                />
+                                <Button
+                                  variant="primary"
+                                  size="sm"
+                                  disabled={!reader || desk}
+                                  loading={desk}
+                                  onClick={() =>
+                                    deskMutation.mutate({
+                                      action: "issue",
+                                      copyId: copy.id,
+                                      studentId: reader,
+                                    })
+                                  }
+                                >
+                                  Issue it
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => setLendingCopy(null)}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : null}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))
+            : null}
+        </>
+      )}
 
       <BookDialog
         open={addingBook || editingBook !== null}

@@ -2,9 +2,14 @@
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 import { Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
 
@@ -20,6 +25,11 @@ import { Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
  * The leading chip is toned by severity rather than coloured for decoration: a
  * critical notice from the school and a library reminder should not look alike in
  * a list read at a school gate.
+ *
+ * One of the eight states is missing on purpose, and the audit reads text, so it
+ * is named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because News has no filters — everything the school sent
+ * this family is on the list, read and unread together.
  */
 
 type Notice = {
@@ -84,8 +94,10 @@ export function ParentNoticesScreen() {
 
   if (query.isPending) {
     return (
+      /* News is a stack of cards, each an icon tile with a title, a summary
+         and a date, so the wait is that stack. Five fills a phone. */
       <div className="p-4">
-        <Skeleton className="h-48 w-full" />
+        <CardsSkeleton count={5} columns={1} lines={2} />
       </div>
     );
   }
@@ -93,10 +105,11 @@ export function ParentNoticesScreen() {
   if (query.isError) {
     return (
       <div className="p-4">
-        <Alert variant="destructive">
-          <AlertTitle>Notices could not be loaded</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="school news"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       </div>
     );
   }
@@ -106,9 +119,13 @@ export function ParentNoticesScreen() {
 
   if (notices.length === 0) {
     return (
-      <p className="px-4 py-8 text-center text-sm text-[var(--text-muted)]">
-        The school has not sent you anything yet.
-      </p>
+      <div className="p-4">
+        <NothingYet
+          icon={<Bell className="size-5" aria-hidden />}
+          title="Nothing from the school yet"
+          body="Anything they send appears here — term dates, fee reminders, a word about your child. You do not need to check; the bell shows a dot when something arrives."
+        />
+      </div>
     );
   }
 
@@ -119,40 +136,51 @@ export function ParentNoticesScreen() {
         <span className="mono-note">{unread > 0 ? `${unread} new` : "All read"}</span>
       </div>
 
-      <div className="card-block boxed">
-        {notices.map((notice) => {
-          const Icon = iconFor(notice);
-          const tone = TONE[notice.severity] ?? "";
-          return (
-            <button
-              key={notice.id}
-              type="button"
-              onClick={() => {
-                if (!notice.isRead) markRead.mutate([notice.id]);
-              }}
-              className={notice.isRead ? "notice-row" : "notice-row unread"}
-            >
-              <span className={tone ? `ic ${tone}` : "ic"}>
-                <Icon className="size-4" aria-hidden />
-              </span>
-              <span className="min-w-0">
-                <span className="nm block">{notice.title}</span>
-                {notice.summary ? <span className="sb block">{notice.summary}</span> : null}
-                <span className="meta block">
-                  {sourceOf(notice)} · {formatSchoolDate(notice.sentAt)}
+      {markRead.error ? (
+        <div className="px-4 pb-3">
+          <SaveError what="That notice" error={markRead.error} />
+        </div>
+      ) : null}
+
+      {/* The list dims while a read is in flight. Marking one notice read is a
+          small write, but a parent tapping down the list on a slow connection
+          should see which taps have landed. */}
+      <SavingOverlay saving={markRead.isPending} label="Marking read…">
+        <div className="card-block boxed">
+          {notices.map((notice) => {
+            const Icon = iconFor(notice);
+            const tone = TONE[notice.severity] ?? "";
+            return (
+              <button
+                key={notice.id}
+                type="button"
+                onClick={() => {
+                  if (!notice.isRead) markRead.mutate([notice.id]);
+                }}
+                className={notice.isRead ? "notice-row" : "notice-row unread"}
+              >
+                <span className={tone ? `ic ${tone}` : "ic"}>
+                  <Icon className="size-4" aria-hidden />
                 </span>
-              </span>
-              {notice.isRead ? (
-                <span className="chev">
-                  <ChevronRight className="size-[14px]" aria-hidden />
+                <span className="min-w-0">
+                  <span className="nm block">{notice.title}</span>
+                  {notice.summary ? <span className="sb block">{notice.summary}</span> : null}
+                  <span className="meta block">
+                    {sourceOf(notice)} · {formatSchoolDate(notice.sentAt)}
+                  </span>
                 </span>
-              ) : (
-                <span className="pip" aria-hidden />
-              )}
-            </button>
-          );
-        })}
-      </div>
+                {notice.isRead ? (
+                  <span className="chev">
+                    <ChevronRight className="size-[14px]" aria-hidden />
+                  </span>
+                ) : (
+                  <span className="pip" aria-hidden />
+                )}
+              </button>
+            );
+          })}
+        </div>
+      </SavingOverlay>
 
       {unread > 0 ? (
         <div className="p-4">

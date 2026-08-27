@@ -11,6 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import {
   Select,
   SelectContent,
@@ -79,6 +89,7 @@ export function HomeworkContent({
   const [formOpen, setFormOpen] = useState(false);
   const [boardFor, setBoardFor] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
+  const [subjectFilter, setSubjectFilter] = useState("");
   const [draft, setDraft] = useState({
     classSubjectId: "",
     title: "",
@@ -114,16 +125,46 @@ export function HomeworkContent({
     [listQuery.data],
   );
 
+  /**
+   * The subject cut is client-side. Everything a teacher has set is already on
+   * the page — the list is one class's worth, not the school's — so asking the
+   * server again for a slice of what is in hand would cost a round trip and a
+   * flash of empty list.
+   */
+  const subjectOptions = useMemo(() => {
+    const seen = new Map<string, string>();
+    for (const assignment of assignments) {
+      seen.set(assignment.classSubject.subject.id, assignment.classSubject.subject.name);
+    }
+    return [...seen.entries()]
+      .map(([value, label]) => ({ value, label }))
+      .sort((a, b) => a.label.localeCompare(b.label));
+  }, [assignments]);
+
+  const visible = useMemo(
+    () =>
+      subjectFilter
+        ? assignments.filter(
+            (assignment) => assignment.classSubject.subject.id === subjectFilter,
+          )
+        : assignments,
+    [assignments, subjectFilter],
+  );
+
+  const narrowing = [
+    subjectOptions.find((option) => option.value === subjectFilter)?.label,
+  ].filter((entry): entry is string => Boolean(entry));
+
   const grouped = useMemo(() => {
     const map = new Map<string, Assignment[]>();
-    for (const assignment of assignments) {
+    for (const assignment of visible) {
       const key = assignment.classSubject.subject.name;
       const bucket = map.get(key);
       if (bucket) bucket.push(assignment);
       else map.set(key, [assignment]);
     }
     return [...map.entries()].sort(([a], [b]) => a.localeCompare(b));
-  }, [assignments]);
+  }, [visible]);
 
   const createMutation = useMutation({
     mutationFn: () =>
@@ -171,33 +212,74 @@ export function HomeworkContent({
   return (
     <div className="space-y-4">
       {listQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load homework</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(listQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="the homework"
+          error={listQuery.error}
+          onRetry={() => void listQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      ) : null}
+      {actionError ? <SaveError what="That homework" error={actionError} /> : null}
 
-      <div className="flex justify-end">
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <FilterBar>
+          <FilterSelect
+            label="Subject"
+            allLabel="Every subject"
+            value={subjectFilter}
+            options={subjectOptions}
+            onChange={setSubjectFilter}
+          />
+        </FilterBar>
         <Button onClick={() => setFormOpen(true)} disabled={subjects.length === 0}>
           Set homework
         </Button>
       </div>
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {listQuery.isLoading
-              ? "Loading homework…"
-              : "Nothing set yet."}
-          </MobileListEmpty>
-        ) : (
-          grouped.map(([subject, rows]) => (
+      {listQuery.isPending ? (
+        <TableRowsSkeleton
+          headers={["Homework", "Due", "In", "State"]}
+          columns={[
+            { twoLine: true },
+            { width: 110 },
+            { width: 70, badge: true },
+            { width: 80, badge: true },
+          ]}
+          rows={5}
+        />
+      ) : (
+        /*
+          Setting a piece and withdrawing it are the same row's switch, so the
+          list dims while either is in flight. Publishing twice because the
+          badge had not caught up is how thirty children read a half-written
+          instruction.
+        */
+        <SavingOverlay saving={publishMutation.isPending} label="Saving…">
+          <MobileList>
+            {grouped.length === 0 ? (
+              <MobileListEmpty>
+                {narrowing.length > 0 ? (
+                  <NothingMatched
+                    what="homework"
+                    filters={narrowing}
+                    onClear={() => setSubjectFilter("")}
+                  />
+                ) : (
+                  <NothingYet
+                    title="Nothing set yet"
+                    body="Homework is drafted here and stays invisible to the class until you set it, so a Sunday's half-written instruction is nobody's problem but yours."
+                    action={
+                      <Button
+                        onClick={() => setFormOpen(true)}
+                        disabled={subjects.length === 0}
+                      >
+                        Set homework
+                      </Button>
+                    }
+                  />
+                )}
+              </MobileListEmpty>
+            ) : (
+              grouped.map(([subject, rows]) => (
             <div key={subject}>
               <MobileListSectionHeader>{subject}</MobileListSectionHeader>
               {rows.map((assignment) => (
@@ -248,9 +330,11 @@ export function HomeworkContent({
                 />
               ))}
             </div>
-          ))
-        )}
-      </MobileList>
+              ))
+            )}
+          </MobileList>
+        </SavingOverlay>
+      )}
 
       <RecordDialog
         open={formOpen}
@@ -393,8 +477,20 @@ export function HomeworkContent({
           </p>
         ) : null}
 
-        {boardQuery.isLoading ? (
-          <p className="text-sm text-muted-foreground">Loading the class list…</p>
+        {boardQuery.error ? (
+          <LoadError
+            what="the class list"
+            error={boardQuery.error}
+            onRetry={() => void boardQuery.refetch()}
+          />
+        ) : null}
+
+        {boardQuery.isPending ? (
+          <TableRowsSkeleton
+            headers={["Pupil", "State"]}
+            columns={[{ twoLine: true }, { width: 110, badge: true }]}
+            rows={8}
+          />
         ) : null}
 
         {notIn.length > 0 ? (
@@ -408,6 +504,16 @@ export function HomeworkContent({
                 .join(", ")}
             </AlertDescription>
           </Alert>
+        ) : board && board.rows.length > 0 ? (
+          /*
+            Nobody left to chase is the answer this dialog is opened for, and it
+            is good news rather than a gap — so it says so instead of leaving
+            the space where the missing names would have been blank.
+          */
+          <NothingLeftToDo
+            title="Everybody has handed in"
+            body="There is nobody left to chase for this one."
+          />
         ) : null}
 
         <div className="space-y-1">

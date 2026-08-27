@@ -16,7 +16,7 @@ import { IconButton } from "@/components/ui/icon-button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { TimeAgo } from "@/components/ui/time-ago";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { ViewToolbar } from "@/components/crm/records/view-toolbar";
+import { ViewToolbar } from "@/components/records/view-toolbar";
 import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";

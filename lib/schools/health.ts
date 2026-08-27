@@ -24,9 +24,10 @@ export {
   anyConsentGiven,
   CONSENT_KEYS,
   CONSENT_LABELS,
+  URGENT_GAP,
 } from "./health-consents";
 
-import { anyConsentGiven, type ConsentKey } from "./health-consents";
+import { anyConsentGiven, URGENT_GAP, type ConsentKey } from "./health-consents";
 
 export type ConsentFlags = Record<ConsentKey, boolean>;
 
@@ -34,9 +35,16 @@ export type ConsentFlags = Record<ConsentKey, boolean>;
 /**
  * What the office still has to chase, per child.
  *
- * Emergency treatment is the one that matters at two in the morning, so it is
- * called out separately from the rest. An allergy recorded with no consent to
- * treat is the specific combination a boarding school cannot live with.
+ * The wording is the sentence somebody has to act on, not a field name. "No
+ * consent recorded" and "No doctor recorded" are what a warden reads down the
+ * list looking for, and an allergy recorded with no consent to treat gets its
+ * own line — "Allergy on file, no consent to treat" — because it is the one
+ * specific combination a boarding school cannot be caught by, and it has to be
+ * findable by eye rather than by inference from two other gaps.
+ *
+ * Emergency treatment is called out separately from first aid for the same
+ * reason: they are one checkbox apart in the form and a world apart at two in
+ * the morning.
  */
 export function healthGaps(record: {
   allergies: string | null;
@@ -47,11 +55,11 @@ export function healthGaps(record: {
   if (!record) return ["Nothing recorded at all"];
 
   const gaps: string[] = [];
-  if (!record.consentEmergencyTreatment) gaps.push("No consent to treat");
+  if (!record.consentEmergencyTreatment) gaps.push("No consent recorded");
   if (!record.consentFirstAid) gaps.push("No first-aid consent");
-  if (!record.doctorPhone) gaps.push("No doctor's number");
+  if (!record.doctorPhone) gaps.push("No doctor recorded");
   if (record.allergies && !record.consentEmergencyTreatment) {
-    gaps.push("Allergy on file with no consent to treat");
+    gaps.push(URGENT_GAP);
   }
   return gaps;
 }
@@ -210,6 +218,40 @@ export async function recordHealthEvent(input: {
       select: { id: true, occurredAt: true, kind: true },
     });
   });
+}
+
+/**
+ * Clear a child's standing record.
+ *
+ * The row goes, and with it every consent and allergy on it. This is for a
+ * record entered against the wrong child — the case where leaving it is worse
+ * than losing it, because a peanut allergy filed under the wrong name is a
+ * sentence a nurse will act on.
+ *
+ * The visit log stays. What happened to a child happened whatever the standing
+ * record said at the time, and a nosebleed in March is not undone by correcting
+ * a consent in August. `SchoolHealthEvent.healthRecordId` is why this refuses
+ * outright once there are events: deleting the record would take the history
+ * with it, so a record with a log behind it is corrected, not cleared.
+ */
+export async function clearHealthRecord(input: {
+  companyId: string;
+  studentId: string;
+}) {
+  const record = await prisma.schoolHealthRecord.findFirst({
+    where: { studentId: input.studentId, companyId: input.companyId },
+    select: { id: true, _count: { select: { events: true } } },
+  });
+  if (!record) throw new HealthRecordError("Nothing is recorded for this child");
+
+  if (record._count.events > 0) {
+    throw new HealthRecordError(
+      "This child has visits logged against them. Correct the record rather than clearing it.",
+    );
+  }
+
+  await prisma.schoolHealthRecord.delete({ where: { id: record.id } });
+  return { id: record.id, studentId: input.studentId, deleted: true };
 }
 
 /**

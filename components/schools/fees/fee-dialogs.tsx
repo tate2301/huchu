@@ -27,7 +27,7 @@ import {
   type SchoolFeeWaiverRecord,
 } from "@/lib/schools/fees-v2";
 
-import { ClassPicker, InvoicePicker, StudentPicker, TermPicker } from "./fee-pickers";
+import { ClassPicker, InvoicePicker, StudentPicker, TermPicker } from "@/components/schools/fees/fee-pickers";
 
 /**
  * The fee module's forms.
@@ -200,7 +200,7 @@ export function InvoiceFormDialog({
           id="invoice-amount-help"
           className="mt-1 text-[length:var(--type-caption)] text-[color:var(--text-muted)]"
         >
-          Added to the pupil&rsquo;s outstanding balance when issued.
+          Added to the pupil’s outstanding balance when issued.
         </p>
       </div>
 
@@ -320,7 +320,7 @@ export function ReceiptFormDialog({
         value={method}
         onChange={(event) => setMethod(event.target.value)}
         required
-        hint="A payment larger than the invoice is accepted; the surplus becomes credit on the family's account."
+        hint="A payment larger than the invoice is accepted; the surplus becomes credit on the family’s account."
       >
         <option value="">Select method</option>
         {PAYMENT_METHODS.map((option) => (
@@ -796,6 +796,7 @@ export function ReasonDialog({
   title,
   consequence,
   reasonLabel,
+  reasonPlaceholder,
   keepLabel,
   confirmLabel,
   pendingLabel,
@@ -809,6 +810,8 @@ export function ReasonDialog({
   title: string;
   consequence: React.ReactNode;
   reasonLabel: string;
+  /** An example of the sentence wanted — "Family asked for it to stay on account". */
+  reasonPlaceholder?: string;
   keepLabel: string;
   confirmLabel: string;
   pendingLabel: string;
@@ -856,6 +859,7 @@ export function ReasonDialog({
           id="reason-dialog-reason"
           rows={3}
           value={reason}
+          placeholder={reasonPlaceholder}
           onChange={(event) => setReason(event.target.value)}
           required={reasonRequired}
         />

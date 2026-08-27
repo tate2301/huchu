@@ -9,6 +9,7 @@ import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import {
   HealthRecordError,
+  clearHealthRecord,
   recordHealthEvent,
   saveHealthRecord,
 } from "@/lib/schools/health";
@@ -149,5 +150,37 @@ export async function POST(
     if (error instanceof HealthRecordError) return errorResponse(error.message, 404);
     console.error("[API] POST /api/v2/schools/health/[studentId] error:", error);
     return errorResponse("Failed to record the health event");
+  }
+}
+
+/**
+ * Clear the standing record.
+ *
+ * `archive` rather than `edit`: losing a child's allergies and consents is not
+ * the same act as correcting them, and the people trusted with the second are
+ * not automatically trusted with the first.
+ */
+export async function DELETE(
+  request: NextRequest,
+  context: { params: Promise<{ studentId: string }> },
+) {
+  try {
+    const sessionResult = await validateSession(request);
+    if (sessionResult instanceof NextResponse) return sessionResult;
+    const { session } = sessionResult;
+
+    const denied = schoolPermissionDenial(session, "schools.boarding", "archive");
+    if (denied) return errorResponse(denied, 403);
+
+    const { studentId } = await context.params;
+    const cleared = await clearHealthRecord({
+      companyId: session.user.companyId,
+      studentId,
+    });
+    return successResponse(cleared);
+  } catch (error) {
+    if (error instanceof HealthRecordError) return errorResponse(error.message, 409);
+    console.error("[API] DELETE /api/v2/schools/health/[studentId] error:", error);
+    return errorResponse("Failed to clear the health record");
   }
 }

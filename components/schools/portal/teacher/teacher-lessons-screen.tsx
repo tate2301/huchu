@@ -12,12 +12,19 @@ import {
   EmptyState,
   Input,
   Modal,
-  Skeleton,
   TextArea,
 } from "@corelithzw/react";
 import { ChevronLeftIcon, ChevronRight } from "@/lib/icons";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 import { hueFor, subjectHues } from "./teacher-subject-hues";
 
@@ -168,6 +175,13 @@ export function TeacherLessonsScreen() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [confirmCopy, setConfirmCopy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
+  /**
+   * "Which ones have I not written" is the question this screen is opened
+   * with, so it is a switch rather than a hunt through the grid for the grey
+   * cells. It narrows which PERIOD ROWS are drawn; the week itself is
+   * untouched, and none of the verbs above act on what is visible.
+   */
+  const [unwrittenOnly, setUnwrittenOnly] = useState(false);
 
   const classSubjectId = selectedClass?.classSubjectId ?? null;
 
@@ -197,6 +211,16 @@ export function TeacherLessonsScreen() {
 
   const planned = lessons.filter((row) => row.plan).length;
   const unplanned = lessons.length - planned;
+
+  // A plain filter over at most a dozen periods. Memoising it would need
+  // `week?.periods ?? []` memoised first, and the React Compiler refuses a
+  // manual memo whose dependency is rebuilt every render anyway.
+  const shownPeriods = unwrittenOnly
+    ? periods.filter((period) =>
+        lessons.some((row) => row.periodId === period.id && !row.plan),
+      )
+    : periods;
+
   const onThisWeek = week ? weekStart === "" || weekStart === week.weekStart : true;
   // Same subject → hue mapping as the class rail and the timetable grid.
   const hue = hueFor(
@@ -296,11 +320,7 @@ export function TeacherLessonsScreen() {
   });
 
   if (error) {
-    return (
-      <Alert tone="danger" title="Your classes would not load">
-        {getApiErrorMessage(error)}
-      </Alert>
-    );
+    return <LoadError what="your classes" error={error} />;
   }
 
   if (!classSubjectId) {
@@ -315,25 +335,15 @@ export function TeacherLessonsScreen() {
   return (
     <div className="flex flex-col gap-4">
       {query.error ? (
-        <Alert tone="danger" title="This week would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError
+          what="this week"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       ) : null}
-      {save.error ? (
-        <Alert tone="danger" title="The lesson plan did not save">
-          {getApiErrorMessage(save.error)}
-        </Alert>
-      ) : null}
-      {copyWeek.error ? (
-        <Alert tone="danger" title="Last week would not copy forward">
-          {getApiErrorMessage(copyWeek.error)}
-        </Alert>
-      ) : null}
-      {layOut.error ? (
-        <Alert tone="danger" title="The week would not lay out">
-          {getApiErrorMessage(layOut.error)}
-        </Alert>
-      ) : null}
+      {save.error ? <SaveError what="The lesson plan" error={save.error} /> : null}
+      {copyWeek.error ? <SaveError what="Last week's plans" error={copyWeek.error} /> : null}
+      {layOut.error ? <SaveError what="The week" error={layOut.error} /> : null}
       {saved ? (
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
@@ -393,6 +403,13 @@ export function TeacherLessonsScreen() {
             ? `Copy last week forward (${week.lastWeekPlans})`
             : "Copy last week forward"}
         </Button>
+        <Button
+          variant={unwrittenOnly ? "primary" : "secondary"}
+          disabled={!week || unplanned === 0}
+          onClick={() => setUnwrittenOnly((current) => !current)}
+        >
+          {unwrittenOnly ? "Showing what is missing" : "Show only what is missing"}
+        </Button>
       </div>
 
       <Card
@@ -420,113 +437,131 @@ export function TeacherLessonsScreen() {
         flush
       >
         {query.isPending ? (
-          <div className="p-4">
-            <Skeleton variant="rect" height={280} />
+          /* The grid is cells, so the wait is cards rather than one grey
+             rectangle that reflows into a week the moment it lands. */
+          <div className="p-2">
+            <CardsSkeleton count={6} columns={3} lines={2} />
           </div>
         ) : periods.length === 0 ? (
-          <EmptyState
+          <NothingYet
             title="The school day has no periods"
             body="Nobody has set up the periods a lesson can sit in, so there is no week to plan against. The office builds these under Academics."
           />
         ) : lessons.length === 0 ? (
-          <EmptyState
+          <NothingYet
             title="This class is not on the timetable"
             body="No lesson is scheduled for this class in this term, so there is nothing to plan. The office places lessons on the master timetable."
           />
+        ) : shownPeriods.length === 0 ? (
+          <NothingMatched
+            what="lessons"
+            filters={["still to be written"]}
+            onClear={() => setUnwrittenOnly(false)}
+          />
         ) : (
-          <div className="overflow-x-auto p-2">
-            <div
-              className="grid min-w-[46rem] gap-1"
-              style={{
-                gridTemplateColumns: `5.5rem repeat(${days.length}, minmax(8rem, 1fr))`,
-              }}
-            >
-              <div aria-hidden />
-              {days.map((weekDay) => (
-                <div
-                  key={weekDay.date}
-                  {...(weekDay.isToday ? { "aria-current": "date" as const } : {})}
-                  className={[
-                    "flex items-baseline justify-between rounded-[var(--radius-sm)] px-3 py-2",
-                    weekDay.isToday
-                      ? "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
-                      : "text-[color:var(--text-muted)]",
-                  ].join(" ")}
-                >
-                  <span className="text-[length:var(--type-body-sm)] font-semibold">
-                    {DAY_NAME.format(asDate(weekDay.date))}
-                  </span>
-                  <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums">
-                    {weekDay.isToday ? "Today" : DAY_NUMBER.format(asDate(weekDay.date))}
-                  </span>
-                </div>
-              ))}
-
-              {periods.map((period) => (
-                <Fragment key={period.id}>
-                  <div className="flex flex-col justify-center px-2 py-1">
-                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] font-semibold uppercase text-[color:var(--text-strong)]">
-                      {period.code}
+          /*
+            Laying out and copying forward both write across the whole week, so
+            the grid stops taking taps while either is in flight. A cell opened
+            mid-copy would edit a plan the copy is about to replace.
+          */
+          <SavingOverlay
+            saving={layOut.isPending || copyWeek.isPending}
+            label={layOut.isPending ? "Laying out the week…" : "Copying last week…"}
+          >
+            <div className="overflow-x-auto p-2">
+              <div
+                className="grid min-w-[46rem] gap-1"
+                style={{
+                  gridTemplateColumns: `5.5rem repeat(${days.length}, minmax(8rem, 1fr))`,
+                }}
+              >
+                <div aria-hidden />
+                {days.map((weekDay) => (
+                  <div
+                    key={weekDay.date}
+                    {...(weekDay.isToday ? { "aria-current": "date" as const } : {})}
+                    className={[
+                      "flex items-baseline justify-between rounded-[var(--radius-sm)] px-3 py-2",
+                      weekDay.isToday
+                        ? "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
+                        : "text-[color:var(--text-muted)]",
+                    ].join(" ")}
+                  >
+                    <span className="text-[length:var(--type-body-sm)] font-semibold">
+                      {DAY_NAME.format(asDate(weekDay.date))}
                     </span>
-                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                      {period.startsAt}
+                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums">
+                      {weekDay.isToday ? "Today" : DAY_NUMBER.format(asDate(weekDay.date))}
                     </span>
                   </div>
+                ))}
 
-                  {days.map((weekDay) => {
-                    const lesson = lessonAt(weekDay.date, period.id);
+                {shownPeriods.map((period) => (
+                  <Fragment key={period.id}>
+                    <div className="flex flex-col justify-center px-2 py-1">
+                      <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] font-semibold uppercase text-[color:var(--text-strong)]">
+                        {period.code}
+                      </span>
+                      <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                        {period.startsAt}
+                      </span>
+                    </div>
 
-                    if (!lesson) {
+                    {days.map((weekDay) => {
+                      const lesson = lessonAt(weekDay.date, period.id);
+
+                      if (!lesson) {
+                        return (
+                          <div
+                            key={`${weekDay.date}-${period.id}`}
+                            className="min-h-[4.5rem] rounded-[var(--radius-sm)] border border-dashed border-[color:var(--border-subtle)]"
+                          />
+                        );
+                      }
+
+                      const isOpen = openKey === lesson.key;
                       return (
-                        <div
-                          key={`${weekDay.date}-${period.id}`}
-                          className="min-h-[4.5rem] rounded-[var(--radius-sm)] border border-dashed border-[color:var(--border-subtle)]"
-                        />
+                        <button
+                          key={lesson.key}
+                          type="button"
+                          aria-expanded={isOpen}
+                          onClick={() => {
+                            setSaved(null);
+                            setOpenKey(lesson.key);
+                            setDraft(draftFrom(lesson.plan));
+                          }}
+                          style={{
+                            backgroundColor: lesson.plan
+                              ? accentVar(hue, "bg")
+                              : "var(--surface-muted)",
+                            borderColor: isOpen
+                              ? "var(--brand)"
+                              : lesson.plan
+                                ? accentVar(hue, "bd")
+                                : "var(--border-subtle)",
+                          }}
+                          className="flex min-h-[4.5rem] flex-col items-start gap-1 rounded-[var(--radius-sm)] border px-3 py-2 text-left"
+                        >
+                          {lesson.cover ? (
+                            <Badge accent="orange" size="sm" dot>
+                              Cover
+                            </Badge>
+                          ) : null}
+                          <span className="line-clamp-2 text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
+                            {lesson.plan ? lesson.plan.topic : "Not written yet"}
+                          </span>
+                          <span className="mt-auto font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                            {period.startsAt} – {period.endsAt}
+                            {lesson.roomName ? ` · ${lesson.roomName}` : ""}
+                          </span>
+                        </button>
                       );
-                    }
-
-                    const isOpen = openKey === lesson.key;
-                    return (
-                      <button
-                        key={lesson.key}
-                        type="button"
-                        aria-expanded={isOpen}
-                        onClick={() => {
-                          setSaved(null);
-                          setOpenKey(lesson.key);
-                          setDraft(draftFrom(lesson.plan));
-                        }}
-                        style={{
-                          backgroundColor: lesson.plan
-                            ? accentVar(hue, "bg")
-                            : "var(--surface-muted)",
-                          borderColor: isOpen
-                            ? "var(--brand)"
-                            : lesson.plan
-                              ? accentVar(hue, "bd")
-                              : "var(--border-subtle)",
-                        }}
-                        className="flex min-h-[4.5rem] flex-col items-start gap-1 rounded-[var(--radius-sm)] border px-3 py-2 text-left"
-                      >
-                        {lesson.cover ? (
-                          <Badge accent="orange" size="sm" dot>
-                            Cover
-                          </Badge>
-                        ) : null}
-                        <span className="line-clamp-2 text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
-                          {lesson.plan ? lesson.plan.topic : "Not written yet"}
-                        </span>
-                        <span className="mt-auto font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                          {period.startsAt} – {period.endsAt}
-                          {lesson.roomName ? ` · ${lesson.roomName}` : ""}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </Fragment>
-              ))}
+                    })}
+                  </Fragment>
+                ))}
+              </div>
             </div>
-          </div>
+          </SavingOverlay>
         )}
       </Card>
 
@@ -559,69 +594,74 @@ export function TeacherLessonsScreen() {
           </div>
         }
       >
-        <div className="flex flex-col gap-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <Badge accent={hue} dot>
-              {week?.classSubject.subjectName ?? selectedClass?.subjectName}
-            </Badge>
-            <Badge tone="outline">
-              {week?.classSubject.className ?? selectedClass?.className}
-              {week?.classSubject.streamName ? ` ${week.classSubject.streamName}` : ""}
-            </Badge>
-            <Badge tone={open?.plan ? "success" : "neutral"} dot>
-              {open?.plan ? "Written" : "Not started"}
-            </Badge>
-          </div>
+        {/* The four boxes stop taking words while the plan goes up. An
+            objective typed mid-save is an objective the POST already left
+            behind. */}
+        <SavingOverlay saving={save.isPending} label="Saving the plan…">
+          <div className="flex flex-col gap-4">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge accent={hue} dot>
+                {week?.classSubject.subjectName ?? selectedClass?.subjectName}
+              </Badge>
+              <Badge tone="outline">
+                {week?.classSubject.className ?? selectedClass?.className}
+                {week?.classSubject.streamName ? ` ${week.classSubject.streamName}` : ""}
+              </Badge>
+              <Badge tone={open?.plan ? "success" : "neutral"} dot>
+                {open?.plan ? "Written" : "Not started"}
+              </Badge>
+            </div>
 
-          {open?.cover ? (
-            <Alert tone="warn" title="Somebody else is taking this lesson">
-              <span className="flex items-center gap-2">
-                <PersonAvatar name={open.cover.teacherName ?? "Cover teacher"} size="sm" />
-                <span>
-                  {open.cover.teacherName ?? "A colleague"} is covering
-                  {open.cover.reason ? ` — ${open.cover.reason}` : ""}. Write the plan
-                  they will teach from.
+            {open?.cover ? (
+              <Alert tone="warn" title="Somebody else is taking this lesson">
+                <span className="flex items-center gap-2">
+                  <PersonAvatar name={open.cover.teacherName ?? "Cover teacher"} size="sm" />
+                  <span>
+                    {open.cover.teacherName ?? "A colleague"} is covering
+                    {open.cover.reason ? ` — ${open.cover.reason}` : ""}. Write the plan
+                    they will teach from.
+                  </span>
                 </span>
-              </span>
-            </Alert>
-          ) : null}
+              </Alert>
+            ) : null}
 
-          <Input
-            label="Topic"
-            value={draft.topic}
-            placeholder="e.g. Linear equations — word problems"
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, topic: event.target.value }))
-            }
-          />
-          <TextArea
-            label="What pupils should learn"
-            hint="One objective a line. These are what the lesson is judged against."
-            rows={5}
-            value={draft.objectives}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, objectives: event.target.value }))
-            }
-          />
-          <TextArea
-            label="Materials and files"
-            hint="Worksheets, slides, apparatus — whatever has to be in the room."
-            rows={4}
-            value={draft.resourcesNote}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, resourcesNote: event.target.value }))
-            }
-          />
-          <TextArea
-            label="Homework"
-            hint="What is set, and when it is due back."
-            rows={3}
-            value={draft.homeworkNote}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, homeworkNote: event.target.value }))
-            }
-          />
-        </div>
+            <Input
+              label="Topic"
+              value={draft.topic}
+              placeholder="e.g. Linear equations — word problems"
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, topic: event.target.value }))
+              }
+            />
+            <TextArea
+              label="What pupils should learn"
+              hint="One objective a line. These are what the lesson is judged against."
+              rows={5}
+              value={draft.objectives}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, objectives: event.target.value }))
+              }
+            />
+            <TextArea
+              label="Materials and files"
+              hint="Worksheets, slides, apparatus — whatever has to be in the room."
+              rows={4}
+              value={draft.resourcesNote}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, resourcesNote: event.target.value }))
+              }
+            />
+            <TextArea
+              label="Homework"
+              hint="What is set, and when it is due back."
+              rows={3}
+              value={draft.homeworkNote}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, homeworkNote: event.target.value }))
+              }
+            />
+          </div>
+        </SavingOverlay>
       </Drawer>
 
       <Modal

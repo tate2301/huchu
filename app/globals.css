@@ -1688,3 +1688,49 @@
    operating system's preference put a dark terminal in front of anyone whose
    laptop was set that way, which nobody had asked for. A dark POS skin, if it
    is wanted, is an explicit choice on the terminal — not an inference. */
+
+/* ── campus motion ───────────────────────────────────────────────────
+   Animation the campus screens use, in one place so the timings agree.
+   Every one is short, purposeful and reduced-motion aware: the point is
+   to say something arrived or changed, never to decorate a wait.
+
+   The DS ships a global `prefers-reduced-motion` block that flattens all
+   animation to 0.01ms, so these inherit that for free. */
+
+@keyframes campus-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes campus-fade-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes campus-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.82); }
+}
+
+/* A skeleton row, cascading in rather than switching on all at once.
+   `backwards` holds the start frame through the delay, so a row waiting
+   its turn is invisible rather than drawn then hidden. */
+.campus-skeleton-row {
+  animation: campus-row-in var(--dur-base, 0.2s) var(--ease-out, cubic-bezier(.22,1,.36,1)) backwards;
+}
+
+/* Rows that have just landed. Same cascade, so the real list arrives the
+   way its skeleton did and nothing appears to jump. */
+.campus-row-in {
+  animation: campus-row-in var(--dur-base, 0.2s) var(--ease-out, cubic-bezier(.22,1,.36,1)) backwards;
+}
+
+.campus-fade-in {
+  animation: campus-fade-in var(--dur-fast, 0.14s) var(--ease-out, cubic-bezier(.22,1,.36,1));
+}
+
+/* The dot on a "Saving…" pill. A heartbeat, not a spinner: it says work is
+   in flight without implying a percentage nobody can measure. */
+.campus-pulse-dot {
+  animation: campus-pulse 1.1s var(--ease-in-out, cubic-bezier(.65,0,.35,1)) infinite;
+}

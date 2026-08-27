@@ -2,8 +2,15 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, EmptyState, SegmentedControl, Skeleton } from "@corelithzw/react";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { SegmentedControl } from "@corelithzw/react";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { MedusaBookOpenIcon } from "@/lib/icons";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";
 import { useStudentPortal } from "./student-portal-context";
@@ -49,6 +56,10 @@ function shortRoom(room: string | null) {
  * is not given a `dayOfWeek` — so switching days costs nothing and the grid is
  * never half-drawn. Today's lessons still come from the shell, which has already
  * loaded them, so the day it opens on paints without a fetch at all.
+ *
+ * There is no `SaveError` or `SavingOverlay` here, and that is deliberate rather
+ * than forgotten: the office builds the timetable, so nothing on this screen
+ * writes and there is no save that could fail.
  */
 export function StudentTimetableScreen() {
   const { student, term, periods } = useStudentPortal();
@@ -66,7 +77,7 @@ export function StudentTimetableScreen() {
 
   if (!student) {
     return (
-      <EmptyState
+      <NothingYet
         title="This account is not linked to a pupil"
         body="Ask the school office to link your sign-in to your student record."
       />
@@ -75,7 +86,7 @@ export function StudentTimetableScreen() {
 
   if (!student.currentClassId) {
     return (
-      <EmptyState
+      <NothingYet
         title="You are not in a year group yet"
         body="A timetable is your class's timetable, so there is nothing to show until the office puts you in one."
       />
@@ -119,9 +130,11 @@ export function StudentTimetableScreen() {
   return (
     <div className="flex flex-col">
       {week.error ? (
-        <Alert tone="danger" title="Your week would not load">
-          {getApiErrorMessage(week.error)}
-        </Alert>
+        <LoadError
+          what="your week"
+          error={week.error}
+          onRetry={() => void week.refetch()}
+        />
       ) : null}
 
       <div className="sp-tt-nav">
@@ -133,9 +146,23 @@ export function StudentTimetableScreen() {
       </div>
 
       {week.isPending ? (
-        <Skeleton variant="rect" height={280} />
+        /* The grid is a real table — five day columns against a time column —
+           so the wait carries its headers and its column widths, and the real
+           grid drops into the same shape rather than pushing the page down. */
+        <TableRowsSkeleton
+          headers={["", "Mon", "Tue", "Wed", "Thu", "Fri"]}
+          columns={[
+            { width: 36 },
+            { badge: true },
+            { badge: true },
+            { badge: true },
+            { badge: true },
+            { badge: true },
+          ]}
+          rows={6}
+        />
       ) : periodRows.length === 0 ? (
-        <EmptyState
+        <NothingYet
           title="No lessons on your class timetable"
           body="Nothing has been timetabled for your class this term. The office builds the timetable, so nobody can fix this from the app."
         />
@@ -206,11 +233,15 @@ export function StudentTimetableScreen() {
       </div>
 
       {!isToday && week.isPending ? (
-        <Skeleton variant="text" height={180} />
+        <CardsSkeleton count={5} columns={1} lines={1} />
       ) : rows.length === 0 ? (
-        <EmptyState
-          title="No lessons that day"
-          body="Nothing is on your class timetable for this day."
+        /* The day picker above is the filter, so this names the day it emptied
+           and offers to go back to today rather than saying "no lessons" flat —
+           a Saturday with nothing on it is not a broken timetable. */
+        <NothingMatched
+          what="lessons"
+          filters={[DAY_NAMES[Number(day)] ?? "that day"]}
+          onClear={() => setDay(String(Math.min(todayIso, 6)))}
         />
       ) : (
         <div className="sp-list">

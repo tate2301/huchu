@@ -58,7 +58,8 @@ scripts/zz-*
 *.tmp.mjs
 test-results/
 
-# graphify: machine-local interpreter/root pointers (absolute paths)
-graphify-out/.graphify_python
-graphify-out/.graphify_root
-graphify-out/cache/last_query_stamp
+# graphify: a local knowledge-graph cache, rebuilt from the source it indexes.
+# It was committed once by mistake — 274 files of machine-local absolute paths
+# and extraction cache, none of it meaningful to anyone else's checkout.
+graphify-out/
+scratch/

@@ -25,7 +25,11 @@ import { DealFormSheet } from "./deal-form-sheet";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { RecordListShell } from "./record-list-shell";
 import { RecordList, RecordListPager } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "./record-table";
+import {
+  RecordTable,
+  RecordTableName,
+  type RecordTableColumn,
+} from "@/components/records/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 
 const PAGE_SIZE = 50;
@@ -251,6 +255,12 @@ export function DealsContent({
       onCreate={() => setCreateOpen(true)}
       error={dealsQuery.error}
       count={`${rows.length} of ${total}`}
+      // Below `sm` the status control is behind one button, and this list opens
+      // narrowed to OPEN — so a business whose deals are all won or lost sees an
+      // empty page with nothing on it to explain why. The default counts for
+      // exactly that reason: it is hiding rows, and the reader cannot see it.
+      // The pipeline is not counted; it swaps the set rather than narrowing it.
+      filterCount={statusFilter === "ALL" ? 0 : 1}
       display={
         <ColumnPicker
           columns={layout === "BOARD" ? DEAL_CARD_FIELDS : DEAL_TABLE_COLUMNS}

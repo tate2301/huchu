@@ -23,7 +23,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
-import { fetchHostelRooms, type HostelRoom } from "./boarding-data";
+import { fetchHostelRooms, type HostelRoom } from "@/components/schools/boarding/boarding-data";
 
 /**
  * The rooms and beds a house is made of.

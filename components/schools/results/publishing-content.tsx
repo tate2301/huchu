@@ -30,8 +30,8 @@ import {
   type ResultSheetStatus,
 } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
-import { PublishWindowDialog } from "./publish-window-dialog";
-import { SheetDetailDialog } from "./sheet-detail-dialog";
+import { PublishWindowDialog } from "@/components/schools/results/publish-window-dialog";
+import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
 import {
   SHEET_STATE_LABELS,
   SHEET_STATE_OPTIONS,
@@ -40,8 +40,8 @@ import {
   WindowStateBadge,
   formatDay,
   formatDayTime,
-} from "./sheet-state";
-import { useResultSheetWorkflow } from "./use-sheet-workflow";
+} from "@/components/schools/results/sheet-state";
+import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
  * Publishing: the windows marks may go out through, and the sheets going out.
@@ -359,13 +359,33 @@ export function PublishingContent() {
         }
       />
 
+      {/*
+        Same eight numbers as the moderation queue, in the same order: this and
+        that screen are two halves of one job, and a band that renamed its chips
+        between them would make an office worker re-read the strip every time
+        they crossed over. "Ready" is the approved pile seen from this side —
+        sheets waiting on a window rather than on a signature.
+      */}
       <PageBand
         chips={[
-          { label: "Ready", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
+          { label: "Draft", value: summary?.draftSheets ?? 0 },
+          {
+            label: "Submitted",
+            value: summary?.submittedSheets ?? 0,
+            tone: "warn",
+            href: "/schools/results/moderation",
+          },
+          {
+            label: "Sent back",
+            value: summary?.hodRejectedSheets ?? 0,
+            tone: "danger",
+            href: "/schools/results/moderation",
+          },
+          { label: "Approved", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
           { label: "Published", value: summary?.publishedSheets ?? 0, tone: "brand" },
           { label: "Windows open", value: summary?.openPublishWindows ?? 0, tone: "success" },
-          { label: "Scheduled", value: summary?.scheduledPublishWindows ?? 0 },
-          { label: "Closed", value: summary?.closedPublishWindows ?? 0 },
+          { label: "Windows scheduled", value: summary?.scheduledPublishWindows ?? 0 },
+          { label: "Windows closed", value: summary?.closedPublishWindows ?? 0 },
         ]}
       />
 

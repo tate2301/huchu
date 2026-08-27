@@ -2556,6 +2556,10 @@ enum EmployeeModule {
   SCRAP_METAL
   CAR_SALES
   RETAIL      @map("THRIFT")
+  // A school's own staff — the bursar, the groundsman, the drivers. They are
+  // employees like any other so payroll and leave stay in one place, and this
+  // is what marks them as the school's rather than the company's.
+  SCHOOLS
 }
 
 enum WorkflowStatus {

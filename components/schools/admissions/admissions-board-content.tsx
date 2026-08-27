@@ -14,11 +14,13 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
+  CardsSkeleton,
   LoadError,
   NothingLeftToDo,
   NothingMatched,
+  NothingYet,
   SaveError,
-  TableRowsSkeleton,
+  SavingOverlay,
 } from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -51,6 +53,26 @@ const STAGE_OPTIONS = [...PIPELINE_STAGES, ...CLOSED_STAGES].map((stage) => ({
   value: stage,
   label: STAGE_LABELS[stage],
 }));
+
+/**
+ * What an empty column means, one stage at a time.
+ *
+ * Every one of these is good news read a different way — nobody stuck at
+ * assessment, no offer left hanging, nobody turned down this year — so each
+ * gets the sentence that actually applies rather than one generic "nothing
+ * here" repeated nine times down the board.
+ */
+const EMPTY_STAGE_BODY: Record<ApplicationStage, string> = {
+  ENQUIRY: "Nobody has rung or walked in without applying yet.",
+  APPLIED: "Every application taken has been looked at and moved on.",
+  ASSESSMENT: "Nobody is waiting to sit the entrance paper.",
+  WAITLISTED: "Nobody is holding for a place that has not come free.",
+  OFFERED: "Every offer the school has made has been answered.",
+  ACCEPTED: "Everybody who accepted has been put on the roll.",
+  ENROLLED: "Nobody has been enrolled from this board yet this year.",
+  DECLINED: "The school has not turned anybody down.",
+  WITHDRAWN: "No family has gone elsewhere.",
+};
 
 function stageBadge(stage: ApplicationStage) {
   if (stage === "ENROLLED") return <Badge tone="success">Enrolled</Badge>;
@@ -114,6 +136,15 @@ export function AdmissionsBoardContent() {
 
   const now = useMemo(() => new Date(), []);
 
+  /**
+   * Every stage in the order, including the ones holding nobody.
+   *
+   * A kanban that drops its empty columns is a kanban whose shape changes
+   * every time somebody is moved — and it hides the column worth knowing about,
+   * because "nothing at Assessment" is the answer an admissions office is
+   * looking for as often as a list of names. Each empty column says so in its
+   * own words below.
+   */
   const grouped = useMemo(() => {
     const map = new Map<ApplicationStage, SchoolsApplicationRecord[]>();
     for (const application of applications) {
@@ -121,12 +152,16 @@ export function AdmissionsBoardContent() {
       if (bucket) bucket.push(application);
       else map.set(application.stage, [application]);
     }
-    const order = includeClosed || stageFilter
-      ? [...PIPELINE_STAGES, ...CLOSED_STAGES]
-      : PIPELINE_STAGES;
-    return order
-      .filter((stage) => (map.get(stage) ?? []).length > 0)
-      .map((stage) => [stage, map.get(stage) as SchoolsApplicationRecord[]] as const);
+    // A stage filter narrows the board to one column, so the other eight are
+    // not empty — they are not being asked about.
+    const order = stageFilter
+      ? [stageFilter as ApplicationStage]
+      : includeClosed
+        ? [...PIPELINE_STAGES, ...CLOSED_STAGES]
+        : PIPELINE_STAGES;
+    return order.map(
+      (stage) => [stage, map.get(stage) ?? []] as const,
+    );
   }, [applications, includeClosed, stageFilter]);
 
   const lapsed = applications.filter((application) =>
@@ -348,15 +383,42 @@ export function AdmissionsBoardContent() {
         </Alert>
       ) : null}
 
-      {grouped.length === 0 && applicationsQuery.isLoading ? (
-        <TableRowsSkeleton rows={6} columns={[{ twoLine: true }, { width: 220 }]} />
-      ) : null}
-      {grouped.length === 0 && !applicationsQuery.isLoading ? (
+      {applicationsQuery.isLoading ? (
+        /*
+          The pipeline is a kanban of stages, so the placeholder is a column of
+          cards and not a table — a grey table under section headings that are
+          about to be "Assessment · 9" reflows the whole board when the real
+          groups land. Three columns' worth: what a September board holds.
+        */
+        <div className="space-y-3">
+          <CardsSkeleton count={6} columns={3} lines={2} />
+        </div>
+      ) : applications.length === 0 ? (
         namedFilters.length > 0 ? (
           <NothingMatched
             what="applications"
             filters={namedFilters}
             onClear={clearFilters}
+          />
+        ) : Object.values(counts).every((count) => !count) ? (
+          /*
+            No application has ever been taken. That is a school before its
+            first enquiry, not a cleared board, so it offers the verb that
+            fills it.
+          */
+          <NothingYet
+            title="Nobody has applied yet"
+            body="An enquiry taken at the desk starts here and moves along the stage ladder as the school decides."
+            action={
+              <CreateButton
+                resource="schools.admissions"
+                label="New application"
+                onSelect={() => {
+                  setEditing(null);
+                  setFormOpen(true);
+                }}
+              />
+            }
           />
         ) : (
           <NothingLeftToDo
@@ -364,15 +426,36 @@ export function AdmissionsBoardContent() {
             body="Every application has been decided. New enquiries land here as they are taken at the desk."
           />
         )
-      ) : null}
-
+      ) : (
+        /*
+          Moving a child along the ladder and enrolling one both rewrite the
+          board this list is grouped from, so the whole board dims while either
+          is in flight. A second Offer pressed on the row below is a second
+          decision recorded against a stage that has already moved.
+        */
+        <SavingOverlay
+          saving={moveMutation.isPending || enrolMutation.isPending}
+          label={enrolMutation.isPending ? "Enrolling…" : "Saving…"}
+        >
       <MobileList>
-        {grouped.length === 0 ? null : (
-          grouped.map(([stage, rows]) => (
+        {grouped.map(([stage, rows]) => (
             <div key={stage}>
               <MobileListSectionHeader>
                 {STAGE_LABELS[stage]} · {rows.length}
               </MobileListSectionHeader>
+              {rows.length === 0 ? (
+                /*
+                  An empty column is good news, not a missing record: nobody is
+                  stuck at Assessment, every offer has been answered. So it is
+                  NothingLeftToDo and never a create button — you do not put a
+                  child into "Offered" by hand, they arrive from the stage
+                  before it.
+                */
+                <NothingLeftToDo
+                  title={`Nobody at ${STAGE_LABELS[stage].toLowerCase()}`}
+                  body={EMPTY_STAGE_BODY[stage]}
+                />
+              ) : null}
               {rows.map((application) => {
                 const next = ALLOWED_TRANSITIONS[application.stage];
                 return (
@@ -468,9 +551,10 @@ export function AdmissionsBoardContent() {
                 );
               })}
             </div>
-          ))
-        )}
+        ))}
       </MobileList>
+        </SavingOverlay>
+      )}
 
       <ApplicationFormSheet
         open={formOpen}

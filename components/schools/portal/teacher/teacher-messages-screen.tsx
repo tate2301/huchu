@@ -1,11 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, EmptyState, Skeleton, TextArea } from "@corelithzw/react";
+import { Alert, Badge, Button, Card, TextArea } from "@corelithzw/react";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { TableSearch } from "@/components/schools/common/table-controls";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 
 /**
  * Parent messages.
@@ -59,6 +68,13 @@ export function TeacherMessagesScreen() {
   const queryClient = useQueryClient();
   const [openId, setOpenId] = useState<string | null>(null);
   const [draft, setDraft] = useState("");
+  /**
+   * A teacher opens this looking for one family by name. Unread-only is the
+   * other question — "what came in while I was teaching" — so it is a view
+   * rather than something to be worked out by scanning for blue dots.
+   */
+  const [search, setSearch] = useState("");
+  const [unreadOnly, setUnreadOnly] = useState(false);
 
   const inbox = useQuery({
     queryKey: ["schools", "portal", "teacher", "messages"],
@@ -94,23 +110,46 @@ export function TeacherMessagesScreen() {
     },
   });
 
-  const threads = inbox.data?.threads ?? [];
+  // Memoised because the filter below depends on it: a fresh `[]` every render
+  // would make that dependency change forever.
+  const threads = useMemo(() => inbox.data?.threads ?? [], [inbox.data]);
   const unread = threads.filter((row) => row.unread).length;
+
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    return threads.filter((row) => {
+      if (unreadOnly && !row.unread) return false;
+      if (needle) {
+        const haystack = `${row.guardian.firstName} ${row.guardian.lastName} ${row.subject} ${
+          row.student ? `${row.student.firstName} ${row.student.lastName}` : ""
+        }`;
+        if (!haystack.toLowerCase().includes(needle)) return false;
+      }
+      return true;
+    });
+  }, [threads, unreadOnly, search]);
 
   if (inbox.isPending) {
     return (
-      <div className="flex flex-col gap-3">
-        <Skeleton className="h-20 w-full" />
-        <Skeleton className="h-20 w-full" />
-      </div>
+      <TableRowsSkeleton
+        headers={["Family", "Last message", "When"]}
+        columns={[
+          { avatar: true, twoLine: true },
+          {},
+          { width: 96, align: "right" },
+        ]}
+        rows={6}
+      />
     );
   }
 
   if (inbox.error) {
     return (
-      <Alert tone="danger" title="Your messages would not load">
-        {getApiErrorMessage(inbox.error)}
-      </Alert>
+      <LoadError
+        what="your messages"
+        error={inbox.error}
+        onRetry={() => void inbox.refetch()}
+      />
     );
   }
 
@@ -118,10 +157,13 @@ export function TeacherMessagesScreen() {
 
   return (
     <div className="flex flex-col gap-4">
-      {reply.error ? (
-        <Alert tone="danger" title="That reply did not send">
-          {getApiErrorMessage(reply.error)}
-        </Alert>
+      {reply.error ? <SaveError what="That reply" error={reply.error} /> : null}
+      {thread.error ? (
+        <LoadError
+          what="that conversation"
+          error={thread.error}
+          onRetry={() => void thread.refetch()}
+        />
       ) : null}
 
       {openId && open ? (
@@ -162,22 +204,26 @@ export function TeacherMessagesScreen() {
                 The office closed it. Start a new one if there is more to say.
               </Alert>
             ) : (
-              <div className="flex flex-col gap-2">
-                <TextArea
-                  rows={3}
-                  value={draft}
-                  placeholder="Write a reply"
-                  onChange={(event) => setDraft(event.target.value)}
-                />
-                <Button
-                  className="self-end"
-                  loading={reply.isPending}
-                  disabled={!draft.trim()}
-                  onClick={() => reply.mutate()}
-                >
-                  Send
-                </Button>
-              </div>
+              /* The box stops taking words while the reply is going out. A
+                 sentence typed mid-send is a sentence the parent never gets. */
+              <SavingOverlay saving={reply.isPending} label="Sending…">
+                <div className="flex flex-col gap-2">
+                  <TextArea
+                    rows={3}
+                    value={draft}
+                    placeholder="Write a reply"
+                    onChange={(event) => setDraft(event.target.value)}
+                  />
+                  <Button
+                    className="self-end"
+                    loading={reply.isPending}
+                    disabled={!draft.trim()}
+                    onClick={() => reply.mutate()}
+                  >
+                    Send
+                  </Button>
+                </div>
+              </SavingOverlay>
             )}
           </div>
         </Card>
@@ -191,14 +237,43 @@ export function TeacherMessagesScreen() {
           }
           actions={unread > 0 ? <Badge tone="warn">{unread} new</Badge> : null}
         >
+          <div className="mb-3 flex flex-wrap items-end gap-3">
+            <div className="min-w-0 flex-1 basis-[220px]">
+              <TableSearch
+                label="Find a family"
+                value={search}
+                onChange={setSearch}
+                placeholder="Search a parent or a pupil"
+              />
+            </div>
+            <Button
+              variant={unreadOnly ? "primary" : "secondary"}
+              disabled={unread === 0 && !unreadOnly}
+              onClick={() => setUnreadOnly((current) => !current)}
+            >
+              {unreadOnly ? "Showing the new ones" : `Show the ${unread} new`}
+            </Button>
+          </div>
+
           {threads.length === 0 ? (
-            <EmptyState
+            <NothingYet
               title="No messages yet"
-              body="When a family writes to you about a pupil, the conversation appears here."
+              body="When a family writes to you about a pupil, the conversation appears here. Parents start them from their own portal."
+            />
+          ) : visible.length === 0 ? (
+            <NothingMatched
+              what="conversations"
+              filters={[unreadOnly ? "new only" : null, search.trim() || null].filter(
+                (value): value is string => Boolean(value),
+              )}
+              onClear={() => {
+                setSearch("");
+                setUnreadOnly(false);
+              }}
             />
           ) : (
             <div className="flex flex-col">
-              {threads.map((row) => (
+              {visible.map((row) => (
                 <button
                   key={row.id}
                   type="button"

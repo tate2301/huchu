@@ -1,14 +1,17 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { ClientDate } from "@corelithzw/react";
 import {
-  Alert,
-  ClientDate,
-  EmptyState,
-  StatusState,
-} from "@corelithzw/react";
+  CardsSkeleton,
+  LoadError,
+  NothingLeftToDo,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import { getApiErrorMessage, isFeatureDisabledError } from "@/lib/api-client";
+import { isFeatureDisabledError } from "@/lib/api-client";
 import {
   archiveNotifications,
   fetchNotifications,
@@ -56,6 +59,11 @@ function toneOf(item: NotificationListItem) {
  * "Clear" archives rather than deletes: a cleared message is out of the way and
  * still on the record, which is the right answer when the thing cleared might
  * have been a detention notice.
+ *
+ * One of the eight states is missing on purpose, and the audit reads text, so it
+ * is named here rather than left looking forgotten: there is no
+ * `NothingMatched`, because the inbox has no filters — everything unarchived is
+ * on it, newest first.
  */
 export function StudentNotificationsScreen() {
   const { student } = useStudentPortal();
@@ -83,7 +91,7 @@ export function StudentNotificationsScreen() {
 
   if (!student) {
     return (
-      <EmptyState
+      <NothingYet
         title="This account is not linked to a pupil"
         body="Ask the school office to link your sign-in to your student record. Until they do, the school cannot send you anything here."
       />
@@ -97,7 +105,7 @@ export function StudentNotificationsScreen() {
   // child should read as broken. Say what is true and stop.
   if (isFeatureDisabledError(inbox.error)) {
     return (
-      <EmptyState
+      <NothingYet
         icon={<Bell className="size-5" aria-hidden />}
         title="Messages are switched off at your school"
         body="Your school has not turned this part of the app on. Notices still go up the usual way — ask your form teacher."
@@ -108,20 +116,14 @@ export function StudentNotificationsScreen() {
   return (
     <div className="flex flex-col">
       {inbox.error ? (
-        <Alert tone="danger" title="Your messages would not load">
-          {getApiErrorMessage(inbox.error)}
-        </Alert>
+        <LoadError
+          what="your messages"
+          error={inbox.error}
+          onRetry={() => void inbox.refetch()}
+        />
       ) : null}
-      {read.error ? (
-        <Alert tone="danger" title="That message would not open">
-          {getApiErrorMessage(read.error)}
-        </Alert>
-      ) : null}
-      {clear.error ? (
-        <Alert tone="danger" title="Those messages would not clear">
-          {getApiErrorMessage(clear.error)}
-        </Alert>
-      ) : null}
+      {read.error ? <SaveError what="That message" error={read.error} /> : null}
+      {clear.error ? <SaveError what="Those messages" error={clear.error} /> : null}
 
       <div className="sp-notif-meta">
         <span>
@@ -164,48 +166,54 @@ export function StudentNotificationsScreen() {
       </div>
 
       {inbox.isPending ? (
-        <StatusState
-          variant="loading"
-          title="Getting your messages…"
-          body="Reading what the school has sent you."
-        />
+        /* A message is an icon tile, a title, a summary and a time — a card.
+           Six is a phone screen's worth. */
+        <CardsSkeleton count={6} columns={1} lines={2} />
       ) : messages.length === 0 ? (
-        <EmptyState
-          icon={<Bell className="size-5" aria-hidden />}
+        /* An empty inbox is not a job undone; it is an inbox that has been
+           read. So this is good news, not a prompt to go and make something. */
+        <NothingLeftToDo
           title="Nothing new"
-          body="Messages from the school land here — marks going up, homework set, notices from the office."
+          body="You are all caught up. Messages from the school land here — marks going up, homework set, notices from the office."
         />
       ) : (
-        <div className="sp-notifs">
-          {messages.map((item) => {
-            const tone = toneOf(item);
-            return (
-              <button
-                key={item.recipientId}
-                type="button"
-                className={`sp-notif${item.isRead ? "" : " unread"} ${tone.accent}`}
-                aria-label={`${tone.label}: ${item.title}${item.isRead ? "" : ", unread"}`}
-                onClick={() => {
-                  if (item.isRead) return;
-                  read.mutate([item.recipientId]);
-                }}
-              >
-                <span className="sp-nf-ic">
-                  <tone.Icon className="size-4" aria-hidden />
-                </span>
-                <span className="sp-nf-body">
-                  <span className="sp-nf-nm block">{item.title}</span>
-                  {item.summary ? (
-                    <span className="sp-nf-sb block">{item.summary}</span>
-                  ) : null}
-                  <span className="sp-nf-tm block">
-                    <ClientDate value={item.createdAt} mode="datetime" />
+        /* The list dims while a read or a clear is in flight, so a pupil
+           tapping down a long inbox can see which taps have landed. */
+        <SavingOverlay
+          saving={read.isPending || clear.isPending}
+          label={clear.isPending ? "Clearing…" : "Marking read…"}
+        >
+          <div className="sp-notifs">
+            {messages.map((item) => {
+              const tone = toneOf(item);
+              return (
+                <button
+                  key={item.recipientId}
+                  type="button"
+                  className={`sp-notif${item.isRead ? "" : " unread"} ${tone.accent}`}
+                  aria-label={`${tone.label}: ${item.title}${item.isRead ? "" : ", unread"}`}
+                  onClick={() => {
+                    if (item.isRead) return;
+                    read.mutate([item.recipientId]);
+                  }}
+                >
+                  <span className="sp-nf-ic">
+                    <tone.Icon className="size-4" aria-hidden />
                   </span>
-                </span>
-              </button>
-            );
-          })}
-        </div>
+                  <span className="sp-nf-body">
+                    <span className="sp-nf-nm block">{item.title}</span>
+                    {item.summary ? (
+                      <span className="sp-nf-sb block">{item.summary}</span>
+                    ) : null}
+                    <span className="sp-nf-tm block">
+                      <ClientDate value={item.createdAt} mode="datetime" />
+                    </span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </SavingOverlay>
       )}
     </div>
   );

@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Combobox, Switch } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { DEPARTMENT_SUGGESTIONS } from "@/components/schools/teachers/departments";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -208,10 +209,20 @@ export function TeacherFormDialog({
             id="teacher-department"
             value={form.department}
             placeholder="Mathematics"
+            // A suggestion list rather than a `<Select>`: the column is free
+            // text and a school that runs "Business and Enterprise" means it.
+            // Offering the usual spellings stops the staff list's Department
+            // filter growing a separate entry for "Maths" and "Mathematics".
+            list="teacher-department-options"
             onChange={(event) =>
               setForm((current) => ({ ...current, department: event.target.value }))
             }
           />
+          <datalist id="teacher-department-options">
+            {DEPARTMENT_SUGGESTIONS.map((department) => (
+              <option key={department} value={department} />
+            ))}
+          </datalist>
         </div>
 
         <div className="space-y-3 border-t border-[var(--border-subtle)] pt-4">

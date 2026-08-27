@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -112,6 +112,19 @@ type BulkWrite = { studentId: string; label: string };
  * work unless you can act on it where you read it. So the verb lives on the
  * row, and once over the filtered set — narrow to Form 2A with no target, set
  * them all a Mathematics target in one pass, move on to Form 2B.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * Four filters, and the canvas names each with its unnarrowed choice:
+ *
+ *   Term = This term
+ *   Year group = Every year
+ *   Subject = Every subject
+ *   Standing = Everyone
+ *
+ * Term, year group and subject are asked of the endpoint, because the roll the
+ * rows are built from is the server's; standing is worked out per row from what
+ * came back, so it is filtered here.
  */
 export function GoalsOversightContent() {
   const queryClient = useQueryClient();
@@ -496,6 +509,34 @@ export function GoalsOversightContent() {
           }
         />
       )}
+
+      <div className="grid items-start gap-3 lg:grid-cols-3">
+        <Card title="The rows start from the roll">
+          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+            A targets list built from the targets table can only show the children
+            somebody has already thought about. The head&rsquo;s question is the other
+            one — <strong>which pupils have no target at all</strong>{" "}
+            {"— so a pupil with nothing set is a row saying so."}
+          </p>
+        </Card>
+
+        <Card title="No mark is not behind">
+          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+            A missing mark says nothing about how the target is going, so it is neutral
+            rather than a warning. Reading it as &ldquo;behind&rdquo; would put a child on
+            a chase list over a test nobody has marked.
+          </p>
+        </Card>
+
+        <Card title="The missing half">
+          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+            The screen&rsquo;s whole purpose is naming the{" "}
+            {(summary?.withoutGoal ?? 0).toLocaleString()} pupils nobody has set a target
+            for. <strong>Set a target</strong> on the row, and one over the filtered set,
+            is what turns the list into work.
+          </p>
+        </Card>
+      </div>
 
       {editing ? (
         <GoalTargetDialog

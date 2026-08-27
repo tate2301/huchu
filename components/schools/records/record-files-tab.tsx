@@ -4,7 +4,14 @@ import { useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 
-import { NothingYet, SaveError, TableRowsSkeleton } from "@/components/schools/common/states";
+import { FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan, type SchoolResource } from "@/lib/schools/access";
 import { fetchJson } from "@/lib/api-client";
@@ -34,6 +41,15 @@ export type RecordFile = {
   uploadedBy: { id: string; name: string | null } | null;
 };
 
+/**
+ * What a school actually looks for in here: the scan of something, or the PDF
+ * somebody typed. Two kinds, because that is how many the upload accepts.
+ */
+const KIND_OPTIONS = [
+  { value: "image", label: "Scans and photos" },
+  { value: "pdf", label: "PDFs" },
+];
+
 function sizeLabel(bytes: number | null) {
   if (bytes === null) return null;
   if (bytes < 1024) return `${bytes} B`;
@@ -46,6 +62,8 @@ export function RecordFilesTab({
   subjectId,
   files,
   isPending,
+  error,
+  onRetry,
   resource,
 }: {
   /** `STUDENT`, `GUARDIAN`, `TEACHER` — a `SchoolRecordType`. */
@@ -53,12 +71,21 @@ export function RecordFilesTab({
   subjectId: string;
   files: RecordFile[];
   isPending: boolean;
+  /**
+   * The read that failed, from the caller's query. The tab does not fetch its
+   * own rows — the record page already has them for the tab's count — so the
+   * fault has to travel down with them, or the tab reports "nothing attached"
+   * for a record whose paperwork simply would not load.
+   */
+  error?: unknown;
+  onRetry?: () => void;
   /** Whose grant decides whether anything may be attached. */
   resource: SchoolResource;
 }) {
   const queryClient = useQueryClient();
   const input = useRef<HTMLInputElement>(null);
-  const [error, setError] = useState<unknown>(null);
+  const [saveError, setSaveError] = useState<unknown>(null);
+  const [kind, setKind] = useState("");
   const access = useSchoolAccess();
 
   const permitted = access.can(resource, "edit");
@@ -91,15 +118,21 @@ export function RecordFilesTab({
       });
     },
     onSuccess: () => {
-      setError(null);
+      setSaveError(null);
       void queryClient.invalidateQueries({
         queryKey: ["records", "files", subjectType, subjectId],
       });
     },
-    onError: (cause) => setError(cause),
+    onError: (cause) => setSaveError(cause),
     onSettled: () => {
       if (input.current) input.current.value = "";
     },
+  });
+
+  const visible = files.filter((file) => {
+    if (kind === "image") return (file.contentType ?? "").startsWith("image/");
+    if (kind === "pdf") return (file.contentType ?? "").includes("pdf");
+    return true;
   });
 
   return (
@@ -131,44 +164,78 @@ export function RecordFilesTab({
         />
       </div>
 
-      {error ? <SaveError what="That file" error={error} /> : null}
+      {saveError ? <SaveError what="That file" error={saveError} /> : null}
 
       {isPending ? (
-        <TableRowsSkeleton rows={3} columns={[{ twoLine: true }, { width: 90 }]} />
+        <TableRowsSkeleton
+          headers={["Document", "Size"]}
+          columns={[{ twoLine: true }, { width: 90, align: "right" }]}
+          rows={3}
+        />
+      ) : error ? (
+        <LoadError what="this record's paperwork" error={error} onRetry={onRetry} />
       ) : files.length === 0 ? (
         <NothingYet
           title="Nothing attached"
           body="A birth certificate, a transfer letter, a medical note — anything that arrived on paper and belongs with this record."
         />
       ) : (
-        <ul className="space-y-2">
-          {files.map((file) => (
-            <li key={file.id}>
-              <a
-                href={file.url}
-                target="_blank"
-                rel="noreferrer"
-                className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3 hover:bg-[var(--surface-hover)]"
-              >
-                <span className="min-w-0">
-                  <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
-                    {file.name}
-                  </span>
-                  <span className="block truncate text-sm text-[var(--text-muted)]">
-                    {[
-                      file.uploadedBy?.name ?? "Somebody",
-                      formatSchoolDate(file.createdAt),
-                      sizeLabel(file.size),
-                      file.note,
-                    ]
-                      .filter(Boolean)
-                      .join(" · ")}
-                  </span>
-                </span>
-              </a>
-            </li>
-          ))}
-        </ul>
+        <div className="space-y-3">
+          {/* A record with two documents does not need narrowing; one with a
+              term's worth of medical notes does. */}
+          {files.length > 3 ? (
+            <FilterSelect
+              label="Kind"
+              allLabel="Everything attached"
+              value={kind}
+              options={KIND_OPTIONS}
+              onChange={setKind}
+            />
+          ) : null}
+
+          {visible.length === 0 ? (
+            <NothingMatched
+              what="documents"
+              filters={[KIND_OPTIONS.find((option) => option.value === kind)?.label ?? ""].filter(
+                Boolean,
+              )}
+              onClear={() => setKind("")}
+            />
+          ) : (
+            <ul className="space-y-2">
+              {visible.map((file, index) => (
+                <li
+                  key={file.id}
+                  className="campus-row-in"
+                  style={{ animationDelay: `${index * 40}ms` }}
+                >
+                  <a
+                    href={file.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex items-center justify-between gap-3 rounded-[var(--radius-sm)] p-3 hover:bg-[var(--surface-hover)]"
+                  >
+                    <span className="min-w-0">
+                      <span className="block truncate text-sm font-medium text-[var(--text-strong)]">
+                        {file.name}
+                      </span>
+                      <span className="block truncate text-sm text-[var(--text-muted)]">
+                        {[
+                          file.uploadedBy?.name ?? "Somebody",
+                          formatSchoolDate(file.createdAt),
+                          sizeLabel(file.size),
+                          file.note,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                      </span>
+                    </span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       )}
     </div>
   );

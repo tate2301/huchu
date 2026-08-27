@@ -2,7 +2,7 @@
 
 import { Fragment, useState } from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   accentVar,
   Alert,
@@ -11,10 +11,17 @@ import {
   Card,
   EmptyState,
   Modal,
-  Skeleton,
 } from "@corelithzw/react";
 import { ChevronLeftIcon, ChevronRight } from "@/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
+import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 import { hueFor, subjectHues } from "./teacher-subject-hues";
 
@@ -138,6 +145,7 @@ function weekLabel(days: WeekDay[]) {
  */
 export function TeacherTimetableScreen() {
   const { day, error, setClassSubjectId } = useTeacherPortal();
+  const queryClient = useQueryClient();
   /**
    * Empty means "the week the school is in", which the server decides.
    *
@@ -150,6 +158,14 @@ export function TeacherTimetableScreen() {
   const [selected, setSelected] = useState<{ date: string; periodId: string } | null>(
     null,
   );
+  /**
+   * A free period is information — it is where marking goes — so the grid
+   * draws them by default. But a teacher checking "what am I actually teaching
+   * on Thursday" is reading past eight empty cells to find three, and this
+   * takes them out of the way without pretending the week is shorter.
+   */
+  const [teachingOnly, setTeachingOnly] = useState(false);
+  const [laidOut, setLaidOut] = useState<string | null>(null);
 
   const query = useQuery({
     queryKey: ["schools", "portal", "teacher", "timetable", weekStart],
@@ -187,6 +203,21 @@ export function TeacherTimetableScreen() {
   const onThisWeek = week ? weekStart === "" || weekStart === week.weekStart : true;
   const isThisWeek = days.some((weekDay) => weekDay.isToday);
 
+  // A plain filter over at most a dozen periods, deliberately not memoised:
+  // its inputs are all `week?.x ?? []`, rebuilt every render, so a manual memo
+  // would never hit and the React Compiler refuses to preserve it.
+  const shownPeriods = teachingOnly
+    ? periods.filter((period) =>
+        days.some(
+          (weekDay) =>
+            lessons.some(
+              (row) => row.dayOfWeek === weekDay.dayOfWeek && row.periodId === period.id,
+            ) ||
+            cover.some((row) => row.date === weekDay.date && row.periodId === period.id),
+        ),
+      )
+    : periods;
+
   // The subjects on this week's grid, each with the hue its cells carry —
   // the same subject → hue mapping the class rail paints its bars with, so a
   // colour means one subject everywhere in the portal.
@@ -207,12 +238,37 @@ export function TeacherTimetableScreen() {
       }
     : null;
 
+  /**
+   * The verb the cell was missing. Opening a lesson used to offer two links
+   * and nothing to do here, so a teacher who noticed an unplanned Thursday had
+   * to walk to the planner to start it. This lays the week's drafts out from
+   * the same endpoint the planner uses, against the class the cell names.
+   */
+  const layOut = useMutation({
+    mutationFn: (input: { classSubjectId: string; weekStart: string }) =>
+      fetchJson<{ created: number; message: string | null }>(
+        "/api/v2/schools/portal/teacher/me/lessons",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            action: "lay-out-week",
+            classSubjectId: input.classSubjectId,
+            weekStart: input.weekStart,
+          }),
+        },
+      ),
+    onSuccess: (result) => {
+      setLaidOut(
+        result.created === 0
+          ? (result.message ?? "Every lesson this week already has a plan")
+          : `${result.created} draft${result.created === 1 ? "" : "s"} laid out. Open the planner to name the topics.`,
+      );
+      void queryClient.invalidateQueries({ queryKey: ["schools", "portal", "teacher"] });
+    },
+  });
+
   if (error) {
-    return (
-      <Alert tone="danger" title="Your week would not load">
-        {getApiErrorMessage(error)}
-      </Alert>
-    );
+    return <LoadError what="your week" error={error} />;
   }
 
   if (!day.teacher) {
@@ -236,9 +292,15 @@ export function TeacherTimetableScreen() {
   return (
     <div className="flex flex-col gap-4">
       {query.error ? (
-        <Alert tone="danger" title="Your week would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError
+          what="your week"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
+      ) : null}
+      {layOut.error ? <SaveError what="The week's drafts" error={layOut.error} /> : null}
+      {laidOut ? (
+        <Alert tone="success" title={laidOut} onDismiss={() => setLaidOut(null)} />
       ) : null}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -272,6 +334,13 @@ export function TeacherTimetableScreen() {
         >
           This week
         </Button>
+        <Button
+          variant={teachingOnly ? "primary" : "secondary"}
+          disabled={!week || free === 0}
+          onClick={() => setTeachingOnly((current) => !current)}
+        >
+          {teachingOnly ? "Showing lessons only" : "Hide free periods"}
+        </Button>
         <span className="flex-1" />
         <div className="flex flex-wrap items-center gap-2">
           {legend.map((subject) => (
@@ -297,128 +366,145 @@ export function TeacherTimetableScreen() {
         flush
       >
         {query.isPending ? (
-          <div className="p-4">
-            <Skeleton variant="rect" height={320} />
+          /* The grid is cells, so the wait is cards — one grey rectangle
+             reflows into a whole week the moment the data lands. */
+          <div className="p-2">
+            <CardsSkeleton count={6} columns={3} lines={2} />
           </div>
         ) : periods.length === 0 ? (
-          <EmptyState
+          <NothingYet
             title="The school day has no periods"
             body="Nobody has set up the periods a lesson can sit in, so there is no grid to lay your week against. The office builds these under Academics."
           />
+        ) : lessons.length === 0 && cover.length === 0 ? (
+          <NothingYet
+            title="Nothing is timetabled for you this week"
+            body="No lesson has been placed against your name in this term. The office builds the master timetable under Timetable."
+          />
+        ) : shownPeriods.length === 0 ? (
+          <NothingMatched
+            what="periods"
+            filters={["lessons only"]}
+            onClear={() => setTeachingOnly(false)}
+          />
         ) : (
-          <div className="overflow-x-auto p-2">
-            <div
-              className="grid min-w-[46rem] gap-1"
-              style={{
-                gridTemplateColumns: `5.5rem repeat(${days.length}, minmax(8rem, 1fr))`,
-              }}
-            >
-              <div aria-hidden />
-              {days.map((weekDay) => (
-                <div
-                  key={weekDay.date}
-                  {...(weekDay.isToday ? { "aria-current": "date" as const } : {})}
-                  className={[
-                    "flex items-baseline justify-between rounded-[var(--radius-sm)] px-3 py-2",
-                    weekDay.isToday
-                      ? "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
-                      : "text-[color:var(--text-muted)]",
-                  ].join(" ")}
-                >
-                  <span className="text-[length:var(--type-body-sm)] font-semibold">
-                    {DAY_NAME.format(asDate(weekDay.date))}
-                  </span>
-                  <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums">
-                    {weekDay.isToday ? "Today" : DAY_NUMBER.format(asDate(weekDay.date))}
-                  </span>
-                </div>
-              ))}
-
-              {periods.map((period) => (
-                <Fragment key={period.id}>
-                  <div className="flex flex-col justify-center px-2 py-1">
-                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] font-semibold uppercase text-[color:var(--text-strong)]">
-                      {period.code}
+          /* Laying the week's drafts out writes against the class the open
+             cell names, so the grid stops taking taps until it lands. */
+          <SavingOverlay saving={layOut.isPending} label="Laying out the week…">
+            <div className="overflow-x-auto p-2">
+              <div
+                className="grid min-w-[46rem] gap-1"
+                style={{
+                  gridTemplateColumns: `5.5rem repeat(${days.length}, minmax(8rem, 1fr))`,
+                }}
+              >
+                <div aria-hidden />
+                {days.map((weekDay) => (
+                  <div
+                    key={weekDay.date}
+                    {...(weekDay.isToday ? { "aria-current": "date" as const } : {})}
+                    className={[
+                      "flex items-baseline justify-between rounded-[var(--radius-sm)] px-3 py-2",
+                      weekDay.isToday
+                        ? "bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]"
+                        : "text-[color:var(--text-muted)]",
+                    ].join(" ")}
+                  >
+                    <span className="text-[length:var(--type-body-sm)] font-semibold">
+                      {DAY_NAME.format(asDate(weekDay.date))}
                     </span>
-                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                      {period.startsAt} – {period.endsAt}
+                    <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums">
+                      {weekDay.isToday ? "Today" : DAY_NUMBER.format(asDate(weekDay.date))}
                     </span>
                   </div>
+                ))}
 
-                  {days.map((weekDay) => {
-                    const covering = coverAt(weekDay.date, period.id);
-                    const lesson = covering
-                      ? null
-                      : lessonAt(weekDay.dayOfWeek, period.id);
+                {shownPeriods.map((period) => (
+                  <Fragment key={period.id}>
+                    <div className="flex flex-col justify-center px-2 py-1">
+                      <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] font-semibold uppercase text-[color:var(--text-strong)]">
+                        {period.code}
+                      </span>
+                      <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                        {period.startsAt} – {period.endsAt}
+                      </span>
+                    </div>
 
-                    if (!lesson && !covering) {
+                    {days.map((weekDay) => {
+                      const covering = coverAt(weekDay.date, period.id);
+                      const lesson = covering
+                        ? null
+                        : lessonAt(weekDay.dayOfWeek, period.id);
+
+                      if (!lesson && !covering) {
+                        return (
+                          <div
+                            key={`${weekDay.date}-${period.id}`}
+                            className={[
+                              "flex min-h-[4.25rem] flex-col justify-center rounded-[var(--radius-sm)] border border-dashed px-3 py-2",
+                              weekDay.isToday
+                                ? "border-[color:var(--brand)]"
+                                : "border-[color:var(--border-subtle)]",
+                            ].join(" ")}
+                          >
+                            <span className="text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-muted)]">
+                              Free
+                            </span>
+                            <span className="text-[length:var(--type-caption)] text-[color:var(--text-subtle)]">
+                              Nothing timetabled
+                            </span>
+                          </div>
+                        );
+                      }
+
+                      const hue = covering ? "orange" : hueFor(hues, lesson?.subjectName);
+                      const title = covering
+                        ? `${covering.className}${covering.streamName ? ` ${covering.streamName}` : ""}`
+                        : `${lesson?.className}${lesson?.streamName ? ` ${lesson.streamName}` : ""}`;
+                      const subject = covering
+                        ? covering.subjectName
+                        : (lesson?.subjectName ?? "");
+                      const room = covering ? covering.roomName : (lesson?.roomName ?? null);
+
                       return (
-                        <div
+                        <button
                           key={`${weekDay.date}-${period.id}`}
-                          className={[
-                            "flex min-h-[4.25rem] flex-col justify-center rounded-[var(--radius-sm)] border border-dashed px-3 py-2",
-                            weekDay.isToday
-                              ? "border-[color:var(--brand)]"
-                              : "border-[color:var(--border-subtle)]",
-                          ].join(" ")}
+                          type="button"
+                          onClick={() =>
+                            setSelected({ date: weekDay.date, periodId: period.id })
+                          }
+                          style={{
+                            backgroundColor: accentVar(hue, "bg"),
+                            borderColor: weekDay.isToday
+                              ? "var(--brand)"
+                              : accentVar(hue, "bd"),
+                          }}
+                          className="flex min-h-[4.25rem] flex-col items-start gap-0.5 rounded-[var(--radius-sm)] border px-3 py-2 text-left"
                         >
-                          <span className="text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-muted)]">
-                            Free
+                          <span className="flex items-center gap-1.5">
+                            <span
+                              aria-hidden
+                              className="size-1.5 shrink-0 rounded-full"
+                              style={{ backgroundColor: accentVar(hue, "solid") }}
+                            />
+                            <span className="text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
+                              {title}
+                            </span>
                           </span>
-                          <span className="text-[length:var(--type-caption)] text-[color:var(--text-subtle)]">
-                            Nothing timetabled
+                          <span className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
+                            {subject}
                           </span>
-                        </div>
+                          <span className="mt-auto font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                            {covering ? "Cover" : (room ?? "No room set")}
+                          </span>
+                        </button>
                       );
-                    }
-
-                    const hue = covering ? "orange" : hueFor(hues, lesson?.subjectName);
-                    const title = covering
-                      ? `${covering.className}${covering.streamName ? ` ${covering.streamName}` : ""}`
-                      : `${lesson?.className}${lesson?.streamName ? ` ${lesson.streamName}` : ""}`;
-                    const subject = covering
-                      ? covering.subjectName
-                      : (lesson?.subjectName ?? "");
-                    const room = covering ? covering.roomName : (lesson?.roomName ?? null);
-
-                    return (
-                      <button
-                        key={`${weekDay.date}-${period.id}`}
-                        type="button"
-                        onClick={() =>
-                          setSelected({ date: weekDay.date, periodId: period.id })
-                        }
-                        style={{
-                          backgroundColor: accentVar(hue, "bg"),
-                          borderColor: weekDay.isToday
-                            ? "var(--brand)"
-                            : accentVar(hue, "bd"),
-                        }}
-                        className="flex min-h-[4.25rem] flex-col items-start gap-0.5 rounded-[var(--radius-sm)] border px-3 py-2 text-left"
-                      >
-                        <span className="flex items-center gap-1.5">
-                          <span
-                            aria-hidden
-                            className="size-1.5 shrink-0 rounded-full"
-                            style={{ backgroundColor: accentVar(hue, "solid") }}
-                          />
-                          <span className="text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
-                            {title}
-                          </span>
-                        </span>
-                        <span className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                          {subject}
-                        </span>
-                        <span className="mt-auto font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {covering ? "Cover" : (room ?? "No room set")}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </Fragment>
-              ))}
+                    })}
+                  </Fragment>
+                ))}
+              </div>
             </div>
-          </div>
+          </SavingOverlay>
         )}
       </Card>
 
@@ -453,6 +539,20 @@ export function TeacherTimetableScreen() {
         footer={
           openCell?.lesson ? (
             <div className="flex flex-wrap justify-end gap-2">
+              <Button
+                variant="ghost"
+                loading={layOut.isPending}
+                onClick={() => {
+                  if (!openCell.lesson || !week) return;
+                  setLaidOut(null);
+                  layOut.mutate({
+                    classSubjectId: openCell.lesson.classSubjectId,
+                    weekStart: week.weekStart,
+                  });
+                }}
+              >
+                Lay out this week
+              </Button>
               <Button variant="secondary" asChild>
                 <Link
                   href="/portal/teacher/lessons"

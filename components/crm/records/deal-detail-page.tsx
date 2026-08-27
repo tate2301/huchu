@@ -14,21 +14,23 @@ import {
   Building2,
   Calendar,
   CalendarCheck,
+  ChartLine,
   Clock,
-  FileText,
   Funnel,
+  Mail,
   MapPin,
+  NoteAdd,
   Payments,
-  Plus,
+  Phone,
   TrendingUp,
   UserRound,
   Users,
 } from "@/lib/icons";
+import { daysSince, dealStageStatus, resolveNextStep } from "@/lib/crm/tones";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { isDealStale } from "@/lib/crm/pipelines";
 import { visitItemsToQuotationLines } from "@/lib/crm/site-visits";
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
 
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { DocumentList } from "@/components/crm/documents/document-list";
@@ -43,11 +45,14 @@ import {
 } from "./record-tabs";
 import {
   ContactList,
+  ContactTally,
   EmailPreview,
   MeetingCard,
   NextInteractionCard,
   type NextInteraction,
+  type RailTally,
 } from "./record-panels";
+import { NextStepButton, NextStepCard } from "./next-step-card";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
@@ -56,7 +61,7 @@ import type { LeadActivity, LeadAppointment, LeadFollowUp } from "@/components/c
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
-import { RaiseJobSheet } from "@/components/crm/work-orders/raise-job-sheet";
+import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
 import { customFieldAttributes } from "@/components/records/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
@@ -70,12 +75,6 @@ import { DealStageBar, StageChecklist } from "./deal-stage-bar";
 import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
-
-const STATUS_PRESENTATION: Record<string, CanonicalUiStatus> = {
-  OPEN: "in_progress",
-  WON: "passing",
-  LOST: "failing",
-};
 
 const ROLE_LABELS: Record<string, string> = {
   PRIMARY: "Primary contact",
@@ -152,7 +151,6 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
 
   const [tab, setTab] = useState("timeline");
   const [scheduleOpen, setScheduleOpen] = useState(false);
-  const [raiseJobOpen, setRaiseJobOpen] = useState(false);
   const [reportFor, setReportFor] = useState<LeadAppointment | null>(null);
   const [quotationPrefill, setQuotationPrefill] = useState<CrmDocumentLineInput[] | undefined>();
 
@@ -178,6 +176,24 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
   const comments = useRecordComments({ kind: "deal", id: dealId });
   const definitions: CrmFieldDefinitionRecord[] = fieldsQuery.data?.data ?? [];
   const deal = dealQuery.data;
+
+  // The work the deal has turned into. Raising one is the same act wherever it
+  // is pressed from — the bar's next step, the actions menu, or the section
+  // itself — so there is one sheet, and afterwards the section it landed in
+  // opens. Called above the early returns, because a hook must be.
+  const jobs = useJobsTab({
+    ref: { kind: "deal", id: dealId },
+    currentUserId,
+    links: { clientId: deal?.clientId, siteId: deal?.site?.id },
+    defaultTitle: deal?.title,
+    quotationDocuments: (deal?.documents ?? [])
+      .filter((doc) => doc.type === "QUOTATION" && doc.quotation)
+      .map((doc) => ({
+        id: doc.id,
+        label: `${doc.quotation!.quotationNumber}${doc.version > 1 ? ` (v${doc.version})` : ""}`,
+      })),
+    onRaised: () => setTab("jobs"),
+  });
 
   if (dealQuery.isLoading) {
     return (
@@ -238,6 +254,27 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
       summary: activity.body ?? activity.subject,
     }));
 
+  // How much has actually been done, as opposed to what the last few things
+  // were. A deal nobody has rung has an empty contact list, which reads as
+  // "nothing to show" rather than as the reason it is going nowhere.
+  const contactTallies: RailTally[] = [
+    {
+      label: "Calls logged",
+      value: deal.activities.filter((activity) => activity.type === "CALL").length,
+      icon: Phone,
+    },
+    {
+      label: "Emails sent",
+      value: deal.activities.filter((activity) => activity.type === "EMAIL").length,
+      icon: Mail,
+    },
+    {
+      label: "Notes left",
+      value: deal.activities.filter((activity) => activity.type === "NOTE").length,
+      icon: NoteAdd,
+    },
+  ];
+
   const lastEmail = (() => {
     const found = deal.activities.find((activity) => activity.type === "EMAIL");
     return found
@@ -256,33 +293,67 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
     { inactivityDays: deal.stage.inactivityDays, status: deal.stage.status },
   );
 
-  // The one obvious next action, chosen from where the deal actually is.
-  const primaryAction = !nextTask ? (
-    <Button size="sm" className="gap-1.5" onClick={() => setTab("tasks")}>
-      <Plus className="h-3.5 w-3.5" />
-      Add a task
-    </Button>
-  ) : deal.appointments.length === 0 ? (
-    <Button size="sm" className="gap-1.5" onClick={() => setScheduleOpen(true)}>
-      <Calendar className="h-3.5 w-3.5" />
-      Schedule a visit
-    </Button>
-  ) : deal.documents.length === 0 ? (
-    <Button
-      size="sm"
-      className="gap-1.5"
-      disabled={!deal.clientId}
-      title={deal.clientId ? undefined : "Attach a company before quoting"}
-      onClick={() => setTab("documents")}
-    >
-      <FileText className="h-3.5 w-3.5" />
-      Create a quotation
-    </Button>
-  ) : totalOutstanding > 0 ? (
-    <Button size="sm" className="gap-1.5" onClick={() => setTab("documents")}>
-      <FileText className="h-3.5 w-3.5" />
-      Record a payment
-    </Button>
+  const latestQuote = deal.documents.find((doc) => doc.type === "QUOTATION");
+
+  // Where this stage sits among the ones a deal can be worked in, which is all
+  // a configurable pipeline can tell us about how far along it is.
+  const openStages = deal.pipeline.stages
+    .filter((stage) => stage.status === "OPEN")
+    .sort((a, b) => a.position - b.position);
+  const stagePosition = openStages.findIndex((stage) => stage.id === deal.stage.id);
+
+  /**
+   * The one obvious next action, chosen from where the deal actually is.
+   *
+   * This page used to chain the decision inline, off document and visit
+   * counts, and the rail underneath it said "Nothing scheduled" with nothing
+   * to press. Both now come out of `resolveNextStep`, so the bar and the rail
+   * cannot end up recommending different things — and a lead, which is the
+   * same sale before conversion, gets the same ladder.
+   */
+  const nextStep = resolveNextStep({
+    kind: "deal",
+    stage: deal.status,
+    daysSinceContact: daysSince(recentContact[0]?.at),
+    scheduled: Boolean(nextInteraction),
+    visitBooked: Boolean(nextVisit),
+    visitDone: deal.appointments.some((visit) => visit.status === "COMPLETED"),
+    quoteSent: Boolean(latestQuote),
+    quoteAnswered: Boolean(latestQuote?.approval?.respondedAt),
+    owed: totalOutstanding > 0,
+  });
+
+  // Quoting needs somebody to bill. The button stays visible and says why it
+  // cannot be pressed, rather than the page silently offering something else.
+  const stepBlocked = nextStep?.action === "quote" && !deal.clientId;
+
+  const takeNextStep = () => {
+    switch (nextStep?.action) {
+      case "visit":
+        setScheduleOpen(true);
+        return;
+      case "job":
+        jobs.raise();
+        return;
+      case "quote":
+      case "chase":
+      case "payment":
+        setTab("documents");
+        return;
+      default:
+        // A call is booked as a follow-up with a date on it, which is what the
+        // tasks section is for.
+        setTab("tasks");
+    }
+  };
+
+  const primaryAction = nextStep ? (
+    <NextStepButton
+      step={nextStep}
+      onAct={takeNextStep}
+      disabled={stepBlocked}
+      disabledReason="Attach a company before quoting"
+    />
   ) : null;
 
   return (
@@ -329,9 +400,13 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
             pipelineName={deal.pipeline.name}
           />
         }
+        // The chip is labelled with the *stage*, so it is coloured by the
+        // stage. Coloured by the deal's outcome instead, as it was, every open
+        // deal in the pipeline wore one hue whether it was a first phone call
+        // or a signed quote waiting on a deposit.
         status={{
           label: deal.stage.name,
-          status: STATUS_PRESENTATION[deal.status] ?? "pending",
+          status: dealStageStatus(deal.stage.status, stagePosition, openStages.length),
         }}
         subtitle={
           <>
@@ -354,7 +429,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         primaryAction={primaryAction}
         actions={[
           { label: "Schedule a site visit", onSelect: () => setScheduleOpen(true) },
-          { label: "Raise a job", onSelect: () => setRaiseJobOpen(true) },
+          { label: "Raise a job", onSelect: jobs.raise },
           { label: "Open documents", onSelect: () => setTab("documents") },
         ]}
         activeTab={tab}
@@ -366,7 +441,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 label: "Value",
                 icon: Payments,
                 placeholder: "Not sized",
-                mono: true,
+                // The figure the whole record is about, so it is drawn as one:
+                // mono and heavy, in the strongest ink on the page. `mono`
+                // alone made it the same weight and colour as a phone number.
+                tone: "money",
                 ...edit.numeric("value", deal.value),
                 // A bare "9800" beside a deal in a workspace that bills in two
                 // currencies is a number you have to go and check. Editing
@@ -385,6 +463,11 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 label: "Owner",
                 icon: UserRound,
                 placeholder: "Unassigned",
+                // Red when nobody owns it. A deal that is nobody's job is the
+                // single commonest reason one goes quiet, and it was reading
+                // as faint grey — the same ink as a field nobody has filled in
+                // because nobody needed to.
+                tone: deal.assignedTo ? "strong" : "alert",
                 // A choice, not a label: who owns a deal is the property that
                 // changes most and was the one you could not change from here.
                 ...edit.choice(
@@ -401,6 +484,10 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 id: "company",
                 label: "Company",
                 icon: Building2,
+                // The same blue a company wears in the table beside this one.
+                // Left off when there is nothing linked, so the picker's own
+                // placeholder stays the quiet grey a placeholder should be.
+                tone: deal.client ? "link" : undefined,
                 display: (
                   <RelationAttribute
                     value={deal.client?.name ?? null}
@@ -440,6 +527,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               {
                 id: "forecast",
                 label: "Forecast",
+                icon: ChartLine,
                 ...edit.choice("forecastCategory", deal.forecastCategory, [
                   { value: "PIPELINE", label: "Pipeline" },
                   { value: "BEST_CASE", label: "Best case" },
@@ -451,6 +539,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
                 id: "site",
                 label: "Site",
                 icon: MapPin,
+                tone: deal.site ? "link" : undefined,
                 display: (
                   <RelationAttribute
                     value={deal.site?.name ?? null}
@@ -512,6 +601,8 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               />
             ),
           }),
+          // A job follows the paperwork: it is what the quote turns into.
+          jobs.tab,
           {
             value: "people",
             label: "People",
@@ -567,11 +658,27 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
+            {/* What is booked, then what to do about it. The card below is the
+                record's one call to action; when something *is* booked it is
+                still the next move, just without the amber. */}
             <RailSection title="Up next">
-              <NextInteractionCard
-                interaction={nextInteraction}
-                emptyMessage="Nothing scheduled — this deal will go quiet."
-              />
+              {nextInteraction ? (
+                <div className="mb-3">
+                  <NextInteractionCard interaction={nextInteraction} />
+                </div>
+              ) : null}
+              {nextStep ? (
+                <NextStepCard
+                  step={nextStep}
+                  onAct={takeNextStep}
+                  disabled={stepBlocked}
+                  disabledReason="Attach a company before quoting"
+                />
+              ) : nextInteraction ? null : (
+                <p className="text-sm text-[var(--text-muted)]">
+                  This deal is closed. Nothing is due on it.
+                </p>
+              )}
             </RailSection>
 
             {nextVisit ? (
@@ -592,7 +699,12 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
               </RailSection>
             ) : null}
 
+            {/* How much, then what — the canvas draws this band as the tally,
+                and the list underneath it says who and when. */}
             <RailSection title="Contact so far">
+              <div className="mb-3">
+                <ContactTally tallies={contactTallies} />
+              </div>
               <ContactList contacts={recentContact} />
             </RailSection>
 
@@ -673,21 +785,7 @@ export function DealDetailPage({ dealId }: { dealId: string }) {
         }}
       />
 
-      <RaiseJobSheet
-        open={raiseJobOpen}
-        onOpenChange={setRaiseJobOpen}
-        dealId={dealId}
-        clientId={deal.clientId}
-        siteId={deal.site?.id ?? null}
-        defaultTitle={deal.title}
-        quotationDocuments={deal.documents
-          .filter((doc) => doc.type === "QUOTATION" && doc.quotation)
-          .map((doc) => ({
-            id: doc.id,
-            label: `${doc.quotation!.quotationNumber}${doc.version > 1 ? ` (v${doc.version})` : ""}`,
-          }))}
-        currentUserId={currentUserId}
-      />
+      {jobs.sheet}
     </>
   );
 }

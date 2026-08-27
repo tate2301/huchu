@@ -1,20 +1,26 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { signOut } from "next-auth/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
-  Alert,
   Badge,
   Button,
   Callout,
   SettingRow,
-  Skeleton,
   Switch,
 } from "@corelithzw/react";
 import { NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { TableSearch } from "@/components/schools/common/table-controls";
+import {
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+  TableRowsSkeleton,
+} from "@/components/schools/common/states";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
@@ -32,12 +38,62 @@ const SECTIONS: Array<{
   id: SectionId;
   label: string;
   icon: typeof Bell;
+  /** Every row title in the panel, so the search box can find a setting by
+   *  its own name rather than by the section it happens to live under. */
+  rows: string[];
 }> = [
-  { id: "notifications", label: "Notifications", icon: Bell },
-  { id: "publishing", label: "Mark publishing", icon: Upload },
-  { id: "appearance", label: "Appearance", icon: Palette },
-  { id: "security", label: "Security", icon: Lock },
-  { id: "privacy", label: "Privacy and data", icon: Shield },
+  {
+    id: "notifications",
+    label: "Notifications",
+    icon: Bell,
+    rows: [
+      "Notifications in the portal",
+      "Browser push",
+      "Absence alerts",
+      "Daily digest",
+      "Quiet hours",
+      "School-wide announcements",
+    ],
+  },
+  {
+    id: "publishing",
+    label: "Mark publishing",
+    icon: Upload,
+    rows: [
+      "Who publishes marks",
+      "Approval before parents see a mark",
+      "Publish window",
+      "Grade instead of the raw mark in messages",
+    ],
+  },
+  {
+    id: "appearance",
+    label: "Appearance",
+    icon: Palette,
+    rows: ["Theme", "Reduced motion", "Compact rows"],
+  },
+  {
+    id: "security",
+    label: "Security",
+    icon: Lock,
+    rows: [
+      "Sign out on this device",
+      "Change your password",
+      "Two-step verification",
+      "Sign out everywhere",
+      "Automatic lock",
+    ],
+  },
+  {
+    id: "privacy",
+    label: "Privacy and data",
+    icon: Shield,
+    rows: [
+      "Access to pupil records is logged",
+      "Your photograph",
+      "Export your own data",
+    ],
+  },
 ];
 
 /**
@@ -93,19 +149,31 @@ function NotificationsPanel() {
         </p>
 
         {update.error ? (
-          <Alert tone="danger" title="That preference did not save">
-            {getApiErrorMessage(update.error)}
-          </Alert>
+          <SaveError what="That preference" error={update.error} />
         ) : null}
 
         {preferences.error ? (
-          <Alert tone="danger" title="Your preferences would not load">
-            {getApiErrorMessage(preferences.error)}
-          </Alert>
-        ) : preferences.isPending || !prefs ? (
-          <Skeleton variant="text" height={120} />
+          <LoadError
+            what="your preferences"
+            error={preferences.error}
+            onRetry={() => void preferences.refetch()}
+          />
+        ) : preferences.isPending ? (
+          /* Two setting rows: a label with its description under it, and a
+             switch on the right. Matching that stops the panel jumping. */
+          <TableRowsSkeleton
+            columns={[{ twoLine: true }, { width: 44, align: "right" }]}
+            rows={2}
+          />
+        ) : !prefs ? (
+          <NothingYet
+            title="No preferences are stored for your account yet"
+            body="They are written the first time you change one. Until then the portal uses the school's defaults."
+          />
         ) : (
-          <>
+          /* One switch at a time, and both write the same record — a second
+             flip mid-save is a preference the response is about to overwrite. */
+          <SavingOverlay saving={update.isPending} label="Saving…">
             <SettingRow
               label="Notifications in the portal"
               description="Shows the notification centre while you work. Turning it off silences the portal itself."
@@ -132,7 +200,7 @@ function NotificationsPanel() {
                 }
               />
             </SettingRow>
-          </>
+          </SavingOverlay>
         )}
       </section>
 
@@ -401,15 +469,44 @@ function PrivacyPanel() {
  */
 export function TeacherSettingsScreen() {
   const [section, setSection] = useState<SectionId>("notifications");
+  /**
+   * Twenty-odd rows across five panels, and a teacher looking for "push" does
+   * not know which panel holds it. The search narrows the RAIL to the sections
+   * that contain a matching row, so the answer is one tap away rather than
+   * five panels of reading.
+   */
+  const [search, setSearch] = useState("");
+
+  const shownSections = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return SECTIONS;
+    return SECTIONS.filter((item) =>
+      `${item.label} ${item.rows.join(" ")}`.toLowerCase().includes(needle),
+    );
+  }, [search]);
+
+  // A search that hides the open panel would leave the page showing rows the
+  // teacher just filtered away, so the selection follows what is left.
+  const openSection = shownSections.some((item) => item.id === section)
+    ? section
+    : (shownSections[0]?.id ?? null);
 
   return (
     <div className="settings-layout">
       <aside className="settings-rail" aria-label="Settings sections">
+        <div className="mb-2">
+          <TableSearch
+            label="Find a setting"
+            value={search}
+            onChange={setSearch}
+            placeholder="push, password, theme"
+          />
+        </div>
         <NavRailGroup label="Your account">
-          {SECTIONS.map((item) => (
+          {shownSections.map((item) => (
             <NavRailItem
               key={item.id}
-              active={item.id === section}
+              active={item.id === openSection}
               icon={<item.icon className="size-4" aria-hidden="true" />}
               onClick={() => setSection(item.id)}
             >
@@ -422,11 +519,18 @@ export function TeacherSettingsScreen() {
       {/* A div, not a `main`: the portal's `AppShell` already owns the page's
           one `<main>`, and nesting a second inside it is invalid. */}
       <div className="settings-content">
-        {section === "notifications" ? <NotificationsPanel /> : null}
-        {section === "publishing" ? <PublishingPanel /> : null}
-        {section === "appearance" ? <AppearancePanel /> : null}
-        {section === "security" ? <SecurityPanel /> : null}
-        {section === "privacy" ? <PrivacyPanel /> : null}
+        {openSection === null ? (
+          <NothingMatched
+            what="settings"
+            filters={[search.trim()]}
+            onClear={() => setSearch("")}
+          />
+        ) : null}
+        {openSection === "notifications" ? <NotificationsPanel /> : null}
+        {openSection === "publishing" ? <PublishingPanel /> : null}
+        {openSection === "appearance" ? <AppearancePanel /> : null}
+        {openSection === "security" ? <SecurityPanel /> : null}
+        {openSection === "privacy" ? <PrivacyPanel /> : null}
       </div>
     </div>
   );

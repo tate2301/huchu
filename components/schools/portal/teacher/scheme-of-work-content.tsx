@@ -2,13 +2,21 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Button, Card, Skeleton, TextArea } from "@corelithzw/react";
+import { Alert, Button, Card, TextArea } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { NotYourJob } from "@/components/schools/common/states";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  NotYourJob,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,
@@ -56,6 +64,12 @@ export function SchemeOfWorkContent() {
   const [termId, setTermId] = useState("");
   const [weeks, setWeeks] = useState<SchemeWeek[]>([]);
   const [saved, setSaved] = useState<string | null>(null);
+  /**
+   * A term is thirteen cards on a phone. "Which week was the one about
+   * bearings" is a real question, so the topic text is searchable rather than
+   * something to be found by scrolling.
+   */
+  const [search, setSearch] = useState("");
 
   const subjectsQuery = useQuery({
     queryKey: ["schools", "subjects", "for-scheme"],
@@ -105,18 +119,47 @@ export function SchemeOfWorkContent() {
   const [seenKey, setSeenKey] = useState("");
   if (schemeQuery.data && loadedKey !== seenKey) {
     setSeenKey(loadedKey);
+    // An empty scheme stays empty rather than being seeded with a blank week:
+    // "no scheme has been written for this term" and "somebody started one and
+    // left week 1 blank" are different facts, and the empty state says the
+    // first one properly.
     setWeeks(
-      schemeQuery.data.weeks.length > 0
-        ? schemeQuery.data.weeks.map((week) => ({
-            weekOfTerm: week.weekOfTerm,
-            topic: week.topic,
-            objectives: week.objectives ?? "",
-            activities: week.activities ?? "",
-            resourcesNote: week.resourcesNote ?? "",
-          }))
-        : [blankWeek(1)],
+      schemeQuery.data.weeks.map((week) => ({
+        weekOfTerm: week.weekOfTerm,
+        topic: week.topic,
+        objectives: week.objectives ?? "",
+        activities: week.activities ?? "",
+        resourcesNote: week.resourcesNote ?? "",
+      })),
     );
   }
+
+  const addWeek = () => {
+    setSaved(null);
+    setWeeks((current) => [
+      ...current,
+      blankWeek(
+        current.length > 0 ? Math.max(...current.map((week) => week.weekOfTerm)) + 1 : 1,
+      ),
+    ]);
+  };
+
+  /**
+   * The narrowing hides cards; the save below still writes every week held in
+   * state. A teacher who searched for one topic and pressed Save must not
+   * delete the other twelve weeks of the term.
+   */
+  const visible = useMemo(() => {
+    const needle = search.trim().toLowerCase();
+    if (!needle) return weeks.map((week, index) => ({ week, index }));
+    return weeks
+      .map((week, index) => ({ week, index }))
+      .filter(({ week }) =>
+        `${week.weekOfTerm} ${week.topic} ${week.objectives} ${week.activities} ${week.resourcesNote}`
+          .toLowerCase()
+          .includes(needle),
+      );
+  }, [weeks, search]);
 
   const save = useMutation({
     mutationFn: () => {
@@ -158,15 +201,37 @@ export function SchemeOfWorkContent() {
 
   return (
     <div className="space-y-4">
-      {save.error ? (
-        <Alert tone="danger" title="The scheme did not save">
-          {getApiErrorMessage(save.error)}
-        </Alert>
-      ) : null}
+      {save.error ? <SaveError what="The scheme" error={save.error} /> : null}
       {schemeQuery.error ? (
-        <Alert tone="danger" title="The scheme would not load">
-          {getApiErrorMessage(schemeQuery.error)}
-        </Alert>
+        <LoadError
+          what="the scheme"
+          error={schemeQuery.error}
+          onRetry={() => void schemeQuery.refetch()}
+        />
+      ) : null}
+      {/* The three pickers are read separately, so a failure in one is named
+          where it happened rather than blanking the screen. Nothing below can
+          be chosen until they land, which is why these are not scoped lower. */}
+      {subjectsQuery.error ? (
+        <LoadError
+          what="the subject list"
+          error={subjectsQuery.error}
+          onRetry={() => void subjectsQuery.refetch()}
+        />
+      ) : null}
+      {classesQuery.error ? (
+        <LoadError
+          what="the form list"
+          error={classesQuery.error}
+          onRetry={() => void classesQuery.refetch()}
+        />
+      ) : null}
+      {termsQuery.error ? (
+        <LoadError
+          what="the term list"
+          error={termsQuery.error}
+          onRetry={() => void termsQuery.refetch()}
+        />
       ) : null}
       {saved ? <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} /> : null}
       {mayWrite ? null : (
@@ -218,10 +283,9 @@ export function SchemeOfWorkContent() {
           </p>
         </Card>
       ) : schemeQuery.isPending ? (
-        <div className="space-y-3">
-          <Skeleton className="h-24 w-full" />
-          <Skeleton className="h-24 w-full" />
-        </div>
+        /* One card per week below, so the wait is cards. Two lines each: the
+           week's objectives and its activities are what fill a card's body. */
+        <CardsSkeleton count={4} columns={1} lines={2} />
       ) : (
         <Card
           title={`${subjectName ?? "Subject"} — ${levelLabel ?? "Form"}`}
@@ -241,93 +305,120 @@ export function SchemeOfWorkContent() {
             </Button>
           }
         >
-          <div className="space-y-4">
-            {weeks.map((week, index) => (
-              <div
-                key={week.weekOfTerm}
-                className="rounded-[var(--radius-md)] border border-[color:var(--border)] p-4"
-              >
-                <div className="mb-3 flex items-center justify-between gap-2">
-                  <p className="text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
-                    Week {week.weekOfTerm}
-                  </p>
-                  <Button
-                    variant="ghost"
-                    disabled={!mayWrite}
-                    onClick={() => {
-                      setSaved(null);
-                      setWeeks((current) => current.filter((_, i) => i !== index));
-                    }}
-                  >
-                    Remove
+          {weeks.length > 0 ? (
+            <div className="mb-4 max-w-[22rem]">
+              <Label htmlFor="scheme-search" className="text-sm text-muted-foreground">
+                Find a week
+              </Label>
+              <Input
+                id="scheme-search"
+                value={search}
+                placeholder="A topic, a resource, a week number"
+                onChange={(event) => setSearch(event.target.value)}
+              />
+            </div>
+          ) : null}
+
+          {weeks.length === 0 ? (
+            <NothingYet
+              title="No scheme has been written for this term"
+              body="Lay the term out one week at a time and “Lay out this week” in the lesson planner drafts from it."
+              action={
+                mayWrite ? (
+                  <Button variant="secondary" onClick={addWeek}>
+                    Add the first week
                   </Button>
+                ) : undefined
+              }
+            />
+          ) : visible.length === 0 ? (
+            <NothingMatched
+              what="weeks"
+              filters={[search.trim()]}
+              onClear={() => setSearch("")}
+            />
+          ) : (
+          /*
+            The whole term goes under the overlay while the PUT is in flight.
+            The save replaces the named scheme wholesale, so a week edited
+            halfway through the write is a week that quietly does not exist.
+          */
+          <SavingOverlay saving={save.isPending} label="Saving the scheme…">
+            <div className="space-y-4">
+              {visible.map(({ week, index }) => (
+                <div
+                  key={week.weekOfTerm}
+                  className="rounded-[var(--radius-md)] border border-[color:var(--border)] p-4"
+                >
+                  <div className="mb-3 flex items-center justify-between gap-2">
+                    <p className="text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
+                      Week {week.weekOfTerm}
+                    </p>
+                    <Button
+                      variant="ghost"
+                      disabled={!mayWrite}
+                      onClick={() => {
+                        setSaved(null);
+                        setWeeks((current) => current.filter((_, i) => i !== index));
+                      }}
+                    >
+                      Remove
+                    </Button>
+                  </div>
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <div className="md:col-span-2">
+                      <Label htmlFor={`topic-${week.weekOfTerm}`}>Topic</Label>
+                      <Input
+                        id={`topic-${week.weekOfTerm}`}
+                        value={week.topic}
+                        placeholder="What is taught this week"
+                        onChange={(event) => setWeek(index, { topic: event.target.value })}
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`objectives-${week.weekOfTerm}`}>Objectives</Label>
+                      <TextArea
+                        id={`objectives-${week.weekOfTerm}`}
+                        rows={3}
+                        value={week.objectives}
+                        placeholder="By the end of the week, pupils can…"
+                        onChange={(event) =>
+                          setWeek(index, { objectives: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor={`activities-${week.weekOfTerm}`}>Activities</Label>
+                      <TextArea
+                        id={`activities-${week.weekOfTerm}`}
+                        rows={3}
+                        value={week.activities}
+                        placeholder="How the week runs"
+                        onChange={(event) =>
+                          setWeek(index, { activities: event.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="md:col-span-2">
+                      <Label htmlFor={`resources-${week.weekOfTerm}`}>Resources</Label>
+                      <Input
+                        id={`resources-${week.weekOfTerm}`}
+                        value={week.resourcesNote}
+                        placeholder="Textbook chapters, equipment, handouts"
+                        onChange={(event) =>
+                          setWeek(index, { resourcesNote: event.target.value })
+                        }
+                      />
+                    </div>
+                  </div>
                 </div>
-                <div className="grid gap-3 md:grid-cols-2">
-                  <div className="md:col-span-2">
-                    <Label htmlFor={`topic-${week.weekOfTerm}`}>Topic</Label>
-                    <Input
-                      id={`topic-${week.weekOfTerm}`}
-                      value={week.topic}
-                      placeholder="What is taught this week"
-                      onChange={(event) => setWeek(index, { topic: event.target.value })}
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`objectives-${week.weekOfTerm}`}>Objectives</Label>
-                    <TextArea
-                      id={`objectives-${week.weekOfTerm}`}
-                      rows={3}
-                      value={week.objectives}
-                      placeholder="By the end of the week, pupils can…"
-                      onChange={(event) =>
-                        setWeek(index, { objectives: event.target.value })
-                      }
-                    />
-                  </div>
-                  <div>
-                    <Label htmlFor={`activities-${week.weekOfTerm}`}>Activities</Label>
-                    <TextArea
-                      id={`activities-${week.weekOfTerm}`}
-                      rows={3}
-                      value={week.activities}
-                      placeholder="How the week runs"
-                      onChange={(event) =>
-                        setWeek(index, { activities: event.target.value })
-                      }
-                    />
-                  </div>
-                  <div className="md:col-span-2">
-                    <Label htmlFor={`resources-${week.weekOfTerm}`}>Resources</Label>
-                    <Input
-                      id={`resources-${week.weekOfTerm}`}
-                      value={week.resourcesNote}
-                      placeholder="Textbook chapters, equipment, handouts"
-                      onChange={(event) =>
-                        setWeek(index, { resourcesNote: event.target.value })
-                      }
-                    />
-                  </div>
-                </div>
-              </div>
-            ))}
-            <Button
-              variant="secondary"
-              disabled={!mayWrite}
-              onClick={() => {
-                setSaved(null);
-                setWeeks((current) => [
-                  ...current,
-                  blankWeek(
-                    current.length > 0
-                      ? Math.max(...current.map((week) => week.weekOfTerm)) + 1
-                      : 1,
-                  ),
-                ]);
-              }}
-            >
-              Add a week
-            </Button>
-          </div>
+              ))}
+              <Button variant="secondary" disabled={!mayWrite} onClick={addWeek}>
+                Add a week
+              </Button>
+            </div>
+          </SavingOverlay>
+          )}
         </Card>
       )}
     </div>

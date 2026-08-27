@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
+import { MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -11,7 +11,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
@@ -89,7 +98,6 @@ export function LessonPlansContent({
   const [creatingFor, setCreatingFor] = useState<string | null>(null);
   const [coverFor, setCoverFor] = useState<Plan | null>(null);
   const [coverTeacher, setCoverTeacher] = useState("");
-  const [actionError, setActionError] = useState<string | null>(null);
   const [note, setNote] = useState<string | null>(null);
   const [draft, setDraft] = useState({
     topic: "",
@@ -138,14 +146,12 @@ export function LessonPlansContent({
         body: JSON.stringify(body),
       }),
     onSuccess: () => {
-      setActionError(null);
       setEditing(null);
       setCreatingFor(null);
       setCoverFor(null);
       setCoverTeacher("");
       void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const copyMutation = useMutation({
@@ -163,14 +169,12 @@ export function LessonPlansContent({
         },
       ),
     onSuccess: (result) => {
-      setActionError(null);
       setNote(
         `${result.copied} lesson${result.copied === 1 ? "" : "s"} copied from last week` +
           (result.message ? `. ${result.message}` : ""),
       );
       void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
   const layOutMutation = useMutation({
@@ -190,7 +194,6 @@ export function LessonPlansContent({
         }),
       }),
     onSuccess: (result) => {
-      setActionError(null);
       setNote(
         result.created === 0
           ? (result.message ?? "Every lesson this week is already planned")
@@ -201,24 +204,53 @@ export function LessonPlansContent({
       );
       void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
     },
-    onError: (error) => setActionError(getApiErrorMessage(error)),
+  });
+
+  /**
+   * Tearing a plan out.
+   *
+   * The planner could write and rewrite and that was all, so a week laid out
+   * against the wrong subject left a fortnight of drafts nobody could clear —
+   * and because "lay out from timetable" skips a day that already has a plan
+   * on it, an unremovable wrong plan is also a lesson that can never be laid
+   * out correctly.
+   */
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson(`/api/v2/schools/lesson-plans/${id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      setEditing(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "lesson-plans"] });
+    },
   });
 
   const covered = plans.filter((plan) => plan.cover).length;
 
+  // Both bulk verbs write a whole week of drafts at once. The planner dims
+  // under them: a teacher who opens a plan mid-copy is editing a row that is
+  // about to be replaced by the one being written.
+  const layingOut = copyMutation.isPending || layOutMutation.isPending;
+
   return (
     <div className="space-y-4">
       {weekQuery.error ? (
-        <Alert variant="destructive">
-          <AlertTitle>Unable to load the week</AlertTitle>
-          <AlertDescription>{getApiErrorMessage(weekQuery.error)}</AlertDescription>
-        </Alert>
+        <LoadError
+          what="this week's lesson plans"
+          error={weekQuery.error}
+          onRetry={() => void weekQuery.refetch()}
+        />
       ) : null}
-      {actionError ? (
-        <Alert variant="destructive">
-          <AlertTitle>That did not work</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
+      {/* One sentence per verb. "The week would not copy" and "the lesson
+          would not be torn up" send a teacher to different places, and the
+          single shared string they replaced sent them to neither. */}
+      {copyMutation.error ? (
+        <SaveError what="Last week's plans" error={copyMutation.error} />
+      ) : null}
+      {layOutMutation.error ? (
+        <SaveError what="The week's drafts" error={layOutMutation.error} />
+      ) : null}
+      {deleteMutation.error ? (
+        <SaveError what="The lesson plan" error={deleteMutation.error} />
       ) : null}
       {note ? (
         <Alert>
@@ -309,75 +341,128 @@ export function LessonPlansContent({
         {covered > 0 ? ` · ${covered} covered` : ""}
       </p>
 
-      <MobileList>
-        {grouped.length === 0 ? (
-          <MobileListEmpty>
-            {weekQuery.isLoading
-              ? "Loading the week…"
-              : "Nothing planned. Copy last week, or plan a lesson."}
-          </MobileListEmpty>
+      {weekQuery.isPending ? (
+        // A skeleton week, not an empty grid. The planner opens on a week that
+        // is nearly always full, so a blank list while it loads reads as "you
+        // have planned nothing" — the exact wrong thing to tell a teacher.
+        <CardsSkeleton count={5} columns={1} lines={2} />
+      ) : grouped.length === 0 ? (
+        subjectFilter ? (
+          <NothingMatched
+            what="lessons"
+            filters={[
+              subjects.find((option) => option.id === subjectFilter)?.subject.name,
+              `week of ${weekStart}`,
+            ].filter((value): value is string => Boolean(value))}
+            onClear={() => setSubjectFilter("")}
+          />
         ) : (
-          grouped.map(([day, dayPlans]) => (
-            <div key={day}>
-              <MobileListSectionHeader>
-                {DAY_NAMES[new Date(`${day}T00:00:00Z`).getUTCDay() || 7] ?? day} · {day}
-              </MobileListSectionHeader>
-              {dayPlans.map((plan) => (
-                <MobileList.Row
-                  key={plan.id}
-                  static
-                  title={plan.topic}
-                  subtitle={
-                    <span className="mt-1 flex flex-wrap items-center gap-2">
-                      <span>
-                        {plan.classSubject.subject.name} · {plan.classSubject.class.name}
-                        {plan.slot
-                          ? ` · ${plan.slot.period.code} ${formatMinute(plan.slot.period.startMinute)}`
-                          : ""}
-                      </span>
-                      {plan.cover ? (
-                        <Badge variant="secondary">
-                          Covered by {plan.cover.coveringTeacher.user.name ?? "somebody"}
-                        </Badge>
-                      ) : null}
-                      {plan.reflection ? (
-                        <Badge variant="outline">Reflected on</Badge>
-                      ) : null}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => {
-                          setEditing(plan);
-                          setDraft({
-                            topic: plan.topic,
-                            objectives: plan.objectives ?? "",
-                            activities: plan.activities ?? "",
-                            homeworkNote: plan.homeworkNote ?? "",
-                            reflection: plan.reflection ?? "",
-                            lessonDate: plan.lessonDate.slice(0, 10),
-                          });
-                        }}
-                      >
-                        Open
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => {
-                          setCoverFor(plan);
-                          setCoverTeacher("");
-                        }}
-                      >
-                        {plan.cover ? "Change cover" : "Arrange cover"}
-                      </Button>
-                    </span>
-                  }
-                />
-              ))}
-            </div>
-          ))
-        )}
-      </MobileList>
+          <NothingYet
+            title={`Nothing planned for the week of ${weekStart}`}
+            body="Lay the week out from the timetable, copy last week forward, or plan a single lesson."
+            action={
+              <Button
+                variant="outline"
+                disabled={subjects.length === 0}
+                onClick={() => {
+                  setCreatingFor(subjects[0]?.id ?? "");
+                  setDraft({
+                    topic: "",
+                    objectives: "",
+                    activities: "",
+                    homeworkNote: "",
+                    reflection: "",
+                    lessonDate: weekStart,
+                  });
+                }}
+              >
+                Plan a lesson
+              </Button>
+            }
+          />
+        )
+      ) : (
+        <SavingOverlay saving={layingOut} label="Laying the week out…">
+          <MobileList>
+            {grouped.map(([day, dayPlans]) => (
+                <div key={day}>
+                  <MobileListSectionHeader>
+                    {DAY_NAMES[new Date(`${day}T00:00:00Z`).getUTCDay() || 7] ?? day} · {day}
+                  </MobileListSectionHeader>
+                  {dayPlans.map((plan) => (
+                    <MobileList.Row
+                      key={plan.id}
+                      static
+                      title={plan.topic}
+                      subtitle={
+                        <span className="mt-1 flex flex-wrap items-center gap-2">
+                          <span>
+                            {plan.classSubject.subject.name} · {plan.classSubject.class.name}
+                            {plan.slot
+                              ? ` · ${plan.slot.period.code} ${formatMinute(plan.slot.period.startMinute)}`
+                              : ""}
+                          </span>
+                          {plan.cover ? (
+                            <Badge variant="secondary">
+                              Covered by {plan.cover.coveringTeacher.user.name ?? "somebody"}
+                            </Badge>
+                          ) : null}
+                          {plan.reflection ? (
+                            <Badge variant="outline">Reflected on</Badge>
+                          ) : null}
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setEditing(plan);
+                              setDraft({
+                                topic: plan.topic,
+                                objectives: plan.objectives ?? "",
+                                activities: plan.activities ?? "",
+                                homeworkNote: plan.homeworkNote ?? "",
+                                reflection: plan.reflection ?? "",
+                                lessonDate: plan.lessonDate.slice(0, 10),
+                              });
+                            }}
+                          >
+                            Open
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setCoverFor(plan);
+                              setCoverTeacher("");
+                            }}
+                          >
+                            {plan.cover ? "Change cover" : "Arrange cover"}
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            disabled={deleteMutation.isPending}
+                            onClick={async () => {
+                              const confirmed = await dsConfirm({
+                                title: `Tear up “${plan.topic}”?`,
+                                description:
+                                  "The lesson leaves the week. Any cover arranged for it goes with it, and the slot becomes one that can be laid out again.",
+                                confirmLabel: "Tear it up",
+                                variant: "danger",
+                              });
+                              if (confirmed) deleteMutation.mutate(plan.id);
+                            }}
+                          >
+                            Tear it up
+                          </Button>
+                        </span>
+                      }
+                    />
+                  ))}
+                </div>
+            ))}
+          </MobileList>
+        </SavingOverlay>
+      )}
 
       <RecordDialog
         open={editing !== null || creatingFor !== null}
@@ -389,7 +474,7 @@ export function LessonPlansContent({
         }}
         title={editing ? editing.topic : "Plan a lesson"}
         size="lg"
-        errors={actionError ? [actionError] : undefined}
+        errors={saveMutation.error ? [getApiErrorMessage(saveMutation.error)] : undefined}
         onSubmit={(event) => {
           event.preventDefault();
           if (saveMutation.isPending || !draft.topic.trim()) return;
@@ -507,7 +592,7 @@ export function LessonPlansContent({
         }}
         title="Arrange cover"
         size="md"
-        errors={actionError ? [actionError] : undefined}
+        errors={saveMutation.error ? [getApiErrorMessage(saveMutation.error)] : undefined}
         onSubmit={(event) => {
           event.preventDefault();
           if (!coverFor || !coverTeacher || saveMutation.isPending) return;

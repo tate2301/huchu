@@ -19,10 +19,12 @@ import {
 } from "@/components/records/subject-tabs";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { ClassStreamsPanel } from "@/components/schools/classes/class-streams-panel";
+import { ClassSubjectsPanel } from "@/components/schools/classes/class-subjects-panel";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Calendar, Layers, Tag, UserPlus, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**
@@ -118,20 +120,26 @@ export function ClassRecordPage({ classId }: { classId: string }) {
 
   const attributes = useMemo<RecordAttribute[]>(() => {
     if (!record) return [];
+    // A mark on every row, and one that means something. The property list
+    // falls back to a generic tag for a row that names no icon, so a page that
+    // named none at all came out as a column of identical glyphs — which is
+    // the ragged column the fallback exists to avoid, drawn the other way up.
     return [
-      { id: "name", label: "Name", ...edit.required("name", record.name) },
-      { id: "code", label: "Code", mono: true, ...edit.required("code", record.code) },
+      { id: "name", label: "Name", icon: Users, ...edit.required("name", record.name) },
+      { id: "code", label: "Code", icon: Tag, mono: true, ...edit.required("code", record.code) },
       {
         id: "level",
         label: "Year group",
+        icon: Layers,
         ...edit.numeric("level", record.level),
       },
       {
         id: "capacity",
         label: "Places",
+        icon: UserPlus,
         ...edit.numeric("capacity", record.capacity),
       },
-      { id: "term", label: "Term", display: record.term?.name ?? "—" },
+      { id: "term", label: "Term", icon: Calendar, display: record.term?.name ?? "—" },
     ];
   }, [record, edit]);
 
@@ -178,24 +186,14 @@ export function ClassRecordPage({ classId }: { classId: string }) {
         />
       ),
     },
+    // Not a read-only echo of the include any more. Timetabling a subject onto
+    // the class, moving it to another teacher and taking it off all happen
+    // here, beside the line that says History has nobody teaching it.
     {
       value: "subjects",
       label: "Subjects",
       count: subjects.length,
-      content: (
-        <RelatedList
-          items={subjects}
-          emptyMessage="No subjects are timetabled to this class."
-          renderItem={(entry) => ({
-            href: entry.subject ? recordType("SUBJECT").href(entry.subject.id) : "/schools/subjects",
-            title: entry.subject?.name ?? "Subject",
-            // Who teaches it is the thing an office is asked about a class's
-            // subject, so it leads rather than sitting in a count.
-            subtitle: entry.teacherProfile?.user?.name ?? "No teacher assigned",
-            meta: entry.subject?.isCore ? "Core" : undefined,
-          })}
-        />
-      ),
+      content: <ClassSubjectsPanel classId={classId} className={record.name} />,
     },
     // Always present, never conditional on there being streams: the tab is
     // where a class *gets* split, and hiding it when the count is nought left

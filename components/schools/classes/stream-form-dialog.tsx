@@ -31,6 +31,17 @@ export type StreamFormValues = {
  * fixed once the stream exists: moving a stream between year groups would take
  * every pupil in it with it.
  */
+/**
+ * The four letters a class is usually split into here.
+ *
+ * A stream’s name is free text and always will be — Blue, Nyathi House,
+ * Science — but the overwhelmingly common convention is the class name plus a
+ * Greek letter, and typing "Form 2 Gamma" by hand is how "Form 2 Gama" gets
+ * onto four hundred registers. Suggested once a class is chosen, never
+ * imposed.
+ */
+const GREEK = ["Alpha", "Beta", "Gamma", "Delta"];
+
 export function StreamFormDialog({
   open,
   onOpenChange,
@@ -66,6 +77,16 @@ export function StreamFormDialog({
     setWasOpen(open);
     if (open) setValues(initial ?? empty);
   }
+
+  const chosenClass = classes.find((row) => row.id === values.classId);
+  const suggestions = chosenClass
+    ? GREEK.map((letter, index) => ({
+        // "Form 2 Alpha" reading "2A", which is the code every register,
+        // mark sheet and publish filter is narrowed by.
+        code: `${chosenClass.code.replace(/^[A-Za-z]/, "")}${String.fromCharCode(65 + index)}`,
+        name: `${chosenClass.name} ${letter}`,
+      }))
+    : [];
 
   const canSubmit =
     values.classId.length > 0 &&
@@ -127,6 +148,30 @@ export function StreamFormDialog({
             </p>
           ) : null}
         </div>
+        {editing || suggestions.length === 0 ? null : (
+          <div className="space-y-2 sm:col-span-2">
+            <Label>Start from</Label>
+            <div className="flex flex-wrap gap-2">
+              {suggestions.map((suggestion) => (
+                <Button
+                  key={suggestion.name}
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  onClick={() =>
+                    setValues((current) => ({
+                      ...current,
+                      code: suggestion.code,
+                      name: suggestion.name,
+                    }))
+                  }
+                >
+                  {suggestion.name}
+                </Button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="space-y-2">
           <Label htmlFor="stream-code">Code</Label>
           <Input

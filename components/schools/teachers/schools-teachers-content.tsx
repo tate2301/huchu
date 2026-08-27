@@ -18,6 +18,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
@@ -37,19 +38,24 @@ import {
   AssignmentFormDialog,
   EMPTY_ASSIGNMENT,
   type AssignmentFormValues,
-} from "./assignment-form-dialog";
-import { BulkAllocationSheet, type BulkAllocationResult, type BulkAllocationValues } from "./bulk-allocation-sheet";
-import { EmployeeLinkCell } from "./employee-link-cell";
+} from "@/components/schools/teachers/assignment-form-dialog";
+import {
+  BulkAllocationSheet,
+  type BulkAllocationResult,
+  type BulkAllocationValues,
+} from "@/components/schools/teachers/bulk-allocation-sheet";
+import { DEPARTMENT_SUGGESTIONS } from "@/components/schools/teachers/departments";
+import { EmployeeLinkCell } from "@/components/schools/teachers/employee-link-cell";
 import {
   EMPTY_SUBJECT,
   SubjectFormDialog,
   type SubjectFormValues,
-} from "./subject-form-dialog";
+} from "@/components/schools/teachers/subject-form-dialog";
 import {
   EMPTY_TEACHER,
   TeacherFormDialog,
   type TeacherFormValues,
-} from "./teacher-form-dialog";
+} from "@/components/schools/teachers/teacher-form-dialog";
 
 /**
  * The staff list, and the two tables that hang off it.
@@ -193,8 +199,24 @@ export function SchoolsTeachersContent() {
     for (const profile of allProfiles) {
       if (profile.department) seen.add(profile.department);
     }
+    /*
+     * Faculty order, not alphabetical order.
+     *
+     * A staff list is read the way a timetable is grouped — Mathematics,
+     * Languages, Sciences, Humanities — and an alphabetical dropdown that
+     * opens on "Commercials" makes somebody hunt for the department they were
+     * already thinking of. Anything the school named for itself and this list
+     * has never heard of keeps its alphabetical place after the known ones,
+     * because inventing a position for it would be a guess.
+     */
+    const rank = (value: string) => {
+      const index = DEPARTMENT_SUGGESTIONS.indexOf(
+        value as (typeof DEPARTMENT_SUGGESTIONS)[number],
+      );
+      return index === -1 ? DEPARTMENT_SUGGESTIONS.length : index;
+    };
     return [...seen]
-      .sort((a, b) => a.localeCompare(b))
+      .sort((a, b) => rank(a) - rank(b) || a.localeCompare(b))
       .map((value) => ({ value, label: value }));
   }, [allProfiles]);
 
@@ -595,7 +617,14 @@ export function SchoolsTeachersContent() {
   ].filter((value): value is string => Boolean(value));
 
   const loadError =
-    profilesQuery.error ?? subjectsQuery.error ?? assignmentsQuery.error ?? null;
+    profilesQuery.error ??
+    subjectsQuery.error ??
+    assignmentsQuery.error ??
+    // The tally is not a table, but it is the band's two numbers and the whole
+    // department dropdown. A page that silently reports "0 on the staff list"
+    // because a count failed is worse than one that says the count failed.
+    staffTallyQuery.error ??
+    null;
 
   return (
     <div className="space-y-4">
@@ -625,7 +654,7 @@ export function SchoolsTeachersContent() {
             resource="schools.teachers"
             verbs={[
               {
-                label: "Add a subject",
+                label: "Add Subject",
                 action: "create",
                 onSelect: () => setSubjectDialog(EMPTY_SUBJECT),
               },
@@ -655,8 +684,27 @@ export function SchoolsTeachersContent() {
             void profilesQuery.refetch();
             void subjectsQuery.refetch();
             void assignmentsQuery.refetch();
+            void staffTallyQuery.refetch();
           }}
         />
+      ) : null}
+
+      {/*
+        The three deletes each disable themselves when the endpoint would
+        refuse — a teacher with lessons, a subject on a timetable. What is left
+        is the refusal nobody could predict from the row: a dependency created
+        in another tab, a permission changed under the reader. Named separately
+        rather than as one "that did not save", because a page with three
+        tables needs to say which one.
+      */}
+      {deleteTeacher.error ? (
+        <SaveError what="That teacher's profile" error={deleteTeacher.error} />
+      ) : null}
+      {deleteSubject.error ? (
+        <SaveError what="That subject" error={deleteSubject.error} />
+      ) : null}
+      {deleteAssignment.error ? (
+        <SaveError what="That assignment" error={deleteAssignment.error} />
       ) : null}
 
       <VerticalDataViews
@@ -818,7 +866,7 @@ export function SchoolsTeachersContent() {
                   action={
                     <CreateButton
                       resource="schools.teachers"
-                      label="Add a subject"
+                      label="Add Subject"
                       onSelect={() => setSubjectDialog(EMPTY_SUBJECT)}
                     />
                   }

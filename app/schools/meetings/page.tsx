@@ -1,9 +1,16 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
 import { MeetingsAdminContent } from "@/components/schools/meetings/meetings-admin-content";
 import { authOptions } from "@/lib/auth";
 
+/**
+ * The term's parents' evenings.
+ *
+ * No heading in this file: the page is named once, in the app bar, and the one
+ * primary action — opening a teacher's evening — sits beside that name. Both
+ * are registered by the client component, which is the only thing that can
+ * reach the dialog the action opens.
+ */
 export default async function SchoolsMeetingsPage() {
   const session = await getServerSession(authOptions);
   if (!session?.user) {
@@ -11,11 +18,7 @@ export default async function SchoolsMeetingsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-5xl space-y-6">
-      <PageHeading
-        title="Parent meetings"
-        description="The term's parents' evenings across the whole staff room — who is open, who is booked, and which ten minutes are still free."
-      />
+    <div className="mx-auto w-full max-w-7xl space-y-6">
       <MeetingsAdminContent />
     </div>
   );

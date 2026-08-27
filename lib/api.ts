@@ -58,6 +58,23 @@ export type ChangeManagedUserRoleInput = {
   role: ManagedUserRole;
 };
 
+/**
+ * Which business an employee is assigned to.
+ *
+ * Mirrors `EmployeeModule` in the Prisma schema, minus the aliases the API
+ * normalises away on the way in (`THRIFT` is stored as `RETAIL`). A school's
+ * non-teaching staff — the bursar, the nurse, the groundsman — are employees
+ * carrying the `SCHOOLS` assignment, which is how one payroll serves a tenant
+ * running a mine and a school at once.
+ */
+export type EmployeeModuleValue =
+  | "HR"
+  | "GOLD"
+  | "SCRAP_METAL"
+  | "CAR_SALES"
+  | "RETAIL"
+  | "SCHOOLS";
+
 export type EmployeeSummary = {
   id: string;
   employeeId: string;
@@ -88,7 +105,7 @@ export type EmployeeSummary = {
   } | null;
   moduleAssignments?: Array<{
     id: string;
-    module: "HR" | "GOLD" | "RETAIL";
+    module: EmployeeModuleValue;
     accessRole?: string | null;
     requiresUserAccess: boolean;
     isPrimary: boolean;
@@ -1398,13 +1415,18 @@ export async function fetchEmployees(
     departmentId?: string;
     gradeId?: string;
     position?: EmployeePositionValue | EmployeePositionValue[];
+    /** Only staff assigned to this business — `"SCHOOLS"` for a school's own. */
+    module?: EmployeeModuleValue | EmployeeModuleValue[];
     page?: number;
     limit?: number;
   } = {},
 ) {
-  const { position, ...rest } = params;
+  const { position, module: employeeModule, ...rest } = params;
   const positionParam = Array.isArray(position) ? position.join(",") : position;
-  const query = buildQuery({ ...rest, position: positionParam });
+  const moduleParam = Array.isArray(employeeModule)
+    ? employeeModule.join(",")
+    : employeeModule;
+  const query = buildQuery({ ...rest, position: positionParam, module: moduleParam });
   return fetchJson<Pagination<EmployeeSummary>>(`/api/employees${query}`);
 }
 

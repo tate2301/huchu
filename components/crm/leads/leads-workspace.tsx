@@ -13,7 +13,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { LayoutSwitch } from "@/components/crm/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
 import { ListSearch } from "@/components/crm/records/list-search";
-import { ViewToolbar } from "@/components/crm/records/view-toolbar";
+import { ViewToolbar } from "@/components/records/view-toolbar";
 import { useDebounced } from "@/hooks/use-debounced";
 import {
   bulkUpdateCrmLeads,
@@ -114,6 +114,34 @@ export function LeadsWorkspace({
     delete rest.q;
     return trimmed ? { ...rest, q: trimmed } : rest;
   }, [filters, debouncedSearch]);
+
+  // How many of the toolbar's controls are actually narrowing the list.
+  //
+  // Below `sm` the five of them are behind one button, so without this a lead
+  // list emptied by a stage filter and a lead list with nothing in it read
+  // identically — and the reader has no way to guess which. The button says
+  // "Filters (2)" instead of "View" and the question answers itself.
+  //
+  // What is left out is as deliberate as what is in. The search box is on the
+  // row on a phone, so counting it would double-report something the reader
+  // can already see. `archived` swaps the set rather than narrowing it — the
+  // same call `LeadsFilters` makes about its own badge — and a pipeline is a
+  // different shape of work, not a filter over one shape.
+  const filterCount = useMemo(
+    () =>
+      [
+        filters.stages?.length,
+        filters.assignedToIds?.length,
+        filters.unassigned ? 1 : 0,
+        filters.mineOnly ? 1 : 0,
+        filters.channels?.length,
+        filters.sources?.length,
+        filters.valueMin !== undefined || filters.valueMax !== undefined ? 1 : 0,
+        filters.createdFrom || filters.createdTo ? 1 : 0,
+        filters.overdueOnly ? 1 : 0,
+      ].reduce<number>((sum, entry) => sum + (entry ?? 0), 0),
+    [filters],
+  );
 
   const leadsQuery = useQuery({
     queryKey: ["crm", "leads", activeFilters, sort, page],
@@ -304,14 +332,17 @@ export function LeadsWorkspace({
             noun="leads"
           />
         }
+        // Only on the table. The board runs off its own per-stage queries and
+        // this one is disabled there, so a count taken from it would read
+        // "0 of 0" over a full board.
+        count={viewType === "TABLE" ? `${leads.length} of ${total}` : undefined}
+        filterCount={filterCount}
         end={
-          <>
-            <ColumnPicker
-              columns={viewType === "TABLE" ? LEAD_TABLE_COLUMNS : LEAD_CARD_FIELDS}
-              state={viewType === "TABLE" ? tableColumns : boardFields}
-              label={viewType === "TABLE" ? "Columns" : "Fields"}
-            />
-          </>
+          <ColumnPicker
+            columns={viewType === "TABLE" ? LEAD_TABLE_COLUMNS : LEAD_CARD_FIELDS}
+            state={viewType === "TABLE" ? tableColumns : boardFields}
+            label={viewType === "TABLE" ? "Columns" : "Fields"}
+          />
         }
       />
 

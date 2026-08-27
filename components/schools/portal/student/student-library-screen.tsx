@@ -2,10 +2,19 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
+import { Alert } from "@corelithzw/react";
+import {
+  CardsSkeleton,
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  SaveError,
+  SavingOverlay,
+} from "@/components/schools/common/states";
 import { BookCover } from "@/components/schools/library/book-cover";
 import { Clock, Info, MedusaBookOpenIcon, Search } from "@/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";
 
 type Book = {
@@ -138,7 +147,7 @@ export function StudentLibraryScreen() {
 
   if (!student) {
     return (
-      <EmptyState
+      <NothingYet
         title="This account is not linked to a pupil"
         body="Ask the school office to link your sign-in to your student record."
       />
@@ -165,15 +174,13 @@ export function StudentLibraryScreen() {
       </div>
 
       {query.error ? (
-        <Alert tone="danger" title="The library would not load">
-          {getApiErrorMessage(query.error)}
-        </Alert>
+        <LoadError
+          what="the library"
+          error={query.error}
+          onRetry={() => void query.refetch()}
+        />
       ) : null}
-      {act.error ? (
-        <Alert tone="danger" title="That did not work">
-          {getApiErrorMessage(act.error)}
-        </Alert>
-      ) : null}
+      {act.error ? <SaveError what="That book" error={act.error} /> : null}
       {note ? (
         <Alert tone="success" title={note} onDismiss={() => setNote(null)} />
       ) : null}
@@ -197,118 +204,134 @@ export function StudentLibraryScreen() {
       <div className="sp-psh">Books you have out · {loans.length}</div>
 
       {query.isPending ? (
-        <Skeleton variant="rect" height={120} />
+        /* Each loan is a cover, a title and a due line — a card. */
+        <CardsSkeleton count={2} columns={1} lines={2} />
       ) : loans.length === 0 ? (
-        <EmptyState
+        /* An empty shelf-at-home is not a job undone; nothing is overdue and
+           nothing needs bringing back. */
+        <NothingLeftToDo
           title="Nothing out at the moment"
-          body="Pick something from the shelf below and it will show up here."
+          body="Nothing to bring back and no fines to worry about. Pick something from the shelf below and it will show up here."
         />
       ) : (
-        loans.map((loan) => {
-          const due = dueLook(loan);
-          return (
-            <div key={loan.id} className="sp-borrow-card">
-              <div className="sp-cover w-[56px]">
-                <BookCover
-                  title={loan.book.title}
-                  author={loan.book.author}
-                  size="sm"
-                />
-              </div>
-              <div className="min-w-0">
-                <div className="sp-bc-nm">{loan.book.title}</div>
-                <div className="sp-bc-sb">
-                  {loan.book.author ?? "Unknown author"}
-                  {loan.renewals > 0 ? ` · renewed ${loan.renewals}×` : ""}
+        /* The loans dim while a renew or a return is in flight, so a pupil who
+           taps twice does not renew twice. */
+        <SavingOverlay saving={act.isPending} label="Just a moment…">
+          {loans.map((loan) => {
+            const due = dueLook(loan);
+            return (
+              <div key={loan.id} className="sp-borrow-card">
+                <div className="sp-cover w-[56px]">
+                  <BookCover
+                    title={loan.book.title}
+                    author={loan.book.author}
+                    size="sm"
+                  />
                 </div>
-                <div className={`sp-bc-due ${due.tone}`}>
-                  <Clock className="size-[11px]" aria-hidden />
-                  {due.label}
+                <div className="min-w-0">
+                  <div className="sp-bc-nm">{loan.book.title}</div>
+                  <div className="sp-bc-sb">
+                    {loan.book.author ?? "Unknown author"}
+                    {loan.renewals > 0 ? ` · renewed ${loan.renewals}×` : ""}
+                  </div>
+                  <div className={`sp-bc-due ${due.tone}`}>
+                    <Clock className="size-[11px]" aria-hidden />
+                    {due.label}
+                  </div>
+                </div>
+                <div className="sp-bc-acts">
+                  <button
+                    type="button"
+                    className="sp-renew"
+                    disabled={act.isPending}
+                    onClick={() => act.mutate({ action: "renew", loanId: loan.id })}
+                  >
+                    Keep longer
+                  </button>
+                  <button
+                    type="button"
+                    className={`sp-renew${loan.isOverdue ? " danger" : ""}`}
+                    disabled={act.isPending}
+                    onClick={() => act.mutate({ action: "return", loanId: loan.id })}
+                  >
+                    Bring back
+                  </button>
                 </div>
               </div>
-              <div className="sp-bc-acts">
-                <button
-                  type="button"
-                  className="sp-renew"
-                  disabled={act.isPending}
-                  onClick={() => act.mutate({ action: "renew", loanId: loan.id })}
-                >
-                  Keep longer
-                </button>
-                <button
-                  type="button"
-                  className={`sp-renew${loan.isOverdue ? " danger" : ""}`}
-                  disabled={act.isPending}
-                  onClick={() => act.mutate({ action: "return", loanId: loan.id })}
-                >
-                  Bring back
-                </button>
-              </div>
-            </div>
-          );
-        })
+            );
+          })}
+        </SavingOverlay>
       )}
 
       <div className="sp-psh">The shelf · {books.length}</div>
 
       {query.isPending ? (
-        <Skeleton variant="rect" height={220} />
+        <CardsSkeleton count={5} columns={1} lines={2} />
       ) : books.length === 0 ? (
-        <EmptyState
-          icon={<MedusaBookOpenIcon className="size-5" aria-hidden />}
-          title={search ? "Nothing matches that" : "The catalogue is empty"}
-          body={
-            search
-              ? "Try part of the title, or the author's surname."
-              : "No books have been catalogued yet. The librarian adds them from the office."
-          }
-        />
+        /* Two different sentences: a search that found nothing repeats what
+           was typed and offers to clear it; an empty catalogue is the school's
+           first day and has no filter to clear. */
+        search ? (
+          <NothingMatched
+            what="books"
+            filters={[`“${search}”`]}
+            onClear={() => setSearch("")}
+          />
+        ) : (
+          <NothingYet
+            icon={<MedusaBookOpenIcon className="size-5" aria-hidden />}
+            title="The shelf is empty"
+            body="No books have been catalogued yet. The librarian adds them from the office, and they turn up here as soon as they do."
+          />
+        )
       ) : (
-        books.map((book) => (
-          <div key={book.id} className="sp-catalog-card">
-            <div className="sp-cover sm w-[42px]">
-              <BookCover title={book.title} author={book.author} size="sm" />
-            </div>
-            <div className="min-w-0">
-              <div className="sp-cc-nm">{book.title}</div>
-              <div className="sp-cc-sb truncate">
-                {[book.author ?? "Unknown author", book.category]
-                  .filter(Boolean)
-                  .join(" · ")}
+        <SavingOverlay saving={act.isPending} label="Just a moment…">
+          {books.map((book) => (
+            <div key={book.id} className="sp-catalog-card">
+              <div className="sp-cover sm w-[42px]">
+                <BookCover title={book.title} author={book.author} size="sm" />
               </div>
-              <div className="sp-cc-sb">
-                {book.available > 0
-                  ? `${book.available} of ${book.copies} on the shelf`
-                  : book.waiting > 0
-                    ? `All out · ${book.waiting} waiting`
-                    : "All out"}
+              <div className="min-w-0">
+                <div className="sp-cc-nm">{book.title}</div>
+                <div className="sp-cc-sb truncate">
+                  {[book.author ?? "Unknown author", book.category]
+                    .filter(Boolean)
+                    .join(" · ")}
+                </div>
+                <div className="sp-cc-sb">
+                  {book.available > 0
+                    ? `${book.available} of ${book.copies} on the shelf`
+                    : book.waiting > 0
+                      ? `All out · ${book.waiting} waiting`
+                      : "All out"}
+                </div>
               </div>
+              {book.haveItOut ? (
+                <span className="sp-out-pill">You have this</span>
+              ) : book.reservedByMe ? (
+                <span className="sp-out-pill">On hold</span>
+              ) : book.available > 0 ? (
+                <button
+                  type="button"
+                  className="sp-borrow-btn"
+                  disabled={!data?.canBorrow || act.isPending}
+                  onClick={() => act.mutate({ action: "borrow", bookId: book.id })}
+                >
+                  Take out
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="sp-renew"
+                  disabled={act.isPending}
+                  onClick={() => act.mutate({ action: "reserve", bookId: book.id })}
+                >
+                  Hold for me
+                </button>
+              )}
             </div>
-            {book.haveItOut ? (
-              <span className="sp-out-pill">You have this</span>
-            ) : book.reservedByMe ? (
-              <span className="sp-out-pill">On hold</span>
-            ) : book.available > 0 ? (
-              <button
-                type="button"
-                className="sp-borrow-btn"
-                disabled={!data?.canBorrow || act.isPending}
-                onClick={() => act.mutate({ action: "borrow", bookId: book.id })}
-              >
-                Take out
-              </button>
-            ) : (
-              <button
-                type="button"
-                className="sp-renew"
-                disabled={act.isPending}
-                onClick={() => act.mutate({ action: "reserve", bookId: book.id })}
-              >
-                Hold for me
-              </button>
-            )}
-          </div>
-        ))
+          ))}
+        </SavingOverlay>
       )}
     </div>
   );

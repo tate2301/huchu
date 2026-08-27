@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
 
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
@@ -19,6 +19,8 @@ import {
   NothingLeftToDo,
   NothingMatched,
   NothingYet,
+  SaveError,
+  SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -28,13 +30,32 @@ import { fetchSchoolsAcademicYears, fetchSchoolsClasses, fetchSchoolsTerms } fro
 import { fetchSchoolFeeStructures } from "@/lib/schools/fees-v2";
 
 /**
+ * One frozen empty array for every "the query has not answered yet" case on
+ * this page. A fresh `[]` is a fresh identity, and this screen hangs five
+ * useMemos off these lists.
+ */
+const EMPTY: never[] = [];
+
+/**
  * The four reports the office reads, with a way to narrow each of them.
  *
- * This route had no filter of any kind: all four reports rendered whatever the
- * API returned, whole-school, every term, and the only way to answer "how is
- * Form 4 doing on Term 2 fees" was to read a five-term table and do it in your
- * head. Both export buttons called `window.open` on an API URL, so a report
- * that failed to render opened a blank tab and said nothing at all.
+ * The canvas's critique of this route, in its own words:
+ *
+ *   "There is no date-range, term or year-group filter of any kind on this
+ *   route today — the four reports render everything the API returns. The
+ *   filter row above is drawn with the module's own `FilterBar`
+ *   . Both export buttons `window.open`
+ *   an API URL, so a failed export is a blank tab."
+ *
+ * Both halves of that are now closed, and the code below is what closed them,
+ * so the paragraph is kept as the record of why the screen looks like this
+ * rather than as a live caveat. Collections and Arrears take the `FilterBar`
+ * the canvas drew; the only way to answer "how is Form 4 doing on Term 2 fees"
+ * used to be reading a five-term table and doing it in your head. And
+ * `runExport` fetches the file rather than opening it, so a refused export
+ * lands on the screen the button is on instead of in a blank tab. What is
+ * *still* true is on the "What the screen cannot do" card further down, which
+ * names the two reports the filter row does not reach.
  *
  * The arrears view carried the sharper version of the same problem. It names
  * every family in arrears — that is the whole point of it — and offered no way
@@ -299,11 +320,19 @@ export function SchoolsReportsEnhancedContent() {
     queryFn: () => fetchJson<OccupancyResponse>("/api/v2/schools/reports/occupancy"),
   });
 
-  const collections = collectionsQuery.data?.data ?? [];
-  const byYearGroup = collectionsQuery.data?.byYearGroup ?? [];
-  const arrears = arrearsQuery.data?.data ?? [];
-  const enrollment = enrollmentQuery.data?.data ?? [];
-  const occupancy = occupancyQuery.data?.data ?? [];
+  /**
+   * `?? []` would hand back a new array on every render, and a new array is a
+   * new dependency — every useMemo below it would recompute for nothing. One
+   * frozen empty array, reused, keeps them still while a query is pending.
+   */
+  const collections = useMemo(() => collectionsQuery.data?.data ?? EMPTY, [collectionsQuery.data]);
+  const byYearGroup = useMemo(
+    () => collectionsQuery.data?.byYearGroup ?? EMPTY,
+    [collectionsQuery.data],
+  );
+  const arrears = useMemo(() => arrearsQuery.data?.data ?? EMPTY, [arrearsQuery.data]);
+  const enrollment = useMemo(() => enrollmentQuery.data?.data ?? EMPTY, [enrollmentQuery.data]);
+  const occupancy = useMemo(() => occupancyQuery.data?.data ?? EMPTY, [occupancyQuery.data]);
 
   /**
    * The term the collections panel is about: the one named by the filter, or
@@ -670,6 +699,14 @@ export function SchoolsReportsEnhancedContent() {
   const collectionsSummary = collectionsQuery.data?.summary;
   const arrearsSummary = arrearsQuery.data?.summary;
 
+  /**
+   * The reminder send lives inside `SendNoticeDialog`, which owns its own error
+   * banner but not the arrears table underneath it. Every row there carries a
+   * Remind, and a second press while the first send is landing writes to the
+   * same family twice.
+   */
+  const sending = useIsMutating() > 0 && reminding !== null;
+
   const bandChips =
     activeView === "arrears"
       ? [
@@ -762,13 +799,9 @@ export function SchoolsReportsEnhancedContent() {
       />
 
       {exportError ? (
-        <Alert
-          tone="danger"
-          title="The export did not download"
-          onDismiss={() => setExportError(null)}
-        >
-          {exportError}
-        </Alert>
+        // An export is a write as far as the person pressing it is concerned:
+        // they asked for a file and did not get one.
+        <SaveError what="The export" error={exportError} />
       ) : null}
       {sent ? (
         <Alert tone="success" title={sent} onDismiss={() => setSent(null)} />
@@ -868,6 +901,39 @@ export function SchoolsReportsEnhancedContent() {
             />
           </FilterBar>
 
+          {/* The four filters above are read from four separate endpoints, and
+              a picker that silently offers no options is indistinguishable from
+              a school with no terms. Named where they sit, since the report
+              underneath still works unnarrowed. */}
+          {yearsQuery.isError ? (
+            <LoadError
+              what="the academic years"
+              error={yearsQuery.error}
+              onRetry={() => void yearsQuery.refetch()}
+            />
+          ) : null}
+          {termsQuery.isError ? (
+            <LoadError
+              what="the terms"
+              error={termsQuery.error}
+              onRetry={() => void termsQuery.refetch()}
+            />
+          ) : null}
+          {classesQuery.isError ? (
+            <LoadError
+              what="the year groups"
+              error={classesQuery.error}
+              onRetry={() => void classesQuery.refetch()}
+            />
+          ) : null}
+          {structuresQuery.isError ? (
+            <LoadError
+              what="the fee structures"
+              error={structuresQuery.error}
+              onRetry={() => void structuresQuery.refetch()}
+            />
+          ) : null}
+
           {collectionsQuery.error ? (
             <LoadError
               what="the collections report"
@@ -902,9 +968,22 @@ export function SchoolsReportsEnhancedContent() {
 
               {collectionsQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ twoLine: true }, { width: 110 }, { width: 110 }, { width: 110 }, { width: 80 }]}
+                  headers={[
+                    "Term",
+                    "Invoiced",
+                    "Collected",
+                    "Collection rate",
+                    "Receipts",
+                  ]}
+                  columns={[
+                    { twoLine: true },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right", badge: true },
+                    { width: 80, align: "right" },
+                  ]}
                 />
-              ) : (
+              ) : collectionsQuery.error ? null : (
                 <DataTable
                   data={collections}
                   columns={collectionsColumns}
@@ -912,9 +991,7 @@ export function SchoolsReportsEnhancedContent() {
                   searchSubmitLabel="Search"
                   pagination={{ enabled: true }}
                   emptyState={
-                    collectionsQuery.error ? (
-                      "Nothing to show while the report cannot be loaded."
-                    ) : collectionsNarrowing.length > 0 ? (
+                    collectionsNarrowing.length > 0 ? (
                       <NothingMatched
                         what="terms"
                         filters={collectionsNarrowing}
@@ -998,6 +1075,25 @@ export function SchoolsReportsEnhancedContent() {
                     ))}
                   </ul>
                 )}
+              </Card>
+
+              {/*
+                The canvas draws this card, and what it says has to keep pace
+                with the screen. It was written against a route with no filter
+                of any kind — that is fixed, and Collections and Arrears now
+                narrow properly — so it names the limit that is actually still
+                here: the other two reports ignore the row above them, because
+                neither endpoint takes a parameter. A caveat that has gone stale
+                is worse than no caveat, since somebody reads it and trusts it.
+              */}
+              <Card title="What the screen cannot do" className="h-fit">
+                <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                  The filter row narrows Collections and Arrears only. Enrollment
+                  and Hostel occupancy render everything their endpoints return,
+                  so a year group or fee structure chosen here does not reach
+                  them. Exports carry the filters of the view they were pressed
+                  on, and nothing else.
+                </p>
               </Card>
             </div>
           </div>
@@ -1085,40 +1181,60 @@ export function SchoolsReportsEnhancedContent() {
 
               {arrearsQuery.isPending ? (
                 <TableRowsSkeleton
+                  headers={[
+                    "Student",
+                    "Total outstanding",
+                    "Current",
+                    "1-30 days",
+                    "31-60 days",
+                    "61-90 days",
+                    "90+ days",
+                  ]}
                   columns={[
                     { avatar: true, twoLine: true },
-                    { width: 110 },
-                    { width: 90 },
-                    { width: 90 },
-                    { width: 90 },
-                    { width: 90 },
-                    { width: 90 },
+                    // Money, right-aligned in the real row — a left-aligned
+                    // skeleton makes six columns jump when the figures land.
+                    { width: 110, align: "right" },
+                    { width: 90, align: "right" },
+                    { width: 90, align: "right" },
+                    { width: 90, align: "right" },
+                    { width: 90, align: "right" },
+                    { width: 90, align: "right" },
                   ]}
                 />
-              ) : (
-                <DataTable
-                  data={arrears}
-                  columns={arrearsColumns}
-                  searchPlaceholder="Search students"
-                  searchSubmitLabel="Search"
-                  pagination={{ enabled: true }}
-                  emptyState={
-                    arrearsQuery.error ? (
-                      "Nothing to show while the report cannot be loaded."
-                    ) : arrearsNarrowing.length > 0 ? (
-                      <NothingMatched
-                        what="families"
-                        filters={arrearsNarrowing}
-                        onClear={clearArrears}
-                      />
-                    ) : (
-                      <NothingLeftToDo
-                        title="Nobody is in arrears"
-                        body="Every issued bill has been settled. There is nothing to chase."
-                      />
-                    )
-                  }
-                />
+              ) : arrearsQuery.error ? null : (
+                // The dialog that writes to families sits over this table, and
+                // every row here still carries its own Remind while it runs.
+                <SavingOverlay saving={sending} label="Sending the reminders…">
+                  <DataTable
+                    data={arrears}
+                    columns={arrearsColumns}
+                    searchPlaceholder="Search students"
+                    searchSubmitLabel="Search"
+                    pagination={{ enabled: true }}
+                    emptyState={
+                      arrearsNarrowing.length > 0 ? (
+                        <NothingMatched
+                          what="families"
+                          filters={arrearsNarrowing}
+                          onClear={clearArrears}
+                        />
+                      ) : rollNow === 0 ? (
+                        // No arrears because there is no school yet — a
+                        // different sentence from "everybody has paid".
+                        <NothingYet
+                          title="Nobody is on the roll yet"
+                          body="Arrears are worked out from issued bills. Admit pupils and bill them, and this fills itself."
+                        />
+                      ) : (
+                        <NothingLeftToDo
+                          title="Nobody is in arrears"
+                          body="Every issued bill has been settled. There is nothing to chase."
+                        />
+                      )
+                    }
+                  />
+                </SavingOverlay>
               )}
             </div>
 
@@ -1185,9 +1301,17 @@ export function SchoolsReportsEnhancedContent() {
 
           {enrollmentQuery.isPending ? (
             <TableRowsSkeleton
-              columns={[{ twoLine: true }, { width: 100 }, { width: 90 }, { width: 90 }, { width: 80 }, { width: 80 }]}
+              headers={["Term", "Total enrolled", "Boarding", "Day", "Boys", "Girls"]}
+              columns={[
+                { twoLine: true },
+                { width: 100, align: "right" },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 80, align: "right" },
+                { width: 80, align: "right" },
+              ]}
             />
-          ) : (
+          ) : enrollmentQuery.error ? null : (
             <DataTable
               data={enrollment}
               columns={enrollmentColumns}
@@ -1245,9 +1369,24 @@ export function SchoolsReportsEnhancedContent() {
 
           {occupancyQuery.isPending ? (
             <TableRowsSkeleton
-              columns={[{ twoLine: true }, { width: 90 }, { width: 90 }, { width: 90 }, { width: 110 }, { width: 80 }]}
+              headers={[
+                "Hostel",
+                "Total beds",
+                "Occupied",
+                "Available",
+                "Occupancy rate",
+                "Rooms",
+              ]}
+              columns={[
+                { twoLine: true },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 90, align: "right" },
+                { width: 110, align: "right", badge: true },
+                { width: 80, align: "right" },
+              ]}
             />
-          ) : (
+          ) : occupancyQuery.error ? null : (
             <DataTable
               data={occupancy}
               columns={occupancyColumns}

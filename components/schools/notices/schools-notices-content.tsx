@@ -58,6 +58,19 @@ import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-noti
  * to exactly the people the first one reached, carrying a link back to it. That
  * is the whole of this record's write surface, and it is deliberately the whole
  * of it.
+ *
+ * ── The filter row ─────────────────────────────────────────────────────────
+ *
+ * Four filters, each named here with the unnarrowed choice the canvas gives it:
+ *
+ *   Who it was for = Every audience
+ *   Year group = The whole school
+ *   Importance = Any importance
+ *   When = This term
+ *
+ * All four narrow the sent list in the browser rather than at the endpoint: a
+ * term's notices are tens of rows, not thousands, and the reach panel beside
+ * the table has to count the same set the table is drawn from.
  */
 
 type SentNotice = {
@@ -228,6 +241,25 @@ export function SchoolsNoticesContent() {
 
   const unreachable = unreachableQuery.data ?? null;
   const anyFilter = Boolean(audience || classId || importance);
+
+  /**
+   * What the reach panel is counting, named.
+   *
+   * The panel is drawn from `thisTerm` — the When filter's window — so the
+   * heading has to move with it. "Reach, this term" over a set narrowed to the
+   * last seven days is the panel lying about its own scope, and this is the
+   * card an office quotes at a governors' meeting.
+   */
+  const reachWindowLabel =
+    when === "7"
+      ? "Reach, the last 7 days"
+      : when === "30"
+        ? "Reach, the last 30 days"
+        : when === "all"
+          ? "Reach, everything sent"
+          : activeTerm
+            ? `Reach, ${activeTerm.name.toLowerCase()}`
+            : "Reach, this term";
 
   const columns = useMemo<ColumnDef<SentNotice>[]>(
     () => [
@@ -481,6 +513,21 @@ export function SchoolsNoticesContent() {
                 ? `${(unreachable.guardians + unreachable.students).toLocaleString()} people`
                 : undefined
             }
+            actions={
+              /*
+                The count above is a to-do list, and until now the only way to
+                act on it was the banner that appears for a moment after a send.
+                An office reading this card at any other time could see the
+                number and had nowhere to press. Inviting is what changes it.
+              */
+              unreachable && unreachable.guardians + unreachable.students > 0 ? (
+                <Button asChild variant="quiet" size="sm">
+                  <Link href="/schools/guardians">
+                    Invite the {unreachable.guardians + unreachable.students}
+                  </Link>
+                </Button>
+              ) : undefined
+            }
           >
             <div className="divide-y divide-[color:var(--border-subtle)]">
               <ReachRow
@@ -500,15 +547,37 @@ export function SchoolsNoticesContent() {
             </p>
           </Card>
 
-          <Card title={`Reach, ${activeTerm ? activeTerm.name.toLowerCase() : "this term"}`}>
+          <Card title={reachWindowLabel}>
             <div className="divide-y divide-[color:var(--border-subtle)]">
               <ReachRow label="Notices sent" value={reach.sent} />
               <ReachRow label="Average read" value={`${reach.averageRead}%`} />
-              <ReachRow label="Still unread" value={reach.unread} />
+              {/*
+                The canvas's own wording, and the same figure the band's Unread
+                chip carries — a delivery that has been sitting in somebody's
+                portal unopened for the whole window. "Still unread" said the
+                same thing more weakly.
+              */}
+              <ReachRow label="Never opened one" value={reach.unread} />
             </div>
             <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
               A guardian who has opened nothing in a term is usually a guardian whose invite
               was never accepted.
+            </p>
+          </Card>
+
+          {/*
+            The canvas draws this as a note rather than a control, and it is the
+            one thing a reader of the sent list has to be told: the rows above
+            are final. It sits under Reach because that is where somebody
+            finishes reading and starts wondering what they can do about a
+            notice that went out wrong.
+          */}
+          <Card title="A notice cannot be recalled">
+            <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+              The send dialog says so, and the sent list proves it: no draft, no schedule,
+              and no way to correct one that went out wrong. The smallest honest fix is a{" "}
+              <strong>Send a correction</strong> action on the row, which posts a linked
+              follow-up to exactly the same audience.
             </p>
           </Card>
         </div>

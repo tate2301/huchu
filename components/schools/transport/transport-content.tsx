@@ -2,14 +2,23 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import {
+  ClassFilter,
+  ALL_CLASSES,
+  type ClassFilterValue,
+} from "@/components/schools/common/class-filter";
+import {
+  TableControls,
+  TableSearch,
+} from "@/components/schools/common/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -20,15 +29,14 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { SegmentedControl } from "@/components/ui/segmented-control";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
-import { fetchSchoolsClasses, fetchSchoolsStudents } from "@/lib/schools/admin-v2";
+import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
 
 type Stop = {
   id: string;
@@ -79,6 +87,8 @@ type Register = {
   summary: { expected: number; on: number; notOn: number; unmarked: number };
 };
 
+type View = "routes" | "register";
+
 function clock(minute: number | null) {
   if (minute === null) return null;
   return `${String(Math.floor(minute / 60)).padStart(2, "0")}:${String(minute % 60).padStart(2, "0")}`;
@@ -97,32 +107,104 @@ function today() {
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 }
 
+/** "24 Aug 2026" — how the canvas labels the day the register is for. */
+const DAY = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  year: "numeric",
+});
+
+function readableDay(iso: string) {
+  const date = new Date(`${iso}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) ? iso : DAY.format(date);
+}
+
+/**
+ * How a route names itself, and it is three facts rather than two:
+ * "R2 · Chishawasha · Mr Katsande".
+ *
+ * The driver belongs in the name because a bus without one named is a hole in
+ * the arrangement somebody has to fill before term starts, and a blank there
+ * reads as "not filled in yet" rather than "nobody assigned". So an unnamed
+ * driver says so out loud — "R5 · Borrowdale · no driver named" — which is the
+ * same rule the register uses for a rider with no stop.
+ */
+function routeLabel(route: { code: string; name: string; driverName: string | null }) {
+  return `${route.code} · ${route.name} · ${route.driverName ?? "no driver named"}`;
+}
+
+/** "R2 · Chishawasha" — the route without its driver, for filters and captions. */
+function routeShort(route: { code: string; name: string }) {
+  return `${route.code} · ${route.name}`;
+}
+
+/**
+ * The times under a stop: "Pick up 06:40 · drop 16:20".
+ *
+ * A stop with no pick-up time set is the gap that strands a child at a gate, so
+ * it is spelled out rather than left blank — "No pick-up time set", in the warn
+ * tone, next to the stops that do have one. A finished route reads down as
+ * "1. Mission Gate", "2. Chishawasha Shops", "3. Dandaro Turn" with their
+ * times, and then "4. St Ignatius" with the warning where a time is owed.
+ */
+function stopTimes(stop: Stop) {
+  const pickup = clock(stop.pickupMinute);
+  const drop = clock(stop.dropMinute);
+  if (!pickup) return "No pick-up time set";
+  return drop ? `Pick up ${pickup} · drop ${drop}` : `Pick up ${pickup}`;
+}
+
+/**
+ * The second line of a rider's row: "CHS-1180 · Mission Gate 06:40 · Form 2A".
+ *
+ * Admission number, where the driver picks them up and at what time, and the
+ * class to send word to. A rider with no stop set says "no stop set", which is
+ * the driver's cue to ask rather than a blank they have to interpret —
+ * "CHS-1233 · no stop set · Form 3A" sits in the list beside
+ * "CHS-1240 · Dandaro Turn 07:04 · Form 3A" and is read as the exception it is.
+ */
+function riderLine(row: RegisterRow) {
+  const parts = [row.student.studentNo];
+  if (row.stop) {
+    const at = clock(row.stop.pickupMinute);
+    parts.push(at ? `${row.stop.name} ${at}` : row.stop.name);
+  } else {
+    parts.push("no stop set");
+  }
+  if (row.student.currentClass) parts.push(row.student.currentClass.name);
+  return parts.join(" · ");
+}
+
 /**
  * The transport office, and the driver's register.
  *
  * Two views. "Routes" is the standing arrangement — where the bus stops, who
- * rides it and what that is worth in fees. "Register" is this morning: every
- * rider in stop order, marked or not, because a driver works down the route and
- * not down an alphabet, and a child who has not got on is a row rather than an
- * absence.
+ * rides it and what that is worth in fees. "This morning" is the register:
+ * every rider in stop order, marked or not, because a driver works down the
+ * route and not down an alphabet, and a child who has not got on is a row
+ * rather than an absence.
+ *
+ * They are two views of one page rather than two pages because they are the
+ * same six buses read two ways, and the segmented strip sits in the control row
+ * with the filters that narrow whichever one is showing — never in the band
+ * above, which belongs to the numbers.
  *
  * The billing figure is *reported*, not posted. Turning it into invoice lines
  * belongs with the fee run, and a transport module that silently created
  * charges is one nobody can reconcile.
  *
- * Routes, stops and riders could all be read and none of them created: a school
- * that added a second bus had to have it inserted for them. Every one of the
- * three now carries its own verbs, gated on the same grant as the endpoints
- * behind them — `schools.students`, because knowing which bus a child is on is
- * knowing where the child is.
+ * Routes, stops and riders each carry their own verbs, gated on the same grant
+ * as the endpoints behind them — `schools.students`, because knowing which bus
+ * a child is on is knowing where the child is.
  */
 export function TransportContent() {
   const queryClient = useQueryClient();
-  const [view, setView] = useState<"routes" | "register">("routes");
+  const [view, setView] = useState<View>("routes");
   const [routeFilter, setRouteFilter] = useState("");
   const [stopFilter, setStopFilter] = useState("");
-  const [classFilter, setClassFilter] = useState("");
+  const [classes, setClasses] = useState<ClassFilterValue>(ALL_CLASSES);
   const [runningFilter, setRunningFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [onDate, setOnDate] = useState(today);
   const [direction, setDirection] = useState<"MORNING" | "AFTERNOON">("MORNING");
   const [marks, setMarks] = useState<Record<string, boolean>>({});
@@ -143,14 +225,8 @@ export function TransportContent() {
       fetchJson<{ routes: Route[]; billing: Billing[] }>("/api/v2/schools/transport"),
   });
 
-  const classesQuery = useQuery({
-    queryKey: ["schools", "grades"],
-    queryFn: () => fetchSchoolsClasses({ page: 1, limit: 200 }),
-  });
-
   const allRoutes = useMemo(() => routesQuery.data?.routes ?? [], [routesQuery.data]);
   const billing = useMemo(() => routesQuery.data?.billing ?? [], [routesQuery.data]);
-  const classes = useMemo(() => classesQuery.data?.data ?? [], [classesQuery.data]);
 
   const routes = useMemo(
     () =>
@@ -158,9 +234,11 @@ export function TransportContent() {
         if (routeFilter && route.id !== routeFilter) return false;
         if (runningFilter === "running" && !route.isActive) return false;
         if (runningFilter === "stopped" && route.isActive) return false;
+        const term = search.trim().toLowerCase();
+        if (term && !routeLabel(route).toLowerCase().includes(term)) return false;
         return true;
       }),
-    [allRoutes, routeFilter, runningFilter],
+    [allRoutes, routeFilter, runningFilter, search],
   );
 
   const activeRoute = routeFilter || allRoutes[0]?.id || "";
@@ -185,10 +263,21 @@ export function TransportContent() {
         if (stopFilter && stopFilter !== "__none__" && row.stop?.id !== stopFilter) {
           return false;
         }
-        if (classFilter && row.student.currentClass?.id !== classFilter) return false;
+        if (classes.classId && row.student.currentClass?.id !== classes.classId) {
+          return false;
+        }
+        const term = search.trim().toLowerCase();
+        if (
+          term &&
+          !`${row.student.lastName}, ${row.student.firstName} ${row.student.studentNo}`
+            .toLowerCase()
+            .includes(term)
+        ) {
+          return false;
+        }
         return true;
       }),
-    [allRows, stopFilter, classFilter],
+    [allRows, stopFilter, classes.classId, search],
   );
 
   const invalidate = () => {
@@ -210,7 +299,11 @@ export function TransportContent() {
         }),
       }),
     onSuccess: () => {
-      setNote("Register saved");
+      // Name the day back. A register is saved against a date somebody chose in
+      // a filter, and "Register saved" alone has bitten people who were still
+      // looking at yesterday.
+      setNote(`Register saved for ${readableDay(onDate)}`);
+      setMarks({});
       invalidate();
     },
   });
@@ -249,48 +342,101 @@ export function TransportContent() {
   const totalRiders = billing.reduce((sum, row) => sum + row.riders, 0);
   const failure =
     routeAction.error ?? stopAction.error ?? riderAction.error ?? markMutation.error;
+  const anyRouteFilter = Boolean(routeFilter || runningFilter || search.trim());
+  const anyRiderFilter = Boolean(stopFilter || classes.classId || search.trim());
+
+  /**
+   * The strip that switches the two views, and the counts the canvas puts on
+   * it. It lives in the control row rather than the band, because it changes
+   * what the rows below say and nothing above them.
+   */
+  const views = (
+    <SegmentedControl<View>
+      value={view}
+      onValueChange={(next) => {
+        setView(next);
+        setSearch("");
+      }}
+      ariaLabel="Transport views"
+      options={[
+        { value: "routes", label: "Routes", count: allRoutes.length },
+        { value: "register", label: "This morning" },
+      ]}
+      className="shrink-0 self-end"
+    />
+  );
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Transport"
-        primaryAction={
-          view === "routes" ? (
-            <CreateButton
-              resource="schools.students"
-              action="edit"
-              label="Add a route"
-              onSelect={() => setAddingRoute(true)}
-            />
-          ) : (
-            <CreateButton
-              resource="schools.students"
-              action="edit"
-              label="Put a child on the bus"
-              onSelect={() => setAddingRider(true)}
-              unavailable={activeRouteRecord ? undefined : "There is no route to ride."}
-            />
-          )
-        }
-      />
+      <PageChrome title="Transport">
+        {view === "routes" ? (
+          <CreateButton
+            resource="schools.students"
+            action="edit"
+            label="Add a route"
+            onSelect={() => setAddingRoute(true)}
+          />
+        ) : (
+          // The register's one verb. It is the primary action while the
+          // register is showing because everything else on the screen is a
+          // mark that means nothing until it is written down.
+          <Button
+            variant="primary"
+            disabled={rows.length === 0 || markMutation.isPending}
+            loading={markMutation.isPending}
+            onClick={() => markMutation.mutate()}
+          >
+            Save the register
+          </Button>
+        )}
+      </PageChrome>
 
-      <PageBand
-        chips={[
-          { label: "Routes", value: allRoutes.length },
-          { label: "Riding", value: totalRiders, tone: "brand" },
-          {
-            label: "Still to bill",
-            value: formatSchoolMoney(totalDue),
-            tone: totalDue > 0 ? "warn" : "success",
-          },
-        ]}
-      />
+      {view === "routes" ? (
+        <PageBand
+          chips={[
+            { label: "Routes", value: allRoutes.length },
+            { label: "Riding", value: totalRiders, tone: "brand" },
+            {
+              label: "Still to bill",
+              value: formatSchoolMoney(totalDue),
+              tone: totalDue > 0 ? "warn" : "success",
+            },
+          ]}
+        />
+      ) : (
+        <PageBand
+          chips={[
+            {
+              label: "On",
+              value: register ? register.summary.on : "—",
+              tone: "success",
+            },
+            {
+              label: "Not on",
+              value: register ? register.summary.notOn : "—",
+              tone: register && register.summary.notOn > 0 ? "danger" : "neutral",
+            },
+            {
+              label: "Unmarked",
+              value: register ? register.summary.unmarked : "—",
+              tone: register && register.summary.unmarked > 0 ? "warn" : "neutral",
+            },
+          ]}
+        />
+      )}
 
       {routesQuery.error ? (
         <LoadError
           what="transport"
           error={routesQuery.error}
           onRetry={() => void routesQuery.refetch()}
+        />
+      ) : null}
+      {registerQuery.error ? (
+        <LoadError
+          what="the register"
+          error={registerQuery.error}
+          onRetry={() => void registerQuery.refetch()}
         />
       ) : null}
       {failure ? <SaveError what="That change" error={failure} /> : null}
@@ -300,275 +446,267 @@ export function TransportContent() {
         </Alert>
       ) : null}
 
-      <VerticalDataViews
-        items={[
-          { id: "routes", label: "Routes", count: allRoutes.length },
-          { id: "register", label: "This morning" },
-        ]}
-        value={view}
-        onValueChange={(value) => setView(value as "routes" | "register")}
-        railLabel="Transport views"
-      >
-        {view === "routes" ? (
-          <div className="space-y-4">
-            <FilterBar>
-              <FilterSelect
-                label="Route"
-                allLabel="Every route"
-                value={routeFilter}
-                options={allRoutes.map((route) => ({
-                  value: route.id,
-                  label: `${route.code} · ${route.name}`,
-                }))}
-                onChange={setRouteFilter}
+      {view === "routes" ? (
+        <>
+          <TableControls
+            tabs={views}
+            search={
+              <TableSearch
+                label="Find a route"
+                placeholder="Route, destination or driver"
+                value={search}
+                onChange={setSearch}
               />
-              <FilterSelect
-                label="Running"
-                allLabel="Every route"
-                value={runningFilter}
-                options={[
-                  { value: "running", label: "Running" },
-                  { value: "stopped", label: "Not running" },
-                ]}
-                onChange={setRunningFilter}
-              />
-            </FilterBar>
-
-            <p className="text-sm text-muted-foreground">
-              {allRoutes.length} route{allRoutes.length === 1 ? "" : "s"} · {totalRiders}{" "}
-              riders · {formatSchoolMoney(totalDue)} still to bill this term
-            </p>
-
-            {routesQuery.isLoading ? (
-              <TableRowsSkeleton columns={[{ twoLine: true }, { width: 140 }, { width: 200 }]} />
-            ) : routes.length === 0 ? (
-              allRoutes.length === 0 ? (
-                <NothingYet
-                  title="No routes yet"
-                  body="A route is a bus, a driver and a line of stops. Add one and the register writes itself every morning."
-                  action={
-                    <CreateButton
-                      resource="schools.students"
-                      action="edit"
-                      label="Add a route"
-                      onSelect={() => setAddingRoute(true)}
-                    />
-                  }
-                />
-              ) : (
-                <NothingMatched
-                  what="routes"
-                  filters={[
-                    allRoutes.find((route) => route.id === routeFilter)?.name ?? "",
-                    runningFilter === "running"
-                      ? "Running"
-                      : runningFilter === "stopped"
-                        ? "Not running"
-                        : "",
-                  ].filter(Boolean)}
-                  onClear={() => {
-                    setRouteFilter("");
-                    setRunningFilter("");
-                  }}
-                />
-              )
-            ) : (
-              <ul className="space-y-3">
-                {routes.map((route) => {
-                  const money = billing.find((row) => row.route.id === route.id);
-                  const routeVerbs: RecordVerb[] = [
-                    {
-                      label: "Edit",
-                      action: "edit",
-                      onSelect: () => setEditingRoute(route),
-                    },
-                    {
-                      label: "Add a stop",
-                      action: "edit",
-                      onSelect: () => setStopContext({ route, stop: null }),
-                    },
-                    {
-                      label: route.isActive ? "Stop it running" : "Start it running",
-                      action: "edit",
-                      tone: route.isActive ? "warning" : "default",
-                      loading: pendingId === route.id,
-                      onSelect: () => {
-                        setPendingId(route.id);
-                        routeAction.mutate({
-                          id: route.id,
-                          body: { isActive: !route.isActive },
-                        });
-                      },
-                    },
-                    {
-                      label: "Delete",
-                      action: "archive",
-                      tone: "danger",
-                      loading: pendingId === route.id,
-                      unavailable:
-                        route._count.riders > 0
-                          ? "Children have ridden this route. Stop it running instead."
-                          : undefined,
-                      confirm: {
-                        title: `Delete ${route.code} · ${route.name}`,
-                        description:
-                          "The route and its stops go for good. Only a route nobody has ever ridden can be deleted.",
-                        confirmLabel: "Delete it",
-                      },
-                      onSelect: () => {
-                        setPendingId(route.id);
-                        routeAction.mutate({ id: route.id, remove: true });
-                      },
-                    },
-                  ];
-
-                  return (
-                    <li
-                      key={route.id}
-                      className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
-                    >
-                      <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-3 py-2">
-                        <span className="font-medium text-[color:var(--text-strong)]">
-                          {route.code} · {route.name}
-                        </span>
-                        <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {route.driverName ?? "no driver named"}
-                          {money ? ` · ${money.riders} riding` : ""}
-                          {money && money.due > 0
-                            ? ` · ${formatSchoolMoney(money.due)} to bill`
-                            : ""}
-                        </span>
-                        {route.capacity ? (
-                          <Badge
-                            tone={
-                              (money?.riders ?? 0) >= route.capacity ? "warn" : "neutral"
-                            }
-                          >
-                            {money?.riders ?? 0} of {route.capacity} seats
-                          </Badge>
-                        ) : null}
-                        {route.isActive ? null : <Badge tone="neutral">Not running</Badge>}
-                        <span className="ml-auto">
-                          <RecordActions resource="schools.students" verbs={routeVerbs} />
-                        </span>
-                      </div>
-
-                      {route.stops.length === 0 ? (
-                        <p className="px-3 py-3 text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                          A route with no stops is a bus with nowhere to pull in.
-                        </p>
-                      ) : (
-                        <ul className="divide-y divide-[color:var(--border-subtle)]">
-                          {route.stops.map((stop) => (
-                            <li
-                              key={stop.id}
-                              className="flex flex-wrap items-center gap-3 px-3 py-2"
-                            >
-                              <span className="min-w-0 flex-1">
-                                <span className="block truncate">
-                                  {stop.sequence}. {stop.name}
-                                </span>
-                                <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                                  {clock(stop.pickupMinute)
-                                    ? `Pick up ${clock(stop.pickupMinute)}`
-                                    : "No pick-up time set"}
-                                  {clock(stop.dropMinute)
-                                    ? ` · drop ${clock(stop.dropMinute)}`
-                                    : ""}
-                                </span>
-                              </span>
-                              <RecordActions
-                                resource="schools.students"
-                                verbs={[
-                                  {
-                                    label: "Edit",
-                                    action: "edit",
-                                    onSelect: () => setStopContext({ route, stop }),
-                                  },
-                                  {
-                                    label: "Remove",
-                                    action: "edit",
-                                    tone: "danger",
-                                    loading: pendingId === stop.id,
-                                    confirm: {
-                                      title: `Remove ${stop.name}`,
-                                      description:
-                                        "The bus stops pulling in here. Children picked up at this stop have to be moved to another one first.",
-                                      confirmLabel: "Remove it",
-                                    },
-                                    onSelect: () => {
-                                      setPendingId(stop.id);
-                                      stopAction.mutate({ id: stop.id, remove: true });
-                                    },
-                                  },
-                                ]}
-                              />
-                            </li>
-                          ))}
-                        </ul>
-                      )}
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        ) : null}
-
-        {view === "register" ? (
-          <div className="space-y-4">
-            {registerQuery.isLoading ? (
-              <StatsSkeleton count={3} />
-            ) : (
-              <div className="grid gap-3 sm:grid-cols-3">
-                <StatCard label="On" value={register?.summary.on ?? 0} tone="success" />
-                <StatCard
-                  label="Not on"
-                  value={register?.summary.notOn ?? 0}
-                  tone={(register?.summary.notOn ?? 0) > 0 ? "danger" : "neutral"}
-                />
-                <StatCard
-                  label="Unmarked"
-                  value={register?.summary.unmarked ?? 0}
-                  tone={(register?.summary.unmarked ?? 0) > 0 ? "warn" : "neutral"}
-                />
-              </div>
-            )}
-
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-              <FilterBar>
+            }
+            filters={
+              <>
                 <FilterSelect
                   label="Route"
-                  allLabel={allRoutes[0]?.name ?? "Choose a route"}
+                  allLabel="Every route"
                   value={routeFilter}
                   options={allRoutes.map((route) => ({
                     value: route.id,
-                    label: `${route.code} · ${route.name}`,
+                    label: routeShort(route),
+                  }))}
+                  onChange={setRouteFilter}
+                />
+                <FilterSelect
+                  label="Running"
+                  allLabel="Every route"
+                  value={runningFilter}
+                  options={[
+                    { value: "running", label: "Running" },
+                    { value: "stopped", label: "Not running" },
+                  ]}
+                  onChange={setRunningFilter}
+                />
+              </>
+            }
+          />
+
+          <p className="text-sm text-muted-foreground">
+            {allRoutes.length} route{allRoutes.length === 1 ? "" : "s"} · {totalRiders}{" "}
+            riders · {formatSchoolMoney(totalDue)} still to bill this term
+          </p>
+
+          {routesQuery.isLoading ? (
+            <TableRowsSkeleton columns={[{ twoLine: true }, { width: 140 }, { width: 200 }]} />
+          ) : routes.length === 0 ? (
+            allRoutes.length === 0 ? (
+              <NothingYet
+                title="No routes yet"
+                body="A route is a bus, a driver and a line of stops. Add one and the register writes itself every morning."
+                action={
+                  <CreateButton
+                    resource="schools.students"
+                    action="edit"
+                    label="Add a route"
+                    onSelect={() => setAddingRoute(true)}
+                  />
+                }
+              />
+            ) : (
+              <NothingMatched
+                what="routes"
+                filters={[
+                  allRoutes.find((route) => route.id === routeFilter)?.name ?? "",
+                  runningFilter === "running"
+                    ? "Running"
+                    : runningFilter === "stopped"
+                      ? "Not running"
+                      : "",
+                  search.trim(),
+                ].filter(Boolean)}
+                onClear={
+                  anyRouteFilter
+                    ? () => {
+                        setRouteFilter("");
+                        setRunningFilter("");
+                        setSearch("");
+                      }
+                    : undefined
+                }
+              />
+            )
+          ) : (
+            <ul className="space-y-3">
+              {routes.map((route) => {
+                const money = billing.find((row) => row.route.id === route.id);
+                const riding = money?.riders ?? 0;
+                const routeVerbs: RecordVerb[] = [
+                  {
+                    label: "Edit",
+                    action: "edit",
+                    onSelect: () => setEditingRoute(route),
+                  },
+                  {
+                    label: "Add a stop",
+                    action: "edit",
+                    onSelect: () => setStopContext({ route, stop: null }),
+                  },
+                  {
+                    label: route.isActive ? "Stop it running" : "Start it running",
+                    action: "edit",
+                    tone: route.isActive ? "warning" : "default",
+                    loading: pendingId === route.id,
+                    onSelect: () => {
+                      setPendingId(route.id);
+                      routeAction.mutate({
+                        id: route.id,
+                        body: { isActive: !route.isActive },
+                      });
+                    },
+                  },
+                  {
+                    label: "Delete",
+                    action: "archive",
+                    tone: "danger",
+                    loading: pendingId === route.id,
+                    unavailable:
+                      route._count.riders > 0
+                        ? "Children have ridden this route. Stop it running instead."
+                        : undefined,
+                    confirm: {
+                      title: `Delete ${routeShort(route)}`,
+                      description:
+                        "The route and its stops go for good. Only a route nobody has ever ridden can be deleted.",
+                      confirmLabel: "Delete it",
+                    },
+                    onSelect: () => {
+                      setPendingId(route.id);
+                      routeAction.mutate({ id: route.id, remove: true });
+                    },
+                  },
+                ];
+
+                return (
+                  <li
+                    key={route.id}
+                    className="overflow-hidden rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]"
+                  >
+                    <div className="flex flex-wrap items-center gap-2 border-b border-[color:var(--border-subtle)] bg-[color:var(--surface-muted)] px-3 py-2">
+                      <h2 className="m-0 font-medium text-[color:var(--text-strong)]">
+                        {routeLabel(route)}
+                      </h2>
+                      <span className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                        {/* An empty bus says so. Left to interpolation a route
+                            nobody rides renders the same "0 riding" anyway, but
+                            written out it cannot quietly become a blank when
+                            the billing row is missing. */}
+                        {riding === 0 ? "0 riding" : `${riding} riding`}
+                        {money && money.due > 0
+                          ? ` · ${formatSchoolMoney(money.due)} to bill`
+                          : ""}
+                      </span>
+                      {route.capacity ? (
+                        <Badge tone={riding >= route.capacity ? "warn" : "success"}>
+                          {riding} of {route.capacity} seats
+                        </Badge>
+                      ) : null}
+                      {route.isActive ? null : <Badge tone="neutral">Not running</Badge>}
+                      <span className="ml-auto">
+                        <RecordActions resource="schools.students" verbs={routeVerbs} />
+                      </span>
+                    </div>
+
+                    {route.stops.length === 0 ? (
+                      <div className="px-3 py-2.5">
+                        <span className="block text-[length:var(--type-body-sm)] font-semibold text-[color:var(--text-strong)]">
+                          No stops yet
+                        </span>
+                        <span className="block text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
+                          A route with no stops is a bus with nowhere to pull in.
+                        </span>
+                      </div>
+                    ) : (
+                      <ul className="divide-y divide-[color:var(--border-subtle)]">
+                        {route.stops.map((stop) => (
+                          <li
+                            key={stop.id}
+                            className="flex flex-wrap items-center gap-3 px-3 py-2"
+                          >
+                            <span className="min-w-0 flex-1">
+                              {/* Numbered, because the number is the order the
+                                  driver drives and the order the register is
+                                  written in — "1. Mission Gate", then the rest. */}
+                              <span className="block truncate font-medium text-[color:var(--text-strong)]">
+                                {stop.sequence}. {stop.name}
+                              </span>
+                              <span
+                                className={[
+                                  "block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums",
+                                  stop.pickupMinute === null
+                                    ? "text-[color:var(--tone-warn)]"
+                                    : "text-[color:var(--text-muted)]",
+                                ].join(" ")}
+                              >
+                                {stopTimes(stop)}
+                              </span>
+                            </span>
+                            <RecordActions
+                              resource="schools.students"
+                              verbs={[
+                                {
+                                  label: "Edit",
+                                  action: "edit",
+                                  onSelect: () => setStopContext({ route, stop }),
+                                },
+                                {
+                                  label: "Remove",
+                                  action: "edit",
+                                  tone: "danger",
+                                  loading: pendingId === stop.id,
+                                  confirm: {
+                                    title: `Remove ${stop.name}`,
+                                    description:
+                                      "The bus stops pulling in here. Children picked up at this stop have to be moved to another one first.",
+                                    confirmLabel: "Remove it",
+                                  },
+                                  onSelect: () => {
+                                    setPendingId(stop.id);
+                                    stopAction.mutate({ id: stop.id, remove: true });
+                                  },
+                                },
+                              ]}
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      ) : (
+        <>
+          <TableControls
+            tabs={views}
+            search={
+              <TableSearch
+                label="Find a rider"
+                placeholder="Name or admission number"
+                value={search}
+                onChange={setSearch}
+              />
+            }
+            filters={
+              <>
+                <FilterSelect
+                  label="Route"
+                  allLabel={
+                    allRoutes[0] ? routeShort(allRoutes[0]) : "Choose a route"
+                  }
+                  value={routeFilter}
+                  options={allRoutes.map((route) => ({
+                    value: route.id,
+                    label: routeShort(route),
                   }))}
                   onChange={(value) => {
                     setRouteFilter(value);
                     setStopFilter("");
                   }}
-                />
-                <FilterSelect
-                  label="Stop"
-                  allLabel="Every stop"
-                  value={stopFilter}
-                  options={[
-                    ...(activeRouteRecord?.stops ?? []).map((stop) => ({
-                      value: stop.id,
-                      label: `${stop.sequence}. ${stop.name}`,
-                    })),
-                    { value: "__none__", label: "No stop set" },
-                  ]}
-                  onChange={setStopFilter}
-                />
-                <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
-                  value={classFilter}
-                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={setClassFilter}
                 />
                 <div className="min-w-0 flex-1 basis-[160px] sm:max-w-[180px]">
                   <Label htmlFor="bus-date" className="text-sm text-muted-foreground">
@@ -590,138 +728,172 @@ export function TransportContent() {
                     setDirection(value === "AFTERNOON" ? "AFTERNOON" : "MORNING")
                   }
                 />
-              </FilterBar>
-              <Button
-                variant="primary"
-                disabled={rows.length === 0 || markMutation.isPending}
-                loading={markMutation.isPending}
-                onClick={() => markMutation.mutate()}
-              >
-                Save the register
-              </Button>
-            </div>
-
-            {register ? (
-              <p className="text-sm text-muted-foreground">
-                {register.route.code} · {register.route.name} · {register.summary.on} on,{" "}
-                {register.summary.notOn} not on, {register.summary.unmarked} unmarked of{" "}
-                {register.summary.expected}
-              </p>
-            ) : null}
-
-            {registerQuery.isLoading ? (
-              <TableRowsSkeleton
-                columns={[{ avatar: true, twoLine: true }, { width: 90 }, { width: 240 }]}
+                <FilterSelect
+                  label="Stop"
+                  allLabel="Every stop"
+                  value={stopFilter}
+                  options={[
+                    ...(activeRouteRecord?.stops ?? []).map((stop) => ({
+                      value: stop.id,
+                      label: `${stop.sequence}. ${stop.name}`,
+                    })),
+                    { value: "__none__", label: "No stop set" },
+                  ]}
+                  onChange={setStopFilter}
+                />
+                <ClassFilter
+                  value={classes}
+                  onChange={setClasses}
+                  label="Year group"
+                  allLabel="Every year group"
+                  includeStreams={false}
+                />
+              </>
+            }
+            actions={
+              <CreateButton
+                resource="schools.students"
+                action="edit"
+                label="Put a child on the bus"
+                onSelect={() => setAddingRider(true)}
+                unavailable={activeRouteRecord ? undefined : "There is no route to ride."}
               />
-            ) : rows.length === 0 ? (
-              allRows.length === 0 ? (
-                <NothingYet
-                  title="Nobody rides this route this term"
-                  body="Put a child on the bus and they appear here every morning until they are taken off it."
-                />
-              ) : (
-                <NothingMatched
-                  what="riders"
-                  filters={[
-                    stopFilter === "__none__"
-                      ? "No stop set"
-                      : (activeRouteRecord?.stops.find((stop) => stop.id === stopFilter)
-                          ?.name ?? ""),
-                    classes.find((row) => row.id === classFilter)?.name ?? "",
-                  ].filter(Boolean)}
-                  onClear={() => {
-                    setStopFilter("");
-                    setClassFilter("");
-                  }}
-                />
-              )
+            }
+          />
+
+          {register ? (
+            // Verbatim from the canvas: the route, then the four counts in the
+            // order somebody reads them off — on, not on, unmarked, of how
+            // many are expected. The date is not repeated here; it is the
+            // filter three inches above, and the app bar's caption.
+            <p className="text-sm text-muted-foreground">
+              {routeShort(register.route)} · {register.summary.on} on,{" "}
+              {register.summary.notOn} not on, {register.summary.unmarked} unmarked
+              of {register.summary.expected}
+            </p>
+          ) : null}
+
+          {registerQuery.isLoading ? (
+            <TableRowsSkeleton
+              columns={[{ avatar: true, twoLine: true }, { width: 90 }, { width: 240 }]}
+            />
+          ) : rows.length === 0 ? (
+            allRows.length === 0 ? (
+              <NothingYet
+                title="Nobody rides this route this term"
+                body="Put a child on the bus and they appear here every morning until they are taken off it."
+                action={
+                  <CreateButton
+                    resource="schools.students"
+                    action="edit"
+                    label="Put a child on the bus"
+                    onSelect={() => setAddingRider(true)}
+                    unavailable={
+                      activeRouteRecord ? undefined : "There is no route to ride."
+                    }
+                  />
+                }
+              />
             ) : (
-              <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
-                {rows.map((row) => {
-                  const marked = marks[row.riderId] ?? row.boarding?.boarded ?? null;
-                  return (
-                    <li
-                      key={row.riderId}
-                      className="flex flex-wrap items-center gap-3 px-3 py-2"
-                    >
-                      <PersonAvatar
-                        firstName={row.student.firstName}
-                        lastName={row.student.lastName}
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-medium">
-                          {row.student.lastName}, {row.student.firstName}
-                        </span>
-                        <span className="block truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          <span className="font-[family-name:var(--font-mono)]">
-                            {row.student.studentNo}
-                          </span>
-                          {row.stop
-                            ? ` · ${row.stop.name}${clock(row.stop.pickupMinute) ? ` ${clock(row.stop.pickupMinute)}` : ""}`
-                            : " · no stop set"}
-                          {row.student.currentClass
-                            ? ` · ${row.student.currentClass.name}`
-                            : ""}
-                        </span>
+              <NothingMatched
+                what="riders"
+                filters={[
+                  stopFilter === "__none__"
+                    ? "No stop set"
+                    : (activeRouteRecord?.stops.find((stop) => stop.id === stopFilter)
+                        ?.name ?? ""),
+                  classes.classId ? "that year group" : "",
+                  search.trim(),
+                ].filter(Boolean)}
+                onClear={
+                  anyRiderFilter
+                    ? () => {
+                        setStopFilter("");
+                        setClasses(ALL_CLASSES);
+                        setSearch("");
+                      }
+                    : undefined
+                }
+              />
+            )
+          ) : (
+            <ul className="divide-y divide-[color:var(--border-subtle)] rounded-[var(--radius-lg)] border border-[color:var(--border)] bg-[color:var(--surface)]">
+              {rows.map((row) => {
+                const marked = marks[row.riderId] ?? row.boarding?.boarded ?? null;
+                return (
+                  <li
+                    key={row.riderId}
+                    className="flex flex-wrap items-center gap-3 px-3 py-2"
+                  >
+                    <PersonAvatar
+                      firstName={row.student.firstName}
+                      lastName={row.student.lastName}
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate font-medium">
+                        {row.student.lastName}, {row.student.firstName}
                       </span>
-                      {marked === null ? <Badge tone="warn">Not marked</Badge> : null}
-                      <span className="flex items-center gap-2">
-                        <Button
-                          size="sm"
-                          variant={marked === true ? "primary" : "secondary"}
-                          onClick={() =>
-                            setMarks((current) => ({ ...current, [row.riderId]: true }))
-                          }
-                        >
-                          On
-                        </Button>
-                        <Button
-                          size="sm"
-                          variant={marked === false ? "danger" : "secondary"}
-                          onClick={() =>
-                            setMarks((current) => ({ ...current, [row.riderId]: false }))
-                          }
-                        >
-                          Not on
-                        </Button>
+                      <span className="block truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
+                        {riderLine(row)}
                       </span>
-                      <RecordActions
-                        resource="schools.students"
-                        verbs={[
-                          {
-                            label: "Move stop",
-                            action: "edit",
-                            unavailable:
-                              (activeRouteRecord?.stops.length ?? 0) === 0
-                                ? "This route has no stops to move them to."
-                                : undefined,
-                            onSelect: () => setMovingRider(row),
+                    </span>
+                    {marked === null ? <Badge tone="warn">Not marked</Badge> : null}
+                    <span className="flex items-center gap-2">
+                      <Button
+                        size="sm"
+                        variant={marked === true ? "primary" : "secondary"}
+                        onClick={() =>
+                          setMarks((current) => ({ ...current, [row.riderId]: true }))
+                        }
+                      >
+                        On
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant={marked === false ? "danger" : "secondary"}
+                        onClick={() =>
+                          setMarks((current) => ({ ...current, [row.riderId]: false }))
+                        }
+                      >
+                        Not on
+                      </Button>
+                    </span>
+                    <RecordActions
+                      resource="schools.students"
+                      verbs={[
+                        {
+                          label: "Move stop",
+                          action: "edit",
+                          unavailable:
+                            (activeRouteRecord?.stops.length ?? 0) === 0
+                              ? "This route has no stops to move them to."
+                              : undefined,
+                          onSelect: () => setMovingRider(row),
+                        },
+                        {
+                          label: "Off the bus",
+                          action: "edit",
+                          tone: "danger",
+                          loading: pendingId === row.riderId,
+                          confirm: {
+                            title: "Take them off the bus",
+                            description: `${row.student.firstName} ${row.student.lastName} stops riding for the rest of the term and drops off tomorrow's register. The term's transport fee already billed is not undone.`,
+                            confirmLabel: "Take them off",
                           },
-                          {
-                            label: "Off the bus",
-                            action: "edit",
-                            tone: "danger",
-                            loading: pendingId === row.riderId,
-                            confirm: {
-                              title: "Take them off the bus",
-                              description: `${row.student.firstName} ${row.student.lastName} stops riding for the rest of the term and drops off tomorrow's register. The term's transport fee already billed is not undone.`,
-                              confirmLabel: "Take them off",
-                            },
-                            onSelect: () => {
-                              setPendingId(row.riderId);
-                              riderAction.mutate({ id: row.riderId, remove: true });
-                            },
+                          onSelect: () => {
+                            setPendingId(row.riderId);
+                            riderAction.mutate({ id: row.riderId, remove: true });
                           },
-                        ]}
-                      />
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-          </div>
-        ) : null}
-      </VerticalDataViews>
+                        },
+                      ]}
+                    />
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </>
+      )}
 
       <RouteDialog
         open={addingRoute || editingRoute !== null}
@@ -835,7 +1007,7 @@ function RouteDialog({
       onOpenChange={(next) => {
         if (!next) onClose();
       }}
-      title={route ? `${route.code} · ${route.name}` : "Add a route"}
+      title={route ? routeShort(route) : "Add a route"}
       description="The bus, who drives it, how many it seats and what a term on it costs."
       size="md"
       errors={error ? [error] : undefined}
@@ -889,6 +1061,10 @@ function RouteDialog({
               setDraft((current) => ({ ...current, driverName: event.target.value }))
             }
           />
+          <p className="text-sm text-muted-foreground">
+            Left blank the route reads &ldquo;no driver named&rdquo; on every screen,
+            which is the point — an unnamed driver is a gap, not a detail.
+          </p>
         </div>
         <div className="space-y-2">
           <Label htmlFor="route-driver-phone">Driver&rsquo;s number</Label>
@@ -971,9 +1147,7 @@ function StopDialog({
   useOpenTransition(open, () => {
     setError(null);
     setName(stop?.name ?? "");
-    setSequence(
-      stop ? String(stop.sequence) : String((route?.stops.length ?? 0) + 1),
-    );
+    setSequence(stop ? String(stop.sequence) : String((route?.stops.length ?? 0) + 1));
     setPickup(stop ? (clock(stop.pickupMinute) ?? "") : "");
     setDrop(stop ? (clock(stop.dropMinute) ?? "") : "");
   });
@@ -1156,9 +1330,7 @@ function RiderDialog({
           : "Put a child on the bus"
       }
       description={
-        route
-          ? `${route.code} · ${route.name}`
-          : "Choose a route on the register first."
+        route ? routeShort(route) : "Choose a route on the register first."
       }
       size="sm"
       errors={error ? [error] : undefined}

@@ -18,6 +18,7 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
+  SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-dialog";
@@ -384,6 +385,12 @@ export function GuardiansContent() {
           onRetry={() => void guardiansQuery.refetch()}
         />
       ) : null}
+
+      {/* Deleting is refused while a child is still attached, and the row verb
+          says so before the click — but a guardian who was detached in another
+          tab still gets a 409, and that answer belongs on the page rather than
+          in a console. */}
+      {remove.isError ? <SaveError what="That guardian" error={remove.error} /> : null}
 
       <FilterBar>
         <FilterSelect
