@@ -1,6 +1,14 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  experimental: {
+    // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
+    // barrel re-exports 1,513 modules and lib/icons.tsx imports the barrel, so
+    // every icon-using route (291 of them) otherwise compiles ~4.5k package
+    // files. NOTE: dev cold-compile must be benchmarked when touching this —
+    // hand-rolling deep imports instead measured 3x WORSE (67s -> 3.6min).
+    optimizePackageImports: ["@phosphor-icons/react", "@phosphor-icons/react/ssr"],
+  },
   outputFileTracingIncludes: {
     "/api/documents/render": [
       "./node_modules/@sparticuz/chromium/bin/**",
