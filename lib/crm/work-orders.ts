@@ -280,6 +280,64 @@ export function workOrderCounts(
 }
 
 /**
+ * The same tallies, from what the database counted rather than from rows.
+ *
+ * A badge that reads its number off a page of rows is a badge that lies as
+ * soon as a customer has more jobs than the page holds — and it lies quietly,
+ * because an undercount looks exactly like a small customer. The grouping is
+ * the database's job; `overdue` comes separately because it is a comparison
+ * against the clock rather than a value it can group on.
+ */
+export function workOrderCountsFromGroups(
+  groups: { status: CrmWorkOrderStatus; count: number }[],
+  overdue: number,
+): WorkOrderCounts {
+  const counts: WorkOrderCounts = {
+    total: 0,
+    open: 0,
+    scheduled: 0,
+    inProgress: 0,
+    blocked: 0,
+    completed: 0,
+    cancelled: 0,
+    overdue,
+  };
+
+  for (const { status, count } of groups) {
+    counts.total += count;
+    if (status === "SCHEDULED") counts.scheduled += count;
+    if (status === "IN_PROGRESS") counts.inProgress += count;
+    if (status === "BLOCKED") counts.blocked += count;
+    if (status === "COMPLETED") counts.completed += count;
+    if (status === "CANCELLED") counts.cancelled += count;
+    if (status !== "COMPLETED" && status !== "CANCELLED") counts.open += count;
+  }
+
+  return counts;
+}
+
+/**
+ * What an invoice raised from a job says it is for.
+ *
+ * The number leads the note whatever else it carries, and that is not
+ * presentation: it is the only part of the invoice written inside the
+ * accounting transaction that ties the money back to the job. `CrmWorkOrder`
+ * has no column for the link, so the link itself lands in `customFields` in a
+ * second write — and if the process dies in between, this prefix is what the
+ * next attempt finds instead of billing the customer twice.
+ *
+ * It reads well on the document too. A customer looking at an invoice should
+ * be able to see which visit it is for without being asked to remember.
+ */
+export function invoiceNotePrefix(workOrderNo: string): string {
+  return `Work order ${workOrderNo}: `;
+}
+
+export function invoiceNoteFor(workOrderNo: string, body: string): string {
+  return `${invoiceNotePrefix(workOrderNo)}${body}`;
+}
+
+/**
  * The invoice a finished job is owed.
  *
  * Prices are not on the job — a checklist is a list of things to do, not a

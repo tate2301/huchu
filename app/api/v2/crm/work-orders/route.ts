@@ -18,7 +18,8 @@ import {
   parseWorkOrderStatuses,
   quoteLinesToWorkItems,
   readInvoiceLink,
-  workOrderCounts,
+  workOrderCountsFromGroups,
+  type WorkOrderCounts,
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
 import { isCompanyUser } from "../_helpers";
@@ -71,7 +72,6 @@ function queueWhere(
 }
 
 /** How many rows the summary counts before it stops asking. */
-const SUMMARY_CEILING = 500;
 
 export async function GET(request: NextRequest) {
   try {
@@ -173,14 +173,29 @@ export async function GET(request: NextRequest) {
     // A tab badge wants one number and shouldn't pay for a second request to
     // get it. Only computed where something asked for it, because it is a
     // second read of the same rows.
-    let summary: ReturnType<typeof workOrderCounts> | undefined;
+    let summary: WorkOrderCounts | undefined;
     if (scoped || searchParams.get("summary") === "true") {
-      const all = await prisma.crmWorkOrder.findMany({
-        where: scoped ? { companyId, ...record } : where,
-        select: { status: true, scheduledStart: true },
-        take: SUMMARY_CEILING,
-      });
-      summary = workOrderCounts(all, now);
+      const summaryWhere = scoped ? { companyId, ...record } : where;
+      // Counted in the database rather than off a page of rows. Reading the
+      // tallies from a capped `findMany` meant any customer past the cap was
+      // permanently undercounted — and because the badge is what says a job is
+      // blocked or late, an urgent one could sit past the edge unseen.
+      const [groups, overdue] = await Promise.all([
+        prisma.crmWorkOrder.groupBy({
+          by: ["status"],
+          where: summaryWhere,
+          _count: { _all: true },
+        }),
+        // The same test `isOverdueToStart` makes, asked of the database:
+        // booked to start, and that time has been and gone.
+        prisma.crmWorkOrder.count({
+          where: { ...summaryWhere, status: "SCHEDULED", scheduledStart: { lt: now } },
+        }),
+      ]);
+      summary = workOrderCountsFromGroups(
+        groups.map((group) => ({ status: group.status, count: group._count._all })),
+        overdue,
+      );
     }
 
     return successResponse({

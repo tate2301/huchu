@@ -103,6 +103,30 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
         select: { id: true, clientId: true },
       });
       if (!deal) return errorResponse("Invalid deal", 400);
+
+      // A job that already belongs to one customer cannot be moved onto
+      // another customer's deal. The job would keep its own `clientId`, so
+      // that customer's Jobs tab would go on claiming the work while the
+      // invoice route billed the deal's customer instead — two records
+      // disagreeing about who owes the money.
+      //
+      // Refused rather than quietly reassigned: moving the customer would
+      // re-attribute a history somebody else filed, and if the job is already
+      // invoiced it would move it away from the invoice. Whoever meant to do
+      // this wants a new job on the right deal.
+      if (
+        existing.clientId &&
+        deal.clientId &&
+        deal.clientId !== existing.clientId
+      ) {
+        return NextResponse.json(
+          {
+            error: "That deal belongs to a different customer",
+            code: "DEAL_CUSTOMER_MISMATCH",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Replacing the lines mid-job would throw away the crew's ticks, so the
@@ -200,7 +224,9 @@ export async function PATCH(request: NextRequest, { params }: { params: Promise<
           priority: data.priority,
           dealId: data.dealId,
           // Naming the deal answers "who is paying" too, so a job that never
-          // had a company takes the deal's rather than staying unattached.
+          // had a company takes the deal's rather than staying unattached. A
+          // job that already names one keeps it, which is safe because the
+          // check above has refused any deal that would disagree.
           clientId: existing.clientId ? undefined : deal?.clientId,
           scheduledStart: data.scheduledStart ? new Date(data.scheduledStart) : undefined,
           scheduledEnd: data.scheduledEnd ? new Date(data.scheduledEnd) : undefined,

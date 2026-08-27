@@ -12,6 +12,8 @@ import {
   isBillingRefusal,
   isClaimHeld,
   readInvoiceClaim,
+  invoiceNoteFor,
+  invoiceNotePrefix,
   readInvoiceLink,
   workOrderInvoiceBlockers,
   workOrderInvoiceLines,
@@ -38,14 +40,26 @@ import { jobRecordRefs, loadJobForAction, recordJobActivity } from "../../_share
 /**
  * The invoice this job already produced, if it has.
  *
+ * Three ways in, weakest last, because each survives a failure the one before
+ * it does not.
+ *
  * `CrmWorkOrder` has no column for the link, so it lives in the job's
- * `customFields` under a reserved key. The activity trail is checked as a
- * second way in, because if the deal is ever deleted the job's `dealId` is
- * nulled and a link written before that would be the only record left.
+ * `customFields` under a reserved key — the fastest answer and the usual one.
+ * The activity trail is checked next, because if the deal is ever deleted the
+ * job's `dealId` is nulled and a link written before that would be the only
+ * record left.
+ *
+ * The invoice's own note is the last and the only one that survives the
+ * dangerous failure: the link and the trail are both written AFTER
+ * `createInvoiceForLead` commits, so a process that dies in between leaves a
+ * real invoice that neither of them knows about. The note is written inside
+ * that transaction. Without this third read, the next attempt — once the claim
+ * expires — would find nothing and bill the customer a second time.
  */
 async function existingInvoice(
   companyId: string,
   job: { id: string; customFields: unknown },
+  workOrderNo: string,
 ): Promise<{ documentId: string; link: WorkOrderInvoiceLink | null } | null> {
   const link = readInvoiceLink(job.customFields);
   if (link) {
@@ -68,10 +82,32 @@ async function existingInvoice(
     orderBy: { occurredAt: "asc" },
   });
   const documentId = (trail?.metadata as Record<string, unknown> | null)?.documentId;
-  if (typeof documentId !== "string") return null;
+  if (typeof documentId !== "string") return orphanedInvoice(companyId, workOrderNo);
 
   const doc = await prisma.crmLeadDocument.findFirst({
     where: { id: documentId, companyId, type: "INVOICE" },
+    select: { id: true },
+  });
+  return doc ? { documentId: doc.id, link: null } : null;
+}
+
+/**
+ * An invoice this job raised that never got its link written.
+ *
+ * Only reachable if a previous attempt committed the money and then died, so
+ * it is the last thing tried rather than the first — but it has to be tried,
+ * because the alternative is billing somebody twice for one visit.
+ */
+async function orphanedInvoice(
+  companyId: string,
+  workOrderNo: string,
+): Promise<{ documentId: string; link: WorkOrderInvoiceLink | null } | null> {
+  const doc = await prisma.crmLeadDocument.findFirst({
+    where: {
+      companyId,
+      type: "INVOICE",
+      invoice: { notes: { startsWith: invoiceNotePrefix(workOrderNo) } },
+    },
     select: { id: true },
   });
   return doc ? { documentId: doc.id, link: null } : null;
@@ -151,7 +187,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     const data = invoiceWorkOrderSchema.parse(body ?? {});
 
     // Asked twice, billed once. The second press gets the first invoice back.
-    const already = await existingInvoice(companyId, job);
+    const already = await existingInvoice(companyId, job, job.workOrderNo);
     if (already) {
       const described = await describeDocument(companyId, already.documentId);
       return successResponse({ ...described, alreadyInvoiced: true }, 200);
@@ -232,7 +268,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     if (claim === "BILLED") {
       // Somebody billed it between the check at the top of this request and
       // here. Their invoice is the answer, the same as a second press gets.
-      const raced = await existingInvoice(companyId, await reloadForClaim(companyId, id));
+      const raced = await existingInvoice(companyId, await reloadForClaim(companyId, id), job.workOrderNo);
       const described = raced ? await describeDocument(companyId, raced.documentId) : null;
       return successResponse({ ...described, alreadyInvoiced: true }, 200);
     }
@@ -254,7 +290,7 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
         dealId: job.dealId!,
         lines,
         currency: data.currency ?? source?.currency,
-        notes: data.notes ?? `Work order ${job.workOrderNo}: ${job.title}`,
+        notes: invoiceNoteFor(job.workOrderNo, data.notes ?? job.title),
         dueDate: data.dueDate ? new Date(data.dueDate) : null,
         renderTemplateId: data.renderTemplateId ?? null,
       });
@@ -336,7 +372,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const job = await loadJobForAction(companyId, id);
     if (!job) return errorResponse("Job not found", 404);
 
-    const already = await existingInvoice(companyId, job);
+    const already = await existingInvoice(companyId, job, job.workOrderNo);
     if (already) {
       const described = await describeDocument(companyId, already.documentId);
       return successResponse({ ...described, alreadyInvoiced: true, blockers: [], unpriced: [] });

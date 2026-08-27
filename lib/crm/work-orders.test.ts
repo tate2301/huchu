@@ -17,7 +17,10 @@ import {
   readInvoiceClaim,
   readInvoiceLink,
   transitionOutcome,
+  invoiceNoteFor,
+  invoiceNotePrefix,
   workOrderCounts,
+  workOrderCountsFromGroups,
   workOrderInvoiceBlockers,
   workOrderInvoiceLines,
   writeInvoiceClaim,
@@ -439,5 +442,72 @@ describe("isBillingRefusal", () => {
     ).toBe(false);
     expect(isBillingRefusal(undefined)).toBe(false);
     expect(isBillingRefusal("")).toBe(false);
+  });
+});
+
+describe("workOrderCountsFromGroups", () => {
+  const groups = [
+    { status: "DRAFT" as const, count: 2 },
+    { status: "SCHEDULED" as const, count: 40 },
+    { status: "IN_PROGRESS" as const, count: 3 },
+    { status: "BLOCKED" as const, count: 1 },
+    { status: "COMPLETED" as const, count: 900 },
+    { status: "CANCELLED" as const, count: 7 },
+  ];
+
+  it("totals every group, not the ones that fit on a page", () => {
+    const counts = workOrderCountsFromGroups(groups, 0);
+    expect(counts.total).toBe(953);
+    expect(counts.completed).toBe(900);
+  });
+
+  it("counts a draft as open, the way the row-based tally does", () => {
+    // 2 draft + 40 scheduled + 3 on site + 1 blocked. The two tallies have to
+    // agree or a badge would change meaning the day the list grew past a page.
+    expect(workOrderCountsFromGroups(groups, 0).open).toBe(46);
+  });
+
+  it("takes overdue as given — it is a question about the clock", () => {
+    expect(workOrderCountsFromGroups(groups, 12).overdue).toBe(12);
+  });
+
+  it("agrees with workOrderCounts over the same jobs", () => {
+    const now = new Date("2026-08-27T09:00:00.000Z");
+    const rows = [
+      { status: "SCHEDULED" as const, scheduledStart: "2026-08-01T08:00:00.000Z" },
+      { status: "SCHEDULED" as const, scheduledStart: "2026-09-30T08:00:00.000Z" },
+      { status: "COMPLETED" as const, scheduledStart: null },
+    ];
+    const fromRows = workOrderCounts(rows, now);
+    const fromGroups = workOrderCountsFromGroups(
+      [
+        { status: "SCHEDULED", count: 2 },
+        { status: "COMPLETED", count: 1 },
+      ],
+      fromRows.overdue,
+    );
+    expect(fromGroups).toEqual(fromRows);
+  });
+});
+
+describe("the invoice note", () => {
+  it("leads with the job's number", () => {
+    expect(invoiceNoteFor("WO-0007", "Corelith rollout")).toBe(
+      "Work order WO-0007: Corelith rollout",
+    );
+  });
+
+  it("starts with the prefix the recovery read searches on", () => {
+    // This is the whole point of the pair: the note is written inside the
+    // accounting transaction, and it is what a retry finds after a crash
+    // between the invoice committing and its link being written. If these two
+    // ever disagree, the customer gets billed twice.
+    const note = invoiceNoteFor("WO-0042", "Anything the caller wanted to say");
+    expect(note.startsWith(invoiceNotePrefix("WO-0042"))).toBe(true);
+  });
+
+  it("does not match a different job's number", () => {
+    const note = invoiceNoteFor("WO-0042", "Msasa callout");
+    expect(note.startsWith(invoiceNotePrefix("WO-0004"))).toBe(false);
   });
 });
