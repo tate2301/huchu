@@ -22,7 +22,7 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { Plus } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";
-import { fetchDepartments, fetchEmployees, type EmployeeSummary } from "@/lib/api";
+import { fetchDepartments, type EmployeeSummary } from "@/lib/api";
 import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
 
 import { SchoolStaffSheet } from "./school-staff-sheet";
@@ -89,19 +89,22 @@ export function SchoolStaffContent() {
 
   const staffQuery = useQuery({
     queryKey: ["schools", "staff", { tab, search, position, departmentId }],
-    queryFn: () =>
-      fetchEmployees({
-        module: "SCHOOLS",
-        limit: 200,
-        ...(tab === "all" ? {} : { active: tab === "active" }),
-        ...(search ? { search } : {}),
-        ...(departmentId ? { departmentId } : {}),
-        // No position filter means every non-teaching post, so the exclusion of
-        // teachers has to be spelled out rather than left to a default.
-        position: position
-          ? [position as EmployeePositionValue]
-          : NON_TEACHING_POSITIONS.map((entry) => entry.value as EmployeePositionValue),
-      }),
+    queryFn: () => {
+      // The school's own door onto these records. `/api/employees` is gated on
+      // `hr.employees` — a feature the Schools Suite does not carry — and its
+      // permission matrix has no row for SCHOOL_ADMIN or REGISTRAR, so the
+      // office staff this page was built for were reading a 403. The v2 route
+      // asks for the same employees under `schools.teachers`, and excludes
+      // teachers server-side.
+      const params = new URLSearchParams({ limit: "200" });
+      if (tab !== "all") params.set("active", String(tab === "active"));
+      if (search) params.set("search", search);
+      if (departmentId) params.set("departmentId", departmentId);
+      if (position) params.set("position", position);
+      return fetchJson<{ data: EmployeeSummary[] }>(
+        `/api/v2/schools/staff?${params.toString()}`,
+      );
+    },
   });
 
   const departmentsQuery = useQuery({
@@ -119,7 +122,7 @@ export function SchoolStaffContent() {
    */
   const endEmploymentMutation = useMutation({
     mutationFn: (employee: EmployeeSummary) =>
-      fetchJson(`/api/employees/${employee.id}`, {
+      fetchJson(`/api/v2/schools/staff/${employee.id}`, {
         method: "PATCH",
         body: JSON.stringify({ isActive: false }),
       }),

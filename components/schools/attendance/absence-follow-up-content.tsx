@@ -58,6 +58,8 @@ type FollowUpRow = {
   unexplained: number;
   excused: number;
   lastAbsent: string | null;
+  /** When the office last wrote home about this child, in this same window. */
+  lastContactedAt: string | null;
   remarks: string[];
   guardian: {
     id: string;
@@ -69,7 +71,13 @@ type FollowUpRow = {
 
 type FollowUpResponse = {
   rows: FollowUpRow[];
-  summary: { pupils: number; absences: number; unexplained: number; sessions: number };
+  summary: {
+    pupils: number;
+    absences: number;
+    unexplained: number;
+    sessions: number;
+    toContact: number;
+  };
   window: { days: number; since: string };
 };
 
@@ -118,6 +126,11 @@ export function AbsenceFollowUpContent() {
    */
   const unreachable = useMemo(
     () => rows.filter((row) => !row.guardian?.phone),
+    [rows],
+  );
+
+  const contactedCount = useMemo(
+    () => rows.filter((row) => row.lastContactedAt).length,
     [rows],
   );
 
@@ -185,6 +198,21 @@ export function AbsenceFollowUpContent() {
           ),
       },
       {
+        id: "contacted",
+        header: "Rung home",
+        cell: ({ row }) =>
+          row.original.lastContactedAt ? (
+            <Badge tone="success">
+              {new Date(row.original.lastContactedAt).toLocaleDateString(undefined, {
+                day: "numeric",
+                month: "short",
+              })}
+            </Badge>
+          ) : (
+            <span className="text-sm text-muted-foreground">Not yet</span>
+          ),
+      },
+      {
         id: "guardian",
         header: "Who to ring",
         cell: ({ row }) => {
@@ -213,7 +241,10 @@ export function AbsenceFollowUpContent() {
             resource="schools.attendance"
             verbs={[
               {
-                label: "Ring home",
+                // Named for what it is the second time round. Ringing twice is
+                // sometimes right — the point is that the office can see it is
+                // the second call, not be told nothing has happened.
+                label: row.original.lastContactedAt ? "Ring again" : "Ring home",
                 action: "edit",
                 onSelect: () => setRinging(row.original),
                 unavailable: row.original.guardian
@@ -244,7 +275,11 @@ export function AbsenceFollowUpContent() {
 
       <PageBand
         chips={[
-          { label: "To follow up", value: summary?.pupils ?? 0, tone: "warn" },
+          // The number still to do, not the number on the list. Once the office
+          // has rung home the child stays visible — the absences are still a
+          // fact — but they are no longer work outstanding.
+          { label: "To follow up", value: summary?.toContact ?? 0, tone: "warn" },
+          { label: "Already rung", value: contactedCount, tone: "success" },
           { label: "Unexplained", value: summary?.unexplained ?? 0 },
           {
             label: "Nobody to ring",
@@ -390,7 +425,13 @@ export function AbsenceFollowUpContent() {
           defaultBody={`${ringing.name} has been away ${ringing.unexplained} ${
             ringing.unexplained === 1 ? "morning" : "mornings"
           } in the last ${days} days with no explanation on file. Please contact the school office.`}
-          onSent={() => setRinging(null)}
+          onSent={() => {
+            setRinging(null);
+            // Re-read so the row shows it has been rung. Without this the
+            // office sends a warning and the list looks exactly as it did a
+            // moment before, which is how a child gets rung about twice.
+            void followUpQuery.refetch();
+          }}
         />
       ) : null}
     </>

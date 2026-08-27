@@ -105,7 +105,7 @@ export async function GET(request: NextRequest) {
       ];
     }
 
-    const [records, total, late, register] = await Promise.all([
+    const [records, total, out, late, register] = await Promise.all([
       prisma.schoolBookLoan.findMany({
         where,
         select: {
@@ -137,6 +137,13 @@ export async function GET(request: NextRequest) {
         take: limit,
       }),
       prisma.schoolBookLoan.count({ where }),
+      // The whole register, not the page and not the filters. The band says
+      // "Out", and it means every book that has not come back — reusing the
+      // filtered `where` here made Out equal Late on the default overdue view
+      // and quietly rewrote the headline every time somebody typed in search.
+      prisma.schoolBookLoan.count({
+        where: { companyId, returnedAt: null },
+      }),
       // Counted against the whole register rather than the filtered page, so
       // the band's numbers hold still while somebody pages through.
       prisma.schoolBookLoan.count({
@@ -158,7 +165,7 @@ export async function GET(request: NextRequest) {
     return successResponse({
       ...paginationResponse(loans, total, page, limit),
       summary: {
-        out: total,
+        out,
         late,
         finesIfBackToday: register.reduce(
           (sum, loan) => sum + overdueFine(loan.dueAt, at),

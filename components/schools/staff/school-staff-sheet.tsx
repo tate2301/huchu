@@ -100,9 +100,26 @@ export function SchoolStaffSheet({
   // into state inside `useEffect` costs a second render every time the sheet
   // opens and gets the reset subtly wrong when the same person is opened
   // twice; a key is how React says "this is a different form now".
+  //
+  // Every create shares the id `null`, though, so keying on that alone held
+  // one "new" form open across every use of the button: cancel half-way
+  // through adding a groundsman, press Add again, and his half-typed details
+  // were still sitting there waiting to be saved against somebody else. The
+  // open-count makes each create its own form.
+  //
+  // Derived during render from the previous value rather than in an effect —
+  // React's own "adjusting state when a prop changes" pattern, which settles
+  // before paint instead of rendering the stale form first.
+  const [seen, setSeen] = useState(open);
+  const [creates, setCreates] = useState(0);
+  if (seen !== open) {
+    setSeen(open);
+    if (open && !employee) setCreates((n) => n + 1);
+  }
+
   return (
     <StaffForm
-      key={employee?.id ?? "new"}
+      key={employee?.id ?? `new-${creates}`}
       open={open}
       onOpenChange={onOpenChange}
       employee={employee}
@@ -148,18 +165,27 @@ function StaffForm({
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      // Editing distinguishes "leave it alone" from "clear it", and only an
+      // explicit null says the second. `|| undefined` drops the key out of the
+      // JSON altogether, so emptying a job title or a department in the form
+      // saved cleanly and changed nothing — the old value was still in the
+      // database and reappeared next time the sheet opened. On create there is
+      // nothing to clear, so an absent field stays absent.
+      const optional = (value: string) =>
+        value ? value : employee ? null : undefined;
+
       const payload = {
         name: values.name.trim(),
         phone: values.phone.trim(),
-        jobTitle: values.jobTitle.trim() || undefined,
+        jobTitle: optional(values.jobTitle.trim()),
         position: values.position,
-        departmentId: values.departmentId || undefined,
+        departmentId: optional(values.departmentId),
         employmentType: values.employmentType,
         hireDate: values.hireDate || undefined,
         nextOfKinName: values.nextOfKinName.trim(),
         nextOfKinPhone: values.nextOfKinPhone.trim(),
         villageOfOrigin: values.villageOfOrigin.trim(),
-        nationalIdNumber: values.nationalIdNumber.trim() || undefined,
+        nationalIdNumber: optional(values.nationalIdNumber.trim()),
         // The API requires a photo. A school office adding a groundsman has no
         // photograph to hand and would abandon the form over it, so the record
         // is created without one and HR fills it in — the placeholder is a
@@ -172,11 +198,11 @@ function StaffForm({
       };
 
       return employee
-        ? fetchJson(`/api/employees/${employee.id}`, {
+        ? fetchJson(`/api/v2/schools/staff/${employee.id}`, {
             method: "PATCH",
             body: JSON.stringify(payload),
           })
-        : fetchJson("/api/employees", {
+        : fetchJson("/api/v2/schools/staff", {
             method: "POST",
             body: JSON.stringify(payload),
           });

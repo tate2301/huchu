@@ -193,13 +193,61 @@ export async function GET(request: NextRequest) {
           (b.lastAbsent ?? "").localeCompare(a.lastAbsent ?? ""),
       );
 
+    /*
+     * Who has already been rung, in this same window.
+     *
+     * Without this the list is a queue nobody can work: a child stays on it
+     * after the office has called home, the same warning goes out a second and
+     * third time, and there is no way to tell from the screen that anybody has
+     * done anything. The notice already records which pupils it was about —
+     * `sendSchoolNotice` writes their ids into `payloadJson` precisely so the
+     * question "who did that go to?" has an answer later — so the record is
+     * here to be read rather than to be invented.
+     */
+    const notices = await prisma.notification.findMany({
+      where: {
+        companyId,
+        createdAt: { gte: since },
+        payloadJson: { contains: '"studentIds"' },
+      },
+      select: { createdAt: true, payloadJson: true },
+      orderBy: { createdAt: "desc" },
+    });
+
+    const contacted = new Map<string, string>();
+    for (const notice of notices) {
+      let ids: unknown;
+      try {
+        ids = JSON.parse(notice.payloadJson ?? "{}")?.studentIds;
+      } catch {
+        continue; // A payload we cannot read is not a contact we can claim.
+      }
+      if (!Array.isArray(ids)) continue;
+      for (const id of ids) {
+        // Ordered newest first, so the first sighting is the latest contact.
+        if (typeof id === "string" && !contacted.has(id)) {
+          contacted.set(id, notice.createdAt.toISOString());
+        }
+      }
+    }
+
+    const withContact = rows.map((row) => ({
+      ...row,
+      lastContactedAt: contacted.get(row.studentId) ?? null,
+    }));
+
     return successResponse({
-      rows,
+      rows: withContact,
       summary: {
-        pupils: rows.length,
-        absences: rows.reduce((total, row) => total + row.unexplained + row.excused, 0),
-        unexplained: rows.reduce((total, row) => total + row.unexplained, 0),
+        pupils: withContact.length,
+        absences: withContact.reduce(
+          (total, row) => total + row.unexplained + row.excused,
+          0,
+        ),
+        unexplained: withContact.reduce((total, row) => total + row.unexplained, 0),
         sessions: sessions.length,
+        // The number actually left to do, which is what the band should say.
+        toContact: withContact.filter((row) => !row.lastContactedAt).length,
       },
       window: { days: query.days, since: since.toISOString() },
     });

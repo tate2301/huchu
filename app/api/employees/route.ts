@@ -195,7 +195,7 @@ export async function GET(request: NextRequest) {
           some: {
             isActive: true,
             module: {
-              in: requested as unknown as EmployeeModule[],
+              in: requested,
             },
           },
         }

@@ -24,7 +24,14 @@ import { RefreshCw, WifiOff } from "@/lib/icons";
 import { getOfflineOutboxSummary } from "@/lib/offline/outbox";
 import type { OfflineOutboxSummaryItem } from "@/lib/offline/types";
 
-const HEARTBEAT_URL = "/api/health";
+/**
+ * The v2 route, because it is the one that exists. `/api/health` was never
+ * built, so the heartbeat 404'd — and since the retry only reloads on
+ * `response.ok`, "Try again" told everyone the network was still down and left
+ * them stranded on this page until they reloaded by hand. It needs no auth, so
+ * it answers even when the session is the thing that expired.
+ */
+const HEARTBEAT_URL = "/api/v2/health";
 const HEARTBEAT_TIMEOUT_MS = 6000;
 
 /** Clock time, local to the device — the only form worth showing here. */
