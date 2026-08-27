@@ -283,7 +283,20 @@ function analyse(name) {
 
   const want = [
     ...(spec.columns ?? []).map((v) => ['column', v]),
-    ...(spec.filters ?? []).map((v) => ['filter', v]),
+    // A filter is drawn as "Year group = Every year group": its label, then the
+    // option showing. No React file contains that sentence — the label and the
+    // all-option are two props on a FilterSelect — so the spec is split and
+    // both halves are required separately. Matching the raw string asked every
+    // screen in the module for something none of them could ever have.
+    ...(spec.filters ?? []).flatMap((v) => {
+      const [label, allLabel] = String(v).split(/\s+=\s+/)
+      return allLabel
+        ? [
+            ['filter', label],
+            ['filter', allLabel],
+          ]
+        : [['filter', v]]
+    }),
     ...(spec.cards ?? []).map((v) => ['card', v]),
     ...(spec.stats ?? []).map((v) => ['stat', v]),
     ...(spec.bandChips ?? []).map((v) => ['chip', v]),
