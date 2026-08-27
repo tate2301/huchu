@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 import { Prisma, RetailSaleStatus, RetailSaleType } from "@prisma/client";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { atLeast, money, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {

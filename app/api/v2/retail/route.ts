@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetailPurchaseOrderStatus, type PostingBasis } from "@prisma/client";
 import { startOfMonth, subDays } from "date-fns";
-import { successResponse } from "@/lib/api-utils";
+import { successResponse } from "@/lib/api-response";
 import { atMost, money, sumMoney, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import { requireRetailPermission } from "@/lib/retail/permissions";

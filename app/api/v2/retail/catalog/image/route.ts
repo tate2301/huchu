@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { put } from "@vercel/blob";
 
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { prisma } from "@/lib/prisma";
 import { catalogImagePath, checkCatalogImage } from "@/lib/retail/catalog-image";
 import { requireRetailPermission } from "@/lib/retail/permissions";

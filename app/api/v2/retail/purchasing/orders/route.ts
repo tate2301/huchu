@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, RetailPurchaseOrderStatus } from "@prisma/client";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-utils";
+import { errorResponse, successResponse } from "@/lib/api-response";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@/lib/money";
 import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
 import { prisma } from "@/lib/prisma";
