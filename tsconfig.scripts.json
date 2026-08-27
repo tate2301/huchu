@@ -1,0 +1,9 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node", "vitest/globals"],
+    "tsBuildInfoFile": ".next/cache/tsbuildinfo.scripts.json"
+  },
+  "include": ["scripts/**/*.ts", "scripts/**/*.tsx", "e2e/**/*.ts"],
+  "exclude": ["node_modules"]
+}
