@@ -98,7 +98,8 @@ A ticket cannot start until:
 ### Definition-of-Done (DoD)
 
 A ticket is done when:
-- `npx tsc --noEmit` passes
+- `pnpm typecheck` passes (plain `npx tsc --noEmit` dies at exit 134 — Node's
+  default 4GB heap is not enough for this project, even on an idle machine)
 - `npx eslint <changed files>` produces zero new errors
 - Target tests pass
 - If a P0 migration: migration witness test ships in the same commit
