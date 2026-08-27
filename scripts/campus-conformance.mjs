@@ -17,6 +17,26 @@
  * route pulls in. Coverage is the share of the canvas's own copy that appears
  * somewhere in those files — crude, deliberately: it catches a column nobody
  * implemented and a heading somebody reworded, which is most of the drift.
+ *
+ * WHAT 100% WOULD MEAN, AND WHY IT IS NOT THE TARGET
+ *
+ * This is a grep. It finds a string in source or it does not, and a screen can
+ * be perfectly faithful to its artboard while the report still lists items:
+ *
+ *   - a label the screen BUILDS. `Import the other ${n}`, `Copy to ${n} year
+ *     groups`, `Fees, ${term.name}` — the canvas drew one instance of it, the
+ *     code holds the template that produces all of them. Correct, unmatchable.
+ *   - a row action over specimen data. "Open Lower 6 Arts" is `Open
+ *     {className}` on a row that happens to be Lower 6 Arts in the artboard.
+ *   - canvas ANNOTATIONS. Some cards on an artboard are the designer talking
+ *     about the design — "Removing a lesson", "The instruction that goes
+ *     nowhere", "What ships instead". They are commentary, not UI.
+ *
+ * So read a remaining item as a QUESTION, not a defect: is this built and
+ * merely invisible to a substring search, or genuinely absent? Every item left
+ * on this report as of the last sweep was checked by hand and found built.
+ * Chasing the number to 100 from here means hardcoding what the code correctly
+ * computes, which is the one change that would make these screens worse.
  */
 import fs from 'node:fs'
 import path from 'node:path'
