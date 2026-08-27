@@ -4,7 +4,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Kanban, ListBullets } from "@/lib/icons";
-import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/crm-v2";
+import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
 import { cn } from "@/lib/utils";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
