@@ -178,11 +178,12 @@ remain, and each needs a decision rather than a mechanical fix:
 | Test | What fails | The decision |
 |---|---|---|
 | `lib/retail/fiscalisation.test.ts` — "refuses an amount finer than a cent" (two tests) | `buildRetailSaleSigningInput` and `fiscaliseRetailSale` accept a `10.005` total; the test's invariant 5 says a sub-cent amount must be refused, never rounded into a signature | Money columns are `Decimal(14,2)`, so a sub-cent total cannot reach signing from the database any more; either the invariant moved upstream and the tests are retired, or the retail path must refuse instead of rounding through `money()` |
-| `lib/accounting/fiscal-drain.test.ts` — "takes the oldest due receipt first" | With `batchSize: 1` the drain issues two receipts, not the oldest one | The claim query does `LIMIT batchSize`, so the second issue comes from elsewhere in the attempt loop; needs a look at the drain, not the test |
+| `lib/accounting/fiscal-drain.test.ts` — "takes the oldest due receipt first" | Order-dependent: with `batchSize: 1` the drain sometimes issues two receipts, not the oldest one. It failed in two of three local runs and passed in CI's first run | The claim query does `LIMIT batchSize`, so the second issue comes from elsewhere in the attempt loop, or from state a neighbouring test leaves behind; needs a look at the drain and the suite's isolation, not the assertion |
 
 The test step stays blocking: a green CI that ignores tests is worse than a red one that
 names three failures. Until they are resolved, `lint, typecheck, test, build` is red on
-every pull request for these three, and only these three.
+every pull request for these, and only these. The build step runs regardless of the test
+result, so a run still answers whether the app builds.
 
 ## 6. Local development, what is different
 

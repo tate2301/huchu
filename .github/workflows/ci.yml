@@ -89,5 +89,8 @@ jobs:
       - name: Test
         run: pnpm turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
+      # Runs even when a test failed, so one run answers both "do the tests
+      # pass" and "does it build". The job still fails on either.
       - name: Build
+        if: ${{ !cancelled() }}
         run: pnpm turbo run build ${{ github.event_name == 'pull_request' && '--affected' || '' }}
