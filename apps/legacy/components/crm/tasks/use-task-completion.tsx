@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { updateCrmTask, type CrmTaskRecord } from "@/lib/crm/crm-v2";
 import { requiresOutcome } from "@/lib/crm/tasks";
 

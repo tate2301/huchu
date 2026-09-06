@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { reserveIdentifier, type ReservableIdEntity, ID_ENTITY_CONFIG } from "@/lib/id-generator";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { reserveIdentifier, type ReservableIdEntity, ID_ENTITY_CONFIG } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 
 const reserveSchema = z.object({

@@ -13,12 +13,12 @@ import {
 } from "@corelithzw/react";
 
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchPreferencesProfile,
   updatePreferencesProfile,
   type PreferencesProfile,
-} from "@/lib/preferences/api";
+} from "@corelithzw/platform/preferences/api";
 
 type ProfileDraft = {
   name: string;

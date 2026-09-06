@@ -17,7 +17,7 @@ import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchPermits, fetchSites, type PermitRecord } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type PermitForm = {
   id?: string;

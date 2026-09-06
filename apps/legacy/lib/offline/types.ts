@@ -1,4 +1,4 @@
-import type { AuthSessionClaims } from "@/lib/auth-core/types";
+import type { AuthSessionClaims } from "@corelithzw/platform/auth-core/types";
 
 export type OfflineTenantKey = string;
 

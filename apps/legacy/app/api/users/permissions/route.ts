@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import {
   countOverrides,
@@ -9,8 +9,8 @@ import {
   PERMISSION_STATES,
   resetUserPermissions,
   setUserPermission,
-} from "@/lib/platform/permission-catalog";
-import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
+} from "@corelithzw/platform/permission-catalog";
+import { clearUserFeatureOverrides } from "@corelithzw/platform/user-entitlements";
 
 import { appendUserManagementEvent, canManageUserPermissions } from "../_helpers";
 

@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 
 import { Badge, Button } from "@corelithzw/react";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { CalendarCheck, MapPin } from "@corelithzw/ui/lib/icons";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 

@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   CRM_FIELD_ENTITY_LABELS,
   CRM_FIELD_TYPE_LABELS,

@@ -13,7 +13,7 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { CALENDAR_KIND_LABELS } from "@/lib/schools/calendar-kinds";
 import { zimbabwePublicHolidays } from "@/components/schools/academics/zimbabwe-public-holidays";
 import {

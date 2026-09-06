@@ -50,7 +50,7 @@ import {
   fetchVendorStatement,
   fetchVendors,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, FileText, NoteAdd, Payments, Trash2 } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 

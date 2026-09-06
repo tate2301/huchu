@@ -39,7 +39,7 @@ import {
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronDown, Grid3x3, Package, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@corelithzw/ui/lib/icons";
 import {
   MobileListCard,

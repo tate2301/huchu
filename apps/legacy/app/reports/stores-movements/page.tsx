@@ -25,7 +25,7 @@ import {
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import {

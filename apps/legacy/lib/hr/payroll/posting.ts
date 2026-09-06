@@ -20,14 +20,14 @@
 import type { Prisma } from "@corelithzw/db";
 
 import { createJournalEntryFromSource, type StatutoryPostingBasis } from "@/lib/accounting/posting";
-import { hasEnabledFeature } from "@/lib/platform/gating/enforcer";
+import { hasEnabledFeature } from "@corelithzw/platform/gating/enforcer";
 import {
   clampAtZero,
   resolveBaseCurrency,
   sumMoney,
   toBaseAmount,
   ZERO,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 /**

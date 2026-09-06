@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { CopyLink, Lock, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
 import { cn } from "@corelithzw/ui/lib/utils";

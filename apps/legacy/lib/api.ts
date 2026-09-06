@@ -1,6 +1,6 @@
-import { fetchJson } from "@/lib/api-client";
-import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
-import type { UserRole } from "@/lib/roles";
+import { fetchJson } from "@corelithzw/platform/api-client";
+import type { EmployeePositionValue } from "@corelithzw/platform/vertical-defaults";
+import type { UserRole } from "@corelithzw/platform/roles";
 
 export type PaginationMeta = {
   page: number;

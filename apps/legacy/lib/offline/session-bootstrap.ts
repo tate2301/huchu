@@ -1,4 +1,4 @@
-import type { AuthSessionClaims } from "@/lib/auth-core/types";
+import type { AuthSessionClaims } from "@corelithzw/platform/auth-core/types";
 import { OFFLINE_DB_STORES, deleteOfflineRecord, getOfflineRecord, putOfflineRecord } from "@/lib/offline/db";
 import { emitOfflineSessionChanged } from "@/lib/offline/events";
 import { buildTenantScopedSessionId } from "@/lib/offline/tenant-context";

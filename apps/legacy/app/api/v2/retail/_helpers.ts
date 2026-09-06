@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type RetailTenderType } from "@corelithzw/db";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { errorResponse, validateSession } from "@/lib/api-utils";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 
 export type RetailSession = Awaited<ReturnType<typeof validateSession>> extends infer TResult

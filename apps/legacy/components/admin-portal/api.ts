@@ -10,7 +10,7 @@ import type {
   AdminSupportState,
   WorkspaceOverview,
 } from "./types";
-import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
+import { buildCallbackLoginPath } from "@corelithzw/platform/auth-core/redirects";
 
 type AdminApiErrorPayload = {
   error?: string;

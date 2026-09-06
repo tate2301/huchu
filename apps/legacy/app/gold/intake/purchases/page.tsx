@@ -23,7 +23,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { fetchEmployees, fetchGoldPurchases, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldPurchaseRow = Awaited<
   ReturnType<typeof fetchGoldPurchases>

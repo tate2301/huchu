@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
-import { atMost } from '@/lib/money';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@corelithzw/platform/api-utils';
+import { atMost } from '@corelithzw/platform/money';
 import { prisma } from '@corelithzw/db/client';
 import { Prisma } from '@corelithzw/db';
 import { z } from 'zod';
-import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
+import { normalizeProvidedId, reserveIdentifier } from '@corelithzw/platform/id-generator';
 
 const inventoryItemSchema = z.object({
   itemCode: z.string().min(1).max(50).optional(),

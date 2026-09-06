@@ -54,7 +54,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { money, sumMoney } from "@/lib/money";
+import { money, sumMoney } from "@corelithzw/platform/money";
 import { calculateRetailCheckout } from "./checkout";
 import { expectedCashForShift } from "./cash-up";
 import {

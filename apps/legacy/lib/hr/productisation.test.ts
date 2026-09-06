@@ -24,16 +24,16 @@ import {
   getClientTemplateDefinition,
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateWorkspaceProfile,
-} from "@/lib/platform/client-templates";
-import { FEATURE_BUNDLES, FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
-import { getFeatureDependencies } from "@/lib/platform/gating/feature-dependencies";
-import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+} from "@corelithzw/platform/client-templates";
+import { FEATURE_BUNDLES, FEATURE_CATALOG } from "@corelithzw/platform/feature-catalog";
+import { getFeatureDependencies } from "@corelithzw/platform/gating/feature-dependencies";
+import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@corelithzw/platform/gating/route-registry";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,
   resolveWorkspaceVerticalProductBundle,
   VERTICAL_PRODUCT_BUNDLES,
-} from "@/lib/workspace-products";
+} from "@corelithzw/platform/workspace-products";
 import { getWorkspaceProfileForTemplate } from "@/lib/workspaces";
 import { PEOPLE_TABS, PEOPLE_CATEGORIES } from "@/lib/people/tab-config";
 import { PAYROLL_TABS, PAYROLL_CATEGORIES } from "@/lib/payroll/tab-config";

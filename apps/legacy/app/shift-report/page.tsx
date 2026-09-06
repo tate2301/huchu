@@ -24,7 +24,7 @@ import { ContextHelp } from "@/components/shared/context-help";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { fetchShiftGroupSchedules, fetchShiftGroups, fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { SHIFT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 

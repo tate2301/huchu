@@ -21,7 +21,7 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
 

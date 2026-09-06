@@ -54,13 +54,13 @@ import {
   fetchStockLocations,
   fetchWorkOrders,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { EmployeePosition } from "@corelithzw/db";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
-import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
+import { resolveVerticalDefaults } from "@corelithzw/platform/vertical-defaults";
 
 export const maintenanceViews = [
   "dashboard",

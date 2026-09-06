@@ -6,8 +6,8 @@ import { authOptions } from "@/lib/auth";
 import { HomeMarketingPage } from "@/app/home/home-content";
 import { seoPages } from "@/app/home/site-data";
 import { buildMarketingMetadata } from "@/lib/marketing/seo";
-import { PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
-import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
+import { PLATFORM_BRAND_NAME } from "@corelithzw/platform/brand";
+import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@corelithzw/platform/tenant";
 import { getComputedWorkspaceHomeHref } from "@/lib/workspaces";
 
 export const metadata = {

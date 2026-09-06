@@ -1,6 +1,6 @@
 import { SitesPreferences } from "@/components/preferences/organization/sites-preferences";
 import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
 
 export default async function PreferencesSitesPage() {
   await requirePreferencesAccess("sites");

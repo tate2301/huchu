@@ -3,7 +3,7 @@ import {
   PostingDirection,
   WorkOrderStatus,
 } from "@corelithzw/db";
-import { atMost } from "@/lib/money";
+import { atMost } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import type { ExecutiveDashboardRange } from "@/lib/dashboard/executive-config";
 import { getExecutiveDashboardRangeDays } from "@/lib/dashboard/executive-config";

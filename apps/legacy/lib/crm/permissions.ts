@@ -6,9 +6,10 @@
  * is a table somebody can read, and the settings screen can show the same
  * table rather than a second, drifting description of it.
  */
-import type { AuthenticatedSession } from "@/lib/auth-core/types";
+import type { AuthenticatedSession } from "@corelithzw/platform/auth-core/types";
 import { prisma } from "@corelithzw/db/client";
 import { hasCrmFullAccess } from "./scope";
+import type { CapabilitySet } from "@corelithzw/platform/permission-catalog";
 
 export const CRM_CAPABILITIES = [
   "records.read",
@@ -207,3 +208,64 @@ export function permissionMatrix(): {
     rep: REP_CAPABILITIES.has(capability),
   }));
 }
+
+/**
+ * What the CRM contributes to the platform's permission catalog. Registered by
+ * the host at boot (`modules.ts`); the kernel never imports this file.
+ *
+ * Capabilities are grouped the way somebody thinks about them, not the way the
+ * key happens to be spelled. "Can she delete a record" and "can she merge a
+ * duplicate" belong next to each other even though one string starts with
+ * `records.delete` and the other with `records.merge`.
+ */
+export const CRM_CAPABILITY_SET: CapabilitySet = {
+  module: "crm",
+  capabilities: CRM_CAPABILITIES,
+  labels: CRM_CAPABILITY_LABELS,
+  notes: CRM_CAPABILITY_NOTES,
+  groups: {
+    "records.read": "crm-records",
+    "records.edit.own": "crm-records",
+    "records.edit.any": "crm-records",
+    "records.delete": "crm-records",
+    "records.merge": "crm-records",
+    "records.import": "crm-data",
+    "records.export": "crm-data",
+    "pipelines.manage": "crm-config",
+    "fields.manage": "crm-config",
+    "views.share": "crm-config",
+    "tasks.assign.others": "crm-work",
+    "documents.issue": "crm-documents",
+    "documents.approve": "crm-documents",
+    "commissions.manage": "crm-money",
+    "settings.manage": "crm-config",
+  },
+  groupMeta: {
+    "crm-records": {
+      label: "CRM · Records",
+      description: "Reading and changing people, companies, deals and sites.",
+    },
+    "crm-data": {
+      label: "CRM · Moving data",
+      description: "Bringing records in from a file and taking them back out.",
+    },
+    "crm-work": {
+      label: "CRM · Work",
+      description: "Tasks, follow-ups and who they land on.",
+    },
+    "crm-documents": {
+      label: "CRM · Documents",
+      description: "Quotes, invoices and sending them to a customer.",
+    },
+    "crm-money": {
+      label: "CRM · Money",
+      description: "Commission rules and what they pay out.",
+    },
+    "crm-config": {
+      label: "CRM · Configuration",
+      description: "Pipelines, fields, shared views and settings.",
+    },
+  },
+  groupOrder: ["crm-records", "crm-documents", "crm-work", "crm-data", "crm-money", "crm-config"],
+  capabilitiesForRole,
+};

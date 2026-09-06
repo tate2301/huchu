@@ -1,5 +1,5 @@
-import type { FeatureBundleDefinition, FeatureCatalogEntry, TierDefinition } from "@/lib/platform/feature-catalog";
-import { FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
+import type { FeatureBundleDefinition, FeatureCatalogEntry, TierDefinition } from "@corelithzw/platform/feature-catalog";
+import { FEATURE_CATALOG, TIERS, getBundleDefinition, getTierDefinition } from "@corelithzw/platform/feature-catalog";
 import type { CompanyWorkspace } from "../types";
 
 export type ClientStatus = "ACTIVE" | "EXPIRING_SOON" | "IN_GRACE" | "PAST_DUE" | "CANCELED";

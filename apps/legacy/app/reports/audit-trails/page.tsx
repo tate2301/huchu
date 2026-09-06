@@ -28,7 +28,7 @@ import {
   fetchStockMovements,
   fetchWorkOrders,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type AuditRow = {
   id: string;

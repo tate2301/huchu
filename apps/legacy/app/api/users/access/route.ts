@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import {
   getManagedUserFeatureAccessEntries,
   setManagedUserFeatureOverride,
-} from "@/lib/platform/user-entitlements";
+} from "@corelithzw/platform/user-entitlements";
 
 import { appendUserManagementEvent, canMutateUserManagement } from "../_helpers";
 

@@ -8,7 +8,7 @@ import {
   DropdownMenuContent,
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 type Member = {

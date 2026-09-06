@@ -37,7 +37,7 @@ import {
   fetchPayrollRuns,
   type PayrollRunRecord,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type BatchForm = {
   payrollRunId: string;

@@ -6,10 +6,10 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 
 const departmentSchema = z.object({
   code: z.string().trim().min(1).max(40).optional(),

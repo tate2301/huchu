@@ -21,7 +21,7 @@ import {
 } from "@/components/schools/common/states";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 import { fetchHostelRooms, type HostelRoom } from "@/components/schools/boarding/boarding-data";
 

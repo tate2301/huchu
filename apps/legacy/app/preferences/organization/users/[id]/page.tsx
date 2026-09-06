@@ -1,6 +1,6 @@
 import { PreferencesShell } from "@/components/preferences/preferences-shell";
 import { UserDetail } from "@/components/user-management/user-detail";
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
 
 export default async function PreferencesUserDetailPage({
   params,

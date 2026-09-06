@@ -1,4 +1,4 @@
-import { toNumberOrZero } from "@/lib/money";
+import { toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 export const LOYALTY_REDEEM_POINTS_PER_USD = 100;

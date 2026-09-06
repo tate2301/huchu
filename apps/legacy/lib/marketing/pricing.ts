@@ -27,7 +27,7 @@ import {
   getTierDefinition,
   type FeatureBundleDefinition,
   type TierDefinition,
-} from "@/lib/platform/feature-catalog";
+} from "@corelithzw/platform/feature-catalog";
 
 export { ANNUAL_DISCOUNT_RATE, USER_PACK_SIZE };
 

@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { countOverrides, getUserPermissionCatalog } from "@/lib/platform/permission-catalog";
+import { countOverrides, getUserPermissionCatalog } from "@corelithzw/platform/permission-catalog";
 
 import {
   appendUserManagementEvent,

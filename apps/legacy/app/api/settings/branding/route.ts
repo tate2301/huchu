@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import {
   BRANDING_FONT_OPTIONS,
   getBrandingFeatureKeys,
   getEffectiveBrandingForCompany,
   normalizeHexColor,
-} from "@/lib/platform/branding";
-import { hasFeature } from "@/lib/platform/features";
+} from "@corelithzw/platform/branding";
+import { hasFeature } from "@corelithzw/platform/features";
 
 const FONT_KEY_VALUES = BRANDING_FONT_OPTIONS.map((option) => option.key);
 

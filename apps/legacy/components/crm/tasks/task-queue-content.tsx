@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, Button, SegmentedControl } from "@corelithzw/react";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { TASK_QUEUE_LABELS, type TaskQueue } from "@/lib/crm/tasks";
 import { Plus } from "@corelithzw/ui/lib/icons";

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { EmojiPicker } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { offsetOf, placeCaret, renderBody, serialise } from "@/lib/crm/reference-dom";
 import {
   activeReferenceQuery,

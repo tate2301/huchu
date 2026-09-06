@@ -13,7 +13,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { ROLES } from "@/lib/roles";
+import { ROLES } from "@corelithzw/platform/roles";
 
 import {
   canRetailRoleDo,

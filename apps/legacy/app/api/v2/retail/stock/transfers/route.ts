@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
-import { errorResponse, successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
-import { multiplyMoney, toNumberOrZero } from "@/lib/money";
+import { multiplyMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {
   ensureInventoryItemAccess,

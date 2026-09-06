@@ -8,7 +8,7 @@ import { Scale, Gem, ArrowRightLeft, FileCheck } from "@corelithzw/ui/lib/icons"
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
 type ReceiptDetail = {

@@ -26,7 +26,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Check, ChevronDown, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {

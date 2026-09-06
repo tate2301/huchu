@@ -11,12 +11,12 @@ import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { seedZimbabweLeavePack } from "@/lib/people/leave/zimbabwe-pack";
 import { countWorkingDays, holidayKeysForSite } from "@/lib/people/leave/working-days";
-import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "@/lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "@corelithzw/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateFeatureKeys,
-} from "@/lib/platform/client-templates";
+} from "@corelithzw/platform/client-templates";
 import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
 import { postPayrollRun } from "@/lib/hr/payroll/posting";
 import bcrypt from "bcryptjs";

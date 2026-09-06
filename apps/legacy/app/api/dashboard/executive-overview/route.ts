@@ -5,7 +5,7 @@ import {
   isValidUUID,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import {
   calculateDelta,
   getExecutiveDashboardAggregations,
@@ -24,9 +24,9 @@ import {
 import { getNavSectionsForRole } from "@/lib/navigation";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { prisma } from "@corelithzw/db/client";
-import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
-import { hasRole, type UserRole } from "@/lib/roles";
+import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
+import { hasRole, type UserRole } from "@corelithzw/platform/roles";
 
 type QuickLinkCandidate = {
   href: string;

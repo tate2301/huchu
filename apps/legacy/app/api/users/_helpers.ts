@@ -1,9 +1,9 @@
 import { z } from "zod";
 
-import type { AuthenticatedSession } from "@/lib/api-utils";
-import { getAllowedUserRolesForWorkspace } from "@/lib/platform/vertical-roles";
+import type { AuthenticatedSession } from "@corelithzw/platform/api-utils";
+import { getAllowedUserRolesForWorkspace } from "@corelithzw/platform/vertical-roles";
 import { prisma } from "@corelithzw/db/client";
-import { ROLES, type UserRole } from "@/lib/roles";
+import { ROLES, type UserRole } from "@corelithzw/platform/roles";
 
 export const managedRoleSchema = z.preprocess(
   (value) => (typeof value === "string" ? value.trim().toUpperCase() : value),

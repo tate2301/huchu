@@ -2,10 +2,10 @@ import { headers } from "next/headers";
 
 import { ParentPortalProvider } from "@/components/schools/portal/parent/parent-portal-context";
 import { ParentPortalShell } from "@/components/schools/portal/parent/parent-portal-shell";
-import { requirePageAuth } from "@/lib/auth-core/guards";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 import { loadParentHousehold, type ParentHousehold } from "@/lib/schools/parent-household-loader";
-import { serializeDecimals } from "@/lib/serialize-decimals";
+import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**
  * Everything under `/portal/parent` gets the portal's own mobile shell.

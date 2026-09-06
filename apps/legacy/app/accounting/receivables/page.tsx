@@ -31,7 +31,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { fetchArAging, fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { formatAmount, formatCount, formatHeadline } from "@/lib/accounting/format";
 import { NoteAdd, ReceiptLong, UserPlus } from "@corelithzw/ui/lib/icons";
 

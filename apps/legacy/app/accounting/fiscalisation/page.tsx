@@ -34,7 +34,7 @@ import {
   fetchFiscalReceipts,
   fetchFiscalisationConfig,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 type FiscalisationView = "fiscal-days" | "config" | "receipts";

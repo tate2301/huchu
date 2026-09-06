@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
 import { Prisma } from "@corelithzw/db"
-import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
+import { EMPLOYEE_POSITION_VALUES } from "@corelithzw/platform/vertical-defaults"
 
 const employeeUpdateSchema = z
   .object({

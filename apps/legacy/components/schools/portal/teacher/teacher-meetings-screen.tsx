@@ -24,7 +24,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Slot = {

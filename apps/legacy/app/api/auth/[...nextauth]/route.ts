@@ -1,7 +1,7 @@
 import NextAuth from "next-auth";
 import { NextRequest, NextResponse } from "next/server";
 import { authOptions } from "@/lib/auth";
-import { getCredentialsPrecheckFailure } from "@/lib/auth-core/credentials-precheck";
+import { getCredentialsPrecheckFailure } from "@corelithzw/platform/auth-core/credentials-precheck";
 
 const handler = NextAuth(authOptions);
 

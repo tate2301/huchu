@@ -41,7 +41,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@corelithzw/ui/components/button";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import {
   AlertTriangle,
   CheckCircle2,

@@ -27,7 +27,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 export default function ApprovalsPage() {
   const [entityType, setEntityType] = useState<string>("all");

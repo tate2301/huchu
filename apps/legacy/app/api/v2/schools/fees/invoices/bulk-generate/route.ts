@@ -5,8 +5,8 @@ import {
   errorResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
-import { reserveIdentifier } from "@/lib/id-generator";
+} from "@corelithzw/platform/api-utils";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";

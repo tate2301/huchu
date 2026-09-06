@@ -46,7 +46,7 @@ import {
   updateStudent,
   type StudentRollRecord,
 } from "@/lib/schools/students-v2";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Badge,

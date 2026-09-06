@@ -47,8 +47,8 @@
 
 import type { Prisma } from "@corelithzw/db";
 
-import { money, type MoneyLike } from "@/lib/money";
-import { type AuditClient, writePlatformAuditEvent } from "@/lib/audit/platform";
+import { money, type MoneyLike } from "@corelithzw/platform/money";
+import { type AuditClient, writePlatformAuditEvent } from "@corelithzw/platform/audit/platform";
 
 /**
  * The events retail appends.

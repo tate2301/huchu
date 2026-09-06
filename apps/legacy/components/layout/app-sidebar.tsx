@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useGuidedMode } from "@/hooks/use-guided-mode";
 import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@corelithzw/ui/lib/icons";
 import { fetchStockLocations } from "@/lib/api";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import {
   Sidebar,

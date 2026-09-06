@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { Prisma } from "@corelithzw/db"
 import type { CompensationCalcMethod, CompensationRuleType } from "@corelithzw/db"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { writePlatformAuditEvent } from "@/lib/audit/platform"
+import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform"
 import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
 import { ensureHrPayrollDefaults } from "@/lib/hr/bootstrap"
 import {
@@ -19,8 +19,8 @@ import {
   toBaseAmount,
   UnknownExchangeRateError,
   ZERO,
-} from "@/lib/money"
-import { createRouteLogger } from "@/lib/observability/route-logger"
+} from "@corelithzw/platform/money"
+import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 import { prisma } from "@corelithzw/db/client"
 
 const generateRunSchema = z.object({

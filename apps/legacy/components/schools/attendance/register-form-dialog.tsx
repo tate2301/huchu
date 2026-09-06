@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 
 /**

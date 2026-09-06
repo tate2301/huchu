@@ -10,7 +10,7 @@ import { useOpenTransition } from "@/components/schools/common/use-open-transiti
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsStudents, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 
 import {

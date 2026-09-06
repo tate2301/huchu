@@ -6,7 +6,7 @@
 import { NotificationType } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { findOrCreateClient } from "@/lib/crm/dedupe";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { defaultProbabilityForStage } from "@/lib/crm/pipeline";

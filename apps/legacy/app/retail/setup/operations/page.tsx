@@ -11,7 +11,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRight, Building2, CheckCircle, Plus, ReceiptLong, Server } from "@corelithzw/ui/lib/icons";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";

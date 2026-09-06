@@ -1,4 +1,4 @@
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 /**
  * What the boarding screens read, in one place.

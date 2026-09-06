@@ -8,7 +8,7 @@ import { Alert, Button } from "@corelithzw/react";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { Checklist, Plus } from "@corelithzw/ui/lib/icons";
 import { bucketByDueDate } from "@/components/crm/records/record-list-groups";

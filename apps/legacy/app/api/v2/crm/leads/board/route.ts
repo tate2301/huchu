@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { CRM_LEAD_STAGES } from "@/lib/crm/pipeline";
 import { buildLeadWhere, parseLeadFiltersFromParams } from "@/lib/crm/views";

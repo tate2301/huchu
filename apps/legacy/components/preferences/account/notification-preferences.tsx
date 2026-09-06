@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Card, Skeleton, Switch } from "@corelithzw/react";
 
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,

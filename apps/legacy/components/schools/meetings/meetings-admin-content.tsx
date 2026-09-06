@@ -29,7 +29,7 @@ import {
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsTerms, fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 import {
   BookSlotDialog,

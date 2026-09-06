@@ -25,7 +25,7 @@ import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { LocalShipping, Pencil, Plus, ReceiptLong, Trash2 } from "@corelithzw/ui/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 

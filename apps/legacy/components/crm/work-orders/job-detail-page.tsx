@@ -25,7 +25,7 @@ import {
   ConversationComposer,
   type ConversationTarget,
 } from "@/components/crm/collaboration/conversation-composer";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import { canAskForSignOff } from "@/lib/crm/sign-off";
 import { WORK_ORDER_STATUS_LABELS, checklistEditRefusal } from "@/lib/crm/work-orders";

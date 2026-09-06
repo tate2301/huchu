@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { money, sumMoney } from "@/lib/money"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
+import { money, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { recordSettlementPayment } from "@/lib/settlements/payments"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"

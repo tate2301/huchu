@@ -3,15 +3,15 @@ import {
   errorResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import {
   isUploadContext,
   uploadContextValues,
-} from "@/lib/uploads/policies"
+} from "@corelithzw/platform/uploads/policies"
 import {
   uploadFileToBlob,
   UploadValidationError,
-} from "@/lib/uploads/upload-file"
+} from "@corelithzw/platform/uploads/upload-file"
 
 export const runtime = "nodejs"
 

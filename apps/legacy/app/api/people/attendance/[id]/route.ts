@@ -2,7 +2,7 @@ import { Prisma } from "@corelithzw/db";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, hasRole, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, hasRole, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { hrPermissionDenial } from "@/lib/hr/permissions";
 import { ATTENDANCE_STATUSES, canSessionMarkAttendance } from "@/lib/people/attendance";
 import { prisma } from "@corelithzw/db/client";

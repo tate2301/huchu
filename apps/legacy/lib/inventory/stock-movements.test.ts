@@ -21,7 +21,7 @@
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { quantity, type MoneyLike } from "@/lib/money";
+import { quantity, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 import { recordStockMovement } from "./stock-movements";

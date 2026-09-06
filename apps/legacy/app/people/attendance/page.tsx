@@ -46,7 +46,7 @@ import {
   fetchSites,
   type AttendanceRecord,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ATTENDANCE_STATUS_LABELS,
   canMarkAttendance,

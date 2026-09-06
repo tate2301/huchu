@@ -3,8 +3,8 @@ import { headers } from "next/headers";
 import { PosPortalProvider } from "@/components/retail/portal/pos-portal-state";
 import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layout-frame";
 import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
-import { resolveWorkspaceIdentityForHost } from "@/lib/platform/workspace-identity";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
+import { resolveWorkspaceIdentityForHost } from "@corelithzw/platform/workspace-identity";
 
 export default async function PosPortalLayout({ children }: { children: ReactNode }) {
   const headersList = await headers();

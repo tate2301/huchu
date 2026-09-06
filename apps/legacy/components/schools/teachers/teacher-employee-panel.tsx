@@ -14,7 +14,7 @@ import {
   NothingYet,
   SaveError,
 } from "@/components/schools/common/states";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchEmployeeSuggestions,
   linkTeacherEmployee,

@@ -1,7 +1,7 @@
 import {
   writePlatformAuditEvent,
   type AuditClient,
-} from "@/lib/audit/platform";
+} from "@corelithzw/platform/audit/platform";
 
 /**
  * The school's privileged actions, written down once.

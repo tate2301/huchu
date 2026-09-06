@@ -29,7 +29,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * Money the way a statement prints it: negatives in brackets, no minus sign.

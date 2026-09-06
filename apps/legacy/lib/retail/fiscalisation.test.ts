@@ -42,7 +42,7 @@ import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vites
 vi.setConfig({ testTimeout: 120_000, hookTimeout: 120_000 });
 import crypto from "node:crypto";
 import type { RetailSaleStatus, RetailSaleType } from "@corelithzw/db";
-import { money, percent, quantity } from "@/lib/money";
+import { money, percent, quantity } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 const { issueMock } = vi.hoisted(() => ({ issueMock: vi.fn() }));

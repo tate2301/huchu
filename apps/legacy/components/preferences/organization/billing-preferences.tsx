@@ -3,11 +3,11 @@
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Card, Skeleton, StatCard } from "@corelithzw/react";
 
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchBillingPreferences,
   type BillingPreferences as BillingPreferencesResponse,
-} from "@/lib/preferences/api";
+} from "@corelithzw/platform/preferences/api";
 
 import { PricingPanel } from "./pricing-panel";
 

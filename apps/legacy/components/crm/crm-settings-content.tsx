@@ -4,7 +4,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { Coins, Dataset, Funnel, Lock, Megaphone, Package, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { NavRail, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";

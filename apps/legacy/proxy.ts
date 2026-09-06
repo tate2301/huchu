@@ -6,7 +6,7 @@ import {
   getPlatformHostContext,
   isAllowedHost,
   isTenantStatusActive,
-} from "@/lib/platform/tenant";
+} from "@corelithzw/platform/tenant";
 import {
   PREVIEW_HOST_COOKIE,
   PREVIEW_HOST_PARAM,
@@ -15,31 +15,31 @@ import {
   isPreviewHostOverrideEnabled,
   readPreviewHostIntentFromUrl,
   stripPreviewHostParams,
-} from "@/lib/platform/preview-host";
+} from "@corelithzw/platform/preview-host";
 import {
   buildPortalHost,
   getPortalHostDescriptorByPath,
   getPortalInternalPathForPublicPath,
   getPortalPublicPathForInternalPath,
   getPortalHostPrefixes,
-} from "@/lib/platform/portal-hosts";
-import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@/lib/platform/gating/enforcer";
+} from "@corelithzw/platform/portal-hosts";
+import { canAccessCapabilityWithToken, canAccessRouteWithToken } from "@corelithzw/platform/gating/enforcer";
 import {
   SUBSCRIPTION_READ_ONLY_CODE,
   isReadOnlyHttpMethod,
   isSubscriptionOnlyTenantStatus,
   isSubscriptionReadOnly,
-} from "@/lib/platform/subscription";
-import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@/lib/admin-portal";
-import { buildCallbackLoginPath } from "@/lib/auth-core/redirects";
-import { isAuthExpired } from "@/lib/auth-core/session-policy";
+} from "@corelithzw/platform/subscription";
+import { getAdminRootDomain, isAdminPortalHost, isSuperuserRole } from "@corelithzw/platform/admin-portal";
+import { buildCallbackLoginPath } from "@corelithzw/platform/auth-core/redirects";
+import { isAuthExpired } from "@corelithzw/platform/auth-core/session-policy";
 import {
   isRoleRouteRestricted,
   isRouteAllowedForRole,
   landingPathForRole,
-} from "@/lib/auth-core/role-routes";
+} from "@corelithzw/platform/auth-core/role-routes";
 import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@/lib/retail/pos-host";
-import { PUBLIC_BASE_PATHS } from "@/lib/public-routes";
+import { PUBLIC_BASE_PATHS } from "@corelithzw/platform/public-routes";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";
 const LOGIN_PATH = "/login";

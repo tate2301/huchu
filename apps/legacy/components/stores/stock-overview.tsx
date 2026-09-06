@@ -7,7 +7,7 @@ import { Alert, EmptyState, KpiGrid, RowCard, Skeleton, StatHero } from "@coreli
 
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronRight } from "@corelithzw/ui/lib/icons";
 
 /**

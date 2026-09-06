@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, getPaginationParams, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, getPaginationParams, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { getGeneralLedger } from "@/lib/accounting/ledger";
 
 function parseDateParam(value: string | null) {

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { getCompanyFeatureMap } from "@/lib/platform/entitlements";
-import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
-import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { getCompanyFeatureMap } from "@corelithzw/platform/entitlements";
+import { FEATURE_CATALOG } from "@corelithzw/platform/feature-catalog";
+import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 
 /**
  * What this workspace is paying for, and what it would pay for the rest.

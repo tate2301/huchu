@@ -1,9 +1,9 @@
 import { NextResponse } from "next/server";
-import { isAdminPortalHost } from "@/lib/admin-portal";
-import { requestAdminMagicLink } from "@/lib/admin-portal/auth";
-import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
-import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+import { isAdminPortalHost } from "@corelithzw/platform/admin-portal";
+import { requestAdminMagicLink } from "@corelithzw/platform/admin-portal/auth";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";
+import { getHostHeaderFromRequestHeaders } from "@corelithzw/platform/tenant";
 
 export async function POST(request: Request) {
   const host = getHostHeaderFromRequestHeaders(request.headers);

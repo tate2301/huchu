@@ -17,7 +17,7 @@ import {
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   commitCrmMerge,
   fetchCrmCompanies,

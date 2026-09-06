@@ -2,8 +2,8 @@ import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accountin
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole, navSections } from "@/lib/navigation";
-import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
-import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
+import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import {
@@ -14,7 +14,7 @@ import {
   WORKSPACE_PROFILES,
   type WorkspaceModuleId,
   type WorkspaceProfile,
-} from "@/lib/workspace-products";
+} from "@corelithzw/platform/workspace-products";
 import {
   Dashboard,
   Gem,
@@ -25,7 +25,7 @@ import {
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
-import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
+import { isRouteAllowedForRole } from "@corelithzw/platform/auth-core/role-routes";
 
 export { WORKSPACE_PROFILES };
 export type { WorkspaceModuleId, WorkspaceProfile };

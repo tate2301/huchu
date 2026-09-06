@@ -5,11 +5,11 @@ import {
   successResponse,
   errorResponse,
   hasRole,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
-import { reserveIdentifier } from "@/lib/id-generator"
+import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { z } from "zod"
 

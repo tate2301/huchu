@@ -7,7 +7,7 @@ import { Button, Switch } from "@corelithzw/react";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * A subject, created and corrected.

@@ -16,8 +16,8 @@
 
 import type { AccountingSourceType, Prisma, StockMovement } from "@corelithzw/db";
 
-import { reserveIdentifier } from "@/lib/id-generator";
-import { money, quantity as toQuantity, type MoneyLike, ZERO } from "@/lib/money";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
+import { money, quantity as toQuantity, type MoneyLike, ZERO } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 export type StockMovementType = "RECEIPT" | "ISSUE" | "ADJUSTMENT" | "TRANSFER";

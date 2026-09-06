@@ -10,7 +10,7 @@ import {
   NothingMatched,
   NothingYet,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { Shield, TrendingUp } from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";

@@ -37,7 +37,7 @@
 
 import { NextResponse } from "next/server";
 
-import { errorResponse } from "@/lib/api-response";
+import { errorResponse } from "@corelithzw/platform/api-response";
 
 /**
  * The seven surfaces retail authorises against.

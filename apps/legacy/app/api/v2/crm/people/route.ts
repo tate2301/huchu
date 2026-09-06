@@ -7,9 +7,9 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { buildFullName } from "@/lib/crm/conversion";
 import { findPersonDuplicates } from "@/lib/crm/duplicates";

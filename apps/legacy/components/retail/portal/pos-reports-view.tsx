@@ -16,7 +16,7 @@ import {
   TrendingUp,
   Wallet,
 } from "@corelithzw/ui/lib/icons";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import {
   PosEmptyState,
   PosMetricCard,

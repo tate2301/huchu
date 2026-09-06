@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { retryPendingAccountingEvents } from "@/lib/accounting/integration";
-import { hasRole } from "@/lib/roles";
+import { hasRole } from "@corelithzw/platform/roles";
 
 const replaySchema = z.object({
   limit: z.number().int().min(1).max(1000).optional(),

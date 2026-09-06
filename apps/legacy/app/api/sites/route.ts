@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, hasRole } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, hasRole } from '@corelithzw/platform/api-utils';
 import { prisma } from '@corelithzw/db/client';
 import { z } from 'zod';
-import { normalizeProvidedId, reserveIdentifier } from '@/lib/id-generator';
+import { normalizeProvidedId, reserveIdentifier } from '@corelithzw/platform/id-generator';
 
 const siteSchema = z.object({
   name: z.string().min(1).max(200),

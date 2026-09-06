@@ -11,7 +11,7 @@ import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronRight, Coins } from "@corelithzw/ui/lib/icons";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 

@@ -19,7 +19,7 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchSchoolsClasses,
   type SchoolsClassRecord,

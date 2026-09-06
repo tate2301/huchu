@@ -2,9 +2,9 @@ import "@/scripts/lib/env";
 
 import type { WorkspaceProfile } from "@corelithzw/db";
 
-import { getCompanyFeatureMap } from "@/lib/platform/entitlements";
-import { getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
-import { isKnownFeatureKey, normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+import { getCompanyFeatureMap } from "@corelithzw/platform/entitlements";
+import { getBundleDefinition, getTierDefinition } from "@corelithzw/platform/feature-catalog";
+import { isKnownFeatureKey, normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import { prisma } from "@corelithzw/db/client";
 
 /**

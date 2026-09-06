@@ -1,6 +1,6 @@
 import type { Prisma, PrismaClient } from "@corelithzw/db";
 
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
 

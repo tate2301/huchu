@@ -31,7 +31,7 @@ import {
   fetchAccountingPeriods,
   fetchTrialBalance,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * A date input hands back `yyyy-mm-dd`, which `new Date` reads as midnight UTC

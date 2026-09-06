@@ -8,9 +8,9 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { money, toNumberOrZero } from "@/lib/money"
+import { money, toNumberOrZero } from "@corelithzw/platform/money"
 import { derivePaidStatus } from "@/lib/payroll/disbursements"
 import { prisma } from "@corelithzw/db/client"
 

@@ -35,7 +35,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowDownward, ArrowUpward, ChevronRight, Lock, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { fetchCrmPipelines, type CrmPipelineRecord } from "@/lib/crm/crm-v2";
 import { STAGE_OUTCOME_TONE } from "@/lib/crm/tones";

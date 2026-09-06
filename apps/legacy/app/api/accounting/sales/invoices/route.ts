@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { onAccountingInvoiceCreated } from "@/lib/crm/accounting-hooks";
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
 import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
 

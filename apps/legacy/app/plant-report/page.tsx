@@ -22,7 +22,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchDowntimeCodes, fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { PLANT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 

@@ -1,6 +1,6 @@
 import { prisma } from "../prisma";
 import { appendAuditEvent } from "./audit-ledger";
-import { FEATURE_BUNDLES, FEATURE_CATALOG, getBundleDefinition } from "../../../lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, FEATURE_CATALOG, getBundleDefinition } from "@corelithzw/platform/feature-catalog";
 import type {
   BundleCatalogSummary,
   SetBundleFeaturesInput,

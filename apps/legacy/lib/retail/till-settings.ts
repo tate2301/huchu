@@ -46,7 +46,7 @@
 
 import type { Prisma } from "@corelithzw/db";
 
-import { percent, type MoneyLike } from "@/lib/money";
+import { percent, type MoneyLike } from "@corelithzw/platform/money";
 import { canRetailRoleDo } from "./permissions";
 
 /* ─── What the shelf is taxed at ──────────────────────────────────────────── */

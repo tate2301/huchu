@@ -20,7 +20,7 @@
  */
 import bcrypt from "bcryptjs";
 import { type UserRole } from "@corelithzw/db";
-import { FEATURE_BUNDLES, TIERS } from "../lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, TIERS } from "@corelithzw/platform/feature-catalog";
 import { disconnectPrisma, prisma } from "./platform/prisma";
 
 function readArg(name: string): string | undefined {
@@ -150,7 +150,7 @@ async function main() {
     addons += 1;
   }
 
-  const { getEnabledFeatureKeys } = await import("../lib/platform/entitlements");
+  const { getEnabledFeatureKeys } = await import("@corelithzw/platform/entitlements");
   const enabled = await getEnabledFeatureKeys(company.id);
 
   console.log(

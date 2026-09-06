@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, errorResponse, hasRole, successResponse } from '@/lib/api-utils';
+import { validateSession, errorResponse, hasRole, successResponse } from '@corelithzw/platform/api-utils';
 import { SHIFT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from '@corelithzw/db/client';
 

@@ -27,7 +27,7 @@ import { GuardianPortalPanel } from "@/components/schools/guardians/guardian-por
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { RecordNotFound } from "@/components/schools/common/states";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { Badge, Lock, Mail, MapPin, Phone, Tag } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";

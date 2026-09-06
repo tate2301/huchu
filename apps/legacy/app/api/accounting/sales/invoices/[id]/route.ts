@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { createJournalEntryFromSource } from "@/lib/accounting/posting";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "ISSUED", "PAID", "VOIDED"]).optional(),

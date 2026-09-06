@@ -1,7 +1,7 @@
 import {
   getAllowedUserRoleOptionsForWorkspace,
   USER_ROLE_LABELS,
-} from "../../lib/platform/vertical-roles";
+} from "@corelithzw/platform/vertical-roles";
 import {
   USER_MANAGEMENT_ROLES,
   type OrganizationListItem,

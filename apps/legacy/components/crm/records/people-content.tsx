@@ -13,7 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { CONTACT_TYPE_COLOR, stageColor } from "@/lib/crm/tones";
 import { fetchCrmPeople } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";

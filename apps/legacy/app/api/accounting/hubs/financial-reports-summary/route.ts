@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { getCashFlowReport, getFinancialStatements } from "@/lib/accounting/ledger";
 
 function parseDateParam(value: string | null) {

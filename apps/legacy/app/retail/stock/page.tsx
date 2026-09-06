@@ -20,7 +20,7 @@ import {
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ArrowDownward,
   BarChart3,

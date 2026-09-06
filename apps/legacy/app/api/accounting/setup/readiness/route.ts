@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { getAccountingSetupReadiness } from "@/lib/accounting/bootstrap";
 
 export async function GET(request: NextRequest) {

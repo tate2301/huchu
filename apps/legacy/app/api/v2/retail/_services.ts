@@ -4,7 +4,7 @@ import {
   type RetailCashMovementType,
   type RetailTenderType,
 } from "@corelithzw/db";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { recordStockMovement } from "@/lib/inventory/stock-movements";
 import {
   ZERO,
@@ -16,7 +16,7 @@ import {
   toBaseAmount,
   toNumberOrZero,
   type MoneyLike,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import type { CashDenominationLine } from "@/lib/retail/cash-movements";
 import {

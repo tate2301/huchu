@@ -69,7 +69,7 @@ import {
   setUserStatus,
 } from "./domain/user-management-service";
 import { searchGlobal } from "./domain/search-service";
-import { FEATURE_CATALOG, getTierDefinition } from "../../lib/platform/feature-catalog";
+import { FEATURE_CATALOG, getTierDefinition } from "@corelithzw/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateBundleCodes,
@@ -77,7 +77,7 @@ import {
   getClientTemplateDefinition,
   getClientTemplateFeatureKeys,
   getClientTemplateWorkspaceProfile,
-} from "../../lib/platform/client-templates";
+} from "@corelithzw/platform/client-templates";
 import {
   ADMIN_ACCOUNT_STATUSES,
   ADMIN_ROLES,

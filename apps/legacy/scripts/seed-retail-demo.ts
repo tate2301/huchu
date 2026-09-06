@@ -43,7 +43,7 @@ import "@/scripts/lib/env";
 
 import { randomUUID } from "node:crypto"
 import { Prisma, type RetailTenderType } from "@corelithzw/db"
-import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
+import { money, multiplyMoney, rate, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
 import { upsertShelfListing } from "@/lib/retail/shelf-listing"

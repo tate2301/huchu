@@ -34,7 +34,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { useReservedId } from "@/hooks/use-reserved-id";

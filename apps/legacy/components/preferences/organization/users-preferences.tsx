@@ -18,8 +18,8 @@ import {
 import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
 import { PageActions } from "@/components/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
-import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";
 import {
   changeManagedUserRole,
   createManagedUser,
@@ -28,7 +28,7 @@ import {
   setManagedUserStatus,
   type ManagedUserRole,
   type ManagedUserSummary,
-} from "@/lib/user-management-api";
+} from "@corelithzw/platform/user-management-api";
 import { Plus, RefreshCcw, ShieldCheck, UserCheck } from "@corelithzw/ui/lib/icons";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 

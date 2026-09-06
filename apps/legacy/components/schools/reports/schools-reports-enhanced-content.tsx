@@ -25,7 +25,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsAcademicYears, fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { fetchSchoolFeeStructures } from "@/lib/schools/fees-v2";
 

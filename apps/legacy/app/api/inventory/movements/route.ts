@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@corelithzw/platform/api-utils';
 import { prisma } from '@corelithzw/db/client';
 import { createJournalEntryFromSource } from '@/lib/accounting/posting';
 import { Prisma } from '@corelithzw/db';
 import { z } from 'zod';
-import { normalizeProvidedId } from '@/lib/id-generator';
+import { normalizeProvidedId } from '@corelithzw/platform/id-generator';
 import { recordStockMovement } from '@/lib/inventory/stock-movements';
-import { multiplyMoney, ZERO } from '@/lib/money';
+import { multiplyMoney, ZERO } from '@corelithzw/platform/money';
 
 const stockMovementSchema = z.object({
   referenceId: z.string().min(1).max(50).optional(),

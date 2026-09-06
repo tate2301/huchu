@@ -38,7 +38,7 @@
  * still trades and the fallback is visible in the payload rather than silent.
  */
 import { choosePriceList, resolvePrice, type PriceEntry } from "@/lib/inventory/catalogue";
-import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { money, percent, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 
 /** Where the number the till will charge actually came from. */

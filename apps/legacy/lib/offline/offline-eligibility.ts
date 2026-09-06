@@ -16,7 +16,7 @@
  * not. A role earns its place here by having a warmed workflow behind it.
  */
 
-import type { AuthSessionClaims } from "@/lib/auth-core/types";
+import type { AuthSessionClaims } from "@corelithzw/platform/auth-core/types";
 
 // ── Constants ────────────────────────────────────────────────────────────────
 

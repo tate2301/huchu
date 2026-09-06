@@ -30,7 +30,7 @@ import {
   type RecordTableColumn,
 } from "@/components/records/record-table";
 import { ViewToolbarChip } from "@/components/records/view-toolbar";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";

@@ -33,7 +33,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 
 type Action = "PROMOTE" | "REPEAT" | "GRADUATE" | "TRANSFER" | "WITHDRAW";

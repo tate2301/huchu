@@ -16,7 +16,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { updateCrmFollowUp } from "@/lib/crm/crm-v2";
 import { cn } from "@corelithzw/ui/lib/utils";
 

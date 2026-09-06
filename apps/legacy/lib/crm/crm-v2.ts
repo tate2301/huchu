@@ -2,7 +2,7 @@
  * CRM client SDK — typed fetchers over the /api/v2/crm endpoints.
  * Mirrors the lib/autos/autos-v2.ts pattern.
  */
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import type {
   CrmListRecord,
   CrmSavedViewRecord,

@@ -1,4 +1,4 @@
-import { requireApiAuth } from "@/lib/auth-core/guards";
+import { requireApiAuth } from "@corelithzw/platform/auth-core/guards";
 
 export async function requirePlatformAdminAccess(request: Request) {
   const result = await requireApiAuth({

@@ -7,7 +7,7 @@ import type { CrmLeadStage } from "@corelithzw/db";
 import { Button } from "@corelithzw/ui/components/button";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Funnel, Plus } from "@corelithzw/ui/lib/icons";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { LayoutSwitch } from "@/components/crm/records/layout-switch";

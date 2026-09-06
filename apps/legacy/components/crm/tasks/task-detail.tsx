@@ -12,7 +12,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { deleteCrmTask, type CrmTaskRecord } from "@/lib/crm/crm-v2";
 import {
   CRM_TASK_OUTCOME_LABELS,

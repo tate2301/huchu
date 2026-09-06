@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { guessMapping, parseCsv, type CsvTable } from "@/lib/crm/csv";
 import {
   IMPORT_FIELDS,

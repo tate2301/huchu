@@ -9,7 +9,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Progress } from "@corelithzw/ui/components/progress";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import type { RecordTab } from "@/components/records/record-page-shell";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import { WORK_ORDER_STATUS_LABELS, type WorkOrderCounts } from "@/lib/crm/work-orders";
 import { Plus, Wrench } from "@corelithzw/ui/lib/icons";

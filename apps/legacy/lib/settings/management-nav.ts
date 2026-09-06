@@ -19,7 +19,7 @@ import {
 import {
   canViewHrefWithEnabledFeatures,
   filterHrefItemsByEnabledFeatures,
-} from "@/lib/platform/gating/nav-filter";
+} from "@corelithzw/platform/gating/nav-filter";
 
 export type ManagementArea =
   | "branding"

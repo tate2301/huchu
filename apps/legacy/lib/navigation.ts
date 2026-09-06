@@ -47,7 +47,7 @@ import {
 } from "@corelithzw/ui/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
-import { hasRole, type UserRole } from "@/lib/roles";
+import { hasRole, type UserRole } from "@corelithzw/platform/roles";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
 // which checks it on the route prefix before the page renders.

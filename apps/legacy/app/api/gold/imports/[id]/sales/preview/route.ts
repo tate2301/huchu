@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, errorResponse, hasRole } from "@/lib/api-utils";
+import { validateSession, errorResponse, hasRole } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { planFifoSale } from "@/lib/gold/fifo-link";
 import { NextResponse as NR } from "next/server";

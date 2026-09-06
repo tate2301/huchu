@@ -20,7 +20,7 @@ import {
   type PickedRecord,
 } from "@/components/crm/records/record-picker";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 

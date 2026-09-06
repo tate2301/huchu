@@ -17,7 +17,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { Clock, Coins, Info, Percent, Receipt, ReceiptLong, XCircle } from "@corelithzw/ui/lib/icons";
 /*
   `till-activity-shared`, never `till-activity`. The latter imports `lib/money`

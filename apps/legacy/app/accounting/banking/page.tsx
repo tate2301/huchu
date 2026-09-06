@@ -36,7 +36,7 @@ import {
   fetchBankReconciliations,
   fetchBankTransactions,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRightLeft, CheckCircle2, Wallet } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 

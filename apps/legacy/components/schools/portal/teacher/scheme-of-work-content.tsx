@@ -16,7 +16,7 @@ import {
   SavingOverlay,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,

@@ -8,12 +8,12 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { createPurchaseBill, upsertGoldVendor } from "@/lib/commodity-billing"
 
 const goldPurchaseSchema = z

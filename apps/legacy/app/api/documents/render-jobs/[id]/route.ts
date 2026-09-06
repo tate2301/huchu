@@ -1,6 +1,6 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { processDocumentRenderJobsBatch } from "@/lib/documents/service";
 import { prisma } from "@corelithzw/db/client";
 

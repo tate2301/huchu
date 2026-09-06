@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateSession, successResponse, errorResponse, hasRole } from "@/lib/api-utils"
+import { validateSession, successResponse, errorResponse, hasRole } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { recordInventoryEvent, recordReversalEvent } from "@/lib/gold/inventory"
 import { linkFifoSale } from "@/lib/gold/fifo-link"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
-import { reserveIdentifier } from "@/lib/id-generator"
+import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { mapEntryGrams } from "@/lib/gold/decimal-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { writeGoldAuditEvent } from "@/lib/audit/gold"
 import { emitGoldImportFailedNotification, emitGoldExceptionNotification } from "@/lib/notifications"
-import { createRequestLogger } from "@/lib/logging"
+import { createRequestLogger } from "@corelithzw/platform/logging"
 
 // TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold
 export async function POST(

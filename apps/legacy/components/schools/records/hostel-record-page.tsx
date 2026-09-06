@@ -22,7 +22,7 @@ import { BedBoardContent } from "@/components/schools/boarding/bed-board-content
 import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Home, Tag, ToggleLeft, UserPlus, Users } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";

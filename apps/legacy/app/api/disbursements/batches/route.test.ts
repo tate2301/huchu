@@ -20,7 +20,7 @@ const {
   },
 }))
 
-vi.mock("@/lib/api-utils", () => {
+vi.mock("@corelithzw/platform/api-utils", () => {
   return {
     validateSession: validateSessionMock,
     getPaginationParams: () => ({ page: 1, limit: 50, skip: 0 }),

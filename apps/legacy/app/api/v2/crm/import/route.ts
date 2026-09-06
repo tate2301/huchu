@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { canUser, denialMessage } from "@/lib/crm/permissions";
 import { buildFullName } from "@/lib/crm/conversion";
 import { normalizeName } from "@/lib/crm/duplicates";

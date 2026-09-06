@@ -1,14 +1,14 @@
 import { randomBytes } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import {
   getBrandingFeatureKeys,
   isReservedCustomDomain,
   normalizeHostnameInput,
-} from "@/lib/platform/branding";
-import { hasFeature } from "@/lib/platform/features";
+} from "@corelithzw/platform/branding";
+import { hasFeature } from "@corelithzw/platform/features";
 
 const domainSchema = z.object({
   hostname: z.string().trim().min(3).max(253),

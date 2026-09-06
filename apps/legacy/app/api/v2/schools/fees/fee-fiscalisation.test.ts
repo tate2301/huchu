@@ -28,14 +28,14 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import { Prisma } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
-import { grantBundleToCompany } from "@/lib/platform/entitlements";
+import { grantBundleToCompany } from "@corelithzw/platform/entitlements";
 
 const { validateSessionMock } = vi.hoisted(() => ({
   validateSessionMock: vi.fn(),
 }));
 
-vi.mock("@/lib/api-utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api-utils")>();
+vi.mock("@corelithzw/platform/api-utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@corelithzw/platform/api-utils")>();
   return { ...actual, validateSession: validateSessionMock };
 });
 

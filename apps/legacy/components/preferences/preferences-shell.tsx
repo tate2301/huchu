@@ -12,7 +12,7 @@ import {
   ORGANIZATION_PREFERENCES_ITEMS,
   canViewPreferenceItem,
   type PreferencesNavItem,
-} from "@/lib/preferences/nav";
+} from "@corelithzw/platform/preferences/nav";
 import {
   Bell,
   Building2,

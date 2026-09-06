@@ -55,7 +55,7 @@ import {
   type ShiftGroupMemberRecord,
   type ShiftGroupScheduleRecord,
 } from "@/lib/api"
-import { ApiError, getApiErrorMessage } from "@/lib/api-client"
+import { ApiError, getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 /// A `Select` cannot hold "" as a value, so "no site" needs a sentinel. It is
 /// translated back to null on the way out; nothing persists this string.

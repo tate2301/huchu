@@ -4,7 +4,7 @@ import { ShieldAlert } from "@corelithzw/ui/lib/icons"
 import { useSession } from "next-auth/react"
 
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
-import { hasRole, type UserRole } from "@/lib/roles"
+import { hasRole, type UserRole } from "@corelithzw/platform/roles"
 
 type RoleGateProps = {
   allowed: UserRole[]

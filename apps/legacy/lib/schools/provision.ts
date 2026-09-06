@@ -2,7 +2,7 @@ import { Prisma } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
 import { activateTerm } from "@/lib/schools/calendar";
 import { money } from "@/lib/schools/money";
-import { grantBundleToCompany } from "@/lib/platform/entitlements";
+import { grantBundleToCompany } from "@corelithzw/platform/entitlements";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 
 /**

@@ -8,7 +8,7 @@ import { RichTextComposer } from "@/components/crm/collaboration/rich-text-compo
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { createCrmComment } from "@/lib/crm/crm-v2";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { richTextToPlain } from "@/lib/crm/rich-text";
 import { ChatCircle, Mail, Phone, Users } from "@corelithzw/ui/lib/icons";
 import type { CollabEntity } from "@/lib/crm/collaboration";

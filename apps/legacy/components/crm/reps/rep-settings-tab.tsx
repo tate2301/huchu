@@ -9,7 +9,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { PermissionMatrix } from "@/components/user-management/permission-matrix";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ExternalLink } from "@corelithzw/ui/lib/icons";
 import {
   fetchManagedUserDetail,
@@ -17,7 +17,7 @@ import {
   setUserPermission,
   type PermissionEntry,
   type PermissionState,
-} from "@/lib/user-management-api";
+} from "@corelithzw/platform/user-management-api";
 
 /**
  * What this person is allowed to do, on the page where you were thinking

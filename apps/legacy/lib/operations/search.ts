@@ -19,7 +19,7 @@
  */
 import type { Prisma } from "@corelithzw/db";
 
-import { quantity, type MoneyLike } from "@/lib/money";
+import { quantity, type MoneyLike } from "@corelithzw/platform/money";
 
 import {
   facts,

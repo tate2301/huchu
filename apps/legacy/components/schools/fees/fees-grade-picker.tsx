@@ -14,7 +14,7 @@ import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { LoadError, NothingMatched, NothingYet, StatsSkeleton } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
 

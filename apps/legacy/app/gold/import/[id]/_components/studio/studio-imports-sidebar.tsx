@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { ChevronLeftIcon, FileText } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type ImportListItem = {

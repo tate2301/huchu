@@ -17,7 +17,7 @@ import {
 } from "@/components/schools/common/states";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 import {
   dateWindow,

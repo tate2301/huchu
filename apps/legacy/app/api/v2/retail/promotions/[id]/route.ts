@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { RetailPromotionStatus } from "@corelithzw/db";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { prisma } from "@corelithzw/db/client";
 import { requireRetailPermission } from "@/lib/retail/permissions";

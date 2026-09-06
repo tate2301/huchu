@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 
-import { requirePreferencesAccess } from "@/lib/preferences/server";
+import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
 
 export default async function PreferencesBrandingPage() {
   await requirePreferencesAccess("branding");

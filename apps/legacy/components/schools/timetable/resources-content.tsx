@@ -20,7 +20,7 @@ import {
   NothingYet,
   SaveError,
 } from "@/components/schools/common/states";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 
 type Resource = {

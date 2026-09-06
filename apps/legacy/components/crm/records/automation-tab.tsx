@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, EmptyState, Stack } from "@corelithzw/react";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { TRIGGER_LABELS } from "@/lib/crm/automation";
 import { formatDuration } from "@/lib/crm/run-insights";
 import { Rule } from "@corelithzw/ui/lib/icons";

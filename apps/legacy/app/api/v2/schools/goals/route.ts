@@ -4,7 +4,7 @@ import {
   errorResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import { getCurrentTerm } from "@/lib/schools/calendar";
 import { GoalError, goalsForStudent, saveGoal } from "@/lib/schools/goals-meetings";

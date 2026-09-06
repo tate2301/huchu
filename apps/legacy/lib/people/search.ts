@@ -1,7 +1,7 @@
 import type { Prisma } from "@corelithzw/db";
 
 import type { HrResource } from "@/lib/hr/permissions";
-import { EMPLOYEE_POSITION_LABELS } from "@/lib/platform/vertical-defaults";
+import { EMPLOYEE_POSITION_LABELS } from "@corelithzw/platform/vertical-defaults";
 import type { SearchResult } from "@/lib/records/search-result";
 import { facts, wordMatches } from "@/lib/records/search-result";
 

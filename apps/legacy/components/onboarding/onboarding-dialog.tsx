@@ -23,8 +23,8 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { StepProgress } from "@corelithzw/ui/components/step-progress";
-import { getApiErrorMessage } from "@/lib/api-client";
-import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { resolveVerticalDefaults } from "@corelithzw/platform/vertical-defaults";
 
 type OnboardingStep = 0 | 1 | 2 | 3 | 4;
 

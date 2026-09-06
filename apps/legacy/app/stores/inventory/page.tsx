@@ -44,7 +44,7 @@ import {
   fetchStockLocations,
   type InventoryItem,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { Plus, QrCode } from "@corelithzw/ui/lib/icons";

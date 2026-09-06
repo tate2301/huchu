@@ -1,4 +1,4 @@
-import { money, type MoneyLike } from "@/lib/money"
+import { money, type MoneyLike } from "@corelithzw/platform/money"
 
 /**
  * Paying out an approved run.

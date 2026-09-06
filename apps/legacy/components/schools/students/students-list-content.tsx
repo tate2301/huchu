@@ -31,7 +31,7 @@ import {
 } from "@/components/schools/students/student-form-sheet";
 import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   createStudent,
   deleteStudent,

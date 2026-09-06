@@ -11,9 +11,9 @@ import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/a
 import { Button } from "@corelithzw/ui/components/button";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { goldRoutes } from "@/app/gold/routes";
-import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 type GoldSummary = {
   generatedAt: string;

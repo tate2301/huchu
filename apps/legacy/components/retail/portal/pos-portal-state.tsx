@@ -15,7 +15,7 @@ import {
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   type PosSaleQueuePayload,
 } from "@/lib/retail/pos-offline-queue";

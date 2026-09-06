@@ -4,10 +4,10 @@ import {
   type StudentDay,
 } from "@/components/schools/portal/student/student-portal-context";
 import { StudentPortalShell } from "@/components/schools/portal/student/student-portal-shell";
-import { requirePageAuth } from "@/lib/auth-core/guards";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 import { loadStudentDay } from "@/lib/schools/student-day-loader";
-import { serializeDecimals } from "@/lib/serialize-decimals";
+import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**
  * Everything under `/portal/student` gets the portal's own mobile shell.

@@ -28,7 +28,7 @@ import {
   SaveError,
   StatsSkeleton,
 } from "@/components/schools/common/states";
-import { ApiError, fetchJson } from "@/lib/api-client";
+import { ApiError, fetchJson } from "@corelithzw/platform/api-client";
 import { FileText, Percent, Tag, ToggleLeft, Users } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 

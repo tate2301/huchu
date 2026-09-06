@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@corelithzw/db/client";

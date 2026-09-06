@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { PLATFORM_ADMIN_MANIFEST } from "@/lib/admin-portal/manifest";
+import { PLATFORM_ADMIN_MANIFEST } from "@corelithzw/platform/admin-portal/manifest";
 import { requirePlatformAdminAccess } from "../_auth";
 
 export async function GET(request: Request) {

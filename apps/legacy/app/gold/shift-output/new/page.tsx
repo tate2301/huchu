@@ -12,7 +12,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchSites,
   fetchShiftGroups,

@@ -15,7 +15,7 @@ import {
   isPathMatchingPrefix,
   type ManagementArea,
 } from "@/lib/settings/management-nav";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
+import { getWorkspaceModulePresentation } from "@corelithzw/platform/workspace-products";
 
 type ManagementShellProps = {
   area: ManagementArea;

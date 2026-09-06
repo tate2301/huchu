@@ -51,7 +51,7 @@
 
 import type { Prisma } from "@corelithzw/db";
 
-import { money, type MoneyLike } from "@/lib/money";
+import { money, type MoneyLike } from "@corelithzw/platform/money";
 import {
   RETAIL_CASH_MOVEMENT_LABELS,
   RETAIL_CASH_MOVEMENT_REASON_LABELS,

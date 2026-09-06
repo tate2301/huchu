@@ -23,7 +23,7 @@ const { validateSessionMock, closeFiscalDayMock, prismaMock } = vi.hoisted(() =>
   },
 }));
 
-vi.mock("@/lib/api-utils", () => ({
+vi.mock("@corelithzw/platform/api-utils", () => ({
   validateSession: validateSessionMock,
   errorResponse: (message: string, status = 500, details?: unknown) =>
     NextResponse.json({ error: message, ...(details !== undefined ? { details } : {}) }, { status }),

@@ -32,7 +32,7 @@ import {
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchAttendance, fetchSites, type AttendanceRecord } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 

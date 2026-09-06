@@ -1,4 +1,4 @@
-import type { UserRole } from "@/lib/roles";
+import type { UserRole } from "@corelithzw/platform/roles";
 
 export const EXECUTIVE_DASHBOARD_RANGES = ["7d", "30d", "90d"] as const;
 export type ExecutiveDashboardRange = (typeof EXECUTIVE_DASHBOARD_RANGES)[number];

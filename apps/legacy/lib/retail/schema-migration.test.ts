@@ -33,7 +33,7 @@
 
 import { describe, it, expect } from "vitest";
 import { prisma } from "@corelithzw/db/client";
-import { money, multiplyMoney, rate, sumMoney, taxOn } from "@/lib/money";
+import { money, multiplyMoney, rate, sumMoney, taxOn } from "@corelithzw/platform/money";
 
 /**
  * Every retail money column, with the scale it must carry.

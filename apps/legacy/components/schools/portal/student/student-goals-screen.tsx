@@ -19,7 +19,7 @@ import {
   SavingOverlay,
 } from "@/components/schools/common/states";
 import { CheckCircle, Circle, Clock, TrendingUp } from "@corelithzw/ui/lib/icons";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
 

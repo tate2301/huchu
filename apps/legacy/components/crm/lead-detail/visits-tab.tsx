@@ -7,7 +7,7 @@ import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Plus, Share } from "@corelithzw/ui/lib/icons";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 import type { LeadAppointment } from "./lead-types";

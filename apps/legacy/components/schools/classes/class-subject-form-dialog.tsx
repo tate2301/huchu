@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import {
   fetchSchoolsSubjects,
   fetchSchoolsTerms,

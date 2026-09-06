@@ -7,7 +7,7 @@
  */
 import type { UserRole } from "@corelithzw/db";
 
-import type { AuthenticatedSession } from "@/lib/auth-core/types";
+import type { AuthenticatedSession } from "@corelithzw/platform/auth-core/types";
 
 // Mirrors the UserRole enum: "ADMIN" is not a role this platform issues, so
 // listing it here only ever looked like it granted something.

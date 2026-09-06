@@ -8,7 +8,7 @@ import {
   LoadError,
   NothingYet,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { ArrowRight, Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@corelithzw/ui/lib/icons";
 

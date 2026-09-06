@@ -6,7 +6,7 @@
 // `site-visits` → `accounting-bridge`, the accounting posting engine. This
 // module's value closure is `fetchJson` and nothing else; crm-v2 re-exports it
 // so CRM pages keep their single import surface.
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
 
 export type CrmCollectionOwner = { id: string; name: string | null };

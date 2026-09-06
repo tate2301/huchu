@@ -29,7 +29,7 @@ import {
   type StudentFormValues,
 } from "@/components/schools/students/student-form-sheet";
 import { DataTable } from "@corelithzw/ui/components/data-table";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
   createStudent,

@@ -6,7 +6,7 @@ import {
   getPaginationParams,
   hasRole,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
@@ -14,7 +14,7 @@ import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { goldPourCore } from "@/lib/gold/prisma-includes"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
-import { createRequestLogger } from "@/lib/logging"
+import { createRequestLogger } from "@corelithzw/platform/logging"
 
 const goldDispatchSchema = z
   .object({

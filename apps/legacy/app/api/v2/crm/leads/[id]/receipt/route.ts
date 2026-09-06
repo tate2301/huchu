@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
 import { recordReceiptForLead } from "@/lib/crm/accounting-bridge";

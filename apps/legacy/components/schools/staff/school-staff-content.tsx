@@ -21,9 +21,9 @@ import {
 } from "@/components/schools/common/states";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { Plus } from "@corelithzw/ui/lib/icons";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchDepartments, type EmployeeSummary } from "@/lib/api";
-import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
+import type { EmployeePositionValue } from "@corelithzw/platform/vertical-defaults";
 
 import { SchoolStaffSheet } from "./school-staff-sheet";
 

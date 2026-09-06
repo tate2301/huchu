@@ -9,7 +9,7 @@ import { cn } from "@corelithzw/ui/lib/utils";
 
 import { ListSearch } from "./list-search";
 import { ViewToolbar } from "@/components/records/view-toolbar";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * The frame every CRM record list shares: title, search box, filters, a

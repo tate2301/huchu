@@ -2,8 +2,8 @@ import React, { useMemo, useState } from "react";
 import { Text, useInput } from "ink";
 
 import type { PlatformServices } from "../../types";
-import { TIERS } from "../../../../lib/platform/feature-catalog";
-import { CLIENT_BUNDLE_TEMPLATES } from "../../../../lib/platform/client-templates";
+import { TIERS } from "@corelithzw/platform/feature-catalog";
+import { CLIENT_BUNDLE_TEMPLATES } from "@corelithzw/platform/client-templates";
 import { applyTextInput, useInputLock } from "../input-utils";
 import { SelectorList } from "./selector-list";
 import { WizardFrame } from "./wizard-frame";

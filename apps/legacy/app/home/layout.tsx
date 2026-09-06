@@ -3,7 +3,7 @@ import { seoPages } from "@/app/home/site-data";
 import {
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_TAGLINE,
-} from "@/lib/platform/brand";
+} from "@corelithzw/platform/brand";
 
 export const metadata: Metadata = {
   title: {

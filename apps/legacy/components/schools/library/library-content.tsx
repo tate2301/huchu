@@ -27,7 +27,7 @@ import {
 } from "@/components/schools/common/states";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
 import { BookCover } from "@/components/schools/library/book-cover";

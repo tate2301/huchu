@@ -10,7 +10,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { Input } from "@corelithzw/ui/components/input";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BarChart3, Package, ReceiptLong } from "@corelithzw/ui/lib/icons";
 
 type CatalogItem = {

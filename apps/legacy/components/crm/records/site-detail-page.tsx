@@ -9,7 +9,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Building2,

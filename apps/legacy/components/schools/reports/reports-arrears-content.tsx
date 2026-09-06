@@ -34,7 +34,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * Arrears Aging Report — who is behind, and by how long.

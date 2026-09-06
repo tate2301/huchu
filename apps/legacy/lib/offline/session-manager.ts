@@ -10,7 +10,7 @@
  */
 
 import { useEffect, useState, useCallback, useRef } from "react";
-import type { AuthSessionClaims } from "@/lib/auth-core/types";
+import type { AuthSessionClaims } from "@corelithzw/platform/auth-core/types";
 import {
   getRecord,
   putRecord,

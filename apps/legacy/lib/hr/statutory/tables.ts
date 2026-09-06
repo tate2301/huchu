@@ -34,7 +34,7 @@ import {
   taxOn,
   ZERO,
   type MoneyLike,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 
 /** Anything Prisma-shaped we can read through, including a transaction. */
 type Db = typeof prisma | Prisma.TransactionClient;

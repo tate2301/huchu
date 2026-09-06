@@ -1,4 +1,4 @@
-import { buildPortalHost } from "@/lib/platform/portal-hosts";
+import { buildPortalHost } from "@corelithzw/platform/portal-hosts";
 
 export const POS_PUBLIC_PATHS = [
   "/",

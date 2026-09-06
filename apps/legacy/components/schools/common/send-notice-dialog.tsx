@@ -8,7 +8,7 @@ import { Label } from "@corelithzw/ui/components/label";
 import { Input } from "@corelithzw/ui/components/input";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * Writing to a set of families the screen has already named.

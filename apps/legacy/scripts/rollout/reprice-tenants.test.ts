@@ -16,7 +16,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
-import { getCompanyFeatureMap, grantBundleToCompany, syncEntitlementCatalog } from "@/lib/platform/entitlements";
+import { getCompanyFeatureMap, grantBundleToCompany, syncEntitlementCatalog } from "@corelithzw/platform/entitlements";
 import { prisma } from "@corelithzw/db/client";
 import {
   REPRICE_AUDIT_EVENT_TYPE,

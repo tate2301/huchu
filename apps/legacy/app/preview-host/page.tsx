@@ -8,14 +8,14 @@ import {
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
   getRealHostHeaderFromRequestHeaders,
-} from "@/lib/platform/tenant";
-import { getPortalHostPrefixes } from "@/lib/platform/portal-hosts";
+} from "@corelithzw/platform/tenant";
+import { getPortalHostPrefixes } from "@corelithzw/platform/portal-hosts";
 import {
   PREVIEW_HOST_PARAM,
   PREVIEW_TENANT_PARAM,
   isHostEnforcementBypassed,
   isPreviewHostOverrideEnabled,
-} from "@/lib/platform/preview-host";
+} from "@corelithzw/platform/preview-host";
 
 export const dynamic = "force-dynamic";
 

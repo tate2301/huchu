@@ -6,7 +6,7 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { emitPermitRiskNotification } from "@/lib/notifications";
 import { prisma } from "@corelithzw/db/client";
 

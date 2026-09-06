@@ -26,8 +26,8 @@ import {
   type NotificationListItem,
   type NotificationSeverity,
 } from "@/lib/api";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
+import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { canAccessCapabilityWithToken } from "@corelithzw/platform/gating/token-check";
 import { Bell, CheckCircle2, Loader2 } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 

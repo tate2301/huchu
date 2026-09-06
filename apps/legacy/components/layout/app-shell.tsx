@@ -8,7 +8,7 @@ import { AppSidebar } from "@/components/layout/app-sidebar";
 import { PageChromeProvider } from "@/components/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@corelithzw/ui/components/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
-import { isPublicPath } from "@/lib/public-routes";
+import { isPublicPath } from "@corelithzw/platform/public-routes";
 import { RecordPeekProvider } from "@/components/records/record-peek";
 import { RecordTrailProvider } from "@/components/records/record-trail";
 

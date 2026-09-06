@@ -31,7 +31,7 @@
 import { Prisma } from "@corelithzw/db";
 import { describe, expect, it } from "vitest";
 
-import { money } from "@/lib/money";
+import { money } from "@corelithzw/platform/money";
 import { calculateRetailCheckout } from "@/lib/retail/checkout";
 
 /** Exact to the cent, with both sides legible when it fails. */

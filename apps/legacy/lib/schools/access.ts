@@ -3,7 +3,7 @@ import {
   hasPersonaPermission,
   personaForRole,
   type PersonaCode,
-} from "@/lib/platform/personas";
+} from "@corelithzw/platform/personas";
 
 /**
  * Who may do what inside the campus module.

@@ -24,7 +24,7 @@ import {
   SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type SubmissionStatus = "SUBMITTED" | "LATE" | "RETURNED" | "RESUBMIT";

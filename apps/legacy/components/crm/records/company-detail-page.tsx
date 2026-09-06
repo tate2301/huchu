@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   Building2,

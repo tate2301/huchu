@@ -14,7 +14,7 @@ import {
   DialogTitle,
 } from "@corelithzw/ui/components/dialog";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import type { SchoolFeeStructureRecord } from "@/lib/schools/fees-v2";

@@ -1,13 +1,13 @@
 import { after } from "next/server";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
 import {
   enqueueDocumentRenderJob,
   processDocumentRenderJobsBatch,
   renderDocumentSync,
 } from "@/lib/documents/service";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 import {
   isSchoolDocumentSourceKey,
   SCHOOL_DOCUMENT_ACCESS,

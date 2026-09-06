@@ -7,7 +7,7 @@ import {
 } from "@/lib/accounting/posting";
 import { buildAccountingEventKey } from "@/lib/accounting/integration-keys";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
-import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { isPositive, money, sumMoney, toNumber, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

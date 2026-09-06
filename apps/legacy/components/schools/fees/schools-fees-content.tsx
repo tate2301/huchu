@@ -33,7 +33,7 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import {

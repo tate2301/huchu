@@ -6,7 +6,7 @@ import {
   fetchShiftGroupSchedules,
   fetchSites,
 } from "@/lib/api";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@/lib/offline/entity-store";
 import { getOfflineWarmupModuleIds } from "@/lib/offline/workflow-catalog";
 import {

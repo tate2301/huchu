@@ -45,7 +45,7 @@ import type {
   RetailCashMovementType,
 } from "@corelithzw/db";
 
-import { money, multiplyMoney, rate, sumMoney, toBaseAmount, type MoneyLike } from "@/lib/money";
+import { money, multiplyMoney, rate, sumMoney, toBaseAmount, type MoneyLike } from "@corelithzw/platform/money";
 import {
   RETAIL_CASH_MOVEMENT_DIRECTION,
   RETAIL_CASH_MOVEMENT_REASON_CODES,

@@ -22,7 +22,7 @@ import type { CrmLeadStage } from "@corelithzw/db";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 import {
   fetchCrmLeadsBoard,

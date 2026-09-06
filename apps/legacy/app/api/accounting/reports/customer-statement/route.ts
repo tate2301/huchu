@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { toMoney } from "@/lib/accounting/ledger";
 

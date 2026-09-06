@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import type { AuthenticatedSession } from "@/lib/api-utils";
+import type { AuthenticatedSession } from "@corelithzw/platform/api-utils";
 import type { CollabRecord } from "@/lib/crm/collaboration";
 import { canUser, type CrmCapability } from "@/lib/crm/permissions";
 import { prisma } from "@corelithzw/db/client";

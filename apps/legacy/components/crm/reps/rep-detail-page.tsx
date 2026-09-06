@@ -12,7 +12,7 @@ import {
 } from "@/components/crm/leads/stage-config";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   Calendar,
   Checklist,

@@ -53,12 +53,12 @@ import {
   fetchEmployees,
   fetchJobGrades,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   getEmployeePositionOptions,
   type EmployeePositionValue,
-} from "@/lib/platform/vertical-defaults";
-import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles";
+} from "@corelithzw/platform/vertical-defaults";
+import { resolveWorkspaceProfileForRoles } from "@corelithzw/platform/vertical-roles";
 
 type ProfileForm = {
   employeeId: string;

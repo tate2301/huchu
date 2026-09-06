@@ -1,4 +1,4 @@
 export {
   buildCallbackLoginPath,
   normalizeCallbackUrl,
-} from "@/lib/auth-core/redirects";
+} from "@corelithzw/platform/auth-core/redirects";

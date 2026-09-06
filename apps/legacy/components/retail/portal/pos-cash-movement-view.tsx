@@ -39,7 +39,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Dialog, DialogContent, DialogFooter } from "@corelithzw/ui/components/dialog";
 import { Input } from "@corelithzw/ui/components/input";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Coins, Download, Minus, Plus, Upload, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import {
   RETAIL_CASH_MOVEMENT_LABELS,

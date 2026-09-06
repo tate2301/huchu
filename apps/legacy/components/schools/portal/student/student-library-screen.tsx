@@ -14,7 +14,7 @@ import {
 } from "@/components/schools/common/states";
 import { BookCover } from "@/components/schools/library/book-cover";
 import { Clock, Info, MedusaBookOpenIcon, Search } from "@corelithzw/ui/lib/icons";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useStudentPortal } from "./student-portal-context";
 
 type Book = {

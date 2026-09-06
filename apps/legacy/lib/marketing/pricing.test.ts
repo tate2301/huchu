@@ -8,7 +8,7 @@ import {
   VERTICAL_EDITION_TIERS,
   WEDGE_BUNDLES,
   getBundleDefinition,
-} from "@/lib/platform/feature-catalog";
+} from "@corelithzw/platform/feature-catalog";
 import {
   MARKETING_ADD_ONS,
   MARKETING_TIERS,

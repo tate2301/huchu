@@ -24,9 +24,9 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { PermissionMatrix } from "@/components/user-management/permission-matrix";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowLeft, RefreshCcw, ShieldCheck, Trash2, UserCheck, UserX } from "@corelithzw/ui/lib/icons";
-import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
+import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";
 import {
   changeManagedUserRole,
   deleteManagedUser,
@@ -39,7 +39,7 @@ import {
   type ManagedUserRole,
   type PermissionEntry,
   type PermissionState,
-} from "@/lib/user-management-api";
+} from "@corelithzw/platform/user-management-api";
 
 const ACCOUNT_EVENT_LABELS: Record<string, string> = {
   USER_CREATE: "Account created",

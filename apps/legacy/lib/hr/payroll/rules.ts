@@ -1,5 +1,5 @@
 import type { CompensationCalcMethod } from "@corelithzw/db"
-import { clampAtZero, minMoney, money, taxOn, type MoneyLike } from "@/lib/money"
+import { clampAtZero, minMoney, money, taxOn, type MoneyLike } from "@corelithzw/platform/money"
 
 /**
  * A single compensation rule, applied.

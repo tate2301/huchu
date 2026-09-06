@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import {
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_DESCRIPTION,
-} from "@/lib/platform/brand";
+} from "@corelithzw/platform/brand";
 import {
   LAUNCH_SPRINT_COPY,
   LAUNCH_SPRINT_DAYS,
@@ -16,8 +16,8 @@ export type JsonLd = Record<string, unknown>;
 // Moved to `lib/site-url.ts` so the root layout can build `metadataBase`
 // without compiling the pricing tables below. Re-exported for the marketing
 // pages that already import them from here.
-export { getSiteUrl, absoluteUrl } from "@/lib/site-url";
-import { getSiteUrl, absoluteUrl } from "@/lib/site-url";
+export { getSiteUrl, absoluteUrl } from "@corelithzw/platform/site-url";
+import { getSiteUrl, absoluteUrl } from "@corelithzw/platform/site-url";
 
 export type MarketingMetadataInput = {
   title: string;

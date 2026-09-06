@@ -1,7 +1,7 @@
 import { AttendanceStatus } from "@corelithzw/db";
 
-import type { AuthenticatedSession } from "@/lib/auth-core/types";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import type { AuthenticatedSession } from "@corelithzw/platform/auth-core/types";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
 
 /**
  * The attendance statuses, once, from the schema.

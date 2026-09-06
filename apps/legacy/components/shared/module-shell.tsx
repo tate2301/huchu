@@ -4,12 +4,12 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
 import { NavRail, NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
-import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { getNavSectionsForRole } from "@/lib/navigation";
 import {
   getWorkspaceModulePresentation,
   type WorkspaceModuleId,
-} from "@/lib/workspace-products";
+} from "@corelithzw/platform/workspace-products";
 import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /**

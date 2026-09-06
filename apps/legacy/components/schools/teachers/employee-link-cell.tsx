@@ -7,7 +7,7 @@ import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/a
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   fetchEmployeeSuggestions,
   linkTeacherEmployee,

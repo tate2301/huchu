@@ -52,7 +52,7 @@ import {
   updatePayrollConfig,
   type PayrollRunRecord,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 

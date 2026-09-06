@@ -25,7 +25,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchEmployees, fetchGoldPours, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldPourRow = Awaited<ReturnType<typeof fetchGoldPours>>["data"][number];
 

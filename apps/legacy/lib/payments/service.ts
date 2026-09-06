@@ -15,8 +15,8 @@
  */
 import { Prisma } from "@corelithzw/db";
 
-import { writePlatformAuditEvent } from "@/lib/audit/platform";
-import { money } from "@/lib/money";
+import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform";
+import { money } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import {
   PAYMENT_STATUS,

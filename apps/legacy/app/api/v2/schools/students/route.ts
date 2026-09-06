@@ -7,9 +7,9 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { buildCustomFieldValues } from "@/lib/crm/custom-fields";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import {

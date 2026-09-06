@@ -9,7 +9,7 @@ import { Alert, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
 import { Button } from "@corelithzw/ui/components/button";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Coins, TableRows } from "@corelithzw/ui/lib/icons";
 
 /**

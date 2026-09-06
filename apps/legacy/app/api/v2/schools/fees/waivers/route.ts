@@ -7,7 +7,7 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";

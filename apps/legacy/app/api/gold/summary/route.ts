@@ -3,7 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { getLatestGoldPriceSnapshot } from "@/lib/gold/valuation"
 import { getOnHandGrams } from "@/lib/gold/inventory"

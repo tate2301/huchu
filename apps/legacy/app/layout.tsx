@@ -19,19 +19,19 @@ import {
   PLATFORM_APP_DESCRIPTION,
   PLATFORM_BRAND_NAME,
   PLATFORM_MARKETING_TAGLINE,
-} from "@/lib/platform/brand";
+} from "@corelithzw/platform/brand";
 import {
   getBrandingCssVariables,
   getEffectiveBrandingForHost,
-} from "@/lib/platform/branding";
+} from "@corelithzw/platform/branding";
 import { authOptions } from "@/lib/auth";
-import { getSiteUrl } from "@/lib/site-url";
-import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@/lib/platform/tenant";
+import { getSiteUrl } from "@corelithzw/platform/site-url";
+import { getHostHeaderFromRequestHeaders, getPlatformHostContext } from "@corelithzw/platform/tenant";
 import {
   buildWorkspaceIconHref,
   buildWorkspaceManifestHref,
   resolveWorkspaceIdentityForHost,
-} from "@/lib/platform/workspace-identity";
+} from "@corelithzw/platform/workspace-identity";
 
 export async function generateMetadata(): Promise<Metadata> {
   const requestHeaders = await headers();

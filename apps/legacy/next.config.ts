@@ -22,7 +22,7 @@ const chromiumBinaries = [
 const nextConfig: NextConfig = {
   outputFileTracingRoot: workspaceRoot,
   // Workspace packages ship TypeScript source; Next compiles them like app code.
-  transpilePackages: ["@corelithzw/db", "@corelithzw/ui"],
+  transpilePackages: ["@corelithzw/db", "@corelithzw/ui", "@corelithzw/platform"],
   experimental: {
     // Phosphor is not in Next's built-in optimizePackageImports list. Its SSR
     // barrel re-exports 1,513 modules and lib/icons.tsx imports the barrel, so

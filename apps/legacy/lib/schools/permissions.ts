@@ -1,4 +1,4 @@
-import { hasPersonaPermission, personaForRole } from "@/lib/platform/personas";
+import { hasPersonaPermission, personaForRole } from "@corelithzw/platform/personas";
 
 /**
  * What a member of school staff may do.

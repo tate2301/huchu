@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@corelithzw/platform/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { emitWorkOrderStatusNotification } from '@/lib/notifications';
 import { prisma } from '@corelithzw/db/client';

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { BarChart3, Clock, History, Package, Payments, Wallet } from "@corelithzw/ui/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {

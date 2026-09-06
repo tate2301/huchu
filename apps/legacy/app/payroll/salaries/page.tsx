@@ -25,7 +25,7 @@ import {
   fetchPayrollPeriods,
   fetchPayrollRuns,
 } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+import { getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 export default function HrSalariesPage() {
   const [activeView, setActiveView] = useState<"periods" | "awaiting" | "batches" | "lines">("periods")

@@ -4,10 +4,10 @@ import {
   type TeacherDay,
 } from "@/components/schools/portal/teacher/teacher-portal-context";
 import { TeacherPortalShell } from "@/components/schools/portal/teacher/teacher-portal-shell";
-import { requirePageAuth } from "@/lib/auth-core/guards";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 import { loadTeacherDay } from "@/lib/schools/teacher-day-loader";
-import { serializeDecimals } from "@/lib/serialize-decimals";
+import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**
  * Everything under `/portal/teacher` gets the portal's own shell.

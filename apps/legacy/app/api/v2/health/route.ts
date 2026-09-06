@@ -1,4 +1,4 @@
-import { errorResponse, successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { V2SuccessPayload } from "../_shared";
 
 type V2HealthData = {

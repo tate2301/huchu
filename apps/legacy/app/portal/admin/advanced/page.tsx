@@ -1,6 +1,6 @@
 import { AdminShell } from "@/components/admin-portal/shell/admin-shell";
 import { OperationsPage } from "@/components/admin-portal/pages/operations-page";
-import { requireAdminPortalSession } from "@/lib/admin-portal/server";
+import { requireAdminPortalSession } from "@corelithzw/platform/admin-portal/server";
 
 export default async function AdminAdvancedRoute() {
   const session = await requireAdminPortalSession();

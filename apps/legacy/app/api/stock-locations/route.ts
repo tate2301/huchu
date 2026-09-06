@@ -5,10 +5,10 @@ import {
   errorResponse,
   getPaginationParams,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 
 const stockLocationSchema = z.object({
   code: z.string().min(1).max(50).optional(),

@@ -17,7 +17,7 @@ import {
 } from "@/components/schools/common/states";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 
 /**

@@ -33,7 +33,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, FileText, Payments } from "@corelithzw/ui/lib/icons";
 
 /**

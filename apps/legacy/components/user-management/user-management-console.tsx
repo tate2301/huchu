@@ -37,8 +37,8 @@ import {
   resetManagedUserPassword,
   setManagedUserStatus,
   type ManagedUserRole,
-} from "@/lib/user-management-api";
-import { getApiErrorMessage } from "@/lib/api-client";
+} from "@corelithzw/platform/user-management-api";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ArrowRightLeft,
   CheckCircle2,
@@ -49,8 +49,8 @@ import {
   ShieldCheck,
   UserX,
 } from "@corelithzw/ui/lib/icons";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
-import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
+import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";
 
 export type UserManagementMode =
   | "directory"

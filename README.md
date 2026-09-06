@@ -42,6 +42,7 @@ the monolith without changing what runs in production.
 | `apps/legacy/` | The application as it ships today — every module in one Next.js host. Renamed to `apps/enterprise` once the products have their own hosts. |
 | `packages/db/` | The database: one Prisma schema split one file per module, one generated client, one migration history. Import `@corelithzw/db` for types and enums, `@corelithzw/db/client` for the connection. |
 | `packages/ui/` | The design-system layer: wrappers around `@corelithzw/react`, charts, icons, hooks, `cn`. Domain-free. Import by path: `@corelithzw/ui/components/button`. |
+| `packages/platform/` | The kernel: tenancy and entitlements, feature gating, the auth core and guards, roles, API utilities, money, ids, uploads, preferences. Depends on `packages/db` only. Import by path: `@corelithzw/platform/api-utils`. The host fills its registries at boot in `apps/legacy/modules.ts`. |
 | `packages/config/` | Shared TypeScript presets. |
 | `packages/modules/` | Where the shared and product modules land as they are extracted (Phase 2). |
 | `scripts/` | Repository-level tooling: the agent guardrail hooks. Operational scripts live in `apps/legacy/scripts/`. |

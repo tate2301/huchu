@@ -82,7 +82,7 @@ import {
   toBaseAmount,
   ZERO,
   type MoneyLike,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 import {
   contributionOn,
   creditValue,

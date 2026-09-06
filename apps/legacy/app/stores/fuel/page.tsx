@@ -17,7 +17,7 @@ import {
 } from "@corelithzw/ui/components/card";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { Fuel } from "@corelithzw/ui/lib/icons";

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
 import { prisma } from "@corelithzw/db/client";
 

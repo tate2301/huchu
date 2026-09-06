@@ -1,10 +1,10 @@
 import dns from "node:dns/promises";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getBrandingFeatureKeys, normalizeHostnameInput } from "@/lib/platform/branding";
-import { hasFeature } from "@/lib/platform/features";
+import { getBrandingFeatureKeys, normalizeHostnameInput } from "@corelithzw/platform/branding";
+import { hasFeature } from "@corelithzw/platform/features";
 
 export const runtime = "nodejs";
 

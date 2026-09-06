@@ -13,7 +13,7 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Camera, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import {
   fetchCrmVisitReport,

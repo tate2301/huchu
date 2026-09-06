@@ -1,4 +1,4 @@
-import { errorResponse } from "@/lib/api-response";
+import { errorResponse } from "@corelithzw/platform/api-response";
 import {
   consentDeniedMessage,
   getGuardianChildLink,

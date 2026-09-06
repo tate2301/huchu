@@ -56,13 +56,13 @@ import {
   fetchJobGrades,
   type EmployeeSummary,
 } from "@/lib/api"
-import { fetchJson, getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client"
+import { fetchJson, getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client"
 import {
   getDefaultEmployeePosition,
   getEmployeePositionOptions,
   type EmployeePositionValue,
-} from "@/lib/platform/vertical-defaults"
-import { resolveWorkspaceProfileForRoles } from "@/lib/platform/vertical-roles"
+} from "@corelithzw/platform/vertical-defaults"
+import { resolveWorkspaceProfileForRoles } from "@corelithzw/platform/vertical-roles"
 
 // The labels come from the shared directory rather than being written again
 // here, so the sheet that sets somebody's employment type and the column that

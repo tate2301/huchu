@@ -28,7 +28,7 @@ import { NotificationCenter } from "@/components/notifications/notification-cent
 import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { navSections } from "@/lib/navigation";
 import { cn } from "@corelithzw/ui/lib/utils";
-import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
+import { canAccessCapabilityWithToken } from "@corelithzw/platform/gating/token-check";
 
 /**
  * The icon the sidebar shows for this route, so a page that has not declared

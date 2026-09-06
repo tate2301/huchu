@@ -8,7 +8,7 @@ import {
   NothingYet,
 } from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 import { CalendarCheck } from "@corelithzw/ui/lib/icons";
 

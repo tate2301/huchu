@@ -2,13 +2,13 @@ import bcrypt from "bcryptjs";
 import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "../prisma";
-import { FEATURE_BUNDLES, FEATURE_CATALOG } from "../../../lib/platform/feature-catalog";
+import { FEATURE_BUNDLES, FEATURE_CATALOG } from "@corelithzw/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateDefinition,
   getClientTemplateFeatureKeys,
-} from "../../../lib/platform/client-templates";
+} from "@corelithzw/platform/client-templates";
 import type {
   AdminRole,
   OrganizationResolveItem,

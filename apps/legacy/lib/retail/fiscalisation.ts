@@ -94,7 +94,7 @@
  * silently redates a sale to make it fit.
  */
 import type { RetailSale, RetailSaleLine } from "@corelithzw/db";
-import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { money, percent, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import {
   FiscalMappingError,

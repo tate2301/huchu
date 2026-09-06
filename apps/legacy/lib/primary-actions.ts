@@ -1,10 +1,10 @@
 import type { NavItem } from "@/lib/navigation";
-import { hasRole } from "@/lib/roles";
-import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { hasRole } from "@corelithzw/platform/roles";
+import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import {
   resolveWorkspaceVerticalProductBundle,
   type VerticalProductId,
-} from "@/lib/workspace-products";
+} from "@corelithzw/platform/workspace-products";
 import {
   BarChart3,
   ArrowDownward,

@@ -6,7 +6,7 @@ import {
   getPaginationParams,
   hasRole,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
@@ -18,7 +18,7 @@ import {
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"
 import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
 

@@ -27,6 +27,7 @@ what a product host will need when Phase 3 cuts the first product out.
 | Environment variables | — | Unchanged; no new variable is required | None |
 | The database | — | Unchanged | None |
 | Session cookies, auth, feature gates | — | Unchanged | None |
+| Boot (Phase 2.2) | Nothing registered at start-up | `apps/legacy/instrumentation.ts` imports `modules.ts` once per Node.js server start, which registers NextAuth's options and the CRM's capability set with the kernel (`packages/platform`) | None: `instrumentation.ts` is a standard Next.js file, runs on every cold start of a Vercel function, and needs no configuration. If a request ever fails with `No auth options registered`, the registration did not run: check the instrumentation file is present and the runtime is `nodejs` |
 
 Everything above the line "Domains" is a build-and-deploy concern. Nothing a tenant sees
 changes.
@@ -199,6 +200,10 @@ result, so a run still answers whether the app builds.
   its own package when present.
 - `pnpm test` needs Postgres with the migrations applied, as before:
   `pnpm db:migrate:deploy` against the test database, then `DATABASE_URL_TEST` in `.env`.
+- The kernel (`packages/platform`), the design-system layer (`packages/ui`) and the database
+  (`packages/db`) are workspace packages the app imports by path. Each has its own
+  `typecheck`, `lint` and `test` scripts; `pnpm test` at the root runs all of them. The kernel's
+  own tests need the same `DATABASE_URL_TEST` as the app's (one of them provisions a company).
 - `apps/legacy` typechecks in about the same time as before; the split schema alone does
   not shrink the type-check, because the app still imports the whole client. That gain
   arrives with per-package project references as modules are extracted (Phase 2).

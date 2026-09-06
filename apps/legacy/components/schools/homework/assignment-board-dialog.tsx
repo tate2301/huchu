@@ -9,7 +9,7 @@ import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 type SubmissionStatus = "DRAFT" | "SUBMITTED" | "LATE" | "RETURNED";
 

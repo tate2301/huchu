@@ -24,7 +24,7 @@ import {
   type Site,
   updateSite,
 } from "@/lib/api";
-import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 import { Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 

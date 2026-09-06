@@ -26,7 +26,7 @@ import {
   TableHeader,
   TableRow,
 } from "@corelithzw/ui/components/table";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * Who is off, and what they have left.

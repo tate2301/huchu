@@ -1,0 +1,132 @@
+import {
+  getAllowedHostsForCompany,
+  getTenantClaimsForCompany,
+} from "../tenant";
+import { getEnabledFeatureKeys } from "../entitlements";
+import { getEffectiveFeaturesForUser } from "../user-entitlements";
+import { getSubscriptionHealth } from "../subscription";
+import { buildAuthExpiresAt, resolvePolicyForStrategy } from "./session-policy";
+import type { AuthenticatedSession, PlatformJwtClaims } from "./types";
+import {
+  inferWorkspaceProfileFromEnabledFeatures,
+  normalizeWorkspaceProfileInput,
+} from "../workspace-products";
+
+function toTenantStatus(rawStatus: string | undefined, subscriptionActive: boolean): string {
+  const normalizedStatus = rawStatus?.trim().toUpperCase();
+
+  if (normalizedStatus && normalizedStatus !== "ACTIVE") {
+    return normalizedStatus;
+  }
+
+  return subscriptionActive ? "ACTIVE" : "SUBSCRIPTION_INACTIVE";
+}
+
+function resolveWorkspaceProfileClaim(args: {
+  claimedWorkspaceProfile: string | undefined;
+  role: string | undefined;
+  enabledFeatures: string[];
+}) {
+  const claimedProfile =
+    normalizeWorkspaceProfileInput(args.claimedWorkspaceProfile) ?? undefined;
+  const inferredProfile =
+    inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures) ?? undefined;
+  const normalizedRole = args.role?.trim().toUpperCase();
+  const preferInferredRetailProfile =
+    inferredProfile === "RETAIL" &&
+    (normalizedRole === "CASHIER" ||
+      normalizedRole === "POS_CASHIER" ||
+      normalizedRole === "SHOP_MANAGER" ||
+      normalizedRole === "STOCK_CLERK");
+
+  if (preferInferredRetailProfile) {
+    return inferredProfile;
+  }
+
+  if (!claimedProfile || claimedProfile === "GENERAL") {
+    return inferredProfile ?? claimedProfile;
+  }
+
+  return claimedProfile;
+}
+
+export function buildInitialTokenClaims(input: {
+  id: string;
+  role?: string;
+  companyId?: string;
+  authStrategy?: "credentials" | "admin-email-link" | "email-link" | "otp";
+  rememberMe?: boolean;
+}): PlatformJwtClaims {
+  const sessionPolicy = resolvePolicyForStrategy(input.authStrategy, input.rememberMe === true);
+
+  return {
+    id: input.id,
+    ...(input.role ? { role: input.role } : {}),
+    ...(input.companyId ? { companyId: input.companyId } : {}),
+    ...(input.authStrategy ? { authStrategy: input.authStrategy } : {}),
+    sessionPolicy,
+    rememberMe: sessionPolicy === "remember",
+    authExpiresAt: buildAuthExpiresAt(sessionPolicy),
+  };
+}
+
+export async function enrichTokenClaims(token: PlatformJwtClaims): Promise<PlatformJwtClaims> {
+  if (!token.companyId) {
+    return token;
+  }
+
+  const tenantClaims = await getTenantClaimsForCompany(token.companyId);
+  const [subscriptionHealth, enabledFeatures, allowedHosts] = await Promise.all([
+    getSubscriptionHealth(token.companyId),
+    token.id && token.role
+      ? getEffectiveFeaturesForUser({
+          companyId: token.companyId,
+          userId: token.id,
+          role: token.role,
+        })
+      : getEnabledFeatureKeys(token.companyId),
+    getAllowedHostsForCompany(token.companyId),
+  ]);
+  const subscriptionActive = !subscriptionHealth.shouldBlock;
+
+  token.companySlug = tenantClaims.companySlug;
+  token.tenantStatus = toTenantStatus(tenantClaims.tenantStatus, subscriptionActive);
+  // A CLERK on a scrap tenant used to be promoted to OPERATOR here so the
+  // yard screens would open for them. Scrap is gone (ST-2.3) and no surviving
+  // feature justifies rewriting a signed-in user's role, so the claim is now
+  // whatever the database says it is.
+  token.workspaceProfile = resolveWorkspaceProfileClaim({
+    claimedWorkspaceProfile: tenantClaims.workspaceProfile ?? undefined,
+    role: token.role,
+    enabledFeatures,
+  });
+  token.subscriptionHealth = subscriptionHealth.state;
+  token.enabledFeatures = enabledFeatures;
+  token.allowedHosts = allowedHosts;
+
+  return token;
+}
+
+export function applyTokenToSessionClaims(
+  session: AuthenticatedSession,
+  token: PlatformJwtClaims,
+): AuthenticatedSession {
+  session.user = {
+    ...session.user,
+    id: token.id ?? session.user.id,
+    role: token.role ?? session.user.role,
+    companyId: token.companyId ?? session.user.companyId,
+    authStrategy: token.authStrategy,
+    sessionPolicy: token.sessionPolicy,
+    authExpiresAt: token.authExpiresAt,
+    rememberMe: token.rememberMe,
+    companySlug: token.companySlug,
+    tenantStatus: token.tenantStatus,
+    workspaceProfile: token.workspaceProfile,
+    enabledFeatures: token.enabledFeatures,
+    subscriptionHealth: token.subscriptionHealth,
+    allowedHosts: token.allowedHosts,
+  };
+
+  return session;
+}

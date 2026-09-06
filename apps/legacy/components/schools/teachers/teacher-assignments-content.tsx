@@ -21,7 +21,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@corelithzw/ui/components/data-table";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 
 /**

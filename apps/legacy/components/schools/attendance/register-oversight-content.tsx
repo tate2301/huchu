@@ -22,7 +22,7 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { RegisterFormDialog, type RegisterDraft } from "@/components/schools/attendance/register-form-dialog";
 
 /**

@@ -3,8 +3,8 @@
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
-import { CLIENT_BUNDLE_TEMPLATES, getClientTemplateBundleCodes } from "@/lib/platform/client-templates";
-import { getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
+import { CLIENT_BUNDLE_TEMPLATES, getClientTemplateBundleCodes } from "@corelithzw/platform/client-templates";
+import { getBundleDefinition, getTierDefinition } from "@corelithzw/platform/feature-catalog";
 
 // Derived from the canonical template catalog so admin copy can never drift
 // from what a template actually provisions.

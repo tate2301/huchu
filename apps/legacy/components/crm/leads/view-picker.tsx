@@ -17,7 +17,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronDown, DotsThree, Kanban, ListBullets, Plus, Users } from "@corelithzw/ui/lib/icons";
 import {
   createCrmSavedView,

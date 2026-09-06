@@ -32,7 +32,7 @@ import {
 } from "@/components/schools/common/states";
 import { TeacherAssignmentsPanel } from "@/components/schools/teachers/teacher-assignments-panel";
 import { TeacherEmployeePanel } from "@/components/schools/teachers/teacher-employee-panel";
-import { ApiError, fetchJson } from "@/lib/api-client";
+import { ApiError, fetchJson } from "@corelithzw/platform/api-client";
 import {
   Badge,
   Buildings,

@@ -10,4 +10,4 @@
  * churning them all buys nothing. New code outside `lib/schools/` should import
  * `@/lib/money` directly.
  */
-export * from "@/lib/money";
+export * from "@corelithzw/platform/money";

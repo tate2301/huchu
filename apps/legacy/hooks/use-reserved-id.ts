@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { reserveEntityId, type ReserveIdEntity } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type UseReservedIdOptions = {
   entity: ReserveIdEntity;

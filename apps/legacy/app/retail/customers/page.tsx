@@ -22,7 +22,7 @@ import {
 } from "@corelithzw/ui/components/mobile-list-card";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Payments, ReceiptLong, Users } from "@corelithzw/ui/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type CustomerRow = {
   customerId: string | null;

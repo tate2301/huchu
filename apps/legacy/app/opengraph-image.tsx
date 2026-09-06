@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-import { PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@/lib/platform/brand";
+import { PLATFORM_BRAND_NAME, PLATFORM_MARKETING_DOMAIN } from "@corelithzw/platform/brand";
 import {
   LAUNCH_SPRINT_DAYS,
   STARTING_MONTHLY_PRICE,

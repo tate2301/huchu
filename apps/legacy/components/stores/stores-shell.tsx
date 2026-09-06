@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
-import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import {
   ArrowDownward,
   ArrowUpward,
@@ -19,8 +19,8 @@ import {
   TableRows,
 } from "@corelithzw/ui/lib/icons";
 import type { LucideIcon } from "@corelithzw/ui/lib/icons";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
-import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
+import { getWorkspaceModulePresentation } from "@corelithzw/platform/workspace-products";
+import { resolveVerticalDefaults } from "@corelithzw/platform/vertical-defaults";
 
 import {
   StockMovementDialog,

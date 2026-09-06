@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Card, EmptyState, Skeleton, StatHero, Stack } from "@corelithzw/react";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@corelithzw/ui/components/tabs";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { CRM_CHANNEL_LABELS } from "@/lib/crm/sources";
 import { REPORT_RANGES, formatRate, type ReportRange } from "@/lib/crm/reports";
 import { MobileRow, MobileRows } from "@/components/crm/records/mobile-rows";

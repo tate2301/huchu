@@ -1,4 +1,4 @@
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 import { recordType, type RecordType } from "@/lib/records/registry";
 import { schoolPermissionDenial, type SessionLike } from "@/lib/schools/permissions";
 

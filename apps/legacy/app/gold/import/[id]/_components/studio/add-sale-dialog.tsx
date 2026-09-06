@@ -11,7 +11,7 @@ import {
 import { Button } from "@corelithzw/ui/components/button";
 import { Label } from "@corelithzw/ui/components/label";
 import { cn } from "@corelithzw/ui/lib/utils";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 type PlannedBatch = {
   pourId: string;

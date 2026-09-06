@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { z } from "zod"
-import { reserveIdentifier } from "@/lib/id-generator"
-import { exceeds, multiplyMoney, quantity, ZERO } from "@/lib/money"
+import { reserveIdentifier } from "@corelithzw/platform/id-generator"
+import { exceeds, multiplyMoney, quantity, ZERO } from "@corelithzw/platform/money"
 
 const inventoryItemUpdateSchema = z
   .object({

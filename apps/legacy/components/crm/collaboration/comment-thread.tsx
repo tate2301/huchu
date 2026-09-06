@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, EmptyState } from "@corelithzw/react";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   createCrmComment,
   deleteCrmComment,

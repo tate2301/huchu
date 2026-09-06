@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 
 const costCenterSchema = z.object({
   code: z.string().min(1).max(20).optional(),

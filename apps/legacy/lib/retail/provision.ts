@@ -1,5 +1,5 @@
 import { prisma } from "@corelithzw/db/client";
-import { money, percent } from "@/lib/money";
+import { money, percent } from "@corelithzw/platform/money";
 import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
 import { upsertShelfListing } from "@/lib/retail/shelf-listing";
 import { getRetailSetupProfile, saveRetailSetupProfile } from "@/lib/retail/setup-profile";

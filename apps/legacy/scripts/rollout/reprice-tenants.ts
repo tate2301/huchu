@@ -1,11 +1,11 @@
 import "@/scripts/lib/env";
 
-import { writePlatformAuditEvent } from "@/lib/audit/platform";
+import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform";
 import {
   computeCompanyPricing,
   getCompanyFeatureMap,
   grantBundleToCompany,
-} from "@/lib/platform/entitlements";
+} from "@corelithzw/platform/entitlements";
 import {
   ANNUAL_DISCOUNT_RATE,
   FEATURE_BUNDLES,
@@ -14,8 +14,8 @@ import {
   getBundleDefinition,
   getTierDefinition,
   type TierDefinition,
-} from "@/lib/platform/feature-catalog";
-import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
+} from "@corelithzw/platform/feature-catalog";
+import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import { prisma } from "@corelithzw/db/client";
 
 /**

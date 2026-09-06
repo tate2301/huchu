@@ -5,7 +5,7 @@ import {
   errorResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
 import { prisma } from "@corelithzw/db/client"

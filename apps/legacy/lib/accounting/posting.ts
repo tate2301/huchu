@@ -16,7 +16,7 @@ import { getNextEntryNumber, toMoney } from "@/lib/accounting/ledger";
 import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
 import { syncPaymentLedgerEntryForSource } from "@/lib/accounting/payment-ledger";
 import { buildRetailPostingPayload } from "@/lib/accounting/retail-posting";
-import { toNumber, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { toNumber, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 
 const BALANCE_TOLERANCE = 0.01;
 const BASE_RETRY_DELAY_MINUTES = 5;

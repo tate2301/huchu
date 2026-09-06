@@ -6,9 +6,9 @@ import {
   errorResponse,
   getPaginationParams,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { toNumberOrZero } from "@/lib/money"
+import { toNumberOrZero } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
@@ -16,13 +16,13 @@ import {
   EMPLOYEE_POSITION_VALUES,
   getDefaultEmployeePosition,
   getEmployeePositionOptions,
-} from "@/lib/platform/vertical-defaults"
+} from "@corelithzw/platform/vertical-defaults"
 import {
   getAllowedUserRolesForWorkspace,
   resolveWorkspaceProfileForEmployeeModule,
   resolveWorkspaceProfileForRoles,
-} from "@/lib/platform/vertical-roles"
-import { ROLES, type UserRole } from "@/lib/roles"
+} from "@corelithzw/platform/vertical-roles"
+import { ROLES, type UserRole } from "@corelithzw/platform/roles"
 import { EmployeeModule, Prisma } from "@corelithzw/db"
 
 const EMPLOYEE_MODULE_INPUT_VALUES = [

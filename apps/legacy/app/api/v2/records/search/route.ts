@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getFeatureMap } from "@/lib/platform/features";
+import { getFeatureMap } from "@corelithzw/platform/features";
 import { hrPermissionDenial } from "@/lib/hr/permissions";
 import { GOLD_SEARCH_FEATURES, GOLD_SEARCH_TYPES, type GoldSearchType } from "@/lib/gold/search";
 import {

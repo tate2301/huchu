@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { fieldOptionSchema } from "@/lib/crm/custom-fields";
 import { prisma } from "@corelithzw/db/client";
 import { SCHOOL_RECORD_TYPES } from "@/lib/records/registry";

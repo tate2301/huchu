@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
 import { postPayrollRun } from "@/lib/hr/payroll/posting"
-import { writePlatformAuditEvent } from "@/lib/audit/platform"
-import { createRouteLogger } from "@/lib/observability/route-logger"
+import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform"
+import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 
 export async function POST(
   request: NextRequest,

@@ -34,11 +34,11 @@ import {
   TIERS,
   BUNDLE_DEPENDENCIES,
   getTierDefinition,
-} from "@/lib/platform/feature-catalog";
+} from "@corelithzw/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateDefinition,
-} from "@/lib/platform/client-templates";
+} from "@corelithzw/platform/client-templates";
 import { computeMonthlyTotal } from "@/components/admin-portal/pages/client-data";
 import { executeOperation } from "@/components/admin-portal/api";
 import type {

@@ -25,7 +25,7 @@ import {
   type JobGradeRecord,
   updateJobGrade,
 } from "@/lib/api";
-import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type GradeFormState = {

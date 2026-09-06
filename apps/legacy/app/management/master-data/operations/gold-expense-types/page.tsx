@@ -26,7 +26,7 @@ import {
   type GoldExpenseType,
   updateGoldExpenseType,
 } from "@/lib/api";
-import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldExpenseTypeFormState = {
   name: string;

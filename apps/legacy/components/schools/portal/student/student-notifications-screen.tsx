@@ -11,7 +11,7 @@ import {
   SavingOverlay,
 } from "@/components/schools/common/states";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
-import { isFeatureDisabledError } from "@/lib/api-client";
+import { isFeatureDisabledError } from "@corelithzw/platform/api-client";
 import {
   archiveNotifications,
   fetchNotifications,

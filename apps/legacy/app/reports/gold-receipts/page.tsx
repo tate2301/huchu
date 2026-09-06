@@ -18,7 +18,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { fetchGoldReceipts, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldReceiptReportRow = {
   id: string;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../../_helpers";

@@ -6,11 +6,11 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
-import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
+import { EMPLOYEE_POSITION_VALUES } from "@corelithzw/platform/vertical-defaults"
 
 const templateSchema = z.object({
   name: z.string().trim().min(1).max(200),

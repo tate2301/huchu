@@ -2,8 +2,8 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { clearUserFeatureOverrides } from "@/lib/platform/user-entitlements";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { clearUserFeatureOverrides } from "@corelithzw/platform/user-entitlements";
 import { prisma } from "@corelithzw/db/client";
 
 import {

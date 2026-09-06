@@ -16,7 +16,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { Input } from "@corelithzw/ui/components/input";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
+import { buildRecentDayBuckets, resolveTimestamp } from "@corelithzw/platform/admin-portal/chart-series";
 import {
   SupportApprovalDialog,
   SupportEndDialog,

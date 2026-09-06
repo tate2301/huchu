@@ -16,7 +16,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { AlertTriangle, Check, Clock } from "@corelithzw/ui/lib/icons";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
 

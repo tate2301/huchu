@@ -26,7 +26,7 @@ import {
   RunbookExecuteDialog,
   RunbookUpsertDialog,
 } from "@/components/admin-portal/wizards/reliability-cluster-wizards";
-import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
+import { buildRecentDayBuckets, resolveTimestamp } from "@corelithzw/platform/admin-portal/chart-series";
 
 function formatDate(value: string | null | undefined) {
   if (!value) return "Not available";

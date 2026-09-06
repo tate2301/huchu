@@ -6,8 +6,8 @@ import {
   isValidUUID,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
-import { normalizeProvidedId } from "@/lib/id-generator";
+} from "@corelithzw/platform/api-utils";
+import { normalizeProvidedId } from "@corelithzw/platform/id-generator";
 import { buildCustomFieldValues, mergeCustomFields } from "@/lib/crm/custom-fields";
 import { prisma } from "@corelithzw/db/client";
 import { isSchoolAdmin, schoolPermissionDenial } from "@/lib/schools/permissions";

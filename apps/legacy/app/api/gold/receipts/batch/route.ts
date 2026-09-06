@@ -4,12 +4,12 @@ import {
   successResponse,
   errorResponse,
   hasRole,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
-import { reserveIdentifier } from "@/lib/id-generator"
+import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { z } from "zod"
 import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
 

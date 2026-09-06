@@ -8,7 +8,7 @@ import { PageHeading } from "@/components/layout/page-heading";
 import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { type GoldTab, GOLD_TABS } from "@/lib/gold/tab-config";
 import { filterGoldTabsByFeatures } from "@/lib/gold/visibility";
-import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
+import { getWorkspaceModulePresentation } from "@corelithzw/platform/workspace-products";
 
 type GoldShellProps = {
   activeTab: GoldTab;

@@ -117,7 +117,7 @@ import {
   sumMoney,
   toBaseAmount,
   type MoneyLike,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 import type {
   RetailCashMovementReasonCode,
   RetailCashMovementTypeName,

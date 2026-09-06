@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { getCurrentAuthSession } from "@/lib/auth-core/guards";
-import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/guards";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 import { companyLabelFromHost } from "@corelithzw/ui/lib/utils";
 import { StudentPortalLoginClient } from "./client";
 

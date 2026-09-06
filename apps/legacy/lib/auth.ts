@@ -9,43 +9,43 @@ import {
 import { UserRole } from "@corelithzw/db";
 import bcrypt from "bcryptjs";
 import { prisma } from "@corelithzw/db/client";
-import { getAdminPortalHost, isAdminPortalHost } from "@/lib/admin-portal";
-import { hasFeature } from "@/lib/platform/features";
+import { getAdminPortalHost, isAdminPortalHost } from "@corelithzw/platform/admin-portal";
+import { hasFeature } from "@corelithzw/platform/features";
 import {
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,
   getTenantClaimsForCompany,
   isTenantStatusActive,
   resolveTenantFromHost,
-} from "@/lib/platform/tenant";
+} from "@corelithzw/platform/tenant";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { getSubscriptionHealth } from "@corelithzw/platform/subscription";
 import {
   validateAuthConfiguration,
   getAuthRuntimeConfig,
-} from "@/lib/auth-core/config";
-import { logAuthEvent } from "@/lib/auth-core/events";
-import { checkRateLimit } from "@/lib/auth-core/rate-limit";
+} from "@corelithzw/platform/auth-core/config";
+import { logAuthEvent } from "@corelithzw/platform/auth-core/events";
+import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
 import {
   applyTokenToSessionClaims,
   buildInitialTokenClaims,
   enrichTokenClaims,
-} from "@/lib/auth-core/session-claims";
+} from "@corelithzw/platform/auth-core/session-claims";
 import {
   buildAuthExpiresAt,
   getSessionPolicyMaxAge,
   hydrateLegacyTokenClaims,
   isAuthExpired,
   shouldRefreshAuthExpiry,
-} from "@/lib/auth-core/session-policy";
-import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { assertStrategyEnabled } from "@/lib/auth-core/strategy-registry";
+} from "@corelithzw/platform/auth-core/session-policy";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
+import { assertStrategyEnabled } from "@corelithzw/platform/auth-core/strategy-registry";
 import type {
   AuthStrategyId,
   AuthenticatedSession,
   PlatformJwtClaims,
   SessionPolicy,
-} from "@/lib/auth-core/types";
+} from "@corelithzw/platform/auth-core/types";
 
 type AuthenticatedUserLike = {
   id: string;

@@ -1,6 +1,6 @@
 import type { AccountingPeriod, AccountingPeriodLockPolicy } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
-import { hasRole } from "@/lib/roles";
+import { hasRole } from "@corelithzw/platform/roles";
 import { findPeriodForDate } from "@/lib/accounting/ledger";
 
 export type PostingPeriodDecision = {

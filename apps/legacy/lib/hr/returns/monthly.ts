@@ -29,7 +29,7 @@
 
 import type { Prisma } from "@corelithzw/db";
 
-import { money, sumMoney, toBaseAmount, ZERO } from "@/lib/money";
+import { money, sumMoney, toBaseAmount, ZERO } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import { summariseStatutory } from "@/lib/hr/payroll/posting";
 

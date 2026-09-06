@@ -7,7 +7,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { RichTextComposer } from "@/components/crm/collaboration/rich-text-composer";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { richTextToPlain } from "@/lib/crm/rich-text";
 
 const ACTIVITY_TYPES = [

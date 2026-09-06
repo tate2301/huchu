@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { successResponse, validateSession } from "@/lib/api-utils";
+import { successResponse, validateSession } from "@corelithzw/platform/api-utils";
 
 export type V2SuccessPayload<T> = {
   success: true;

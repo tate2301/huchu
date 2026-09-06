@@ -3,8 +3,8 @@
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Card, Skeleton } from "@corelithzw/react";
 
-import { getApiErrorMessage } from "@/lib/api-client";
-import { fetchPreferencesProfile } from "@/lib/preferences/api";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { fetchPreferencesProfile } from "@corelithzw/platform/preferences/api";
 
 export function OrganizationOverviewPreferences() {
   const profileQuery = useQuery({

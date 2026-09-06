@@ -8,7 +8,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge, type Accent } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@corelithzw/ui/components/sheet";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useRecordTrail } from "@/components/records/record-trail";
 import {
   ENTITY_LABEL,

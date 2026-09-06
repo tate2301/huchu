@@ -7,9 +7,9 @@ import { useSession } from "next-auth/react";
 
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { useSidebar } from "@corelithzw/ui/components/sidebar";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { navSections } from "@/lib/navigation";
-import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { resolveViewIcon } from "@corelithzw/ui/lib/ui/view-icons";
 import {
   AddressBook,

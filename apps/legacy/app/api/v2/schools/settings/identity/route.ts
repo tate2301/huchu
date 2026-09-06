@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { inferNumbering } from "@/lib/id-generator";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { inferNumbering } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 import { isSchoolAdmin, schoolPermissionDenial } from "@/lib/schools/permissions";
 

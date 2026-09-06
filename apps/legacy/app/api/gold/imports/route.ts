@@ -6,7 +6,7 @@ import {
   getPaginationParams,
   hasRole,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { parseLedgerCsv } from "@/lib/gold/import-parsing"
 import { z } from "zod"

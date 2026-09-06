@@ -13,7 +13,7 @@ import {
 import {
   PLATFORM_BRAND_INITIAL,
   PLATFORM_BRAND_NAME,
-} from "@/lib/platform/brand";
+} from "@corelithzw/platform/brand";
 import { MobileNav } from "@/app/home/mobile-nav";
 import { ProductPreview } from "@/app/home/product-preview";
 import { SegmentSwitcher } from "@/app/home/segment-switcher";

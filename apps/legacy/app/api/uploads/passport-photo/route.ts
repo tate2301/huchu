@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
-import { uploadFileToBlob, UploadValidationError } from "@/lib/uploads/upload-file"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
+import { uploadFileToBlob, UploadValidationError } from "@corelithzw/platform/uploads/upload-file"
 
 export const runtime = "nodejs"
 

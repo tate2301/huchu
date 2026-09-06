@@ -1,9 +1,9 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import type { ReactNode } from "react";
-import { requirePageAuth } from "@/lib/auth-core/guards";
+import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@/lib/platform/tenant";
+import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 
 export async function PosPortalAuthGuard({
   pathname,

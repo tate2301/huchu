@@ -11,7 +11,7 @@ import { Label } from "@corelithzw/ui/components/label";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRight, Check } from "@corelithzw/ui/lib/icons";
 import type { DuplicateConfidence } from "@/lib/crm/duplicates";
 import { DUPLICATE_CONFIDENCE_TONE } from "@/lib/crm/tones";

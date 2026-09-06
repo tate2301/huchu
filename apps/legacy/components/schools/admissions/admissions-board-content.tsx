@@ -24,7 +24,7 @@ import {
 } from "@/components/schools/common/states";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
   ALLOWED_TRANSITIONS,

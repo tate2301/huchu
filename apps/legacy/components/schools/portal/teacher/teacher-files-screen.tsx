@@ -24,7 +24,7 @@ import {
   SaveError,
 } from "@/components/schools/common/states";
 import { ExternalLink } from "@corelithzw/ui/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Resource = {

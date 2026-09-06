@@ -29,7 +29,7 @@ import {
   fetchCashFlowReport,
   fetchFinancialStatements,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type StatementRow = TrialBalanceRow & { group: string; value: number };
 

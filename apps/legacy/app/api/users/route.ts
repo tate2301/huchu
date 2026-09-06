@@ -6,9 +6,9 @@ import {
   errorResponse,
   getPaginationParams,
   paginationResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { ROLES } from "@/lib/roles"
+import { ROLES } from "@corelithzw/platform/roles"
 
 export async function GET(request: NextRequest) {
   try {

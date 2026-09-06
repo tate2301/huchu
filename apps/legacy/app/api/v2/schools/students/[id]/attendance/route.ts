@@ -4,7 +4,7 @@ import {
   isValidUUID,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 

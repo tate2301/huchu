@@ -1,4 +1,4 @@
-﻿import { getEffectiveBrandingForCompany } from "@/lib/platform/branding";
+﻿import { getEffectiveBrandingForCompany } from "@corelithzw/platform/branding";
 import { prisma } from "@corelithzw/db/client";
 import { getRetailPosPolicy, RETAIL_POS_POLICY_PROVIDER_KEY } from "@/lib/retail/pos-policy";
 import { getRetailSetupProfile, RETAIL_SETUP_PROFILE_PROVIDER_KEY } from "@/lib/retail/setup-profile";

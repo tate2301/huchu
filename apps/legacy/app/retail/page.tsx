@@ -21,7 +21,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   BarChart3,
   Building2,
@@ -33,7 +33,7 @@ import {
   Payments,
   Users,
 } from "@corelithzw/ui/lib/icons";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 
 type RetailDashboardPayload = {

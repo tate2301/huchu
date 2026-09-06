@@ -20,7 +20,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { type CurrencyRateRecord, fetchCurrencyRates } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRightLeft } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 

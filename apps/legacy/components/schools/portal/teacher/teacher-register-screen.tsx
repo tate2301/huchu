@@ -23,7 +23,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Mark = "PRESENT" | "ABSENT" | "LATE" | "EXCUSED";

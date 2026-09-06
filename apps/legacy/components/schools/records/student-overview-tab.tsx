@@ -14,7 +14,7 @@ import {
   SaveError,
   StatsSkeleton,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchTeacherAssignments } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 

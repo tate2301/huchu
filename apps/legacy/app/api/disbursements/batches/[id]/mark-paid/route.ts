@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@/lib/accounting/posting"
 import { derivePaidStatus } from "@/lib/payroll/disbursements"
 import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
-import { isPositive, money } from "@/lib/money"
-import { writePlatformAuditEvent } from "@/lib/audit/platform"
-import { createRouteLogger } from "@/lib/observability/route-logger"
+import { isPositive, money } from "@corelithzw/platform/money"
+import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform"
+import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 
 const markPaidSchema = z.object({
   items: z

@@ -45,8 +45,8 @@ import {
   buildFutureDayBuckets,
   buildRecentDayBuckets,
   resolveTimestamp,
-} from "@/lib/admin-portal/chart-series";
-import { TIERS } from "@/lib/platform/feature-catalog";
+} from "@corelithzw/platform/admin-portal/chart-series";
+import { TIERS } from "@corelithzw/platform/feature-catalog";
 
 type CompanyRow = CompanyWorkspace & {
   subscription: CommercialCenterData["subscriptions"][number] | null;

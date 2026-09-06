@@ -8,7 +8,7 @@
  */
 import type { Prisma, ProductKind } from "@corelithzw/db";
 
-import { quantity, sumMoney, toNumber, toNumberOrZero } from "@/lib/money";
+import { quantity, sumMoney, toNumber, toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import {
   choosePriceList,

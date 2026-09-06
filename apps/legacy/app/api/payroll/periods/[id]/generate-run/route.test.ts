@@ -32,7 +32,7 @@ const { validateSessionMock, createApprovalActionMock, prismaMock } = vi.hoisted
   }),
 )
 
-vi.mock("@/lib/api-utils", () => {
+vi.mock("@corelithzw/platform/api-utils", () => {
   return {
     validateSession: validateSessionMock,
     errorResponse: (

@@ -7,7 +7,7 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import {
   computeLeaveBalances,

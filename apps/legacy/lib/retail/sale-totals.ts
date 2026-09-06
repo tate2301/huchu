@@ -9,7 +9,7 @@
  */
 import type { Prisma } from "@corelithzw/db";
 
-import { money, sumMoney, type MoneyLike } from "@/lib/money";
+import { money, sumMoney, type MoneyLike } from "@corelithzw/platform/money";
 
 /**
  * The ex-VAT subtotal of a set of already-priced lines.

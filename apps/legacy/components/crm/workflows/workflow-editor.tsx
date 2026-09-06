@@ -12,7 +12,7 @@ import { Label } from "@corelithzw/ui/components/label";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ACTION_LABELS,
   ACTION_TYPES,

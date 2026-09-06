@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { Save, ChevronDown, X } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";

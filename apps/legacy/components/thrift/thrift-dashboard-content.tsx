@@ -18,7 +18,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /* ------------------------------------------------------------------ */
 /*  Types                                                              */

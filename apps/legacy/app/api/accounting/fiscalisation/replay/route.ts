@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 import {
   issueSchoolFeeReceiptFiscalisation,
   SCHOOL_FISCALISATION_FEATURE,
 } from "@/lib/schools/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
-import { hasRole } from "@/lib/roles";
+import { hasFeature } from "@corelithzw/platform/features";
+import { hasRole } from "@corelithzw/platform/roles";
 
 const schema = z.object({
   limit: z.number().int().min(1).max(200).optional(),

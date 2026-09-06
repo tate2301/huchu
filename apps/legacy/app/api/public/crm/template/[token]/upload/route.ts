@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
-import { checkRateLimit } from "@/lib/auth-core/rate-limit";
-import { uploadFileToBlob, UploadValidationError } from "@/lib/uploads/upload-file";
+import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
+import { uploadFileToBlob, UploadValidationError } from "@corelithzw/platform/uploads/upload-file";
 
 export const runtime = "nodejs";
 

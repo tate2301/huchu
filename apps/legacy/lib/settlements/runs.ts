@@ -7,7 +7,7 @@ import {
   toBaseAmount,
   ZERO,
   type MoneyLike,
-} from "@/lib/money"
+} from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { alreadySettledOriginIds } from "@/lib/settlements/persist"
 

@@ -19,7 +19,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { type CostCenterRecord, fetchCostCenters } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2 } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { useReservedId } from "@/hooks/use-reserved-id";

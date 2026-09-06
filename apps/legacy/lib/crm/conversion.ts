@@ -12,7 +12,7 @@
 import type { Prisma } from "@corelithzw/db";
 import { z } from "zod";
 
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { extractDomain } from "@/lib/crm/duplicates";
 import { ensureDefaultPipeline, firstOpenStage } from "@/lib/crm/pipelines";

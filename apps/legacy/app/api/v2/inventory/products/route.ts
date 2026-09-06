@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import type { Prisma, ProductKind } from "@corelithzw/db";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { PRODUCT_KINDS, productSchema } from "@/lib/inventory/catalogue";
 import { priceProducts } from "@/lib/inventory/catalogue-service";

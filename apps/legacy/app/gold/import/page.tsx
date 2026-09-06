@@ -10,7 +10,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSites, fetchShiftGroups } from "@/lib/api";
 import { goldRoutes } from "@/app/gold/routes";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";

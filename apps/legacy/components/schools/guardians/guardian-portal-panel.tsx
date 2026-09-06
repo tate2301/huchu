@@ -7,7 +7,7 @@ import { Badge, Card } from "@corelithzw/react";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { LoadError, SaveError } from "@/components/schools/common/states";
 import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-dialog";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 /**
  * Whether this parent can log in, and what to do about it.

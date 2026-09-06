@@ -16,7 +16,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { completionBlockers } from "@/lib/crm/work-orders";
 
 import type { JobRecord } from "./job-types";

@@ -13,7 +13,7 @@ import {
 } from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { Receipt as ReceiptIcon } from "@corelithzw/ui/lib/icons";
 

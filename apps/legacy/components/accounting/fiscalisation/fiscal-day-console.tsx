@@ -11,7 +11,7 @@ import { Separator } from "@corelithzw/ui/components/separator";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { TimeAgo } from "@corelithzw/ui/components/time-ago";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BlockingReceiptsTable } from "@/components/accounting/fiscalisation/blocking-receipts";
 import type {
   BlockingReceiptWire,

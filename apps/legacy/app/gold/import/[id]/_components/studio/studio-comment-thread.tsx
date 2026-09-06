@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Send, X, NoteAdd } from "@corelithzw/ui/lib/icons";

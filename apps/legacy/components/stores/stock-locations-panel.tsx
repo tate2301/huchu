@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, EmptyState, Input, Skeleton } from "@corelithzw/react";
 
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { ChevronRight } from "@corelithzw/ui/lib/icons";
 

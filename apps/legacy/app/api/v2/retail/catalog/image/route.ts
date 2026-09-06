@@ -25,7 +25,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { put } from "@vercel/blob";
 
-import { errorResponse, successResponse } from "@/lib/api-response";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
 import { catalogImagePath, checkCatalogImage } from "@/lib/retail/catalog-image";
 import { requireRetailPermission } from "@/lib/retail/permissions";

@@ -26,7 +26,7 @@ import {
   updateGoldPrice,
   type GoldPriceRecord,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type PriceFormState = {

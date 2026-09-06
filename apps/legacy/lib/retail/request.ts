@@ -35,7 +35,7 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse } from "@/lib/api-response";
+import { errorResponse } from "@corelithzw/platform/api-response";
 
 /** Parsed, or the response to hand straight back. Never both. */
 export type Parsed<T> = { data: T; response: null } | { data: null; response: NextResponse };

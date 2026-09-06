@@ -6,7 +6,7 @@ import {
   getPaginationParams,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import {
   buildNotificationActions,
   parseNotificationPayload,

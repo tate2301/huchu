@@ -10,7 +10,7 @@ import {
   NothingYet,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { MedusaBookOpenIcon } from "@corelithzw/ui/lib/icons";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";
 import { useStudentPortal } from "./student-portal-context";

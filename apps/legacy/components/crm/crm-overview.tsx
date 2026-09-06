@@ -18,7 +18,7 @@ import {
 } from "@/components/accounting/report-table";
 import { fetchCrmLeads } from "@/lib/crm/crm-v2";
 import { Check, Clock, Coins, FileText, LocalShipping, TrendingUp, type LucideIcon } from "@corelithzw/ui/lib/icons";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { AGEING_BUCKETS, AGEING_LABELS } from "@/lib/crm/collections";
 
 import { money, type HomeData } from "./widgets/home-widgets";

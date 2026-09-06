@@ -51,8 +51,8 @@ import {
   type HrIncidentRecord,
   type Site,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { hasRole } from "@/lib/roles";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { hasRole } from "@corelithzw/platform/roles";
 
 type IncidentForm = {
   employeeId: string;

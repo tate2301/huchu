@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Prisma, RetailPromotionStatus, RetailPromotionType } from "@corelithzw/db";
 import { z } from "zod";
-import { errorResponse, successResponse } from "@/lib/api-response";
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../_helpers";

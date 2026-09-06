@@ -13,7 +13,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 
 import { EntityLink } from "@/components/records/entity-link";

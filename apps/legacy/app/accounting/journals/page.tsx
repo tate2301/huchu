@@ -45,7 +45,7 @@ import {
   fetchJournalEntries,
 } from "@/lib/api";
 import { formatAmount } from "@/lib/accounting/format";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { FileCheck } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";

@@ -7,10 +7,10 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";
+import type { EmployeePositionValue } from "@corelithzw/platform/vertical-defaults";
 
 /**
  * The school's non-teaching staff — the bursar, the groundsman, the drivers.

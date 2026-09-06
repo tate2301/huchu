@@ -29,7 +29,7 @@ import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   CONSENT_LABELS,
   URGENT_GAP,

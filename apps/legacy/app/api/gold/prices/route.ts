@@ -7,7 +7,7 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { ensureApproverRole } from "@/lib/workflow/approvals";
 import { prisma } from "@corelithzw/db/client";
 

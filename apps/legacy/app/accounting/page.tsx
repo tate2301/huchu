@@ -42,7 +42,7 @@ import {
   fetchReceivablesHubSummary,
   fetchSites,
 } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import type { AccountingPeriodRecord, AccountingSeedPackResult } from "@/lib/api";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import {

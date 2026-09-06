@@ -30,7 +30,7 @@ import {
   fetchGoldPours,
   fetchGoldReceipts,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 
 type GoldDispatchRow = Awaited<

@@ -15,7 +15,7 @@ import {
 } from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { normaliseGender } from "@/lib/schools/boarding-rules";
 
 import { AllocateBedDialog } from "@/components/schools/boarding/boarding-dialogs";

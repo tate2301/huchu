@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { fetchManifest } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import type { OperationManifest } from "@/components/admin-portal/types";
-import { PLATFORM_ADMIN_MANIFEST } from "@/lib/admin-portal/manifest";
+import { PLATFORM_ADMIN_MANIFEST } from "@corelithzw/platform/admin-portal/manifest";
 import { OperationsTable } from "./operations-table";
 
 export function OperationsPage({

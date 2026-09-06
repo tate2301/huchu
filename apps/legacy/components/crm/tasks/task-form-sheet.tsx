@@ -21,7 +21,7 @@ import {
   type PickedRecord,
 } from "@/components/crm/records/record-picker";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { createCrmTask, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
 import {
   CRM_TASK_PRIORITY_LABELS,

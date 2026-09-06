@@ -19,7 +19,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   type AutomationAction,
   type AutomationCondition,

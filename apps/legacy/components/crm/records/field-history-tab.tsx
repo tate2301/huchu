@@ -8,7 +8,7 @@ import { Avatar } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fieldLabel } from "@/lib/crm/field-history";
 import { ArrowRight } from "@corelithzw/ui/lib/icons";
 

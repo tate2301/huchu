@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Alert, Badge, Button, Card, EmptyState } from "@corelithzw/react";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useTeacherPortal, type TeacherPeriod } from "./teacher-portal-context";
 
 /** Minutes since midnight, in the browser's own clock. */

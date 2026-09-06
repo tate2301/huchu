@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { hasRole, validateSession, successResponse, errorResponse } from "@/lib/api-utils"
+import { hasRole, validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator"
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 
 const downtimeCodeSchema = z.object({
   code: z.string().trim().min(1).max(40).optional(),

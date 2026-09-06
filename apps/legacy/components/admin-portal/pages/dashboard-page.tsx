@@ -34,7 +34,7 @@ import {
   buildRecentDayBuckets,
   buildRecentHourBuckets,
   resolveTimestamp,
-} from "@/lib/admin-portal/chart-series";
+} from "@corelithzw/platform/admin-portal/chart-series";
 
 function formatCurrency(value: number, currency = "USD") {
   return new Intl.NumberFormat("en-US", {

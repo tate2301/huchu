@@ -69,7 +69,7 @@ import {
   Trash2,
 } from "@corelithzw/ui/lib/icons";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
 import { cn } from "@corelithzw/ui/lib/utils";
 import type { BulkAcceptPayload } from "./studio-anomaly-panel";

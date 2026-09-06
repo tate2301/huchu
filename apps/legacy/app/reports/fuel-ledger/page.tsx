@@ -14,7 +14,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchInventoryItems, fetchSites, fetchStockMovements } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";

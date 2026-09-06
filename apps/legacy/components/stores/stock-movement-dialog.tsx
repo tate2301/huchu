@@ -24,7 +24,7 @@ import {
 import { FormShell } from "@/components/shared/form-shell";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 export type StockMovementKind = "ISSUE" | "RECEIPT";

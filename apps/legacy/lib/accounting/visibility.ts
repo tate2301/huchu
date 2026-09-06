@@ -1,6 +1,6 @@
 import type { AccountingTabItem } from "@/lib/accounting/tab-config";
-import { hasTokenFeature } from "@/lib/platform/gating/token-check";
-import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
+import { resolveFeatureKeyForPath } from "@corelithzw/platform/gating/route-registry";
 
 function normalizePath(href: string) {
   return href.split("?")[0] || href;

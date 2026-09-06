@@ -38,7 +38,7 @@
  */
 import { Prisma } from "@corelithzw/db";
 
-import { money, moneyOrNull, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
+import { money, moneyOrNull, percent, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import {
   resolveShelfPrices,

@@ -27,20 +27,20 @@ import type {
   LinkableUser,
 } from "@/lib/api"
 import { fetchLinkableUsers } from "@/lib/api"
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client"
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client"
 import {
   getDefaultEmployeePosition,
   getEmployeePositionOptions,
   resolveVerticalDefaults,
   type EmployeePositionValue,
-} from "@/lib/platform/vertical-defaults"
+} from "@corelithzw/platform/vertical-defaults"
 import {
   getAllowedUserRoleOptionsForWorkspace,
   type ManagedWorkspaceProfile,
   resolveWorkspaceProfileForEmployeeModule,
   resolveWorkspaceProfileForRoles,
-} from "@/lib/platform/vertical-roles"
-import type { UserRole } from "@/lib/roles"
+} from "@corelithzw/platform/vertical-roles"
+import type { UserRole } from "@corelithzw/platform/roles"
 import { X } from "@corelithzw/ui/lib/icons"
 import { cn } from "@corelithzw/ui/lib/utils"
 

@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 import {
   inspectSchoolFeeReceiptFiscalisation,
   issueSchoolFeeReceiptFiscalisation,

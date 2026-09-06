@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { FEATURE_CATALOG } from "@/lib/platform/feature-catalog";
+import { FEATURE_CATALOG } from "@corelithzw/platform/feature-catalog";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";

@@ -27,7 +27,7 @@ import {
   type SectionSummary,
   updateSection,
 } from "@/lib/api";
-import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 
 type SectionFormState = {
   name: string;

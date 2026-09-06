@@ -6,7 +6,7 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"

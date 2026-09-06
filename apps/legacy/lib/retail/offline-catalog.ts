@@ -305,7 +305,7 @@ export async function mergeCatalogDelta(delta: {
  * Refresh catalog from server. Returns new item count.
  */
 export async function refreshCatalogFromServer(siteId: string): Promise<number> {
-  const { fetchJson } = await import("@/lib/api-client");
+  const { fetchJson } = await import("@corelithzw/platform/api-client");
 
   const response = await fetchJson<{ data: POSCatalogItem[] }>(
     `/api/v2/retail/pos/catalog?siteId=${encodeURIComponent(siteId)}`

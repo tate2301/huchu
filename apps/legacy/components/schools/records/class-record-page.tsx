@@ -23,7 +23,7 @@ import { ClassSubjectsPanel } from "@/components/schools/classes/class-subjects-
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Calendar, Layers, Tag, UserPlus, Users } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 

@@ -8,7 +8,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Empty, EmptyDescription, EmptyTitle } from "@corelithzw/ui/components/empty";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import type { RecordSubject } from "@/lib/records/subject";
 
 /**

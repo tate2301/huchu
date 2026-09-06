@@ -20,7 +20,7 @@ import {
 } from "../types";
 import { appendAuditEvent } from "./audit-ledger";
 import { formatDate, normalizeEmail, normalizeEnum, normalizePasswordInput } from "./helpers";
-import { getAllowedUserRolesForWorkspace } from "../../../lib/platform/vertical-roles";
+import { getAllowedUserRolesForWorkspace } from "@corelithzw/platform/vertical-roles";
 
 function normalizeAssignableRole(role: string): UserManagementRole {
   return normalizeEnum(role, "role", USER_MANAGEMENT_ROLES);

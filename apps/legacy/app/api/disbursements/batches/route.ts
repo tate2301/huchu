@@ -6,14 +6,14 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@corelithzw/db/client"
 import { generateDisbursementCode } from "@/lib/payroll/disbursements"
 import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
-import { isZeroOrLess, money, sumMoney } from "@/lib/money"
-import { createRouteLogger } from "@/lib/observability/route-logger"
+import { isZeroOrLess, money, sumMoney } from "@corelithzw/platform/money"
+import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 
 const batchSchema = z.object({
   payrollRunId: z.string().uuid(),

@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, Card, EmptyState, KpiGrid, RowCard, Skeleton, StatHero, Stack } from "@corelithzw/react";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { AGEING_LABELS, type AgeingBucket } from "@/lib/crm/collections";
 import {
   Calendar,

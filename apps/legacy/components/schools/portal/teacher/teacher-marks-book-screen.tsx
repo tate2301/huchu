@@ -15,7 +15,7 @@ import {
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan } from "@/lib/schools/access";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
 type Band = { code: string; label: string | null; minScore: number; maxScore: number };

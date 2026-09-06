@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { Prisma } from "@corelithzw/db";
-import { multiplyMoney, quantity, sumMoney, toNumberOrZero, ZERO } from "@/lib/money";
+import { multiplyMoney, quantity, sumMoney, toNumberOrZero, ZERO } from "@corelithzw/platform/money";
 
 /**
  * Where stock is kept, and what is in each place.

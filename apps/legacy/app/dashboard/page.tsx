@@ -17,7 +17,7 @@ import {
   buildTimeSeriesChartConfig,
 } from "@corelithzw/ui/lib/charts/frappe-config-builders"
 import { fetchPlantReports, fetchSites } from "@/lib/api"
-import { getApiErrorMessage } from "@/lib/api-client"
+import { getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 const timeRanges = {
   week: "This Week",

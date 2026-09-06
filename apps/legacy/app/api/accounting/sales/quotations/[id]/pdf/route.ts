@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { renderDocumentSync } from "@/lib/documents/service";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

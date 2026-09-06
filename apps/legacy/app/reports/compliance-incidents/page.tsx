@@ -23,7 +23,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchIncidents, fetchSites } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 export default function ComplianceIncidentsReportPage() {
   const [siteId, setSiteId] = useState("all");

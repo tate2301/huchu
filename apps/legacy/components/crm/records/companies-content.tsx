@@ -8,7 +8,7 @@ import { Building2, Coins, Funnel, MapPin, Users } from "@corelithzw/ui/lib/icon
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ACCOUNT_STATUS_COLOR, stageColor } from "@/lib/crm/tones";
 import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";

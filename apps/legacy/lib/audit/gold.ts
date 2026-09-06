@@ -1,4 +1,4 @@
-import { writePlatformAuditEvent, type PlatformAuditArgs } from "./platform"
+import { writePlatformAuditEvent, type PlatformAuditArgs } from "@corelithzw/platform/audit/platform"
 
 export type GoldAuditArgs = PlatformAuditArgs
 

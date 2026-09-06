@@ -21,7 +21,7 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 import { hueFor, subjectHues } from "./teacher-subject-hues";
 

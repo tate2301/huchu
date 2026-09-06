@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { ensureApproverRole } from "@/lib/workflow/approvals"
-import { EMPLOYEE_POSITION_VALUES } from "@/lib/platform/vertical-defaults"
+import { EMPLOYEE_POSITION_VALUES } from "@corelithzw/platform/vertical-defaults"
 
 const patchTemplateSchema = z
   .object({

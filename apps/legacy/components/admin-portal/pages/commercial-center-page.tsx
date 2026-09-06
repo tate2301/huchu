@@ -31,7 +31,7 @@ import {
   buildFutureDayBuckets,
   buildRecentDayBuckets,
   resolveTimestamp,
-} from "@/lib/admin-portal/chart-series";
+} from "@corelithzw/platform/admin-portal/chart-series";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 type PlatformCommercialRow = CommercialCenterData["overview"]["workspaces"][number];

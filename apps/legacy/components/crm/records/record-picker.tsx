@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Input } from "@corelithzw/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { Search, X } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 

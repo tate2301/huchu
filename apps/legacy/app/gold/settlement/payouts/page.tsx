@@ -31,11 +31,11 @@ import {
 } from "@corelithzw/ui/components/select";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchGoldShiftAllocations } from "@/lib/api";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { goldRoutes } from "@/app/gold/routes";
-import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 /**
  * One worker's share of one shift, and how far its settlement has got.

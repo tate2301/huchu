@@ -1,7 +1,7 @@
-import { FEATURE_CATALOG } from "../../lib/platform/feature-catalog";
-import { FEATURE_CAPABILITIES } from "../../lib/platform/gating/capability-registry";
-import { normalizeFeatureKey } from "../../lib/platform/gating/catalog-utils";
-import { API_FEATURE_ROUTES, PAGE_FEATURE_ROUTES } from "../../lib/platform/gating/route-registry";
+import { FEATURE_CATALOG } from "@corelithzw/platform/feature-catalog";
+import { FEATURE_CAPABILITIES } from "@corelithzw/platform/gating/capability-registry";
+import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
+import { API_FEATURE_ROUTES, PAGE_FEATURE_ROUTES } from "@corelithzw/platform/gating/route-registry";
 
 function distinct(values: string[]): string[] {
   return Array.from(new Set(values)).sort();

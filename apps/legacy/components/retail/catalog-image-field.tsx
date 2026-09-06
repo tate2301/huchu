@@ -23,7 +23,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@corelithzw/ui/components/button";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Loader2, Package, Trash2, Upload } from "@corelithzw/ui/lib/icons";
 import { MAX_CATALOG_IMAGE_BYTES } from "@/lib/retail/catalog-image";
 

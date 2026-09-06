@@ -42,7 +42,7 @@ import {
   issueFiscalDocument,
   type FiscalValidationResult,
 } from "@/lib/accounting/fiscalisation";
-import { hasFeature } from "@/lib/platform/features";
+import { hasFeature } from "@corelithzw/platform/features";
 import { clampAtZero, money, sumMoney, toNumberOrZero } from "@/lib/schools/money";
 
 /** The add-on a school buys. Sold as `ADDON_ZIMRA_FISCAL` in `lib/marketing/pricing.ts`. */

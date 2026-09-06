@@ -3,7 +3,7 @@ import {
   validateSession,
   successResponse,
   errorResponse,
-} from "@/lib/api-utils"
+} from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { Prisma } from "@corelithzw/db"

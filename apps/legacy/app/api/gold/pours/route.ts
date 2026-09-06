@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse, hasRole } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse, hasRole } from '@corelithzw/platform/api-utils';
 import { captureAccountingEvent } from "@/lib/accounting/integration";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close";
 import { prisma } from '@corelithzw/db/client';
 import { z } from 'zod';
-import { normalizeProvidedId, reserveIdentifier } from "@/lib/id-generator";
+import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 
 const goldPourSchema = z.object({
   pourBarId: z.string().min(1).max(50).optional(),

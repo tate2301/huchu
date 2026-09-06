@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
-import { getSubscriptionHealth } from "@/lib/platform/subscription";
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
+import { getSubscriptionHealth } from "@corelithzw/platform/subscription";
 import { prisma } from "@corelithzw/db/client";
 
 const BILLING_VIEW_ROLES = new Set(["SUPERADMIN", "MANAGER", "FINANCE_OFFICER"]);

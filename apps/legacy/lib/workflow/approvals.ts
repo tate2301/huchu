@@ -3,7 +3,7 @@ import type {
   ApprovalTargetType,
   Prisma,
 } from "@corelithzw/db"
-import type { AuthenticatedSession } from "@/lib/api-utils"
+import type { AuthenticatedSession } from "@corelithzw/platform/api-utils"
 import { emitWorkflowNotificationFromApprovalAction } from "@/lib/notifications"
 
 /**

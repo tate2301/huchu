@@ -29,8 +29,8 @@ const { validateSessionMock } = vi.hoisted(() => ({
   validateSessionMock: vi.fn(),
 }));
 
-vi.mock("@/lib/api-utils", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api-utils")>();
+vi.mock("@corelithzw/platform/api-utils", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@corelithzw/platform/api-utils")>();
   return { ...actual, validateSession: validateSessionMock };
 });
 

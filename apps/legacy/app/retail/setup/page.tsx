@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AdminDualBarChart, AdminDonutChart } from "@corelithzw/ui/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, ChevronRight } from "@corelithzw/ui/lib/icons";
 import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
 

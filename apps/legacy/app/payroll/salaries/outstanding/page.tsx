@@ -38,7 +38,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchEmployeePayments, type EmployeePayment } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type StatusFilter = "ALL" | "DUE" | "PARTIAL";
 type RowView = EmployeePayment & {

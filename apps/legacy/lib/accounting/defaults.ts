@@ -10,7 +10,7 @@ import type {
   PostingRuleOperator,
   PostingRuleScopeType,
 } from "@corelithzw/db";
-import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
+import { resolveVerticalDefaults } from "@corelithzw/platform/vertical-defaults";
 
 export const ZIMBABWE_RETAIL_FOUNDATION_PACK_CODE = "ZW_RETAIL_FOUNDATION";
 

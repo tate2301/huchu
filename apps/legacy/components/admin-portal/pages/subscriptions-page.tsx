@@ -12,7 +12,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
-import { TIERS } from "@/lib/platform/feature-catalog";
+import { TIERS } from "@corelithzw/platform/feature-catalog";
 
 function formatCurrency(value: number) {
   return `$${value.toLocaleString()}`;

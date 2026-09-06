@@ -24,7 +24,7 @@ import {
   sumMoney,
   toBaseAmount,
   ZERO,
-} from "@/lib/money";
+} from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import { calculateRuleAmount } from "@/lib/hr/payroll/rules";
 import {

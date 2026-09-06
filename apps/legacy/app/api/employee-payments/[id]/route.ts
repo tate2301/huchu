@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { captureAccountingEvent } from "@/lib/accounting/integration"
-import { errorResponse, successResponse, validateSession } from "@/lib/api-utils"
+import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { money, toNumberOrZero } from "@/lib/money"
+import { money, toNumberOrZero } from "@corelithzw/platform/money"
 import { derivePaidStatus } from "@/lib/payroll/disbursements"
 import { prisma } from "@corelithzw/db/client"
 

@@ -5,7 +5,7 @@ import {
   errorResponse,
   getPaginationParams,
   paginationResponse,
-} from '@/lib/api-utils';
+} from '@corelithzw/platform/api-utils';
 import { hrPermissionDenial } from "@/lib/hr/permissions";
 import {
   ATTENDANCE_STATUSES,

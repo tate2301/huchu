@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
-import { validateSession, successResponse, errorResponse } from "@/lib/api-utils";
+import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
 
 const issueSchema = z.object({

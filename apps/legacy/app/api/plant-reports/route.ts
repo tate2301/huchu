@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@/lib/api-utils';
+import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@corelithzw/platform/api-utils';
 import { PLANT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
 import { prisma } from '@corelithzw/db/client';
 import { z } from 'zod';

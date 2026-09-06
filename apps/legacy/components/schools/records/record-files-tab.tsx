@@ -14,7 +14,7 @@ import {
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan, type SchoolResource } from "@/lib/schools/access";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 
 /**

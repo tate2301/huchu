@@ -18,7 +18,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
-import { fetchJson } from "@/lib/api-client";
+import { fetchJson } from "@corelithzw/platform/api-client";
 
 import {
   fetchHostelOccupancy,

@@ -5,7 +5,7 @@ import { ToggleLeft, ToggleRight } from "@corelithzw/ui/lib/icons";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
-import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
+import { FEATURE_BUNDLES } from "@corelithzw/platform/feature-catalog";
 
 const SELLABLE_BUNDLES = FEATURE_BUNDLES.filter(
   (bundle) => bundle.monthlyPrice > 0 || bundle.additionalSiteMonthlyPrice > 0,

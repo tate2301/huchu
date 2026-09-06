@@ -6,7 +6,7 @@ import { MasterData, type DataTableColumn } from "@corelithzw/react";
 import { ManagementShell } from "@/components/settings/management-shell";
 import type { ManagementArea } from "@/lib/settings/management-nav";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**
  * A reference-data set, on the design system's master-data pattern.

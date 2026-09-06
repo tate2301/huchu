@@ -10,7 +10,7 @@ import type {
   PermissionEntry,
   PermissionGroup,
   PermissionState,
-} from "@/lib/user-management-api";
+} from "@corelithzw/platform/user-management-api";
 
 /**
  * One person's permissions, all of them, in one searchable list.

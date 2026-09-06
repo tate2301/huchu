@@ -6,9 +6,9 @@ import {
   paginationResponse,
   successResponse,
   validateSession,
-} from "@/lib/api-utils";
+} from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { reserveIdentifier } from "@/lib/id-generator";
+import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { crmLeadStageSchema, defaultProbabilityForStage } from "@/lib/crm/pipeline";
 import { deriveLeadChannel } from "@/lib/crm/sources";
 import {

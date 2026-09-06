@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { WORK_ORDER_STATUS_LABELS } from "@/lib/crm/work-orders";
 
 import type { JobRecord, JobStatus } from "./job-types";

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { checkRateLimit } from "@/lib/auth-core/rate-limit";
+import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
 import { verifyApiKey } from "@/lib/crm/api-keys";
 import { ingestLead } from "@/lib/crm/intake-ingest";
 

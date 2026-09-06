@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { successResponse } from "@/lib/api-response";
+import { successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import { requireRetailSession } from "../../_helpers";

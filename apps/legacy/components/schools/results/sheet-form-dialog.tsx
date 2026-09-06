@@ -8,7 +8,7 @@ import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import {
   createResultSheet,

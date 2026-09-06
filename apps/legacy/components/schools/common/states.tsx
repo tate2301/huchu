@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 import { Alert, Button, EmptyState, Skeleton } from "@corelithzw/react";
 
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/access";
 

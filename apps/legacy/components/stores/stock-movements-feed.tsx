@@ -14,7 +14,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";
 
 const PAGE_LIMIT = 200;

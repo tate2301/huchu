@@ -37,7 +37,7 @@ import {
 import {
   buildRecentDayBuckets,
   resolveTimestamp,
-} from "@/lib/admin-portal/chart-series";
+} from "@corelithzw/platform/admin-portal/chart-series";
 
 type IdentityView = "admins" | "users" | "requests" | "sessions";
 type DistributionDatum = {

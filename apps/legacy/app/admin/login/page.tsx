@@ -1,11 +1,11 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { AdminMagicLinkLogin } from "@/components/admin-portal/admin-magic-link-login";
-import { getCurrentAuthSession } from "@/lib/auth-core/guards";
-import { normalizeCallbackUrl } from "@/lib/auth-core/redirects";
-import { getAuthStrategiesForSurface } from "@/lib/auth-core/strategy-registry";
-import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@/lib/admin-portal";
-import { getHostHeaderFromRequestHeaders } from "@/lib/platform/tenant";
+import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/guards";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";
+import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@corelithzw/platform/admin-portal";
+import { getHostHeaderFromRequestHeaders } from "@corelithzw/platform/tenant";
 
 export default async function AdminLoginPage({
   searchParams,

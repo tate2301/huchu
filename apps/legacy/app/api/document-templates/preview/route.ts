@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
-import { errorResponse, validateSession } from "@/lib/api-utils";
+import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
 import { renderDocumentHtml } from "@/lib/documents/html-renderer";
 import { getSamplePayload } from "@/lib/documents/sample-payloads";

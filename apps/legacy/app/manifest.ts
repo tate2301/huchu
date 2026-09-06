@@ -1,9 +1,9 @@
 import type { MetadataRoute } from "next";
-import { PLATFORM_APP_DESCRIPTION, PLATFORM_BRAND_NAME } from "@/lib/platform/brand";
+import { PLATFORM_APP_DESCRIPTION, PLATFORM_BRAND_NAME } from "@corelithzw/platform/brand";
 import {
   buildWorkspaceIconHref,
   resolveWorkspaceIdentityFromRequestHeaders,
-} from "@/lib/platform/workspace-identity";
+} from "@corelithzw/platform/workspace-identity";
 
 export default async function manifest(): Promise<MetadataRoute.Manifest> {
   const identity = await resolveWorkspaceIdentityFromRequestHeaders();

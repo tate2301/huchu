@@ -26,10 +26,10 @@ import {
   fetchGoldPours,
   fetchGoldReceipts,
 } from "@/lib/api";
-import { getApiErrorMessage } from "@/lib/api-client";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { goldRoutes } from "@/app/gold/routes";
-import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 type MissingDispatchRow = {
   id: string;

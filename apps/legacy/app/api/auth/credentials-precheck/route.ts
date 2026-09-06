@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getCredentialsPrecheckFailure } from "@/lib/auth-core/credentials-precheck";
+import { getCredentialsPrecheckFailure } from "@corelithzw/platform/auth-core/credentials-precheck";
 
 export async function GET(request: NextRequest) {
   const failure = await getCredentialsPrecheckFailure(request.headers);

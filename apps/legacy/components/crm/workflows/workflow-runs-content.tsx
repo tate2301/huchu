@@ -9,7 +9,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { TRIGGER_LABELS } from "@/lib/crm/automation";
 import { REPORT_RANGES, REPORT_RANGE_LABELS, type ReportRange } from "@/lib/crm/reports";
 import { Rule } from "@corelithzw/ui/lib/icons";
