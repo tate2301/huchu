@@ -228,6 +228,7 @@ project; production keeps serving from `apps/legacy` untouched.
 |---|---|---|---|---|---|
 | Campus | 3.1c | `apps/campus` | `*.campus.corelith.co.zw` | `campus.corelith.co.zw` | the school, books, compliance, people, documents, notifications, records, workflow, offline |
 | Sell | 3.2a | `apps/sell` | `*.sell.corelith.co.zw` | `sell.corelith.co.zw` | the till, stock, maintenance, compliance, books, people, documents, notifications, records, workflow, offline |
+| CRM | 3.2b | `apps/crm` | `*.crm.corelith.co.zw` | `crm.corelith.co.zw` | the CRM, stock, books, people, documents, notifications, records, workflow, offline |
 
 1. **Vercel project** from this repository with *Root Directory* from the table (keep "include
    files outside the root" on: the packages and the lockfile live above it), *Ignored Build
@@ -269,7 +270,7 @@ project; production keeps serving from `apps/legacy` untouched.
 8. **What a product host does not serve**: the marketing site (its own project), the operator
    console (`apps/legacy`'s `/admin`, on the admin host), the executive dashboard, the payment
    webhooks, and every module outside its list — the Campus host has no till, stock, CRM,
-   maintenance or mine; the Sell host has no school, CRM or mine. A tenant that runs a module
+   maintenance or mine; the Sell host has no school, CRM or mine; the CRM host has no school, till, maintenance, compliance or mine. A tenant that runs a module
    from two products stays on the enterprise host until both products have hosts.
 
 ## 8. Checklist
