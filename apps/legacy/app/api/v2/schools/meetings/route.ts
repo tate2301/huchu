@@ -5,15 +5,15 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 import {
   bookMeeting,
   meetingSchedule,
   MeetingError,
   openMeetingSlots,
   releaseMeeting,
-} from "@/lib/schools/goals-meetings";
+} from "@corelithzw/module-campus/goals-meetings";
 
 const querySchema = z.object({
   from: z.string().date(),

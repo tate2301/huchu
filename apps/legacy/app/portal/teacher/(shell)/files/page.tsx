@@ -1,4 +1,4 @@
-import { TeacherFilesScreen } from "@/components/schools/portal/teacher/teacher-files-screen";
+import { TeacherFilesScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-files-screen";
 
 /** The department's teaching resources, and the teacher's own drafts. */
 export default function TeacherFilesPage() {

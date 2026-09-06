@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { resolvePortalGuardian } from "@/lib/schools/portal-identity";
+import { resolvePortalGuardian } from "@corelithzw/module-campus/portal-identity";
 
 export async function GET(request: NextRequest) {
   try {

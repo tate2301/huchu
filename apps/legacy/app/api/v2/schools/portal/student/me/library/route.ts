@@ -12,8 +12,8 @@ import {
   renewLoan,
   reserveBook,
   returnLoan,
-} from "@/lib/schools/library";
-import { resolvePortalStudent } from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/library";
+import { resolvePortalStudent } from "@corelithzw/module-campus/portal-identity";
 
 const querySchema = z.object({
   search: z.string().trim().max(120).optional(),

@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { clampAtZero, sumMoney } from "@/lib/schools/money";
+import { clampAtZero, sumMoney } from "@corelithzw/module-campus/money";
 import {
   canViewAnyPortalSubject,
   consentDeniedMessage,
   getGuardianChildLink,
   guardianMaySee,
   resolvePortalGuardian,
-} from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/portal-identity";
 
 type RouteParams = { params: Promise<{ studentId: string }> };
 

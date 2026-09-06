@@ -9,7 +9,7 @@
  * that declares a registry, and a bundle that carries a second copy of that
  * module must still see the one set of registrations.
  */
-const KEY = Symbol.for("@corelithzw/platform/registries");
+const KEY = Symbol.for("./registries");
 
 type Registries = Map<string, unknown>;
 

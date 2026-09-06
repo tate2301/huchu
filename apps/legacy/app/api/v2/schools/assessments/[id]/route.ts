@@ -6,8 +6,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 
 const patchSchema = z.object({
   title: z.string().trim().min(1).max(200).optional(),

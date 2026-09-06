@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { BoardingHostelsContent } from "@/components/schools/boarding/boarding-hostels-content";
+import { BoardingHostelsContent } from "@corelithzw/module-campus/components/boarding/boarding-hostels-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
-import { teacherClasses } from "@/lib/schools/teacher-day";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
+import { teacherClasses } from "@corelithzw/module-campus/teacher-day";
 
 const querySchema = z.object({
   termId: z.string().uuid().optional(),

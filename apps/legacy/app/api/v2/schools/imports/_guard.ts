@@ -1,6 +1,6 @@
 import type { SchoolImportEntity } from "@corelithzw/db";
 
-import { schoolPermissionDenial, type SessionLike } from "@/lib/schools/permissions";
+import { schoolPermissionDenial, type SessionLike } from "@corelithzw/module-campus/permissions";
 
 /**
  * Who may import what.

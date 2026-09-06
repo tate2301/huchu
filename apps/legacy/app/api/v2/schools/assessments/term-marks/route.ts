@@ -5,9 +5,9 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { computeClassTermMarks, rollUpTermMarks } from "@/lib/schools/assessments";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { computeClassTermMarks, rollUpTermMarks } from "@corelithzw/module-campus/assessments";
 
 const querySchema = z.object({
   classId: z.string().uuid(),

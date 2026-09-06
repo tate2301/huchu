@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { allocateTeacherToClasses } from "@/lib/schools/timetable";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { allocateTeacherToClasses } from "@corelithzw/module-campus/timetable";
 
 const bodySchema = z.object({
   termId: z.string().uuid().optional(),

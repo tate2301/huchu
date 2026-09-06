@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { LibraryContent } from "@/components/schools/library/library-content";
+import { LibraryContent } from "@corelithzw/module-campus/components/library/library-content";
 import { authOptions } from "@/lib/auth";
 
 /**

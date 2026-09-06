@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { WelfareContent } from "@/components/schools/boarding/welfare-content";
+import { WelfareContent } from "@corelithzw/module-campus/components/boarding/welfare-content";
 import { authOptions } from "@/lib/auth";
 
 /**

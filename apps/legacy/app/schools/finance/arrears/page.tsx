@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { ReportsArrearsContent } from "@/components/schools/reports/reports-arrears-content";
+import { ReportsArrearsContent } from "@corelithzw/module-campus/components/reports/reports-arrears-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { SchoolStaffContent } from "@/components/schools/staff/school-staff-content";
+import { SchoolStaffContent } from "@corelithzw/module-campus/components/staff/school-staff-content";
 import { authOptions } from "@/lib/auth";
 
 /**

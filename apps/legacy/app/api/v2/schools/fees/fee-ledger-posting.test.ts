@@ -25,7 +25,7 @@ import { SCHOOLS_REQUIRED_SOURCE_TYPES } from "@corelithzw/module-books/source-t
 import {
   emitSchoolFeeAccountingEvent,
   type SchoolFeeAccountingEventType,
-} from "./_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 let companyId: string;
 let retailCompanyId: string;

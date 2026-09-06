@@ -14,7 +14,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@corelithzw/module-campus/components/common/states";
 
 /**
  * Every campus state on one page, live.

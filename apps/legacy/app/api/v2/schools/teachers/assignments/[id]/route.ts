@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 const updateAssignmentSchema = z.object({
   termId: z.string().uuid().optional(),

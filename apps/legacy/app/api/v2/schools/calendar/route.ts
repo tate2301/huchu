@@ -6,8 +6,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { defaultIsTeachingDay, getSchoolDay } from "@/lib/schools/calendar";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { defaultIsTeachingDay, getSchoolDay } from "@corelithzw/module-campus/calendar";
 import { dateInputSchema } from "../_helpers";
 
 const querySchema = z.object({

@@ -4,8 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { fieldOptionSchema } from "@corelithzw/module-records/custom-fields";
 import { prisma } from "@corelithzw/db/client";
-import { SCHOOL_RECORD_TYPES } from "@/lib/schools/record-types";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { SCHOOL_RECORD_TYPES } from "@corelithzw/module-campus/record-types";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * One of a school's own fields, edited or retired.

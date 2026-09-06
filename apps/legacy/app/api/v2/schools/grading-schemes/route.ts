@@ -6,8 +6,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { DEFAULT_GRADING_BANDS, findBandProblems } from "@/lib/schools/grading";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { DEFAULT_GRADING_BANDS, findBandProblems } from "@corelithzw/module-campus/grading";
 
 const bandSchema = z.object({
   grade: z.string().trim().min(1).max(10),

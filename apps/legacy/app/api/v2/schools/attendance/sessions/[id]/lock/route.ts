@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { isPrivilegedRole } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { isPrivilegedRole } from "@corelithzw/module-campus/governance-v2";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

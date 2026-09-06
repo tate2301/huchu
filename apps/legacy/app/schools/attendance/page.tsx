@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { RegisterOversightContent } from "@/components/schools/attendance/register-oversight-content";
+import { RegisterOversightContent } from "@corelithzw/module-campus/components/attendance/register-oversight-content";
 import { authOptions } from "@/lib/auth";
 
 /**

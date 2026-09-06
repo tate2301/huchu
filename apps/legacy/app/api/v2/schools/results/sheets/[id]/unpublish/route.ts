@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { writeModerationAction } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { writeModerationAction } from "@corelithzw/module-campus/governance-v2";
 
 const unpublishSchema = z.object({
   reason: z.string().trim().min(1).max(1000),

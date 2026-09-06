@@ -2,7 +2,7 @@ import { Suspense } from "react";
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { SchoolsFeesContent } from "@/components/schools/fees/schools-fees-content";
+import { SchoolsFeesContent } from "@corelithzw/module-campus/components/fees/schools-fees-content";
 import { authOptions } from "@/lib/auth";
 
 /**

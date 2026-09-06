@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { SchoolsTimetableContent } from "@/components/schools/timetable/schools-timetable-content";
+import { SchoolsTimetableContent } from "@corelithzw/module-campus/components/timetable/schools-timetable-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsTimetablePage() {

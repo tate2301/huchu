@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { generateOccupancyReport } from "@/lib/schools/reports";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { generateOccupancyReport } from "@corelithzw/module-campus/reports";
 
 export async function GET(request: NextRequest) {
   try {

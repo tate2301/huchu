@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { MeetingsAdminContent } from "@/components/schools/meetings/meetings-admin-content";
+import { MeetingsAdminContent } from "@corelithzw/module-campus/components/meetings/meetings-admin-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { FeesGradePicker } from "@/components/schools/fees/fees-grade-picker";
+import { FeesGradePicker } from "@corelithzw/module-campus/components/fees/fees-grade-picker";
 import { authOptions } from "@/lib/auth";
 
 /**

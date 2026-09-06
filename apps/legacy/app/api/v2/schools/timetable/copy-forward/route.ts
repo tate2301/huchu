@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { copyTimetableToTerm } from "@/lib/schools/timetable";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { copyTimetableToTerm } from "@corelithzw/module-campus/timetable";
 
 const bodySchema = z.object({
   fromTermId: z.string().uuid(),

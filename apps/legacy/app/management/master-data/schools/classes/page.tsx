@@ -1,7 +1,7 @@
 "use client";
 
 import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { SchoolsClassesContent } from "@/components/schools/classes/schools-classes-content";
+import { SchoolsClassesContent } from "@corelithzw/module-campus/components/classes/schools-classes-content";
 
 /** The year-group ladder and the streams inside each one. */
 export default function SchoolsClassesMasterDataPage() {

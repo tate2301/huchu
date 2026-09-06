@@ -5,7 +5,7 @@ import {
   guardianMaySee,
   resolvePortalGuardian,
   type GuardianConsentKind,
-} from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/portal-identity";
 
 /**
  * The three questions every one of a parent's child screens has to answer before

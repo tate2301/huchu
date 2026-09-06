@@ -6,8 +6,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { loanRegister } from "@/lib/schools/library";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { loanRegister } from "@corelithzw/module-campus/library";
 
 const querySchema = z.object({
   search: z.string().trim().max(120).optional(),

@@ -9,8 +9,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   exceeds,
   money,
@@ -18,7 +18,7 @@ import {
   toBaseAmount,
   toNumberOrZero,
   UnknownExchangeRateError,
-} from "@/lib/schools/money";
+} from "@corelithzw/module-campus/money";
 
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { SchoolsReportsEnhancedContent } from "@/components/schools/reports/schools-reports-enhanced-content";
+import { SchoolsReportsEnhancedContent } from "@corelithzw/module-campus/components/reports/schools-reports-enhanced-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsReportsPage() {

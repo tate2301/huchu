@@ -18,7 +18,7 @@ import {
   type ImportPlan as CoreImportPlan,
   type ImportRowIssue,
   type ImportRowPlan,
-} from "@/lib/import-core/plan";
+} from "@corelithzw/platform/import-core/plan";
 
 import { parseCsv, type CsvTable } from "./csv";
 

@@ -9,8 +9,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { allocateBed, AllocationRefusedError } from "@/lib/schools/boarding";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { allocateBed, AllocationRefusedError } from "@corelithzw/module-campus/boarding";
 import {
   isUniqueConstraintError,
   normalizeOptionalNullableString,

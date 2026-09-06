@@ -1,4 +1,4 @@
-import { StudentHomeworkScreen } from "@/components/schools/portal/student/student-homework-screen";
+import { StudentHomeworkScreen } from "@corelithzw/module-campus/components/portal/student/student-homework-screen";
 
 /**
  * Homework, reached from Home rather than a tab.

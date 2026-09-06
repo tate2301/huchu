@@ -1,7 +1,7 @@
 "use client";
 
 import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { GradingContent } from "@/components/schools/academics/grading-content";
+import { GradingContent } from "@corelithzw/module-campus/components/academics/grading-content";
 
 /**
  * Grading and publishing.

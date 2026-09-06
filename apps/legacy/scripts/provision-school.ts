@@ -1,7 +1,7 @@
 import "@/scripts/lib/env";
 
 import { prisma } from "@corelithzw/db/client";
-import { provisionSchool, type SchoolLevel } from "@/lib/schools/provision";
+import { provisionSchool, type SchoolLevel } from "@corelithzw/module-campus/provision";
 
 /**
  * Open a school on a tenant that has already been provisioned as a company.

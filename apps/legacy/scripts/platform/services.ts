@@ -2,7 +2,7 @@ import bcrypt from "bcryptjs";
 import type { Prisma } from "@corelithzw/db";
 
 import { prisma, disconnectPrisma } from "./prisma";
-import { provisionSchool } from "../../lib/schools/provision";
+import { provisionSchool } from "@corelithzw/module-campus/provision";
 import { provisionRetail } from "../../lib/retail/provision";
 import {
   getSubdomainReservation as getOrgSubdomainReservation,

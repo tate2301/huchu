@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { commitImportJob, planImportJob } from "@/lib/schools/import/service";
+import { commitImportJob, planImportJob } from "@corelithzw/module-campus/import/service";
 
 import { importPermissionDenial } from "../../_guard";
 

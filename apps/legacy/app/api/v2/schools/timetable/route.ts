@@ -6,9 +6,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { createTimetableSlot, isDayOfWeek } from "@/lib/schools/timetable";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { createTimetableSlot, isDayOfWeek } from "@corelithzw/module-campus/timetable";
 
 const querySchema = z.object({
   termId: z.string().uuid().optional(),

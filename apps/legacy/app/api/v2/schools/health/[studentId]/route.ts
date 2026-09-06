@@ -6,13 +6,13 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   HealthRecordError,
   clearHealthRecord,
   recordHealthEvent,
   saveHealthRecord,
-} from "@/lib/schools/health";
+} from "@corelithzw/module-campus/health";
 
 const text = (max: number) => z.string().trim().max(max).nullish();
 

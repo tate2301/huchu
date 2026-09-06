@@ -6,8 +6,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
 import {
   addRider,
   boardingRegister,
@@ -15,7 +15,7 @@ import {
   markBoardings,
   transportBilling,
   TransportError,
-} from "@/lib/schools/transport";
+} from "@corelithzw/module-campus/transport";
 
 const querySchema = z.object({
   routeId: z.string().uuid().optional(),

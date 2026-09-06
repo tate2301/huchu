@@ -9,7 +9,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   issueLoan,
   LibraryError,
@@ -17,7 +17,7 @@ import {
   renewLoan,
   reserveBook,
   returnLoan,
-} from "@/lib/schools/library";
+} from "@corelithzw/module-campus/library";
 
 const querySchema = z.object({
   /** Borrower, title or accession number — whatever is on the slip in hand. */

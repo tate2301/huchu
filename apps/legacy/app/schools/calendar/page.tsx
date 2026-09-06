@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { SchoolCalendarPageContent } from "@/components/schools/academics/school-calendar-page-content";
+import { SchoolCalendarPageContent } from "@corelithzw/module-campus/components/academics/school-calendar-page-content";
 import { authOptions } from "@/lib/auth";
 
 /**

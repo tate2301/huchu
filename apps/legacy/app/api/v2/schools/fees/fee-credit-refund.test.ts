@@ -91,7 +91,7 @@ async function makeInvoice(total: number, structure = feeStructureId) {
     select: { id: true },
   });
 
-  const { refreshFeeInvoiceBalance } = await import("./_helpers");
+  const { refreshFeeInvoiceBalance } = await import("@corelithzw/module-campus/fees-posting");
   await prisma.$transaction((tx) =>
     refreshFeeInvoiceBalance(tx, { companyId, invoiceId: invoice.id }),
   );
@@ -359,7 +359,7 @@ describe("S-2.5 — an overpayment becomes a credit", () => {
         status: "APPLIED",
       },
     });
-    const { refreshFeeInvoiceBalance } = await import("./_helpers");
+    const { refreshFeeInvoiceBalance } = await import("@corelithzw/module-campus/fees-posting");
     await prisma.$transaction((tx) =>
       refreshFeeInvoiceBalance(tx, { companyId, invoiceId }),
     );
@@ -645,7 +645,7 @@ describe("S-2.6 — a bursar can refund a parent", () => {
         status: "APPLIED",
       },
     });
-    const { refreshFeeInvoiceBalance } = await import("./_helpers");
+    const { refreshFeeInvoiceBalance } = await import("@corelithzw/module-campus/fees-posting");
     await prisma.$transaction((tx) =>
       refreshFeeInvoiceBalance(tx, { companyId, invoiceId }),
     );

@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { MarkSheetsContent } from "@/components/schools/results/mark-sheets-content";
+import { MarkSheetsContent } from "@corelithzw/module-campus/components/results/mark-sheets-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -1,4 +1,4 @@
-import { ParentAttendanceScreen } from "@/components/schools/portal/parent/parent-attendance-screen";
+import { ParentAttendanceScreen } from "@corelithzw/module-campus/components/portal/parent/parent-attendance-screen";
 
 /** The shell's layout owns the guard and the household — see `(shell)/layout.tsx`. */
 export default function Page() {

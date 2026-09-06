@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { TeachingResourcesContent } from "@/components/schools/timetable/resources-content";
+import { TeachingResourcesContent } from "@corelithzw/module-campus/components/timetable/resources-content";
 import { authOptions } from "@/lib/auth";
 
 /**

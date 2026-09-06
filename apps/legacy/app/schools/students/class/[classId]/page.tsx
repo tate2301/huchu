@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
-import { ClassStudentsContent } from "@/components/schools/students/class-students-content";
+import { ClassStudentsContent } from "@corelithzw/module-campus/components/students/class-students-content";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@corelithzw/db/client";
 

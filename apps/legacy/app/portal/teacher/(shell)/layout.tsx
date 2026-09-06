@@ -2,11 +2,11 @@ import { headers } from "next/headers";
 import {
   TeacherPortalProvider,
   type TeacherDay,
-} from "@/components/schools/portal/teacher/teacher-portal-context";
-import { TeacherPortalShell } from "@/components/schools/portal/teacher/teacher-portal-shell";
+} from "@corelithzw/module-campus/components/portal/teacher/teacher-portal-context";
+import { TeacherPortalShell } from "@corelithzw/module-campus/components/portal/teacher/teacher-portal-shell";
 import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
-import { loadTeacherDay } from "@/lib/schools/teacher-day-loader";
+import { loadTeacherDay } from "@corelithzw/module-campus/teacher-day-loader";
 import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**

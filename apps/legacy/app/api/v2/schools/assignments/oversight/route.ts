@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { assignmentOversight } from "@/lib/schools/assignments";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { assignmentOversight } from "@corelithzw/module-campus/assignments";
 
 const querySchema = z.object({
   termId: z.string().uuid().optional(),

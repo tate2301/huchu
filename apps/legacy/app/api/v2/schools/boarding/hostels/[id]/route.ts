@@ -7,7 +7,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { isSchoolAdmin, schoolPermissionDenial } from "@/lib/schools/permissions";
+import { isSchoolAdmin, schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * S-4.3 — what a record page may edit about a hostel.

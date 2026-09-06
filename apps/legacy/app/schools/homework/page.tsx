@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { HomeworkOversightContent } from "@/components/schools/homework/homework-oversight-content";
+import { HomeworkOversightContent } from "@corelithzw/module-campus/components/homework/homework-oversight-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsHomeworkPage() {

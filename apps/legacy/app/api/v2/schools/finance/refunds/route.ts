@@ -10,14 +10,14 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   exceeds,
   money,
   toBaseAmount,
   toNumberOrZero,
-} from "@/lib/schools/money";
+} from "@corelithzw/module-campus/money";
 import {
   availableInvoiceCredit,
   availableReceiptCredit,
@@ -25,7 +25,7 @@ import {
   isFeeCreditCheckViolation,
   lockFeeInvoices,
   lockFeeReceipt,
-} from "../../fees/_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 /**
  * S-2.6 — money going back to a parent.

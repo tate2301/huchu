@@ -5,8 +5,8 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { classHealthList } from "@/lib/schools/health";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { classHealthList } from "@corelithzw/module-campus/health";
 
 const querySchema = z.object({
   classId: z.string().uuid().optional(),

@@ -44,7 +44,7 @@ const { GET: getFiscal, POST: postFiscal } = await import(
   "./receipts/[id]/fiscalise/route"
 );
 const { buildSchoolFeeReceiptPayload, resolveFiscalCustomer } = await import(
-  "@/lib/schools/fiscalisation"
+  "@corelithzw/module-campus/fiscalisation"
 );
 const { POST: replayFiscal } = await import(
   "@/app/api/accounting/fiscalisation/replay/route"
@@ -133,7 +133,7 @@ async function makeInvoice(input: {
     select: { id: true },
   });
 
-  const { refreshFeeInvoiceBalance } = await import("./_helpers");
+  const { refreshFeeInvoiceBalance } = await import("@corelithzw/module-campus/fees-posting");
   await prisma.$transaction((tx) =>
     refreshFeeInvoiceBalance(tx, { companyId, invoiceId: invoice.id }),
   );

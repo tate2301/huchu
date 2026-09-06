@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { ResultsOverviewContent } from "@/components/schools/results/results-overview-content";
+import { ResultsOverviewContent } from "@corelithzw/module-campus/components/results/results-overview-content";
 import { authOptions } from "@/lib/auth";
 
 /**

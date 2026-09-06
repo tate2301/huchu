@@ -9,9 +9,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { SCHOOL_IMPORT_HANDLERS, SCHOOL_IMPORT_ORDER } from "@/lib/schools/import/registry";
-import { ImportTooLargeError, stageImportJob } from "@/lib/schools/import/service";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { SCHOOL_IMPORT_HANDLERS, SCHOOL_IMPORT_ORDER } from "@corelithzw/module-campus/import/registry";
+import { ImportTooLargeError, stageImportJob } from "@corelithzw/module-campus/import/service";
 
 import { importPermissionDenial } from "./_guard";
 

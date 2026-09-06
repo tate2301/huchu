@@ -41,6 +41,7 @@
     "@base-ui/react": "^1.1.0",
     "@corelithzw/db": "workspace:*",
     "@corelithzw/module-books": "workspace:*",
+    "@corelithzw/module-campus": "workspace:*",
     "@corelithzw/module-compliance": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-gold": "workspace:*",

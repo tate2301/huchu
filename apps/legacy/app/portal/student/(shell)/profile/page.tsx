@@ -1,4 +1,4 @@
-import { StudentProfileScreen } from "@/components/schools/portal/student/student-profile-screen";
+import { StudentProfileScreen } from "@corelithzw/module-campus/components/portal/student/student-profile-screen";
 
 /** The pupil's own profile. Auth and chrome are the layout's job. */
 export default function StudentProfilePage() {

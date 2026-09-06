@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { StudentRecordPage } from "@/components/schools/records/student-record-page";
+import { StudentRecordPage } from "@corelithzw/module-campus/components/records/student-record-page";
 import { authOptions } from "@/lib/auth";
 
 /**

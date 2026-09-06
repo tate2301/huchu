@@ -1,4 +1,4 @@
-import { StudentMarksScreen } from "@/components/schools/portal/student/student-marks-screen";
+import { StudentMarksScreen } from "@corelithzw/module-campus/components/portal/student/student-marks-screen";
 
 /**
  * The Marks tab.

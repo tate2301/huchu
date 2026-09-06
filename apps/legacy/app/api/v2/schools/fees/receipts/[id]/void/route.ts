@@ -2,18 +2,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
 import {
   apportionBase,
   money,
   resolveBaseCurrency,
   toNumberOrZero,
-} from "@/lib/schools/money";
+} from "@corelithzw/module-campus/money";
 import {
   emitSchoolFeeAccountingEvent,
   refreshFeeInvoiceBalance,
-} from "../../../_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

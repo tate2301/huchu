@@ -3,8 +3,8 @@ import { Prisma } from "@corelithzw/db";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { resolveBaseCurrency, toNumberOrZero } from "@/lib/schools/money";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { resolveBaseCurrency, toNumberOrZero } from "@corelithzw/module-campus/money";
 
 /**
  * What each year group owes — and, now, what it was billed, what it has paid,

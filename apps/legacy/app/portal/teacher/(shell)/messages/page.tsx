@@ -1,4 +1,4 @@
-import { TeacherMessagesScreen } from "@/components/schools/portal/teacher/teacher-messages-screen";
+import { TeacherMessagesScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-messages-screen";
 
 /** Conversations with families, about their children. */
 export default function TeacherMessagesPage() {

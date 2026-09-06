@@ -2,15 +2,15 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { toNumberOrZero } from "@/lib/schools/money";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { toNumberOrZero } from "@corelithzw/module-campus/money";
 import {
   FeeCreditError,
   isFeeCreditCheckViolation,
   lockFeeInvoices,
   lockFeeReceipt,
-} from "../../../../fees/_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

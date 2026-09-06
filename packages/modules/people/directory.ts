@@ -7,6 +7,7 @@
  * result shape and the linkable-user client and grows as the readers arrive.
  */
 export {
+  fetchDepartments,
   fetchDisciplinaryActions,
   fetchEmployees,
   fetchHrIncidents,
@@ -15,6 +16,7 @@ export {
   fetchShiftGroupMembers,
   fetchShiftGroupSchedules,
   fetchShiftGroups,
+  type DepartmentRecord,
   type DisciplinaryActionRecord,
   type EmployeeModuleValue,
   type EmployeeSummary,

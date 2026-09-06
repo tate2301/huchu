@@ -8,8 +8,8 @@ import {
   validateDefinition,
 } from "@corelithzw/module-records/custom-fields";
 import { prisma } from "@corelithzw/db/client";
-import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@/lib/schools/record-types";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@corelithzw/module-campus/record-types";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * S-4.4 — a school's own fields on a pupil or a parent.

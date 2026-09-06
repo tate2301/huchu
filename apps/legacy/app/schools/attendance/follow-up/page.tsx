@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { AbsenceFollowUpContent } from "@/components/schools/attendance/absence-follow-up-content";
+import { AbsenceFollowUpContent } from "@corelithzw/module-campus/components/attendance/absence-follow-up-content";
 import { authOptions } from "@/lib/auth";
 
 /**

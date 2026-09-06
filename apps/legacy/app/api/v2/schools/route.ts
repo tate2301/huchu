@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 export async function GET(request: NextRequest) {
   try {

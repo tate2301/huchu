@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { resolveBaseCurrency, toNumberOrZero } from "@/lib/schools/money";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { resolveBaseCurrency, toNumberOrZero } from "@corelithzw/module-campus/money";
 import {
   emitSchoolFeeAccountingEvent,
   FeeCreditError,
-} from "../../../../fees/_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -21,7 +21,7 @@ type RouteParams = { params: Promise<{ id: string }> };
  *
  * The posting is the receipt's entry backwards — cash out, the family's credit
  * balance extinguished — which is why `invertDirection` is set. See the seam
- * note on `toPostingSourceType` in `app/api/v2/schools/fees/_helpers.ts`: the
+ * note on `toPostingSourceType` in `packages/modules/campus/fees-posting.ts`: the
  * accounts are right, the source *type* is borrowed from `SALES_RECEIPT` until
  * S-2.3 gives school money its own.
  */

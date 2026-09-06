@@ -22,13 +22,13 @@ import {
   type PeopleSearchType,
 } from "@corelithzw/module-people/people/search";
 import { groupSearchResults, searchRecords, type SearchScope } from "@corelithzw/module-records/search";
-import { canSchoolRoleDo } from "@/lib/schools/permissions";
+import { canSchoolRoleDo } from "@corelithzw/module-campus/permissions";
 import {
   SCHOOL_SEARCH_FEATURES,
   SCHOOL_SEARCH_RESOURCES,
   SCHOOL_SEARCH_TYPES,
   type SchoolSearchType,
-} from "@/lib/schools/search";
+} from "@corelithzw/module-campus/search";
 
 /**
  * One search box for the whole product.

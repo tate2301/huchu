@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { resolvePortalStudent } from "@/lib/schools/portal-identity";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { resolvePortalStudent } from "@corelithzw/module-campus/portal-identity";
 
 /**
  * The subjects this pupil is taught this term, with the mark they hold in each.

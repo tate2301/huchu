@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { SCHOOL_IMPORT_HANDLERS } from "@/lib/schools/import/registry";
+import { SCHOOL_IMPORT_HANDLERS } from "@corelithzw/module-campus/import/registry";
 
 import { importPermissionDenial } from "../_guard";
 

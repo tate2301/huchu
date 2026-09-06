@@ -5,8 +5,8 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { applyYearRollUp, planYearRollUp } from "@/lib/schools/year-rollup";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { applyYearRollUp, planYearRollUp } from "@corelithzw/module-campus/year-rollup";
 
 const querySchema = z.object({
   fromTermId: z.string().uuid(),

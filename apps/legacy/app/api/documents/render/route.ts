@@ -11,14 +11,14 @@ import { hasFeature } from "@corelithzw/platform/features";
 import {
   isSchoolDocumentSourceKey,
   SCHOOL_DOCUMENT_ACCESS,
-} from "@/lib/schools/document-sources";
+} from "@corelithzw/module-campus/document-sources";
 import {
   canRenderPayslip,
   HR_DOCUMENT_ACCESS,
   isHrDocumentSourceKey,
 } from "@corelithzw/module-people/hr/document-sources";
 import { isApproverRole } from "@corelithzw/module-workflow/approvals";
-import { canSchoolRoleDo } from "@/lib/schools/permissions";
+import { canSchoolRoleDo } from "@corelithzw/module-campus/permissions";
 import type { DocumentRenderRequest } from "@corelithzw/module-documents/service";
 
 export const runtime = "nodejs";

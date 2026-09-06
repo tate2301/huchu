@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { inferNumbering } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { isSchoolAdmin, schoolPermissionDenial } from "@/lib/schools/permissions";
+import { isSchoolAdmin, schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * How this school writes its student numbers and its ID cards.

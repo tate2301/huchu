@@ -33,7 +33,7 @@ registerSearchArm({ id: "crm", run: async (db, input) => (await import("@/lib/cr
 registerSearchArm({
   id: "schools",
   run: async (db, input) => {
-    const { searchSchools } = await import("@/lib/schools/search");
+    const { searchSchools } = await import("@corelithzw/module-campus/search");
     return searchSchools(db, { ...input, types: input.types as Parameters<typeof searchSchools>[1]["types"] });
   },
 });
@@ -72,7 +72,7 @@ registerDocumentSource({
   id: "schools",
   matches: (key) => key.startsWith("schools."),
   resolve: async (input) => {
-    const { isSchoolDocumentSourceKey, resolveSchoolDocument } = await import("@/lib/schools/document-sources");
+    const { isSchoolDocumentSourceKey, resolveSchoolDocument } = await import("@corelithzw/module-campus/document-sources");
     if (!isSchoolDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
     return resolveSchoolDocument(input.companyId, { ...input, sourceKey: input.sourceKey });
   },
@@ -96,7 +96,7 @@ registerDocumentSource({
 // incident when a tenant is stuck. The school's issuer and the compliance
 // module's incident live with their modules.
 registerFiscalDrainIssuer("schoolFeeReceipt", async (args) => {
-  const { issueSchoolFeeReceiptFiscalisation } = await import("@/lib/schools/fiscalisation");
+  const { issueSchoolFeeReceiptFiscalisation } = await import("@corelithzw/module-campus/fiscalisation");
   const result = await issueSchoolFeeReceiptFiscalisation(args);
   return { status: result.fiscalStatus, error: result.fiscalError ?? null };
 });

@@ -1,4 +1,4 @@
-import { SchemeOfWorkContent } from "@/components/schools/portal/teacher/scheme-of-work-content";
+import { SchemeOfWorkContent } from "@corelithzw/module-campus/components/portal/teacher/scheme-of-work-content";
 
 /**
  * A subject's term, week by week — the document "lay out this week" drafts from.

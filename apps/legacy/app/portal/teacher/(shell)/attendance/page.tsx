@@ -1,4 +1,4 @@
-import { TeacherRegisterScreen } from "@/components/schools/portal/teacher/teacher-register-screen";
+import { TeacherRegisterScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-register-screen";
 
 /** Taking the register for the class the rail has selected. */
 export default function TeacherAttendancePage() {

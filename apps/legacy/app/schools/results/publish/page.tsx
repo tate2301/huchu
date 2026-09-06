@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PublishingContent } from "@/components/schools/results/publishing-content";
+import { PublishingContent } from "@corelithzw/module-campus/components/results/publishing-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsResultsPublishPage() {

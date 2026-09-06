@@ -1,7 +1,7 @@
 "use client";
 
 import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { SchoolDayContent } from "@/components/schools/academics/school-day-content";
+import { SchoolDayContent } from "@corelithzw/module-campus/components/academics/school-day-content";
 
 /**
  * The school day.

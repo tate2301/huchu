@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { generateArrearsAgingReport } from "@/lib/schools/reports";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { generateArrearsAgingReport } from "@corelithzw/module-campus/reports";
 
 const querySchema = z.object({
   termId: z.string().uuid().optional(),

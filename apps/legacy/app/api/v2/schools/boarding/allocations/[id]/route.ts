@@ -8,8 +8,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { AllocationRefusedError, endAllocation } from "@/lib/schools/boarding";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { AllocationRefusedError, endAllocation } from "@corelithzw/module-campus/boarding";
 import {
   isUniqueConstraintError,
   normalizeOptionalNullableString,

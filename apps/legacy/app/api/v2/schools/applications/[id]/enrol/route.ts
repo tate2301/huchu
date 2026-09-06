@@ -6,9 +6,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { enrolApplicant, StageTransitionError } from "@/lib/schools/admissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { enrolApplicant, StageTransitionError } from "@corelithzw/module-campus/admissions";
 
 const enrolSchema = z.object({
   studentNo: z.string().trim().min(1).max(40).optional(),

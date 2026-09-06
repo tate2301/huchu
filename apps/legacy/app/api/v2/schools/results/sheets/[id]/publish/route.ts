@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   findOpenPublishWindow,
   isPrivilegedRole,
   writeModerationAction,
-} from "@/lib/schools/governance-v2";
+} from "@corelithzw/module-campus/governance-v2";
 
 export async function POST(
   request: NextRequest,

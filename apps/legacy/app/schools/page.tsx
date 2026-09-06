@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { SchoolsDashboardContent } from "@/components/schools/schools-dashboard-content";
+import { SchoolsDashboardContent } from "@corelithzw/module-campus/components/schools-dashboard-content";
 import { authOptions } from "@/lib/auth";
 
 /**

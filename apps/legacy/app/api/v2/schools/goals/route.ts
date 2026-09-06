@@ -5,10 +5,10 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { GoalError, goalsForStudent, saveGoal } from "@/lib/schools/goals-meetings";
-import { resolvePortalStudent } from "@/lib/schools/portal-identity";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { GoalError, goalsForStudent, saveGoal } from "@corelithzw/module-campus/goals-meetings";
+import { resolvePortalStudent } from "@corelithzw/module-campus/portal-identity";
 
 const querySchema = z.object({
   studentId: z.string().uuid().optional(),

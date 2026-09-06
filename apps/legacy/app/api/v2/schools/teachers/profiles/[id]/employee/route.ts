@@ -5,13 +5,13 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   linkTeacherToEmployee,
   suggestEmployeesForTeacher,
   TeacherLinkError,
   unlinkTeacherFromEmployee,
-} from "@/lib/schools/teacher-identity";
+} from "@corelithzw/module-campus/teacher-identity";
 
 const linkSchema = z.object({ employeeId: z.string().uuid() });
 

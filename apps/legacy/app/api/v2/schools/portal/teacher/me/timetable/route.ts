@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
-import { formatMinute } from "@/lib/schools/timetable-format";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
+import { formatMinute } from "@corelithzw/module-campus/timetable-format";
 
 const querySchema = z.object({
   weekStart: z.string().date().optional(),

@@ -11,4 +11,4 @@ export {
   guessMapping,
   rowToRecord,
   type CsvTable,
-} from "@/lib/import-core/csv";
+} from "@corelithzw/platform/import-core/csv";

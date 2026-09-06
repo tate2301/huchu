@@ -13,9 +13,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile, isPrivilegedRole } from "@/lib/schools/governance-v2";
-import { getCurrentTerm } from "@/lib/schools/calendar";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getTeacherProfile, isPrivilegedRole } from "@corelithzw/module-campus/governance-v2";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
 
 const attendanceEntryStatusSchema = z.enum(["PRESENT", "ABSENT", "LATE", "EXCUSED"]);
 const attendanceSessionStatusSchema = z.enum(["DRAFT", "SUBMITTED", "LOCKED"]);

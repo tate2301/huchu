@@ -10,8 +10,8 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   apportionBase,
   money,
@@ -22,12 +22,12 @@ import {
   taxOn,
   toNumberOrZero,
   UnknownExchangeRateError,
-} from "@/lib/schools/money";
+} from "@corelithzw/module-campus/money";
 import {
   emitSchoolFeeAccountingEvent,
   isDuplicateLiveInvoice,
   refreshFeeInvoiceBalance,
-} from "../_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),

@@ -3,15 +3,15 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   exceeds,
   money,
   toBaseAmount,
   toNumberOrZero,
-} from "@/lib/schools/money";
-import { refreshFeeInvoiceBalance } from "../../_helpers";
+} from "@corelithzw/module-campus/money";
+import { refreshFeeInvoiceBalance } from "@corelithzw/module-campus/fees-posting";
 
 /**
  * One waiver: correct it, move it along its states, or throw a draft away.

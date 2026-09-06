@@ -1,7 +1,7 @@
 "use client";
 
 import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { SchoolsYearsContent } from "@/components/schools/academics/schools-years-content";
+import { SchoolsYearsContent } from "@corelithzw/module-campus/components/academics/schools-years-content";
 
 /**
  * Years, terms and the school calendar.

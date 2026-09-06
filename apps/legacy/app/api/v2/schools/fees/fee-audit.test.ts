@@ -34,8 +34,8 @@ vi.mock("@corelithzw/platform/api-utils", async (importOriginal) => {
   return { ...actual, validateSession: validateSessionMock };
 });
 
-vi.mock("@/lib/schools/audit", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/schools/audit")>();
+vi.mock("@corelithzw/module-campus/audit", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@corelithzw/module-campus/audit")>();
   return {
     ...actual,
     writeSchoolAuditEvent: async (

@@ -7,8 +7,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { canViewAnyPortalSubject } from "@/lib/schools/portal-identity";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { canViewAnyPortalSubject } from "@corelithzw/module-campus/portal-identity";
 
 /**
  * The link between a student and a guardian, and what that guardian may see.

@@ -7,8 +7,8 @@ import {
   closeThread,
   MessageError,
   openThread,
-} from "@/lib/schools/messages";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+} from "@corelithzw/module-campus/messages";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * Every conversation in the school — the head's view.

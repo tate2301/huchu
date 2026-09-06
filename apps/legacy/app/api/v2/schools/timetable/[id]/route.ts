@@ -7,8 +7,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { findSlotConflicts, isDayOfWeek } from "@/lib/schools/timetable";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { findSlotConflicts, isDayOfWeek } from "@corelithzw/module-campus/timetable";
 
 const updateSchema = z
   .object({

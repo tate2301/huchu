@@ -6,16 +6,16 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 import {
   assignmentBoard,
   AssignmentError,
   markSubmission,
   publishAssignment,
   submitAssignment,
-} from "@/lib/schools/assignments";
-import { resolvePortalStudent } from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/assignments";
+import { resolvePortalStudent } from "@corelithzw/module-campus/portal-identity";
 
 const patchSchema = z.object({
   publish: z.boolean().optional(),

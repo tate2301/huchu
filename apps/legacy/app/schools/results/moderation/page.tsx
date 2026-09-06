@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { ModerationQueueContent } from "@/components/schools/results/moderation-queue-content";
+import { ModerationQueueContent } from "@corelithzw/module-campus/components/results/moderation-queue-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsResultsModerationPage() {

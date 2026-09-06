@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { listSentNotices, NoticeError, sendSchoolNotice } from "@/lib/schools/notices";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { listSentNotices, NoticeError, sendSchoolNotice } from "@corelithzw/module-campus/notices";
 
 const postSchema = z.object({
   title: z.string().trim().min(1).max(160),

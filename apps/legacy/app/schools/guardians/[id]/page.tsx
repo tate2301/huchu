@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { GuardianRecordPage } from "@/components/schools/records/guardian-record-page";
+import { GuardianRecordPage } from "@corelithzw/module-campus/components/records/guardian-record-page";
 import { authOptions } from "@/lib/auth";
 
 /**

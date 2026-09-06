@@ -8,8 +8,8 @@ import {
   generateArrearsAgingReport,
   generateEnrollmentStatsReport,
   generateOccupancyReport,
-} from "@/lib/schools/reports";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+} from "@corelithzw/module-campus/reports";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 
 /**
  * S-5.4 — a school report export is a real file.

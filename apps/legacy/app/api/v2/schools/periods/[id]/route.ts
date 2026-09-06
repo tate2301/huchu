@@ -7,8 +7,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { findOverlappingPeriod, isValidPeriodRange } from "@/lib/schools/timetable";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { findOverlappingPeriod, isValidPeriodRange } from "@corelithzw/module-campus/timetable";
 import { isUniqueConstraintError } from "../../_helpers";
 
 const updateSchema = z

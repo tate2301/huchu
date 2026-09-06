@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { ClaimPortalAccountContent } from "@/components/schools/portal/claim-portal-account-content";
+import { ClaimPortalAccountContent } from "@corelithzw/module-campus/components/portal/claim-portal-account-content";
 
 export const metadata: Metadata = {
   title: "Set up your portal account",

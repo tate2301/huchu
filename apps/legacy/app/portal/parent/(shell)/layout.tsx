@@ -1,10 +1,10 @@
 import { headers } from "next/headers";
 
-import { ParentPortalProvider } from "@/components/schools/portal/parent/parent-portal-context";
-import { ParentPortalShell } from "@/components/schools/portal/parent/parent-portal-shell";
+import { ParentPortalProvider } from "@corelithzw/module-campus/components/portal/parent/parent-portal-context";
+import { ParentPortalShell } from "@corelithzw/module-campus/components/portal/parent/parent-portal-shell";
 import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
-import { loadParentHousehold, type ParentHousehold } from "@/lib/schools/parent-household-loader";
+import { loadParentHousehold, type ParentHousehold } from "@corelithzw/module-campus/parent-household-loader";
 import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**

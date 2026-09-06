@@ -9,9 +9,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { toNumberOrZero } from "@/lib/schools/money";
-import { availableInvoiceCredit, availableReceiptCredit } from "../_helpers";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { toNumberOrZero } from "@corelithzw/module-campus/money";
+import { availableInvoiceCredit, availableReceiptCredit } from "@corelithzw/module-campus/fees-posting";
 
 /**
  * S-2.5 — what the school is holding on families' behalf.

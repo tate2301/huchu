@@ -10,7 +10,7 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import { isUniqueConstraintError, normalizeOptionalNullableString } from "../_helpers";
 
 const guardianQuerySchema = z.object({

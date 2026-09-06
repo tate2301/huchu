@@ -7,8 +7,8 @@ import {
   replyToThread,
   startThread,
   threadsForGuardian,
-} from "@/lib/schools/messages";
-import { resolvePortalGuardian } from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/messages";
+import { resolvePortalGuardian } from "@corelithzw/module-campus/portal-identity";
 
 /**
  * A family's conversations with the school.

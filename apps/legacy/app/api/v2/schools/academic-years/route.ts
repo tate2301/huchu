@@ -8,12 +8,12 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   activateAcademicYear,
   findOverlappingAcademicYear,
   isDateRangeValid,
-} from "@/lib/schools/calendar";
+} from "@corelithzw/module-campus/calendar";
 import { dateInputSchema, isUniqueConstraintError } from "../_helpers";
 
 const querySchema = z.object({

@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { notFound, redirect } from "next/navigation";
 
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { ClassFeesContent } from "@/components/schools/fees/class-fees-content";
+import { ClassFeesContent } from "@corelithzw/module-campus/components/fees/class-fees-content";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@corelithzw/db/client";
 

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { TeacherRecordPage } from "@/components/schools/records/teacher-record-page";
+import { TeacherRecordPage } from "@corelithzw/module-campus/components/records/teacher-record-page";
 import { authOptions } from "@/lib/auth";
 
 /** S-4.3 — a teacher is a record page. See the student route for why no heading. */

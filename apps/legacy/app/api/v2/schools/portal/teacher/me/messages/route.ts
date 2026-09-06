@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getTeacherProfile, isPrivilegedRole } from "@/lib/schools/governance-v2";
+import { getTeacherProfile, isPrivilegedRole } from "@corelithzw/module-campus/governance-v2";
 import {
   MessageError,
   openThread,
   replyToThread,
   startThread,
   threadsForStaff,
-} from "@/lib/schools/messages";
+} from "@corelithzw/module-campus/messages";
 
 /**
  * A teacher's conversations with families.

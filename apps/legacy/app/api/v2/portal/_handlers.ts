@@ -14,13 +14,13 @@ import {
   getTeacherAssignments,
   getTeacherProfile,
   isPrivilegedRole,
-} from "@/lib/schools/governance-v2";
-import { clampAtZero, sumMoney } from "@/lib/schools/money";
+} from "@corelithzw/module-campus/governance-v2";
+import { clampAtZero, sumMoney } from "@corelithzw/module-campus/money";
 import {
   resolvePortalGuardian,
   resolvePortalStudent,
   studentIdsWithConsent,
-} from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/portal-identity";
 
 const parentPortalQuerySchema = z.object({
   guardianId: z.string().uuid().optional(),

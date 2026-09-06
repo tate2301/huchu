@@ -9,8 +9,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { money, sumMoney } from "@/lib/schools/money";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { money, sumMoney } from "@corelithzw/module-campus/money";
 
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),

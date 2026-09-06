@@ -11,7 +11,7 @@ import {
 import { buildCustomFieldValues } from "@corelithzw/module-records/custom-fields";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   isUniqueConstraintError,
   normalizeOptionalNullableString,

@@ -3,8 +3,8 @@ import { Prisma } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   clampAtZero,
   exceeds,
@@ -13,7 +13,7 @@ import {
   sumMoney,
   toBaseAmount,
   toNumberOrZero,
-} from "@/lib/schools/money";
+} from "@corelithzw/module-campus/money";
 import {
   availableReceiptCredit,
   emitSchoolFeeAccountingEvent,
@@ -25,7 +25,7 @@ import {
   refreshFeeReceiptSplit,
   spreadOverInvoices,
   type SchoolFeePostingResult,
-} from "../../../_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

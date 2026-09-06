@@ -2,11 +2,11 @@ import { headers } from "next/headers";
 import {
   StudentPortalProvider,
   type StudentDay,
-} from "@/components/schools/portal/student/student-portal-context";
-import { StudentPortalShell } from "@/components/schools/portal/student/student-portal-shell";
+} from "@corelithzw/module-campus/components/portal/student/student-portal-context";
+import { StudentPortalShell } from "@corelithzw/module-campus/components/portal/student/student-portal-shell";
 import { requirePageAuth } from "@corelithzw/platform/auth-core/guards";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
-import { loadStudentDay } from "@/lib/schools/student-day-loader";
+import { loadStudentDay } from "@corelithzw/module-campus/student-day-loader";
 import { serializeDecimals } from "@corelithzw/platform/serialize-decimals";
 
 /**

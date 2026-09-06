@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 
 const createSchema = z.object({
   title: z.string().trim().min(1).max(300),

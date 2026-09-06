@@ -7,7 +7,7 @@ import {
   getGuardianChildLink,
   guardianMaySee,
   resolvePortalGuardian,
-} from "@/lib/schools/portal-identity";
+} from "@corelithzw/module-campus/portal-identity";
 
 type RouteParams = { params: Promise<{ studentId: string }> };
 

@@ -6,7 +6,7 @@ import {
   MIN_PORTAL_PASSWORD_LENGTH,
   claimPortalInvite,
   findClaimableInvite,
-} from "@/lib/schools/portal-invites";
+} from "@corelithzw/module-campus/portal-invites";
 
 /**
  * Claiming a portal account.

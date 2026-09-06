@@ -6,13 +6,13 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 import {
   AssessmentLockedError,
   saveAssessmentScores,
   ScoreOutOfRangeError,
-} from "@/lib/schools/assessments";
+} from "@corelithzw/module-campus/assessments";
 
 const putSchema = z.object({
   scores: z

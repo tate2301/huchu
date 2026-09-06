@@ -1,8 +1,8 @@
 "use client";
 
 import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { IdentitySettingsContent } from "@/components/schools/academics/identity-settings-content";
-import { SchoolCustomFieldsPanel } from "@/components/schools/academics/school-custom-fields-panel";
+import { IdentitySettingsContent } from "@corelithzw/module-campus/components/academics/identity-settings-content";
+import { SchoolCustomFieldsPanel } from "@corelithzw/module-campus/components/academics/school-custom-fields-panel";
 
 /**
  * School records — how pupils are numbered, what their ID card says, and the

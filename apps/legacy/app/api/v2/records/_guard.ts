@@ -1,6 +1,6 @@
 import { hasFeature } from "@corelithzw/platform/features";
 import { recordType, type RecordType } from "@corelithzw/module-records/registry";
-import { schoolPermissionDenial, type SessionLike } from "@/lib/schools/permissions";
+import { schoolPermissionDenial, type SessionLike } from "@corelithzw/module-campus/permissions";
 
 /**
  * Who may read or write things filed against a record, whichever module owns it.

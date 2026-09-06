@@ -6,7 +6,7 @@ import { issueFiscalReceipt } from "@corelithzw/module-books/fiscalisation";
 import {
   issueSchoolFeeReceiptFiscalisation,
   SCHOOL_FISCALISATION_FEATURE,
-} from "@/lib/schools/fiscalisation";
+} from "@corelithzw/module-campus/fiscalisation";
 import { hasFeature } from "@corelithzw/platform/features";
 import { hasRole } from "@corelithzw/platform/roles";
 

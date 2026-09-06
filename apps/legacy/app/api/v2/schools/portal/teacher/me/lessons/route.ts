@@ -2,14 +2,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getTeacherProfile, isPrivilegedRole } from "@/lib/schools/governance-v2";
+import { getTeacherProfile, isPrivilegedRole } from "@corelithzw/module-campus/governance-v2";
 import {
   copyWeekForward,
   layOutWeek,
   LessonPlanError,
   saveLessonPlan,
-} from "@/lib/schools/lesson-plans";
-import { formatMinute } from "@/lib/schools/timetable-format";
+} from "@corelithzw/module-campus/lesson-plans";
+import { formatMinute } from "@corelithzw/module-campus/timetable-format";
 
 const querySchema = z.object({
   classSubjectId: z.string().uuid(),

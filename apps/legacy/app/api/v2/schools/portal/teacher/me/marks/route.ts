@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getTeacherProfile, isPrivilegedRole } from "@/lib/schools/governance-v2";
+import { getTeacherProfile, isPrivilegedRole } from "@corelithzw/module-campus/governance-v2";
 
 const marksPayloadSchema = z.object({
   sheetId: z.string().uuid(),

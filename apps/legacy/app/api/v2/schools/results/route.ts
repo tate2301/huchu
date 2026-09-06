@@ -9,7 +9,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import { schoolResultSheetStatusSchema } from "../_helpers";
 
 const resultsQuerySchema = z.object({

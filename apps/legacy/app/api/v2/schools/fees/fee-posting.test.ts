@@ -13,7 +13,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Prisma } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
-import { emitSchoolFeeAccountingEvent } from "./_helpers";
+import { emitSchoolFeeAccountingEvent } from "@corelithzw/module-campus/fees-posting";
 
 let companyId: string;
 let actorId: string;

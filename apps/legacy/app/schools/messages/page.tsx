@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { OfficeInboxContent } from "@/components/schools/messages/office-inbox-content";
+import { OfficeInboxContent } from "@corelithzw/module-campus/components/messages/office-inbox-content";
 import { authOptions } from "@/lib/auth";
 
 /**

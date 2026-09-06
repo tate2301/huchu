@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { loadTeacherDay } from "@/lib/schools/teacher-day-loader";
+import { loadTeacherDay } from "@corelithzw/module-campus/teacher-day-loader";
 
 const querySchema = z.object({
   onDate: z.string().date().optional(),

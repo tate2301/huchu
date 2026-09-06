@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { GoalsOversightContent } from "@/components/schools/goals/goals-oversight-content";
+import { GoalsOversightContent } from "@corelithzw/module-campus/components/goals/goals-oversight-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function SchoolsGoalsPage() {

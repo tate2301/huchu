@@ -9,9 +9,9 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { canViewAnyPortalSubject } from "@/lib/schools/portal-identity";
-import { InviteError, issuePortalInvite } from "@/lib/schools/portal-invites";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { canViewAnyPortalSubject } from "@corelithzw/module-campus/portal-identity";
+import { InviteError, issuePortalInvite } from "@corelithzw/module-campus/portal-invites";
 
 const subjectSchema = z.enum(["STUDENT", "GUARDIAN"]);
 

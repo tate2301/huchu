@@ -4,8 +4,8 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { AllocationRefusedError, hostelOccupancy } from "@/lib/schools/boarding";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { AllocationRefusedError, hostelOccupancy } from "@corelithzw/module-campus/boarding";
 
 /**
  * Every bed in a hostel and who is in it.

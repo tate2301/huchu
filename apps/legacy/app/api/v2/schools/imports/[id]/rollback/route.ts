@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { rollbackImportJob } from "@/lib/schools/import/service";
+import { rollbackImportJob } from "@corelithzw/module-campus/import/service";
 
 import { importPermissionDenial } from "../../_guard";
 

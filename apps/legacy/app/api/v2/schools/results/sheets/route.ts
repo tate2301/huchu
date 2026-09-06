@@ -9,14 +9,14 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import { isUniqueConstraintError, schoolResultSheetStatusSchema } from "../../_helpers";
 import {
   buildAssignedResultSheetWhere,
   getTeacherAssignments,
   getTeacherProfile,
   isPrivilegedRole,
-} from "@/lib/schools/governance-v2";
+} from "@corelithzw/module-campus/governance-v2";
 
 const resultSheetQuerySchema = z.object({
   search: z.string().trim().min(1).optional(),

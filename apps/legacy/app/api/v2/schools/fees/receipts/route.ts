@@ -10,7 +10,7 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   apportionBase,
   exceeds,
@@ -20,12 +20,12 @@ import {
   toBaseAmount,
   toNumberOrZero,
   UnknownExchangeRateError,
-} from "@/lib/schools/money";
-import { writeSchoolAuditEvent } from "@/lib/schools/audit";
+} from "@corelithzw/module-campus/money";
+import { writeSchoolAuditEvent } from "@corelithzw/module-campus/audit";
 import {
   tryIssueSchoolFeeReceiptFiscalisation,
   type SchoolFiscalOutcome,
-} from "@/lib/schools/fiscalisation";
+} from "@corelithzw/module-campus/fiscalisation";
 import {
   emitSchoolFeeAccountingEvent,
   FeeCreditError,
@@ -34,7 +34,7 @@ import {
   refreshFeeInvoiceBalance,
   spreadOverInvoices,
   type SchoolFeePostingResult,
-} from "../_helpers";
+} from "@corelithzw/module-campus/fees-posting";
 
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),

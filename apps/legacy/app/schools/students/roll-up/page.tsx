@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { YearRollUpContent } from "@/components/schools/students/year-rollup-content";
+import { YearRollUpContent } from "@corelithzw/module-campus/components/students/year-rollup-content";
 import { authOptions } from "@/lib/auth";
 
 /**

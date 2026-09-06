@@ -5,9 +5,9 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getCurrentTerm } from "@/lib/schools/calendar";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
+import { getCurrentTerm } from "@corelithzw/module-campus/calendar";
+import { getTeacherProfile } from "@corelithzw/module-campus/governance-v2";
 import {
   arrangeCover,
   copyWeekForward,
@@ -15,7 +15,7 @@ import {
   LessonPlanError,
   lessonWeek,
   saveLessonPlan,
-} from "@/lib/schools/lesson-plans";
+} from "@corelithzw/module-campus/lesson-plans";
 
 const querySchema = z.object({
   weekStart: z.string().date(),

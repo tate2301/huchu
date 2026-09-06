@@ -6,12 +6,12 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { schoolPermissionDenial } from "@corelithzw/module-campus/permissions";
 import {
   moveApplication,
   StageTransitionError,
   type ApplicationStage,
-} from "@/lib/schools/admissions";
+} from "@corelithzw/module-campus/admissions";
 
 const STAGES = [
   "ENQUIRY",
