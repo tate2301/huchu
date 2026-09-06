@@ -9,7 +9,7 @@ import { useSession } from "next-auth/react";
 import { StatCard } from "@corelithzw/react";
 
 import { Plus, Send, Trash2 } from "@corelithzw/ui/lib/icons";
-import { PeopleShell } from "@/components/people/people-shell";
+import { PeopleShell } from "@corelithzw/module-people/components/people/people-shell";
 import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
 import { FieldHelp } from "@corelithzw/ui/shared/field-help";
 import { FormShell } from "@corelithzw/ui/shared/form-shell";
@@ -50,7 +50,7 @@ import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ATTENDANCE_STATUS_LABELS,
   canMarkAttendance,
-} from "@/lib/people/attendance";
+} from "@corelithzw/module-people/people/attendance";
 
 /**
  * Attendance — the register for a day, and a modal to mark one.

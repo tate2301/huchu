@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
-import { PeopleShell } from "@/components/people/people-shell";
+import { PeopleShell } from "@corelithzw/module-people/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";

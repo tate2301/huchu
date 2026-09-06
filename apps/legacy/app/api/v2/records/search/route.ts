@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { getFeatureMap } from "@corelithzw/platform/features";
-import { hrPermissionDenial } from "@/lib/hr/permissions";
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions";
 import { GOLD_SEARCH_FEATURES, GOLD_SEARCH_TYPES, type GoldSearchType } from "@/lib/gold/search";
 import {
   OPERATIONS_SEARCH_FEATURES,
@@ -20,7 +20,7 @@ import {
   PEOPLE_SEARCH_RESOURCES,
   PEOPLE_SEARCH_TYPES,
   type PeopleSearchType,
-} from "@/lib/people/search";
+} from "@corelithzw/module-people/people/search";
 import { groupSearchResults, searchRecords, type SearchScope } from "@corelithzw/module-records/search";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import {

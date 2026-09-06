@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { seedZimbabweLeavePack } from "@/lib/people/leave/zimbabwe-pack"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
+import { seedZimbabweLeavePack } from "@corelithzw/module-people/people/leave/zimbabwe-pack"
 import { prisma } from "@corelithzw/db/client"
 
 /**

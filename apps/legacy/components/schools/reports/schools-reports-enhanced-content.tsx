@@ -11,7 +11,7 @@ import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import {

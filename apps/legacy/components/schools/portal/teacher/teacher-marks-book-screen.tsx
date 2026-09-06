@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, EmptyState } from "@corelithzw/react";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,

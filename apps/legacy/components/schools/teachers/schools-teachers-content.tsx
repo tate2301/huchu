@@ -9,7 +9,7 @@ import Link from "next/link";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   CreateButton,
   RecordActions,

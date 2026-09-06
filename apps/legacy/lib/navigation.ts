@@ -45,8 +45,8 @@ import {
   Wrench,
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
-import { PEOPLE_TABS } from "@/lib/people/tab-config";
-import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
+import { PEOPLE_TABS } from "@corelithzw/module-people/people/tab-config";
+import { PAYROLL_TABS } from "@corelithzw/module-people/payroll/tab-config";
 import { hasRole, type UserRole } from "@corelithzw/platform/roles";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,

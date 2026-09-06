@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import {
   LoadError,

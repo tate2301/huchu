@@ -10,7 +10,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { LoadError, NothingMatched, NothingYet, StatsSkeleton } from "@/components/schools/common/states";

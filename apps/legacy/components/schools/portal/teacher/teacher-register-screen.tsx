@@ -12,7 +12,7 @@ import {
 } from "@corelithzw/react";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,

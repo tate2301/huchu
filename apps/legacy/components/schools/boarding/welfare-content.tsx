@@ -15,7 +15,7 @@ import {
   type ClassFilterValue,
 } from "@/components/schools/common/class-filter";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,

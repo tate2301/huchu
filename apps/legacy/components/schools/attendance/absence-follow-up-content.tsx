@@ -8,7 +8,7 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import {
   ClassFilter,

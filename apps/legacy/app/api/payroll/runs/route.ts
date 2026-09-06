@@ -6,7 +6,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 
 export async function GET(request: NextRequest) {

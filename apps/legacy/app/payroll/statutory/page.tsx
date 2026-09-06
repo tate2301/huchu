@@ -1,4 +1,4 @@
-import { StatutoryTablesContent } from "@/components/payroll/statutory/statutory-tables-content";
+import { StatutoryTablesContent } from "@corelithzw/module-people/components/payroll/statutory/statutory-tables-content";
 
 export const dynamic = "force-dynamic";
 

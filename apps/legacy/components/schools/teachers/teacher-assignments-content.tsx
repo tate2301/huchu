@@ -8,7 +8,7 @@ import { Badge } from "@corelithzw/react";
 
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { ClassFilter, ALL_CLASSES, classFilterParams, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";

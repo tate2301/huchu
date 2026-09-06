@@ -9,8 +9,8 @@ import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
 import { Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons"
 
-import { EmployeeWizard } from "@/components/people/employee-wizard"
-import { PeopleShell } from "@/components/people/people-shell";
+import { EmployeeWizard } from "@corelithzw/module-people/components/people/employee-wizard"
+import { PeopleShell } from "@corelithzw/module-people/components/people/people-shell";
 import {
   DirectoryCell,
   DirectoryLine,

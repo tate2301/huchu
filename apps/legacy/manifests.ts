@@ -21,7 +21,7 @@ import { manifest as compliance } from "@/lib/compliance/manifest";
 import { manifest as crm } from "@/lib/crm/manifest";
 import { manifest as gold } from "@/lib/gold/manifest";
 import { manifest as maintenance } from "@/lib/maintenance/manifest";
-import { manifest as people } from "@/lib/people/manifest";
+import { manifest as people } from "@corelithzw/module-people/manifest";
 import { manifest as schools } from "@/lib/schools/manifest";
 
 registerModules([workflow, notifications, records, documents, books, crm, schools, people, gold, compliance, maintenance]);

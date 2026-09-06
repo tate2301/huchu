@@ -1,6 +1,6 @@
 import type { Prisma, SettlementSource } from "@corelithzw/db"
 import { money, rate, sumMoney, ZERO } from "@corelithzw/platform/money"
-import { derivePaidStatus } from "@/lib/payroll/disbursements"
+import { derivePaidStatus } from "@corelithzw/module-people/payroll/disbursements"
 
 /**
  * Turning an approved settlement into money out the door.

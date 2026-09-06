@@ -15,7 +15,7 @@ import {
   TextArea,
 } from "@corelithzw/react";
 import { ChevronLeftIcon, ChevronRight } from "@corelithzw/ui/lib/icons";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   CardsSkeleton,
   LoadError,

@@ -3,8 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, hasRole, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { hrPermissionDenial } from "@/lib/hr/permissions";
-import { ATTENDANCE_STATUSES, canSessionMarkAttendance } from "@/lib/people/attendance";
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions";
+import { ATTENDANCE_STATUSES, canSessionMarkAttendance } from "@corelithzw/module-people/people/attendance";
 import { prisma } from "@corelithzw/db/client";
 
 function normalizeShiftLabel(value: string) {

@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,

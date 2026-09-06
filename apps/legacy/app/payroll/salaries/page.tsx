@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useQuery } from "@tanstack/react-query"
 import { format } from "date-fns"
 import { ArrowRight } from "@corelithzw/ui/lib/icons"
-import { PayrollShell } from "@/components/payroll/payroll-shell";
+import { PayrollShell } from "@corelithzw/module-people/components/payroll/payroll-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
 import { Badge } from "@corelithzw/ui/components/badge"
 import { Button } from "@corelithzw/ui/components/button"

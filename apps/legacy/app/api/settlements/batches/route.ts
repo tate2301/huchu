@@ -9,7 +9,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils"
 import { sumMoney } from "@corelithzw/platform/money"
-import { generateDisbursementCode } from "@/lib/payroll/disbursements"
+import { generateDisbursementCode } from "@corelithzw/module-people/payroll/disbursements"
 import { prisma } from "@corelithzw/db/client"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"
 import { parseSettlementSource } from "@/lib/settlements/sources"

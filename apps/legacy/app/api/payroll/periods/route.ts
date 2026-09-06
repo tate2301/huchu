@@ -8,11 +8,11 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { deriveCyclePeriodKey, deriveCycleWindow, monthPeriodKey, nextCycleAnchor } from "@corelithzw/module-workflow/periods"
-import { ensureAutoPeriods } from "@/lib/payroll-periods"
+import { ensureAutoPeriods } from "@corelithzw/module-people/payroll-periods"
 
 const periodSchema = z.object({
   periodKey: z.string().regex(/^\d{4}-\d{2}(-H[12])?$/).optional(),

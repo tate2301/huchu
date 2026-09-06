@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 const rejectSchema = z.object({

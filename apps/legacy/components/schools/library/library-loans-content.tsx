@@ -10,7 +10,7 @@ import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   ClassFilter,
   ALL_CLASSES,

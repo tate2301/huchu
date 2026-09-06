@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge } from "@corelithzw/react";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,

@@ -7,7 +7,7 @@ import { Badge, Button, Card, Combobox, Switch } from "@corelithzw/react";
 
 import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {

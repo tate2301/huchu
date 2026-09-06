@@ -3,14 +3,14 @@ import { z } from "zod"
 import { Prisma } from "@corelithzw/db"
 import type { CompensationCalcMethod, CompensationRuleType } from "@corelithzw/db"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform"
 import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
-import { ensureHrPayrollDefaults } from "@/lib/hr/bootstrap"
+import { ensureHrPayrollDefaults } from "@corelithzw/module-people/hr/bootstrap"
 import {
   assembleSalaryRun,
   findReturnBlockers,
-} from "@/lib/hr/payroll/assemble"
+} from "@corelithzw/module-people/hr/payroll/assemble"
 import {
   money,
   resolveBaseCurrency,

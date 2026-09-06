@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
 import { Prisma } from "@corelithzw/db"

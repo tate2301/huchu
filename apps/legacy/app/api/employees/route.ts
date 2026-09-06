@@ -7,7 +7,7 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { toNumberOrZero } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"

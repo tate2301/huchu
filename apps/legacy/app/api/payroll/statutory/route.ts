@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { ensureHrPayrollDefaults } from "@/lib/hr/bootstrap"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { ensureHrPayrollDefaults } from "@corelithzw/module-people/hr/bootstrap"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 
 /**

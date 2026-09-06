@@ -9,7 +9,7 @@ import {
   MobileShellBody,
   MobileShellHeader,
 } from "@corelithzw/react";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { BarChart3, Bell, Calendar, Home, UserRound } from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 import "./student-portal.css";

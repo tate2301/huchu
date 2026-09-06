@@ -6,7 +6,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons"
 
 import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar"
-import { PeopleShell } from "@/components/people/people-shell";
+import { PeopleShell } from "@corelithzw/module-people/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
 import { Badge } from "@corelithzw/ui/components/badge"
 import { Button } from "@corelithzw/ui/components/button"

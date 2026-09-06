@@ -1,4 +1,4 @@
-import { PEOPLE_TABS } from "@/lib/people/tab-config";
+import { PEOPLE_TABS } from "@corelithzw/module-people/people/tab-config";
 import type {
   OfflineMutationPolicy,
   OfflineWorkflowCatalogEntry,

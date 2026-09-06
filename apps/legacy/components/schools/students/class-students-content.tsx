@@ -9,7 +9,7 @@ import { Badge, MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { ClassFilter } from "@/components/schools/common/class-filter";

@@ -70,10 +70,10 @@ vi.mock("@corelithzw/module-workflow/approvals", async () => {
   }
 })
 
-vi.mock("@/lib/payroll/disbursements", async () => {
+vi.mock("@corelithzw/module-people/payroll/disbursements", async () => {
   const actual = await vi.importActual<
-    typeof import("@/lib/payroll/disbursements")
-  >("@/lib/payroll/disbursements")
+    typeof import("@corelithzw/module-people/payroll/disbursements")
+  >("@corelithzw/module-people/payroll/disbursements")
 
   return {
     ...actual,

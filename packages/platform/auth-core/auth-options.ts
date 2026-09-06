@@ -1,5 +1,6 @@
 import type { NextAuthOptions } from "next-auth";
 import { registry } from "../registry";
+import "./session-shape";
 
 /**
  * How the host authenticates.

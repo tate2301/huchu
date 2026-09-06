@@ -12,7 +12,7 @@ import {
   EmptyState,
   StatCard,
 } from "@corelithzw/react";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   LoadError,
   NothingLeftToDo,

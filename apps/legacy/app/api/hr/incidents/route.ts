@@ -8,7 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { emitHrIncidentNotification } from "@/lib/notifications"
 import { prisma } from "@corelithzw/db/client"

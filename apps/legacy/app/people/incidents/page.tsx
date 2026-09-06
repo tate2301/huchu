@@ -7,7 +7,7 @@ import { format } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { FileText, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
-import { PeopleShell } from "@/components/people/people-shell";
+import { PeopleShell } from "@corelithzw/module-people/components/people/people-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";

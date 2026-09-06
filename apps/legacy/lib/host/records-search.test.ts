@@ -6,7 +6,7 @@ import { searchRecords, type SearchScope } from "@corelithzw/module-records/sear
 import { searchCrm } from "@/lib/crm/search";
 import { searchGold } from "@/lib/gold/search";
 import { searchOperations } from "@/lib/operations/search";
-import { searchPeople } from "@/lib/people/search";
+import { searchPeople } from "@corelithzw/module-people/people/search";
 import { searchRetail } from "@/lib/retail/search";
 import { searchSchools } from "@/lib/schools/search";
 
@@ -22,7 +22,7 @@ import { searchSchools } from "@/lib/schools/search";
 
 vi.mock("@/lib/crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
 vi.mock("@/lib/schools/search", () => ({ searchSchools: vi.fn(async () => []) }));
-vi.mock("@/lib/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
+vi.mock("@corelithzw/module-people/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
 vi.mock("@/lib/gold/search", () => ({ searchGold: vi.fn(async () => []) }));
 vi.mock("@/lib/retail/search", () => ({ searchRetail: vi.fn(async () => []) }));
 vi.mock("@/lib/operations/search", () => ({ searchOperations: vi.fn(async () => []) }));

@@ -7,10 +7,10 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { prisma } from "@corelithzw/db/client"
-import { generateDisbursementCode } from "@/lib/payroll/disbursements"
+import { generateDisbursementCode } from "@corelithzw/module-people/payroll/disbursements"
 import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { isZeroOrLess, money, sumMoney } from "@corelithzw/platform/money"
 import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"

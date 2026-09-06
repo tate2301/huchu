@@ -6,7 +6,7 @@ import { Badge, Button, Card } from "@corelithzw/react";
 
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   LoadError,
   NothingLeftToDo,

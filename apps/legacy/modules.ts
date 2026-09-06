@@ -39,7 +39,7 @@ registerSearchArm({
 registerSearchArm({
   id: "people",
   run: async (db, input) => {
-    const { searchPeople } = await import("@/lib/people/search");
+    const { searchPeople } = await import("@corelithzw/module-people/people/search");
     return searchPeople(db, { ...input, types: input.types as Parameters<typeof searchPeople>[1]["types"] });
   },
 });
@@ -80,7 +80,7 @@ registerDocumentSource({
   id: "hr",
   matches: (key) => key.startsWith("hr."),
   resolve: async (input) => {
-    const { isHrDocumentSourceKey, resolveHrDocumentSource } = await import("@/lib/hr/document-sources");
+    const { isHrDocumentSourceKey, resolveHrDocumentSource } = await import("@corelithzw/module-people/hr/document-sources");
     if (!isHrDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
     return resolveHrDocumentSource({ ...input, sourceKey: input.sourceKey });
   },

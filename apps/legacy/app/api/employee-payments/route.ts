@@ -9,9 +9,9 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { money, toNumberOrZero } from "@corelithzw/platform/money"
-import { derivePaidStatus } from "@/lib/payroll/disbursements"
+import { derivePaidStatus } from "@corelithzw/module-people/payroll/disbursements"
 import { prisma } from "@corelithzw/db/client"
 
 /**

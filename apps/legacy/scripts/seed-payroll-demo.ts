@@ -8,17 +8,17 @@ import "@/scripts/lib/env";
  */
 import { prisma } from "@corelithzw/db/client";
 import { ensureAccountingDefaults } from "@corelithzw/module-books/bootstrap";
-import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
-import { seedZimbabweLeavePack } from "@/lib/people/leave/zimbabwe-pack";
-import { countWorkingDays, holidayKeysForSite } from "@/lib/people/leave/working-days";
+import { seedZimbabweStatutoryPack } from "@corelithzw/module-people/hr/statutory/zimbabwe-pack";
+import { seedZimbabweLeavePack } from "@corelithzw/module-people/people/leave/zimbabwe-pack";
+import { countWorkingDays, holidayKeysForSite } from "@corelithzw/module-people/people/leave/working-days";
 import { FEATURE_BUNDLES, FEATURE_CATALOG, TIERS } from "@corelithzw/platform/feature-catalog";
 import {
   getClientTemplateBundleCodes,
   getClientTemplateDisabledFeatureKeys,
   getClientTemplateFeatureKeys,
 } from "@corelithzw/platform/client-templates";
-import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
-import { postPayrollRun } from "@/lib/hr/payroll/posting";
+import { assembleSalaryRun } from "@corelithzw/module-people/hr/payroll/assemble";
+import { postPayrollRun } from "@corelithzw/module-people/hr/payroll/posting";
 import bcrypt from "bcryptjs";
 
 const SLUG = "payroll-demo";

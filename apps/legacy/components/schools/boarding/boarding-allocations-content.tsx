@@ -10,7 +10,7 @@ import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,

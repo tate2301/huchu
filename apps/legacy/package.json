@@ -43,6 +43,7 @@
     "@corelithzw/module-books": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
+    "@corelithzw/module-people": "workspace:*",
     "@corelithzw/module-records": "workspace:*",
     "@corelithzw/module-workflow": "workspace:*",
     "@corelithzw/platform": "workspace:*",

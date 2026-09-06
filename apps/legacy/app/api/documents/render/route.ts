@@ -16,7 +16,7 @@ import {
   canRenderPayslip,
   HR_DOCUMENT_ACCESS,
   isHrDocumentSourceKey,
-} from "@/lib/hr/document-sources";
+} from "@corelithzw/module-people/hr/document-sources";
 import { isApproverRole } from "@corelithzw/module-workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import type { DocumentRenderRequest } from "@corelithzw/module-documents/service";

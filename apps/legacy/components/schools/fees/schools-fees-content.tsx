@@ -19,7 +19,7 @@ import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import {
   CreateButton,

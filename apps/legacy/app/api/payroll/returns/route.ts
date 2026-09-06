@@ -2,12 +2,12 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import {
   computeNssaSchedule,
   computeP2,
   reconcileReturns,
-} from "@/lib/hr/returns/monthly"
+} from "@corelithzw/module-people/hr/returns/monthly"
 
 /**
  * The monthly statutory returns for one pay period.

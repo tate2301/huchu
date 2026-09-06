@@ -8,15 +8,15 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import {
   computeLeaveBalances,
   leaveAffordabilityDenial,
-} from "@/lib/people/leave/balances"
+} from "@corelithzw/module-people/people/leave/balances"
 import {
   countWorkingDays,
   holidayKeysForSite,
-} from "@/lib/people/leave/working-days"
+} from "@corelithzw/module-people/people/leave/working-days"
 import { prisma } from "@corelithzw/db/client"
 import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 

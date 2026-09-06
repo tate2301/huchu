@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { prisma } from "@corelithzw/db/client"
 import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server"
 import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { computeLeaveBalances } from "@/lib/people/leave/balances"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
+import { computeLeaveBalances } from "@corelithzw/module-people/people/leave/balances"
 import { prisma } from "@corelithzw/db/client"
 
 /**

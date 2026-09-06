@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
-import { ensureAutoPeriods } from "@/lib/payroll-periods"
+import { ensureAutoPeriods } from "@corelithzw/module-people/payroll-periods"
 import { prisma } from "@corelithzw/db/client"
 
 export async function POST(request: NextRequest) {

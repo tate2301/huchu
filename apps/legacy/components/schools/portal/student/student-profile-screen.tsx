@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Badge, Callout, EmptyState } from "@corelithzw/react";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import {
   Bell,
   Calendar,

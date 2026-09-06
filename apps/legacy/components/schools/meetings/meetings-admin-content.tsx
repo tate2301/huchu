@@ -15,7 +15,7 @@ import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonAvatar } from "@corelithzw/ui/components/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";

@@ -4,7 +4,7 @@ import {
   successResponse,
   errorResponse,
 } from "@corelithzw/platform/api-utils"
-import { hrPermissionDenial } from "@/lib/hr/permissions"
+import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
 import { Prisma } from "@corelithzw/db"
 
