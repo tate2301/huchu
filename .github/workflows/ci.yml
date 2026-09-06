@@ -80,14 +80,22 @@ jobs:
         run: pnpm turbo run lint ${{ github.event_name == 'pull_request' && '--affected' || '' }}
         continue-on-error: true
 
+      # One package at a time. The app's typecheck alone runs tsc with a 7 GB
+      # heap, and turbo's default is to run every package's in parallel; with
+      # twelve packages the runner ran out of memory two minutes in and was
+      # shut down mid-step, which reads as a failure with no error in the log.
       - name: Typecheck
-        run: pnpm turbo run typecheck ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+        run: pnpm turbo run typecheck --concurrency=1 ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
       - name: Feature-gate audit
         run: pnpm legacy platform:audit-feature-gates
 
+      # One package at a time here too: every package's tests share the one
+      # service database, and two suites truncating and seeding it at once
+      # fail each other (seen locally as the fiscalisation suite timing out
+      # while the books suite ran).
       - name: Test
-        run: pnpm turbo run test ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+        run: pnpm turbo run test --concurrency=1 ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
       # Runs even when a test failed, so one run answers both "do the tests
       # pass" and "does it build". The job still fails on either.
