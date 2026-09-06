@@ -8,9 +8,9 @@ import {
   paginationResponse,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
-import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { recalcPurchaseBillBalance } from "@corelithzw/module-books/balances";
+import { findTaxCodesOutsideEffectiveWindow } from "@corelithzw/module-books/tax-selection";
 
 const debitNoteSchema = z.object({
   billId: z.string().uuid(),

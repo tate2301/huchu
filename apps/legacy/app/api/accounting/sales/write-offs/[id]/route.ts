@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
+import { recalcSalesInvoiceBalance } from "@corelithzw/module-books/balances";
 import { prisma } from "@corelithzw/db/client";
 
 type RouteParams = { params: Promise<{ id: string }> };

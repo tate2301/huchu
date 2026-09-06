@@ -8,17 +8,17 @@ import {
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotFoundError,
   FiscalDayNotOpenError,
-} from "@/lib/accounting/fiscal-day";
+} from "@corelithzw/module-books/fiscal-day";
 import {
   type BlockingReceiptRow,
   toBlockingReceiptWire,
-} from "@/components/accounting/fiscalisation/receipt-mapping";
+} from "@corelithzw/module-books/components/fiscalisation/receipt-mapping";
 import type {
   BlockingReceiptWire,
   FiscalDayCounterWire,
   FiscalDayDetailResponse,
   FiscalDayStatusWire,
-} from "@/components/accounting/fiscalisation/types";
+} from "@corelithzw/module-books/components/fiscalisation/types";
 
 /**
  * FD-7.1 / FD-2.2 — one fiscal day: what it holds, and closing it.

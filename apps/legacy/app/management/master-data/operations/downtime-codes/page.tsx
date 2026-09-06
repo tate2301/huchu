@@ -28,7 +28,7 @@ import {
   updateDowntimeCode,
 } from "@/lib/api";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type DowntimeCodeFormState = {
   code: string;

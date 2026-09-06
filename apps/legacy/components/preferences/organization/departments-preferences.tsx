@@ -15,7 +15,7 @@ import {
 import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
 import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 import {
   createDepartment,
   deleteDepartment,

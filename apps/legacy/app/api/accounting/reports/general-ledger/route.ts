@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, getPaginationParams, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getGeneralLedger } from "@/lib/accounting/ledger";
+import { getGeneralLedger } from "@corelithzw/module-books/ledger";
 
 function parseDateParam(value: string | null) {
   if (!value) return null;

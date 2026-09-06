@@ -13,7 +13,7 @@ import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
 import { Send, Shield, ChevronDown } from "@corelithzw/ui/lib/icons";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type PourFormValues = {
   pourDate: string;

@@ -32,9 +32,9 @@ vi.mock("@corelithzw/platform/api-utils", () => ({
 
 vi.mock("@corelithzw/db/client", () => ({ prisma: prismaMock }));
 
-vi.mock("@/lib/accounting/fiscal-day", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/accounting/fiscal-day")>(
-    "@/lib/accounting/fiscal-day",
+vi.mock("@corelithzw/module-books/fiscal-day", async () => {
+  const actual = await vi.importActual<typeof import("@corelithzw/module-books/fiscal-day")>(
+    "@corelithzw/module-books/fiscal-day",
   );
   return { ...actual, closeFiscalDay: closeFiscalDayMock };
 });
@@ -43,7 +43,7 @@ import {
   FiscalDayHasPendingReceiptsError,
   FiscalDayNotFoundError,
   FiscalDayNotOpenError,
-} from "@/lib/accounting/fiscal-day";
+} from "@corelithzw/module-books/fiscal-day";
 import { GET, POST } from "./route";
 
 const COMPANY_ID = "company-1";

@@ -8,7 +8,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { prisma } from "@corelithzw/db/client"
 import { generateDisbursementCode } from "@/lib/payroll/disbursements"
 import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"

@@ -10,7 +10,7 @@ import { prisma } from "@corelithzw/db/client"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { reserveIdentifier } from "@corelithzw/platform/id-generator"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { z } from "zod"
 
 /**

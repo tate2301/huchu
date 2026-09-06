@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
 import { Breakdown, ReportPanel, type BreakdownRow } from "@corelithzw/ui/components/breakdown-panel";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
 import {
   ReportTable,
   amt,
@@ -15,7 +15,7 @@ import {
   num,
   txt,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { fetchCrmLeads } from "@/lib/crm/crm-v2";
 import { Check, Clock, Coins, FileText, LocalShipping, TrendingUp, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { issueFiscalReceipt } from "@corelithzw/module-books/fiscalisation";
 import { hasFeature } from "@corelithzw/platform/features";
 
 const updateSchema = z.object({

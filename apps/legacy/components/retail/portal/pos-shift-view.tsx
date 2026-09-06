@@ -11,7 +11,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 import { CheckCircle2, Clock, Payments, TrendingDown, TrendingUp, Wallet } from "@corelithzw/ui/lib/icons";
 import {
   PosCashMovementList,

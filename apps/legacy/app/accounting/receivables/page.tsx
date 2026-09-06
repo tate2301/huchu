@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { GroupedLinkList, type HubLinkGroup } from "@corelithzw/module-books/components/hubs/grouped-link-list";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
 import {
   Breakdown,
   ReportPanel,
@@ -12,15 +12,15 @@ import {
 } from "@corelithzw/ui/components/breakdown-panel";
 import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { BandChip } from "@/components/accounting/band-chip";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import {
   ReportTable,
   amt,
   nm,
   total,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { Card, CardContent } from "@corelithzw/ui/components/card";
 import { Input } from "@corelithzw/ui/components/input";
 import {
@@ -32,7 +32,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { fetchArAging, fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { formatAmount, formatCount, formatHeadline } from "@/lib/accounting/format";
+import { formatAmount, formatCount, formatHeadline } from "@corelithzw/module-books/format";
 import { NoteAdd, ReceiptLong, UserPlus } from "@corelithzw/ui/lib/icons";
 
 export default function ReceivablesHomePage() {

@@ -37,7 +37,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type Shift = {
   id: string;

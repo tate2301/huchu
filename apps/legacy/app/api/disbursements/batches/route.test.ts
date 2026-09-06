@@ -51,7 +51,7 @@ vi.mock("@corelithzw/platform/api-utils", () => {
   }
 })
 
-vi.mock("@/lib/accounting/integration", () => ({
+vi.mock("@corelithzw/module-books/integration", () => ({
   captureAccountingEvent: captureAccountingEventMock,
 }))
 

@@ -14,7 +14,7 @@ import {
   num,
   txt,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";

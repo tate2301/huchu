@@ -24,7 +24,7 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronDown, Pencil, Plus, Trash2, Wallet } from "@corelithzw/ui/lib/icons";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type Promotion = {
   id: string; promoCode: string; name: string; type: string; value: number;

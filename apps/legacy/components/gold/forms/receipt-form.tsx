@@ -15,7 +15,7 @@ import { goldRoutes } from "@/app/gold/routes";
 import { Send, ChevronDown } from "@corelithzw/ui/lib/icons";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type AvailableBatch = {
   id: string;

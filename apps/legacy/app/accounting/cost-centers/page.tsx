@@ -3,12 +3,12 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingListView as DataTable } from "@corelithzw/module-books/components/listview/accounting-list-view";
 import { Input } from "@corelithzw/ui/components/input";
 import {
   Sheet,
@@ -21,8 +21,8 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { type CostCenterRecord, fetchCostCenters } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2 } from "@corelithzw/ui/lib/icons";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 export default function CostCentersPage() {
   const { toast } = useToast();

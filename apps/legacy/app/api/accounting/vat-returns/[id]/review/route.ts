@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { parseVatReturnPayload, transitionVatReturnStatus } from "@/lib/accounting/vat-return";
+import { parseVatReturnPayload, transitionVatReturnStatus } from "@corelithzw/module-books/vat-return";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

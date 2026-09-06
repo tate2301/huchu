@@ -8,7 +8,7 @@ import {
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { prisma } from "@corelithzw/db/client"
-import { createJournalEntryFromSource } from "@/lib/accounting/posting"
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { z } from "zod"
 import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { AccountingSourceType } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { previewPostingFromSource } from "@/lib/accounting/posting";
+import { previewPostingFromSource } from "@corelithzw/module-books/posting";
 
 const schema = z.object({
   sourceType: z.nativeEnum(AccountingSourceType),

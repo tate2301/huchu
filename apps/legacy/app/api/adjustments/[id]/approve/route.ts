@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { prisma } from "@corelithzw/db/client"
 import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 import { money, toBaseAmount, toNumberOrZero } from "@corelithzw/platform/money"

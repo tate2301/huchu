@@ -3,7 +3,7 @@ import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
 import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform";
-import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { ensureAccountingDefaults } from "@corelithzw/module-books/bootstrap";
 import { grantBundleToCompany } from "@corelithzw/platform/entitlements";
 import { getBundleDefinition, getTierDefinition } from "@corelithzw/platform/feature-catalog";
 import {

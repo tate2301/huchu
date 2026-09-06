@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { createJournalEntryFromSource } from "@/lib/accounting/posting"
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { z } from "zod"
 import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { exceeds, multiplyMoney, quantity, ZERO } from "@corelithzw/platform/money"

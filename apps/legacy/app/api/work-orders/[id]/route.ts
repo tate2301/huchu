@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 import { emitWorkOrderStatusNotification } from "@/lib/notifications";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 
 const updateWorkOrderSchema = z.object({
   issue: z.string().min(1).max(1000).optional(),

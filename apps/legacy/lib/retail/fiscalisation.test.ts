@@ -47,8 +47,8 @@ import { prisma } from "@corelithzw/db/client";
 
 const { issueMock } = vi.hoisted(() => ({ issueMock: vi.fn() }));
 
-vi.mock("@/lib/accounting/fdms-connector", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/accounting/fdms-connector")>();
+vi.mock("@corelithzw/module-books/fdms-connector", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@corelithzw/module-books/fdms-connector")>();
   return { ...actual, issueWithFdmsConnector: issueMock };
 });
 
@@ -62,14 +62,14 @@ const {
   loadRetailTaxResolver,
   retailReceiptType,
 } = await import("@/lib/retail/fiscalisation");
-const { openFiscalDay } = await import("@/lib/accounting/fiscal-day");
+const { openFiscalDay } = await import("@corelithzw/module-books/fiscal-day");
 const {
   FiscalSigningError,
   centsFromMinorUnits,
   hashReceiptInput,
   verifyReceiptChain,
   verifyReceiptSignature,
-} = await import("@/lib/accounting/fdms-receipt-signing");
+} = await import("@corelithzw/module-books/fdms-receipt-signing");
 
 const suite = crypto.randomUUID().slice(0, 8);
 const KEY_ENV = `FDMS_RETAIL_BUNDLE_${suite.toUpperCase()}`;

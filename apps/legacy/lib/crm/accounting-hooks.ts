@@ -13,7 +13,7 @@
  * CRM is downstream of it here.
  */
 import { prisma } from "@corelithzw/db/client";
-import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
+import { recalcSalesInvoiceBalance } from "@corelithzw/module-books/balances";
 import { emitCrmNotification } from "@/lib/notifications";
 import { runAutomations } from "./automation-runner";
 

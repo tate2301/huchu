@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
+import { issueFiscalReceipt } from "@corelithzw/module-books/fiscalisation";
 
 const issueSchema = z.object({
   invoiceId: z.string().uuid(),

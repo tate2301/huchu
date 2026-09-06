@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
-import { PostingRuleList } from "@/components/accounting/posting-rule-list";
-import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
+import { PostingRuleList } from "@corelithzw/module-books/components/posting-rule-list";
+import { PostingRuleExplainer } from "@corelithzw/module-books/components/posting-rule-explainer";
 import { PageActions } from "@corelithzw/ui/layout/page-actions";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { Badge } from "@corelithzw/ui/components/badge";
@@ -56,7 +56,7 @@ import {
   RETAIL_TENDER_TYPES,
   ACCOUNTING_SOURCE_TYPE_OPTIONS,
   formatAccountingSourceType,
-} from "@/lib/accounting/source-types";
+} from "@corelithzw/module-books/source-types";
 import {
   Plus,
   Trash2,

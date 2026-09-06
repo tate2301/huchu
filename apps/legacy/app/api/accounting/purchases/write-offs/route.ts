@@ -8,8 +8,8 @@ import {
   paginationResponse,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { recalcPurchaseBillBalance } from "@corelithzw/module-books/balances";
 
 const writeOffSchema = z.object({
   billId: z.string().uuid(),

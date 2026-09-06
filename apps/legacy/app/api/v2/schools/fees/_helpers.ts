@@ -3,7 +3,7 @@ import {
   type AccountingSourceType,
   type SchoolFeeInvoiceStatus,
 } from "@corelithzw/db";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 import {
   clampAtZero,
   isZeroOrLess,

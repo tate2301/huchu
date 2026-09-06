@@ -2,9 +2,9 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
 import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import {
   ReportTable,
@@ -14,9 +14,9 @@ import {
   num,
   txt,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
 import { Coins, Percent, Scale, TrendingUp, Wallet } from "@corelithzw/ui/lib/icons";
 import { Card, CardContent } from "@corelithzw/ui/components/card";
 import { Input } from "@corelithzw/ui/components/input";
@@ -27,7 +27,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { formatAmount, formatHeadline } from "@/lib/accounting/format";
+import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
 import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 

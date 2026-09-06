@@ -27,7 +27,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { LocalShipping, Pencil, Plus, ReceiptLong, Trash2 } from "@corelithzw/ui/lib/icons";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type PurchaseOrderLine = {
   inventoryItemId: string | null;

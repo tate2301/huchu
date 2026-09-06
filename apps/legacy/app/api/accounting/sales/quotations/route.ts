@@ -8,8 +8,8 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
-import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
+import { findTaxCodesOutsideEffectiveWindow } from "@corelithzw/module-books/tax-selection";
+import { resolveDefaultTaxTemplate } from "@corelithzw/module-books/tax-rules";
 
 const quotationSchema = z.object({
   customerId: z.string().uuid(),

@@ -17,7 +17,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast"
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client"
 import { Send } from "@corelithzw/ui/lib/icons"
 import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record"
-import { useReservedId } from "@/hooks/use-reserved-id"
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id"
 
 type SellerType = "EMPLOYEE" | "EXTERNAL"
 

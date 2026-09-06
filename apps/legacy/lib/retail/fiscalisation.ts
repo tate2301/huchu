@@ -102,15 +102,15 @@ import {
   issueFiscalDocument,
   type FiscalIssueErrorCode,
   type FiscalSigningInput,
-} from "@/lib/accounting/fiscalisation";
+} from "@corelithzw/module-books/fiscalisation";
 import {
   FiscalSigningError,
   centsFromMinorUnits,
   type Cents,
   type ReceiptTaxLine,
   type ReceiptType,
-} from "@/lib/accounting/fdms-receipt-signing";
-import { isTaxCodeEffectiveOnDate } from "@/lib/accounting/tax-selection";
+} from "@corelithzw/module-books/fdms-receipt-signing";
+import { isTaxCodeEffectiveOnDate } from "@corelithzw/module-books/tax-selection";
 
 /**
  * Refusals this module makes itself, on top of the ones the issue path makes.

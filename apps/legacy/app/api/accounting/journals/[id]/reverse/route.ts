@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getNextEntryNumber } from "@/lib/accounting/ledger";
-import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
+import { getNextEntryNumber } from "@corelithzw/module-books/ledger";
+import { resolvePostingPeriod } from "@corelithzw/module-books/period-lock";
 
 const reverseSchema = z.object({
   reversalDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)).optional(),

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse, hasRole } from '@corelithzw/platform/api-utils';
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation";
 import { recordInventoryEvent } from "@/lib/gold/inventory";
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close";

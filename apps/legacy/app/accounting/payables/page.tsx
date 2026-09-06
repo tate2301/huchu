@@ -2,10 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
-import { GroupedLinkList, type HubLinkGroup } from "@/components/accounting/hubs/grouped-link-list";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
+import { GroupedLinkList, type HubLinkGroup } from "@corelithzw/module-books/components/hubs/grouped-link-list";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
 import {
   ReportTable,
   amt,
@@ -13,7 +13,7 @@ import {
   total,
   type CellTone,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import {
   Breakdown,
   ReportPanel,
@@ -21,7 +21,7 @@ import {
 } from "@corelithzw/ui/components/breakdown-panel";
 import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
 import { Card, CardContent } from "@corelithzw/ui/components/card";
 import { Input } from "@corelithzw/ui/components/input";
 import {
@@ -31,7 +31,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { formatAmount, formatHeadline } from "@/lib/accounting/format";
+import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
 import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, FileText, Payments } from "@corelithzw/ui/lib/icons";

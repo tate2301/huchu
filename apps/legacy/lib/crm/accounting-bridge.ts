@@ -14,7 +14,7 @@ import type { Prisma } from "@corelithzw/db";
 
 import { settleCrmRecordIfPaid } from "./accounting-hooks";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 
 type Tx = Prisma.TransactionClient;

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { syncFiscalReceiptStatus } from "@/lib/accounting/fiscalisation";
+import { syncFiscalReceiptStatus } from "@corelithzw/module-books/fiscalisation";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

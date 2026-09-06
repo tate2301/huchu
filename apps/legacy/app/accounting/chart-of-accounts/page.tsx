@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@corelithzw/react";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import {
@@ -13,7 +13,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@corelithzw/ui/components/card";
-import { BandChip } from "@/components/accounting/band-chip";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import {
   type BadgeTone,
   type ReportRow,
@@ -23,8 +23,8 @@ import {
   dim,
   nm,
   txt,
-} from "@/components/accounting/report-table";
-import { formatAmount } from "@/lib/accounting/format";
+} from "@corelithzw/ui/components/report-table";
+import { formatAmount } from "@corelithzw/module-books/format";
 import { Input } from "@corelithzw/ui/components/input";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import {
@@ -42,8 +42,8 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Search, TableRows } from "@corelithzw/ui/lib/icons";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 const accountTypes = ["ASSET", "LIABILITY", "EQUITY", "INCOME", "EXPENSE"] as const;
 

@@ -1,6 +1,6 @@
 import type { GoldCorrectionType, Prisma, PrismaClient } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 
 type Db = PrismaClient | Prisma.TransactionClient;
 

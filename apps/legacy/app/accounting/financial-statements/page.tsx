@@ -4,12 +4,12 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { BandChip } from "@/components/accounting/band-chip";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingListView as DataTable } from "@corelithzw/module-books/components/listview/accounting-list-view";
 import { Input } from "@corelithzw/ui/components/input";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {

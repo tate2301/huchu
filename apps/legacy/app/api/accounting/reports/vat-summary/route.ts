@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { toMoney } from "@/lib/accounting/ledger";
-import { computeVatReturnSnapshot } from "@/lib/accounting/vat-return";
+import { toMoney } from "@corelithzw/module-books/ledger";
+import { computeVatReturnSnapshot } from "@corelithzw/module-books/vat-return";
 
 function parseDateParam(value: string | null) {
   if (!value) return null;

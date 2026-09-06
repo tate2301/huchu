@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createOrRefreshVatReturnDraft, parseVatReturnPayload } from "@/lib/accounting/vat-return";
+import { createOrRefreshVatReturnDraft, parseVatReturnPayload } from "@corelithzw/module-books/vat-return";
 
 const patchSchema = z.object({
   notes: z.string().max(2000).optional(),

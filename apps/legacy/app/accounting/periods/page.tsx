@@ -3,7 +3,7 @@
 import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endOfMonth, format, isSameDay, startOfMonth } from "date-fns";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
@@ -14,12 +14,12 @@ import {
   node,
   txt,
   type ReportRow,
-} from "@/components/accounting/report-table";
-import { BandChip } from "@/components/accounting/band-chip";
+} from "@corelithzw/ui/components/report-table";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import {
   PeriodCloseChecklist,
   type ChecklistItem,
-} from "@/components/accounting/period-close-checklist";
+} from "@corelithzw/module-books/components/period-close-checklist";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -49,7 +49,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Calendar, MoreHorizontal } from "@corelithzw/ui/lib/icons";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
 
 type OpeningBalanceLineInput = {
   accountId: string;

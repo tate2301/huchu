@@ -3,7 +3,7 @@ import { prisma } from "@corelithzw/db/client";
 import { activateTerm } from "@/lib/schools/calendar";
 import { money } from "@/lib/schools/money";
 import { grantBundleToCompany } from "@corelithzw/platform/entitlements";
-import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { ensureAccountingDefaults } from "@corelithzw/module-books/bootstrap";
 
 /**
  * Opening a school.

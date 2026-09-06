@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip } from "@/components/accounting/band-chip";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingListView as DataTable } from "@corelithzw/module-books/components/listview/accounting-list-view";
 import { Input } from "@corelithzw/ui/components/input";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
@@ -22,7 +22,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { type CurrencyRateRecord, fetchCurrencyRates } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRightLeft } from "@corelithzw/ui/lib/icons";
-import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";
 
 const today = format(new Date(), "yyyy-MM-dd");
 

@@ -13,9 +13,10 @@
  */
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
 import "./manifests";
-import { registerDocumentSource } from "@corelithzw/module-documents";
-import { registerSearchArm } from "@corelithzw/module-records";
-import { onApprovalAction } from "@corelithzw/module-workflow";
+import { onFiscalBacklog, registerFiscalDrainIssuer } from "@corelithzw/module-books/fiscal-drain";
+import { registerDocumentSource } from "@corelithzw/module-documents/source-registry";
+import { registerSearchArm } from "@corelithzw/module-records/search";
+import { onApprovalAction } from "@corelithzw/module-workflow/approvals";
 
 registerAuthOptions(async () => (await import("@/lib/auth")).authOptions);
 
@@ -88,4 +89,31 @@ registerDocumentSource({
   id: "legacy",
   matches: (key) => ["accounting.", "reports.", "dashboard."].some((prefix) => key.startsWith(prefix)),
   resolve: async (input) => (await import("@/lib/host/document-sources")).legacyDocumentSource.resolve(input),
+});
+
+// The fiscal drain re-issues receipts other modules write, and raises an
+// incident when a tenant is stuck. The school's issuer and the compliance
+// module's incident live with their modules.
+registerFiscalDrainIssuer("schoolFeeReceipt", async (args) => {
+  const { issueSchoolFeeReceiptFiscalisation } = await import("@/lib/schools/fiscalisation");
+  const result = await issueSchoolFeeReceiptFiscalisation(args);
+  return { status: result.fiscalStatus, error: result.fiscalError ?? null };
+});
+onFiscalBacklog(async (event) => {
+  const [{ emitIncidentNotification }, { prisma }] = await Promise.all([
+    import("@/lib/notifications"),
+    import("@corelithzw/db/client"),
+  ]);
+  await emitIncidentNotification(prisma, {
+    companyId: event.companyId,
+    actorId: event.actorId,
+    event: "CREATED",
+    incident: {
+      id: event.incidentId,
+      incidentType: event.title,
+      severity: "CRITICAL",
+      status: "OPEN",
+      site: { name: "Fiscalisation", code: "fiscalisation" },
+    },
+  });
 });

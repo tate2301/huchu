@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Button, EmptyState, Input, SegmentedControl, Skeleton } from "@corelithzw/react";
 
-import { ReportTable, amt, badge, node, num, txt } from "@/components/accounting/report-table";
+import { ReportTable, amt, badge, node, num, txt } from "@corelithzw/ui/components/report-table";
 import { SetupPanel } from "@/components/crm/settings/setup-chrome";
 import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";

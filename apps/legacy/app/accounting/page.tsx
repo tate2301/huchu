@@ -3,10 +3,10 @@
 import Link from "next/link";
 import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { MetricTile } from "@/components/accounting/hubs/metric-tile";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { MetricTile } from "@corelithzw/module-books/components/hubs/metric-tile";
 import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
-import { BandChip } from "@/components/accounting/band-chip";
+import { BandChip } from "@corelithzw/module-books/components/band-chip";
 import {
   ReportTable,
   amt,
@@ -16,7 +16,7 @@ import {
   num,
   txt,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import {
@@ -44,7 +44,7 @@ import {
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import type { AccountingPeriodRecord, AccountingSeedPackResult } from "@/lib/api";
-import { formatAmount, formatHeadline } from "@/lib/accounting/format";
+import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
 import {
   Coins,
   MoreHorizontal,

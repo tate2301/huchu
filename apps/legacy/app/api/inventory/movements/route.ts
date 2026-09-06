@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from '@corelithzw/platform/api-utils';
 import { prisma } from '@corelithzw/db/client';
-import { createJournalEntryFromSource } from '@/lib/accounting/posting';
+import { createJournalEntryFromSource } from '@corelithzw/module-books/posting';
 import { Prisma } from '@corelithzw/db';
 import { z } from 'zod';
 import { normalizeProvidedId } from '@corelithzw/platform/id-generator';

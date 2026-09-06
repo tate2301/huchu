@@ -17,7 +17,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
-import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { ensureAccountingDefaults } from "@corelithzw/module-books/bootstrap";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { assembleSalaryRun } from "./assemble";
 import { postPayrollRun, summariseStatutory } from "./posting";

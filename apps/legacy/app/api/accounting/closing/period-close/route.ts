@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { closePeriodWithVoucher } from "@/lib/accounting/closing";
+import { closePeriodWithVoucher } from "@corelithzw/module-books/closing";
 import { prisma } from "@corelithzw/db/client";
 
 const schema = z.object({

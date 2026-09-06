@@ -1,7 +1,7 @@
 import "@/scripts/lib/env";
 
 import { prisma } from "@corelithzw/db/client";
-import { captureAccountingEvent } from "@/lib/accounting/integration";
+import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 
 function parseArg(flag: string) {
   const index = process.argv.indexOf(flag);

@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getNextEntryNumber, ensurePeriodForDate, toMoney } from "@/lib/accounting/ledger";
-import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
-import { findForeignAccountIds, findForeignCostCenterIds } from "@/lib/accounting/ownership";
-import { ensureLedgerAccountIds } from "@/lib/accounting/chart-of-accounts";
+import { getNextEntryNumber, ensurePeriodForDate, toMoney } from "@corelithzw/module-books/ledger";
+import { resolvePostingPeriod } from "@corelithzw/module-books/period-lock";
+import { findForeignAccountIds, findForeignCostCenterIds } from "@corelithzw/module-books/ownership";
+import { ensureLedgerAccountIds } from "@corelithzw/module-books/chart-of-accounts";
 
 const journalSchema = z.object({
   entryDate: z.string().datetime().or(z.string().regex(/^\d{4}-\d{2}-\d{2}$/)),

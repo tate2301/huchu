@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { type RetailTenderType } from "@corelithzw/db";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";

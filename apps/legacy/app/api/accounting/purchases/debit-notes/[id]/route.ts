@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcPurchaseBillBalance } from "@/lib/accounting/balances";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { recalcPurchaseBillBalance } from "@corelithzw/module-books/balances";
 
 const updateSchema = z.object({
   status: z.enum(["DRAFT", "ISSUED", "VOIDED"]).optional(),

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { issueFiscalReceipt } from "@/lib/accounting/fiscalisation";
+import { issueFiscalReceipt } from "@corelithzw/module-books/fiscalisation";
 import {
   issueSchoolFeeReceiptFiscalisation,
   SCHOOL_FISCALISATION_FEATURE,

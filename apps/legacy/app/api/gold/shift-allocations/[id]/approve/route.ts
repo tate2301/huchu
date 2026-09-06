@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 import { prisma } from "@corelithzw/db/client"
 

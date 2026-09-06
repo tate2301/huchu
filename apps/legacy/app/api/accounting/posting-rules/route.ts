@@ -11,7 +11,7 @@ import {
   findForeignAccountIds,
   findForeignCostCenterIds,
   findForeignTaxCodeIds,
-} from "@/lib/accounting/ownership";
+} from "@corelithzw/module-books/ownership";
 
 const conditionSchema = z.object({
   field: z.enum([

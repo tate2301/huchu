@@ -19,7 +19,7 @@
 
 import type { Prisma } from "@corelithzw/db";
 
-import { createJournalEntryFromSource, type StatutoryPostingBasis } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource, type StatutoryPostingBasis } from "@corelithzw/module-books/posting";
 import { hasEnabledFeature } from "@corelithzw/platform/gating/enforcer";
 import {
   clampAtZero,

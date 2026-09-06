@@ -8,17 +8,17 @@ import {
   FiscalDayAlreadyOpenError,
   FiscalDayConfigError,
   openFiscalDay,
-} from "@/lib/accounting/fiscal-day";
+} from "@corelithzw/module-books/fiscal-day";
 import {
   type BlockingReceiptRow,
   toBlockingReceiptWire,
-} from "@/components/accounting/fiscalisation/receipt-mapping";
+} from "@corelithzw/module-books/components/fiscalisation/receipt-mapping";
 import type {
   FiscalDayFleetResponse,
   FiscalDayStatusWire,
   FiscalDayWire,
   FiscalDeviceWire,
-} from "@/components/accounting/fiscalisation/types";
+} from "@corelithzw/module-books/components/fiscalisation/types";
 
 /**
  * FD-7.1 — every device's fiscal day, on one request.

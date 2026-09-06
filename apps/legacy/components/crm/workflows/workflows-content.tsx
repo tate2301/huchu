@@ -17,7 +17,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { TimeAgo } from "@corelithzw/ui/components/time-ago";
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { ViewToolbar } from "@corelithzw/module-records/components/view-toolbar";
-import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
+import { ReportTable, node, num, txt } from "@corelithzw/ui/components/report-table";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {

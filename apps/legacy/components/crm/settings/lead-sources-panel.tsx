@@ -10,7 +10,7 @@ import {
   node,
   num,
   type ReportRow,
-} from "@/components/accounting/report-table";
+} from "@corelithzw/ui/components/report-table";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";

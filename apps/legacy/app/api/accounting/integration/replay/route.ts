@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { retryPendingAccountingEvents } from "@/lib/accounting/integration";
+import { retryPendingAccountingEvents } from "@corelithzw/module-books/integration";
 import { hasRole } from "@corelithzw/platform/roles";
 
 const replaySchema = z.object({

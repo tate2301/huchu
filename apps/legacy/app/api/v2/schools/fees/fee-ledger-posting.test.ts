@@ -20,8 +20,8 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { Prisma, WorkspaceProfile } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
-import { ensureAccountingDefaults, getAccountingSetupReadiness } from "@/lib/accounting/bootstrap";
-import { SCHOOLS_REQUIRED_SOURCE_TYPES } from "@/lib/accounting/source-types";
+import { ensureAccountingDefaults, getAccountingSetupReadiness } from "@corelithzw/module-books/bootstrap";
+import { SCHOOLS_REQUIRED_SOURCE_TYPES } from "@corelithzw/module-books/source-types";
 import {
   emitSchoolFeeAccountingEvent,
   type SchoolFeeAccountingEventType,

@@ -8,9 +8,9 @@ import {
   paginationResponse,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
-import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { recalcSalesInvoiceBalance } from "@corelithzw/module-books/balances";
+import { findTaxCodesOutsideEffectiveWindow } from "@corelithzw/module-books/tax-selection";
 
 const creditNoteSchema = z.object({
   invoiceId: z.string().uuid(),

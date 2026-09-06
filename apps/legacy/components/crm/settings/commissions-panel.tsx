@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { ReportTable, node, type ReportRow } from "@/components/accounting/report-table";
+import { ReportTable, node, type ReportRow } from "@corelithzw/ui/components/report-table";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";

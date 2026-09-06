@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { findTaxCodesOutsideEffectiveWindow } from "@/lib/accounting/tax-selection";
-import { resolveDefaultTaxTemplate } from "@/lib/accounting/tax-rules";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { findTaxCodesOutsideEffectiveWindow } from "@corelithzw/module-books/tax-selection";
+import { resolveDefaultTaxTemplate } from "@corelithzw/module-books/tax-rules";
 
 const billSchema = z.object({
   vendorId: z.string().uuid(),

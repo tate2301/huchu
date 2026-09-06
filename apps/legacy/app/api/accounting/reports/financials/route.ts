@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
-import { getFinancialStatements } from "@/lib/accounting/ledger";
+import { getFinancialStatements } from "@corelithzw/module-books/ledger";
 
 export async function GET(request: NextRequest) {
   try {

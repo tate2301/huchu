@@ -59,7 +59,7 @@ import { type DocumentExportFormat } from "@corelithzw/module-documents/export-c
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { EmployeePosition } from "@corelithzw/db";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 import { resolveVerticalDefaults } from "@corelithzw/platform/vertical-defaults";
 
 export const maintenanceViews = [

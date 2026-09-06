@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { previewAccountingSeedPack, runAccountingSeedPack } from "@/lib/accounting/bootstrap";
+import { previewAccountingSeedPack, runAccountingSeedPack } from "@corelithzw/module-books/bootstrap";
 import { hasRole } from "@corelithzw/platform/roles";
 
 const schema = z.object({

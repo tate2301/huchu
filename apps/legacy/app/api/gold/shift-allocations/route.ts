@@ -7,7 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { captureAccountingEvent } from "@/lib/accounting/integration"
+import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { recordInventoryEvent } from "@/lib/gold/inventory"
 import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
 import { snapshotGoldUsdValue } from "@/lib/gold/valuation"

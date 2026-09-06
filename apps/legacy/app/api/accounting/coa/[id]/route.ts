@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { validateParentAccount } from "@/lib/accounting/chart-of-accounts";
+import { validateParentAccount } from "@corelithzw/module-books/chart-of-accounts";
 
 const updateSchema = z.object({
   code: z.string().min(1).max(20).optional(),

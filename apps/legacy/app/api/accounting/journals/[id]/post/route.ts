@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { toMoney } from "@/lib/accounting/ledger";
-import { resolvePostingPeriod } from "@/lib/accounting/period-lock";
+import { toMoney } from "@corelithzw/module-books/ledger";
+import { resolvePostingPeriod } from "@corelithzw/module-books/period-lock";
 
 const postSchema = z.object({
   periodOverrideReason: z.string().max(500).optional(),

@@ -16,7 +16,7 @@ import {
   goldBuyerReceiptBatches,
 } from "@/lib/gold/prisma-includes"
 import { prisma } from "@corelithzw/db/client"
-import { createJournalEntryFromSource } from "@/lib/accounting/posting"
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"

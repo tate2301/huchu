@@ -27,7 +27,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { History, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
-import { useReservedId } from "@/hooks/use-reserved-id";
+import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type Receipt = {
   id: string;

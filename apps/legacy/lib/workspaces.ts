@@ -1,5 +1,5 @@
-import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
-import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
+import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@corelithzw/module-books/tab-config";
+import { filterAccountingTabsByFeatures } from "@corelithzw/module-books/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
 import { getNavSectionsForRole, navSections } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";

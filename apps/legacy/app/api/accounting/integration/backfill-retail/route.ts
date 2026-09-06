@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { backfillRetailAccounting } from "@/lib/accounting/integration";
+import { backfillRetailAccounting } from "@corelithzw/module-books/integration";
 import { hasRole } from "@corelithzw/platform/roles";
 
 const schema = z.object({

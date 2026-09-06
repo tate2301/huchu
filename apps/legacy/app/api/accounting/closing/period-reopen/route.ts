@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { reopenPeriodWithVoucher } from "@/lib/accounting/closing";
+import { reopenPeriodWithVoucher } from "@corelithzw/module-books/closing";
 import { hasRole } from "@corelithzw/platform/roles";
 
 const schema = z.object({

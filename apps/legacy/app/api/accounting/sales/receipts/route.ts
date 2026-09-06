@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
-import { recalcSalesInvoiceBalance } from "@/lib/accounting/balances";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
+import { recalcSalesInvoiceBalance } from "@corelithzw/module-books/balances";
 import { onAccountingReceiptCreated } from "@/lib/crm/accounting-hooks";
 
 const receiptSchema = z.object({

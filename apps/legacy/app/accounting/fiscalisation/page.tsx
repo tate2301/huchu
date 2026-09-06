@@ -4,20 +4,20 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
-import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { BandChip, type BandChipTone } from "@/components/accounting/band-chip";
-import type { BadgeTone } from "@/components/accounting/report-table";
+import { AccountingShell } from "@corelithzw/module-books/components/accounting-shell";
+import { BandChip, type BandChipTone } from "@corelithzw/module-books/components/band-chip";
+import type { BadgeTone } from "@corelithzw/ui/components/report-table";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
-import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
+import { AccountingListView as DataTable } from "@corelithzw/module-books/components/listview/accounting-list-view";
 import {
   FISCAL_DAY_FLEET_KEY,
   FiscalDayConsole,
   ZIMRA_MAX_OPEN_HOURS,
   fetchFiscalDayFleet,
   hoursOpen,
-} from "@/components/accounting/fiscalisation/fiscal-day-console";
+} from "@corelithzw/module-books/components/fiscalisation/fiscal-day-console";
 import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,

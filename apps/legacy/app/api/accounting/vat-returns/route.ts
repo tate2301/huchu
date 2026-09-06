@@ -8,7 +8,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createOrRefreshVatReturnDraft, parseVatReturnPayload } from "@/lib/accounting/vat-return";
+import { createOrRefreshVatReturnDraft, parseVatReturnPayload } from "@corelithzw/module-books/vat-return";
 
 const createSchema = z.object({
   periodId: z.string().uuid().optional(),

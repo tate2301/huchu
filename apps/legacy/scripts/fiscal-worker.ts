@@ -21,7 +21,7 @@
  *
  *   pnpm worker:fiscal
  */
-import { drainDueFiscalReceipts, FISCAL_DRAIN_DEFAULTS } from "@/lib/accounting/fiscal-drain";
+import { drainDueFiscalReceipts, FISCAL_DRAIN_DEFAULTS } from "@corelithzw/module-books/fiscal-drain";
 
 function envNumber(key: string, fallback: number) {
   const parsed = Number(process.env[key]);

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
-import { runAccountingSeedPack } from "@/lib/accounting/bootstrap";
+import { runAccountingSeedPack } from "@corelithzw/module-books/bootstrap";
 
 export async function POST(request: NextRequest) {
   try {

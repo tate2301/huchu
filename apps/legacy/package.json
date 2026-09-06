@@ -40,6 +40,7 @@
     "@auth/prisma-adapter": "^2.11.1",
     "@base-ui/react": "^1.1.0",
     "@corelithzw/db": "workspace:*",
+    "@corelithzw/module-books": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
     "@corelithzw/module-records": "workspace:*",

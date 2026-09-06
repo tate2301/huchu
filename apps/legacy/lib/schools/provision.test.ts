@@ -14,7 +14,7 @@ import { describe, it, expect, beforeEach, afterEach, afterAll } from "vitest";
 import { prisma } from "@corelithzw/db/client";
 import { getCurrentTerm } from "./calendar";
 import { provisionSchool } from "./provision";
-import { SCHOOLS_REQUIRED_SOURCE_TYPES } from "@/lib/accounting/source-types";
+import { SCHOOLS_REQUIRED_SOURCE_TYPES } from "@corelithzw/module-books/source-types";
 
 let companyId: string;
 

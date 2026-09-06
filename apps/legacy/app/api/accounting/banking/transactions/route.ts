@@ -3,7 +3,7 @@ import { z } from "zod";
 import { AccountingSourceType } from "@corelithzw/db";
 import { validateSession, successResponse, errorResponse, getPaginationParams, paginationResponse } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createJournalEntryFromSource } from "@/lib/accounting/posting";
+import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 
 const transactionSchema = z.object({
   bankAccountId: z.string().uuid(),

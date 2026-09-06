@@ -41,7 +41,7 @@ import { prisma } from "@corelithzw/db/client";
 import {
   issueFiscalDocument,
   type FiscalValidationResult,
-} from "@/lib/accounting/fiscalisation";
+} from "@corelithzw/module-books/fiscalisation";
 import { hasFeature } from "@corelithzw/platform/features";
 import { clampAtZero, money, sumMoney, toNumberOrZero } from "@/lib/schools/money";
 

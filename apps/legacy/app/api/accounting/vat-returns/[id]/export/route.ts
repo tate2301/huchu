@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { parseVatReturnPayload } from "@/lib/accounting/vat-return";
+import { parseVatReturnPayload } from "@corelithzw/module-books/vat-return";
 
 type RouteParams = { params: Promise<{ id: string }> };
 

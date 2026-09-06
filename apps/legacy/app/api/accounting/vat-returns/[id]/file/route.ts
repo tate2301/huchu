@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { parseVatReturnPayload, transitionVatReturnStatus } from "@/lib/accounting/vat-return";
+import { parseVatReturnPayload, transitionVatReturnStatus } from "@corelithzw/module-books/vat-return";
 
 const fileSchema = z.object({
   referenceNumber: z.string().max(120).optional(),

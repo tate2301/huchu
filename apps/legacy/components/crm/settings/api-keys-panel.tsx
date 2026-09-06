@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CrmLeadChannel } from "@corelithzw/db";
 
-import { ReportTable, node, txt, type ReportRow } from "@/components/accounting/report-table";
+import { ReportTable, node, txt, type ReportRow } from "@corelithzw/ui/components/report-table";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";

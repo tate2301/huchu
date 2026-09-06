@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getAccountingSetupReadiness } from "@/lib/accounting/bootstrap";
+import { getAccountingSetupReadiness } from "@corelithzw/module-books/bootstrap";
 
 export async function GET(request: NextRequest) {
   try {

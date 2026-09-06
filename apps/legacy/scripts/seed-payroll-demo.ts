@@ -7,7 +7,7 @@ import "@/scripts/lib/env";
  * number so the blocker path renders, an approved run, and a posted journal.
  */
 import { prisma } from "@corelithzw/db/client";
-import { ensureAccountingDefaults } from "@/lib/accounting/bootstrap";
+import { ensureAccountingDefaults } from "@corelithzw/module-books/bootstrap";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { seedZimbabweLeavePack } from "@/lib/people/leave/zimbabwe-pack";
 import { countWorkingDays, holidayKeysForSite } from "@/lib/people/leave/working-days";
