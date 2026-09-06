@@ -24,7 +24,7 @@ import { usePageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
 import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { CrmMembers } from "@/components/crm/crm-members";
-import { NotificationCenter } from "@/components/notifications/notification-center";
+import { NotificationCenter } from "@corelithzw/module-notifications/components/notification-center";
 import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { navSections } from "@/lib/navigation";
 import { cn } from "@corelithzw/ui/lib/utils";

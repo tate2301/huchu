@@ -10,7 +10,7 @@ import {
 import {
   buildNotificationActions,
   parseNotificationPayload,
-} from "@/lib/notifications"
+} from "@corelithzw/module-notifications/service"
 import { prisma } from "@corelithzw/db/client"
 
 function isNotificationType(value: string | null): value is NotificationType {

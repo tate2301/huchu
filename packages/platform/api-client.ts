@@ -67,3 +67,28 @@ export function resolveDisplayErrorMessage(
 
   return null
 }
+
+/** A page of results, as every list endpoint returns it. */
+export type PaginationMeta = {
+  page: number;
+  limit: number;
+  total: number;
+  pages: number;
+  hasMore: boolean;
+};
+
+export type Pagination<T> = {
+  data: T[];
+  pagination: PaginationMeta;
+};
+
+/** `?a=1&b=2` from an object, skipping what is unset. */
+export function buildQuery(params: Record<string, string | number | boolean | null | undefined>) {
+  const searchParams = new URLSearchParams();
+  Object.entries(params).forEach(([key, value]) => {
+    if (value === undefined || value === null || value === "") return;
+    searchParams.set(key, String(value));
+  });
+  const query = searchParams.toString();
+  return query ? `?${query}` : "";
+}

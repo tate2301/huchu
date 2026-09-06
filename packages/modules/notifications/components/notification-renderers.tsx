@@ -1,6 +1,6 @@
 "use client"
 
-import type { NotificationListItem, NotificationType } from "@/lib/api"
+import type { NotificationListItem, NotificationType } from "../api-client"
 import type { ReactNode } from "react"
 
 type RendererProps = {

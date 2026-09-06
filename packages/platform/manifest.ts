@@ -19,6 +19,20 @@ import { registry } from "./registry";
  */
 export type ModuleId = string;
 
+/**
+ * An action the notification centre offers on a notice, as a template: `{id}`
+ * in `href` is the entity's id. Data, so a manifest can carry it.
+ */
+export type NotificationActionTemplate = {
+  key: string;
+  label: string;
+  kind: "api" | "link";
+  href: string;
+  method?: "POST" | "PATCH" | "DELETE";
+  variant?: "default" | "outline" | "destructive" | "secondary" | "ghost";
+  confirmMessage?: string;
+};
+
 export type ModuleManifest = {
   id: ModuleId;
   /** The modules this one imports from, by id. The boundary test holds it to this. */
@@ -28,6 +42,12 @@ export type ModuleManifest = {
   permissions?: {
     /** What a person may do inside the module, as the permission catalog lists it. */
     capabilities?: CapabilitySet;
+  };
+  notifications?: {
+    /** Where a notice about one of the module's entities opens: entity type → path template with `{id}`. */
+    viewPaths?: Readonly<Record<string, string>>;
+    /** What an approver can do from the notice itself: notification type → action templates. */
+    approvalActions?: Readonly<Record<string, readonly NotificationActionTemplate[]>>;
   };
 };
 

@@ -1,3 +1,5 @@
+// The route registry reads the manifests, and the edge runtime has no boot hook.
+import "@/manifests";
 import { withAuth } from "next-auth/middleware";
 import type { NextRequestWithAuth } from "next-auth/middleware";
 import { NextResponse } from "next/server";

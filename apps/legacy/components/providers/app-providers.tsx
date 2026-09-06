@@ -1,5 +1,7 @@
 "use client"
 
+import "@/manifests";
+
 import * as React from "react"
 import { usePathname } from "next/navigation"
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
