@@ -8,10 +8,10 @@
  * with locally-held carts taking priority (newer state).
  */
 
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { putRecord, getRecord } from "@/lib/offline/db-v2";
-import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@/lib/offline/outbox";
-import type { OfflineTenantKey, OfflineOutboxOperation } from "@/lib/offline/types";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { putRecord, getRecord } from "@corelithzw/module-offline/db-v2";
+import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@corelithzw/module-offline/outbox";
+import type { OfflineTenantKey, OfflineOutboxOperation } from "@corelithzw/module-offline/types";
 import type { POSHeldCart } from "./offline-bootstrap";
 
 export type { POSHeldCart };

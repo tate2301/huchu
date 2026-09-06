@@ -6,17 +6,17 @@
  * with local entity storage + outbox sync.
  */
 
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { putRecord, getRecord } from "@/lib/offline/db-v2";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { putRecord, getRecord } from "@corelithzw/module-offline/db-v2";
 import {
   upsertOfflineLocalEntity,
   listOfflineLocalEntities,
   searchOfflineLocalEntities as searchLocalEntities,
   markOfflineLocalEntitySynced,
   resolveOfflineEntityServerId,
-} from "@/lib/offline/entity-store";
-import { enqueueOfflineOperation } from "@/lib/offline/outbox";
-import type { OfflineTenantKey } from "@/lib/offline/types";
+} from "@corelithzw/module-offline/entity-store";
+import { enqueueOfflineOperation } from "@corelithzw/module-offline/outbox";
+import type { OfflineTenantKey } from "@corelithzw/module-offline/types";
 import type { POSCustomer } from "./offline-bootstrap";
 
 export type { POSCustomer };

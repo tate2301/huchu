@@ -22,7 +22,7 @@ import {
   SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
+import { useOfflineConnectivity } from "@corelithzw/module-offline/hooks/use-offline-connectivity";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 

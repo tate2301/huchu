@@ -1115,7 +1115,7 @@ export async function GET(request: NextRequest) {
   }
 
   // Check if any of the tempIds have been synced (have serverIds)
-  const { listOfflineLocalEntities } = await import("@/lib/offline/entity-store");
+  const { listOfflineLocalEntities } = await import("@corelithzw/module-offline/entity-store");
   const entities = await listOfflineLocalEntities({
     moduleId: "retail-pos",
   });

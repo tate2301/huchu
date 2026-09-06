@@ -12,8 +12,8 @@ import {
   enqueueOfflineOperation,
   listOfflineOperationsForModule,
   findOfflineOperationForLocalEntity,
-} from "@/lib/offline/outbox";
-import type { OfflineTenantKey, OfflineOutboxOperation } from "@/lib/offline/types";
+} from "@corelithzw/module-offline/outbox";
+import type { OfflineTenantKey, OfflineOutboxOperation } from "@corelithzw/module-offline/types";
 import type { POSSalePayload } from "./offline-bootstrap";
 import { isOfflineRetailCustomerId } from "./offline-runtime";
 

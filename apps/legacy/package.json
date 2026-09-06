@@ -45,6 +45,7 @@
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-maintenance": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
+    "@corelithzw/module-offline": "workspace:*",
     "@corelithzw/module-people": "workspace:*",
     "@corelithzw/module-records": "workspace:*",
     "@corelithzw/module-stock": "workspace:*",

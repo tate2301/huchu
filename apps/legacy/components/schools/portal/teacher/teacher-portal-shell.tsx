@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { accentVar, AppShell, Avatar, NavRail, NavRailGroup } from "@corelithzw/react";
 import { NavRailItem } from "@corelithzw/ui/components/nav-rail";
-import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
+import { useOfflineConnectivity } from "@corelithzw/module-offline/hooks/use-offline-connectivity";
 import {
   BarChart3,
   Bell,

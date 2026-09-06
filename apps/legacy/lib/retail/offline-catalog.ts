@@ -6,8 +6,8 @@
  * backed by IndexedDB query cache.
  */
 
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { putRecord, getRecord, listRecords } from "@/lib/offline/db-v2";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { putRecord, getRecord, listRecords } from "@corelithzw/module-offline/db-v2";
 import type { POSCatalogItem } from "./offline-bootstrap";
 
 export type { POSCatalogItem };

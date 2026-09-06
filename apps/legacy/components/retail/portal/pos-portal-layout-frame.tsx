@@ -35,7 +35,7 @@ import {
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
-import { OfflineStatusButton } from "@/components/layout/offline-status-button";
+import { OfflineStatusButton } from "@corelithzw/module-offline/components/offline-status-button";
 import { usePosPortalState } from "./pos-portal-state";
 
 type PosPortalLink = {

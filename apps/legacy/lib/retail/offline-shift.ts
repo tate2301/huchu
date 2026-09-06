@@ -8,14 +8,14 @@
  * This is enforced by the dependency resolver in the sync engine.
  */
 
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { putRecord, getRecord } from "@/lib/offline/db-v2";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { putRecord, getRecord } from "@corelithzw/module-offline/db-v2";
 import {
   upsertOfflineLocalEntity,
   markOfflineLocalEntitySynced,
-} from "@/lib/offline/entity-store";
-import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@/lib/offline/outbox";
-import type { OfflineTenantKey, OfflineOutboxOperation } from "@/lib/offline/types";
+} from "@corelithzw/module-offline/entity-store";
+import { enqueueOfflineOperation, listOfflineOperationsForModule } from "@corelithzw/module-offline/outbox";
+import type { OfflineTenantKey, OfflineOutboxOperation } from "@corelithzw/module-offline/types";
 import type { POSShiftData } from "./offline-bootstrap";
 
 export type { POSShiftData };
@@ -77,7 +77,7 @@ export async function getCurrentShift(): Promise<POSShiftData | null> {
  */
 export async function clearCachedShift(): Promise<void> {
   try {
-    const { deleteOfflineRecord } = await import("@/lib/offline/db");
+    const { deleteOfflineRecord } = await import("@corelithzw/module-offline/db");
     await deleteOfflineRecord(OFFLINE_DB_STORES.queryCache, SHIFT_CACHE_KEY);
   } catch {
     // Ignore
@@ -283,7 +283,7 @@ export async function isShiftReadyForSales(
   }
 
   // Check if the shift entity has been synced
-  const { resolveOfflineEntityServerId } = await import("@/lib/offline/entity-store");
+  const { resolveOfflineEntityServerId } = await import("@corelithzw/module-offline/entity-store");
   const serverId = await resolveOfflineEntityServerId(tenantKey, shiftId);
   return serverId !== null;
 }
@@ -301,7 +301,7 @@ export async function resolveShiftIdForSale(
     return shiftId;
   }
 
-  const { resolveOfflineEntityServerId } = await import("@/lib/offline/entity-store");
+  const { resolveOfflineEntityServerId } = await import("@corelithzw/module-offline/entity-store");
   const serverId = await resolveOfflineEntityServerId(tenantKey, shiftId);
   return serverId ?? shiftId;
 }

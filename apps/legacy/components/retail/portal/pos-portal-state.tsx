@@ -13,7 +13,7 @@ import {
   type PropsWithChildren,
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@corelithzw/module-offline/components/offline-provider";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
@@ -34,8 +34,8 @@ import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   removeOfflineOperation,
   resetOfflineOperationToQueued,
-} from "@/lib/offline/outbox";
-import type { OfflineOutboxOperation } from "@/lib/offline/types";
+} from "@corelithzw/module-offline/outbox";
+import type { OfflineOutboxOperation } from "@corelithzw/module-offline/types";
 import type {
   CartItem,
   CurrentShift,

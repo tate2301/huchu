@@ -13,6 +13,7 @@
  */
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
 import "./manifests";
+import "./modules.client";
 import { onFiscalBacklog, registerFiscalDrainIssuer } from "@corelithzw/module-books/fiscal-drain";
 import { registerDocumentSource } from "@corelithzw/module-documents/source-registry";
 import { registerSearchArm } from "@corelithzw/module-records/search";

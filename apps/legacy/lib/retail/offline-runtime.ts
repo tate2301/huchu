@@ -1,10 +1,10 @@
-import { listOfflineLocalEntities, searchOfflineLocalEntities, upsertOfflineLocalEntity } from "@/lib/offline/entity-store";
+import { listOfflineLocalEntities, searchOfflineLocalEntities, upsertOfflineLocalEntity } from "@corelithzw/module-offline/entity-store";
 import {
   enqueueOfflineOperation,
   findOfflineOperationForLocalEntity,
   listOfflineOperationsForModule,
-} from "@/lib/offline/outbox";
-import type { OfflineOutboxOperation } from "@/lib/offline/types";
+} from "@corelithzw/module-offline/outbox";
+import type { OfflineOutboxOperation } from "@corelithzw/module-offline/types";
 import type { PosSaleQueuePayload } from "@/lib/retail/pos-offline-queue";
 
 export const RETAIL_POS_OFFLINE_MODULE_ID = "retail-pos";

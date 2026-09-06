@@ -10,9 +10,9 @@
  */
 
 import { fetchJson } from "@corelithzw/platform/api-client";
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { openOfflineDatabaseV2, putRecord, getRecord } from "@/lib/offline/db-v2";
-import type { OfflineTenantKey } from "@/lib/offline/types";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { openOfflineDatabaseV2, putRecord, getRecord } from "@corelithzw/module-offline/db-v2";
+import type { OfflineTenantKey } from "@corelithzw/module-offline/types";
 import type { PosCatalogItem } from "@/components/retail/portal/pos-types";
 import type { CurrentShift } from "@/components/retail/portal/pos-types";
 
@@ -643,7 +643,7 @@ async function bootstrapPhase3(
   // [3c] Sync any pending offline sales (triggered via outbox)
   let syncedPendingSales = 0;
   try {
-    const { getActiveSyncEngine } = await import("@/lib/offline/sync-engine");
+    const { getActiveSyncEngine } = await import("@corelithzw/module-offline/sync-engine");
     const syncEngine = getActiveSyncEngine();
     if (syncEngine) {
       await syncEngine.syncIfOnline(true);
@@ -834,7 +834,7 @@ export async function clearPOSCache(): Promise<void> {
   ];
   for (const key of keys) {
     try {
-      const { deleteOfflineRecord } = await import("@/lib/offline/db");
+      const { deleteOfflineRecord } = await import("@corelithzw/module-offline/db");
       await deleteOfflineRecord(OFFLINE_DB_STORES.queryCache, key);
     } catch {
       // Ignore deletion errors

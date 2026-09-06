@@ -19,10 +19,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "@corelithzw/ui/components/button";
-import { getRecentConnectivityLogs } from "@/lib/offline/db-v2";
+import { getRecentConnectivityLogs } from "@corelithzw/module-offline/db-v2";
 import { RefreshCw, WifiOff } from "@corelithzw/ui/lib/icons";
-import { getOfflineOutboxSummary } from "@/lib/offline/outbox";
-import type { OfflineOutboxSummaryItem } from "@/lib/offline/types";
+import { getOfflineOutboxSummary } from "@corelithzw/module-offline/outbox";
+import type { OfflineOutboxSummaryItem } from "@corelithzw/module-offline/types";
 
 /**
  * The v2 route, because it is the one that exists. `/api/health` was never

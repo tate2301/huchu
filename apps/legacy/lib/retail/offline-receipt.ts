@@ -7,8 +7,8 @@
  * Receipt numbering uses a local sequence that is reconciled on sync.
  */
 
-import { OFFLINE_DB_STORES } from "@/lib/offline/db";
-import { putRecord, getRecord } from "@/lib/offline/db-v2";
+import { OFFLINE_DB_STORES } from "@corelithzw/module-offline/db";
+import { putRecord, getRecord } from "@corelithzw/module-offline/db-v2";
 import type { POSReceiptData, POSSalePayload } from "./offline-bootstrap";
 
 export type { POSReceiptData };

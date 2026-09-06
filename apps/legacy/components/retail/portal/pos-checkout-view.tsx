@@ -23,7 +23,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useOfflineRuntime } from "@corelithzw/module-offline/components/offline-provider";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {

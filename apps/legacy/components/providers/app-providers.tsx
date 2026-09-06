@@ -1,6 +1,7 @@
 "use client"
 
 import "@/manifests";
+import "@/modules.client";
 
 import * as React from "react"
 import { usePathname } from "next/navigation"
@@ -8,9 +9,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query"
 import { SessionProvider } from "next-auth/react"
 import type { Session } from "next-auth"
 
-import { OfflineChrome } from "@/components/offline"
+import { OfflineChrome } from "@corelithzw/module-offline/components"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
-import { OfflineProvider } from "@/components/providers/offline-provider"
+import { OfflineProvider } from "@corelithzw/module-offline/components/offline-provider"
 import { TableExportProvider } from "@corelithzw/ui/lib/table-export"
 import { documentsTableExporter } from "@corelithzw/module-documents/table-exporter"
 import { Toaster } from "@corelithzw/ui/components/toaster"

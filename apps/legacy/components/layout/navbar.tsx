@@ -22,7 +22,7 @@ import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { SidebarTrigger } from "@corelithzw/ui/components/sidebar";
 import { usePageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
-import { OfflineStatusButton } from "@/components/layout/offline-status-button";
+import { OfflineStatusButton } from "@corelithzw/module-offline/components/offline-status-button";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { NotificationCenter } from "@corelithzw/module-notifications/components/notification-center";
 import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@corelithzw/ui/lib/icons";

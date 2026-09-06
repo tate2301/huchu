@@ -6,7 +6,7 @@ import {
   markOfflineItemQueued,
   removeOfflineItem,
   type OfflineQueueEntry,
-} from "@/lib/offline/client-storage";
+} from "@corelithzw/module-offline/client-storage";
 
 export type PosSalePaymentInput = {
   tenderType: "CASH" | "CARD" | "MOBILE_MONEY" | "TRANSFER" | "VOUCHER";
