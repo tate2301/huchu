@@ -93,4 +93,9 @@ jobs:
       # pass" and "does it build". The job still fails on either.
       - name: Build
         if: ${{ !cancelled() }}
+        env:
+          # `next build` type-checks the app in-process; that pass needs the
+          # same heap the typecheck script gives tsc, or the runner's default
+          # (about 4 GB) dies with "heap out of memory" after compiling.
+          NODE_OPTIONS: --max-old-space-size=7168
         run: pnpm turbo run build ${{ github.event_name == 'pull_request' && '--affected' || '' }}
