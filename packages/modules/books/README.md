@@ -9,6 +9,7 @@ fiscalisation, fiscal-day, fiscal-drain, fdms-*, integration*                   
 payment-ledger, retail-posting, listview-*, format, tab-config, visibility       the rest of the domain
 api-client.ts                    the browser's client for /api/accounting
 components/                      the accounting shell, hubs, list views, fiscalisation and tax screens
+document-sources.ts              the printable sales documents (invoice, quotation, receipt, credit note) and the features that open them; a host registers the source
 manifest.ts                      id "books"; requires documents, notifications
 api/                             the route handlers, on the paths a host serves them at
 pages/                           the pages and layouts, on the paths a host serves them at

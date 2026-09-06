@@ -1,4 +1,11 @@
-import type { NavItem } from "@/lib/navigation";
+/**
+ * The quick-create actions a workspace offers, keyed by the vertical product a
+ * tenant resolves to, so every workspace only ever offers actions native to
+ * its own modules. Filtered by role and by the tenant's enabled features (via
+ * the route registry), so an action never renders for a feature the tenant
+ * lacks. Data: hrefs and icons; the shell names no module code.
+ */
+import type { NavItem } from "./navigation";
 import { hasRole } from "@corelithzw/platform/roles";
 import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import {

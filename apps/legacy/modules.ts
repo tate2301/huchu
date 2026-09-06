@@ -104,8 +104,14 @@ registerDocumentSource({
   },
 });
 registerDocumentSource({
+  id: "books",
+  matches: (key) => key.startsWith("accounting."),
+  access: async (key) => ({ featureKeys: (await import("@corelithzw/module-books/document-sources")).booksDocumentFeatureKeys(key) }),
+  resolve: async (input) => (await import("@corelithzw/module-books/document-sources")).resolveBooksDocument(input),
+});
+registerDocumentSource({
   id: "legacy",
-  matches: (key) => ["accounting.", "reports.", "dashboard."].some((prefix) => key.startsWith(prefix)),
+  matches: (key) => ["reports.", "dashboard."].some((prefix) => key.startsWith(prefix)),
   resolve: async (input) => (await import("@/lib/host/document-sources")).legacyDocumentSource.resolve(input),
 });
 

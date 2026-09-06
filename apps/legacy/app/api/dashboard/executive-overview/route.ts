@@ -22,7 +22,7 @@ import {
   type ExecutiveModuleKey,
 } from "@corelithzw/module-gold/dashboard/executive-thresholds";
 import { getNavSectionsForRole } from "@/lib/navigation";
-import { getPrimaryQuickActions } from "@/lib/primary-actions";
+import { getPrimaryQuickActions } from "@corelithzw/shell/primary-actions";
 import { prisma } from "@corelithzw/db/client";
 import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";

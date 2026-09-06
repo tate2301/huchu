@@ -5,3 +5,4 @@ export type { NavigationSection, NavigationItem, NavigationGroup } from "./navig
 export type { SidebarModelArgs, WorkspaceNavSection, WorkspaceSectionGroup, WorkspaceSidebarModel } from "./sidebar-model";
 export { registerManagementNavigation } from "./management";
 export type { ManagementNavigation, ManagementNavItem, ManagementModuleItem } from "./management";
+export type { WorkspaceCatalogue, WorkspaceModelArgs, WorkspaceModuleDefinition, WorkspaceProfileRecipe } from "./workspace-model";

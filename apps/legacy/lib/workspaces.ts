@@ -1,26 +1,27 @@
+/**
+ * This host's workspace catalogue: the modules it composes into the sidebar,
+ * the order they surface in, the curated arrangement each workspace profile
+ * shows first, the home each prefers, the quick actions. The builder that
+ * gates, resolves the profile and assembles the sections is the shell's
+ * (`buildWorkspaceSidebarModel`); this file is the data it works from, next
+ * to the module list in `manifests.ts`.
+ */
 import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@corelithzw/module-books/tab-config";
 import { filterAccountingTabsByFeatures } from "@corelithzw/module-books/visibility";
-import type { NavGroup, NavItem, NavSection } from "@corelithzw/shell/navigation";
-import type {
-  SidebarModelArgs,
-  WorkspaceNavSection,
-  WorkspaceSectionGroup,
-  WorkspaceSidebarModel,
-} from "@corelithzw/shell/sidebar-model";
-import { getNavSectionsForRole, navSections } from "@/lib/navigation";
-import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
-import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
-import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
+import type { NavItem } from "@corelithzw/shell/navigation";
+import { getVisibleManagementModuleItems } from "@corelithzw/shell/management";
+import { getPrimaryQuickActions } from "@corelithzw/shell/primary-actions";
+import type { WorkspaceNavSection, WorkspaceSectionGroup, WorkspaceSidebarModel } from "@corelithzw/shell/sidebar-model";
 import {
-  inferWorkspaceProfileFromEnabledFeatures,
-  normalizeWorkspaceProfileInput,
-  resolveWorkspaceVerticalProductBundle,
-  type VerticalProductBundleDefinition,
-  WORKSPACE_PROFILES,
-  type WorkspaceModuleId,
-  type WorkspaceProfile,
-} from "@corelithzw/platform/workspace-products";
+  buildWorkspaceSidebarModel,
+  createSectionModule,
+  normalizeWorkspaceProfile,
+  workspaceHomeHref,
+  type WorkspaceCatalogue,
+  type WorkspaceModelArgs,
+} from "@corelithzw/shell/workspace-model";
+import { WORKSPACE_PROFILES, type WorkspaceModuleId, type WorkspaceProfile } from "@corelithzw/platform/workspace-products";
 import {
   Dashboard,
   Gem,
@@ -30,73 +31,11 @@ import {
   Payments,
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
-import { getVisibleManagementModuleItems } from "@corelithzw/shell/management";
-import { isRouteAllowedForRole } from "@corelithzw/platform/auth-core/role-routes";
 
-export { WORKSPACE_PROFILES };
-export type { WorkspaceModuleId, WorkspaceProfile };
-
+export { WORKSPACE_PROFILES, normalizeWorkspaceProfile };
+export type { WorkspaceModuleId, WorkspaceProfile, WorkspaceModelArgs };
 export type { WorkspaceNavSection, WorkspaceSectionGroup, WorkspaceSidebarModel };
 
-export type WorkspaceModelArgs = SidebarModelArgs & {
-  /**
-   * The site each *active* stock location belongs to, one entry per location.
-   *
-   * Only the shape of this list matters, not the ids: a transfer reclassifies a
-   * stock line from one location to another **within one site**, so it can only
-   * be performed where some site has two of them. Left undefined the answer is
-   * "not known", and a surface whose only action may well be impossible is not
-   * offered. See `canReclassifyStockBetweenLocations`.
-   */
-  activeStockLocationSiteIds?: string[];
-};
-
-type WorkspaceBuildContext = WorkspaceModelArgs & {
-  visibleNavSections: NavSection[];
-  navSectionById: Map<string, NavSection>;
-};
-
-type WorkspaceModuleDefinition = {
-  id: WorkspaceModuleId;
-  label: string;
-  homeHref: string | null;
-  getItems: (context: WorkspaceBuildContext) => NavItem[];
-  /**
-   * The section's semantic groups, when it declares any. Carried through here
-   * because the sidebar assembles its own sections from module items and would
-   * otherwise drop the grouping the navigation model defines.
-   */
-  getGroups?: (context: WorkspaceBuildContext) => NavGroup[] | undefined;
-};
-
-type WorkspaceProfileSectionSpec = {
-  id: string;
-  title: string;
-  /**
-   * Bands within the section, when it is long enough to need them.
-   *
-   * Declared here rather than on the module's nav section because the grouping
-   * is a property of *this arrangement* — Range & Stock draws from two modules
-   * and neither of them knows about the other. A group with nothing in it after
-   * gating is dropped, the same way `buildModuleSection` drops one.
-   */
-  groups?: NavGroup[];
-  refs: Array<{
-    moduleId: WorkspaceModuleId;
-    href: string;
-    /** The band this destination sits in. Must name one of `groups`. */
-    group?: string;
-  }>;
-};
-
-type WorkspaceProfileRecipe = {
-  label: string;
-  preferredHomeHref: string | null;
-  nativeModules: WorkspaceModuleId[];
-  sections: WorkspaceProfileSectionSpec[];
-};
-
-const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["people", "payroll", "accounting", "management"];
 /**
  * Modules that need their own feature key present before they surface, on top of
@@ -164,26 +103,7 @@ function canReclassifyStockBetweenLocations(siteIds: string[] | undefined): bool
   return false;
 }
 
-function createSectionModule(args: {
-  id: WorkspaceModuleId;
-  label: string;
-  sectionId: string;
-  homeHref: string;
-}): WorkspaceModuleDefinition {
-  return {
-    id: args.id,
-    label: args.label,
-    homeHref: args.homeHref,
-    getItems(context) {
-      return context.navSectionById.get(args.sectionId)?.items ?? [];
-    },
-    getGroups(context) {
-      return context.navSectionById.get(args.sectionId)?.groups;
-    },
-  };
-}
-
-const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = {
+const WORKSPACE_MODULES: WorkspaceCatalogue["modules"] = {
   gold: createSectionModule({
     id: "gold",
     label: "Gold Operations",
@@ -312,9 +232,7 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
 // `GENERAL`, and every lookup here falls back to the `GENERAL` recipe, so a
 // stored `SCRAP_METAL` or `AUTOS` tenant gets the general workspace rather than
 // an empty sidebar.
-const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfileRecipe>> & {
-  GENERAL: WorkspaceProfileRecipe;
-} = {
+const WORKSPACE_PROFILE_RECIPES: WorkspaceCatalogue["recipes"] = {
   GOLD_MINE: {
     label: "Gold Operations",
     preferredHomeHref: "/gold",
@@ -475,6 +393,8 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
   RETAIL: {
     label: "Retail",
     preferredHomeHref: "/retail",
+    // Only the curated sections, then the core modules under "more".
+    curatedOnly: true,
     /**
      * `stores` is native here, which is what removes "Stores & Inventory" as its
      * own entry from a retail sidebar: `buildAdditionalSections` only emits
@@ -612,17 +532,51 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
   },
 };
 
-export function normalizeWorkspaceProfile(value: string | null | undefined): WorkspaceProfile {
-  return normalizeWorkspaceProfileInput(value) ?? DEFAULT_WORKSPACE_PROFILE;
+/**
+ * The books list their entry points in one consolidated section: sub-tabs and
+ * grouping live inside the /accounting shell, and the sidebar lists the doors.
+ * Overview first; the banking section is not a sidebar entry point.
+ */
+function consolidateAccounting(
+  moduleId: WorkspaceModuleId,
+  moduleItems: NavItem[],
+  workspaceGroup: WorkspaceSectionGroup,
+  excludedHrefs: Set<string> | undefined,
+): WorkspaceNavSection[] | null {
+  if (moduleId !== "accounting") return null;
+  const orderedHrefs = [
+    ...ACCOUNTING_OPERATIONS_SECTIONS.overview,
+    ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
+    ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
+    ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
+    ...ACCOUNTING_OPERATIONS_SECTIONS.master,
+  ];
+  const items: NavItem[] = [];
+  for (const href of orderedHrefs) {
+    if (excludedHrefs?.has(href)) continue;
+    const item = moduleItems.find((candidate) => candidate.href === href);
+    if (item) items.push(item);
+  }
+  if (items.length === 0) return [];
+  return [{ id: "accounting-master", title: "Accounting Master", items, workspaceGroup }];
 }
 
-/**
- * The recipe for a profile, falling back to the general one. Only a retired
- * profile misses, and the general workspace is where a retired tenant belongs.
- */
-function getWorkspaceProfileRecipe(profile: WorkspaceProfile): WorkspaceProfileRecipe {
-  return WORKSPACE_PROFILE_RECIPES[profile] ?? WORKSPACE_PROFILE_RECIPES.GENERAL;
-}
+export const WORKSPACE_CATALOGUE: WorkspaceCatalogue = {
+  modules: WORKSPACE_MODULES,
+  moduleOrder: WORKSPACE_MODULE_ORDER,
+  canonicalModuleIds: CANONICAL_MODULE_IDS,
+  strictModuleFeatureKeys: STRICT_WORKSPACE_MODULE_FEATURE_KEYS,
+  // Retail surfaces on any retail feature or the till, not on one key.
+  moduleGates: {
+    retail: (enabled) => Array.from(enabled).some((feature) => feature.startsWith("retail.") || feature === "portal.pos"),
+  },
+  recipes: WORKSPACE_PROFILE_RECIPES,
+  profileOwnerModules: PROFILE_OWNER_MODULES,
+  profileIcons: WORKSPACE_PROFILE_ICONS,
+  consolidateModule: consolidateAccounting,
+  quickActions: getPrimaryQuickActions,
+  supportItems: SUPPORT_ITEMS,
+};
 
 export function getWorkspaceProfileForTemplate(code: string | null | undefined): WorkspaceProfile | null {
   const normalized = String(code || "").trim().toUpperCase();
@@ -650,356 +604,8 @@ export function getWorkspaceProfileForTemplate(code: string | null | undefined):
   return null;
 }
 
-function buildContext(args: WorkspaceModelArgs): WorkspaceBuildContext {
-  // Route-restricted roles (e.g. SALES_REP → CRM only) should never be shown
-  // nav for areas the access layer will block anyway.
-  const visibleNavSections = filterNavSectionsByEnabledFeatures(
-    getNavSectionsForRole(args.role),
-    args.enabledFeatures,
-  )
-    .map((section) => ({
-      ...section,
-      items: section.items.filter((item) => isRouteAllowedForRole(args.role, item.href)),
-    }))
-    .filter((section) => section.items.length > 0);
-
-  return {
-    ...args,
-    visibleNavSections,
-    navSectionById: new Map(visibleNavSections.map((section) => [section.id, section] as const)),
-  };
-}
-
-function getVisibleModules(context: WorkspaceBuildContext): Map<WorkspaceModuleId, NavItem[]> {
-  const normalizedEnabled = new Set((context.enabledFeatures ?? []).map((feature) => normalizeFeatureKey(feature)));
-  const entries = WORKSPACE_MODULE_ORDER.map((moduleId) => {
-    const moduleDefinition = WORKSPACE_MODULES[moduleId];
-    return [moduleId, moduleDefinition.getItems(context)] as const;
-  }).filter((entry) => {
-    if (entry[1].length === 0) return false;
-    if (entry[0] === "retail") {
-      return Array.from(normalizedEnabled).some(
-        (feature) => feature.startsWith("retail.") || feature === "portal.pos",
-      );
-    }
-    const strictFeatureKey = STRICT_WORKSPACE_MODULE_FEATURE_KEYS[entry[0]];
-    if (!strictFeatureKey) return true;
-    return normalizedEnabled.has(normalizeFeatureKey(strictFeatureKey));
-  });
-
-  return new Map(entries);
-}
-
-function getVisibleItem(
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  moduleId: WorkspaceModuleId,
-  href: string,
-): NavItem | null {
-  const item = visibleModules.get(moduleId)?.find((candidate) => candidate.href === href);
-  return item ?? null;
-}
-
-function buildProfileSections(
-  recipe: WorkspaceProfileRecipe,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-): WorkspaceNavSection[] {
-  return recipe.sections
-    .map((section) => {
-      const items: NavItem[] = [];
-      const seen = new Set<string>();
-
-      for (const ref of section.refs) {
-        const item = getVisibleItem(visibleModules, ref.moduleId, ref.href);
-        if (!item || seen.has(item.href)) continue;
-        seen.add(item.href);
-        // The arrangement's grouping wins over whatever band the item carried
-        // in its own module — `/stores/inventory` is "Stock" in both, but the
-        // profile is the one that decided that here.
-        items.push(ref.group ? { ...item, group: ref.group } : item);
-      }
-
-      // A group label with nothing under it is worse than no label.
-      const present = new Set(items.map((item) => item.group).filter(Boolean));
-      const groups = section.groups?.filter((group) => present.has(group.id));
-
-      return {
-        id: section.id,
-        title: section.title,
-        ...(groups && groups.length > 0 ? { groups } : {}),
-        items,
-        workspaceGroup: "primary" as const,
-      };
-    })
-    .filter((section) => section.items.length > 0);
-}
-
-function getOrderedModuleIds(verticalProduct: VerticalProductBundleDefinition): WorkspaceModuleId[] {
-  const seen = new Set<WorkspaceModuleId>();
-  const ordered: WorkspaceModuleId[] = [];
-
-  for (const moduleId of [
-    ...verticalProduct.primaryModules,
-    ...verticalProduct.foundationalModules,
-    ...WORKSPACE_MODULE_ORDER,
-  ]) {
-    if (seen.has(moduleId)) continue;
-    seen.add(moduleId);
-    ordered.push(moduleId);
-  }
-
-  return ordered;
-}
-
-function collectSectionHrefs(sections: WorkspaceNavSection[]): Set<string> {
-  return new Set(sections.flatMap((section) => section.items.map((item) => item.href)));
-}
-
-/**
- * The groups a module's own nav section declares.
- *
- * The sidebar reassembles sections from module items, which loses everything on
- * the section but its items. Module ids and section ids line up for every
- * `createSectionModule` module, so reading the declaration back is enough.
- */
-function declaredSection(moduleId: WorkspaceModuleId): NavSection | undefined {
-  // Last match, not first, to stay consistent with `navSectionById` — the map
-  // the module reads its items from is built from this array, so a later entry
-  // with the same id wins there and this has to agree.
-  let found: NavSection | undefined;
-  for (const section of navSections) {
-    if (section.id === moduleId) found = section;
-  }
-  return found;
-}
-
-function declaredGroups(moduleId: WorkspaceModuleId): NavGroup[] | undefined {
-  return declaredSection(moduleId)?.groups;
-}
-
-function buildModuleSection(
-  moduleId: WorkspaceModuleId,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  workspaceGroup: WorkspaceSectionGroup,
-  excludedHrefs?: Set<string>,
-): WorkspaceNavSection | null {
-  const items = (visibleModules.get(moduleId) ?? []).filter((item) => !excludedHrefs?.has(item.href));
-  if (items.length === 0) return null;
-
-  // Drop any group left with nothing in it after gating and exclusions.
-  const present = new Set(items.map((item) => item.group).filter(Boolean));
-  const groups = declaredGroups(moduleId)?.filter((group) => present.has(group.id));
-
-  return {
-    id: moduleId,
-    title: WORKSPACE_MODULES[moduleId].label,
-    ...(groups && groups.length > 0 ? { groups } : {}),
-    // Carried through: the sidebar decides whether to render the groups as
-    // root entries or as bands, and it can only do that if the flag survives
-    // the trip through the module layer.
-    ...(declaredSection(moduleId)?.flattenGroups ? { flattenGroups: true } : {}),
-    items,
-    workspaceGroup,
-  };
-}
-
-function buildModuleSections(
-  moduleId: WorkspaceModuleId,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  workspaceGroup: WorkspaceSectionGroup,
-  excludedHrefs?: Set<string>,
-): WorkspaceNavSection[] {
-  if (moduleId === "accounting") {
-    const moduleItems = visibleModules.get("accounting") ?? [];
-    // Single consolidated section. Sub-tabs/grouping live inside the
-    // /accounting shell — the global sidebar just lists the entry points.
-    // Overview is intentionally first.
-    const orderedHrefs = [
-      ...ACCOUNTING_OPERATIONS_SECTIONS.overview,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.receivables,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.payables,
-      ...ACCOUNTING_OPERATIONS_SECTIONS.reporting,
-      // The banking section went with the ST-1.2 parking; the route and its
-      // model are untouched, it is simply not a sidebar entry point.
-      ...ACCOUNTING_OPERATIONS_SECTIONS.master,
-    ];
-
-    const items: NavItem[] = [];
-    for (const href of orderedHrefs) {
-      if (excludedHrefs?.has(href)) continue;
-      const item = moduleItems.find((i) => i.href === href);
-      if (item) items.push(item);
-    }
-
-    if (items.length === 0) return [];
-
-    return [
-      {
-        id: "accounting-master",
-        title: "Accounting Master",
-        items,
-        workspaceGroup,
-      },
-    ];
-  }
-
-  const section = buildModuleSection(moduleId, visibleModules, workspaceGroup, excludedHrefs);
-  return section ? [section] : [];
-}
-
-function buildGeneralSections(
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  verticalProduct: VerticalProductBundleDefinition,
-): WorkspaceNavSection[] {
-  return getOrderedModuleIds(verticalProduct)
-    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, "primary"));
-}
-
-function buildCanonicalCoreSections(
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  excludedHrefs: Set<string>,
-  verticalProduct: VerticalProductBundleDefinition,
-  workspaceGroup: WorkspaceSectionGroup,
-): WorkspaceNavSection[] {
-  return getOrderedModuleIds(verticalProduct)
-    .filter((moduleId): moduleId is WorkspaceModuleId => CANONICAL_MODULE_IDS.includes(moduleId))
-    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, workspaceGroup, excludedHrefs));
-}
-
-function buildAdditionalSections(
-  recipe: WorkspaceProfileRecipe,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  excludedHrefs: Set<string>,
-  verticalProduct: VerticalProductBundleDefinition,
-): WorkspaceNavSection[] {
-  return getOrderedModuleIds(verticalProduct)
-    .filter(
-      (moduleId) =>
-        !recipe.nativeModules.includes(moduleId) &&
-        !CANONICAL_MODULE_IDS.includes(moduleId) &&
-        visibleModules.has(moduleId),
-    )
-    .flatMap((moduleId) => buildModuleSections(moduleId, visibleModules, "additional", excludedHrefs));
-}
-
-function getPrimarySections(
-  recipe: WorkspaceProfileRecipe,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-  verticalProduct: VerticalProductBundleDefinition,
-): WorkspaceNavSection[] {
-  if (recipe === WORKSPACE_PROFILE_RECIPES.GENERAL) {
-    return buildGeneralSections(visibleModules, verticalProduct);
-  }
-
-  const profileSections = buildProfileSections(recipe, visibleModules);
-  const usedHrefs = collectSectionHrefs(profileSections);
-
-  if (recipe === WORKSPACE_PROFILE_RECIPES.RETAIL) {
-    return profileSections;
-  }
-
-  return [
-    ...profileSections,
-    ...buildCanonicalCoreSections(visibleModules, usedHrefs, verticalProduct, "primary"),
-  ];
-}
-
-function resolveEffectiveWorkspaceProfile(
-  enabledFeatures: string[] | undefined,
-  requestedProfile: WorkspaceProfile,
-  visibleModules: Map<WorkspaceModuleId, NavItem[]>,
-): WorkspaceProfile {
-  if (requestedProfile === "GENERAL") {
-    return inferWorkspaceProfileFromEnabledFeatures(enabledFeatures) ?? requestedProfile;
-  }
-
-  // A retired profile has no owner module, so every lookup below misses and the
-  // tenant ends up on `GENERAL` — the documented landing place for one.
-  const ownerModule = PROFILE_OWNER_MODULES[requestedProfile];
-  if (ownerModule && visibleModules.has(ownerModule)) {
-    return requestedProfile;
-  }
-
-  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(enabledFeatures);
-  if (inferredProfile && inferredProfile !== "GENERAL") {
-    const inferredOwnerModule = PROFILE_OWNER_MODULES[inferredProfile];
-    if (inferredOwnerModule && visibleModules.has(inferredOwnerModule)) {
-      return inferredProfile;
-    }
-  }
-
-  for (const profile of WORKSPACE_PROFILES) {
-    if (profile === "GENERAL") continue;
-    const candidateModule = PROFILE_OWNER_MODULES[profile];
-    if (candidateModule && visibleModules.has(candidateModule)) {
-      return profile;
-    }
-  }
-
-  return "GENERAL";
-}
-
-function getSupportItems(context: WorkspaceBuildContext): NavItem[] {
-  const overviewSection = context.navSectionById.get("overview");
-  return overviewSection?.items.filter((item) => item.href !== "/") ?? SUPPORT_ITEMS;
-}
-
-function getQuickActions(
-  args: {
-    role: string | null | undefined;
-    enabledFeatures: string[] | undefined;
-    workspaceProfile: WorkspaceProfile;
-  },
-): NavItem[] {
-  return getPrimaryQuickActions({
-    workspaceProfile: args.workspaceProfile,
-    role: args.role,
-    enabledFeatures: args.enabledFeatures,
-  }).filter((item) => isRouteAllowedForRole(args.role, item.href));
-}
-
-function getGeneralDashboardItem(context: WorkspaceBuildContext): NavItem | null {
-  const settingsSection = context.navSectionById.get("settings");
-  return settingsSection?.items.find((item) => item.href === "/dashboard") ?? null;
-}
-
-function flattenVisibleItems(sections: WorkspaceNavSection[]): NavItem[] {
-  return sections.flatMap((section) => section.items);
-}
-
-function getHomeTarget(args: {
-  recipe: WorkspaceProfileRecipe;
-  context: WorkspaceBuildContext;
-  sections: WorkspaceNavSection[];
-  workspaceProfile: WorkspaceProfile;
-}): { href: string; label: string } {
-  const verticalProduct = resolveWorkspaceVerticalProductBundle({
-    enabledFeatures: args.context.enabledFeatures,
-    workspaceProfile: args.workspaceProfile,
-  });
-  const visibleItems = flattenVisibleItems(args.sections);
-  const preferredHomeHref = verticalProduct.preferredHomeHref ?? args.recipe.preferredHomeHref;
-  const preferredItem = preferredHomeHref
-    ? visibleItems.find((item) => item.href === preferredHomeHref) ?? null
-    : null;
-  const generalDashboardItem =
-    args.recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
-      ? getGeneralDashboardItem(args.context)
-      : null;
-  const fallbackItem = preferredItem ?? generalDashboardItem ?? visibleItems[0] ?? getSupportItems(args.context)[0] ?? SUPPORT_ITEMS[0];
-
-  return {
-    href: fallbackItem.href,
-    label: fallbackItem.label,
-  };
-}
-
 export function getWorkspaceHomeHref(profile: string | null | undefined): string {
-  return resolveWorkspaceVerticalProductBundle({
-    enabledFeatures: undefined,
-    workspaceProfile: profile,
-  }).preferredHomeHref
-    ?? getWorkspaceProfileRecipe(normalizeWorkspaceProfile(profile)).preferredHomeHref
-    ?? "/dashboard";
+  return workspaceHomeHref(WORKSPACE_CATALOGUE, profile);
 }
 
 export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
@@ -1007,51 +613,5 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
 }
 
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
-  const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
-  const context = buildContext(args);
-  const visibleModules = getVisibleModules(context);
-  const profile = resolveEffectiveWorkspaceProfile(args.enabledFeatures, requestedProfile, visibleModules);
-  const recipe = getWorkspaceProfileRecipe(profile);
-  const verticalProduct = resolveWorkspaceVerticalProductBundle({
-    enabledFeatures: args.enabledFeatures,
-    workspaceProfile: profile,
-  });
-  const primarySections = getPrimarySections(recipe, visibleModules, verticalProduct);
-  const usedPrimaryHrefs = collectSectionHrefs(primarySections);
-  const canonicalAdditionalSections =
-    recipe === WORKSPACE_PROFILE_RECIPES.RETAIL
-      ? buildCanonicalCoreSections(
-          visibleModules,
-          usedPrimaryHrefs,
-          verticalProduct,
-          "additional",
-        )
-      : [];
-  const additionalSections = recipe === WORKSPACE_PROFILE_RECIPES.GENERAL
-    ? []
-    : [
-        ...canonicalAdditionalSections,
-        ...buildAdditionalSections(recipe, visibleModules, usedPrimaryHrefs, verticalProduct),
-      ];
-  const sections = [...primarySections, ...additionalSections];
-  const homeTarget = getHomeTarget({
-    recipe,
-    context,
-    sections,
-    workspaceProfile: profile,
-  });
-
-  return {
-    homeHref: homeTarget.href,
-    homeLabel: homeTarget.label,
-    workspaceLabel: verticalProduct.workspaceLabel || recipe.label,
-    workspaceIcon: WORKSPACE_PROFILE_ICONS[profile] ?? Dashboard,
-    quickActions: getQuickActions({
-      role: args.role,
-      enabledFeatures: args.enabledFeatures,
-      workspaceProfile: profile,
-    }),
-    sections,
-    supportItems: getSupportItems(context),
-  };
+  return buildWorkspaceSidebarModel(WORKSPACE_CATALOGUE, args);
 }

@@ -26,7 +26,7 @@ import { isKnownFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import { getFeatureDependencies } from "@corelithzw/platform/gating/feature-dependencies";
 import { getAllRouteFeatureKeys, resolveFeatureKeyForPath } from "@corelithzw/platform/gating/route-registry";
 import { getAllowedUserRolesForWorkspace } from "@corelithzw/platform/vertical-roles";
-import { getPrimaryQuickActions } from "@/lib/primary-actions";
+import { getPrimaryQuickActions } from "@corelithzw/shell/primary-actions";
 import { resolveWorkspaceVerticalProductBundle } from "@corelithzw/platform/workspace-products";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 

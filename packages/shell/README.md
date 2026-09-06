@@ -6,6 +6,8 @@ know, because `ui` depends on nothing in the workspace.
 ```
 navigation.ts     the navigation registry the hosts fill at boot, and the role filter
 sidebar-model.ts  what the sidebar renders; a host resolves it from the person's role, features and profile
+workspace-model.ts   the builder that resolves it (`buildWorkspaceSidebarModel`) from the host's `WorkspaceCatalogue`: its modules, profiles and arrangement, data next to its module list
+primary-actions.ts   the quick-create actions per vertical product: hrefs and icons
 app-sidebar.tsx, app-sidebar/   the sidebar: account menu, quick actions, sections, a collections slot, support
 navbar.tsx        the app bar: title and icon from the registry, a tools slot and a members slot
 command-bar/      the command palette and its types (the host composes what it searches)
