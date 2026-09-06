@@ -3,7 +3,9 @@ import {
   getPortalHostDescriptorByPath,
   getPortalHostDescriptorByPrefix,
   getPortalHostPrefixes,
+  getPortalHostStyle,
   isPortalAliasPrefix,
+  splitFlatPortalLabel,
 } from "./portal-hosts";
 import {
   PREVIEW_HOST_HEADER,
@@ -200,6 +202,22 @@ function getPortalAndTenantForHost(
         portalLoginPath: portalDescriptor.loginPath,
         portalIsAlias: isPortalAliasPrefix(slug, portalDescriptor),
       };
+    }
+    // On a host that spells its portals flat, `students-acme` is a portal host
+    // of the tenant `acme`; the nested spelling below is still understood, so
+    // a preview or a bookmark in the old form keeps resolving.
+    if (getPortalHostStyle() === "flat") {
+      const flat = splitFlatPortalLabel(slug);
+      if (flat && TENANT_SLUG_PATTERN.test(flat.slug)) {
+        return {
+          tenantSlug: flat.slug,
+          portalSubdomain: flat.prefix,
+          portalCanonicalPrefix: flat.descriptor.canonicalPrefix,
+          portalPath: flat.descriptor.portalPath,
+          portalLoginPath: flat.descriptor.loginPath,
+          portalIsAlias: isPortalAliasPrefix(flat.prefix, flat.descriptor),
+        };
+      }
     }
     return {
       tenantSlug: slug,

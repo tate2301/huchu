@@ -246,6 +246,7 @@ project; production keeps serving from `apps/legacy` untouched.
 4. **Environment variables** (Production, and Preview with the preview-host overrides from
    `STAGING_PREVIEW.md`):
    - `PLATFORM_ROOT_DOMAIN` from the table and `PLATFORM_ROOT_HOSTS` to match;
+   - `PLATFORM_PORTAL_HOSTS=flat` (item 5);
    - the **same** `NEXTAUTH_SECRET` and `DATABASE_URL` as the enterprise host — one database,
      one session token; the cookie domain becomes `.corelith.co.zw` so a sign-in carries
      across hosts;
@@ -253,15 +254,16 @@ project; production keeps serving from `apps/legacy` untouched.
      provider configuration) on every host that fiscalises — the school's fee receipts on
      Campus, the till on Sell; `PLATFORM_VERCEL_*` for its own project if it provisions portal
      hosts.
-5. **Portal hosts.** The kernel forms a portal host as `<prefix>.<slug>.<root>` today
-   (`students.`, `parents.`, `staff.` for the school, `pos.` for the till — see
-   `packages/platform/portal-hosts.ts`). On a product root that is two labels under the root,
-   which the one wildcard certificate does **not** cover: a portal host there needs its own
-   certificate, issued through the Vercel API as the enterprise host's portal hosts are today.
-   The plan's one-label form (`parents-<slug>.campus.corelith.co.zw`, `pos-<slug>.sell.…`),
-   which the wildcard covers and which frees self-serve signup from the Vercel API call, is
-   Phase 3.3 — a host-level switch in the kernel, off on the enterprise host — and lands
-   before any portal host is served from a product root.
+5. **Portal hosts are one label on a product root.** Set `PLATFORM_PORTAL_HOSTS=flat` on every
+   product host: the kernel then spells a portal host `<prefix>-<slug>.<root>`
+   (`students-acme.campus.corelith.co.zw`, `pos-acme.sell.corelith.co.zw`; `students`,
+   `parents` (alias `guardian`), `staff` for the school, `pos` for the till — see
+   `packages/platform/portal-hosts.ts`), which the product's one wildcard certificate covers, so
+   standing a tenant up needs no per-host certificate and no Vercel API call. The enterprise
+   host leaves the variable unset and keeps today's `<prefix>.<slug>.<root>`, each portal host
+   with its own certificate as now. A flat host still understands the nested spelling, so a
+   preview or a bookmark in the old form keeps resolving; a nested host reads `students-acme`
+   as a plain tenant, which is why the switch is per host and never ambiguous.
 6. **The database release job stays singular.** Products share the database; migrations keep
    landing from `packages/db` through the one job, expand-first, because hosts deploy
    independently. No product host has migrations of its own.
