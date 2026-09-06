@@ -1,0 +1,1481 @@
+// Books module: chart of accounts, journals, posting rules, tax, sales and purchase ledgers, banking, VAT, fiscalisation. Modules contribute source types and default accounts.
+
+// ============================================
+// PHASE 6: ACCOUNTING
+// ============================================
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  INCOME
+  EXPENSE
+}
+
+enum AccountingPeriodStatus {
+  OPEN
+  CLOSED
+}
+
+enum AccountingPeriodLockPolicy {
+  STRICT
+  MANAGER_OVERRIDE
+  SOFT_WARN
+}
+
+enum JournalStatus {
+  DRAFT
+  POSTED
+  REVERSED
+  VOIDED
+}
+
+enum PostingDirection {
+  DEBIT
+  CREDIT
+}
+
+enum PostingBasis {
+  AMOUNT
+  NET
+  TAX
+  GROSS
+  DEDUCTIONS
+  ALLOWANCES
+  // Payroll statutory bases. Each is the sum of the `PayrollLineComponent` rows
+  // carrying the matching `statutoryKey`, so the ledger balance on a payable
+  // account and the return filed against it are summed from the same rows.
+  PAYE
+  AIDS_LEVY
+  NSSA_EMPLOYEE
+  NSSA_EMPLOYER
+  ZIMDEF
+  STANDARDS_DEVELOPMENT_LEVY
+  NEC_EMPLOYEE
+  NEC_EMPLOYER
+  /// Employee deductions that are not statutory — pension, union, advances.
+  OTHER_DEDUCTIONS
+  /// Everything the employer owes on top of the wage, summed.
+  EMPLOYER_CONTRIBUTIONS
+}
+
+enum AllocationType {
+  PERCENT
+  FIXED
+}
+
+enum AccountingSourceType {
+  MANUAL
+  STOCK_RECEIPT
+  STOCK_ISSUE
+  STOCK_ADJUSTMENT
+  STOCK_TRANSFER
+  PAYROLL_RUN
+  PAYROLL_DISBURSEMENT
+  GOLD_PURCHASE
+  GOLD_RECEIPT
+  GOLD_DISPATCH
+  SALES_INVOICE
+  SALES_RECEIPT
+  SALES_CREDIT_NOTE
+  SALES_WRITE_OFF
+  PURCHASE_BILL
+  PURCHASE_PAYMENT
+  PURCHASE_DEBIT_NOTE
+  PURCHASE_WRITE_OFF
+  BANK_TRANSACTION
+  MAINTENANCE_COMPLETION
+  /// Retired with `IrregularPayoutBatch` in P-1, kept so old rows stay readable.
+  ///
+  /// Same rule as `ApprovalTargetType.IRREGULAR_PAYOUT_BATCH`, and pinned by the
+  /// same test: Postgres refuses to drop a value any row still holds, and the
+  /// two ways round that are both worse than the dead value. Nothing writes it —
+  /// settlements post as `PAYROLL_DISBURSEMENT` — but a disbursement that posted
+  /// under this name really did post under it, and rewriting a ledger row to say
+  /// otherwise is a lie the trial balance cannot detect.
+  ///
+  /// ST-3.3 dropped `SCRAP_METAL_PURCHASE`, `SCRAP_METAL_BATCH` and
+  /// `SCRAP_METAL_SALE` from this enum. Those three were safe to drop and this
+  /// one is not, for one reason: scrap had no seeded posting rule, so its events
+  /// were always breadcrumbs on the nullable `AccountingIntegrationEvent`
+  /// column and could never reach a `JournalEntry`. This one was captured with
+  /// status PENDING and could.
+  IRREGULAR_PAYOUT_DISBURSEMENT
+  RETAIL_SHIFT_OPEN
+  RETAIL_GOODS_RECEIPT
+  RETAIL_SALE
+  RETAIL_REFUND
+  RETAIL_VOID
+  RETAIL_STOCK_ADJUSTMENT
+  RETAIL_STOCK_TRANSFER
+  RETAIL_SHIFT_VARIANCE
+  GOLD_SHIFT_ALLOCATION_COMPANY
+  GOLD_SHIFT_ALLOCATION_WORKER
+  GOLD_SHIFT_EXPENSE
+  GOLD_PAYOUT
+  GOLD_INVENTORY_ADJUSTMENT
+  // S-2.3. School money used to post as SALES_*, so tuition landed in "Retail
+  // Sales Revenue" and a bursary was indistinguishable from bad debt. These are
+  // the school's own kinds; `SCHOOLS_REQUIRED_SOURCE_TYPES` in
+  // `lib/accounting/source-types.ts` is the readiness contract over them.
+  SCHOOL_FEE_INVOICE
+  SCHOOL_FEE_RECEIPT
+  SCHOOL_FEE_RECEIPT_VOID
+  SCHOOL_FEE_CREDIT_APPLIED
+  SCHOOL_FEE_WAIVER
+  SCHOOL_FEE_WRITE_OFF
+  SCHOOL_FEE_REFUND
+}
+
+enum PostingRuleScopeType {
+  COMPANY
+  SITE
+}
+
+enum PostingRuleMode {
+  GUIDED
+  ADVANCED
+}
+
+enum PostingRuleConditionField {
+  SITE_ID
+  REGISTER_CODE
+  TENDER_TYPE
+  CURRENCY
+  CUSTOMER_TAX_CATEGORY_ID
+  VENDOR_TAX_CATEGORY_ID
+  SALE_TYPE
+  MOVEMENT_TYPE
+}
+
+enum PostingRuleOperator {
+  EQ
+  NEQ
+  IN
+  NOT_IN
+  EXISTS
+  NOT_EXISTS
+}
+
+enum PostingRuleLineRepeatMode {
+  NONE
+  TENDER
+}
+
+enum PostingRuleLineAccountSource {
+  FIXED_ACCOUNT
+  TENDER_MAPPING
+}
+
+enum AccountingSeedExecutionMode {
+  DRY_RUN
+  APPLY
+}
+
+enum AccountingSeedExecutionStatus {
+  PENDING
+  COMPLETED
+  FAILED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  PAID
+  VOIDED
+}
+
+enum QuotationStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  EXPIRED
+  VOIDED
+}
+
+enum BillStatus {
+  DRAFT
+  RECEIVED
+  PAID
+  VOIDED
+}
+
+enum FiscalReceiptStatus {
+  PENDING
+  SUCCESS
+  FAILED
+  VOIDED
+}
+
+enum NoteStatus {
+  DRAFT
+  ISSUED
+  VOIDED
+}
+
+enum WriteOffStatus {
+  POSTED
+  VOIDED
+}
+
+enum ReconciliationStatus {
+  OPEN
+  CLOSED
+  VOIDED
+}
+
+enum VatReturnStatus {
+  DRAFT
+  REVIEWED
+  FINALIZED
+  FILED
+  VOIDED
+}
+
+enum PaymentLedgerAccountType {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum PaymentLedgerEntryStatus {
+  POSTED
+  VOIDED
+}
+
+enum AccountNodeType {
+  GROUP
+  LEDGER
+}
+
+model AccountingSettings {
+  id                        String                     @id @default(uuid())
+  companyId                 String                     @unique
+  baseCurrency              String                     @default("USD")
+  fiscalYearStartMonth      Int                        @default(1)
+  periodLockPolicy          AccountingPeriodLockPolicy @default(MANAGER_OVERRIDE)
+  legalName                 String?
+  tradingName               String?
+  vatNumber                 String?
+  taxNumber                 String?
+  address                   String?
+  phone                     String?
+  email                     String?
+  defaultTaxCodeId          String?
+  defaultBankAccountId      String?
+  freezeBeforeDate          DateTime?
+  retainedEarningsAccountId String?
+  createdAt                 DateTime                   @default(now())
+  updatedAt                 DateTime                   @updatedAt
+
+  company            Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  defaultTaxCode     TaxCode?     @relation("DefaultTaxCode", fields: [defaultTaxCodeId], references: [id])
+  defaultBankAccount BankAccount? @relation("DefaultBankAccount", fields: [defaultBankAccountId], references: [id])
+}
+
+model ChartOfAccount {
+  id              String          @id @default(uuid())
+  companyId       String
+  code            String
+  name            String
+  type            AccountType
+  nodeType        AccountNodeType @default(LEDGER)
+  parentAccountId String?
+  hierarchyPath   String?
+  level           Int             @default(0)
+  category        String?
+  description     String?
+  isActive        Boolean         @default(true)
+  systemManaged   Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company                Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parentAccount          ChartOfAccount?        @relation("ChartOfAccountHierarchy", fields: [parentAccountId], references: [id])
+  childAccounts          ChartOfAccount[]       @relation("ChartOfAccountHierarchy")
+  journalLines           JournalLine[]
+  postingLines           PostingRuleLine[]
+  tenderClearingMappings TenderAccountMapping[] @relation("TenderClearingAccount")
+  tenderOffsetMappings   TenderAccountMapping[] @relation("TenderOffsetAccount")
+
+  @@unique([companyId, code])
+  @@index([companyId, type])
+  @@index([companyId, nodeType])
+  @@index([companyId, parentAccountId])
+}
+
+model AccountingPeriod {
+  id           String                 @id @default(uuid())
+  companyId    String
+  startDate    DateTime
+  endDate      DateTime
+  status       AccountingPeriodStatus @default(OPEN)
+  closedAt     DateTime?
+  closedById   String?
+  reopenedAt   DateTime?
+  reopenedById String?
+  reopenReason String?
+  createdAt    DateTime               @default(now())
+  updatedAt    DateTime               @updatedAt
+
+  company       Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  closedBy      User?                @relation("AccountingPeriodClosedBy", fields: [closedById], references: [id])
+  reopenedBy    User?                @relation("AccountingPeriodReopenedBy", fields: [reopenedById], references: [id])
+  journals      JournalEntry[]
+  closeVouchers PeriodCloseVoucher[]
+
+  @@index([companyId, startDate, endDate])
+}
+
+model JournalEntry {
+  id                   String               @id @default(uuid())
+  companyId            String
+  entryNumber          Int
+  entryDate            DateTime
+  description          String
+  status               JournalStatus        @default(DRAFT)
+  periodId             String?
+  sourceType           AccountingSourceType @default(MANUAL)
+  sourceId             String?
+  createdById          String
+  postedById           String?
+  postedAt             DateTime?
+  reversedById         String?
+  reversedAt           DateTime?
+  voidedById           String?
+  voidedAt             DateTime?
+  periodOverrideReason String?
+  periodOverrideById   String?
+  periodOverrideAt     DateTime?
+  reversalOfEntryId    String?              @unique
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime             @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period           AccountingPeriod? @relation(fields: [periodId], references: [id])
+  createdBy        User              @relation("JournalEntryCreatedBy", fields: [createdById], references: [id])
+  postedBy         User?             @relation("JournalEntryPostedBy", fields: [postedById], references: [id])
+  reversedBy       User?             @relation("JournalEntryReversedBy", fields: [reversedById], references: [id])
+  voidedBy         User?             @relation("JournalEntryVoidedBy", fields: [voidedById], references: [id])
+  periodOverrideBy User?             @relation("JournalEntryPeriodOverrideBy", fields: [periodOverrideById], references: [id])
+  reversalOfEntry  JournalEntry?     @relation("JournalEntryReversal", fields: [reversalOfEntryId], references: [id])
+  reversalEntry    JournalEntry?     @relation("JournalEntryReversal")
+  lines            JournalLine[]
+
+  @@unique([companyId, entryNumber])
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId, entryDate])
+}
+
+enum AccountingIntegrationStatus {
+  PENDING
+  POSTED
+  FAILED
+  IGNORED
+}
+
+model AccountingIntegrationEvent {
+  id               String                      @id @default(uuid())
+  companyId        String
+  sourceDomain     String
+  sourceAction     String
+  sourceType       AccountingSourceType?
+  sourceId         String?
+  sourceSubtype    String?
+  siteId           String?
+  registerCode     String?
+  causationKey     String?
+  eventKey         String                      @unique
+  entryDate        DateTime?
+  description      String?
+  amount           Float?
+  netAmount        Float?
+  taxAmount        Float?
+  grossAmount      Float?
+  deductionsAmount Float?
+  allowancesAmount Float?
+  currency         String?
+  payloadJson      String?
+  status           AccountingIntegrationStatus @default(PENDING)
+  attemptCount     Int                         @default(0)
+  nextRetryAt      DateTime?
+  lastError        String?
+  journalEntryId   String?
+  createdById      String?
+  createdAt        DateTime                    @default(now())
+  updatedAt        DateTime                    @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, status, nextRetryAt])
+  @@index([companyId, sourceType, sourceId])
+  @@index([companyId, sourceType, siteId])
+}
+
+model JournalLine {
+  id           String   @id @default(uuid())
+  entryId      String
+  accountId    String
+  debit        Float    @default(0)
+  credit       Float    @default(0)
+  memo         String?
+  costCenterId String?
+  createdAt    DateTime @default(now())
+
+  entry      JournalEntry   @relation(fields: [entryId], references: [id], onDelete: Cascade)
+  account    ChartOfAccount @relation(fields: [accountId], references: [id])
+  costCenter CostCenter?    @relation(fields: [costCenterId], references: [id])
+
+  @@index([entryId])
+  @@index([accountId])
+}
+
+model PostingRule {
+  id          String               @id @default(uuid())
+  companyId   String
+  name        String
+  sourceType  AccountingSourceType
+  description String?
+  priority    Int                  @default(100)
+  scopeType   PostingRuleScopeType @default(COMPANY)
+  siteId      String?
+  ruleMode    PostingRuleMode      @default(GUIDED)
+  isFallback  Boolean              @default(false)
+  isActive    Boolean              @default(true)
+  createdAt   DateTime             @default(now())
+  updatedAt   DateTime             @updatedAt
+
+  company    Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?                  @relation("PostingRuleSite", fields: [siteId], references: [id])
+  lines      PostingRuleLine[]
+  conditions PostingRuleCondition[]
+
+  @@index([companyId, sourceType, isActive, priority])
+  @@index([companyId, sourceType, siteId, isActive, priority])
+}
+
+model PostingRuleLine {
+  id              String                       @id @default(uuid())
+  ruleId          String
+  accountId       String?
+  direction       PostingDirection
+  basis           PostingBasis                 @default(AMOUNT)
+  allocationType  AllocationType               @default(PERCENT)
+  allocationValue Float                        @default(100)
+  taxCodeId       String?
+  repeatMode      PostingRuleLineRepeatMode    @default(NONE)
+  accountSource   PostingRuleLineAccountSource @default(FIXED_ACCOUNT)
+  valuePath       String?
+  memoTemplate    String?
+  costCenterId    String?
+  sortOrder       Int                          @default(0)
+  createdAt       DateTime                     @default(now())
+
+  rule       PostingRule     @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+  account    ChartOfAccount? @relation(fields: [accountId], references: [id])
+  taxCode    TaxCode?        @relation(fields: [taxCodeId], references: [id])
+  costCenter CostCenter?     @relation(fields: [costCenterId], references: [id])
+
+  @@index([ruleId])
+  @@index([accountId])
+  @@index([costCenterId])
+}
+
+model PostingRuleCondition {
+  id            String                    @id @default(uuid())
+  ruleId        String
+  field         PostingRuleConditionField
+  operator      PostingRuleOperator       @default(EQ)
+  valueString   String?
+  valueListJson String?
+  createdAt     DateTime                  @default(now())
+  updatedAt     DateTime                  @updatedAt
+
+  rule PostingRule @relation(fields: [ruleId], references: [id], onDelete: Cascade)
+
+  @@index([ruleId, field])
+}
+
+model TaxCode {
+  id            String    @id @default(uuid())
+  companyId     String
+  code          String
+  name          String
+  rate          Float     @default(0)
+  type          String    @default("VAT") // VAT, WITHHOLDING, OTHER
+  appliesTo     String    @default("BOTH") // SALES, PURCHASE, BOTH
+  vat7OutputBox String?
+  vat7InputBox  String?
+  /// FD-0.2 — the numeric taxID ZIMRA uses to identify this rate.
+  ///
+  /// FDGA v7.2 never sends a rate name or a percentage on its own: every
+  /// receipt tax line is keyed by an integer taxID drawn from the device's
+  /// `getConfig` response, and the receipt signature concatenates those lines
+  /// sorted by that integer. A tax code with no mapping therefore cannot be
+  /// signed at all, which is why issuing against an unmapped code has to be
+  /// refused rather than defaulted. Nullable because every existing tenant
+  /// predates the mapping and will be filled in from `getConfig` per device.
+  zimraTaxId    Int?
+  scheduleType  String    @default("NONE") // NONE, FX, RTGS, WITHHOLDING
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoiceLines       SalesInvoiceLine[]
+  quotationLines     SalesQuotationLine[]
+  billLines          PurchaseBillLine[]
+  creditNoteLines    CreditNoteLine[]
+  debitNoteLines     DebitNoteLine[]
+  postingLines       PostingRuleLine[]
+  templateLines      TaxTemplateLine[]
+  defaultForSettings AccountingSettings[] @relation("DefaultTaxCode")
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+  @@index([companyId, code, effectiveFrom, effectiveTo])
+}
+
+model TaxCategory {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  scope     String   @default("BOTH") // CUSTOMER, VENDOR, BOTH
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company   Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customers Customer[]
+  vendors   Vendor[]
+  rules     TaxRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model TaxTemplate {
+  id          String   @id @default(uuid())
+  companyId   String
+  code        String
+  name        String
+  description String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   TaxTemplateLine[]
+  rules   TaxRule[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model TaxTemplateLine {
+  id         String   @id @default(uuid())
+  templateId String
+  taxCodeId  String
+  sortOrder  Int      @default(0)
+  appliesTo  String   @default("BOTH") // SALES, PURCHASE, BOTH
+  isDefault  Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  template TaxTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  taxCode  TaxCode     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([templateId, sortOrder])
+  @@index([taxCodeId])
+}
+
+model TaxRule {
+  id            String    @id @default(uuid())
+  companyId     String
+  name          String
+  appliesTo     String    @default("BOTH") // SALES, PURCHASE, BOTH
+  priority      Int       @default(100)
+  taxCategoryId String?
+  templateId    String
+  currency      String?
+  effectiveFrom DateTime?
+  effectiveTo   DateTime?
+  isActive      Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  company     Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory TaxCategory? @relation(fields: [taxCategoryId], references: [id])
+  template    TaxTemplate  @relation(fields: [templateId], references: [id])
+
+  @@index([companyId, isActive, priority])
+  @@index([companyId, appliesTo, currency])
+}
+
+model CurrencyDefinition {
+  id            String   @id @default(uuid())
+  companyId     String
+  code          String
+  name          String
+  symbol        String?
+  decimalPlaces Int      @default(2)
+  isBase        Boolean  @default(false)
+  isActive      Boolean  @default(true)
+  sortOrder     Int      @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive, sortOrder])
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  companyId     String
+  taxCategoryId String?
+  name          String
+  contactName   String?
+  phone         String?
+  email         String?
+  address       String?
+  taxNumber     String?
+  vatNumber     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory     TaxCategory?     @relation(fields: [taxCategoryId], references: [id])
+  invoices        SalesInvoice[]
+  quotations      SalesQuotation[]
+  crmClients      CrmClient[]
+
+  @@index([companyId, isActive])
+}
+
+model Vendor {
+  id            String   @id @default(uuid())
+  companyId     String
+  taxCategoryId String?
+  name          String
+  contactName   String?
+  phone         String?
+  email         String?
+  address       String?
+  taxNumber     String?
+  vatNumber     String?
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  taxCategory         TaxCategory?         @relation(fields: [taxCategoryId], references: [id])
+  bills               PurchaseBill[]
+
+  @@index([companyId, isActive])
+}
+
+model SalesInvoice {
+  id            String               @id @default(uuid())
+  companyId     String
+  customerId    String
+  invoiceNumber String
+  invoiceDate   DateTime
+  dueDate       DateTime?
+  status        InvoiceStatus        @default(DRAFT)
+  currency      String               @default("USD")
+  subTotal      Float                @default(0)
+  taxTotal      Float                @default(0)
+  total         Float                @default(0)
+  amountPaid    Float                @default(0)
+  creditTotal   Float                @default(0)
+  writeOffTotal Float                @default(0)
+  notes         String?
+  // Fiscal receipt relation is managed via FiscalReceipt.invoiceId
+  fiscalStatus  FiscalReceiptStatus? @default(PENDING)
+  /// The quotation this invoice was raised from, when it was. The CRM reads
+  /// this to recognise its own work coming back from Accounting.
+  quotationId   String?
+  createdById   String?
+  issuedById    String?
+  issuedAt      DateTime?
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+
+  company          Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer           @relation(fields: [customerId], references: [id])
+  lines            SalesInvoiceLine[]
+  receipts         SalesReceipt[]
+  fiscalReceipt    FiscalReceipt?     @relation("SalesInvoiceFiscalReceipt")
+  creditNotes      CreditNote[]
+  writeOffs        SalesWriteOff[]
+  crmLeadDocuments CrmLeadDocument[]  @relation("CrmLeadDocInvoice")
+  createdBy        User?              @relation("SalesInvoiceCreatedBy", fields: [createdById], references: [id])
+  issuedBy         User?              @relation("SalesInvoiceIssuedBy", fields: [issuedById], references: [id])
+
+  fromQuotation SalesQuotation? @relation("SalesInvoiceFromQuotation", fields: [quotationId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+}
+
+model SalesInvoiceLine {
+  id          String   @id @default(uuid())
+  invoiceId   String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  debit       Float?
+  credit      Float?
+  createdAt   DateTime @default(now())
+
+  invoice SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([invoiceId])
+}
+
+model SalesQuotation {
+  id              String          @id @default(uuid())
+  companyId       String
+  customerId      String
+  quotationNumber String
+  quotationDate   DateTime
+  validUntil      DateTime?
+  status          QuotationStatus @default(DRAFT)
+  currency        String          @default("USD")
+  subTotal        Float           @default(0)
+  taxTotal        Float           @default(0)
+  total           Float           @default(0)
+  notes           String?
+  createdById     String?
+  issuedById      String?
+  issuedAt        DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company          Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  customer         Customer             @relation(fields: [customerId], references: [id])
+  lines            SalesQuotationLine[]
+  createdBy        User?                @relation("SalesQuotationCreatedBy", fields: [createdById], references: [id])
+  issuedBy         User?                @relation("SalesQuotationIssuedBy", fields: [issuedById], references: [id])
+  crmLeadDocuments CrmLeadDocument[]    @relation("CrmLeadDocQuotation")
+  invoicesRaised   SalesInvoice[]       @relation("SalesInvoiceFromQuotation")
+
+  @@unique([companyId, quotationNumber])
+  @@index([companyId, status])
+}
+
+model SalesQuotationLine {
+  id          String   @id @default(uuid())
+  quotationId String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  quotation SalesQuotation @relation(fields: [quotationId], references: [id], onDelete: Cascade)
+  taxCode   TaxCode?       @relation(fields: [taxCodeId], references: [id])
+
+  @@index([quotationId])
+}
+
+model SalesReceipt {
+  id            String   @id @default(uuid())
+  companyId     String
+  invoiceId     String?
+  receiptNumber String
+  receivedAt    DateTime
+  amount        Float
+  method        String
+  reference     String?
+  bankAccountId String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice          SalesInvoice?     @relation(fields: [invoiceId], references: [id])
+  bankAccount      BankAccount?      @relation(fields: [bankAccountId], references: [id])
+  createdBy        User?             @relation("SalesReceiptCreatedBy", fields: [createdById], references: [id])
+  crmLeadDocuments CrmLeadDocument[] @relation("CrmLeadDocReceipt")
+
+  @@unique([companyId, receiptNumber])
+}
+
+model CreditNote {
+  id          String     @id @default(uuid())
+  companyId   String
+  invoiceId   String
+  noteNumber  String
+  noteDate    DateTime
+  status      NoteStatus @default(DRAFT)
+  currency    String     @default("USD")
+  subTotal    Float      @default(0)
+  taxTotal    Float      @default(0)
+  total       Float      @default(0)
+  reason      String?
+  createdById String?
+  issuedById  String?
+  issuedAt    DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  company   Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice   SalesInvoice     @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  lines         CreditNoteLine[]
+  createdBy     User?            @relation("CreditNoteCreatedBy", fields: [createdById], references: [id])
+  issuedBy      User?            @relation("CreditNoteIssuedBy", fields: [issuedById], references: [id])
+  fiscalReceipt FiscalReceipt?   @relation("CreditNoteFiscalReceipt")
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId, status])
+}
+
+model CreditNoteLine {
+  id          String   @id @default(uuid())
+  noteId      String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  note    CreditNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?   @relation(fields: [taxCodeId], references: [id])
+
+  @@index([noteId])
+}
+
+model SalesWriteOff {
+  id          String         @id @default(uuid())
+  companyId   String
+  invoiceId   String
+  amount      Float
+  reason      String?
+  status      WriteOffStatus @default(POSTED)
+  createdById String?
+  createdAt   DateTime       @default(now())
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice   SalesInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  createdBy User?        @relation("SalesWriteOffCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, invoiceId])
+}
+
+model PurchaseBill {
+  id             String     @id @default(uuid())
+  companyId      String
+  vendorId       String
+  billNumber     String
+  billDate       DateTime
+  dueDate        DateTime?
+  status         BillStatus @default(DRAFT)
+  currency       String     @default("USD")
+  subTotal       Float      @default(0)
+  taxTotal       Float      @default(0)
+  total          Float      @default(0)
+  amountPaid     Float      @default(0)
+  debitNoteTotal Float      @default(0)
+  writeOffTotal  Float      @default(0)
+  notes          String?
+  createdById    String?
+  issuedById     String?
+  issuedAt       DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  vendor              Vendor               @relation(fields: [vendorId], references: [id])
+  lines               PurchaseBillLine[]
+  payments            PurchasePayment[]
+  debitNotes          DebitNote[]
+  writeOffs           PurchaseWriteOff[]
+  createdBy           User?                @relation("PurchaseBillCreatedBy", fields: [createdById], references: [id])
+  issuedBy            User?                @relation("PurchaseBillIssuedBy", fields: [issuedById], references: [id])
+
+  @@unique([companyId, billNumber])
+  @@index([companyId, status])
+}
+
+model PurchaseBillLine {
+  id          String   @id @default(uuid())
+  billId      String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  debit       Float?
+  credit      Float?
+  createdAt   DateTime @default(now())
+
+  bill    PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?     @relation(fields: [taxCodeId], references: [id])
+
+  @@index([billId])
+}
+
+model PurchasePayment {
+  id            String   @id @default(uuid())
+  companyId     String
+  billId        String?
+  paymentNumber String
+  paidAt        DateTime
+  amount        Float
+  method        String
+  reference     String?
+  bankAccountId String?
+  createdById   String?
+  createdAt     DateTime @default(now())
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill                PurchaseBill?        @relation(fields: [billId], references: [id])
+  bankAccount         BankAccount?         @relation(fields: [bankAccountId], references: [id])
+  createdBy           User?                @relation("PurchasePaymentCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, paymentNumber])
+}
+
+model DebitNote {
+  id          String     @id @default(uuid())
+  companyId   String
+  billId      String
+  noteNumber  String
+  noteDate    DateTime
+  status      NoteStatus @default(DRAFT)
+  currency    String     @default("USD")
+  subTotal    Float      @default(0)
+  taxTotal    Float      @default(0)
+  total       Float      @default(0)
+  reason      String?
+  createdById String?
+  issuedById  String?
+  issuedAt    DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  company   Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill      PurchaseBill    @relation(fields: [billId], references: [id], onDelete: Cascade)
+  lines     DebitNoteLine[]
+  createdBy User?           @relation("DebitNoteCreatedBy", fields: [createdById], references: [id])
+  issuedBy  User?           @relation("DebitNoteIssuedBy", fields: [issuedById], references: [id])
+
+  @@unique([companyId, noteNumber])
+  @@index([companyId, status])
+}
+
+model DebitNoteLine {
+  id          String   @id @default(uuid())
+  noteId      String
+  description String
+  quantity    Float    @default(1)
+  unitPrice   Float    @default(0)
+  taxCodeId   String?
+  taxRate     Float    @default(0)
+  taxAmount   Float    @default(0)
+  lineTotal   Float    @default(0)
+  createdAt   DateTime @default(now())
+
+  note    DebitNote @relation(fields: [noteId], references: [id], onDelete: Cascade)
+  taxCode TaxCode?  @relation(fields: [taxCodeId], references: [id])
+
+  @@index([noteId])
+}
+
+model PurchaseWriteOff {
+  id          String         @id @default(uuid())
+  companyId   String
+  billId      String
+  amount      Float
+  reason      String?
+  status      WriteOffStatus @default(POSTED)
+  createdById String?
+  createdAt   DateTime       @default(now())
+
+  company   Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bill      PurchaseBill @relation(fields: [billId], references: [id], onDelete: Cascade)
+  createdBy User?        @relation("PurchaseWriteOffCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, billId])
+}
+
+model PaymentLedgerEntry {
+  id             String                   @id @default(uuid())
+  companyId      String
+  sourceType     AccountingSourceType
+  sourceId       String
+  entryDate      DateTime
+  accountType    PaymentLedgerAccountType
+  partyType      String
+  partyId        String?
+  invoiceId      String?
+  billId         String?
+  amount         Float
+  debit          Float                    @default(0)
+  credit         Float                    @default(0)
+  currency       String                   @default("USD")
+  description    String?
+  journalEntryId String?
+  status         PaymentLedgerEntryStatus @default(POSTED)
+  createdAt      DateTime                 @default(now())
+  updatedAt      DateTime                 @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, sourceType, sourceId])
+  @@index([companyId, accountType, entryDate])
+  @@index([companyId, partyType, partyId, entryDate])
+  @@index([companyId, invoiceId, billId])
+}
+
+model BankAccount {
+  id             String   @id @default(uuid())
+  companyId      String
+  name           String
+  bankName       String?
+  accountNumber  String?
+  currency       String   @default("USD")
+  openingBalance Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  transactions       BankTransaction[]
+  salesReceipts      SalesReceipt[]
+  purchasePayments   PurchasePayment[]
+  reconciliations    BankReconciliation[]
+  defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
+
+  @@index([companyId, isActive])
+}
+
+model TenderAccountMapping {
+  id                String   @id @default(uuid())
+  companyId         String
+  siteId            String?
+  registerCode      String?
+  tenderType        String
+  currency          String?
+  priority          Int      @default(100)
+  clearingAccountId String
+  offsetAccountId   String?
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  company         Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site            Site?           @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  clearingAccount ChartOfAccount  @relation("TenderClearingAccount", fields: [clearingAccountId], references: [id])
+  offsetAccount   ChartOfAccount? @relation("TenderOffsetAccount", fields: [offsetAccountId], references: [id])
+
+  @@index([companyId, tenderType, isActive, priority])
+  @@index([companyId, siteId, tenderType, isActive, priority])
+}
+
+model BankTransaction {
+  id               String                @id @default(uuid())
+  companyId        String
+  bankAccountId    String
+  txnDate          DateTime
+  description      String
+  reference        String?
+  amount           Float
+  direction        PostingDirection
+  sourceType       AccountingSourceType?
+  sourceId         String?
+  reconciliationId String?
+  reconciledAt     DateTime?
+  createdAt        DateTime              @default(now())
+
+  company               Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount           BankAccount         @relation(fields: [bankAccountId], references: [id])
+  reconciliation        BankReconciliation? @relation(fields: [reconciliationId], references: [id])
+  matchedStatementLines BankStatementLine[]
+
+  @@index([companyId, txnDate])
+}
+
+model BankReconciliation {
+  id               String               @id @default(uuid())
+  companyId        String
+  bankAccountId    String
+  startDate        DateTime
+  endDate          DateTime
+  statementBalance Float                @default(0)
+  status           ReconciliationStatus @default(OPEN)
+  createdById      String?
+  closedById       String?
+  closedAt         DateTime?
+  createdAt        DateTime             @default(now())
+  updatedAt        DateTime             @updatedAt
+
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  bankAccount    BankAccount         @relation(fields: [bankAccountId], references: [id])
+  transactions   BankTransaction[]
+  statementLines BankStatementLine[]
+  createdBy      User?               @relation("BankReconciliationCreatedBy", fields: [createdById], references: [id])
+  closedBy       User?               @relation("BankReconciliationClosedBy", fields: [closedById], references: [id])
+
+  @@index([companyId, bankAccountId, status])
+}
+
+model BankStatementLine {
+  id                   String           @id @default(uuid())
+  reconciliationId     String
+  txnDate              DateTime
+  description          String
+  reference            String?
+  amount               Float
+  direction            PostingDirection
+  matchedTransactionId String?
+  createdAt            DateTime         @default(now())
+
+  reconciliation     BankReconciliation @relation(fields: [reconciliationId], references: [id], onDelete: Cascade)
+  matchedTransaction BankTransaction?   @relation(fields: [matchedTransactionId], references: [id])
+
+  @@index([reconciliationId])
+}
+
+model VatReturnSummary {
+  id          String   @id @default(uuid())
+  companyId   String
+  periodStart DateTime
+  periodEnd   DateTime
+  outputTax   Float    @default(0)
+  inputTax    Float    @default(0)
+  netTax      Float    @default(0)
+  createdById String?
+  createdAt   DateTime @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("VatReturnCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, periodStart, periodEnd])
+}
+
+model VatReturn {
+  id              String          @id @default(uuid())
+  companyId       String
+  periodStart     DateTime
+  periodEnd       DateTime
+  status          VatReturnStatus @default(DRAFT)
+  filingCategory  String?
+  returnDueDate   DateTime?
+  paymentDueDate  DateTime?
+  outputTax       Float           @default(0)
+  inputTax        Float           @default(0)
+  adjustmentsTax  Float           @default(0)
+  netTax          Float           @default(0)
+  vat7BoxesJson   String?
+  schedulesJson   String?
+  referenceNumber String?
+  notes           String?
+  preparedById    String?
+  reviewedById    String?
+  reviewedAt      DateTime?
+  finalizedById   String?
+  finalizedAt     DateTime?
+  filedById       String?
+  filedAt         DateTime?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  company Company         @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  lines   VatReturnLine[]
+
+  @@unique([companyId, periodStart, periodEnd])
+  @@index([companyId, status, periodStart, periodEnd])
+}
+
+model VatReturnLine {
+  id            String   @id @default(uuid())
+  vatReturnId   String
+  taxCodeId     String?
+  code          String
+  name          String
+  rate          Float    @default(0)
+  taxableAmount Float    @default(0)
+  outputTax     Float    @default(0)
+  inputTax      Float    @default(0)
+  adjustments   Float    @default(0)
+  netTax        Float    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  vatReturn VatReturn @relation(fields: [vatReturnId], references: [id], onDelete: Cascade)
+
+  @@index([vatReturnId])
+}
+
+model OpeningBalanceImport {
+  id              String   @id @default(uuid())
+  companyId       String
+  effectiveDate   DateTime
+  sourceReference String?
+  notes           String?
+  totalDebit      Float    @default(0)
+  totalCredit     Float    @default(0)
+  journalEntryId  String?
+  createdById     String?
+  createdAt       DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, effectiveDate])
+}
+
+model PeriodCloseVoucher {
+  id                        String    @id @default(uuid())
+  companyId                 String
+  periodId                  String
+  closingDate               DateTime
+  retainedEarningsAccountId String
+  netResult                 Float     @default(0)
+  journalEntryId            String?
+  createdById               String?
+  reversedAt                DateTime?
+  reversedById              String?
+  reversedReason            String?
+  reversedJournalEntryId    String?
+  createdAt                 DateTime  @default(now())
+  updatedAt                 DateTime  @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  period     AccountingPeriod @relation(fields: [periodId], references: [id], onDelete: Cascade)
+  createdBy  User?            @relation("PeriodCloseVoucherCreatedBy", fields: [createdById], references: [id])
+  reversedBy User?            @relation("PeriodCloseVoucherReversedBy", fields: [reversedById], references: [id])
+
+  @@unique([companyId, periodId])
+  @@index([companyId, closingDate])
+}
+
+model CostCenter {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company          Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  journalLines     JournalLine[]
+  postingRuleLines PostingRuleLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive])
+}
+
+model AccountingSeedExecution {
+  id          String                        @id @default(uuid())
+  companyId   String
+  packCode    String
+  mode        AccountingSeedExecutionMode
+  status      AccountingSeedExecutionStatus @default(PENDING)
+  actorId     String?
+  actorEmail  String?
+  inputJson   String?
+  summaryJson String?
+  error       String?
+  createdAt   DateTime                      @default(now())
+  updatedAt   DateTime                      @updatedAt
+  completedAt DateTime?
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, packCode, createdAt])
+  @@index([companyId, status, createdAt])
+}
+
+model CurrencyRate {
+  id            String   @id @default(uuid())
+  companyId     String
+  baseCurrency  String
+  quoteCurrency String
+  rate          Float
+  effectiveDate DateTime
+  createdAt     DateTime @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, effectiveDate])
+}
+
+model FiscalisationProviderConfig {
+  id               String   @id @default(uuid())
+  companyId        String
+  providerKey      String
+  apiBaseUrl       String?
+  username         String?
+  password         String?
+  apiToken         String?
+  authType         String?
+  deviceId         String?
+  timeoutMs        Int?
+  retryPolicyJson  String?
+  certificateRef   String?
+  webhookSecretRef String?
+  metadataJson     String?
+  isActive         Boolean  @default(true)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  fiscalDays FiscalDay[]
+
+  @@unique([companyId, providerKey])
+  @@index([companyId, isActive])
+}
+
+/// FD-2 — one ZIMRA fiscal day on one device.
+///
+/// FDGA v7.2 does not let a device submit a receipt outside an open day: the
+/// sequence is OpenDay -> receipts -> CloseDay, and CloseDay submits the day's
+/// counters aggregated by taxID together with a device signature over them.
+/// That makes the fiscal day, not the receipt, the unit ZIMRA reconciles
+/// against, so it has to be a durable row with its own counters rather than
+/// state inferred from the receipts table.
+///
+/// `lastReceiptCounter` resets to 0 on every open (it is per-day), while
+/// `lastReceiptGlobalNo` carries across days and must never repeat or skip —
+/// a gap in it is what ZIMRA reads as a missing receipt. Both are held here
+/// rather than derived with a MAX() over `FiscalReceipt` so that allocating
+/// the next number is a single row update that can be taken under a lock.
+model FiscalDay {
+  id                  String    @id @default(uuid())
+  companyId           String
+  providerConfigId    String
+  /// Denormalised from the provider config on open. The device may be
+  /// re-registered under a new ID later; a closed day must still report the
+  /// device it was actually opened and signed on.
+  deviceId            String
+  fiscalDayNo         Int
+  status              String    @default("OPENED") // OPENED, CLOSING, CLOSED
+  openedAt            DateTime  @default(now())
+  closedAt            DateTime?
+  lastReceiptCounter  Int       @default(0)
+  lastReceiptGlobalNo Int       @default(0)
+  /// The hash of the most recent receipt on this day, which the next receipt
+  /// chains onto. Null only before the day's first receipt.
+  lastReceiptHash     String?
+  closingSignature    String?
+  countersJson        String?
+  lastError           String?
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  company        Company                     @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  providerConfig FiscalisationProviderConfig @relation(fields: [providerConfigId], references: [id], onDelete: Cascade)
+  receipts       FiscalReceipt[]
+
+  /// A day number is consumed once per device and never reissued — reopening
+  /// day 12 after closing it would give ZIMRA two Z-reports for one day.
+  @@unique([providerConfigId, fiscalDayNo])
+  @@index([companyId, status, openedAt])
+}
+
+model FiscalReceipt {
+  id                    String              @id @default(uuid())
+  companyId             String
+  invoiceId             String?
+  /// S-2.7 — the school fee receipt this fiscal receipt was issued for.
+  ///
+  /// A fiscal receipt names exactly one source document: an accounting sales
+  /// invoice or a school fee receipt, never both and never neither. The
+  /// `FiscalReceipt_one_source_check` constraint holds that; the unique below
+  /// holds "one fiscal receipt per school receipt". Both are nullable, and
+  /// Postgres treats NULLs as distinct, so each unique constrains only the rows
+  /// of its own kind — which is what a partial unique index would do and is why
+  /// one is not written out longhand here.
+  schoolReceiptId       String?
+  /// FD-0.4a — the two remaining fiscal sources.
+  ///
+  /// v7.2 treats a credit note as a fiscal document in its own right (it cites
+  /// the original receipt's global number), and POS is the highest-volume
+  /// receipt surface there is. Neither could be recorded while the one-source
+  /// CHECK named only two columns, so the constraint was widened to the
+  /// numeric form over all four rather than duplicated per pair.
+  creditNoteId          String?
+  retailSaleId          String?
+  receiptNumber         String?
+  fiscalNumber          String?
+  status                FiscalReceiptStatus @default(PENDING)
+  issuedAt              DateTime?
+  qrCodeData            String?
+  signature             String?
+  providerKey           String?
+  providerReference     String?
+  requestIdempotencyKey String?
+  rawResponseJson       String?
+  attemptCount          Int                 @default(0)
+  nextRetryAt           DateTime?
+  lastSyncedAt          DateTime?
+  lastError             String?
+  /// FD-2/FD-3 — the fiscal-signing state of this receipt.
+  ///
+  /// These are what ZIMRA actually verifies. `receiptCounter` is the receipt's
+  /// position within its fiscal day (resets each day); `receiptGlobalNo` is its
+  /// position on the device for all time and must be gap-free.
+  /// `previousReceiptHash` is the hash of receipt N-1 and `receiptHash` is this
+  /// receipt's own — together they are the chain, and a fork or a gap in it is
+  /// a stop-the-line defect because ZIMRA rejects every receipt after the break.
+  /// `receiptType` and `receiptCurrency` are part of the signed canonical
+  /// string, so they are stored rather than re-derived from the source document,
+  /// which could be edited after signing.
+  ///
+  /// All nullable: every row written before native fiscalisation has none of
+  /// them, and a PENDING row has none until the signer runs.
+  receiptCounter        Int?
+  receiptGlobalNo       Int?
+  previousReceiptHash   String?
+  receiptHash           String?
+  fiscalDayId           String?
+  receiptType           String?
+  receiptCurrency       String?
+  createdAt             DateTime            @default(now())
+  updatedAt             DateTime            @updatedAt
+
+  company       Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  invoice       SalesInvoice?     @relation("SalesInvoiceFiscalReceipt", fields: [invoiceId], references: [id])
+  schoolReceipt SchoolFeeReceipt? @relation("SchoolFeeReceiptFiscalReceipt", fields: [schoolReceiptId], references: [id], onDelete: Cascade)
+  creditNote    CreditNote?       @relation("CreditNoteFiscalReceipt", fields: [creditNoteId], references: [id], onDelete: Cascade)
+  retailSale    RetailSale?       @relation("RetailSaleFiscalReceipt", fields: [retailSaleId], references: [id], onDelete: Cascade)
+  fiscalDay     FiscalDay?        @relation(fields: [fiscalDayId], references: [id])
+
+  @@unique([invoiceId])
+  @@unique([schoolReceiptId])
+  @@unique([creditNoteId])
+  @@unique([retailSaleId])
+  /// Two receipts cannot occupy the same slot in a fiscal day. Both columns are
+  /// nullable and Postgres treats NULLs as distinct, so this constrains exactly
+  /// the rows that have been counted and leaves pre-native rows alone.
+  @@unique([fiscalDayId, receiptCounter])
+  /// Global numbering is per DEVICE, and a device is one provider config, which
+  /// `FiscalisationProviderConfig` already keys as (companyId, providerKey).
+  /// Scoping this to `providerKey` alone — as the story sketched it — would put
+  /// every tenant on one number line and reject tenant B's receipt #1 because
+  /// tenant A already has one. companyId is included for that reason.
+  @@unique([companyId, providerKey, receiptGlobalNo])
+  @@index([companyId, status])
+  @@index([fiscalDayId])
+}
+

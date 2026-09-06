@@ -1,0 +1,158 @@
+// Notifications module: in-app notifications, recipients, preferences, web push.
+
+model Notification {
+  id           String                    @id @default(uuid())
+  companyId    String
+  type         NotificationType
+  title        String
+  summary      String
+  severity     NotificationSeverity      @default(INFO)
+  payloadJson  String?
+  entityType   NotificationEntityType?
+  entityId     String?
+  sourceAction NotificationSourceAction?
+  expiresAt    DateTime?
+  createdAt    DateTime                  @default(now())
+  updatedAt    DateTime                  @updatedAt
+
+  company    Company                 @relation(fields: [companyId], references: [id])
+  recipients NotificationRecipient[]
+
+  @@index([companyId, createdAt])
+  @@index([companyId, type, createdAt])
+  @@index([companyId, severity, createdAt])
+  @@index([entityType, entityId])
+}
+
+model NotificationRecipient {
+  id             String    @id @default(uuid())
+  notificationId String
+  userId         String
+  isRead         Boolean   @default(false)
+  readAt         DateTime?
+  isArchived     Boolean   @default(false)
+  archivedAt     DateTime?
+  actionTaken    String?
+  actedAt        DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([notificationId, userId])
+  @@index([userId, createdAt])
+  @@index([userId, isRead, isArchived, createdAt])
+}
+
+model UserNotificationPreference {
+  id             String   @id @default(uuid())
+  userId         String   @unique
+  inAppEnabled   Boolean  @default(true)
+  webPushEnabled Boolean  @default(false)
+  hrEnabled      Boolean  @default(true)
+  opsEnabled     Boolean  @default(true)
+  crmEnabled     Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model WebPushSubscription {
+  id        String   @id @default(uuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isActive])
+}
+
+enum NotificationType {
+  HR_PAYROLL_SUBMITTED
+  HR_PAYROLL_APPROVED
+  HR_PAYROLL_REJECTED
+  HR_DISBURSEMENT_SUBMITTED
+  HR_DISBURSEMENT_APPROVED
+  HR_DISBURSEMENT_REJECTED
+  HR_ADJUSTMENT_SUBMITTED
+  HR_ADJUSTMENT_APPROVED
+  HR_ADJUSTMENT_REJECTED
+  HR_COMP_PROFILE_SUBMITTED
+  HR_COMP_PROFILE_APPROVED
+  HR_COMP_PROFILE_REJECTED
+  HR_COMP_RULE_SUBMITTED
+  HR_COMP_RULE_APPROVED
+  HR_COMP_RULE_REJECTED
+  HR_GOLD_PAYOUT_SUBMITTED
+  HR_GOLD_PAYOUT_APPROVED
+  HR_GOLD_PAYOUT_REJECTED
+  HR_DISCIPLINARY_SUBMITTED
+  HR_DISCIPLINARY_APPROVED
+  HR_DISCIPLINARY_REJECTED
+  HR_INCIDENT_CREATED
+  HR_INCIDENT_STATUS_CHANGED
+  OPS_INCIDENT_CREATED
+  OPS_INCIDENT_STATUS_CHANGED
+  OPS_PERMIT_EXPIRING
+  OPS_PERMIT_EXPIRED
+  OPS_WORK_ORDER_OPENED
+  OPS_WORK_ORDER_IN_PROGRESS
+  CRM_LEAD_ASSIGNED
+  CRM_LEAD_CREATED
+  CRM_DOCUMENT_APPROVED
+  CRM_DOCUMENT_DECLINED
+  CRM_FOLLOW_UP_DUE
+  CRM_TASK_ASSIGNED
+  CRM_TASK_DUE
+  CRM_MENTIONED
+  CRM_COMMENT_ADDED
+  /// What a school sends its families and staff. The audience is part of the
+  /// type because a notice is addressed before it is written — "the Form 2
+  /// parents" is the first decision the office makes, not a filter applied
+  /// afterwards — and the reader parses it back out to label the row.
+  SCHOOL_NOTICE_ALL
+  SCHOOL_NOTICE_PARENTS
+  SCHOOL_NOTICE_STUDENTS
+  SCHOOL_NOTICE_TEACHERS
+}
+
+enum NotificationSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum NotificationEntityType {
+  PAYROLL_RUN
+  DISBURSEMENT_BATCH
+  ADJUSTMENT_ENTRY
+  COMPENSATION_PROFILE
+  COMPENSATION_RULE
+  GOLD_SHIFT_ALLOCATION
+  DISCIPLINARY_ACTION
+  HR_INCIDENT
+  INCIDENT
+  PERMIT
+  WORK_ORDER
+  CRM_LEAD
+  CRM_DOCUMENT
+  CRM_TASK
+  CRM_COMMENT
+}
+
+enum NotificationSourceAction {
+  CREATE
+  SUBMIT
+  APPROVE
+  REJECT
+  STATUS_CHANGE
+  EXPIRY_ALERT
+}
+

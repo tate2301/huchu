@@ -1,0 +1,132 @@
+// Documents module: templates, versions, render jobs and artifacts.
+
+enum DocumentType {
+  REPORT_TABLE
+  DASHBOARD_PACK
+  SALES_INVOICE
+  SALES_QUOTATION
+  SALES_RECEIPT
+  GENERIC_RECORD
+}
+
+enum ExportTargetType {
+  LIST
+  RECORD
+  DASHBOARD
+}
+
+enum TemplateScope {
+  SYSTEM
+  COMPANY
+}
+
+enum RenderMode {
+  SYNC
+  ASYNC
+}
+
+enum RenderStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+  CANCELED
+}
+
+model DocumentTemplate {
+  id           String           @id @default(uuid())
+  companyId    String?
+  scope        TemplateScope    @default(SYSTEM)
+  documentType DocumentType
+  targetType   ExportTargetType @default(RECORD)
+  sourceKey    String
+  name         String
+  description  String?
+  isDefault    Boolean          @default(false)
+  isActive     Boolean          @default(true)
+  createdById  String?
+  updatedById  String?
+  createdAt    DateTime         @default(now())
+  updatedAt    DateTime         @updatedAt
+
+  company    Company?                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  versions   DocumentTemplateVersion[]
+  renderJobs DocumentRenderJob[]
+
+  @@index([companyId, documentType, targetType, sourceKey, isActive])
+  @@index([scope, documentType, targetType, sourceKey, isDefault])
+}
+
+model DocumentTemplateVersion {
+  id            String    @id @default(uuid())
+  templateId    String
+  version       Int
+  schemaJson    String
+  checksum      String?
+  isPublished   Boolean   @default(false)
+  publishedAt   DateTime?
+  publishedById String?
+  createdById   String?
+  createdAt     DateTime  @default(now())
+
+  template   DocumentTemplate    @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  renderJobs DocumentRenderJob[]
+
+  @@unique([templateId, version])
+  @@index([templateId, isPublished, createdAt])
+}
+
+model DocumentRenderJob {
+  id                String           @id @default(uuid())
+  companyId         String
+  templateId        String?
+  templateVersionId String?
+  documentType      DocumentType
+  targetType        ExportTargetType
+  sourceKey         String
+  sourceEntityId    String?
+  renderMode        RenderMode       @default(SYNC)
+  status            RenderStatus     @default(QUEUED)
+  payloadJson       String
+  filtersJson       String?
+  idempotencyKey    String?
+  requestedById     String?
+  attemptCount      Int              @default(0)
+  maxAttempts       Int              @default(5)
+  queuedAt          DateTime         @default(now())
+  startedAt         DateTime?
+  finishedAt        DateTime?
+  nextRetryAt       DateTime?
+  lastError         String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  company         Company                  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  template        DocumentTemplate?        @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  templateVersion DocumentTemplateVersion? @relation(fields: [templateVersionId], references: [id], onDelete: SetNull)
+  artifact        DocumentArtifact?        @relation("RenderJobArtifact")
+
+  @@index([companyId, status, queuedAt])
+  @@index([status, nextRetryAt])
+  @@index([companyId, idempotencyKey])
+}
+
+model DocumentArtifact {
+  id        String    @id @default(uuid())
+  jobId     String    @unique
+  companyId String
+  mimeType  String
+  fileName  String
+  blobUrl   String
+  byteSize  Int
+  sha256    String?
+  expiresAt DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  job     DocumentRenderJob @relation("RenderJobArtifact", fields: [jobId], references: [id], onDelete: Cascade)
+  company Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@index([companyId, createdAt])
+}
+

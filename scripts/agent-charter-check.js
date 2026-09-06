@@ -3,6 +3,8 @@
  * PostToolUse hook — charter boundary check.
  *
  * Reads the file path from stdin (Claude tool-use JSON) and the
+ * (Paths are matched as substrings, so `app/` also matches `apps/legacy/app/`
+ * and `prisma/schema/` matches `packages/db/prisma/schema/gold.prisma`.)
  * GOLD_AGENT_ROLE env var set in each agent definition's frontmatter.
  * Emits a systemMessage warning if the agent is editing outside its charter.
  *
@@ -19,11 +21,11 @@ const CHARTERS = {
     // `lib/gold/payouts` is excluded — it lives under lib/gold/ but is
     // OWNED by gold-integration per the HR-seam clause in AGENTS.md.
     owns: ["lib/gold/", "lib/accounting/", "app/api/gold/"],
-    forbidden: ["prisma/schema.prisma", "app/gold/", "components/gold/", "lib/gold/payouts"],
+    forbidden: ["prisma/schema/", "app/gold/", "components/gold/", "lib/gold/payouts"],
   },
   "import-workflow": {
     owns: ["app/api/gold/imports/", "lib/gold/import", "lib/gold/locks", "lib/gold/reconcile"],
-    forbidden: ["app/gold/", "components/gold/", "prisma/schema.prisma"],
+    forbidden: ["app/gold/", "components/gold/", "prisma/schema/"],
   },
   frontend: {
     owns: ["app/gold/", "components/gold/"],
@@ -31,7 +33,7 @@ const CHARTERS = {
   },
   integration: {
     owns: ["lib/gold/payouts", "lib/notifications", "lib/accounting/integration", "lib/accounting/posting", "lib/commodity-billing", "lib/audit/gold", "components/ui/searchable-select", "app/api/disbursements/batches"],
-    forbidden: ["prisma/schema.prisma", "app/gold/", "lib/gold/fifo", "lib/gold/inventory"],
+    forbidden: ["prisma/schema/", "app/gold/", "lib/gold/fifo", "lib/gold/inventory"],
   },
   reviewer: {
     owns: [],

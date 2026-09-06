@@ -1,0 +1,279 @@
+// Records module: collaboration on any record — tasks, comments, files, mentions, followers — keyed by (subjectType, subjectId). Still carries the Crm prefix; renamed when convenient.
+
+// ---------------------------------------------------------------------------
+// Tasks, collaboration and followers.
+//
+// CrmFollowUp remains as the lead/deal follow-up it always was; CrmTask is the
+// generic work item the spec asks for, with types, priority, outcomes and
+// simple recurrence.
+// ---------------------------------------------------------------------------
+
+enum CrmTaskType {
+  CALL
+  EMAIL
+  WHATSAPP
+  MEETING
+  VISIT_PREP
+  DOCUMENT_FOLLOW_UP
+  PAYMENT_FOLLOW_UP
+  GENERAL
+}
+
+enum CrmTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum CrmTaskStatus {
+  OPEN
+  COMPLETED
+  CANCELLED
+}
+
+/// What came of a task. Which outcomes apply depends on the task type — see
+/// lib/crm/tasks.ts.
+enum CrmTaskOutcome {
+  ANSWERED
+  NO_ANSWER
+  CALL_BACK_LATER
+  QUALIFIED
+  NOT_INTERESTED
+  REPLIED
+  NO_REPLY
+  ATTENDED
+  NO_SHOW
+  DONE
+}
+
+enum CrmRecurrence {
+  NONE
+  DAILY
+  WEEKLY
+  MONTHLY
+}
+
+model CrmTask {
+  id           String          @id @default(uuid())
+  companyId    String
+  title        String
+  description  String?
+  type         CrmTaskType     @default(GENERAL)
+  priority     CrmTaskPriority @default(NORMAL)
+  status       CrmTaskStatus   @default(OPEN)
+  dueAt        DateTime
+  /// Null when the task is due on a day rather than at a time.
+  hasDueTime   Boolean         @default(false)
+  remindAt     DateTime?
+  outcome      CrmTaskOutcome?
+  outcomeNotes String?
+  completedAt  DateTime?
+  assignedToId String?
+  createdById  String?
+
+  // The record this task is about. Exactly one is set in practice, but the
+  // schema allows several so a task can be filed against a deal and its site.
+  leadId   String?
+  dealId   String?
+  clientId String?
+  personId String?
+  siteId   String?
+
+  recurrence         CrmRecurrence @default(NONE)
+  /// Every N periods, e.g. every 2 weeks. Ignored when recurrence is NONE.
+  recurrenceInterval Int           @default(1)
+  /// Set on the task that produced this one, so a chain stays traceable.
+  recurredFromId     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company      Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  assignedTo   User?      @relation("CrmTaskAssignedTo", fields: [assignedToId], references: [id])
+  createdBy    User?      @relation("CrmTaskCreatedBy", fields: [createdById], references: [id])
+  lead         CrmLead?   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal         CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  client       CrmClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  person       CrmPerson? @relation(fields: [personId], references: [id], onDelete: Cascade)
+  site         CrmSite?   @relation(fields: [siteId], references: [id], onDelete: SetNull)
+  recurredFrom CrmTask?   @relation("CrmTaskRecurrence", fields: [recurredFromId], references: [id], onDelete: SetNull)
+  recurrences  CrmTask[]  @relation("CrmTaskRecurrence")
+  /// S-4.2 — what this row is about, as a type and an id.
+  ///
+  /// Replaces the nullable-foreign-key-per-kind columns above, which could name
+  /// only the five CRM record types that had a column. A student could not be
+  /// the subject of anything, and adding one column per school type would have
+  /// meant eighteen of them across three tables.
+  ///
+  /// Nullable while both schemes are live: rows written before the backfill have
+  /// only the old columns, and rows about a school record have only these. Reads
+  /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
+  /// The old columns come out in a migration of your choosing — this side of the
+  /// change adds and backfills, and drops nothing.
+  subjectType CrmFieldEntity?
+  subjectId   String?
+
+
+  @@index([companyId, assignedToId, status, dueAt])
+  @@index([companyId, status, dueAt])
+  @@index([companyId, dealId])
+  @@index([companyId, leadId])
+  @@index([companyId, subjectType, subjectId])
+}
+
+/// Internal collaboration, deliberately separate from the customer-facing
+/// activity timeline. A comment is something the team says to itself.
+model CrmComment {
+  id           String    @id @default(uuid())
+  companyId    String
+  body         String
+  /// Reply threading, one level deep. Threads of threads help nobody.
+  parentId     String?
+  isPinned     Boolean   @default(false)
+  resolvedAt   DateTime?
+  resolvedById String?
+  editedAt     DateTime?
+
+  leadId   String?
+  dealId   String?
+  clientId String?
+  personId String?
+  siteId   String?
+
+  createdById String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy  User         @relation("CrmCommentCreatedBy", fields: [createdById], references: [id])
+  resolvedBy User?        @relation("CrmCommentResolvedBy", fields: [resolvedById], references: [id])
+  parent     CrmComment?  @relation("CrmCommentThread", fields: [parentId], references: [id], onDelete: Cascade)
+  replies    CrmComment[] @relation("CrmCommentThread")
+  mentions   CrmMention[]
+  lead       CrmLead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal       CrmDeal?     @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  client     CrmClient?   @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  person     CrmPerson?   @relation(fields: [personId], references: [id], onDelete: Cascade)
+  site       CrmSite?     @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  /// S-4.2 — what this row is about, as a type and an id.
+  ///
+  /// Replaces the nullable-foreign-key-per-kind columns above, which could name
+  /// only the five CRM record types that had a column. A student could not be
+  /// the subject of anything, and adding one column per school type would have
+  /// meant eighteen of them across three tables.
+  ///
+  /// Nullable while both schemes are live: rows written before the backfill have
+  /// only the old columns, and rows about a school record have only these. Reads
+  /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
+  /// The old columns come out in a migration of your choosing — this side of the
+  /// change adds and backfills, and drops nothing.
+  subjectType CrmFieldEntity?
+  subjectId   String?
+
+
+  @@index([companyId, dealId, createdAt])
+  @@index([companyId, leadId, createdAt])
+  @@index([companyId, parentId])
+  @@index([companyId, subjectType, subjectId])
+}
+
+/// A file somebody attached to a record.
+///
+/// Distinct from CrmLeadDocument, which is a billing document the system
+/// raised and numbered. This is the signed contract, the tax clearance, the
+/// photo of the damaged unit — things that arrive from outside and belong to
+/// a record rather than to an invoice.
+///
+/// The owner is a nullable column per kind rather than an entity+id pair, so
+/// the database can cascade a delete and enforce that the record exists. A
+/// string id pointing at nothing is how orphaned files outlive the customer
+/// who sent them.
+model CrmRecordFile {
+  id          String  @id @default(uuid())
+  companyId   String
+  /// What it is called to a reader — the original filename unless renamed.
+  name        String
+  url         String
+  /// Bytes, when the uploader reported it.
+  size        Int?
+  contentType String?
+  /// Why it is here. Optional; a filename is usually enough.
+  note        String?
+
+  leadId   String?
+  dealId   String?
+  clientId String?
+  personId String?
+  siteId   String?
+  /// A rep's own profile — a certificate, a licence, a signed policy.
+  userId   String?
+
+  uploadedById String?
+  createdAt    DateTime @default(now())
+
+  company    Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  uploadedBy User?      @relation("CrmRecordFileUploadedBy", fields: [uploadedById], references: [id])
+  lead       CrmLead?   @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  deal       CrmDeal?   @relation(fields: [dealId], references: [id], onDelete: Cascade)
+  client     CrmClient? @relation(fields: [clientId], references: [id], onDelete: Cascade)
+  person     CrmPerson? @relation(fields: [personId], references: [id], onDelete: Cascade)
+  site       CrmSite?   @relation(fields: [siteId], references: [id], onDelete: Cascade)
+  user       User?      @relation("CrmRecordFileSubject", fields: [userId], references: [id], onDelete: Cascade)
+  /// S-4.2 — what this row is about, as a type and an id.
+  ///
+  /// Replaces the nullable-foreign-key-per-kind columns above, which could name
+  /// only the five CRM record types that had a column. A student could not be
+  /// the subject of anything, and adding one column per school type would have
+  /// meant eighteen of them across three tables.
+  ///
+  /// Nullable while both schemes are live: rows written before the backfill have
+  /// only the old columns, and rows about a school record have only these. Reads
+  /// go through `subjectWhere` in `lib/records/subject.ts`, which matches either.
+  /// The old columns come out in a migration of your choosing — this side of the
+  /// change adds and backfills, and drops nothing.
+  subjectType CrmFieldEntity?
+  subjectId   String?
+
+
+  @@index([companyId, leadId, createdAt])
+  @@index([companyId, dealId, createdAt])
+  @@index([companyId, clientId, createdAt])
+  @@index([companyId, personId, createdAt])
+  @@index([companyId, siteId, createdAt])
+  @@index([companyId, userId, createdAt])
+  @@index([companyId, subjectType, subjectId])
+}
+
+model CrmMention {
+  id        String    @id @default(uuid())
+  companyId String
+  commentId String
+  userId    String
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  company Company    @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  comment CrmComment @relation(fields: [commentId], references: [id], onDelete: Cascade)
+  user    User       @relation("CrmMentionUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([commentId, userId])
+  @@index([companyId, userId, readAt])
+}
+
+/// Following a record opts you into its notable updates — not every field edit.
+model CrmFollower {
+  id        String         @id @default(uuid())
+  companyId String
+  userId    String
+  entity    CrmFieldEntity
+  recordId  String
+  createdAt DateTime       @default(now())
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("CrmFollowerUser", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, entity, recordId])
+  @@index([companyId, entity, recordId])
+}
+

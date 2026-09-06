@@ -1,0 +1,50 @@
+{
+  "name": "@corelithzw/db",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The database: one Prisma schema split one file per module, one generated client, one migration history.",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "default": "./src/index.ts"
+    },
+    "./client": {
+      "types": "./src/client.ts",
+      "default": "./src/client.ts"
+    },
+    "./schema": {
+      "types": "./src/schema-source.ts",
+      "default": "./src/schema-source.ts"
+    }
+  },
+  "scripts": {
+    "build": "prisma generate",
+    "generate": "prisma generate",
+    "validate": "prisma validate",
+    "format": "prisma format",
+    "push": "prisma db push",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "migrate:status": "prisma migrate status",
+    "migrate:resolve": "prisma migrate resolve",
+    "studio": "prisma studio",
+    "check:drift": "bash scripts/check-schema-drift.sh",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "check:deps": "node scripts/check-prisma-deps.mjs"
+  },
+  "dependencies": {
+    "@prisma/adapter-pg": "^7.2.0",
+    "@prisma/client": "^7.2.0",
+    "pg": "^8.16.3"
+  },
+  "devDependencies": {
+    "@corelithzw/config": "workspace:*",
+    "@types/node": "^20",
+    "@types/pg": "^8.16.0",
+    "dotenv": "^17.2.3",
+    "prisma": "^7.2.0",
+    "typescript": "5.9.3"
+  }
+}

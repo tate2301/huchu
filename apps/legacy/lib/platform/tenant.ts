@@ -1,0 +1,816 @@
+import {
+  buildPortalHost,
+  getPortalHostDescriptorByPath,
+  getPortalHostDescriptorByPrefix,
+  getPortalHostPrefixes,
+  isPortalAliasPrefix,
+} from "@/lib/platform/portal-hosts";
+import {
+  PREVIEW_HOST_HEADER,
+  isHostEnforcementBypassed,
+  resolvePreviewHostOverride,
+} from "@/lib/platform/preview-host";
+
+type NullableString = string | null | undefined;
+type HeaderRecordValue = string | string[] | undefined | null;
+type RequestHeadersLike = Headers | Record<string, HeaderRecordValue>;
+
+const TENANT_SLUG_PATTERN = /^[a-z0-9-]+$/;
+const ACTIVE_TENANT_STATUS = "ACTIVE";
+
+export type TenantContext = {
+  companyId: string;
+  companyName: string | null;
+  companySlug: string;
+  tenantStatus: string | null;
+};
+
+export type TenantClaims = {
+  companySlug?: string;
+  tenantStatus?: string;
+  workspaceProfile?: string;
+};
+
+export type PlatformHostContext = {
+  host: string | null;
+  hostname: string | null;
+  tenantSlug: string | null;
+  portalSubdomain: string | null;
+  portalCanonicalPrefix: string | null;
+  portalPath: string | null;
+  portalLoginPath: string | null;
+  portalIsAlias: boolean;
+  isCentralHost: boolean;
+  isTenantHost: boolean;
+  hasHostConfig: boolean;
+  strictTenantEnforcement: boolean;
+};
+
+const tableExistsCache = new Map<string, boolean>();
+const columnExistsCache = new Map<string, boolean>();
+
+function normalizeHostValue(value: NullableString): string {
+  if (!value) {
+    return "";
+  }
+
+  const trimmed = value.trim().toLowerCase();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  return trimmed
+    .replace(/^https?:\/\//, "")
+    .replace(/\/.*$/, "")
+    .replace(/\.$/, "");
+}
+
+function normalizeHostHeaderValue(value: NullableString): string {
+  if (!value) {
+    return "";
+  }
+
+  const firstValue = value.split(",")[0]?.trim() ?? "";
+  return normalizeHostValue(firstValue);
+}
+
+function stripPort(host: string): string {
+  const trimmed = host.trim();
+
+  if (!trimmed) {
+    return "";
+  }
+
+  if (trimmed.startsWith("[")) {
+    const closingBracketIndex = trimmed.indexOf("]");
+    if (closingBracketIndex === -1) {
+      return trimmed;
+    }
+    return trimmed.slice(0, closingBracketIndex + 1);
+  }
+
+  const firstColonIndex = trimmed.indexOf(":");
+  if (firstColonIndex === -1) {
+    return trimmed;
+  }
+
+  const lastColonIndex = trimmed.lastIndexOf(":");
+  if (firstColonIndex !== lastColonIndex) {
+    return trimmed;
+  }
+
+  return trimmed.slice(0, lastColonIndex);
+}
+
+function isLoopbackHostname(hostname: string | null): boolean {
+  if (!hostname) {
+    return false;
+  }
+
+  const normalizedHostname = hostname.trim().toLowerCase();
+
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname.endsWith(".localhost") ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]"
+  );
+}
+
+function parseRootHosts(value: NullableString): string[] {
+  if (!value) {
+    return [];
+  }
+
+  return value
+    .split(",")
+    .map((item) => normalizeHostValue(item))
+    .filter(Boolean);
+}
+
+function getPortalAndTenantForHost(
+  hostname: string | null,
+  rootDomain: string | null,
+): {
+  tenantSlug: string | null;
+  portalSubdomain: string | null;
+  portalCanonicalPrefix: string | null;
+  portalPath: string | null;
+  portalLoginPath: string | null;
+  portalIsAlias: boolean;
+} {
+  if (!hostname || !rootDomain) {
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
+  }
+
+  if (hostname === rootDomain) {
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
+  }
+
+  const suffix = `.${rootDomain}`;
+  if (!hostname.endsWith(suffix)) {
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
+  }
+
+  const prefix = hostname.slice(0, -suffix.length);
+  const segments = prefix.split(".");
+
+  if (segments.length === 1) {
+    const slug = segments[0]?.trim().toLowerCase() ?? "";
+    if (!slug || !TENANT_SLUG_PATTERN.test(slug)) {
+      return {
+        tenantSlug: null,
+        portalSubdomain: null,
+        portalCanonicalPrefix: null,
+        portalPath: null,
+        portalLoginPath: null,
+        portalIsAlias: false,
+      };
+    }
+    const portalDescriptor = getPortalHostDescriptorByPrefix(slug);
+    if (portalDescriptor) {
+      return {
+        tenantSlug: null,
+        portalSubdomain: slug,
+        portalCanonicalPrefix: portalDescriptor.canonicalPrefix,
+        portalPath: portalDescriptor.portalPath,
+        portalLoginPath: portalDescriptor.loginPath,
+        portalIsAlias: isPortalAliasPrefix(slug, portalDescriptor),
+      };
+    }
+    return {
+      tenantSlug: slug,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
+  }
+
+  if (segments.length === 2) {
+    const first = segments[0]?.trim().toLowerCase() ?? "";
+    const second = segments[1]?.trim().toLowerCase() ?? "";
+    const portalDescriptor = getPortalHostDescriptorByPrefix(first);
+    if (portalDescriptor && second && TENANT_SLUG_PATTERN.test(second)) {
+      return {
+        tenantSlug: second,
+        portalSubdomain: first,
+        portalCanonicalPrefix: portalDescriptor.canonicalPrefix,
+        portalPath: portalDescriptor.portalPath,
+        portalLoginPath: portalDescriptor.loginPath,
+        portalIsAlias: isPortalAliasPrefix(first, portalDescriptor),
+      };
+    }
+  }
+
+  const tenantSlug = segments[0]?.trim().toLowerCase() ?? "";
+  if (!tenantSlug || !TENANT_SLUG_PATTERN.test(tenantSlug)) {
+    return {
+      tenantSlug: null,
+      portalSubdomain: null,
+      portalCanonicalPrefix: null,
+      portalPath: null,
+      portalLoginPath: null,
+      portalIsAlias: false,
+    };
+  }
+  return {
+    tenantSlug,
+    portalSubdomain: null,
+    portalCanonicalPrefix: null,
+    portalPath: null,
+    portalLoginPath: null,
+    portalIsAlias: false,
+  };
+}
+
+export function getPlatformHostContext(hostHeader: NullableString): PlatformHostContext {
+  const host = normalizeHostHeaderValue(hostHeader);
+  const hostname = host ? stripPort(host) : null;
+
+  const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
+  const rootHosts = parseRootHosts(process.env.PLATFORM_ROOT_HOSTS);
+  const hasHostConfig = Boolean(rootDomain || rootHosts.length > 0);
+  const strictTenantEnforcement = Boolean(rootDomain) && !isLoopbackHostname(hostname);
+
+  const centralHosts = new Set<string>();
+
+  if (rootDomain) {
+    centralHosts.add(rootDomain);
+  }
+
+  for (const rootHost of rootHosts) {
+    centralHosts.add(rootHost);
+    centralHosts.add(stripPort(rootHost));
+  }
+
+  const isCentralHost = Boolean(
+    host &&
+    (centralHosts.has(host) ||
+      (hostname !== null && centralHosts.has(hostname)))
+  );
+
+  const {
+    tenantSlug,
+    portalSubdomain,
+    portalCanonicalPrefix,
+    portalPath,
+    portalLoginPath,
+    portalIsAlias,
+  } = getPortalAndTenantForHost(hostname, rootDomain || null);
+
+  return {
+    host: host || null,
+    hostname,
+    tenantSlug,
+    portalSubdomain,
+    portalCanonicalPrefix,
+    portalPath,
+    portalLoginPath,
+    portalIsAlias,
+    isCentralHost,
+    isTenantHost: Boolean(tenantSlug),
+    hasHostConfig,
+    strictTenantEnforcement,
+  };
+}
+
+function readHeaderValue(headers: RequestHeadersLike | null | undefined, key: string): string | null {
+  if (!headers) {
+    return null;
+  }
+
+  if (headers instanceof Headers) {
+    const value = headers.get(key);
+    return value?.trim() || null;
+  }
+
+  const direct = headers[key] ?? headers[key.toLowerCase()] ?? headers[key.toUpperCase()];
+  if (Array.isArray(direct)) {
+    return direct[0]?.trim() || null;
+  }
+  if (typeof direct === "string") {
+    return direct.trim() || null;
+  }
+
+  const matchedKey = Object.keys(headers).find((headerKey) => headerKey.toLowerCase() === key.toLowerCase());
+  if (!matchedKey) {
+    return null;
+  }
+  const value = headers[matchedKey];
+  if (Array.isArray(value)) {
+    return value[0]?.trim() || null;
+  }
+  if (typeof value === "string") {
+    return value.trim() || null;
+  }
+  return null;
+}
+
+/**
+ * The host this request is actually on, ignoring any preview override.
+ *
+ * Only the proxy needs this — to build redirects that stay on the origin the
+ * browser is really talking to. Everything else wants the effective host below.
+ */
+export function getRealHostHeaderFromRequestHeaders(
+  headers: RequestHeadersLike | null | undefined,
+): string | null {
+  const forwardedHost = readHeaderValue(headers, "x-forwarded-host");
+  const host = readHeaderValue(headers, "host");
+  const resolvedHost = forwardedHost || host;
+
+  const normalizedHost = normalizeHostHeaderValue(resolvedHost);
+  return normalizedHost || null;
+}
+
+/**
+ * The host the request should be treated as being on.
+ *
+ * Normally the real one. On a preview or staging deployment that has opted in,
+ * a nominated host takes its place — see lib/platform/preview-host.ts for why.
+ * Every caller in the app goes through here, which is what keeps the proxy,
+ * the credentials provider and the layouts agreeing about tenancy.
+ */
+export function getHostHeaderFromRequestHeaders(headers: RequestHeadersLike | null | undefined): string | null {
+  const previewHost = resolvePreviewHostOverride(
+    readHeaderValue(headers, PREVIEW_HOST_HEADER),
+    readHeaderValue(headers, "cookie"),
+  );
+  if (previewHost) {
+    return previewHost;
+  }
+
+  return getRealHostHeaderFromRequestHeaders(headers);
+}
+
+type ExistsRow = {
+  exists: boolean;
+};
+
+async function getPrismaClient() {
+  const { prisma } = await import("@corelithzw/db/client");
+  return prisma;
+}
+
+async function tableExists(tableName: string): Promise<boolean> {
+  const cacheKey = tableName.toLowerCase();
+  const cached = tableExistsCache.get(cacheKey);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  try {
+    const prisma = await getPrismaClient();
+    const rows = await prisma.$queryRawUnsafe<ExistsRow[]>(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.tables
+          WHERE table_schema = 'public'
+            AND lower(table_name) = lower($1)
+        ) AS "exists"
+      `,
+      tableName
+    );
+
+    const exists = Boolean(rows[0]?.exists);
+    tableExistsCache.set(cacheKey, exists);
+    return exists;
+  } catch {
+    return false;
+  }
+}
+
+async function tableColumnExists(tableName: string, columnName: string): Promise<boolean> {
+  const cacheKey = `${tableName.toLowerCase()}:${columnName.toLowerCase()}`;
+  const cached = columnExistsCache.get(cacheKey);
+
+  if (cached !== undefined) {
+    return cached;
+  }
+
+  try {
+    const prisma = await getPrismaClient();
+    const rows = await prisma.$queryRawUnsafe<ExistsRow[]>(
+      `
+        SELECT EXISTS (
+          SELECT 1
+          FROM information_schema.columns
+          WHERE table_schema = 'public'
+            AND lower(table_name) = lower($1)
+            AND lower(column_name) = lower($2)
+        ) AS "exists"
+      `,
+      tableName,
+      columnName
+    );
+
+    const exists = Boolean(rows[0]?.exists);
+    columnExistsCache.set(cacheKey, exists);
+    return exists;
+  } catch {
+    return false;
+  }
+}
+
+type TenantRow = {
+  id: string;
+  name: string | null;
+  slug: string;
+  tenantStatus: string | null;
+};
+
+type TenantDomainRow = {
+  id: string;
+  name: string | null;
+  slug: string;
+  tenantStatus: string | null;
+};
+
+export async function resolveTenantBySlug(slug: string): Promise<TenantContext | null> {
+  const tenantSlug = slug.trim().toLowerCase();
+
+  if (!tenantSlug || !TENANT_SLUG_PATTERN.test(tenantSlug)) {
+    return null;
+  }
+
+  const companyTableExists = await tableExists("Company");
+  if (!companyTableExists) {
+    return null;
+  }
+
+  const hasSlugColumn = await tableColumnExists("Company", "slug");
+  if (!hasSlugColumn) {
+    return null;
+  }
+
+  const hasTenantStatusColumn = await tableColumnExists("Company", "tenantStatus");
+  const prisma = await getPrismaClient();
+
+  try {
+    const rows = hasTenantStatusColumn
+      ? await prisma.$queryRawUnsafe<TenantRow[]>(
+          `
+            SELECT id, name, slug, "tenantStatus"
+            FROM "Company"
+            WHERE lower(slug) = lower($1)
+            LIMIT 1
+          `,
+          tenantSlug
+        )
+      : await prisma.$queryRawUnsafe<TenantRow[]>(
+          `
+            SELECT id, name, slug, NULL::text AS "tenantStatus"
+            FROM "Company"
+            WHERE lower(slug) = lower($1)
+            LIMIT 1
+          `,
+          tenantSlug
+        );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      companyId: row.id,
+      companyName: row.name,
+      companySlug: row.slug.toLowerCase(),
+      tenantStatus: row.tenantStatus ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function resolveTenantByCustomDomain(hostname: string): Promise<TenantContext | null> {
+  const normalizedHostname = normalizeHostValue(hostname);
+  if (!normalizedHostname) {
+    return null;
+  }
+
+  const companyDomainTableExists = await tableExists("CompanyDomain");
+  if (!companyDomainTableExists) {
+    return null;
+  }
+
+  const hasHostnameColumn = await tableColumnExists("CompanyDomain", "hostname");
+  if (!hasHostnameColumn) {
+    return null;
+  }
+
+  const prisma = await getPrismaClient();
+  const hasTenantStatusColumn = await tableColumnExists("Company", "tenantStatus");
+
+  try {
+    const rows = hasTenantStatusColumn
+      ? await prisma.$queryRawUnsafe<TenantDomainRow[]>(
+          `
+            SELECT c.id, c.name, c.slug, c."tenantStatus"
+            FROM "CompanyDomain" cd
+            INNER JOIN "Company" c ON c.id = cd."companyId"
+            WHERE lower(cd.hostname) = lower($1)
+              AND cd.status IN ('VERIFIED', 'ACTIVE')
+            ORDER BY CASE cd.status
+              WHEN 'ACTIVE' THEN 0
+              WHEN 'VERIFIED' THEN 1
+              ELSE 2
+            END ASC, cd."updatedAt" DESC
+            LIMIT 1
+          `,
+          normalizedHostname,
+        )
+      : await prisma.$queryRawUnsafe<TenantDomainRow[]>(
+          `
+            SELECT c.id, c.name, c.slug, NULL::text AS "tenantStatus"
+            FROM "CompanyDomain" cd
+            INNER JOIN "Company" c ON c.id = cd."companyId"
+            WHERE lower(cd.hostname) = lower($1)
+              AND cd.status IN ('VERIFIED', 'ACTIVE')
+            ORDER BY CASE cd.status
+              WHEN 'ACTIVE' THEN 0
+              WHEN 'VERIFIED' THEN 1
+              ELSE 2
+            END ASC, cd."updatedAt" DESC
+            LIMIT 1
+          `,
+          normalizedHostname,
+        );
+
+    const row = rows[0];
+    if (!row) {
+      return null;
+    }
+
+    return {
+      companyId: row.id,
+      companyName: row.name,
+      companySlug: row.slug.toLowerCase(),
+      tenantStatus: row.tenantStatus ?? null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export async function resolveTenantFromHost(hostHeader: NullableString): Promise<TenantContext | null> {
+  const hostContext = getPlatformHostContext(hostHeader);
+
+  if (hostContext.tenantSlug) {
+    return resolveTenantBySlug(hostContext.tenantSlug);
+  }
+
+  if (!hostContext.hostname) {
+    return null;
+  }
+
+  return resolveTenantByCustomDomain(hostContext.hostname);
+}
+
+type CompanyClaimsRow = {
+  slug: string | null;
+  tenantStatus: string | null;
+  workspaceProfile: string | null;
+};
+
+export async function getTenantClaimsForCompany(companyId: string): Promise<TenantClaims> {
+  const normalizedCompanyId = companyId.trim();
+
+  if (!normalizedCompanyId) {
+    return {};
+  }
+
+  const companyTableExists = await tableExists("Company");
+  if (!companyTableExists) {
+    return {};
+  }
+
+  const hasSlugColumn = await tableColumnExists("Company", "slug");
+  if (!hasSlugColumn) {
+    return {};
+  }
+
+  const hasTenantStatusColumn = await tableColumnExists("Company", "tenantStatus");
+  const hasWorkspaceProfileColumn = await tableColumnExists("Company", "workspaceProfile");
+  const prisma = await getPrismaClient();
+
+  try {
+    const rows = hasTenantStatusColumn && hasWorkspaceProfileColumn
+      ? await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
+          `
+            SELECT slug, "tenantStatus", "workspaceProfile"
+            FROM "Company"
+            WHERE id = $1
+            LIMIT 1
+          `,
+          normalizedCompanyId
+        )
+      : hasTenantStatusColumn
+      ? await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
+          `
+            SELECT slug, "tenantStatus", NULL::text AS "workspaceProfile"
+            FROM "Company"
+            WHERE id = $1
+            LIMIT 1
+          `,
+          normalizedCompanyId
+        )
+      : await prisma.$queryRawUnsafe<CompanyClaimsRow[]>(
+          `
+            SELECT slug, NULL::text AS "tenantStatus", NULL::text AS "workspaceProfile"
+            FROM "Company"
+            WHERE id = $1
+            LIMIT 1
+          `,
+          normalizedCompanyId
+        );
+
+    const row = rows[0];
+    if (!row) {
+      return {};
+    }
+
+    return {
+      companySlug: row.slug?.toLowerCase() ?? undefined,
+      tenantStatus: row.tenantStatus ?? undefined,
+      workspaceProfile: row.workspaceProfile ?? undefined,
+    };
+  } catch {
+    return {};
+  }
+}
+
+type CompanyDomainClaimRow = {
+  hostname: string | null;
+};
+
+function getRootDomain(): string | null {
+  const rootDomain = normalizeHostValue(process.env.PLATFORM_ROOT_DOMAIN);
+  return rootDomain || null;
+}
+
+export function getCanonicalHost(hostHeader: NullableString): string | null {
+  const host = normalizeHostHeaderValue(hostHeader);
+  if (!host) {
+    return null;
+  }
+  return stripPort(host);
+}
+
+function uniqueNonEmpty(values: Array<string | null | undefined>): string[] {
+  const out = new Set<string>();
+  for (const value of values) {
+    const normalized = normalizeHostValue(value);
+    if (!normalized) continue;
+    out.add(normalized);
+  }
+  return Array.from(out.values());
+}
+
+export async function getAllowedHostsForCompany(companyId: string): Promise<string[]> {
+  const normalizedCompanyId = companyId.trim();
+  if (!normalizedCompanyId) {
+    return [];
+  }
+
+  const claims = await getTenantClaimsForCompany(normalizedCompanyId);
+  const rootDomain = getRootDomain();
+  const subdomainHost =
+    rootDomain && claims.companySlug
+      ? `${claims.companySlug.trim().toLowerCase()}.${rootDomain}`
+      : null;
+  const portalHosts =
+    rootDomain && claims.companySlug
+      ? getPortalHostPrefixes({ includeAliases: true }).map((prefix) =>
+          buildPortalHost(prefix, claims.companySlug!, rootDomain),
+        )
+      : [];
+
+  const companyDomainTableExists = await tableExists("CompanyDomain");
+  if (!companyDomainTableExists) {
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
+  }
+
+  const hasHostnameColumn = await tableColumnExists("CompanyDomain", "hostname");
+  const hasStatusColumn = await tableColumnExists("CompanyDomain", "status");
+  if (!hasHostnameColumn || !hasStatusColumn) {
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
+  }
+
+  try {
+    const prisma = await getPrismaClient();
+    const domains = await prisma.$queryRawUnsafe<CompanyDomainClaimRow[]>(
+      `
+        SELECT hostname
+        FROM "CompanyDomain"
+        WHERE "companyId" = $1
+          AND status IN ('VERIFIED', 'ACTIVE')
+      `,
+      normalizedCompanyId,
+    );
+    const domainHosts = domains.map((row) => row.hostname ?? null);
+    return uniqueNonEmpty([subdomainHost, ...portalHosts, ...domainHosts]);
+  } catch {
+    return uniqueNonEmpty([subdomainHost, ...portalHosts]);
+  }
+}
+
+export function getPortalRequestRouting(
+  hostHeader: NullableString,
+  portalPath: "/portal/student" | "/portal/parent" | "/portal/teacher" | "/portal/pos",
+): {
+  homePath: string;
+  loginPath: string;
+  callbackPath: string;
+  isPortalHost: boolean;
+} {
+  const descriptor = getPortalHostDescriptorByPath(portalPath);
+  if (!descriptor) {
+    return {
+      homePath: portalPath,
+      loginPath: `${portalPath}/login`,
+      callbackPath: portalPath,
+      isPortalHost: false,
+    };
+  }
+
+  const hostContext = getPlatformHostContext(hostHeader);
+  const isPortalHost = hostContext.portalPath === descriptor.portalPath && Boolean(hostContext.tenantSlug);
+  if (isPortalHost) {
+    return {
+      homePath: "/",
+      loginPath: "/login",
+      callbackPath: "/",
+      isPortalHost: true,
+    };
+  }
+
+  return {
+    homePath: descriptor.portalPath,
+    loginPath: descriptor.loginPath,
+    callbackPath: descriptor.portalPath,
+    isPortalHost: false,
+  };
+}
+
+export function isAllowedHost(hostHeader: NullableString, allowedHosts: string[] | undefined): boolean {
+  // The preview escape hatch. Without it a stale `allowedHosts` claim — a token
+  // minted before the override was set, a tenant whose subdomain was never
+  // provisioned — dead-ends the whole deployment on /access-blocked, including
+  // the page that would let you correct it.
+  if (isHostEnforcementBypassed()) {
+    return true;
+  }
+
+  const currentHost = getCanonicalHost(hostHeader);
+  if (!currentHost) {
+    return false;
+  }
+
+  const normalizedAllowedHosts = new Set(
+    (allowedHosts ?? [])
+      .map((host) => normalizeHostValue(host))
+      .filter(Boolean),
+  );
+
+  if (normalizedAllowedHosts.size === 0) {
+    return false;
+  }
+
+  return normalizedAllowedHosts.has(currentHost);
+}
+
+export function isTenantStatusActive(status: NullableString): boolean {
+  if (!status) {
+    return false;
+  }
+
+  return status.trim().toUpperCase() === ACTIVE_TENANT_STATUS;
+}
