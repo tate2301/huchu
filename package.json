@@ -22,7 +22,9 @@
     "db:check:drift": "pnpm --filter @corelithzw/db run check:drift",
     "db:check:deps": "pnpm --filter @corelithzw/db run check:deps",
     "campus": "pnpm --filter @corelithzw/campus run",
-    "dev:campus": "turbo run dev --filter=@corelithzw/campus"
+    "dev:campus": "turbo run dev --filter=@corelithzw/campus",
+    "sell": "pnpm --filter @corelithzw/sell run",
+    "dev:sell": "turbo run dev --filter=@corelithzw/sell"
   },
   "devDependencies": {
     "turbo": "2.10.12",

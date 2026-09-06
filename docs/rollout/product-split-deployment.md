@@ -218,47 +218,59 @@ result, so a run still answers whether the app builds.
   not shrink the type-check, because the app still imports the whole client. That gain
   arrives with per-package project references as modules are extracted (Phase 2).
 
-## 7. The Campus host (`apps/campus`): what it needs
+## 7. The product hosts (`apps/<product>`): what each needs
 
-The first product host exists in the repository (`apps/campus`, Phase 3.1c). It ships as its
-own Vercel project on its own root, from the same repository and the same database. None of
-this runs until the project owner creates the project; production keeps serving from
-`apps/legacy` untouched.
+Each product host in the repository ships as its own Vercel project on its own root, from the
+same repository and the same database. None of them runs until the project owner creates the
+project; production keeps serving from `apps/legacy` untouched.
 
-1. **Vercel project** from this repository with *Root Directory* `apps/campus` (keep "include
+| Host | Since | Root Directory | Wildcard host | `PLATFORM_ROOT_DOMAIN` | Composes |
+|---|---|---|---|---|---|
+| Campus | 3.1c | `apps/campus` | `*.campus.corelith.co.zw` | `campus.corelith.co.zw` | the school, books, compliance, people, documents, notifications, records, workflow, offline |
+| Sell | 3.2a | `apps/sell` | `*.sell.corelith.co.zw` | `sell.corelith.co.zw` | the till, stock, maintenance, compliance, books, people, documents, notifications, records, workflow, offline |
+
+1. **Vercel project** from this repository with *Root Directory* from the table (keep "include
    files outside the root" on: the packages and the lockfile live above it), *Ignored Build
    Step* `npx turbo-ignore`, the same Node version as the enterprise project. The build command
    is the package's `pnpm build`; the app reads the repository-root `.env` as the enterprise
    host does.
-2. **Domains**: the wildcard `*.campus.corelith.co.zw` on the Campus project. The bare
-   `campus.corelith.co.zw` is the product's landing site, which is already its own project.
+2. **Domains**: the wildcard from the table on the product's project. The bare
+   `<product>.corelith.co.zw` is the product's landing site, which is already its own project.
    **Verify on the account that a bare host and its wildcard may sit on different projects**
-   (add `*.campus.corelith.co.zw` to the Campus project while `campus.corelith.co.zw` stays on
-   the landing site's, and confirm both certificates issue). If Vercel refuses, the landing
-   site moves into the Campus host as its root route instead.
-3. **DNS**: `*.campus.corelith.co.zw` → Vercel (CNAME), alongside the existing bare record.
+   (add the wildcard to the product's project while the bare host stays on the landing site's,
+   and confirm both certificates issue). If Vercel refuses, the landing site moves into the
+   product host as its root route instead.
+3. **DNS**: the wildcard → Vercel (CNAME), alongside the existing bare record.
 4. **Environment variables** (Production, and Preview with the preview-host overrides from
    `STAGING_PREVIEW.md`):
-   - `PLATFORM_ROOT_DOMAIN=campus.corelith.co.zw` and `PLATFORM_ROOT_HOSTS` to match;
+   - `PLATFORM_ROOT_DOMAIN` from the table and `PLATFORM_ROOT_HOSTS` to match;
    - the **same** `NEXTAUTH_SECRET` and `DATABASE_URL` as the enterprise host — one database,
      one session token; the cookie domain becomes `.corelith.co.zw` so a sign-in carries
      across hosts;
-   - `FEATURE_GATE_POLICY=deny` and its public twin, the fiscalisation settings the school
-     needs (the FDMS provider configuration), `PLATFORM_VERCEL_*` for its own project if it
-     provisions portal hosts.
-5. **Portal hosts** (`parents-<slug>.campus.corelith.co.zw`, `students-…`, `staff-…`) are one
-   label on the new root, so the wildcard certificate covers them and self-serve signup needs
-   no Vercel API call. The enterprise host keeps today's three-label pattern.
+   - `FEATURE_GATE_POLICY=deny` and its public twin; the fiscalisation settings (the FDMS
+     provider configuration) on every host that fiscalises — the school's fee receipts on
+     Campus, the till on Sell; `PLATFORM_VERCEL_*` for its own project if it provisions portal
+     hosts.
+5. **Portal hosts.** The kernel forms a portal host as `<prefix>.<slug>.<root>` today
+   (`students.`, `parents.`, `staff.` for the school, `pos.` for the till — see
+   `packages/platform/portal-hosts.ts`). On a product root that is two labels under the root,
+   which the one wildcard certificate does **not** cover: a portal host there needs its own
+   certificate, issued through the Vercel API as the enterprise host's portal hosts are today.
+   The plan's one-label form (`parents-<slug>.campus.corelith.co.zw`, `pos-<slug>.sell.…`),
+   which the wildcard covers and which frees self-serve signup from the Vercel API call, is
+   Phase 3.3 — a host-level switch in the kernel, off on the enterprise host — and lands
+   before any portal host is served from a product root.
 6. **The database release job stays singular.** Products share the database; migrations keep
    landing from `packages/db` through the one job, expand-first, because hosts deploy
-   independently. The Campus host has no migrations of its own.
-7. **Cut-over per tenant**: add the Campus host to the tenant's `allowedHosts`, 308 the old
-   paths from the enterprise host, remove the school from the enterprise host's list — the
+   independently. No product host has migrations of its own.
+7. **Cut-over per tenant**: add the product host to the tenant's `allowedHosts`, 308 the old
+   paths from the enterprise host, remove the module from the enterprise host's list — the
    flip described in the plan's Phase 3.
-8. **What the Campus host does not serve**: the marketing site (its own project), the operator
-   console (`apps/legacy`'s `/admin`, on the admin host), the executive dashboard, the CRM, the
-   till, stock, maintenance and the mine. A school tenant that also runs one of those stays on
-   the enterprise host until that product has a host of its own.
+8. **What a product host does not serve**: the marketing site (its own project), the operator
+   console (`apps/legacy`'s `/admin`, on the admin host), the executive dashboard, the payment
+   webhooks, and every module outside its list — the Campus host has no till, stock, CRM,
+   maintenance or mine; the Sell host has no school, CRM or mine. A tenant that runs a module
+   from two products stays on the enterprise host until both products have hosts.
 
 ## 8. Checklist
 
