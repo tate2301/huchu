@@ -1,14 +1,11 @@
 import type { ModuleManifest } from "@corelithzw/platform/manifest";
 
 /**
- * Maintenance: work orders, equipment, breakdowns and the schedule.
- *
- * Ahead of the module's move: what it contributes to the kernel is declared
- * here now, so the host composes by manifests today and the move relocates
- * this file. Data only.
+ * Maintenance: work orders, equipment, breakdowns and the schedule. An add-on. Data only.
  */
 export const manifest: ModuleManifest = {
   id: "maintenance",
+  requires: ["stock", "people", "documents"],
   notifications: {
     viewPaths: {
       WORK_ORDER: "/maintenance/work-orders?workOrderId={id}",

@@ -2,7 +2,7 @@ import { redirect } from "next/navigation";
 import {
   MaintenanceContent,
   type MaintenanceView,
-} from "@/components/maintenance/maintenance-content";
+} from "@corelithzw/module-maintenance/components/maintenance-content";
 
 const maintenanceRoutes: Record<MaintenanceView, string> = {
   dashboard: "/maintenance",

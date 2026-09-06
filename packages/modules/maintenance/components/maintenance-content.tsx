@@ -12,7 +12,7 @@ import {
   Trash2,
 } from "@corelithzw/ui/lib/icons";
 
-import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
+import { MaintenanceShell } from "./maintenance-shell";
 import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
@@ -47,13 +47,10 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Tabs, TabsContent } from "@corelithzw/ui/components/tabs";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  fetchEmployees,
-  fetchEquipment,
-  fetchSites,
-  fetchStockLocations,
-  fetchWorkOrders,
-} from "@/lib/api";
+import { fetchEmployees } from "@corelithzw/module-people/directory";
+import { fetchEquipment, fetchWorkOrders } from "../api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchStockLocations } from "@corelithzw/module-stock/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

@@ -1,4 +1,4 @@
-import { MaintenanceContent } from "@/components/maintenance/maintenance-content";
+import { MaintenanceContent } from "@corelithzw/module-maintenance/components/maintenance-content";
 
 export default function MaintenanceWorkOrdersPage() {
   return <MaintenanceContent activeView="work-orders" />;

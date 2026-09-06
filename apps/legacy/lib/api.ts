@@ -2,6 +2,27 @@ import { buildQuery, fetchJson, type Pagination, type PaginationMeta } from "@co
 
 export type { Pagination, PaginationMeta } from "@corelithzw/platform/api-client";
 export {
+  fetchIncidents,
+  fetchInspections,
+  fetchPermits,
+  fetchTrainingRecords,
+  type IncidentRecord,
+  type InspectionRecord,
+  type PermitRecord,
+  type TrainingRecordSummary,
+} from "@corelithzw/module-compliance/api-client";
+export {
+  fetchEquipment,
+  fetchWorkOrders,
+  type Equipment,
+  type WorkOrder,
+} from "@corelithzw/module-maintenance/api-client";
+export {
+  fetchUsers,
+  type UserSummary,
+} from "@corelithzw/platform/client/users";
+import { type UserSummary } from "@corelithzw/platform/client/users";
+export {
   fetchInventoryItems,
   fetchStockLocations,
   fetchStockMovements,
@@ -199,16 +220,6 @@ export {
 import type { EmployeePositionValue } from "@corelithzw/platform/vertical-defaults";
 import type { UserRole } from "@corelithzw/platform/roles";
 
-export type UserSummary = {
-  id: string;
-  name: string;
-  email: string;
-  role: string;
-  isActive: boolean;
-  createdAt?: string;
-  updatedAt?: string;
-};
-
 export type ManagedUserRole = UserRole;
 
 export type CreateManagedUserInput = {
@@ -285,44 +296,6 @@ export type DowntimeCode = {
   sortOrder: number;
   isActive?: boolean;
   site?: { id: string; name: string; code: string } | null;
-};
-
-export type Equipment = {
-  id: string;
-  equipmentCode: string;
-  name: string;
-  category: string;
-  siteId?: string;
-  locationId: string;
-  numberOfItems: number;
-  site: { name: string; code: string };
-  location: { id: string; code: string; name: string };
-  qrCode?: string | null;
-  lastServiceDate?: string | null;
-  nextServiceDue?: string | null;
-  serviceHours?: number | null;
-  serviceDays?: number | null;
-  isActive: boolean;
-};
-
-export type WorkOrder = {
-  id: string;
-  issue: string;
-  status: string;
-  downtimeStart: string;
-  downtimeEnd?: string | null;
-  workDone?: string | null;
-  partsUsed?: string | null;
-  partsCost?: number | null;
-  laborCost?: number | null;
-  createdAt: string;
-  technician?: { id: string; name: string; employeeId: string } | null;
-  equipment: {
-    id: string;
-    name: string;
-    equipmentCode: string;
-    site: { name: string; code: string };
-  };
 };
 
 export type ShiftReportSummary = {
@@ -641,69 +614,6 @@ export type GoldExpenseType = {
   updatedAt: string;
 };
 
-export type PermitRecord = {
-  id: string;
-  permitType: string;
-  permitNumber: string;
-  siteId: string;
-  issueDate: string;
-  expiryDate: string;
-  responsiblePerson: string;
-  documentUrl?: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  site: { id: string; name: string; code: string };
-};
-
-export type InspectionRecord = {
-  id: string;
-  siteId: string;
-  inspectionDate: string;
-  inspectorName: string;
-  inspectorOrg: string;
-  findings: string;
-  actions?: string | null;
-  actionsDue?: string | null;
-  completedById?: string | null;
-  completedAt?: string | null;
-  documentUrl?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  site: { id: string; name: string; code: string };
-  completedBy?: { id: string; name: string } | null;
-};
-
-export type IncidentRecord = {
-  id: string;
-  siteId: string;
-  incidentDate: string;
-  incidentType: string;
-  severity: string;
-  description: string;
-  actionsTaken?: string | null;
-  reportedBy: string;
-  photoUrls?: string | null;
-  status: string;
-  createdAt: string;
-  updatedAt: string;
-  site: { id: string; name: string; code: string };
-};
-
-export type TrainingRecordSummary = {
-  id: string;
-  userId: string;
-  trainingType: string;
-  trainingDate: string;
-  expiryDate?: string | null;
-  certificateUrl?: string | null;
-  trainedBy?: string | null;
-  notes?: string | null;
-  createdAt: string;
-  updatedAt: string;
-  user: { id: string; name: string; email: string };
-};
-
 export type DowntimeAnalytics = {
   siteId: string;
   startDate: string;
@@ -909,19 +819,6 @@ export async function fetchExecutiveDashboardOverview(params: {
   return fetchJson<ExecutiveDashboardResponse>(`/api/dashboard/executive-overview${query}`);
 }
 
-export async function fetchUsers(
-  params: {
-    role?: string;
-    active?: boolean;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<UserSummary>>(`/api/users${query}`);
-}
-
 export async function createManagedUser(input: CreateManagedUserInput) {
   return fetchJson<UserSummary>("/api/users/create", {
     method: "POST",
@@ -1086,26 +983,6 @@ export async function fetchDowntimeAnalytics(params: {
 }) {
   const query = buildQuery(params);
   return fetchJson<DowntimeAnalytics>(`/api/analytics/downtime${query}`);
-}
-
-export async function fetchEquipment(
-  params: { siteId?: string; page?: number; limit?: number } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<Equipment>>(`/api/equipment${query}`);
-}
-
-export async function fetchWorkOrders(
-  params: {
-    equipmentId?: string;
-    siteId?: string;
-    status?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<WorkOrder>>(`/api/work-orders${query}`);
 }
 
 export async function fetchShiftReports(
@@ -1297,66 +1174,6 @@ export async function deleteGoldExpenseType(id: string) {
       method: "DELETE",
     },
   );
-}
-
-export async function fetchPermits(
-  params: {
-    siteId?: string;
-    status?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<PermitRecord>>(`/api/compliance/permits${query}`);
-}
-
-export async function fetchInspections(
-  params: {
-    siteId?: string;
-    startDate?: string;
-    endDate?: string;
-    overdue?: boolean;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<InspectionRecord>>(`/api/compliance/inspections${query}`);
-}
-
-export async function fetchIncidents(
-  params: {
-    siteId?: string;
-    incidentType?: string;
-    severity?: string;
-    status?: string;
-    startDate?: string;
-    endDate?: string;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<IncidentRecord>>(`/api/compliance/incidents${query}`);
-}
-
-export async function fetchTrainingRecords(
-  params: {
-    userId?: string;
-    startDate?: string;
-    endDate?: string;
-    expiringDays?: number;
-    search?: string;
-    page?: number;
-    limit?: number;
-  } = {},
-) {
-  const query = buildQuery(params);
-  return fetchJson<Pagination<TrainingRecordSummary>>(`/api/compliance/training-records${query}`);
 }
 
 export type RetailAccountingBackfillResult =

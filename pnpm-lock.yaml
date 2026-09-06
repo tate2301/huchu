@@ -29,9 +29,15 @@ importers:
       '@corelithzw/module-books':
         specifier: workspace:*
         version: link:../../packages/modules/books
+      '@corelithzw/module-compliance':
+        specifier: workspace:*
+        version: link:../../packages/modules/compliance
       '@corelithzw/module-documents':
         specifier: workspace:*
         version: link:../../packages/modules/documents
+      '@corelithzw/module-maintenance':
+        specifier: workspace:*
+        version: link:../../packages/modules/maintenance
       '@corelithzw/module-notifications':
         specifier: workspace:*
         version: link:../../packages/modules/notifications
@@ -392,6 +398,76 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
 
+  packages/modules/compliance:
+    dependencies:
+      '@corelithzw/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@corelithzw/module-documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@corelithzw/module-people':
+        specifier: workspace:*
+        version: link:../people
+      '@corelithzw/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@corelithzw/react':
+        specifier: ^0.4.1
+        version: 0.4.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@corelithzw/shell':
+        specifier: workspace:*
+        version: link:../../shell
+      '@corelithzw/ui':
+        specifier: workspace:*
+        version: link:../../ui
+      '@tanstack/react-query':
+        specifier: ^5.90.16
+        version: 5.90.19(react@19.2.3)
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.1.0
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.5
+    devDependencies:
+      '@corelithzw/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@types/node':
+        specifier: ^20
+        version: 20.19.30
+      '@types/react':
+        specifier: ^19
+        version: 19.2.8
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.8)
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      eslint:
+        specifier: ^9
+        version: 9.39.2(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.1
+        version: 16.1.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      next:
+        specifier: 16.1.1
+        version: 16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+
   packages/modules/documents:
     dependencies:
       '@corelithzw/db':
@@ -421,6 +497,82 @@ importers:
       puppeteer-core:
         specifier: ^24.37.5
         version: 24.37.5
+      zod:
+        specifier: ^4.3.5
+        version: 4.3.5
+    devDependencies:
+      '@corelithzw/config':
+        specifier: workspace:*
+        version: link:../../config
+      '@types/node':
+        specifier: ^20
+        version: 20.19.30
+      '@types/react':
+        specifier: ^19
+        version: 19.2.8
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.8)
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      eslint:
+        specifier: ^9
+        version: 9.39.2(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.1
+        version: 16.1.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      next:
+        specifier: 16.1.1
+        version: 16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+
+  packages/modules/maintenance:
+    dependencies:
+      '@corelithzw/db':
+        specifier: workspace:*
+        version: link:../../db
+      '@corelithzw/module-documents':
+        specifier: workspace:*
+        version: link:../documents
+      '@corelithzw/module-people':
+        specifier: workspace:*
+        version: link:../people
+      '@corelithzw/module-stock':
+        specifier: workspace:*
+        version: link:../stock
+      '@corelithzw/platform':
+        specifier: workspace:*
+        version: link:../../platform
+      '@corelithzw/react':
+        specifier: ^0.4.1
+        version: 0.4.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@corelithzw/shell':
+        specifier: workspace:*
+        version: link:../../shell
+      '@corelithzw/ui':
+        specifier: workspace:*
+        version: link:../../ui
+      '@tanstack/react-query':
+        specifier: ^5.90.16
+        version: 5.90.19(react@19.2.3)
+      date-fns:
+        specifier: ^4.1.0
+        version: 4.1.0
+      next-auth:
+        specifier: ^4.24.13
+        version: 4.24.13(next@16.1.1(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
       zod:
         specifier: ^4.3.5
         version: 4.3.5

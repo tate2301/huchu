@@ -2,10 +2,10 @@
 
 import { useSearchParams } from "next/navigation";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
-import { IncidentsTab } from "@/components/compliance/incidents-tab";
-import { InspectionsTab } from "@/components/compliance/inspections-tab";
-import { PermitsTab } from "@/components/compliance/permits-tab";
-import { TrainingTab } from "@/components/compliance/training-tab";
+import { IncidentsTab } from "./incidents-tab";
+import { InspectionsTab } from "./inspections-tab";
+import { PermitsTab } from "./permits-tab";
+import { TrainingTab } from "./training-tab";
 
 type ComplianceSection = "permits" | "inspections" | "incidents" | "training";
 

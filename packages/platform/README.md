@@ -10,6 +10,9 @@ auth-core/          guards, the lean API guard, token sessions, role routes, ses
 admin-portal(.ts)   the control-plane host: who is a superuser, which host is the admin portal
 permission-catalog  what a person may do: features from entitlements, capabilities from the modules
 registry            the registries a host fills at boot
+manifest            the module manifest contract and the modules a host composes
+client/, hooks/     the browser's clients for the kernel's own endpoints (sites, ids, users) and the reserved-id hook
+auth-core/session-shape   next-auth's session, user and token typed from the kernel's claims
 roles, public-routes, api-utils, api-response, api-client, logging, observability/
 id-generator, money, serialize-decimals, uploads/, preferences/, audit/, workspace-products
 ```

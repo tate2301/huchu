@@ -17,7 +17,9 @@ import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchInspections, fetchSites, fetchUsers, type InspectionRecord } from "@/lib/api";
+import { fetchInspections, type InspectionRecord } from "../api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchUsers } from "@corelithzw/platform/client/users";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type InspectionForm = {
