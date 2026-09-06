@@ -11,7 +11,7 @@ import {
   StatCard,
 } from "@corelithzw/react";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";

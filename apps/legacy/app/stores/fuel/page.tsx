@@ -6,7 +6,7 @@ import { StoresShell } from "@/components/stores/stores-shell";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { StatusState } from "@/components/shared/status-state";
+import { StatusState } from "@corelithzw/ui/shared/status-state";
 import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import {
   Card,

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { NavRail } from "@corelithzw/ui/components/nav-rail";
 import { NavGroup, NavItem } from "@corelithzw/ui/components/settings-rail";
 

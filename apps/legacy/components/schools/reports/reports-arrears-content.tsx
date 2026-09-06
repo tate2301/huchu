@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Alert, Button, Card, StatCard } from "@corelithzw/react";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";

@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";

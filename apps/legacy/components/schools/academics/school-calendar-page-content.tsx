@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { SchoolDaysContent } from "@/components/schools/academics/school-days-content";
 import { fetchSchoolsCalendar } from "@/lib/schools/admin-v2";

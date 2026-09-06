@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import { cn } from "@corelithzw/ui/lib/utils";
+import { cn } from "../lib/utils";
 
 type PageIntroProps = {
   title: string;

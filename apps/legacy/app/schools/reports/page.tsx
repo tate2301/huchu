@@ -1,6 +1,6 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { SchoolsReportsEnhancedContent } from "@/components/schools/reports/schools-reports-enhanced-content";
 import { authOptions } from "@/lib/auth";
 

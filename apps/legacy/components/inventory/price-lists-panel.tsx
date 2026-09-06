@@ -27,7 +27,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";
-import { FormShell } from "@/components/shared/form-shell";
+import { FormShell } from "@corelithzw/ui/shared/form-shell";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { PRICE_LIST_KINDS, PRICE_LIST_KIND_LABELS } from "@/lib/inventory/catalogue";

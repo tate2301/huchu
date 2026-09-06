@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { Button } from "@corelithzw/ui/components/button";
-import { formatSavedRecordTimestamp } from "@/lib/saved-record";
+import { Alert, AlertDescription, AlertTitle } from "../components/alert";
+import { Button } from "../components/button";
+import { formatSavedRecordTimestamp } from "../lib/saved-record";
 
 type RecordSavedBannerProps = {
   entityLabel?: string;

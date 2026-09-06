@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";

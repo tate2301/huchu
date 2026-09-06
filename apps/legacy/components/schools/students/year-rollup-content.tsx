@@ -10,7 +10,7 @@ import {
   MobileListSectionHeader,
 } from "@corelithzw/react";
 
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls } from "@/components/schools/common/table-controls";

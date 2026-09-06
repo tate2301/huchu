@@ -1,3 +1,4 @@
+import { registeredModuleRoutes } from "../manifest";
 import type { FeatureRouteEntry } from "./types";
 
 export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
@@ -499,8 +500,25 @@ function sortByPrefixLength<T extends { prefix: string }>(rows: T[]): T[] {
   return [...rows].sort((a, b) => b.prefix.length - a.prefix.length);
 }
 
-const PAGE_PREFIX_SORTED = sortByPrefixLength(PAGE_FEATURE_ROUTES);
-const API_PREFIX_SORTED = sortByPrefixLength(API_FEATURE_ROUTES);
+/**
+ * The kernel's own entries plus every route the registered modules declare in
+ * their manifests, longest prefix first. Modules register at boot, so the merge
+ * is memoised on the number of module routes and recomputed only when that
+ * changes — never per request.
+ */
+let sortedCache: { moduleRouteCount: number; page: FeatureRouteEntry[]; api: FeatureRouteEntry[] } | null = null;
+
+function sortedPrefixes(): { page: FeatureRouteEntry[]; api: FeatureRouteEntry[] } {
+  const moduleRoutes = registeredModuleRoutes();
+  if (!sortedCache || sortedCache.moduleRouteCount !== moduleRoutes.length) {
+    sortedCache = {
+      moduleRouteCount: moduleRoutes.length,
+      page: sortByPrefixLength([...PAGE_FEATURE_ROUTES, ...moduleRoutes.filter((row) => row.scope === "page")]),
+      api: sortByPrefixLength([...API_FEATURE_ROUTES, ...moduleRoutes.filter((row) => row.scope === "api")]),
+    };
+  }
+  return sortedCache;
+}
 
 /**
  * The feature a path is gated on, or null for a path that is not a gated surface.
@@ -516,11 +534,14 @@ const API_PREFIX_SORTED = sortByPrefixLength(API_FEATURE_ROUTES);
  */
 export function resolveFeatureKeyForPath(pathname: string): string | null {
   const normalizedPath = normalizePath(pathname).toLowerCase();
-  const prefixes = normalizedPath.startsWith("/api/") ? API_PREFIX_SORTED : PAGE_PREFIX_SORTED;
+  const sorted = sortedPrefixes();
+  const prefixes = normalizedPath.startsWith("/api/") ? sorted.api : sorted.page;
   const match = prefixes.find((row) => normalizedPath.startsWith(row.prefix.toLowerCase()));
   return match?.featureKey ?? null;
 }
 
 export function getAllRouteFeatureKeys(): string[] {
-  return Array.from(new Set([...PAGE_FEATURE_ROUTES, ...API_FEATURE_ROUTES].map((row) => row.featureKey))).sort();
+  return Array.from(
+    new Set([...PAGE_FEATURE_ROUTES, ...API_FEATURE_ROUTES, ...registeredModuleRoutes()].map((row) => row.featureKey)),
+  ).sort();
 }

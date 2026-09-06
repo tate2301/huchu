@@ -2,7 +2,7 @@
 
 import type { ExecutiveKpiCard } from "@/lib/api";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
-import { StatusState } from "@/components/shared/status-state";
+import { StatusState } from "@corelithzw/ui/shared/status-state";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 
 type ExecutiveKpiGridProps = {

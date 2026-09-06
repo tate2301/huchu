@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { FeesGradePicker } from "@/components/schools/fees/fees-grade-picker";
 import { authOptions } from "@/lib/auth";
 

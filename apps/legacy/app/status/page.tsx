@@ -1,4 +1,4 @@
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { SystemStatus } from "@/components/status/system-status";
 
 export default function StatusPage() {

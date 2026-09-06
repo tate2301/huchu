@@ -14,7 +14,7 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
-import { PageActions } from "@/components/layout/page-chrome";
+import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import {

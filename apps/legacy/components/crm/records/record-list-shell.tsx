@@ -3,7 +3,7 @@
 import { useMemo, type CSSProperties, type ReactNode } from "react";
 
 import { Alert, Button } from "@corelithzw/react";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { Plus } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 

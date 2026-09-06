@@ -9,7 +9,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";

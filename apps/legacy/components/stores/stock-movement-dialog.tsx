@@ -21,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { FormShell } from "@/components/shared/form-shell";
+import { FormShell } from "@corelithzw/ui/shared/form-shell";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";

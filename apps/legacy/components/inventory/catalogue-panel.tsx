@@ -7,7 +7,7 @@ import { Alert, Button, EmptyState, Input, SegmentedControl, Skeleton } from "@c
 
 import { ReportTable, amt, badge, node, num, txt } from "@/components/accounting/report-table";
 import { SetupPanel } from "@/components/crm/settings/setup-chrome";
-import { PageActions } from "@/components/layout/page-chrome";
+import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {

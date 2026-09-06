@@ -16,7 +16,7 @@ import {
 } from "@corelithzw/react";
 
 import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
-import { PageActions } from "@/components/layout/page-chrome";
+import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";

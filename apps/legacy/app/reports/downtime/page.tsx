@@ -16,8 +16,8 @@ import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/a
 import { FrappeChartShell } from "@corelithzw/ui/charts/frappe-chart-shell"
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card"
 import { Card, CardContent } from "@corelithzw/ui/components/card"
-import { PageHeading } from "@/components/layout/page-heading"
-import { StatusState } from "@/components/shared/status-state"
+import { PageHeading } from "@corelithzw/ui/layout/page-heading"
+import { StatusState } from "@corelithzw/ui/shared/status-state"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select"
 import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import {

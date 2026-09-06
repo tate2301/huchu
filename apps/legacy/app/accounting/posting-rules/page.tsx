@@ -7,7 +7,7 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { BandChip } from "@/components/accounting/band-chip";
 import { PostingRuleList } from "@/components/accounting/posting-rule-list";
 import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
-import { PageActions } from "@/components/layout/page-actions";
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";

@@ -8,4 +8,4 @@ export {
   PageChromeProvider as PageActionsProvider,
   PageActions,
   usePageChrome as usePageActions,
-} from "@/components/layout/page-chrome";
+} from "./page-chrome";

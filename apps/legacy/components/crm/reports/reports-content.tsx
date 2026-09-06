@@ -11,7 +11,7 @@ import {
   StatCard,
 } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
-import { PageActions } from "@/components/layout/page-chrome";
+import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Check, Grid3x3, Plus, RotateCcw } from "@corelithzw/ui/lib/icons";

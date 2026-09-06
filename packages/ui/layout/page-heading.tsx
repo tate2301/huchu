@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { PageHeader } from "@corelithzw/react";
 
-import { cn } from "@corelithzw/ui/lib/utils";
+import { cn } from "../lib/utils";
 
 type PageHeadingProps = {
   title: string;

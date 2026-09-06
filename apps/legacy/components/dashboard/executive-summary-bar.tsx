@@ -3,7 +3,7 @@
 import type { ExecutiveModuleStatus, ExecutiveModuleSummary } from "@/lib/api";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { AlertTriangle, CheckCircle2, Minus, ReportProblem } from "@corelithzw/ui/lib/icons";
-import { StatusState } from "@/components/shared/status-state";
+import { StatusState } from "@corelithzw/ui/shared/status-state";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";

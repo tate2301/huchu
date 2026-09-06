@@ -5,7 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";

@@ -15,7 +15,7 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { useIsMobile } from "@corelithzw/ui/hooks/use-mobile";
 import { useRecordTrail } from "@/components/records/record-trail";

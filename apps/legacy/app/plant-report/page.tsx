@@ -7,13 +7,13 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Save, Send } from "@corelithzw/ui/lib/icons";
 
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
-import { FieldHelp } from "@/components/shared/field-help";
-import { FormShell } from "@/components/shared/form-shell";
-import { PageIntro } from "@/components/shared/page-intro";
-import { StatusState } from "@/components/shared/status-state";
-import { ContextHelp } from "@/components/shared/context-help";
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
+import { FieldHelp } from "@corelithzw/ui/shared/field-help";
+import { FormShell } from "@corelithzw/ui/shared/form-shell";
+import { PageIntro } from "@corelithzw/ui/shared/page-intro";
+import { StatusState } from "@corelithzw/ui/shared/status-state";
+import { ContextHelp } from "@corelithzw/ui/shared/context-help";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
@@ -24,7 +24,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchDowntimeCodes, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { PLANT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
-import { buildSavedRecordRedirect } from "@/lib/saved-record";
+import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record";
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined;

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { Button } from "@corelithzw/ui/components/button";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import {

@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";

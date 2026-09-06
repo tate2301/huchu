@@ -3,7 +3,7 @@
 import { HelpCircle } from "@corelithzw/ui/lib/icons";
 
 import { Button } from "@corelithzw/ui/components/button";
-import { useGuidedMode } from "@/hooks/use-guided-mode";
+import { useGuidedMode } from "@corelithzw/ui/hooks/use-guided-mode";
 
 export function GuidedModeToggle() {
   const { enabled, setGuidedMode } = useGuidedMode();

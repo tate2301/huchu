@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
-import { PageActions } from "@/components/layout/page-actions";
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
 import { NavRail, NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { getNavSectionsForRole } from "@/lib/navigation";

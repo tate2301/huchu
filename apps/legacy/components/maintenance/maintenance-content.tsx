@@ -14,7 +14,7 @@ import {
 
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";

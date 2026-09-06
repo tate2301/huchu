@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { useGuidedMode } from "@/hooks/use-guided-mode";
+import { useGuidedMode } from "../hooks/use-guided-mode";
 
 type ContextHelpProps = {
   href: string;

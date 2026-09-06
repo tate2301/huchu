@@ -1,9 +1,9 @@
 import type { FormEvent, ReactNode } from "react";
 
-import { PrimaryActionBar } from "@/components/shared/primary-action-bar";
-import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
-import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
-import { cn } from "@corelithzw/ui/lib/utils";
+import { PrimaryActionBar } from "./primary-action-bar";
+import { Alert, AlertDescription, AlertTitle } from "../components/alert";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/card";
+import { cn } from "../lib/utils";
 
 type FormShellProps = {
   title?: string;

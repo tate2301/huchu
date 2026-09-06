@@ -3,8 +3,8 @@
 import { useMemo, useSyncExternalStore, type ReactNode } from "react";
 import { useSession } from "next-auth/react";
 
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { type GoldTab, GOLD_TABS } from "@/lib/gold/tab-config";
 import { filterGoldTabsByFeatures } from "@/lib/gold/visibility";

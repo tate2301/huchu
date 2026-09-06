@@ -20,6 +20,7 @@ import {
   getManagedUserFeatureAccessEntries,
   setManagedUserFeatureOverride,
 } from "./user-entitlements";
+import { registeredModules } from "./manifest";
 import { registry } from "./registry";
 import { prisma } from "@corelithzw/db/client";
 
@@ -115,12 +116,19 @@ export type CapabilitySet = {
 
 const capabilitySets = registry<Map<string, CapabilitySet>>("capability-sets", () => new Map());
 
+/** Register a set directly; a module normally carries its set in its manifest instead. */
 export function registerCapabilities(set: CapabilitySet): void {
   capabilitySets.set(set.module, set);
 }
 
+/** The manifests' sets first, in registration order, then any registered directly. */
 export function registeredCapabilitySets(): CapabilitySet[] {
-  return [...capabilitySets.values()];
+  const byModule = new Map<string, CapabilitySet>();
+  for (const manifest of registeredModules()) {
+    if (manifest.permissions?.capabilities) byModule.set(manifest.id, manifest.permissions.capabilities);
+  }
+  for (const [module, set] of capabilitySets) if (!byModule.has(module)) byModule.set(module, set);
+  return [...byModule.values()];
 }
 
 export function isRegisteredCapability(key: string): boolean {

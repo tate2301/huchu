@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 
 import { Alert, Button } from "@corelithzw/react";
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";

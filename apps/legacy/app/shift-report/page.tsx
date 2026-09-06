@@ -7,8 +7,8 @@ import { useSession } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Save, Send } from "@corelithzw/ui/lib/icons";
 
-import { PageActions } from "@/components/layout/page-actions";
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
@@ -17,16 +17,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { FieldHelp } from "@/components/shared/field-help";
-import { FormShell } from "@/components/shared/form-shell";
-import { PageIntro } from "@/components/shared/page-intro";
-import { ContextHelp } from "@/components/shared/context-help";
+import { FieldHelp } from "@corelithzw/ui/shared/field-help";
+import { FormShell } from "@corelithzw/ui/shared/form-shell";
+import { PageIntro } from "@corelithzw/ui/shared/page-intro";
+import { ContextHelp } from "@corelithzw/ui/shared/context-help";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { fetchShiftGroupSchedules, fetchShiftGroups, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { SHIFT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
-import { buildSavedRecordRedirect } from "@/lib/saved-record";
+import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record";
 
 const toNumber = (value: string) => {
   if (value.trim() === "") return undefined;

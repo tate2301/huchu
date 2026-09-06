@@ -1,7 +1,7 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
+import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { IncidentsTab } from "@/components/compliance/incidents-tab";
 import { InspectionsTab } from "@/components/compliance/inspections-tab";
 import { PermitsTab } from "@/components/compliance/permits-tab";

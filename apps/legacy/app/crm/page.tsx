@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { CrmPage } from "@/components/crm/crm-page";
 import { redirect } from "next/navigation";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { CrmOverview } from "@/components/crm/crm-overview";
 import { authOptions } from "@/lib/auth";
 

@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
-import { useGuidedMode } from "@/hooks/use-guided-mode";
+import { useGuidedMode } from "@corelithzw/ui/hooks/use-guided-mode";
 import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@corelithzw/ui/lib/icons";
 import { fetchStockLocations } from "@/lib/api";
 import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";

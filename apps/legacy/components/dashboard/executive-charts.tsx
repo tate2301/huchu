@@ -4,7 +4,7 @@ import { AxisChart } from "@rtcamp/frappe-ui-react";
 
 import type { ExecutiveCharts as ExecutiveChartsData } from "@/lib/api";
 import { FrappeChartShell } from "@corelithzw/ui/charts/frappe-chart-shell";
-import { StatusState } from "@/components/shared/status-state";
+import { StatusState } from "@corelithzw/ui/shared/status-state";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   buildAxisChartConfig,

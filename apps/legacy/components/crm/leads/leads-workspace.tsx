@@ -9,7 +9,7 @@ import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/a
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Funnel, Plus } from "@corelithzw/ui/lib/icons";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { LayoutSwitch } from "@/components/crm/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
 import { ListSearch } from "@/components/crm/records/list-search";

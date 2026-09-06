@@ -1,4 +1,4 @@
-import { cn } from "@corelithzw/ui/lib/utils";
+import { cn } from "../lib/utils";
 
 type FieldHelpProps = {
   id?: string;

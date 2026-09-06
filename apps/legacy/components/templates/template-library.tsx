@@ -11,7 +11,7 @@ import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { PageChrome } from "@/components/layout/page-chrome";
+import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { AttributeChips } from "@/components/crm/templates/attribute-header";
 import {
