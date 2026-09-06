@@ -4,8 +4,8 @@ import { useMemo, type CSSProperties, type ReactNode } from "react";
 
 import { Alert, Button } from "@corelithzw/react";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { ListSearch } from "./list-search";
 import { ViewToolbar } from "@/components/records/view-toolbar";

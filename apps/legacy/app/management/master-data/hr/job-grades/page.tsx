@@ -7,17 +7,17 @@ import {
   DetailFact,
   MasterDataPage,
 } from "@/components/management/master-data/master-data-page";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/sheet";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   createJobGrade,
   deleteJobGrade,

@@ -2,15 +2,15 @@
 
 import { useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, FileText } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { ChevronDown, ChevronRight, FileText } from "@corelithzw/ui/lib/icons";
 import {
   QUIET_KINDS,
   type EventKind,
   eventKindStyle,
 } from "@/components/crm/records/event-kind";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 const PAGE_SIZE = 25;
 

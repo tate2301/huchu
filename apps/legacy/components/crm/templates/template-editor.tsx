@@ -5,11 +5,11 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   BLOCKS_FOR_KIND,
@@ -20,7 +20,7 @@ import {
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { sampleValues, unknownVariables } from "@/lib/crm/template-variables";
-import { CopyLink, Eye, Layers, ShieldCheck, Users } from "@/lib/icons";
+import { CopyLink, Eye, Layers, ShieldCheck, Users } from "@corelithzw/ui/lib/icons";
 
 import { AttributeHeader } from "./attribute-header";
 import { BlockEditor } from "./block-editor";

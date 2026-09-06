@@ -12,7 +12,7 @@ import {
   Skeleton,
 } from "@corelithzw/react";
 
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchPreferencesProfile,

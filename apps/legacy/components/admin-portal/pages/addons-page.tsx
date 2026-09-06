@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ToggleLeft, ToggleRight } from "@/lib/icons";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { ToggleLeft, ToggleRight } from "@corelithzw/ui/lib/icons";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { FEATURE_BUNDLES } from "@/lib/platform/feature-catalog";
 
 const SELLABLE_BUNDLES = FEATURE_BUNDLES.filter(

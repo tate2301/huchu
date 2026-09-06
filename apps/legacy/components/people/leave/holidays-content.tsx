@@ -4,16 +4,16 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Table,
   TableBody,
@@ -21,7 +21,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@corelithzw/ui/components/table";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 /**

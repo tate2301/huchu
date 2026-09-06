@@ -2,17 +2,17 @@
 
 import { useState } from "react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 
 

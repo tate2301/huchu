@@ -1,5 +1,5 @@
 import type { CrmLeadStage } from "@corelithzw/db";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 export { CRM_LEAD_STAGES, CRM_STAGE_LABELS } from "@/lib/crm/pipeline";
 

@@ -4,11 +4,11 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ReportTable, node, txt, type ReportRow } from "@/components/accounting/report-table";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -16,18 +16,18 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Check, ChevronDown, Plus, Trash2 } from "@/lib/icons";
+import { Check, ChevronDown, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
   CRM_FIELD_ENTITY_LABELS,
@@ -36,7 +36,7 @@ import {
   normalizeFieldKey,
 } from "@/lib/crm/custom-fields";
 import type { CrmFieldEntity, CrmFieldType } from "@corelithzw/db";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { SetupPanel } from "./setup-chrome";
 

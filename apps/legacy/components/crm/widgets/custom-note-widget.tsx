@@ -3,8 +3,8 @@
 import { useState } from "react";
 
 import { Card } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
 import { RichTextComposer } from "@/components/crm/collaboration/rich-text-composer";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import type { WidgetInstance } from "@/lib/crm/widgets";

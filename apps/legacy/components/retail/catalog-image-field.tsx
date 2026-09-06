@@ -21,10 +21,10 @@
 import Image from "next/image";
 import { useEffect, useRef, useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Loader2, Package, Trash2, Upload } from "@/lib/icons";
+import { Loader2, Package, Trash2, Upload } from "@corelithzw/ui/lib/icons";
 import { MAX_CATALOG_IMAGE_BYTES } from "@/lib/retail/catalog-image";
 
 export function CatalogImageField({

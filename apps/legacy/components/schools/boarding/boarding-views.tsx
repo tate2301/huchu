@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * Allocations, Hostels and Leave / Outing Requests, as three segments of one

@@ -8,19 +8,19 @@ import { addDays, format } from "date-fns";
 import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { ExportMenu } from "@/components/ui/export-menu";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/dialog";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import {
   Select,
@@ -28,8 +28,8 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { StatusChip } from "@/components/ui/status-chip";
+} from "@corelithzw/ui/components/select";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";

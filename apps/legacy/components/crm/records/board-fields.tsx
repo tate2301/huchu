@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { ColumnOption } from "@/lib/ui/visible-columns";
+import type { ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
 
 /**
  * Which facts a board's cards show.

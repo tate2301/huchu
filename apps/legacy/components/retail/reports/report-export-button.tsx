@@ -1,7 +1,7 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Download } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { Download } from "@corelithzw/ui/lib/icons";
 
 function downloadCSV(data: unknown[], filename: string) {
   if (!data.length) return;

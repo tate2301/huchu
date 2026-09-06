@@ -3,9 +3,9 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TrendingUp, TrendingDown, AlertCircle, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { TrendingUp, TrendingDown, AlertCircle, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type { VarianceReport, RollForwardRow } from "@/lib/gold/reconcile";
 import type { ImportDetail } from "../types";
 

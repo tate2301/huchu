@@ -5,7 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { BandChip } from "@/components/accounting/band-chip";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import {
   ReportTable,
   amt,
@@ -15,18 +15,18 @@ import {
   txt,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { Coins, Percent, Scale, TrendingUp, Wallet } from "@/lib/icons";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Coins, Percent, Scale, TrendingUp, Wallet } from "@corelithzw/ui/lib/icons";
+import { Card, CardContent } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";

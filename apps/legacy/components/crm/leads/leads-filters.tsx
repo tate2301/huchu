@@ -4,16 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 import type { CrmLeadStage } from "@corelithzw/db";
 
 import { Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, Funnel, SortAscending, X } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
+import { ChevronDown, Funnel, SortAscending, X } from "@corelithzw/ui/lib/icons";
 import { LEAD_STAGE_DOT } from "@/lib/crm/tones";
 import { ToneSelect } from "@/components/crm/records/tone-select";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import {
   CRM_CHANNEL_LABELS,

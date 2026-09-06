@@ -6,8 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, EmptyState, Input, Skeleton } from "@corelithzw/react";
 
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useDebounced } from "@/hooks/use-debounced";
-import { ChevronRight } from "@/lib/icons";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
 
 type LocationRow = {
   id: string;

@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Input } from "@/components/ui/input";
+import { Input } from "@corelithzw/ui/components/input";
 import { fetchJson } from "@/lib/api-client";
-import { Search, User, Users } from "@/lib/icons";
+import { Search, User, Users } from "@corelithzw/ui/lib/icons";
 import {
   PosEmptyState,
   PosPanel,

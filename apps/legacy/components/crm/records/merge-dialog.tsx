@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -13,10 +13,10 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   commitCrmMerge,
@@ -26,8 +26,8 @@ import {
   type CrmMergePreview,
 } from "@/lib/crm/crm-v2";
 import type { FieldChoice, MergeableValue } from "@/lib/crm/merge";
-import { useDebounced } from "@/hooks/use-debounced";
-import { cn } from "@/lib/utils";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { Stack } from "@corelithzw/react";
 

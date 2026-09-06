@@ -36,9 +36,9 @@ import {
   Shield,
   Storefront,
   X,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { TillCapability } from "@/lib/retail/till-settings";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import {
   PosEmptyState,

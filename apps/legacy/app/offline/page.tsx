@@ -18,9 +18,9 @@
  */
 
 import { useCallback, useEffect, useState } from "react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { getRecentConnectivityLogs } from "@/lib/offline/db-v2";
-import { RefreshCw, WifiOff } from "@/lib/icons";
+import { RefreshCw, WifiOff } from "@corelithzw/ui/lib/icons";
 import { getOfflineOutboxSummary } from "@/lib/offline/outbox";
 import type { OfflineOutboxSummaryItem } from "@/lib/offline/types";
 

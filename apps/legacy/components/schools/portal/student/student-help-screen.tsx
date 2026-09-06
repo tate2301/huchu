@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronRight, HelpCircle, Info } from "@/lib/icons";
+import { ChevronRight, HelpCircle, Info } from "@corelithzw/ui/lib/icons";
 
 /**
  * Help, written for the reader.

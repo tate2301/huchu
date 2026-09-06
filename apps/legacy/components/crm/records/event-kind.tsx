@@ -13,7 +13,7 @@ import {
   Phone,
   Send,
   User,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 /**
  * What each kind of thing that happens to a record looks like.

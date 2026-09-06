@@ -4,10 +4,10 @@ import {
   CircleHalfDottedClock,
   CircleThreeQuartersSolid,
   ExclamationCircleSolid,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { ElementType } from "react";
 import type { OfflineStatus } from "@/lib/offline/types";
-import { DeployedCodeUpdate, SignalWifiOff } from "@/lib/icons";
+import { DeployedCodeUpdate, SignalWifiOff } from "@corelithzw/ui/lib/icons";
 
 type StatusTone = {
   colorVar: string;

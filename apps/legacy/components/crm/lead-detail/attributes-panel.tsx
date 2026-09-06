@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { ClientDate } from "@/components/ui/client-date";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 import { CRM_CHANNEL_LABELS } from "@/components/crm/leads/stage-config";
 import type { LeadDetail } from "./lead-types";

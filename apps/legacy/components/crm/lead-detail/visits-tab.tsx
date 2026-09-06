@@ -2,13 +2,13 @@
 
 import { useMutation } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
-import { StatusChip } from "@/components/ui/status-chip";
-import { ClientDate } from "@/components/ui/client-date";
-import { Plus, Share } from "@/lib/icons";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Plus, Share } from "@corelithzw/ui/lib/icons";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 import type { LeadAppointment } from "./lead-types";
 

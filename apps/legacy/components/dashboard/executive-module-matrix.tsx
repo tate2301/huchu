@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 import type { ExecutiveModuleSummary, ExecutiveSummaryMetric } from "@/lib/api";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import {
   ArrowRight,
   BarChart3,
@@ -17,12 +17,12 @@ import {
   TrendingUp,
   Wallet,
   Wrench,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { StatusState } from "@/components/shared/status-state";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type ExecutiveModuleMatrixProps = {
   items?: ExecutiveModuleSummary[];

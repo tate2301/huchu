@@ -7,9 +7,9 @@ import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { BandChip, type BandChipTone } from "@/components/accounting/band-chip";
 import type { BadgeTone } from "@/components/accounting/report-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import {
   FISCAL_DAY_FLEET_KEY,
@@ -18,24 +18,24 @@ import {
   fetchFiscalDayFleet,
   hoursOpen,
 } from "@/components/accounting/fiscalisation/fiscal-day-console";
-import { Input } from "@/components/ui/input";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { TimeAgo } from "@/components/ui/time-ago";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { TimeAgo } from "@corelithzw/ui/components/time-ago";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   type FiscalReceiptRecord,
   fetchFiscalReceipts,
   fetchFiscalisationConfig,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type FiscalisationView = "fiscal-days" | "config" | "receipts";
 

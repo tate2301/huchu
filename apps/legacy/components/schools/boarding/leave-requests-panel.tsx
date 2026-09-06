@@ -15,8 +15,8 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
 
 import {

@@ -3,18 +3,18 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+import { Button } from "@corelithzw/ui/components/button";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus, Trash2 } from "@/lib/icons";
+import { Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordPicker, type PickedRecord } from "./record-picker";

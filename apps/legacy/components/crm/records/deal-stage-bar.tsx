@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -12,11 +12,11 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { LostReasonDialog } from "@/components/crm/leads/lost-reason-dialog";
-import { ArrowRight } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { ArrowRight } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type Stage = { id: string; name: string; status: "OPEN" | "WON" | "LOST"; position: number };
 

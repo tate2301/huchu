@@ -5,9 +5,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import {

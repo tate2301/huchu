@@ -9,7 +9,7 @@ import {
   Payments,
   Scale,
   Wallet,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export type GoldTab =
   | "home"

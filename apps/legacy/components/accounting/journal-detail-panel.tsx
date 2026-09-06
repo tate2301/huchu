@@ -3,12 +3,12 @@
 import { useMemo } from "react";
 import { format } from "date-fns";
 
-import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import { ReportTable, amt, dim, txt, type ReportRow } from "@/components/accounting/report-table";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import type { JournalEntryRecord } from "@/lib/api";
 import { formatAmount } from "@/lib/accounting/format";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The lifecycle a journal actually has.

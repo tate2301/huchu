@@ -5,16 +5,16 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Button } from "@corelithzw/react";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { StatusChip } from "@/components/ui/status-chip";
+import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import { RecordMark } from "@/components/records/record-mark";
 import { LayoutSwitch, type RecordLayout } from "@/components/crm/records/layout-switch";
 import {
@@ -32,7 +32,7 @@ import {
 import { ViewToolbarChip } from "@/components/records/view-toolbar";
 import { fetchJson } from "@/lib/api-client";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
-import { useDebounced } from "@/hooks/use-debounced";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import {
   WORK_ORDER_QUEUE_LABELS,
@@ -40,8 +40,8 @@ import {
   WORK_ORDER_STATUSES,
   type WorkOrderQueue,
 } from "@/lib/crm/work-orders";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
-import { Building2, CalendarCheck, Checklist, MapPin, Tag, User, Wrench } from "@/lib/icons";
+import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
+import { Building2, CalendarCheck, Checklist, MapPin, Tag, User, Wrench } from "@corelithzw/ui/lib/icons";
 
 import { RaiseJobSheet } from "./raise-job-sheet";
 import { jobHref, jobWindow, type JobRow, type JobStatus } from "./job-types";

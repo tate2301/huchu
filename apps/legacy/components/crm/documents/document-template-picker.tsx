@@ -2,14 +2,14 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { Label } from "@/components/ui/label";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson } from "@/lib/api-client";
 import { blockSchema, type Block, type TemplateKind } from "@/lib/crm/blocks";
 import { z } from "zod";

@@ -5,8 +5,8 @@ import { usePathname } from "next/navigation";
 import { useSession } from "next-auth/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { NavRail } from "@/components/ui/nav-rail";
-import { NavGroup, NavItem } from "@/components/ui/settings-rail";
+import { NavRail } from "@corelithzw/ui/components/nav-rail";
+import { NavGroup, NavItem } from "@corelithzw/ui/components/settings-rail";
 import {
   getAreaLabel,
   getVisibleManagementAreaNavItems,

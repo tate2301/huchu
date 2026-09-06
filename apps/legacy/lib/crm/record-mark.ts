@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { ACCENTS } from "@/lib/ui/accents";
+import { ACCENTS } from "@corelithzw/ui/lib/ui/accents";
 
 /**
  * The mark a record can be given: an emoji, a colour, or an uploaded picture.

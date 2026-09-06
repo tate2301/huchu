@@ -19,15 +19,15 @@ import {
   flexRender,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { cn } from "@/lib/utils";
-import { Lock, ChevronDown, ChevronUpIcon, Plus, MoreHorizontal, Trash2, FileText, NoteAdd } from "@/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { Lock, ChevronDown, ChevronUpIcon, Plus, MoreHorizontal, Trash2, FileText, NoteAdd } from "@corelithzw/ui/lib/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import { EditableNumber, EditableDate } from "../editable-cells";
 import {
   KNOWN_EXPENSE_TYPES,

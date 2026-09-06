@@ -9,7 +9,7 @@ import {
   MapPin,
   MedusaBookOpenIcon,
   ListBullets,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 
 /**

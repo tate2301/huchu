@@ -3,10 +3,10 @@
 import { useState, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
-import { Skeleton } from "@/components/ui/skeleton";
-import { History, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { ClientDate } from "@/components/ui/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { History, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type AuditEvent = {
   id: string;

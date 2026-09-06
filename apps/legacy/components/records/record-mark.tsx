@@ -19,8 +19,8 @@ import {
   Users,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
-import { recordAccent } from "@/lib/ui/record-accent";
+} from "@corelithzw/ui/lib/icons";
+import { recordAccent } from "@corelithzw/ui/lib/ui/record-accent";
 
 /**
  * The mark that stands for a record in a list, a card or a page header.

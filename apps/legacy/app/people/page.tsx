@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Pencil, Plus, Trash2 } from "@/lib/icons"
+import { Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons"
 
 import { EmployeeWizard } from "@/components/people/employee-wizard"
 import { PeopleShell } from "@/components/people/people-shell";
@@ -20,10 +20,10 @@ import {
   EMPLOYMENT_TYPE_LABEL,
 } from "@/components/records/people-directory"
 import { ViewToolbarChip } from "@/components/records/view-toolbar"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
+import { Badge } from "@corelithzw/ui/components/badge"
+import { Button } from "@corelithzw/ui/components/button"
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table"
 import {
   Dialog,
   DialogContent,
@@ -31,24 +31,24 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
+} from "@corelithzw/ui/components/dialog"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+} from "@corelithzw/ui/components/dropdown-menu"
+import { Input } from "@corelithzw/ui/components/input"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select"
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/components/ui/use-toast"
+} from "@corelithzw/ui/components/sheet"
+import { Skeleton } from "@corelithzw/ui/components/skeleton"
+import { useToast } from "@corelithzw/ui/components/use-toast"
 import {
   fetchCompensationTemplates,
   fetchDepartments,

@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect } from "react";
-import { X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type ShortcutEntry = { keys: string[]; description: string };
 type ShortcutSection = { heading: string; entries: ShortcutEntry[] };

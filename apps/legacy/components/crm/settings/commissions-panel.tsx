@@ -4,21 +4,21 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { ReportTable, node, type ReportRow } from "@/components/accounting/report-table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Plus, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { SetupPanel } from "./setup-chrome";
 

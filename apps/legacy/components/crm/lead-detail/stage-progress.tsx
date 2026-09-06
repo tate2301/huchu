@@ -3,11 +3,11 @@
 import { useState } from "react";
 import type { CrmLeadStage } from "@corelithzw/db";
 
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ArrowRight, Check } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
+import { ArrowRight, Check } from "@corelithzw/ui/lib/icons";
 import { CRM_LEAD_STAGES, CRM_STAGE_LABELS } from "@/lib/crm/pipeline";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 // Won and Lost are outcomes, not steps along the way — the track shows the
 // path, and the two terminal stages are reached from the menu rather than

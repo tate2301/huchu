@@ -29,7 +29,7 @@ import {
   Check,
   ExternalLink,
   TriangleAlert,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.schools);
 

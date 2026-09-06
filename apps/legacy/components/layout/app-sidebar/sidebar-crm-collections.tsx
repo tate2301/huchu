@@ -3,9 +3,9 @@
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { Kanban, ListBullets } from "@/lib/icons";
+import { Kanban, ListBullets } from "@corelithzw/ui/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
 

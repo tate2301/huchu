@@ -8,9 +8,9 @@ import { Alert, Skeleton, StatCard } from "@corelithzw/react";
 
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Coins, TableRows } from "@/lib/icons";
+import { Coins, TableRows } from "@corelithzw/ui/lib/icons";
 
 /**
  * One line on the range, and where its price comes from.

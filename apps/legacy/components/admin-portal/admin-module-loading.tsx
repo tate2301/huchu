@@ -1,8 +1,8 @@
 "use client";
 
-import { Loader2 } from "@/lib/icons";
-import { Skeleton } from "@/components/ui/skeleton";
-import { cn } from "@/lib/utils";
+import { Loader2 } from "@corelithzw/ui/lib/icons";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type AdminModuleLoadingProps = {
   label?: string;

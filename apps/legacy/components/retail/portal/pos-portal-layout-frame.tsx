@@ -11,13 +11,13 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
-} from "@/components/ui/tooltip";
+} from "@corelithzw/ui/components/tooltip";
 import {
   BarChart3,
   Clock,
@@ -33,8 +33,8 @@ import {
   Settings2,
   Users,
   type LucideIcon,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { usePosPortalState } from "./pos-portal-state";
 

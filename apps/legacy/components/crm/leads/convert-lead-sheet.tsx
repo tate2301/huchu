@@ -4,18 +4,18 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRight, Check } from "@/lib/icons";
+import { ArrowRight, Check } from "@corelithzw/ui/lib/icons";
 import type { DuplicateConfidence } from "@/lib/crm/duplicates";
 import { DUPLICATE_CONFIDENCE_TONE } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type DuplicateMatch = {
   record: Record<string, unknown> & { id: string };

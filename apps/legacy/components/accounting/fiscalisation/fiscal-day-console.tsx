@@ -2,15 +2,15 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Empty, EmptyDescription, EmptyTitle } from "@corelithzw/ui/components/empty";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { Separator } from "@/components/ui/separator";
-import { StatusChip } from "@/components/ui/status-chip";
-import { TimeAgo } from "@/components/ui/time-ago";
-import { useToast } from "@/components/ui/use-toast";
+import { Separator } from "@corelithzw/ui/components/separator";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { TimeAgo } from "@corelithzw/ui/components/time-ago";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { BlockingReceiptsTable } from "@/components/accounting/fiscalisation/blocking-receipts";
 import type {

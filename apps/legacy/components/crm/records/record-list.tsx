@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { Button, EmptyState, Skeleton } from "@corelithzw/react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { ChevronRight } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { DataTableFloatingActions } from "@corelithzw/ui/components/data-table-floating-actions";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RecordCell, type RecordCellKind } from "@/components/records/record-table";
 

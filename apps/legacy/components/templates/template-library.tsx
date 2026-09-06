@@ -6,11 +6,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Badge, EmptyState, IconTile, Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { AttributeChips } from "@/components/crm/templates/attribute-header";
@@ -20,7 +20,7 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   TEMPLATE_KINDS,
@@ -33,8 +33,8 @@ import {
   starterTemplate,
   startersForKind,
 } from "@/lib/crm/starter-templates";
-import { FileText, Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { FileText, Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * Every template in the company, in one place.

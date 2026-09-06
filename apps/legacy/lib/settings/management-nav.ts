@@ -1,4 +1,4 @@
-import type { LucideIcon } from "@/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 import {
   AlertTriangle,
   Building2,
@@ -15,7 +15,7 @@ import {
   UserCheck,
   UserRound,
   Users,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   canViewHrefWithEnabledFeatures,
   filterHrefItemsByEnabledFeatures,

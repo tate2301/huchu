@@ -4,14 +4,14 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import {
   CRM_STAGE_LABELS,
   CRM_STAGE_STATUS,
 } from "@/components/crm/leads/stage-config";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   Calendar,
@@ -21,7 +21,7 @@ import {
   Phone,
   ShieldCheck,
   UserRound,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { fetchCrmRep, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
 import { formatMoney } from "@/components/crm/documents/document-types";

@@ -1,16 +1,16 @@
 "use client";
 
 import Link from "next/link";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import type { LucideIcon } from "@/lib/icons";
-import { ChevronDown, Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/dropdown-menu";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
+import { ChevronDown, Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type NewActionItem =
   | { label: string; icon: LucideIcon; href: string; onClick?: never }

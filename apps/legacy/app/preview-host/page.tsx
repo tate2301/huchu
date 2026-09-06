@@ -1,9 +1,9 @@
 import Link from "next/link";
 import { headers } from "next/headers";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardHeader } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   getHostHeaderFromRequestHeaders,
   getPlatformHostContext,

@@ -4,11 +4,11 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { useQuery } from "@tanstack/react-query";
-import { AdminDualBarChart, AdminDonutChart } from "@/components/charts/admin-headless-charts";
+import { AdminDualBarChart, AdminDonutChart } from "@corelithzw/ui/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Building2, ChevronRight } from "@/lib/icons";
+import { Building2, ChevronRight } from "@corelithzw/ui/lib/icons";
 import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
 
 type SetupOverviewResponse = RetailSetupSnapshot;

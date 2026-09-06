@@ -2,14 +2,14 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCcw, TriangleAlert } from "@/lib/icons";
+import { RefreshCcw, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { executeOperation, fetchCommercialCenter, fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import {
   AdminDonutChart,
   AdminStackedBarChart,
   AdminTrendChart,
   AdminWaterfallChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { CommercialCenterData, WorkspaceOverview } from "@/components/admin-portal/types";
@@ -23,16 +23,16 @@ import {
   RecomputePricingDialog,
   SubscriptionStatusDialog,
 } from "@/components/admin-portal/wizards/commercial-center-wizards";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   buildFutureDayBuckets,
   buildRecentDayBuckets,
   resolveTimestamp,
 } from "@/lib/admin-portal/chart-series";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type PlatformCommercialRow = CommercialCenterData["overview"]["workspaces"][number];
 

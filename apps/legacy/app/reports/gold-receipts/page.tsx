@@ -6,17 +6,17 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import { PageHeading } from "@/components/layout/page-heading";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchGoldReceipts, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 

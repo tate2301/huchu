@@ -3,13 +3,13 @@
 import { useCallback, useMemo, useState } from "react"
 import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
-import { CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from "@/lib/icons"
+import { CheckIcon, ChevronDown, Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons"
 
-import { EmployeeAvatar } from "@/components/shared/employee-avatar"
+import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar"
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
+import { Badge } from "@corelithzw/ui/components/badge"
+import { Button } from "@corelithzw/ui/components/button"
 import {
   Command,
   CommandEmpty,
@@ -17,28 +17,28 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command"
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table"
+} from "@corelithzw/ui/components/command"
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table"
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu"
-import { Input } from "@/components/ui/input"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+} from "@corelithzw/ui/components/dropdown-menu"
+import { Input } from "@corelithzw/ui/components/input"
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover"
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { Skeleton } from "@/components/ui/skeleton"
-import { useToast } from "@/components/ui/use-toast"
-import { VerticalDataViews } from "@/components/ui/vertical-data-views"
+} from "@corelithzw/ui/components/select"
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@corelithzw/ui/components/sheet"
+import { Skeleton } from "@corelithzw/ui/components/skeleton"
+import { useToast } from "@corelithzw/ui/components/use-toast"
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views"
 import {
   createShiftGroup,
   createShiftGroupSchedule,

@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 
 import { Avatar, Badge } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import {
   Calendar,
   Clock,
@@ -11,8 +11,8 @@ import {
   FileText,
   MapPin,
   type LucideIcon,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * What the right pane shows while a row is highlighted.

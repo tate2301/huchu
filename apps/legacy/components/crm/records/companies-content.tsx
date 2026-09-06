@@ -4,14 +4,14 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
-import { Building2, Coins, Funnel, MapPin, Users } from "@/lib/icons";
-import { useToast } from "@/components/ui/use-toast";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Building2, Coins, Funnel, MapPin, Users } from "@corelithzw/ui/lib/icons";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchCrmCompanies } from "@/lib/crm/crm-v2";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { ACCOUNT_STATUS_COLOR, stageColor } from "@/lib/crm/tones";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
-import { useDebounced } from "@/hooks/use-debounced";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
@@ -19,8 +19,8 @@ import { RecordTable, RecordTableName, type RecordTableColumn } from "@/componen
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import { RecordBoard } from "./record-board";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
+import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
+import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
 import {
   GroupedRecordList,
   bucketByLetter,

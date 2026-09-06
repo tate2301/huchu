@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useId, useMemo, useState } from "react";
 
-import { ArrowRight, ExternalLink, Gavel, TriangleAlert } from "@/lib/icons";
+import { ArrowRight, ExternalLink, Gavel, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { whatsappHref } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 import {

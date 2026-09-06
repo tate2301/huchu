@@ -10,7 +10,7 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { isFeatureDisabledError } from "@/lib/api-client";
 import {
   archiveNotifications,
@@ -18,7 +18,7 @@ import {
   markNotificationsRead,
   type NotificationListItem,
 } from "@/lib/api";
-import { AlertTriangle, Bell, Info, ShieldAlert } from "@/lib/icons";
+import { AlertTriangle, Bell, Info, ShieldAlert } from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 
 const QUERY_KEY = ["notifications", "student", "inbox"] as const;

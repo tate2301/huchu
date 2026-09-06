@@ -8,18 +8,18 @@ import {
   AdminDistributionChart,
   AdminDualBarChart,
   AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   ArrowDownward,
@@ -32,12 +32,12 @@ import {
   ReceiptLong,
   Scale,
   TableRows,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   MobileListCard,
   MobileListCardHeader,
   MobileListMetricStrip,
-} from "@/components/ui/mobile-list-card";
+} from "@corelithzw/ui/components/mobile-list-card";
 
 type RetailDashboardPayload = {
   summary: {

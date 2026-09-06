@@ -3,11 +3,11 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ListBullets } from "@/lib/icons";
+import { ListBullets } from "@corelithzw/ui/lib/icons";
 import {
   fetchCrmCompanies,
   fetchCrmDeals,

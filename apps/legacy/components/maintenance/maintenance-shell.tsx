@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
-import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
+import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 import {
@@ -14,7 +14,7 @@ import {
   Plus,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export type MaintenanceTab =
   | "dashboard"

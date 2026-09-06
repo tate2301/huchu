@@ -20,7 +20,7 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { DataTable } from "@/components/ui/data-table";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import { fetchJson } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 

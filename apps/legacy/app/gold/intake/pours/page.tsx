@@ -2,28 +2,28 @@
 
 import Link from "next/link";
 import { useMemo, useState } from "react";
-import { ChevronRight } from "@/lib/icons";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { PourForm } from "@/components/gold/forms/pour-form";
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { StatusChip } from "@/components/ui/status-chip";
+} from "@corelithzw/ui/components/sheet";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchEmployees, fetchGoldPours, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 

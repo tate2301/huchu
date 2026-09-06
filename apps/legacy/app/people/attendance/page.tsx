@@ -8,35 +8,35 @@ import { useRouter } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { StatCard } from "@corelithzw/react";
 
-import { Plus, Send, Trash2 } from "@/lib/icons";
+import { Plus, Send, Trash2 } from "@corelithzw/ui/lib/icons";
 import { PeopleShell } from "@/components/people/people-shell";
-import { EmployeeAvatar } from "@/components/shared/employee-avatar";
+import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
 import { FieldHelp } from "@/components/shared/field-help";
 import { FormShell } from "@/components/shared/form-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/components/ui/searchable-select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
+import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchAttendance,
   fetchEmployees,

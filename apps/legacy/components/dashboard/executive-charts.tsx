@@ -3,13 +3,13 @@
 import { AxisChart } from "@rtcamp/frappe-ui-react";
 
 import type { ExecutiveCharts as ExecutiveChartsData } from "@/lib/api";
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell";
+import { FrappeChartShell } from "@corelithzw/ui/charts/frappe-chart-shell";
 import { StatusState } from "@/components/shared/status-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   buildAxisChartConfig,
   buildTimeSeriesChartConfig,
-} from "@/lib/charts/frappe-config-builders";
+} from "@corelithzw/ui/lib/charts/frappe-config-builders";
 
 type ExecutiveChartsProps = {
   data?: ExecutiveChartsData;

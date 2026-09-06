@@ -3,11 +3,11 @@
 import { useState } from "react";
 
 import { Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Plus, Trash2, type LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { Plus, Trash2, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The properties above a page, the way Notion does them.

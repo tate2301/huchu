@@ -3,10 +3,10 @@
 import { useMemo } from "react";
 import type { CrmLeadStage } from "@corelithzw/db";
 
-import { Button } from "@/components/ui/button";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { StatusChip } from "@/components/ui/status-chip";
-import { ClientDate } from "@/components/ui/client-date";
+import { Button } from "@corelithzw/ui/components/button";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,7 +14,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   Archive,
   Building2,
@@ -26,10 +26,10 @@ import {
   Megaphone,
   UserRound,
   Users,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { CrmLeadListRecord } from "@/lib/crm/crm-v2";
-import type { ColumnOption } from "@/lib/ui/visible-columns";
-import { cn } from "@/lib/utils";
+import type { ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";

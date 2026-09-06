@@ -3,12 +3,12 @@
 import { useState } from "react";
 
 import { EmptyState } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Pencil, Plus, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Progress } from "@corelithzw/ui/components/progress";
+import { Pencil, Plus, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import type { JobItem } from "./job-types";
 

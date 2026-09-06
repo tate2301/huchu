@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle } from "@/lib/icons";
+import { AlertTriangle } from "@corelithzw/ui/lib/icons";
 import { PosStatusPill } from "./pos-primitives";
 
 type PosInlineValidationBannerProps = {

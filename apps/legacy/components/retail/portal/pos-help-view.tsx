@@ -30,8 +30,8 @@ import {
   Payments,
   Receipt,
   Search,
-} from "@/lib/icons";
-import type { LucideIcon } from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 import { PosPanel, PosPanelHeader } from "./pos-primitives";
 

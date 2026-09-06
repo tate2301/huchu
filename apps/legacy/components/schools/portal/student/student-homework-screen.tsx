@@ -12,10 +12,10 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { AlertTriangle, Check, Clock } from "@/lib/icons";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { AlertTriangle, Check, Clock } from "@corelithzw/ui/lib/icons";
 import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";

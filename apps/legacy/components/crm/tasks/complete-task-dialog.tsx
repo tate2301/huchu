@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -10,12 +10,12 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+} from "@corelithzw/ui/components/dialog";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { CRM_TASK_OUTCOME_LABELS, outcomesForType } from "@/lib/crm/tasks";
 import type { CrmTaskRecord } from "@/lib/crm/crm-v2";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * Completing a call or an email asks what happened.

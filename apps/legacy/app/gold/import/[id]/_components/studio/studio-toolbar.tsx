@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   Plus,
   Trash2,
@@ -13,7 +13,7 @@ import {
   Minimize2,
   Eye,
   Coins,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export function StudioToolbar({
   selectedCount,

@@ -11,9 +11,9 @@
 
 import { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { Layers } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
+import { Layers } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { SPRING, STATUS_COLORS } from "@corelithzw/ui/lib/animation/tokens";
 import { queueBadgeVariants, queueNumberVariants } from "./animations";
 
 // ---------------------------------------------------------------------------

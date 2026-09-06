@@ -3,7 +3,7 @@
 import { Badge } from "@corelithzw/react";
 
 import { summariseBilling } from "@/lib/crm/billing-summary";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { formatMoney, type LeadDocument } from "./document-types";
 

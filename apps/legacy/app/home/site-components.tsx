@@ -9,7 +9,7 @@ import {
   ExternalLink,
   ShieldCheck,
   TriangleAlert,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   PLATFORM_BRAND_INITIAL,
   PLATFORM_BRAND_NAME,

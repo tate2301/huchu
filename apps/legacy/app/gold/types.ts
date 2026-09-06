@@ -20,7 +20,7 @@ export type ShiftExpenseInput = {
   weight: string;
 };
 
-export type { SearchableOption } from "@/components/ui/searchable-select";
+export type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 
 export type WorkerPayout = {
   id: string;

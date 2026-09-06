@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import { Stack } from "@corelithzw/react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A list of things, for a phone.

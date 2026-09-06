@@ -1,8 +1,8 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 
 const rows = [
   { client: "Axiom Mining", tier: "Standard", status: "EXPIRING_SOON", expiration: "2026-03-18", grace: "7 days", monthly: 1240 },

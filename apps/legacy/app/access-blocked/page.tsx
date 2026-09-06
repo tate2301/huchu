@@ -1,8 +1,8 @@
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader } from "@/components/ui/card";
-import { ArrowRight, ShieldAlert, UserRound } from "@/lib/icons";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardHeader } from "@corelithzw/ui/components/card";
+import { ArrowRight, ShieldAlert, UserRound } from "@corelithzw/ui/lib/icons";
 
 const RECOVERY_STEPS = [
   "Confirm you are signed in with the correct organization account.",

@@ -5,16 +5,16 @@ import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { ArrowRight, Plus } from "@/lib/icons";
+import { ArrowRight, Plus } from "@corelithzw/ui/lib/icons";
 
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DataTable,
   type DataTableQueryState,
-} from "@/components/ui/data-table";
+} from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
@@ -22,26 +22,26 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+} from "@corelithzw/ui/components/sheet";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   fetchCompensationProfiles,
   type CompensationProfileRecord,

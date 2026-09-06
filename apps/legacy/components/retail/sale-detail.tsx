@@ -2,7 +2,7 @@
 
 import { Alert, StatCard } from "@corelithzw/react";
 
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 
 /**
  * One posted transaction, rendered the same in a dialog and on a page.

@@ -4,8 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { EmojiPicker } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Button } from "@corelithzw/ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
 import { fetchJson } from "@/lib/api-client";
 import { offsetOf, placeCaret, renderBody, serialise } from "@/lib/crm/reference-dom";
 import {
@@ -16,8 +16,8 @@ import {
   togglePrefix,
   type Reference,
 } from "@/lib/crm/rich-text";
-import { Eye, ListBullets, Smiley, type LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Eye, ListBullets, Smiley, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { referenceChipElement } from "./reference-chip";
 import { RichTextRenderer } from "./rich-text-renderer";

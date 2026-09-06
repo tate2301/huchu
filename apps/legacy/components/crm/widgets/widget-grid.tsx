@@ -26,8 +26,8 @@ import {
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { DotsThree, Grid3x3, Plus, Trash2, X } from "@/lib/icons";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { DotsThree, Grid3x3, Plus, Trash2, X } from "@corelithzw/ui/lib/icons";
 import {
   WIDGET_SPANS,
   packRows,
@@ -37,8 +37,8 @@ import {
   type WidgetInstance,
   type WidgetSpan,
 } from "@/lib/crm/widgets";
-import { IconButton } from "@/components/ui/icon-button";
-import { cn } from "@/lib/utils";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * Tailwind cannot see a computed `col-span-${n}`, so the classes are spelled

@@ -1,6 +1,6 @@
 import type { BadgeTone } from "@corelithzw/react";
 
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 /**
  * What colour each piece of CRM vocabulary is.

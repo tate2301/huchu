@@ -1,7 +1,7 @@
 import type { ReactNode } from "react";
-import { AlertTriangle, CheckCircle2, Loader2, SearchX } from "@/lib/icons";
+import { AlertTriangle, CheckCircle2, Loader2, SearchX } from "@corelithzw/ui/lib/icons";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type StatusStateVariant = "loading" | "empty" | "error" | "success";
 

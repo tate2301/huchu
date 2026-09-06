@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {

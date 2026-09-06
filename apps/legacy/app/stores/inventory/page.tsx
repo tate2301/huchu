@@ -4,40 +4,40 @@ import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ExportMenu } from "@/components/ui/export-menu";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/sheet";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchInventoryItems,
   fetchSites,
@@ -47,8 +47,8 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
-import { Plus, QrCode } from "@/lib/icons";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Plus, QrCode } from "@corelithzw/ui/lib/icons";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 function buildInventoryQrPayload(item: InventoryItem) {

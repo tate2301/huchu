@@ -39,7 +39,7 @@ import {
   buildMarketingMetadata,
   offerCatalogJsonLd,
 } from "@/lib/marketing/seo";
-import { ArrowRight, Check, ExternalLink, Info } from "@/lib/icons";
+import { ArrowRight, Check, ExternalLink, Info } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.pricing);
 

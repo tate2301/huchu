@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Textarea } from "@/components/ui/textarea";
-import { dsConfirm } from "@/components/ui/ds-confirm";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
@@ -22,8 +22,8 @@ import {
   taskRecordRef,
 } from "@/lib/crm/tasks";
 import { TASK_PRIORITY_TONE } from "@/lib/crm/tones";
-import { Calendar, Checklist, Repeat, Trash2, UserRound, Zap } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Calendar, Checklist, Repeat, Trash2, UserRound, Zap } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * One task, beside the list it came from.

@@ -12,25 +12,25 @@ import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DataTable,
   type DataTableQueryState,
-} from "@/components/ui/data-table";
-import { ExportMenu } from "@/components/ui/export-menu";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/data-table";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchShiftReports,
   fetchSites,

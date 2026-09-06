@@ -9,9 +9,9 @@ import {
   Breakdown,
   ReportPanel,
   type BreakdownRow,
-} from "@/components/ui/breakdown-panel";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+} from "@corelithzw/ui/components/breakdown-panel";
+import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { BandChip } from "@/components/accounting/band-chip";
 import {
@@ -21,19 +21,19 @@ import {
   total,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchArAging, fetchReceivablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { formatAmount, formatCount, formatHeadline } from "@/lib/accounting/format";
-import { NoteAdd, ReceiptLong, UserPlus } from "@/lib/icons";
+import { NoteAdd, ReceiptLong, UserPlus } from "@corelithzw/ui/lib/icons";
 
 export default function ReceivablesHomePage() {
   const [startDate, setStartDate] = useState("");

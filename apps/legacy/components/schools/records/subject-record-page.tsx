@@ -29,7 +29,7 @@ import {
   StatsSkeleton,
 } from "@/components/schools/common/states";
 import { ApiError, fetchJson } from "@/lib/api-client";
-import { FileText, Percent, Tag, ToggleLeft, Users } from "@/lib/icons";
+import { FileText, Percent, Tag, ToggleLeft, Users } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**

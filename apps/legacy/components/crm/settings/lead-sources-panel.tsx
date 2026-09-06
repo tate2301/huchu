@@ -11,28 +11,28 @@ import {
   num,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Info } from "@/lib/icons";
+import { Info } from "@corelithzw/ui/lib/icons";
 import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
 import { CRM_CHANNEL_COLOR } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { SetupNote, SetupPanel, SetupStat } from "./setup-chrome";
 

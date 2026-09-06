@@ -15,9 +15,9 @@ import {
   type DataTableColumn,
 } from "@corelithzw/react";
 
-import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
 import { PageActions } from "@/components/layout/page-chrome";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { getAllowedUserRoleOptionsForWorkspace } from "@/lib/platform/vertical-roles";
 import {
@@ -29,8 +29,8 @@ import {
   type ManagedUserRole,
   type ManagedUserSummary,
 } from "@/lib/user-management-api";
-import { Plus, RefreshCcw, ShieldCheck, UserCheck } from "@/lib/icons";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { Plus, RefreshCcw, ShieldCheck, UserCheck } from "@corelithzw/ui/lib/icons";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 
 type RoleFilter = "ALL" | ManagedUserRole;
 type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";

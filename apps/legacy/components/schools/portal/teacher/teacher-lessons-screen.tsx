@@ -14,7 +14,7 @@ import {
   Modal,
   TextArea,
 } from "@corelithzw/react";
-import { ChevronLeftIcon, ChevronRight } from "@/lib/icons";
+import { ChevronLeftIcon, ChevronRight } from "@corelithzw/ui/lib/icons";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import {
   CardsSkeleton,

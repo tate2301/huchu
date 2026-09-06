@@ -1,7 +1,7 @@
 "use client";
 
 import { ReportTable, dim, node, num, type BadgeTone } from "@/components/accounting/report-table";
-import { TimeAgo } from "@/components/ui/time-ago";
+import { TimeAgo } from "@corelithzw/ui/components/time-ago";
 import { SOURCE_KIND_LABELS } from "@/components/accounting/fiscalisation/receipt-mapping";
 import type { BlockingReceiptWire } from "@/components/accounting/fiscalisation/types";
 

@@ -5,18 +5,18 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
 import { EntityLink } from "@/components/records/entity-link";
-import { Building2, Coins, Funnel, Mail, UserRound, Users } from "@/lib/icons";
+import { Building2, Coins, Funnel, Mail, UserRound, Users } from "@corelithzw/ui/lib/icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { CONTACT_TYPE_COLOR, stageColor } from "@/lib/crm/tones";
 import { fetchCrmPeople } from "@/lib/crm/crm-v2";
-import { useDebounced } from "@/hooks/use-debounced";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 
 import { PersonFormSheet } from "./person-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
@@ -34,8 +34,8 @@ import {
   DirectoryName,
 } from "@/components/records/people-directory";
 import { RecordBoard } from "./record-board";
-import { ColumnPicker } from "@/components/ui/column-picker";
-import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
+import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
+import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
 import {
   GroupedRecordList,
   bucketByLetter,

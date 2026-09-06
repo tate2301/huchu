@@ -18,7 +18,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Clock, Coins, Info, Percent, Receipt, ReceiptLong, XCircle } from "@/lib/icons";
+import { Clock, Coins, Info, Percent, Receipt, ReceiptLong, XCircle } from "@corelithzw/ui/lib/icons";
 /*
   `till-activity-shared`, never `till-activity`. The latter imports `lib/money`
   → `lib/prisma` → `pg` → `dns`, and importing it here failed the build with
@@ -32,8 +32,8 @@ import {
   type TillActivityEntry,
   type TillActivityKind,
 } from "@/lib/retail/till-activity-shared";
-import type { LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { PosEmptyState, PosPanel, PosPanelHeader, PosStatusPill } from "./pos-primitives";
 

@@ -1,16 +1,16 @@
 "use client";
 
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+} from "@corelithzw/ui/components/select";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 
 /**

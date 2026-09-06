@@ -3,8 +3,8 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, TextArea } from "@corelithzw/react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   CardsSkeleton,

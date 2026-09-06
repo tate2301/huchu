@@ -6,26 +6,26 @@ import { useQuery } from "@tanstack/react-query";
 import { format } from "date-fns";
 
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { PageSection } from "@/components/ui/page-section";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";
+import { Input } from "@corelithzw/ui/components/input";
+import { PageSection } from "@corelithzw/ui/components/page-section";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@corelithzw/ui/components/sheet";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 

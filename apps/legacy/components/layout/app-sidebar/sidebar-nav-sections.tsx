@@ -9,8 +9,8 @@ import {
   MedusaChevronDownIcon,
   MedusaChevronRightIcon,
   MedusaHouseIcon,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,7 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 
 import {
   getSectionIcon,

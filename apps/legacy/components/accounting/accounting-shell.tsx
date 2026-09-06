@@ -3,7 +3,7 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
-import { NavRail, NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
+import { NavRail, NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { ACCOUNTING_CATEGORIES, ACCOUNTING_TABS, type AccountingTab } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";

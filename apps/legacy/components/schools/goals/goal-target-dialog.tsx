@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { Alert, Button } from "@corelithzw/react";
 
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@corelithzw/ui/components/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import type { SchoolsSubjectRecord } from "@/lib/schools/admin-v2";
 

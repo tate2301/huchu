@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { Button } from "@corelithzw/react";
 
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/access";
 

@@ -23,7 +23,7 @@ import {
   ReportProblem,
   Users,
   Wrench,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 type PrimaryActionsArgs = {
   workspaceProfile: string | null | undefined;

@@ -25,7 +25,7 @@ import {
   Wallet,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 const sectionIcons: Record<string, LucideIcon> = {
   reporting: MedusaChartBarIcon,

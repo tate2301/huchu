@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
-import { Scale, Gem, ArrowRightLeft, FileCheck } from "@/lib/icons";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { ClientDate } from "@/components/ui/client-date";
+import { Scale, Gem, ArrowRightLeft, FileCheck } from "@corelithzw/ui/lib/icons";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { goldRoutes } from "@/app/gold/routes";
 

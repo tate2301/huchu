@@ -4,10 +4,10 @@ import Link from "next/link";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
 
-import { Clock } from "@/lib/icons";
+import { Clock } from "@corelithzw/ui/lib/icons";
 import { formatSlaRemaining, stageSla } from "@/lib/crm/sla";
 import type { CrmBoardCard } from "@/lib/crm/crm-v2";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RecordMark } from "@/components/records/record-mark";
 import { useBoardField } from "@/components/crm/records/board-fields";

@@ -9,10 +9,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
-import { useToast } from "@/components/ui/use-toast";
-import { Building2, CopyLink, DotsThree, Funnel, History, RotateCcw, Users } from "@/lib/icons";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { Building2, CopyLink, DotsThree, Funnel, History, RotateCcw, Users } from "@corelithzw/ui/lib/icons";
 import type { Accent } from "@corelithzw/react";
 
 /**

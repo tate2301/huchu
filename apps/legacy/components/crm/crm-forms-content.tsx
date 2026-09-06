@@ -6,10 +6,10 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Badge, Button, Card, EmptyState, Skeleton, StatCard, Stack } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
-import { useToast } from "@/components/ui/use-toast";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { CopyLink, ExternalLink, Plus } from "@/lib/icons";
+import { CopyLink, ExternalLink, Plus } from "@corelithzw/ui/lib/icons";
 
 type IntakeForm = {
   id: string;

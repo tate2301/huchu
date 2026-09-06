@@ -7,10 +7,10 @@ import { Alert, Skeleton, StatCard } from "@corelithzw/react";
 
 import { RetailShell } from "@/components/retail/retail-shell";
 import { retailMoney, retailTypeLabel } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Button } from "@corelithzw/ui/components/button";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { LocalShipping, Package } from "@/lib/icons";
+import { LocalShipping, Package } from "@corelithzw/ui/lib/icons";
 
 /**
  * One purchase order, and how much of it has actually turned up.

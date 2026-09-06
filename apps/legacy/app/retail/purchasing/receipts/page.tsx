@@ -6,12 +6,12 @@ import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { FieldHelp } from "@/components/shared/field-help";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
@@ -19,14 +19,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { History, Plus, ReceiptLong } from "@/lib/icons";
+import { History, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Receipt = {

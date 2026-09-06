@@ -2,13 +2,13 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
-import { ResponsivePopover } from "@/components/ui/responsive-popover";
-import { Pencil, X } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { ResponsivePopover } from "@corelithzw/ui/components/responsive-popover";
+import { Pencil, X } from "@corelithzw/ui/lib/icons";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { ATTRIBUTE_ROW } from "@/components/records/record-attributes";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { RecordPicker, type PickableType, type PickedRecord } from "./record-picker";
 
 /**

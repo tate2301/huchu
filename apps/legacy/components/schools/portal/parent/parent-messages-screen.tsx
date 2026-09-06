@@ -11,14 +11,14 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
-import { ChatCircle } from "@/lib/icons";
+import { ChatCircle } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 

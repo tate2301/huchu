@@ -7,10 +7,10 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
-import { DotsThree, Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { DotsThree, Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type BoardColumnAction = {
   label: string;

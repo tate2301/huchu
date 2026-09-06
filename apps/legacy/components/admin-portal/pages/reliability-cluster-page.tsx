@@ -2,19 +2,19 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { RefreshCcw } from "@/lib/icons";
+import { RefreshCcw } from "@corelithzw/ui/lib/icons";
 import { fetchReliabilityCluster } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { ReliabilityClusterData } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { AdminTrendChart } from "@/components/charts/admin-headless-charts";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { AdminTrendChart } from "@corelithzw/ui/charts/admin-headless-charts";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   AuditExportDialog,
   AuditNoteDialog,

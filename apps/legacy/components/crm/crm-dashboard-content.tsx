@@ -15,7 +15,7 @@ import {
   FileText,
   Receipt,
   Wrench,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 type DashboardData = {
   scope: "TEAM" | "MINE";

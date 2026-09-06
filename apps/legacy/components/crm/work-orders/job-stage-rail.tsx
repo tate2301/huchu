@@ -1,7 +1,7 @@
 "use client";
 
 import { WORK_ORDER_STATUS_LABELS } from "@/lib/crm/work-orders";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import type { JobStatus } from "./job-types";
 

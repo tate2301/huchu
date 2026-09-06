@@ -5,8 +5,8 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Coins, Dataset, Funnel, Lock, Megaphone, Package, type LucideIcon } from "@/lib/icons";
-import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
+import { Coins, Dataset, Funnel, Lock, Megaphone, Package, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { NavRail, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";

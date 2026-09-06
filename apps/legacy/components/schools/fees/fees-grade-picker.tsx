@@ -6,9 +6,9 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Button as DsButton, Card } from "@corelithzw/react";
 
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";

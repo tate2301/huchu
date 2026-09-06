@@ -10,7 +10,7 @@ import {
   RecordTableName,
   type RecordCellKind,
 } from "@/components/records/record-table";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The parts of a people directory that HR and CRM owe each other.

@@ -1,8 +1,8 @@
 "use client";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import { CLIENT_BUNDLE_TEMPLATES, getClientTemplateBundleCodes } from "@/lib/platform/client-templates";
 import { getBundleDefinition, getTierDefinition } from "@/lib/platform/feature-catalog";
 

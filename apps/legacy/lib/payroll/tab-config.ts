@@ -7,7 +7,7 @@ import {
   UserRound,
   Wallet,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 /**
  * Payroll — paying people for a period of employment.

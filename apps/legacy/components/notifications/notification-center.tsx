@@ -7,16 +7,16 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { NotificationRichBody } from "@/components/notifications/notification-renderers";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useNotificationStream } from "@/hooks/use-notification-stream";
 import {
   archiveNotifications,
@@ -28,8 +28,8 @@ import {
 } from "@/lib/api";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
-import { Bell, CheckCircle2, Loader2 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Bell, CheckCircle2, Loader2 } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type FilterMode = "unread" | "all";
 

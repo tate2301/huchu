@@ -9,7 +9,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@corelithzw/ui/components/alert-dialog";
 import type { PastePreviewRow } from "./spreadsheet-paste";
 
 export function PastePreviewDialog({

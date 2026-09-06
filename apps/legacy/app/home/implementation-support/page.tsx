@@ -16,7 +16,7 @@ import {
   buildMarketingMetadata,
   launchSprintJsonLd,
 } from "@/lib/marketing/seo";
-import { Check } from "@/lib/icons";
+import { Check } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.implementation);
 

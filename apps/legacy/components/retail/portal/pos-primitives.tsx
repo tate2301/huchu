@@ -2,8 +2,8 @@
 
 import type { ReactNode } from "react";
 
-import { cn } from "@/lib/utils";
-import type { LucideIcon } from "@/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /* ── PosTerminalHeader ──────────────────────────────────────────────────── */
 

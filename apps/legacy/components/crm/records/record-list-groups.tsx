@@ -3,7 +3,7 @@
 import type { ComponentProps, ReactNode } from "react";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RecordList, type RecordListRow } from "./record-list";
 

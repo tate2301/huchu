@@ -1,7 +1,7 @@
 "use client";
 
-import { Delete } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Delete } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type { PosKeypadAction } from "./pos-numeric-input";
 
 type PosNumericKeypadProps = {

@@ -2,11 +2,11 @@
 
 import Link from "next/link";
 import type { ComponentType, ReactNode } from "react";
-import { ChevronLeftIcon } from "@/lib/icons";
-import { Button } from "@/components/ui/button";
+import { ChevronLeftIcon } from "@corelithzw/ui/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
 import { GoldShell } from "@/components/gold/gold-shell";
 import type { GoldTab } from "@/lib/gold/tab-config";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type DetailShellProps = {
   activeTab: GoldTab;

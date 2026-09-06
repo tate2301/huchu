@@ -26,12 +26,12 @@ import { useDroppable } from "@dnd-kit/core";
 import { CSS } from "@dnd-kit/utilities";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
-import { ClientDate } from "@/components/ui/client-date";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Clock } from "@/lib/icons";
+import { Clock } from "@corelithzw/ui/lib/icons";
 import {
   fetchCrmDealsBoard,
   updateCrmDealStage,
@@ -40,7 +40,7 @@ import {
   type CrmDealBoardColumn,
 } from "@/lib/crm/crm-v2";
 import { stageColor } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { isOverdue } from "@/components/crm/leads/stage-config";
 

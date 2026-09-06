@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { PageBand } from "@/components/schools/common/page-band";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   fetchSchoolsAcademicYears,
   fetchSchoolsCalendar,

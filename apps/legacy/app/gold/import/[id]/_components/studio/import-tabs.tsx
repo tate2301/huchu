@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { NavRail, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import {
   Dashboard,
   TableRows,
@@ -12,7 +12,7 @@ import {
   Coins,
   Layers,
   AlertCircle,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export type StudioTab =
   | "overview"

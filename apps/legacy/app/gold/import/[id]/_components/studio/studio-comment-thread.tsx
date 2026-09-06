@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useToast } from "@/components/ui/use-toast";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Send, X, NoteAdd } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { ClientDate } from "@/components/ui/client-date";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Send, X, NoteAdd } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type Comment = {
   id: string;

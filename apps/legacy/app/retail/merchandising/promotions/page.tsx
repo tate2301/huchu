@@ -7,23 +7,23 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   AdminDistributionChart,
   AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Pencil, Plus, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Pencil, Plus, Trash2, Wallet } from "@corelithzw/ui/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type Promotion = {

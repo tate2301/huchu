@@ -5,15 +5,15 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Combobox } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
 import { RELATIONSHIP_OPTIONS } from "./relationships";

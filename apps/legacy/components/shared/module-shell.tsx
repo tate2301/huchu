@@ -3,14 +3,14 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { PageActions } from "@/components/layout/page-actions";
-import { NavRail, NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
+import { NavRail, NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import { getNavSectionsForRole } from "@/lib/navigation";
 import {
   getWorkspaceModulePresentation,
   type WorkspaceModuleId,
 } from "@/lib/workspace-products";
-import type { LucideIcon } from "@/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /**
  * A category rail plus a tab strip, filtered by what the tenant has bought.

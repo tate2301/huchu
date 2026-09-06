@@ -4,8 +4,8 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Button, EmptyState } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
-import { useToast } from "@/components/ui/use-toast";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   createCrmComment,
@@ -18,8 +18,8 @@ import {
   type CrmCommentRecord,
 } from "@/lib/crm/crm-v2";
 import type { CollabEntity } from "@/lib/crm/collaboration";
-import { Bell, BellRing, Check, PushPin, Trash2 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Bell, BellRing, Check, PushPin, Trash2 } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RichTextComposer } from "./rich-text-composer";
 import { RichTextRenderer } from "./rich-text-renderer";

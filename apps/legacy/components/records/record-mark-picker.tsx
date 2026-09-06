@@ -2,12 +2,12 @@
 
 import { Emoji, EmojiPicker, IconTile } from "@corelithzw/react";
 
-import { Button } from "@/components/ui/button";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ACCENTS, ACCENT_LABELS } from "@/lib/ui/accents";
-import { recordAccent } from "@/lib/ui/record-accent";
-import { Check } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
+import { ACCENTS, ACCENT_LABELS } from "@corelithzw/ui/lib/ui/accents";
+import { recordAccent } from "@corelithzw/ui/lib/ui/record-accent";
+import { Check } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The emoji and colour a record is drawn in.

@@ -3,9 +3,9 @@
 import * as React from "react";
 import { useRouter } from "next/navigation";
 
-import { Button } from "@/components/ui/button";
-import { Search, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Search, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import type { CommandGroup, CommandItem } from "./command-bar-types";
 

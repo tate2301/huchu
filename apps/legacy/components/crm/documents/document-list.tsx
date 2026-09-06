@@ -3,17 +3,17 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
+import { Button } from "@corelithzw/ui/components/button";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
 import {
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyMedia,
   EmptyTitle,
-} from "@/components/ui/empty";
-import { StatusChip } from "@/components/ui/status-chip";
-import { ClientDate } from "@/components/ui/client-date";
+} from "@corelithzw/ui/components/empty";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,10 +21,10 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   Check,
   Download,
@@ -37,7 +37,7 @@ import {
   ReceiptLong,
   Send,
   X,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 import { DocumentBuilderSheet } from "./document-builder-sheet";
 import { RecordPaymentSheet } from "./record-payment-sheet";

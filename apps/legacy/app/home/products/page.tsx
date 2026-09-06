@@ -33,7 +33,7 @@ import {
   buildMarketingMetadata,
   softwareApplicationJsonLd,
 } from "@/lib/marketing/seo";
-import { ArrowRight, Check } from "@/lib/icons";
+import { ArrowRight, Check } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.platform);
 

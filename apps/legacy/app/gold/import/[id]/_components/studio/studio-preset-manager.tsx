@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useToast } from "@/components/ui/use-toast";
-import { Save, ChevronDown } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { Save, ChevronDown } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type Preset = {
   id: string;

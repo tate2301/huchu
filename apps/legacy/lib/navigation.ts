@@ -44,7 +44,7 @@ import {
   Phone,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";

@@ -6,7 +6,7 @@ import { useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { useGuidedMode } from "@/hooks/use-guided-mode";
-import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@/lib/icons";
+import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@corelithzw/ui/lib/icons";
 import { fetchStockLocations } from "@/lib/api";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
@@ -18,7 +18,7 @@ import {
   SidebarHeader,
   SidebarRail,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 import { SidebarAccountMenu } from "@/components/layout/app-sidebar/sidebar-account-menu";
 import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
 import { SidebarNavSections } from "@/components/layout/app-sidebar/sidebar-nav-sections";

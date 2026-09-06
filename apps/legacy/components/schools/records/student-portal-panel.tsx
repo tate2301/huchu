@@ -6,8 +6,8 @@ import { Badge } from "@corelithzw/react";
 
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SaveError } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { formatSchoolDate } from "@/lib/schools/format";
 import {
   fetchPortalInvites,

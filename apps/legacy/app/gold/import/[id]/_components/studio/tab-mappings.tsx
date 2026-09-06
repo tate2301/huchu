@@ -2,16 +2,16 @@
 
 import { useMemo, useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import { cn } from "@/lib/utils";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
+import { Input } from "@corelithzw/ui/components/input";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   CheckCircle2,
   AlertCircle,
   Search,
   Lock,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { StudioTagPicker } from "./studio-tags-panel";
 import { StudioPresetManager } from "./studio-preset-manager";
 import type { ImportDetail, LedgerEntry } from "../types";

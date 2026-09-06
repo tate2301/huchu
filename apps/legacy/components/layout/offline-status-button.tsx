@@ -31,11 +31,11 @@
 
 import { useState } from "react";
 
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent } from "@corelithzw/ui/components/dialog";
 import { OfflineRuntimePanel } from "@/components/layout/offline-runtime-panel";
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export function OfflineStatusButton({ className }: { className?: string }) {
   const [open, setOpen] = useState(false);

@@ -5,7 +5,7 @@ import { usePathname } from "next/navigation";
 
 import { PageActions } from "@/components/layout/page-actions";
 import { PageHeading } from "@/components/layout/page-heading";
-import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
+import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { retailRailFor, type RetailAreaId } from "@/lib/retail/areas";
 
 type RetailShellProps = {

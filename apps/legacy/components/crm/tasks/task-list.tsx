@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button, EmptyState } from "@corelithzw/react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { ClientDate } from "@/components/ui/client-date";
-import { dsConfirm } from "@/components/ui/ds-confirm";
-import { useToast } from "@/components/ui/use-toast";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { deleteCrmTask, type CrmTaskRecord } from "@/lib/crm/crm-v2";
 import {
@@ -18,8 +18,8 @@ import {
   taskRecordRef,
 } from "@/lib/crm/tasks";
 import { TASK_PRIORITY_TONE } from "@/lib/crm/tones";
-import { Clock, Repeat, Trash2 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Clock, Repeat, Trash2 } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { useTaskCompletion } from "./use-task-completion";
 

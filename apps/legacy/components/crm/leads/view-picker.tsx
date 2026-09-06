@@ -3,22 +3,22 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, DotsThree, Kanban, ListBullets, Plus, Users } from "@/lib/icons";
+import { ChevronDown, DotsThree, Kanban, ListBullets, Plus, Users } from "@corelithzw/ui/lib/icons";
 import {
   createCrmSavedView,
   deleteCrmSavedView,
@@ -26,7 +26,7 @@ import {
   type CrmSavedViewRecord,
 } from "@/lib/crm/crm-v2";
 import type { LeadSort, LeadViewFilters } from "@/lib/crm/views";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type ViewLayout = "TABLE" | "BOARD";
 

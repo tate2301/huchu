@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Command,
   CommandEmpty,
@@ -11,9 +11,9 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
-import { ResponsivePopover } from "@/components/ui/responsive-popover";
-import { CheckIcon, ChevronDown } from "@/lib/icons";
+} from "@corelithzw/ui/components/command";
+import { ResponsivePopover } from "@corelithzw/ui/components/responsive-popover";
+import { CheckIcon, ChevronDown } from "@corelithzw/ui/lib/icons";
 import {
   fetchSchoolsClasses,
   fetchSchoolsStudents,

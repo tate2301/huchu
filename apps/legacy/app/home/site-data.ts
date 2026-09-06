@@ -31,7 +31,7 @@ import {
   Work,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   ANNUAL_DISCOUNT_LABEL,
   ANNUAL_PREPAY_COPY,

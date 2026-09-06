@@ -1,7 +1,7 @@
 "use client"
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { CheckCircle2, Circle, Clock } from "@/lib/icons"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card"
+import { CheckCircle2, Circle, Clock } from "@corelithzw/ui/lib/icons"
 
 interface PhaseItem {
   name: string

@@ -13,9 +13,9 @@ import {
   type DataTableColumn,
 } from "@corelithzw/react";
 
-import { DsDataTable } from "@/components/corelith/ds-data-table";
+import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
 import { PageActions } from "@/components/layout/page-chrome";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import {
   createSite,
@@ -25,8 +25,8 @@ import {
   updateSite,
 } from "@/lib/api";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@/lib/api-client";
-import { Pencil, Plus, Trash2 } from "@/lib/icons";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 
 type SiteFormState = {
   name: string;

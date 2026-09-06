@@ -11,7 +11,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
-import { MedusaBookOpenIcon } from "@/lib/icons";
+import { MedusaBookOpenIcon } from "@corelithzw/ui/lib/icons";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";

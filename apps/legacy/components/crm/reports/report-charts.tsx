@@ -6,7 +6,7 @@ import { Chart, ChartLegend, chartSeriesVar } from "@corelithzw/react";
 
 import { EmptyState } from "@corelithzw/react";
 import { formatRate, type FunnelStage, type ShareSlice } from "@/lib/crm/reports";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The charts the sales reports are made of.

@@ -1,7 +1,7 @@
 "use client";
 
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Dialog,
   DialogContent,
@@ -9,7 +9,7 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import type { DuplicateConfidence } from "@/lib/crm/duplicates";
 import { DUPLICATE_CONFIDENCE_TONE } from "@/lib/crm/tones";
 

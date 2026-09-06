@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 
 import { StatusState } from "@/components/shared/status-state";
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type DataListShellProps = {
   title: string;

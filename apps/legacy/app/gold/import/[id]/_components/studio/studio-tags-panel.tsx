@@ -3,9 +3,9 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useToast } from "@/components/ui/use-toast";
-import { X, Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { X, Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type Tag = { id: string; importId: string; label: string; createdAt: string };
 

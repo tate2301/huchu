@@ -6,8 +6,8 @@ import { Button, Combobox, Switch } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { DEPARTMENT_SUGGESTIONS } from "@/components/schools/teachers/departments";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchTeacherProfileUsers, fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 

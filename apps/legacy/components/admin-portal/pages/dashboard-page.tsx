@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { ReactNode, useEffect, useMemo, useState } from "react";
-import { LifeBuoy, ShieldAlert, Sparkles } from "@/lib/icons";
+import { LifeBuoy, ShieldAlert, Sparkles } from "@corelithzw/ui/lib/icons";
 import {
   fetchCommercialCenter,
   fetchMetrics,
@@ -15,9 +15,9 @@ import {
   AdminDonutChart,
   AdminStackedAreaChart,
   AdminTrendChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
-import { FinancialProjectionsCard } from "@/components/charts/financial-projections-card";
+import { FinancialProjectionsCard } from "@corelithzw/ui/charts/financial-projections-card";
 import { getQuickActions } from "@/components/admin-portal/shell/admin-config";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type {
@@ -27,9 +27,9 @@ import type {
   SupportAccessHubData,
   WorkspaceOverview,
 } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent } from "@corelithzw/ui/components/card";
 import {
   buildRecentDayBuckets,
   buildRecentHourBuckets,

@@ -5,14 +5,14 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, Badge, EmptyState, SegmentedControl, Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { TRIGGER_LABELS } from "@/lib/crm/automation";
 import { REPORT_RANGES, REPORT_RANGE_LABELS, type ReportRange } from "@/lib/crm/reports";
-import { Rule } from "@/lib/icons";
+import { Rule } from "@corelithzw/ui/lib/icons";
 
 import { RunInsightsPanel } from "./run-insights-panel";
 import { TRIGGER_ICON } from "./workflow-marks";

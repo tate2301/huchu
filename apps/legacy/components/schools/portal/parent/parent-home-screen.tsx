@@ -10,7 +10,7 @@ import {
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
-import { ArrowRight, Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
+import { ArrowRight, Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 

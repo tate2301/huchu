@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { getCompanyNav, PLATFORM_NAV } from "./admin-config";
 import { WorkspaceSwitcher } from "./workspace-switcher";
 

@@ -4,9 +4,9 @@ import { useMemo, useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { endOfMonth, format, isSameDay, startOfMonth } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import {
   ReportTable,
   badge,
@@ -25,17 +25,17 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   closeAccountingPeriod,
   reopenAccountingPeriod,
@@ -48,7 +48,7 @@ import {
   setAccountingFreezeDate,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Calendar, MoreHorizontal } from "@/lib/icons";
+import { Calendar, MoreHorizontal } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 type OpeningBalanceLineInput = {

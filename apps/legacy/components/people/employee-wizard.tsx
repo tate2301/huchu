@@ -6,19 +6,19 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { useMutation, useQuery } from "@tanstack/react-query"
 import { useSession } from "next-auth/react"
 
-import { Button } from "@/components/ui/button"
-import { Checkbox } from "@/components/ui/checkbox"
+import { Button } from "@corelithzw/ui/components/button"
+import { Checkbox } from "@corelithzw/ui/components/checkbox"
 import {
   Dialog,
   DialogClose,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog"
-import { Input } from "@/components/ui/input"
-import { StepProgress } from "@/components/ui/step-progress"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { useToast } from "@/components/ui/use-toast"
+} from "@corelithzw/ui/components/dialog"
+import { Input } from "@corelithzw/ui/components/input"
+import { StepProgress } from "@corelithzw/ui/components/step-progress"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select"
+import { useToast } from "@corelithzw/ui/components/use-toast"
 import type {
   CompensationTemplateRecord,
   DepartmentRecord,
@@ -41,8 +41,8 @@ import {
   resolveWorkspaceProfileForRoles,
 } from "@/lib/platform/vertical-roles"
 import type { UserRole } from "@/lib/roles"
-import { X } from "@/lib/icons"
-import { cn } from "@/lib/utils"
+import { X } from "@corelithzw/ui/lib/icons"
+import { cn } from "@corelithzw/ui/lib/utils"
 
 const employmentTypes = [
   { value: "FULL_TIME", label: "Full Time" },

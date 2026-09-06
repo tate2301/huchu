@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 
-import { IconButton } from "@/components/ui/icon-button";
-import { ArrowLeft } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { ArrowLeft } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A list beside the one thing in it you are looking at.

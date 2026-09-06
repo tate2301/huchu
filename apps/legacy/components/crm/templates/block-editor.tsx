@@ -3,30 +3,30 @@
 import { useState } from "react";
 
 import { Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { IconButton } from "@/components/ui/icon-button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@corelithzw/ui/components/button";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   ArrowDownward,
   ArrowUpward,
   DotsThree,
   Plus,
   Trash2,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   BLOCKS_FOR_KIND,
   BLOCK_LABELS,
@@ -38,7 +38,7 @@ import {
   type TemplateKind,
 } from "@/lib/crm/blocks";
 import { starterBlocks, startersForKind } from "@/lib/crm/starter-templates";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { VariablePicker } from "./variable-picker";
 

@@ -10,8 +10,8 @@ import {
   EmptyState,
   SegmentedControl,
 } from "@corelithzw/react";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {

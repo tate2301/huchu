@@ -11,9 +11,9 @@ import {
   retailTypeLabel,
   type RetailSaleDetail,
 } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ClipboardList } from "@/lib/icons";
+import { ClipboardList } from "@corelithzw/ui/lib/icons";
 
 /**
  * One receipt, at its own address.

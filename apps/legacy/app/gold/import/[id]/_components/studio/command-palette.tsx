@@ -9,8 +9,8 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/command";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type CommandVerb = {
   id: string;

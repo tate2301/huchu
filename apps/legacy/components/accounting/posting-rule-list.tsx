@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { formatAccountingSourceType } from "@/lib/accounting/source-types";
 import type { PostingRuleRecord } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The rule index — grouped by what triggers them, in the order they are tried.

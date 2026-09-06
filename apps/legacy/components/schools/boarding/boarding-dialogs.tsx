@@ -7,9 +7,9 @@ import { Button } from "@corelithzw/react";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsStudents, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 

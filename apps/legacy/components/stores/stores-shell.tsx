@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { SectionTab, SectionTabs } from "@/components/ui/section-tabs";
+import { SectionTab, SectionTabs } from "@corelithzw/ui/components/section-tabs";
 import { filterHrefItemsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import {
   ArrowDownward,
@@ -17,8 +17,8 @@ import {
   Package,
   Scale,
   TableRows,
-} from "@/lib/icons";
-import type { LucideIcon } from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 import { getWorkspaceModulePresentation } from "@/lib/workspace-products";
 import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 

@@ -4,12 +4,12 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, Badge, EmptyState, Stack } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { TRIGGER_LABELS } from "@/lib/crm/automation";
 import { formatDuration } from "@/lib/crm/run-insights";
-import { Rule } from "@/lib/icons";
+import { Rule } from "@corelithzw/ui/lib/icons";
 
 type EnrolmentRun = {
   id: string;

@@ -6,9 +6,9 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import {
   JournalDetailPanel,
@@ -19,24 +19,24 @@ import {
 } from "@/components/accounting/journal-detail-panel";
 import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingEditableListView } from "@/components/accounting/listview/accounting-editable-list-view";
-import { Card, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Card, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/sheet";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   type CostCenterRecord,
   type JournalEntryRecord,
@@ -46,8 +46,8 @@ import {
 } from "@/lib/api";
 import { formatAmount } from "@/lib/accounting/format";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { FileCheck } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { FileCheck } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 
 /**

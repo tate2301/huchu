@@ -11,28 +11,28 @@ import {
   Skeleton,
 } from "@corelithzw/react";
 
-import { Label } from "@/components/ui/label";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Checkbox } from "@/components/ui/checkbox";
+} from "@corelithzw/ui/components/sheet";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { FormShell } from "@/components/shared/form-shell";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { PRICE_LIST_KINDS, PRICE_LIST_KIND_LABELS } from "@/lib/inventory/catalogue";
 import type { PriceListKind } from "@corelithzw/db";
-import { Plus, Trash2 } from "@/lib/icons";
+import { Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 
 type PriceListSummary = {
   id: string;

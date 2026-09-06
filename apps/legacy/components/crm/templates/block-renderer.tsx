@@ -2,20 +2,20 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Label } from "@/components/ui/label";
+} from "@corelithzw/ui/components/select";
+import { Label } from "@corelithzw/ui/components/label";
 import { resolveVariables, type VariableValues } from "@/lib/crm/template-variables";
 import type { Block, LeafBlock } from "@/lib/crm/blocks";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A template, drawn.

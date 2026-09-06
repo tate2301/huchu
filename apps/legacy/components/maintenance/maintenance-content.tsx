@@ -10,24 +10,24 @@ import {
   Plus,
   QrCode,
   Trash2,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@/components/shared/record-saved-banner";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { ExportMenu } from "@/components/ui/export-menu";
+import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
@@ -35,18 +35,18 @@ import {
   SelectSeparator,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Tabs, TabsContent } from "@corelithzw/ui/components/tabs";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchEmployees,
   fetchEquipment,
@@ -58,7 +58,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import { EmployeePosition } from "@corelithzw/db";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { resolveVerticalDefaults } from "@/lib/platform/vertical-defaults";
 

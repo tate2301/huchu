@@ -5,15 +5,15 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
-import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronRight, Coins } from "@/lib/icons";
-import { ClientDate } from "@/components/ui/client-date";
+import { ChevronRight, Coins } from "@corelithzw/ui/lib/icons";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type AllocationRow = {
   id: string;

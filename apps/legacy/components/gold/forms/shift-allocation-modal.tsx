@@ -3,32 +3,32 @@
 import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { EmployeeAvatar } from "@/components/shared/employee-avatar";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@corelithzw/ui/components/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchGoldExpenseTypes,
@@ -42,8 +42,8 @@ import {
   Send,
   Users,
   X,
-} from "@/lib/icons";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+} from "@corelithzw/ui/lib/icons";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type {
   AttendanceShiftSummary,
   SearchableOption,

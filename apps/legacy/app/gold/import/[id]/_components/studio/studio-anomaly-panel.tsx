@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertCircle, AlertTriangle, Info, Search, X, Sparkles, Check } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { AlertCircle, AlertTriangle, Info, Search, X, Sparkles, Check } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   ANOMALY_LABEL,
   type Anomaly,
@@ -20,7 +20,7 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
+} from "@corelithzw/ui/components/alert-dialog";
 
 const SEVERITY_TONE: Record<
   AnomalySeverity,

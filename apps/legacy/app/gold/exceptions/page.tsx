@@ -9,15 +9,15 @@ import { useSession } from "next-auth/react";
 
 import { GoldShell } from "@/components/gold/gold-shell";
 import { PageIntro } from "@/components/shared/page-intro";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { ExportMenu } from "@/components/ui/export-menu";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { StatusChip } from "@/components/ui/status-chip";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
 import {
@@ -27,7 +27,7 @@ import {
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 

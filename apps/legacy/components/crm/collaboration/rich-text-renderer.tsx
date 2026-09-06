@@ -11,7 +11,7 @@ import {
   segmentRichText,
   type Reference,
 } from "@/lib/crm/rich-text";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * Everything written anywhere in the CRM, drawn.

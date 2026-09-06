@@ -13,7 +13,7 @@ import {
   ShieldCheck,
   TableRows,
   Wallet,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 export type AccountingTab =
   | "overview"

@@ -2,26 +2,26 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { RefreshCcw, Search } from "@/lib/icons";
+import { RefreshCcw, Search } from "@corelithzw/ui/lib/icons";
 import { fetchIdentityHub } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { IdentityHubData } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   AdminDonutChart,
   AdminTrendChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+} from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   AdminStatusDialog,
   CreateAdminDialog,

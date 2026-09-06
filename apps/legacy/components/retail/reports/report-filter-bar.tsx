@@ -1,17 +1,17 @@
 "use client";
 
 import { useRef, useState } from "react";
-import { cn } from "@/lib/utils";
-import { Button } from "@/components/ui/button";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Input } from "@/components/ui/input";
-import { Download, Plus, X } from "@/lib/icons";
+} from "@corelithzw/ui/components/select";
+import { Input } from "@corelithzw/ui/components/input";
+import { Download, Plus, X } from "@corelithzw/ui/lib/icons";
 
 export type FilterRule = {
   id: string;

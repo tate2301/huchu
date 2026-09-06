@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { ChevronRight } from "@/lib/icons";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
 
 type Crumb = {
   label: string;

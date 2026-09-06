@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, EmptyState, Select } from "@corelithzw/react";
-import { Input } from "@/components/ui/input";
+import { Input } from "@corelithzw/ui/components/input";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {

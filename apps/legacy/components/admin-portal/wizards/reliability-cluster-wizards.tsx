@@ -9,17 +9,17 @@ import type {
   RunbookDefinitionRecord,
 } from "@/scripts/platform/types";
 import type { SearchableOption } from "@/app/gold/types";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
 import { executeOperation } from "@/components/admin-portal/api";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DateTimePicker } from "@/components/ui/date-picker";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DateTimePicker } from "@corelithzw/ui/components/date-picker";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 
 type ButtonVariant = ComponentProps<typeof Button>["variant"];
 type ButtonSize = ComponentProps<typeof Button>["size"];

@@ -5,12 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 
 import { Alert, EmptyState, Stack } from "@corelithzw/react";
 import { Avatar } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fieldLabel } from "@/lib/crm/field-history";
-import { ArrowRight } from "@/lib/icons";
+import { ArrowRight } from "@corelithzw/ui/lib/icons";
 
 type FieldChange = {
   id: string;

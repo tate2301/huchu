@@ -54,6 +54,9 @@
 @import "./themes/corelith-missing.css" layer(corelith);
 
 @source "../node_modules/@rtcamp/frappe-ui-react/dist";
+/* Workspace packages render with these classes too; Tailwind does not look
+   inside node_modules on its own, and the packages arrive through symlinks there. */
+@source "../../../packages";
 
 /* ── Tailwind Theme Mappings ────────────────────────────────────────────────
    Deliberately thin. Tailwind's own theme keys (`--font-sans`, `--font-mono`,

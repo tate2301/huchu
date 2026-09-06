@@ -6,7 +6,7 @@ import type { MouseEvent, ReactNode } from "react";
 import { useRecordPeek } from "@/components/records/record-peek";
 import { useRecordTrail } from "@/components/records/record-trail";
 import { parseRecordHref } from "@/lib/crm/record-ref";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A named reference to another record.

@@ -42,7 +42,7 @@ import {
   ToggleLeft,
   Users,
   Work,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
 /**

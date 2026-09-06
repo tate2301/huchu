@@ -4,15 +4,15 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Button, StatCard } from "@corelithzw/react";
-import { Label } from "@/components/ui/label";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { guessMapping, parseCsv, type CsvTable } from "@/lib/crm/csv";
 import {
@@ -26,7 +26,7 @@ import {
   previewCrmImport,
   type CrmImportPreview,
 } from "@/lib/crm/crm-v2";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 const ENTITY_LABELS: Record<ImportEntity, string> = {
   PERSON: "People",

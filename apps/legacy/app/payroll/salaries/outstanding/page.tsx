@@ -5,38 +5,38 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { differenceInCalendarDays, format } from "date-fns";
-import { ArrowRight, FileText } from "@/lib/icons";
+import { ArrowRight, FileText } from "@corelithzw/ui/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@corelithzw/ui/components/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   DataTable,
   type DataTableQueryState,
-} from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/data-table";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchEmployeePayments, type EmployeePayment } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 

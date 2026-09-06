@@ -5,12 +5,12 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { PermissionMatrix } from "@/components/user-management/permission-matrix";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ExternalLink } from "@/lib/icons";
+import { ExternalLink } from "@corelithzw/ui/lib/icons";
 import {
   fetchManagedUserDetail,
   resetUserPermissions,

@@ -11,20 +11,20 @@ import {
   MedusaCogSixToothIcon,
   MedusaIdBadgeIcon,
   type LucideIcon,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 
 export function SidebarAccountMenu({
   isCollapsed,

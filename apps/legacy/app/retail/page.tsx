@@ -12,15 +12,15 @@ import {
   type DistributionRow,
   type TrendChartRow,
   type WaterfallRow,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   BarChart3,
@@ -32,7 +32,7 @@ import {
   Package,
   Payments,
   Users,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { hasTokenFeature } from "@/lib/platform/gating/token-check";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 

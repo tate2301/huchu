@@ -20,9 +20,9 @@ import {
   AlertTriangle,
   X,
   Loader2,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { SPRING } from "@/lib/animation/tokens";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { SPRING } from "@corelithzw/ui/lib/animation/tokens";
 import { toastVariants, toastProgressVariants } from "./animations";
 
 // ---------------------------------------------------------------------------

@@ -20,10 +20,10 @@ import {
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
 import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Home, Tag, ToggleLeft, UserPlus, Users } from "@/lib/icons";
+import { Home, Tag, ToggleLeft, UserPlus, Users } from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
 

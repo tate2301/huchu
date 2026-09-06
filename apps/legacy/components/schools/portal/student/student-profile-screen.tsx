@@ -14,7 +14,7 @@ import {
   Mail,
   Settings2,
   TrendingUp,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 
 /** Where the rest of the pupil's own account lives. */

@@ -8,7 +8,7 @@ import { Alert, Button, EmptyState, Input, SegmentedControl, Skeleton } from "@c
 import { ReportTable, amt, badge, node, num, txt } from "@/components/accounting/report-table";
 import { SetupPanel } from "@/components/crm/settings/setup-chrome";
 import { PageActions } from "@/components/layout/page-chrome";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   PRODUCT_KINDS,
@@ -16,7 +16,7 @@ import {
   UNIT_LABELS,
   isStockable,
 } from "@/lib/inventory/catalogue";
-import { Package, Plus } from "@/lib/icons";
+import { Package, Plus } from "@corelithzw/ui/lib/icons";
 
 import { ProductSheet, type ProductRecord } from "./product-sheet";
 

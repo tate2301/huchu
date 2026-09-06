@@ -10,13 +10,13 @@ import {
   RefreshCcw,
   ShieldCheck,
   TriangleAlert,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { fetchWorkspaceOverview } from "@/components/admin-portal/api";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { WorkspaceOverview } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 import {
   CreateSiteDialog,
   OrgStatusDialog,

@@ -4,14 +4,14 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   CardsSkeleton,

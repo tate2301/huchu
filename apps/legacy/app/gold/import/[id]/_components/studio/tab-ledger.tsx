@@ -1,8 +1,8 @@
 "use client";
 
 import { useState, useCallback, type RefObject } from "react";
-import { Button } from "@/components/ui/button";
-import { AlertCircle, AlertTriangle, Info } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { AlertCircle, AlertTriangle, Info } from "@corelithzw/ui/lib/icons";
 import { StudioToolbar, FindReplaceBar } from "./studio-toolbar";
 import { StudioFilterBar, type StudioFilter } from "./studio-filter-bar";
 import { StudioTable, type StudioTableHandle } from "./studio-table";

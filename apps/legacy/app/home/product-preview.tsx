@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { CheckCircle, TriangleAlert } from "@/lib/icons";
+import { CheckCircle, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { segments } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 

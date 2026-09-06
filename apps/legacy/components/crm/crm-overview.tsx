@@ -5,7 +5,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
-import { Breakdown, ReportPanel, type BreakdownRow } from "@/components/ui/breakdown-panel";
+import { Breakdown, ReportPanel, type BreakdownRow } from "@corelithzw/ui/components/breakdown-panel";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import {
   ReportTable,
@@ -17,7 +17,7 @@ import {
   type ReportRow,
 } from "@/components/accounting/report-table";
 import { fetchCrmLeads } from "@/lib/crm/crm-v2";
-import { Check, Clock, Coins, FileText, LocalShipping, TrendingUp, type LucideIcon } from "@/lib/icons";
+import { Check, Clock, Coins, FileText, LocalShipping, TrendingUp, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { AGEING_BUCKETS, AGEING_LABELS } from "@/lib/crm/collections";
 

@@ -11,7 +11,7 @@ import {
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
-import { Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
+import { Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@corelithzw/ui/lib/icons";
 
 /**
  * S-6.12 — what the school has said, with read state.

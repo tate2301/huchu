@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Empty, EmptyDescription, EmptyTitle } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Empty, EmptyDescription, EmptyTitle } from "@corelithzw/ui/components/empty";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import type { RecordSubject } from "@/lib/records/subject";
 

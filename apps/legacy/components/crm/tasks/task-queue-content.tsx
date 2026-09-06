@@ -8,7 +8,7 @@ import { Alert, Button, SegmentedControl } from "@corelithzw/react";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { TASK_QUEUE_LABELS, type TaskQueue } from "@/lib/crm/tasks";
-import { Plus } from "@/lib/icons";
+import { Plus } from "@corelithzw/ui/lib/icons";
 
 import { TaskFormSheet } from "./task-form-sheet";
 import { TaskList } from "./task-list";

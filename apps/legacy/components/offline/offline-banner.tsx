@@ -11,10 +11,10 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import { motion, AnimatePresence, useReducedMotion } from "framer-motion";
-import { WifiOff, Wifi, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { WifiOff, Wifi, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
+import { SPRING, STATUS_COLORS } from "@corelithzw/ui/lib/animation/tokens";
 import { offlineBannerVariants, sparkleVariants } from "./animations";
 
 // ---------------------------------------------------------------------------

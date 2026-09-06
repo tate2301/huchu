@@ -1,34 +1,34 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CheckCircle2, ShieldAlert } from "@/lib/icons";
-import { Button } from "@/components/ui/button";
+import { CheckCircle2, ShieldAlert } from "@corelithzw/ui/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@corelithzw/ui/components/card";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { StepProgress } from "@/components/ui/step-progress";
-import { Textarea } from "@/components/ui/textarea";
-import { WorkflowStep } from "@/components/ui/workflow-step";
+} from "@corelithzw/ui/components/select";
+import { StepProgress } from "@corelithzw/ui/components/step-progress";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { WorkflowStep } from "@corelithzw/ui/components/workflow-step";
 import {
   FEATURE_BUNDLES,
   TIERS,

@@ -7,14 +7,14 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { Separator } from "@/components/ui/separator";
+} from "@corelithzw/ui/components/dialog";
+import { Button } from "@corelithzw/ui/components/button";
+import { Progress } from "@corelithzw/ui/components/progress";
+import { Separator } from "@corelithzw/ui/components/separator";
 import { getOfflineStatusTone } from "@/components/layout/offline-status-tone";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
-import { Spinner } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Spinner } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 function formatTimestamp(value: string | null) {
   if (!value) return "Not yet";

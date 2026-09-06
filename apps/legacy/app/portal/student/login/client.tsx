@@ -1,6 +1,6 @@
 "use client";
 
-import { Users } from "@/lib/icons";
+import { Users } from "@corelithzw/ui/lib/icons";
 import { PortalLoginForm } from "@/components/auth/portal-login-form";
 
 export function StudentPortalLoginClient({

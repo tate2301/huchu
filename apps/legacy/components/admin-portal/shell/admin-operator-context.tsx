@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import { signOut } from "next-auth/react";
-import { ChevronDown, LogOut, Settings2 } from "@/lib/icons";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
+import { ChevronDown, LogOut, Settings2 } from "@corelithzw/ui/lib/icons";
+import { Avatar, AvatarFallback } from "@corelithzw/ui/components/avatar";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,7 +12,7 @@ import {
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import { useAdminShell } from "./admin-shell-context";
 
 function initials(value: string) {

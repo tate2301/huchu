@@ -2,11 +2,11 @@
 
 import { useState, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { ResponsivePopover } from "@/components/ui/responsive-popover";
-import { Check, ChevronDown, ChevronRight, Tag, type LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { ResponsivePopover } from "@corelithzw/ui/components/responsive-popover";
+import { Check, ChevronDown, ChevronRight, Tag, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A record's properties, above its tabs, the way Notion does them.

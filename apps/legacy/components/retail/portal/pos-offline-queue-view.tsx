@@ -39,7 +39,7 @@
 import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { fetchJson } from "@/lib/api-client";
 import {
@@ -51,7 +51,7 @@ import {
   Upload,
   Wallet,
   Wifi,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import {
   classifyQueuedSale,
   classifyReplayedSale,

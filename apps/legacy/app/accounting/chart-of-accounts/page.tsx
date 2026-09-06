@@ -4,15 +4,15 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@corelithzw/react";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@corelithzw/ui/components/card";
 import { BandChip } from "@/components/accounting/band-chip";
 import {
   type BadgeTone,
@@ -25,23 +25,23 @@ import {
   txt,
 } from "@/components/accounting/report-table";
 import { formatAmount } from "@/lib/accounting/format";
-import { Input } from "@/components/ui/input";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Input } from "@corelithzw/ui/components/input";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   type ChartOfAccountRecord,
   fetchChartOfAccounts,
   fetchTrialBalance,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Search, TableRows } from "@/lib/icons";
+import { Search, TableRows } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
 import { useReservedId } from "@/hooks/use-reserved-id";
 

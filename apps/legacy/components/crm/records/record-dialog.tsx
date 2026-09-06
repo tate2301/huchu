@@ -2,16 +2,16 @@
 
 import type { ReactNode } from "react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import type { ResponsiveSurfaceSize } from "@/lib/ui/responsive-surface";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/dialog";
+import type { ResponsiveSurfaceSize } from "@corelithzw/ui/lib/ui/responsive-surface";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The modal every CRM form opens in.

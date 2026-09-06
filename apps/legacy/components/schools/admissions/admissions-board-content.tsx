@@ -22,8 +22,8 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -42,7 +42,7 @@ import {
   type DuplicateCandidateRecord,
   type SchoolsApplicationRecord,
 } from "@/lib/schools/admissions-v2";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { SchoolsAdmissionsContent } from "./schools-admissions-content";
 import {
   ApplicationFormSheet,

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { ArrowRight, ChevronRight, TriangleAlert } from "@/lib/icons";
+import { ArrowRight, ChevronRight, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { segments } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 

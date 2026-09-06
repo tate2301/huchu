@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 
-import { Menu, X } from "@/lib/icons";
+import { Menu, X } from "@corelithzw/ui/lib/icons";
 import { navItems, segments } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 

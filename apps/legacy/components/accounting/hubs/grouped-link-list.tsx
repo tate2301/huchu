@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 import { ListView } from "@rtcamp/frappe-ui-react";
 import { useRouter } from "next/navigation";
-import { Badge } from "@/components/ui/badge";
-import { ArrowRight } from "@/lib/icons";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { ArrowRight } from "@corelithzw/ui/lib/icons";
 
 export type HubLinkItem = {
   id: string;

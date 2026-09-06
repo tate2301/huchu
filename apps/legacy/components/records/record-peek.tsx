@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
 import { Badge, type Accent } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { Button } from "@corelithzw/ui/components/button";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@corelithzw/ui/components/sheet";
 import { fetchJson } from "@/lib/api-client";
 import { useRecordTrail } from "@/components/records/record-trail";
 import {
@@ -16,8 +16,8 @@ import {
   type RecordEntity,
   type RecordRef,
 } from "@/lib/crm/record-ref";
-import { ArrowRight, Building2, Funnel, MapPin, User, Users } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { ArrowRight, Building2, Funnel, MapPin, User, Users } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A look at a related record without leaving the one you are on.

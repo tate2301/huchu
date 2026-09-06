@@ -16,28 +16,28 @@ import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { BandChip } from "@/components/accounting/band-chip";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardContent,
   CardFooter,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/card";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useReservedId } from "@/hooks/use-reserved-id";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import {
@@ -62,8 +62,8 @@ import {
   reviewVatReturn,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Plus, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Plus, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 const TAX_VIEWS = [
   "codes",

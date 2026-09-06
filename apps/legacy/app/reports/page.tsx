@@ -3,8 +3,8 @@
 import Link from "next/link";
 
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { ArrowRight, BarChart3, CheckCircle2, Clock, Factory, FileCheck, Fuel, Gem, History, Package, Shield, Users, Wrench } from "@/lib/icons";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { ArrowRight, BarChart3, CheckCircle2, Clock, Factory, FileCheck, Fuel, Gem, History, Package, Shield, Users, Wrench } from "@corelithzw/ui/lib/icons";
 
 const reportCards = [
   {

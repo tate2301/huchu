@@ -1,8 +1,8 @@
 "use client";
 
-import { HelpCircle } from "@/lib/icons";
+import { HelpCircle } from "@corelithzw/ui/lib/icons";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { useGuidedMode } from "@/hooks/use-guided-mode";
 
 export function GuidedModeToggle() {

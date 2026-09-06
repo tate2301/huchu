@@ -1,9 +1,9 @@
 "use client";
 
 import type { ExecutiveKpiCard } from "@/lib/api";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { StatusState } from "@/components/shared/status-state";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 
 type ExecutiveKpiGridProps = {
   items?: ExecutiveKpiCard[];

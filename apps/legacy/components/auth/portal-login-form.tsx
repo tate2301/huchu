@@ -3,17 +3,17 @@
 import { useState } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { normalizeCallbackUrl } from "@/lib/auth-redirect";
 import {
   AlertCircle,
   ArrowRight,
   ShieldCheck,
   Storefront,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 type PortalLoginFormProps = {
   portalTitle: string;

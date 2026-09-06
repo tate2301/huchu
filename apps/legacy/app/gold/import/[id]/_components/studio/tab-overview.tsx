@@ -1,10 +1,10 @@
 "use client";
 
-import { ClientDate } from "@/components/ui/client-date";
-import { Badge } from "@/components/ui/badge";
-import { StatusChip } from "@/components/ui/status-chip";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { Button } from "@corelithzw/ui/components/button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   AlertCircle,
   AlertTriangle,
@@ -12,8 +12,8 @@ import {
   CheckCircle2,
   XCircle,
   FileText,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type { ImportDetail, DryRunSummary } from "../types";
 
 const STATUS_CHIP: Record<

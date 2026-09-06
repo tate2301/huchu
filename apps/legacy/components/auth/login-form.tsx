@@ -13,8 +13,8 @@ import {
   Hexagon,
   Lock,
   Mail,
-} from "@/lib/icons";
-import { Checkbox } from "../ui/checkbox";
+} from "@corelithzw/ui/lib/icons";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
 
 type LoginFormProps = {
   companyLabel: string;

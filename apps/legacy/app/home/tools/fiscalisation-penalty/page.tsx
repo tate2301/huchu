@@ -25,7 +25,7 @@ import {
   faqJsonLd,
   serviceJsonLd,
 } from "@/lib/marketing/seo";
-import { ArrowRight, ExternalLink, Info } from "@/lib/icons";
+import { ArrowRight, ExternalLink, Info } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.penaltyCalculator);
 

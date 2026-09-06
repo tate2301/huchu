@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
-import { MoreHorizontal } from "@/lib/icons";
+import { MoreHorizontal } from "@corelithzw/ui/lib/icons";
 import {
   fetchCommercialCenter,
   fetchReliabilityCluster,
@@ -15,28 +15,28 @@ import type {
   CompanyWorkspace,
   ReliabilityClusterData,
 } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   AdminStackedAreaChart,
   AdminStackedBarChart,
-} from "@/components/charts/admin-headless-charts";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { DataTable } from "@/components/ui/data-table";
+} from "@corelithzw/ui/charts/admin-headless-charts";
+import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { StatusChip } from "@/components/ui/status-chip";
+} from "@corelithzw/ui/components/select";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import {
   ChangeTierWizard,
   CreateClientWizard,

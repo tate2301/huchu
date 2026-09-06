@@ -13,7 +13,7 @@ import {
   ToggleLeft,
   UserRound,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { formatFieldValue, type FieldDefinition } from "@/lib/crm/custom-fields";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 

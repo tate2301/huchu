@@ -6,31 +6,31 @@ import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
-import { ArrowRight, FileText, Plus } from "@/lib/icons";
+import { ArrowRight, FileText, Plus } from "@corelithzw/ui/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { WorkflowStep } from "@/components/ui/workflow-step";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { WorkflowStep } from "@corelithzw/ui/components/workflow-step";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   type DisbursementBatchRecord,
   fetchDisbursementBatches,

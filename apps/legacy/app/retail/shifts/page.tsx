@@ -10,32 +10,32 @@ import {
   AdminDualBarChart,
   AdminDonutChart,
   AdminTrendChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
+import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@/lib/icons";
+import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 import { useReservedId } from "@/hooks/use-reserved-id";
 

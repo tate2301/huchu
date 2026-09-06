@@ -2,7 +2,7 @@
 
 import { FormEvent, useMemo, useState } from "react";
 
-import { ArrowRight, ExternalLink, Loader2 } from "@/lib/icons";
+import { ArrowRight, ExternalLink, Loader2 } from "@corelithzw/ui/lib/icons";
 import {
   contactChannels,
   getSegmentByAnySlug,

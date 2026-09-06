@@ -4,9 +4,9 @@ import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { Alert, Button } from "@corelithzw/react";
 
-import { Label } from "@/components/ui/label";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
+import { Label } from "@corelithzw/ui/components/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 

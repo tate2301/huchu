@@ -12,7 +12,7 @@ import {
   UserRound,
   Zap,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { ActionType } from "@/lib/crm/automation";
 
 /**

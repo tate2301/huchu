@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 
-import { ReportPanel } from "@/components/ui/breakdown-panel";
-import { Button } from "@/components/ui/button";
-import { Check } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
+import { Button } from "@corelithzw/ui/components/button";
+import { Check } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * What still stands between this period and a close.

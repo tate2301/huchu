@@ -5,10 +5,10 @@ import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Badge, Button } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson } from "@/lib/api-client";
-import { CalendarCheck, MapPin } from "@/lib/icons";
-import { useDebounced } from "@/hooks/use-debounced";
+import { CalendarCheck, MapPin } from "@corelithzw/ui/lib/icons";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import {

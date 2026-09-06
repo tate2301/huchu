@@ -1,8 +1,8 @@
 "use client";
 
 import { useState } from "react";
-import { cn } from "@/lib/utils";
-import { ClientDate } from "@/components/ui/client-date";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 export type EditableNumberProps = {
   value: number | null | undefined;

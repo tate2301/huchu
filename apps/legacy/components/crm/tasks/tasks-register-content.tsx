@@ -5,12 +5,12 @@ import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
 import { Alert, Button } from "@corelithzw/react";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
-import { Checklist, Plus } from "@/lib/icons";
+import { Checklist, Plus } from "@corelithzw/ui/lib/icons";
 import { bucketByDueDate } from "@/components/crm/records/record-list-groups";
 
 import { TaskFormSheet } from "./task-form-sheet";

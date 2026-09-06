@@ -9,12 +9,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 // wrong shape for a four-option picker; its own header says to reach for the DS
 // component when a plain options list is all that is wanted.
 import { Alert, Button as DsButton, Select as DsSelect } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageHeading } from "@/components/layout/page-heading";
 import { PageBand } from "@/components/schools/common/page-band";

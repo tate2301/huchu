@@ -1,4 +1,4 @@
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 export type CrmDocumentKind = "QUOTATION" | "INVOICE" | "RECEIPT";
 

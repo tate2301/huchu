@@ -3,8 +3,8 @@
 import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
 import { MobileList, MobileListEmpty } from "@corelithzw/react";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { getApiErrorMessage } from "@/lib/api-client";

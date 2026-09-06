@@ -5,12 +5,12 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import type { SearchableOption } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
+import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { CatalogImageField } from "@/components/retail/catalog-image-field";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
@@ -18,34 +18,34 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { Badge } from "@corelithzw/ui/components/badge";
 import { retailMoney } from "@/components/retail/sale-detail";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchInventoryItems, fetchSites, fetchStockLocations, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ChevronDown, Grid3x3, Package, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@/lib/icons";
+import { ChevronDown, Grid3x3, Package, Pencil, Plus, ReceiptLong, Trash2, Wallet } from "@corelithzw/ui/lib/icons";
 import {
   MobileListCard,
   MobileListCardHeader,
   MobileListMetricStrip,
-} from "@/components/ui/mobile-list-card";
+} from "@corelithzw/ui/components/mobile-list-card";
 
 type CatalogItem = {
   id: string;

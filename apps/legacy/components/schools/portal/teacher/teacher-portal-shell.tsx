@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { accentVar, AppShell, Avatar, NavRail, NavRailGroup } from "@corelithzw/react";
-import { NavRailItem } from "@/components/ui/nav-rail";
+import { NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
 import {
   BarChart3,
@@ -22,7 +22,7 @@ import {
   LogOut,
   Settings2,
   UserRound,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { useTeacherPortal } from "./teacher-portal-context";
 import { hueFor, subjectHues } from "./teacher-subject-hues";
 import "./teacher-portal.css";

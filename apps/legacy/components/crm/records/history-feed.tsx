@@ -3,10 +3,10 @@
 import { useMemo, useState } from "react";
 import { Avatar } from "@corelithzw/react";
 
-import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, Download } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { ChevronDown, ChevronRight, Download } from "@corelithzw/ui/lib/icons";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { bucketByDate } from "./record-list-groups";
 

@@ -9,7 +9,9 @@ import type { Session } from "next-auth"
 import { OfflineChrome } from "@/components/offline"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
 import { OfflineProvider } from "@/components/providers/offline-provider"
-import { Toaster } from "@/components/ui/toaster"
+import { TableExportProvider } from "@corelithzw/ui/lib/table-export"
+import { documentsTableExporter } from "@/lib/documents/table-exporter"
+import { Toaster } from "@corelithzw/ui/components/toaster"
 
 /**
  * Whether the browser has told us it is offline.
@@ -82,8 +84,10 @@ export function AppProviders({
       <QueryClientProvider client={queryClient}>
         <AppearanceProvider>
           <OfflineProvider>
+            <TableExportProvider exporter={documentsTableExporter}>
             <OfflineChrome />
             {children}
+            </TableExportProvider>
           </OfflineProvider>
         </AppearanceProvider>
         <Toaster />

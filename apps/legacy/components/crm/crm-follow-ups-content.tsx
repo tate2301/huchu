@@ -6,14 +6,14 @@ import { useMutation, useQueries, useQuery, useQueryClient } from "@tanstack/rea
 import { useSession } from "next-auth/react";
 
 import { Alert, Badge, Button, EmptyState, StatCard, Stack } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
-import { useToast } from "@/components/ui/use-toast";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { TASK_QUEUE_LABELS, type TaskQueue } from "@/lib/crm/tasks";
-import { Plus } from "@/lib/icons";
+import { Plus } from "@corelithzw/ui/lib/icons";
 
 import { TaskFormSheet } from "./tasks/task-form-sheet";
 import { TaskList } from "./tasks/task-list";

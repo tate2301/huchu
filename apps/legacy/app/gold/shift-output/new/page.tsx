@@ -5,20 +5,20 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import { EmployeeAvatar } from "@/components/shared/employee-avatar";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchSites,
   fetchShiftGroups,
   fetchShiftGroupMembers,
 } from "@/lib/api";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import {
   ChevronLeftIcon,
   Send,
@@ -27,8 +27,8 @@ import {
   Users,
   Scale,
   Coins,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type AttendanceStatus = "PRESENT" | "LATE" | "ABSENT";
 

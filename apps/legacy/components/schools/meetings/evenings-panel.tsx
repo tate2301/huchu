@@ -2,7 +2,7 @@
 
 import { Card } from "@corelithzw/react";
 
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * One evening, already reduced from the slots.

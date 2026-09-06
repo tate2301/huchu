@@ -10,22 +10,22 @@ import {
   AdminDonutChart,
   AdminTrendChart,
   AdminDualBarChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { RetailSaleDetailBody } from "@/components/retail/sale-detail";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+} from "@corelithzw/ui/components/dialog";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { BarChart3, Package, Payments, ReceiptLong } from "@/lib/icons";
+import { BarChart3, Package, Payments, ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
 
 type SaleRow = {

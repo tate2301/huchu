@@ -3,16 +3,16 @@
 import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { RichTextComposer } from "@/components/crm/collaboration/rich-text-composer";
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useToast } from "@/components/ui/use-toast";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { createCrmComment } from "@/lib/crm/crm-v2";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { richTextToPlain } from "@/lib/crm/rich-text";
-import { ChatCircle, Mail, Phone, Users } from "@/lib/icons";
+import { ChatCircle, Mail, Phone, Users } from "@corelithzw/ui/lib/icons";
 import type { CollabEntity } from "@/lib/crm/collaboration";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * One box for everything anybody says about a record.

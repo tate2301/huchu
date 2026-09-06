@@ -4,12 +4,12 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Alert, Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Button } from "@corelithzw/ui/components/button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Check, ChevronDown, ChevronRight, Plus } from "@/lib/icons";
-import { ViewIcon } from "@/components/ui/view-icon";
-import { cn } from "@/lib/utils";
+import { Check, ChevronDown, ChevronRight, Plus } from "@corelithzw/ui/lib/icons";
+import { ViewIcon } from "@corelithzw/ui/components/view-icon";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type PricingFeature = {
   key: string;

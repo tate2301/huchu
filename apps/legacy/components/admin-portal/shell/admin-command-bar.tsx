@@ -10,10 +10,10 @@ import {
   Search,
   Shield,
   Sparkles,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { searchAdminPortal } from "@/components/admin-portal/api";
 import type { AdminSearchResult } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@corelithzw/ui/components/badge";
 import {
   Command,
   CommandEmpty,
@@ -22,14 +22,14 @@ import {
   CommandItem,
   CommandList,
   CommandSeparator,
-} from "@/components/ui/command";
+} from "@corelithzw/ui/components/command";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogTrigger,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import { getAdminRouteForModule, getQuickActions } from "./admin-config";
 import { useAdminShell } from "./admin-shell-context";
 

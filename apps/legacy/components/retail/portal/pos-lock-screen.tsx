@@ -42,7 +42,7 @@ import { signOut, useSession } from "next-auth/react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson, getApiErrorMessage, ApiError } from "@/lib/api-client";
-import { Lock, LogOut } from "@/lib/icons";
+import { Lock, LogOut } from "@corelithzw/ui/lib/icons";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import type { PosKeypadAction } from "./pos-numeric-input";
 import { usePosPortalState } from "./pos-portal-state";

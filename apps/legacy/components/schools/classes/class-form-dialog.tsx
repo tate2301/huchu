@@ -3,9 +3,9 @@
 import { useState } from "react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 
 export type ClassFormValues = {
   code: string;

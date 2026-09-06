@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User } from "@/lib/icons";
+import { ArrowRight, Clock, Package, ReceiptLong, RefreshCcw, User } from "@corelithzw/ui/lib/icons";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import {
   PosEmptyState,

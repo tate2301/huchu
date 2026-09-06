@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 import Link from "next/link";
 
-import { MedusaChevronDownIcon, MedusaChevronRightIcon, Plus } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { MedusaChevronDownIcon, MedusaChevronRightIcon, Plus } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -12,7 +12,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 
 export type SidebarCollectionEntry = {
   id: string;

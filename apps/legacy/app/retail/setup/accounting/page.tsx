@@ -6,17 +6,17 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Alert, Badge, Card, Skeleton, StatCard } from "@corelithzw/react";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchAccountingReadiness,
   fetchTenderMappings,
   runSeedPack,
   type AccountingSeedPackResult,
 } from "@/lib/api";
-import { CheckCircle2, XCircle, RefreshCw, ArrowRight } from "@/lib/icons";
-import { Scale, FileCheck, TableRows } from "@/lib/icons";
+import { CheckCircle2, XCircle, RefreshCw, ArrowRight } from "@corelithzw/ui/lib/icons";
+import { Scale, FileCheck, TableRows } from "@corelithzw/ui/lib/icons";
 
 /**
  * The tick or cross beside a readiness check.

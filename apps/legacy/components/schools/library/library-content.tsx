@@ -25,8 +25,8 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";

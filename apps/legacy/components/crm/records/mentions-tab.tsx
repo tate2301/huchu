@@ -3,7 +3,7 @@
 import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton, Stack } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import { fetchJson } from "@/lib/api-client";
 

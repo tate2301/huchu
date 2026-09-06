@@ -11,11 +11,11 @@ import {
   NothingYet,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
-import { Receipt as ReceiptIcon } from "@/lib/icons";
+import { Receipt as ReceiptIcon } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 

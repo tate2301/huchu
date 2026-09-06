@@ -2,17 +2,17 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { SearchableSelect } from "@/components/ui/searchable-select";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@/app/gold/types";
 import { FieldHelp } from "@/components/shared/field-help";
-import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { Dialog, DialogContent, DialogFooter } from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useReservedId } from "@/hooks/use-reserved-id";
-import { CheckCircle2, Clock, Payments, TrendingDown, TrendingUp, Wallet } from "@/lib/icons";
+import { CheckCircle2, Clock, Payments, TrendingDown, TrendingUp, Wallet } from "@corelithzw/ui/lib/icons";
 import {
   PosCashMovementList,
   PosCashMovementPanel,

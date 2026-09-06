@@ -4,17 +4,17 @@ import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { FormShell } from "@/components/shared/form-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import { Checkbox } from "@/components/ui/checkbox";
-import { useToast } from "@/components/ui/use-toast";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { buildSavedRecordRedirect } from "@/lib/saved-record";
 import { goldRoutes } from "@/app/gold/routes";
-import { SearchableSelect } from "@/components/ui/searchable-select";
-import { Send, ChevronDown } from "@/lib/icons";
+import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
+import { Send, ChevronDown } from "@corelithzw/ui/lib/icons";
 
 type AvailablePour = {
   id: string;

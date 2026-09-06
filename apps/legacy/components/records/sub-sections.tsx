@@ -2,7 +2,7 @@
 
 import { useState, type ReactNode } from "react";
 
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 
 export type SubSection = {
   value: string;

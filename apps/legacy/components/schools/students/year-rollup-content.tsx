@@ -25,14 +25,14 @@ import {
   SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 

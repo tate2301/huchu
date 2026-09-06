@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 
 import type { ExecutiveQuickLink } from "@/lib/api";
-import { Badge } from "@/components/ui/badge";
+import { Badge } from "@corelithzw/ui/components/badge";
 import {
   ArrowDownward,
   ArrowRight,
@@ -25,8 +25,8 @@ import {
   UserCheck,
   Wallet,
   Wrench,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type ExecutiveQuickLinksProps = {
   links: ExecutiveQuickLink[];

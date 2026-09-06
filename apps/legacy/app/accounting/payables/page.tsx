@@ -18,23 +18,23 @@ import {
   Breakdown,
   ReportPanel,
   type BreakdownRow,
-} from "@/components/ui/breakdown-panel";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+} from "@corelithzw/ui/components/breakdown-panel";
+import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { Building2, FileText, Payments } from "@/lib/icons";
+import { Building2, FileText, Payments } from "@corelithzw/ui/lib/icons";
 
 /**
  * One ageing bucket in the by-vendor table.

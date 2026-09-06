@@ -17,14 +17,14 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Label } from "@/components/ui/label";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
 import { recordType } from "@/lib/records/registry";

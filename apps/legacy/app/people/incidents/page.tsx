@@ -6,41 +6,41 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { format } from "date-fns";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { FileText, Plus, Trash2 } from "@/lib/icons";
+import { FileText, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { PeopleShell } from "@/components/people/people-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Card,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
+} from "@corelithzw/ui/components/card";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   DataTable,
   type DataTableQueryState,
-} from "@/components/ui/data-table";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/data-table";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { NumericCell } from "@/components/ui/numeric-cell";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   fetchDisciplinaryActions,
   fetchEmployees,

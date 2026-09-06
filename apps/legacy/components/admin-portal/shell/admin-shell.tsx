@@ -3,12 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { ChevronRight, Menu, X } from "@/lib/icons";
+import { ChevronRight, Menu, X } from "@corelithzw/ui/lib/icons";
 import { AdminCommandBar } from "./admin-command-bar";
 import { AdminOperatorContext } from "./admin-operator-context";
 import { AdminSidebar } from "./admin-sidebar";
 import { AdminShellProvider, useAdminShell } from "./admin-shell-context";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 
 type Crumb = {
   label: string;

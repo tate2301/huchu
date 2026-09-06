@@ -23,7 +23,7 @@ import {
   MedusaBuildingStorefrontIcon,
   Payments,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
 import { isRouteAllowedForRole } from "@/lib/auth-core/role-routes";
 

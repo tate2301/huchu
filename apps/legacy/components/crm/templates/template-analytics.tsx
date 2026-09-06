@@ -3,8 +3,8 @@
 import { useMemo, type ReactNode } from "react";
 
 import { EmptyState, Stack } from "@corelithzw/react";
-import { ClientDate } from "@/components/ui/client-date";
-import { Download, Eye, Send } from "@/lib/icons";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Download, Eye, Send } from "@corelithzw/ui/lib/icons";
 
 type TemplateEvent = {
   id: string;

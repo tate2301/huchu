@@ -8,20 +8,20 @@ import {
   AdminDistributionChart,
   AdminDualBarChart,
   AdminDonutChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { RetailShell } from "@/components/retail/retail-shell";
-import { Button } from "@/components/ui/button";
-import { DataTable } from "@/components/ui/data-table";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Badge } from "@/components/ui/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@corelithzw/ui/components/dialog";
+import { Badge } from "@corelithzw/ui/components/badge";
 import { retailMoney } from "@/components/retail/sale-detail";
 import {
   MobileListCard,
   MobileListCardHeader,
   MobileListMetricStrip,
-} from "@/components/ui/mobile-list-card";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { Payments, ReceiptLong, Users } from "@/lib/icons";
+} from "@corelithzw/ui/components/mobile-list-card";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { Payments, ReceiptLong, Users } from "@corelithzw/ui/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type CustomerRow = {

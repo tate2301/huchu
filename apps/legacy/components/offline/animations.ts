@@ -6,7 +6,7 @@
  */
 
 import { type Variants } from "framer-motion";
-import { SPRING, EASING, DURATION } from "@/lib/animation/tokens";
+import { SPRING, EASING, DURATION } from "@corelithzw/ui/lib/animation/tokens";
 
 // ---------------------------------------------------------------------------
 // Offline Banner

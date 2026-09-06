@@ -1,6 +1,6 @@
 "use client";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   ArrowRight,
   CalendarCheck,
@@ -13,7 +13,7 @@ import {
   Send,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { NextStep, NextStepAction } from "@/lib/crm/tones";
 
 /**

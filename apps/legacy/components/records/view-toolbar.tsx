@@ -2,16 +2,16 @@
 
 import { useState, type ComponentProps, type ReactNode } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
   SheetTrigger,
-} from "@/components/ui/sheet";
-import { ChevronDown, SlidersHorizontal } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/sheet";
+import { ChevronDown, SlidersHorizontal } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The options row — the band between the page band and the records.

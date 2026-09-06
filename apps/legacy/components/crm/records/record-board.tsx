@@ -26,7 +26,7 @@ import {
 import { CSS } from "@dnd-kit/utilities";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { BoardColumnHeader } from "./board-column-header";
 import { MobileBoard } from "./board-mobile";

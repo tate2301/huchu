@@ -5,9 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageHeading } from "@/components/layout/page-heading";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";

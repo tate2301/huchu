@@ -17,17 +17,17 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
-import { SidebarTrigger } from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { SidebarTrigger } from "@corelithzw/ui/components/sidebar";
 import { usePageChrome } from "@/components/layout/page-chrome";
 import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
 import { OfflineStatusButton } from "@/components/layout/offline-status-button";
 import { CrmMembers } from "@/components/crm/crm-members";
 import { NotificationCenter } from "@/components/notifications/notification-center";
-import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@/lib/icons";
+import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { navSections } from "@/lib/navigation";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { canAccessCapabilityWithToken } from "@/lib/platform/gating/token-check";
 
 /**

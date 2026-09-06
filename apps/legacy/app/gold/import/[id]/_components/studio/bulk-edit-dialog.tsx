@@ -8,9 +8,9 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Button } from "@/components/ui/button";
-import { Label } from "@/components/ui/label";
+} from "@corelithzw/ui/components/dialog";
+import { Button } from "@corelithzw/ui/components/button";
+import { Label } from "@corelithzw/ui/components/label";
 
 type BulkField = {
   key: string;

@@ -4,13 +4,13 @@ import { useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Input } from "@/components/ui/input";
-import { Progress } from "@/components/ui/progress";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Input } from "@corelithzw/ui/components/input";
+import { Progress } from "@corelithzw/ui/components/progress";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordAttributes } from "@/components/records/record-attributes";
 import {
@@ -48,7 +48,7 @@ import {
   Users,
   Wrench,
   XCircle,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 import {
   JobBlockDialog,

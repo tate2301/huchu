@@ -58,10 +58,10 @@ import {
   User,
   UserCheck,
   Users,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
-import { normalizeUiStatus } from "@/lib/ui/status-map";
+import { normalizeUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 /**
  * A student, as a record.

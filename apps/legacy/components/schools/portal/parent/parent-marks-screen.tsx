@@ -8,9 +8,9 @@ import {
   LoadError,
   NothingYet,
 } from "@/components/schools/common/states";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { fetchJson } from "@/lib/api-client";
-import { MedusaBookOpenIcon } from "@/lib/icons";
+import { MedusaBookOpenIcon } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 

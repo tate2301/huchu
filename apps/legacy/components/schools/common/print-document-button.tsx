@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import { runDocumentExport } from "@/lib/documents/export-client";
-import { toast } from "@/components/ui/use-toast";
+import { toast } from "@corelithzw/ui/components/use-toast";
 
 /**
  * Print one of the school's documents.

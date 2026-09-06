@@ -2,20 +2,20 @@
 
 import { useEffect, useRef } from "react";
 import Link from "next/link";
-import { StatusChip } from "@/components/ui/status-chip";
-import { Button } from "@/components/ui/button";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { ClientDate } from "@/components/ui/client-date";
+} from "@corelithzw/ui/components/sheet";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import {
   ChevronLeftIcon,
   Lock,
   MedusaGridListIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { StudioImportsSidebar } from "./studio-imports-sidebar";
 import type { ImportDetail } from "../types";
 

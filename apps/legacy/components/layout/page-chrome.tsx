@@ -2,7 +2,7 @@
 
 import * as React from "react";
 
-import type { LucideIcon } from "@/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /**
  * What the top app bar should say this page is.

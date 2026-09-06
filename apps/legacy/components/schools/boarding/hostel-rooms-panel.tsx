@@ -19,8 +19,8 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 import { fetchHostelRooms, type HostelRoom } from "@/components/schools/boarding/boarding-data";

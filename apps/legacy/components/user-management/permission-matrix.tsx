@@ -3,9 +3,9 @@
 import * as React from "react";
 import { Badge, Input, Radio, RadioGroup } from "@corelithzw/react";
 
-import { Button } from "@/components/ui/button";
-import { Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Search } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type {
   PermissionEntry,
   PermissionGroup,

@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { AttachmentCenter, Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
 import { CataloguePicker } from "@/components/crm/documents/catalogue-picker";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Camera, Plus, Trash2 } from "@/lib/icons";
+import { Camera, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import {
   fetchCrmVisitReport,
   saveCrmVisitReport,

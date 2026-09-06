@@ -2,20 +2,20 @@
 
 import Link from "next/link";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
-import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "@/lib/icons";
+import { CircleUserRound, Clock3, Eye, RefreshCcw, Search } from "@corelithzw/ui/lib/icons";
 import { fetchSupportAccessHub } from "@/components/admin-portal/api";
 import { AdminModuleLoading } from "@/components/admin-portal/admin-module-loading";
 import {
   AdminStackedBarChart,
   AdminTrendChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import { useAdminShell } from "@/components/admin-portal/shell/admin-shell-context";
 import type { SupportAccessHubData } from "@/components/admin-portal/types";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Input } from "@corelithzw/ui/components/input";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { buildRecentDayBuckets, resolveTimestamp } from "@/lib/admin-portal/chart-series";
 import {
   SupportApprovalDialog,

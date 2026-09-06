@@ -1,10 +1,10 @@
 "use client";
 
-import { BellRing, Palette, ShieldAlert } from "@/lib/icons";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { BellRing, Palette, ShieldAlert } from "@corelithzw/ui/lib/icons";
+import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
 
 export function SettingsPage() {
   return (

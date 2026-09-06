@@ -4,10 +4,10 @@ import type { ReactNode } from "react";
 import Link from "next/link";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
-import { Checkbox } from "@/components/ui/checkbox";
-import { DataTableFloatingActions } from "@/components/ui/data-table-floating-actions";
-import { ChevronRight, type LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { DataTableFloatingActions } from "@corelithzw/ui/components/data-table-floating-actions";
+import { ChevronRight, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The register view every module's record list is drawn with.

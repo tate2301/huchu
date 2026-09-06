@@ -6,8 +6,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 import { EntityLink } from "@/components/records/entity-link";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
-import { useDebounced } from "@/hooks/use-debounced";
-import { Building2, Calendar, Coins, MapPin, UserRound } from "@/lib/icons";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
+import { Building2, Calendar, Coins, MapPin, UserRound } from "@corelithzw/ui/lib/icons";
 
 import { SiteFormSheet } from "./site-form-sheet";
 import { RecordList, RecordListPager, type RecordListRow } from "./record-list";

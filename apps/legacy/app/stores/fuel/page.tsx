@@ -3,25 +3,25 @@
 import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card";
+import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { StatusState } from "@/components/shared/status-state";
-import { ExportMenu } from "@/components/ui/export-menu";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { Skeleton } from "@/components/ui/skeleton";
+} from "@corelithzw/ui/components/card";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
 import { exportElementToDocument } from "@/lib/pdf";
-import { Fuel } from "@/lib/icons";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Fuel } from "@corelithzw/ui/lib/icons";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 
 type ParsedNotes = {
   supplier?: string;

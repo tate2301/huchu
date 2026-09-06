@@ -5,25 +5,25 @@ import { useQuery } from "@tanstack/react-query";
 import { format, subDays } from "date-fns";
 
 import { PageHeading } from "@/components/layout/page-heading";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import {
   Card,
   CardContent,
   CardDescription,
   CardHeader,
   CardTitle,
-} from "@/components/ui/card";
-import { ExportMenu } from "@/components/ui/export-menu";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/card";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
-import { Badge } from "@/components/ui/badge";
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { Badge } from "@corelithzw/ui/components/badge";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { type DocumentExportFormat } from "@/lib/documents/export-client";
@@ -35,7 +35,7 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from "@/components/ui/table";
+} from "@corelithzw/ui/components/table";
 
 const parseNotes = (raw?: string | null) => {
   if (!raw) return "";

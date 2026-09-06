@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Label } from "@/components/ui/label";
+import { Button } from "@corelithzw/ui/components/button";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Label } from "@corelithzw/ui/components/label";
 import {
   STANDARD_SUBJECTS,
   type StandardSubject,

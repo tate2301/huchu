@@ -5,10 +5,10 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, EmptyState, KpiGrid, RowCard, Skeleton, StatHero } from "@corelithzw/react";
 
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
-import { ChevronRight } from "@/lib/icons";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
 
 /**
  * The stock overview, on the dashboard recipe: one brand-tinted hero carrying

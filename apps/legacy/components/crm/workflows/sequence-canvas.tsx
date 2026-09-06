@@ -3,15 +3,15 @@
 import type { ReactNode } from "react";
 
 import { Badge } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Plus, Trash2, type LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Plus, Trash2, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A workflow drawn as the sequence it is.

@@ -14,9 +14,9 @@
 
 import { useCallback, useRef, useState, useEffect } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Delete, CornerDownLeft } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { SPRING } from "@/lib/animation/tokens";
+import { Delete, CornerDownLeft } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { SPRING } from "@corelithzw/ui/lib/animation/tokens";
 
 // ---------------------------------------------------------------------------
 // Types

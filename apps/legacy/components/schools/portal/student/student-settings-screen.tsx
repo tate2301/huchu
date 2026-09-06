@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Alert } from "@corelithzw/react";
-import { Bell, ChevronRight, Lock, Mail } from "@/lib/icons";
+import { Bell, ChevronRight, Lock, Mail } from "@corelithzw/ui/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 
 /**

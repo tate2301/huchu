@@ -4,16 +4,16 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Badge } from "@corelithzw/react";
-import { IconButton } from "@/components/ui/icon-button";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ClientDate } from "@/components/ui/client-date";
-import { Download, DotsThree, FileText } from "@/lib/icons";
-import { useDebounced } from "@/hooks/use-debounced";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Download, DotsThree, FileText } from "@corelithzw/ui/lib/icons";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchCrmDocuments, type CrmDocumentKind, type CrmDocumentRecord } from "@/lib/crm/crm-v2";
 import { DOCUMENT_STATUS } from "@/lib/crm/tones";
 

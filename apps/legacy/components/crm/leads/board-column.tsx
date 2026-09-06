@@ -6,7 +6,7 @@ import type { CrmLeadStage } from "@corelithzw/db";
 
 import type { CrmBoardColumn } from "@/lib/crm/crm-v2";
 import { LEAD_STAGE_COLOR, stageColor } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { BoardColumnHeader } from "@/components/crm/records/board-column-header";
 

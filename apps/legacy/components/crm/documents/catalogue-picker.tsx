@@ -3,10 +3,10 @@
 import { useEffect, useId, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverAnchor, PopoverContent } from "@/components/ui/popover";
+import { Input } from "@corelithzw/ui/components/input";
+import { Popover, PopoverAnchor, PopoverContent } from "@corelithzw/ui/components/popover";
 import { fetchJson } from "@/lib/api-client";
-import { ClipboardList, Package, Search } from "@/lib/icons";
+import { ClipboardList, Package, Search } from "@corelithzw/ui/lib/icons";
 import {
   buildSuggestions,
   type CatalogueProduct,
@@ -14,7 +14,7 @@ import {
   type Suggestion,
   type VisitItemOption,
 } from "@/lib/crm/quote-suggestions";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type { VisitItemOption };
 /** Kept as the old name: four call sites import it. */

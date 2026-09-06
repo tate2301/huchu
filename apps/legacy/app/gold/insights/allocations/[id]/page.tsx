@@ -5,21 +5,21 @@ import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
-import { Coins, Users, Gem, FileCheck, Wallet, Scale, Building2 } from "@/lib/icons";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
-import { EmployeeAvatar } from "@/components/shared/employee-avatar";
+import { Coins, Users, Gem, FileCheck, Wallet, Scale, Building2 } from "@corelithzw/ui/lib/icons";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { EmployeeAvatar } from "@corelithzw/ui/components/employee-avatar";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
-import { ClientDate } from "@/components/ui/client-date";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 
 type AllocationDetail = {

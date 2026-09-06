@@ -2,10 +2,10 @@
 
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronLeftIcon, FileText } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { ChevronLeftIcon, FileText } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { fetchJson } from "@/lib/api-client";
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 
 type ImportListItem = {
   id: string;

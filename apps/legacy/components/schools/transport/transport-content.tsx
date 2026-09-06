@@ -31,9 +31,9 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";

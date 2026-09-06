@@ -5,7 +5,7 @@ import { CtaBand, JsonLd, PageHero, SiteChrome } from "@/app/home/site-component
 import { freeTools, seoPages } from "@/app/home/site-data";
 import styles from "@/app/home/marketing.module.css";
 import { breadcrumbJsonLd, buildMarketingMetadata } from "@/lib/marketing/seo";
-import { ArrowRight } from "@/lib/icons";
+import { ArrowRight } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.tools);
 

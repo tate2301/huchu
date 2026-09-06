@@ -20,6 +20,7 @@ This is a pnpm workspace (Turborepo). The split into products is described in
   - `public/` is for static assets; `types/` holds shared TypeScript types.
 - `packages/db/` owns the Prisma schema (`prisma/schema/<module>.prisma`), the migrations, the config and the client.
   Import `@corelithzw/db` for types and enums, `@corelithzw/db/client` for `prisma`. Only this package depends on `@prisma/client`.
+- `packages/ui/` is the design-system layer (what was `components/ui`, `components/charts`, `lib/icons`, `lib/utils`, …): import `@corelithzw/ui/components/<name>`, `@corelithzw/ui/lib/utils`, `@corelithzw/ui/lib/icons`. It depends on nothing in the workspace; never import a module or the app from it.
 - `packages/config/` holds shared TypeScript presets; `packages/modules/` receives modules as they are extracted.
 - `scripts/` at the root holds the agent guardrail hooks only.
 - `docker/` includes container-related assets.

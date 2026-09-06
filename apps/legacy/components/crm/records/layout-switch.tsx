@@ -1,7 +1,7 @@
 "use client";
 
-import { SegmentedControl } from "@/components/ui/segmented-control";
-import { Kanban, ListBullets, TableRows, type LucideIcon } from "@/lib/icons";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
+import { Kanban, ListBullets, TableRows, type LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /**
  * How you are looking at a list: as a table, as rows, or as a board.

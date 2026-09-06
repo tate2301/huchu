@@ -1,5 +1,5 @@
 import { PageHeading } from "@/components/layout/page-heading";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
 
 const helpTopics = [
   {

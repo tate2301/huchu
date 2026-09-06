@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 
-import { ClientDate } from "@/components/ui/client-date";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson } from "@/lib/api-client";
-import { Calendar, Checklist, MapPin, UserRound } from "@/lib/icons";
+import { Calendar, Checklist, MapPin, UserRound } from "@corelithzw/ui/lib/icons";
 
 type Brief = {
   reference: string;

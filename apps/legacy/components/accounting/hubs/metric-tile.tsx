@@ -2,8 +2,8 @@
 
 import Link from "next/link";
 
-import type { LucideIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A figure, and the two things that make it a fact.

@@ -10,8 +10,8 @@ import {
   SettingRow,
   Switch,
 } from "@corelithzw/react";
-import { NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,
@@ -25,7 +25,7 @@ import {
   fetchNotificationPreferences,
   updateNotificationPreferences,
 } from "@/lib/api";
-import { Bell, Lock, Palette, Shield, Upload } from "@/lib/icons";
+import { Bell, Lock, Palette, Shield, Upload } from "@corelithzw/ui/lib/icons";
 
 type SectionId =
   | "notifications"

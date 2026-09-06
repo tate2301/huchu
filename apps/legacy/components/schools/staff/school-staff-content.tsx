@@ -19,8 +19,8 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { DataTable } from "@/components/ui/data-table";
-import { Plus } from "@/lib/icons";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { Plus } from "@corelithzw/ui/lib/icons";
 import { fetchJson } from "@/lib/api-client";
 import { fetchDepartments, type EmployeeSummary } from "@/lib/api";
 import type { EmployeePositionValue } from "@/lib/platform/vertical-defaults";

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import {
   ReportTable,
   amt,
@@ -14,14 +14,14 @@ import {
 } from "@/components/accounting/report-table";
 import { formatAmount, formatHeadline } from "@/lib/accounting/format";
 import { formatAccountingSourceType } from "@/lib/accounting/source-types";
-import { CheckCircle2 } from "@/lib/icons";
+import { CheckCircle2 } from "@corelithzw/ui/lib/icons";
 import {
   previewPostingRule,
   type PostingRuleLineRecord,
   type PostingRuleRecord,
   type PostingSimulationLine,
 } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A posting rule, explained as two steps.

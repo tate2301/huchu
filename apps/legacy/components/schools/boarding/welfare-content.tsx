@@ -25,10 +25,10 @@ import {
   StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Textarea } from "@corelithzw/ui/components/textarea";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   CONSENT_LABELS,

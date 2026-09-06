@@ -4,8 +4,8 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 
 import { Badge, Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { EntityLink } from "@/components/records/entity-link";
 import { eventKindStyle, type EventKind } from "@/components/crm/records/event-kind";
 import { richTextToPlain } from "@/lib/crm/rich-text";
@@ -17,8 +17,8 @@ import {
   MapPin,
   Video,
   type LucideIcon,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The compact panels that sit beside a record.

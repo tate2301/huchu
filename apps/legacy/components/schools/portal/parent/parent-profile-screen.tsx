@@ -4,7 +4,7 @@ import Link from "next/link";
 import { signOut } from "next-auth/react";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { ChevronRight, LogOut, Mail, Phone } from "@/lib/icons";
+import { ChevronRight, LogOut, Mail, Phone } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 

@@ -11,39 +11,39 @@ import {
 import type { ColumnDef } from "@tanstack/react-table";
 import { format } from "date-fns";
 import { useRouter } from "next/navigation";
-import { ArrowRight, FileText, Plus, Wrench } from "@/lib/icons";
+import { ArrowRight, FileText, Plus, Wrench } from "@corelithzw/ui/lib/icons";
 import { PayrollShell } from "@/components/payroll/payroll-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DataTable,
   type DataTableQueryState,
-} from "@/components/ui/data-table";
+} from "@corelithzw/ui/components/data-table";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetDescription,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { Skeleton } from "@/components/ui/skeleton";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/sheet";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   fetchPayrollConfig,
   type PayrollPeriodRecord,
@@ -53,8 +53,8 @@ import {
   type PayrollRunRecord,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { NumericCell } from "@/components/ui/numeric-cell";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 
 type SalarySettingsForm = {
   payrollCycle: "MONTHLY" | "FORTNIGHTLY";

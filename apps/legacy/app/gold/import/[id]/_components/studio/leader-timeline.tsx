@@ -2,9 +2,9 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@/lib/api-client";
-import { ClientDate } from "@/components/ui/client-date";
-import { X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 type LeaderEntry = {
   id: string;

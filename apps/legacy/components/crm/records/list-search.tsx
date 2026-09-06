@@ -2,9 +2,9 @@
 
 import { Input } from "@corelithzw/react";
 
-import { useIsBelow } from "@/hooks/use-mobile";
-import { Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { useIsBelow } from "@corelithzw/ui/hooks/use-mobile";
+import { Search } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The search box every CRM list and board sits under.

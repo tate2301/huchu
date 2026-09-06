@@ -7,8 +7,8 @@ import {
   CrmSettingsContent,
   useActiveSettingsSection,
 } from "@/components/crm/crm-settings-content";
-import { Button } from "@/components/ui/button";
-import { Plus } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { Plus } from "@corelithzw/ui/lib/icons";
 
 /**
  * The band names the section you are in, not the module you are in.

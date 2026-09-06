@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 
-import { Input } from "@/components/ui/input";
-import { Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Input } from "@corelithzw/ui/components/input";
+import { Search } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * The controls that belong to the table underneath them.

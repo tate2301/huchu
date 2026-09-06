@@ -5,15 +5,15 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Dialog,
   DialogContent,
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
+} from "@corelithzw/ui/components/dialog";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Sheet,
   SheetContent,
@@ -21,8 +21,8 @@ import {
   SheetFooter,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/sheet";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
 import { createOfflineRetailCustomer } from "@/lib/retail/offline-runtime";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -55,8 +55,8 @@ import {
   Wallet,
   X,
   Zap,
-} from "@/lib/icons";
-import { cn } from "@/lib/utils";
+} from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import { getPosPortalHref } from "@/lib/retail/pos-host";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import { applyPosKeypadAction, type PosKeypadAction } from "./pos-numeric-input";

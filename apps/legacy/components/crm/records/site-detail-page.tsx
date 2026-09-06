@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { ClientDate } from "@/components/ui/client-date";
-import { Skeleton } from "@/components/ui/skeleton";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import {
@@ -22,11 +22,11 @@ import {
   Lock,
   MapPin,
   User,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { resolveNextStep } from "@/lib/crm/tones";
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
 
@@ -42,7 +42,7 @@ import {
 import { RecordAttributes } from "@/components/records/record-attributes";
 import { NextStepCard } from "./next-step-card";
 import { RelationAttribute } from "./relation-attribute";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { EntityLink } from "@/components/records/entity-link";
 import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";

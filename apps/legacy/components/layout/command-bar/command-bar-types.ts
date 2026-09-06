@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 
-import type { LucideIcon } from "@/lib/icons";
+import type { LucideIcon } from "@corelithzw/ui/lib/icons";
 
 /**
  * One row in the command bar, whatever kind of thing it stands for.

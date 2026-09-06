@@ -7,19 +7,19 @@ import { format } from "date-fns";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
 import { BandChip } from "@/components/accounting/band-chip";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
 import { AccountingListView as DataTable } from "@/components/accounting/listview/accounting-list-view";
-import { Input } from "@/components/ui/input";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+} from "@corelithzw/ui/components/select";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import {
   type AccountingPeriodRecord,
   type CashFlowReport,

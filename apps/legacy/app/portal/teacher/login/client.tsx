@@ -1,6 +1,6 @@
 "use client";
 
-import { ManageAccounts } from "@/lib/icons";
+import { ManageAccounts } from "@corelithzw/ui/lib/icons";
 import { PortalLoginForm } from "@/components/auth/portal-login-form";
 
 export function TeacherPortalLoginClient({

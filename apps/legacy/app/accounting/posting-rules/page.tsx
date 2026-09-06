@@ -8,32 +8,32 @@ import { BandChip } from "@/components/accounting/band-chip";
 import { PostingRuleList } from "@/components/accounting/posting-rule-list";
 import { PostingRuleExplainer } from "@/components/accounting/posting-rule-explainer";
 import { PageActions } from "@/components/layout/page-actions";
-import { VerticalDataViews } from "@/components/ui/vertical-data-views";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import {
   Sheet,
   SheetContent,
   SheetHeader,
   SheetTitle,
-} from "@/components/ui/sheet";
+} from "@corelithzw/ui/components/sheet";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
   DialogFooter,
-} from "@/components/ui/dialog";
-import { Separator } from "@/components/ui/separator";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dialog";
+import { Separator } from "@corelithzw/ui/components/separator";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   backfillRetailAccounting,
   fetchAccountingReadiness,
@@ -64,7 +64,7 @@ import {
   Play,
   CheckCircle2,
   XCircle,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 // ─── constants ───────────────────────────────────────────────────────────────
 

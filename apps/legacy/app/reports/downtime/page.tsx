@@ -12,17 +12,17 @@ import {
   startOfWeek,
 } from "date-fns"
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-import { FrappeChartShell } from "@/components/charts/frappe-chart-shell"
-import { FrappeStatCard } from "@/components/charts/frappe-stat-card"
-import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
+import { FrappeChartShell } from "@corelithzw/ui/charts/frappe-chart-shell"
+import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card"
+import { Card, CardContent } from "@corelithzw/ui/components/card"
 import { PageHeading } from "@/components/layout/page-heading"
 import { StatusState } from "@/components/shared/status-state"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Skeleton } from "@/components/ui/skeleton"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select"
+import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import {
   buildAxisChartConfig,
-} from "@/lib/charts/frappe-config-builders"
+} from "@corelithzw/ui/lib/charts/frappe-config-builders"
 import { fetchDowntimeAnalytics, fetchSites } from "@/lib/api"
 import { getApiErrorMessage } from "@/lib/api-client"
 

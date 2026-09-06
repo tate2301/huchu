@@ -6,7 +6,7 @@ import {
   UserCheck,
   Users,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 /**
  * People — the workforce record.

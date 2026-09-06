@@ -4,7 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 
-import { Bell, Check, Home, Receipt, UserRound, X } from "@/lib/icons";
+import { Bell, Check, Home, Receipt, UserRound, X } from "@corelithzw/ui/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 import "./parent-portal.css";

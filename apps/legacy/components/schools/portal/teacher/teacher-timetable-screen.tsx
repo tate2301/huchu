@@ -12,7 +12,7 @@ import {
   EmptyState,
   Modal,
 } from "@corelithzw/react";
-import { ChevronLeftIcon, ChevronRight } from "@/lib/icons";
+import { ChevronLeftIcon, ChevronRight } from "@corelithzw/ui/lib/icons";
 import {
   CardsSkeleton,
   LoadError,

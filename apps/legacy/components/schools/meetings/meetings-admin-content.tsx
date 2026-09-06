@@ -28,7 +28,7 @@ import {
   SavingOverlay,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsTerms, fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 import {

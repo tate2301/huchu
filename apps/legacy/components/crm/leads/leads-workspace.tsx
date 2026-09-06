@@ -4,25 +4,25 @@ import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { CrmLeadStage } from "@corelithzw/db";
 
-import { Button } from "@/components/ui/button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { useToast } from "@/components/ui/use-toast";
+import { Button } from "@corelithzw/ui/components/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { Funnel, Plus } from "@/lib/icons";
+import { Funnel, Plus } from "@corelithzw/ui/lib/icons";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { LayoutSwitch } from "@/components/crm/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
 import { ListSearch } from "@/components/crm/records/list-search";
 import { ViewToolbar } from "@/components/records/view-toolbar";
-import { useDebounced } from "@/hooks/use-debounced";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import {
   bulkUpdateCrmLeads,
   fetchCrmLeads,
   fetchCrmSavedViews,
 } from "@/lib/crm/crm-v2";
 import { DEFAULT_LEAD_SORT, type LeadSort, type LeadViewFilters } from "@/lib/crm/views";
-import { useVisibleColumns } from "@/lib/ui/visible-columns";
-import { ColumnPicker } from "@/components/ui/column-picker";
+import { useVisibleColumns } from "@corelithzw/ui/lib/ui/visible-columns";
+import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
 import {
   BoardFieldsProvider,
   LEAD_CARD_FIELDS,

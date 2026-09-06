@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { ChevronDown } from "@/lib/icons";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { ChevronDown } from "@corelithzw/ui/lib/icons";
 import { fetchCrmPipelines } from "@/lib/crm/crm-v2";
 
 /**

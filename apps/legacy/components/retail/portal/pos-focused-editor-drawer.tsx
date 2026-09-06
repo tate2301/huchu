@@ -1,8 +1,8 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { Button } from "@/components/ui/button";
-import { X } from "@/lib/icons";
+import { Button } from "@corelithzw/ui/components/button";
+import { X } from "@corelithzw/ui/lib/icons";
 
 type PosFocusedEditorDrawerProps = {
   title: string;

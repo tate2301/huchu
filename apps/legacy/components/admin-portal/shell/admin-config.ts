@@ -9,7 +9,7 @@ import {
   MedusaLifebuoyIcon,
   ShieldAlert,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { AdminQuickAction } from "@/components/admin-portal/types";
 
 export type AdminNavItem = {

@@ -4,14 +4,14 @@ import Link from "next/link";
 import * as React from "react";
 
 import type { NavItem } from "@/lib/navigation";
-import { MedusaCirclePlusIcon } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { MedusaCirclePlusIcon } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   SidebarGroup,
   SidebarGroupContent,
@@ -19,7 +19,7 @@ import {
   SidebarMenuButton,
   SidebarMenuItem,
   useSidebar,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 
 import { matchesNavHref } from "./sidebar-helpers";
 

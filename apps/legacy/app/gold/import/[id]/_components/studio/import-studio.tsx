@@ -39,7 +39,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { GoldShell } from "@/components/gold/gold-shell";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -49,29 +49,29 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
+} from "@corelithzw/ui/components/alert-dialog";
+import { Button } from "@corelithzw/ui/components/button";
+import { Badge } from "@corelithzw/ui/components/badge";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Skeleton } from "@/components/ui/skeleton";
-import { SegmentedControl } from "@/components/ui/segmented-control";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import {
   MoreHorizontal,
   Pencil,
   Download,
   RotateCcw,
   Trash2,
-} from "@/lib/icons";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/lib/icons";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchShiftGroups, fetchSites } from "@/lib/api";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type { BulkAcceptPayload } from "./studio-anomaly-panel";
 
 import type {

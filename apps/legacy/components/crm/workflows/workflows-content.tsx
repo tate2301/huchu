@@ -5,27 +5,27 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Alert, EmptyState, Switch, Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { IconButton } from "@/components/ui/icon-button";
-import { Skeleton } from "@/components/ui/skeleton";
-import { TimeAgo } from "@/components/ui/time-ago";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { TimeAgo } from "@corelithzw/ui/components/time-ago";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ViewToolbar } from "@/components/records/view-toolbar";
 import { ReportTable, node, num, txt } from "@/components/accounting/report-table";
-import { useToast } from "@/components/ui/use-toast";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   type AutomationAction,
   type AutomationCondition,
   type AUTOMATION_TRIGGERS,
 } from "@/lib/crm/automation";
-import { DotsThree, Plus } from "@/lib/icons";
+import { DotsThree, Plus } from "@corelithzw/ui/lib/icons";
 
 type WorkflowRow = {
   id: string;

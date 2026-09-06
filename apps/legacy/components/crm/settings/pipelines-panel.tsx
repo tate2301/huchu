@@ -3,9 +3,9 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   ReportTable,
   badge,
@@ -15,10 +15,10 @@ import {
   txt,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { Checkbox } from "@/components/ui/checkbox";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Checkbox } from "@corelithzw/ui/components/checkbox";
+import { Input } from "@corelithzw/ui/components/input";
+import { Label } from "@corelithzw/ui/components/label";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import {
   Dialog,
   DialogContent,
@@ -26,21 +26,21 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/select";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { ArrowDownward, ArrowUpward, ChevronRight, Lock, Plus, Trash2 } from "@/lib/icons";
+import { ArrowDownward, ArrowUpward, ChevronRight, Lock, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { fetchCrmPipelines, type CrmPipelineRecord } from "@/lib/crm/crm-v2";
 import { STAGE_OUTCOME_TONE } from "@/lib/crm/tones";
 import { validateStages, type StageInput } from "@/lib/crm/pipelines";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { SetupNote, SetupPanel } from "./setup-chrome";
 

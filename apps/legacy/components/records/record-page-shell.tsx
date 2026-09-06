@@ -6,22 +6,22 @@ import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { Stack } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Button } from "@corelithzw/ui/components/button";
+import { NavRail, NavRailItem } from "@corelithzw/ui/components/nav-rail";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { IconButton } from "@/components/ui/icon-button";
-import { useIsMobile } from "@/hooks/use-mobile";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { useIsMobile } from "@corelithzw/ui/hooks/use-mobile";
 import { useRecordTrail } from "@/components/records/record-trail";
-import { DotsThree, SidebarRight, type LucideIcon } from "@/lib/icons";
-import type { CanonicalUiStatus } from "@/lib/ui/status-map";
-import { cn } from "@/lib/utils";
+import { DotsThree, SidebarRight, type LucideIcon } from "@corelithzw/ui/lib/icons";
+import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /** The query parameter that says which section of a record is open. */
 const SECTION_PARAM = "section";

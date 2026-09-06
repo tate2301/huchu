@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { ClientDate } from "@/components/ui/client-date";
-import { ExternalLink } from "@/lib/icons";
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { ExternalLink } from "@corelithzw/ui/lib/icons";
 import type { LedgerEntry } from "../types";
 
 function EmptyState({ committed, label }: { committed: boolean; label: string }) {

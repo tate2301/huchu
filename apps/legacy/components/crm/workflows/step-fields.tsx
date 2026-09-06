@@ -1,13 +1,13 @@
 "use client";
 
-import { Input } from "@/components/ui/input";
+import { Input } from "@corelithzw/ui/components/input";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
+} from "@corelithzw/ui/components/select";
 import type { ActionType, AutomationAction } from "@/lib/crm/automation";
 import type { AutomationField } from "@/lib/crm/automation-fields";
 

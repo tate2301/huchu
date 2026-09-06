@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { useToast } from "@/components/ui/use-toast";
-import { Save, ChevronDown, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { Save, ChevronDown, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import type { AnomalySeverity, LedgerEntry } from "../types";
 
 export type StudioFilter = {

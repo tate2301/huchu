@@ -11,9 +11,9 @@
 
 import { useMemo } from "react";
 import { motion, useReducedMotion } from "framer-motion";
-import { Clock, AlertTriangle, CheckCircle2 } from "@/lib/icons";
-import { cn } from "@/lib/utils";
-import { SPRING, STATUS_COLORS } from "@/lib/animation/tokens";
+import { Clock, AlertTriangle, CheckCircle2 } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+import { SPRING, STATUS_COLORS } from "@corelithzw/ui/lib/animation/tokens";
 
 // ---------------------------------------------------------------------------
 // Types

@@ -23,7 +23,7 @@ import {
   SavingOverlay,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 

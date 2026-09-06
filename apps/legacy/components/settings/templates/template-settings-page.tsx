@@ -4,10 +4,10 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconTile, Stack } from "@corelithzw/react";
 import { ManagementShell } from "@/components/settings/management-shell";
-import { IconButton } from "@/components/ui/icon-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   Command,
   CommandEmpty,
@@ -15,7 +15,7 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from "@/components/ui/command";
+} from "@corelithzw/ui/components/command";
 import {
   Dialog,
   DialogContent,
@@ -23,17 +23,17 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Textarea } from "@/components/ui/textarea";
-import { useToast } from "@/components/ui/use-toast";
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
+import { Textarea } from "@corelithzw/ui/components/textarea";
+import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
   DEFAULT_TEMPLATE_CATALOG,
   resolveCatalogTemplateEntry,
@@ -43,7 +43,7 @@ import {
   type DocumentTemplateSchema,
   templateSchema,
 } from "@/lib/documents/template-schema";
-import { CheckIcon, ChevronDown, DotsThree } from "@/lib/icons";
+import { CheckIcon, ChevronDown, DotsThree } from "@corelithzw/ui/lib/icons";
 
 type DocumentType =
   | "REPORT_TABLE"

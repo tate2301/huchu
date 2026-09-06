@@ -19,7 +19,7 @@ import type { FileOwnerKind } from "@/lib/crm/record-files";
 import type { CollabEntity } from "@/lib/crm/collaboration";
 import { fetchCrmComments, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
 
-import { Checklist, Clock, FileText, FlowArrow, History } from "@/lib/icons";
+import { Checklist, Clock, FileText, FlowArrow, History } from "@corelithzw/ui/lib/icons";
 
 import type { RecordTab } from "@/components/records/record-page-shell";
 

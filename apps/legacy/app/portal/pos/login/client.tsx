@@ -1,6 +1,6 @@
 "use client";
 
-import { ReceiptLong } from "@/lib/icons";
+import { ReceiptLong } from "@corelithzw/ui/lib/icons";
 import { PortalLoginForm } from "@/components/auth/portal-login-form";
 
 export function PosPortalLoginClient({

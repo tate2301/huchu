@@ -3,11 +3,11 @@
 import { useMemo, useState, type ReactNode } from "react";
 
 import { Switch } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ChevronDown, Search } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Button } from "@corelithzw/ui/components/button";
+import { Input } from "@corelithzw/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
+import { ChevronDown, Search } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type ToneOption = {
   value: string;

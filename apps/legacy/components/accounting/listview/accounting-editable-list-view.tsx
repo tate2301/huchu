@@ -3,7 +3,7 @@
 import type { ReactNode } from "react";
 import { useMemo } from "react";
 import { ListView } from "@rtcamp/frappe-ui-react";
-import { Button } from "@/components/ui/button";
+import { Button } from "@corelithzw/ui/components/button";
 
 type EditableListColumn<TData> = {
   key: string;

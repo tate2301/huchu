@@ -5,7 +5,7 @@ import { useState, type ReactNode } from "react";
 import { EmptyState } from "@corelithzw/react";
 
 import { RecordList, type RecordListRow } from "./record-list";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /**
  * A kanban board, on a phone.

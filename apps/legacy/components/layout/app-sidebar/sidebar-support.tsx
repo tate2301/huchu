@@ -1,11 +1,11 @@
 "use client";
 
-import { Circle, HelpCircle } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Circle, HelpCircle } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 import {
   SidebarGroup,
   SidebarGroupContent,
-} from "@/components/ui/sidebar";
+} from "@corelithzw/ui/components/sidebar";
 
 export function SidebarSupport({
   isCollapsed,

@@ -2,7 +2,9 @@
 
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 
-export type DocumentExportFormat = "pdf" | "csv";
+import { inferTableSourceKey, type TableExportFormat } from "@corelithzw/ui/lib/table-export";
+
+export type DocumentExportFormat = TableExportFormat;
 
 type AsyncRenderResponse = {
   mode: "ASYNC";
@@ -109,15 +111,7 @@ async function fetchJob(jobId: string): Promise<RenderJob> {
   return payload as RenderJob;
 }
 
-export function inferSourceKeyFromPath(pathname: string | null | undefined) {
-  const safe = (pathname ?? "/")
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9/]+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^\/+|\/+$/g, "");
-  return `ui.table.${safe || "root"}`;
-}
+export const inferSourceKeyFromPath = inferTableSourceKey;
 
 export async function runDocumentExport(
   request: RenderRequest,

@@ -4,15 +4,15 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Input, Skeleton } from "@corelithzw/react";
 
-import { SegmentedControl } from "@/components/ui/segmented-control";
+import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select";
-import { useDebounced } from "@/hooks/use-debounced";
+} from "@corelithzw/ui/components/select";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchSites, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";

@@ -3,11 +3,11 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { Input } from "@/components/ui/input";
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Input } from "@corelithzw/ui/components/input";
+import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
 import { fetchJson } from "@/lib/api-client";
-import { Search, X } from "@/lib/icons";
-import { cn } from "@/lib/utils";
+import { Search, X } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RecordMark, type RecordKind } from "@/components/records/record-mark";
 

@@ -5,7 +5,7 @@ import { useMemo, useState, useSyncExternalStore } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { AccountingShell } from "@/components/accounting/accounting-shell";
 import { MetricTile } from "@/components/accounting/hubs/metric-tile";
-import { ReportPanel } from "@/components/ui/breakdown-panel";
+import { ReportPanel } from "@corelithzw/ui/components/breakdown-panel";
 import { BandChip } from "@/components/accounting/band-chip";
 import {
   ReportTable,
@@ -17,22 +17,22 @@ import {
   txt,
   type ReportRow,
 } from "@/components/accounting/report-table";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
+} from "@corelithzw/ui/components/dropdown-menu";
 import {
   Dialog,
   DialogContent,
   DialogDescription,
   DialogHeader,
   DialogTitle,
-} from "@/components/ui/dialog";
+} from "@corelithzw/ui/components/dialog";
 import {
   fetchAccountingPeriods,
   fetchAccountingSummary,
@@ -53,7 +53,7 @@ import {
   Plus,
   ReceiptLong,
   RefreshCcw,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 
 /** Ink for the period panel's figures — the badge palette, so it agrees with
  *  the status chips in the journals table beside it. */

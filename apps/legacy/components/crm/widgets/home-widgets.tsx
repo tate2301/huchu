@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Card, EmptyState, KpiGrid, StatHero, Stack } from "@corelithzw/react";
 import { AGEING_LABELS, type AgeingBucket } from "@/lib/crm/collections";
 import { LEAD_STAGE_COLOR } from "@/lib/crm/tones";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 export type HomeData = {
   scope: "TEAM" | "MINE";

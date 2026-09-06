@@ -6,7 +6,7 @@ import {
   AdminDistributionChart,
   AdminDonutChart,
   AdminTrendChart,
-} from "@/components/charts/admin-headless-charts";
+} from "@corelithzw/ui/charts/admin-headless-charts";
 import {
   BarChart3,
   Clock,
@@ -15,7 +15,7 @@ import {
   TrendingDown,
   TrendingUp,
   Wallet,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { fetchJson } from "@/lib/api-client";
 import {
   PosEmptyState,
@@ -27,7 +27,7 @@ import { PosZReportPanel } from "./pos-z-report-view";
 import { usePosPortalState } from "./pos-portal-state";
 import { money, round } from "./pos-utils";
 import type { SaleRow } from "./pos-types";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 /* ─── Helpers ─────────────────────────────────────────────────────── */
 

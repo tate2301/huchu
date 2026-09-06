@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { useDebounced } from "@/hooks/use-debounced";
+import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchCrmReps } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";

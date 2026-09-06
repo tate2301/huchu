@@ -1,7 +1,7 @@
 "use client";
 
 import { SCORE_BAND_LABELS, type LeadScore } from "@/lib/crm/lead-scoring";
-import { cn } from "@/lib/utils";
+import { cn } from "@corelithzw/ui/lib/utils";
 
 import { Stack } from "@corelithzw/react";
 

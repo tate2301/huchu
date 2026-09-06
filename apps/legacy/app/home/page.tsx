@@ -41,7 +41,7 @@ import {
   softwareApplicationJsonLd,
   websiteJsonLd,
 } from "@/lib/marketing/seo";
-import { ArrowRight, ExternalLink, Info, ShieldCheck } from "@/lib/icons";
+import { ArrowRight, ExternalLink, Info, ShieldCheck } from "@corelithzw/ui/lib/icons";
 
 export const metadata: Metadata = buildMarketingMetadata(seoPages.home);
 

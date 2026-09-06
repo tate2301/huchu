@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Button } from "@/components/ui/button";
-import { Skeleton } from "@/components/ui/skeleton";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchCrmFieldDefinitions, type CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 
@@ -43,7 +43,7 @@ import {
   Work,
   UserRound,
   Users,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { NextStepCard } from "./next-step-card";

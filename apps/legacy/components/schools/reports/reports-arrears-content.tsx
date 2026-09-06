@@ -8,9 +8,9 @@ import { useQuery, useIsMutating } from "@tanstack/react-query";
 import { Alert, Button, Card, StatCard } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
-import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { TradingViewChartCard } from "@corelithzw/ui/charts/tradingview-chart-card";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";

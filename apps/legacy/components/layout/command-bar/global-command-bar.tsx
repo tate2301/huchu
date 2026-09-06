@@ -5,12 +5,12 @@ import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { IconButton } from "@/components/ui/icon-button";
-import { useSidebar } from "@/components/ui/sidebar";
+import { IconButton } from "@corelithzw/ui/components/icon-button";
+import { useSidebar } from "@corelithzw/ui/components/sidebar";
 import { fetchJson } from "@/lib/api-client";
 import { navSections } from "@/lib/navigation";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
-import { resolveViewIcon } from "@/lib/ui/view-icons";
+import { resolveViewIcon } from "@corelithzw/ui/lib/ui/view-icons";
 import {
   AddressBook,
   ArrowRight,
@@ -35,7 +35,7 @@ import {
   Wallet,
   Wrench,
   type LucideIcon,
-} from "@/lib/icons";
+} from "@corelithzw/ui/lib/icons";
 import type { SearchResult, SearchResultType } from "@/lib/records/search-result";
 
 import { CommandBar } from "./command-bar";

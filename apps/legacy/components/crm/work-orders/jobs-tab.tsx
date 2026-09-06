@@ -5,14 +5,14 @@ import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton } from "@corelithzw/react";
-import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { StatusChip } from "@/components/ui/status-chip";
+import { Button } from "@corelithzw/ui/components/button";
+import { Progress } from "@corelithzw/ui/components/progress";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import type { RecordTab } from "@/components/records/record-page-shell";
 import { fetchJson } from "@/lib/api-client";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import { WORK_ORDER_STATUS_LABELS, type WorkOrderCounts } from "@/lib/crm/work-orders";
-import { Plus, Wrench } from "@/lib/icons";
+import { Plus, Wrench } from "@corelithzw/ui/lib/icons";
 
 import { RaiseJobSheet } from "./raise-job-sheet";
 import { jobHref, jobWindow, jobsRefParam, type JobRow, type JobsRef } from "./job-types";
