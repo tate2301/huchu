@@ -19,7 +19,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@corelithzw/db/client";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
-import { canRenderPayslip, resolvePayslip } from "./hr-sources";
+import { canRenderPayslip, resolvePayslip } from "./document-sources";
 
 let companyId: string;
 let actorId: string;

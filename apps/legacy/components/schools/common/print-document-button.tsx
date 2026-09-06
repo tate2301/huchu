@@ -3,7 +3,7 @@
 import { useState } from "react";
 
 import { Button } from "@corelithzw/ui/components/button";
-import { runDocumentExport } from "@/lib/documents/export-client";
+import { runDocumentExport } from "@corelithzw/module-documents/export-client";
 import { toast } from "@corelithzw/ui/components/use-toast";
 
 /**

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { processDocumentRenderJobsBatch } from "@/lib/documents/service";
+import { processDocumentRenderJobsBatch } from "@corelithzw/module-documents/service";
 
 function canRunWorker(role: string) {
   return role === "SUPERADMIN" || role === "MANAGER";

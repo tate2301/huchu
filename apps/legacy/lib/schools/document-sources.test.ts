@@ -20,7 +20,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@corelithzw/db/client";
 
-import { resolveSchoolDocument, SCHOOL_DOCUMENT_ACCESS } from "./schools-sources";
+import { resolveSchoolDocument, SCHOOL_DOCUMENT_ACCESS } from "./document-sources";
 
 let companyId: string;
 let termId: string;

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { parseTemplateSchema } from "@/lib/documents/template-schema";
+import { parseTemplateSchema } from "@corelithzw/module-documents/template-schema";
 
 const createVersionSchema = z.object({
   schemaJson: z.string().min(2),

@@ -17,13 +17,13 @@ import {
 } from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
-  DEFAULT_TEMPLATE_CATALOG,
+  defaultTemplateCatalog,
   type DefaultTemplateCatalogEntry,
-} from "@/lib/documents/default-template-catalog";
+} from "@corelithzw/module-documents/default-template-catalog";
 import {
   defaultTemplateSchema,
   type DocumentTemplateSchema,
-} from "@/lib/documents/template-schema";
+} from "@corelithzw/module-documents/template-schema";
 
 type TemplateRow = {
   id: string;
@@ -52,7 +52,7 @@ function groupEntries(): Array<{ id: string; title: string; entries: DefaultTemp
   return GROUPS.map((group) => ({
     id: group.id,
     title: group.title,
-    entries: DEFAULT_TEMPLATE_CATALOG.filter(
+    entries: defaultTemplateCatalog().filter(
       (entry) => group.match(entry.sourceKey) && !entry.sourceKey.includes("*"),
     ),
   })).filter((group) => group.entries.length > 0);
@@ -88,7 +88,7 @@ export function TemplateStudio() {
   const [savedFlash, setSavedFlash] = useState(false);
 
   const entry = useMemo(
-    () => DEFAULT_TEMPLATE_CATALOG.find((e) => e.sourceKey === selectedKey) ?? null,
+    () => defaultTemplateCatalog().find((e) => e.sourceKey === selectedKey) ?? null,
     [selectedKey],
   );
 

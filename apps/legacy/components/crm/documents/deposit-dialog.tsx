@@ -5,7 +5,7 @@ import { useState } from "react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
 
 import { formatMoney, type LeadDocument } from "./document-types";

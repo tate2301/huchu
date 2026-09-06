@@ -3,7 +3,7 @@ import { z } from "zod";
 import type { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
-import { blockSchema, fieldBlocks, validateAnswers } from "@/lib/crm/blocks";
+import { blockSchema, fieldBlocks, validateAnswers } from "@corelithzw/module-documents/blocks";
 
 const submitSchema = z.object({
   answers: z.record(z.string().max(60), z.unknown()),

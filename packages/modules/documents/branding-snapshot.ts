@@ -1,6 +1,6 @@
 import { prisma } from "@corelithzw/db/client";
 import { getEffectiveBrandingForCompany } from "@corelithzw/platform/branding";
-import type { CompanyBrandingSnapshot } from "@/lib/documents/types";
+import type { CompanyBrandingSnapshot } from "./types";
 
 export async function getDocumentBranding(companyId: string): Promise<CompanyBrandingSnapshot> {
   const [effective, raw] = await Promise.all([

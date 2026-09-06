@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { defaultTemplateSchema } from "@/lib/documents/template-schema";
-import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
+import { defaultTemplateSchema } from "@corelithzw/module-documents/template-schema";
+import { resolveCatalogTemplateEntry } from "@corelithzw/module-documents/default-template-catalog";
 
 const createTemplateSchema = z.object({
   name: z.string().min(1).max(120),

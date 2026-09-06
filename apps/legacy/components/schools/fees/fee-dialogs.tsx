@@ -9,7 +9,7 @@ import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { SaveError } from "@/components/schools/common/states";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { formatSchoolMoney } from "@/lib/schools/format";

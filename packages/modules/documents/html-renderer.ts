@@ -1,9 +1,9 @@
-import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
+import type { DocumentTemplateSchema } from "./template-schema";
 import type {
   CompanyBrandingSnapshot,
   DocumentBadgeTone,
   UniversalDocumentPayload,
-} from "@/lib/documents/types";
+} from "./types";
 
 function esc(value: unknown): string {
   return String(value ?? "")

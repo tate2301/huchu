@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
-import { renderDocumentHtml } from "@/lib/documents/html-renderer";
-import { getSamplePayload } from "@/lib/documents/sample-payloads";
-import { templateSchema } from "@/lib/documents/template-schema";
+import { getDocumentBranding } from "@corelithzw/module-documents/branding-snapshot";
+import { renderDocumentHtml } from "@corelithzw/module-documents/html-renderer";
+import { getSamplePayload } from "@corelithzw/module-documents/sample-payloads";
+import { templateSchema } from "@corelithzw/module-documents/template-schema";
 
 const bodySchema = z.object({
   sourceKey: z.string().min(1).max(120),

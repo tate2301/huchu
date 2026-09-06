@@ -1,7 +1,7 @@
 import { existsSync, readdirSync } from "node:fs";
 import { dirname, join } from "node:path";
 import type { Browser } from "puppeteer-core";
-import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
+import type { DocumentTemplateSchema } from "./template-schema";
 
 function findLocalChromiumExecutable(): string | null {
   const platform = process.platform;

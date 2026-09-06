@@ -2,7 +2,7 @@ import {
   inferSourceKeyFromPath,
   runDocumentExport,
   type DocumentExportFormat,
-} from "@/lib/documents/export-client";
+} from "./export-client";
 
 function normalizeText(value: string | null | undefined) {
   return (value ?? "").replace(/\s+/g, " ").trim();

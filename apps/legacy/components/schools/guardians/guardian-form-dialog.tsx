@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button, Combobox } from "@corelithzw/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import {

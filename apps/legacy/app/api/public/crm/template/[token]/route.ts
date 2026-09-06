@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
-import { blockSchema } from "@/lib/crm/blocks";
+import { blockSchema } from "@corelithzw/module-documents/blocks";
 import { z } from "zod";
 
 /**

@@ -1,4 +1,4 @@
-import { processNextDocumentRenderJob } from "@/lib/documents/service";
+import { processNextDocumentRenderJob } from "@corelithzw/module-documents/service";
 
 async function sleep(ms: number) {
   return new Promise((resolve) => setTimeout(resolve, ms));

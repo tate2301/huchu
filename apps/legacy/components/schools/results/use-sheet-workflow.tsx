@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import type { RecordVerb } from "@/components/schools/common/record-actions";

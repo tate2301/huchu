@@ -18,8 +18,8 @@ import {
   templateProblems,
   type Block,
   type TemplateKind,
-} from "@/lib/crm/blocks";
-import { sampleValues, unknownVariables } from "@/lib/crm/template-variables";
+} from "../../blocks";
+import { sampleValues, unknownVariables } from "../../template-variables";
 import { CopyLink, Eye, Layers, ShieldCheck, Users } from "@corelithzw/ui/lib/icons";
 
 import { AttributeHeader } from "./attribute-header";

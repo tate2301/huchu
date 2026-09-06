@@ -1,5 +1,5 @@
 import { IntakeFormContent } from "@/components/crm/public/intake-form-content";
-import { PublicTemplateForm } from "@/components/crm/templates/public-template-form";
+import { PublicTemplateForm } from "@corelithzw/module-documents/components/templates/public-template-form";
 import { prisma } from "@corelithzw/db/client";
 
 export const dynamic = "force-dynamic";

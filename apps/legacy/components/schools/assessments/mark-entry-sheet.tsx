@@ -8,7 +8,7 @@ import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Input } from "@corelithzw/ui/components/input";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { gradeFor, DEFAULT_GRADING_BANDS } from "@/lib/schools/grading";
 import {

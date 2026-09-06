@@ -13,7 +13,7 @@ import { NotificationType } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
 import { emitCrmNotification } from "@/lib/notifications";
-import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
+import { getDocumentBranding } from "@corelithzw/module-documents/branding-snapshot";
 
 type Tx = Prisma.TransactionClient;
 

@@ -36,8 +36,8 @@ import {
   type Block,
   type BlockType,
   type TemplateKind,
-} from "@/lib/crm/blocks";
-import { starterBlocks, startersForKind } from "@/lib/crm/starter-templates";
+} from "../../blocks";
+import { starterBlocks, startersForKind } from "../../starter-templates";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 import { VariablePicker } from "./variable-picker";

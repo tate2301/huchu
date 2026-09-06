@@ -53,6 +53,21 @@ export type RecordTypeTemplate = {
   queryKey: readonly string[];
 };
 
+/**
+ * A default document template a module ships: which source it prints, what
+ * kind of document it is, and the layout. `schema` is the documents module's
+ * template schema, carried here as plain data.
+ */
+export type DocumentTemplateEntry = {
+  key: string;
+  sourceKey: string;
+  documentType: "REPORT_TABLE" | "DASHBOARD_PACK" | "SALES_INVOICE" | "SALES_QUOTATION" | "SALES_RECEIPT" | "GENERIC_RECORD";
+  targetType: "LIST" | "RECORD" | "DASHBOARD";
+  name: string;
+  description: string;
+  schema: Record<string, unknown>;
+};
+
 export type ModuleManifest = {
   id: ModuleId;
   /** The modules this one imports from, by id. The boundary test holds it to this. */
@@ -66,6 +81,10 @@ export type ModuleManifest = {
   records?: {
     /** The record types this module owns, for the shared record page, mark and editor. */
     types?: readonly RecordTypeTemplate[];
+  };
+  documents?: {
+    /** The print-ready defaults for the documents this module's sources produce. */
+    templates?: readonly DocumentTemplateEntry[];
   };
   notifications?: {
     /** Where a notice about one of the module's entities opens: entity type → path template with `{id}`. */

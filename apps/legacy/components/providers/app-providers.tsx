@@ -12,7 +12,7 @@ import { OfflineChrome } from "@/components/offline"
 import { AppearanceProvider } from "@/components/providers/appearance-provider"
 import { OfflineProvider } from "@/components/providers/offline-provider"
 import { TableExportProvider } from "@corelithzw/ui/lib/table-export"
-import { documentsTableExporter } from "@/lib/documents/table-exporter"
+import { documentsTableExporter } from "@corelithzw/module-documents/table-exporter"
 import { Toaster } from "@corelithzw/ui/components/toaster"
 
 /**

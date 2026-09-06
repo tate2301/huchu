@@ -4,7 +4,7 @@ import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { StatusState } from "@corelithzw/ui/shared/status-state";
 import { ExportMenu } from "@corelithzw/ui/components/export-menu";
@@ -18,8 +18,8 @@ import {
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { Fuel } from "@corelithzw/ui/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 

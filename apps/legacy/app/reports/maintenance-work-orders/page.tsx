@@ -14,8 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchSites, fetchWorkOrders } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 
 export default function MaintenanceWorkOrdersReportPage() {

@@ -6,7 +6,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/components/popover";
 import { Search } from "@corelithzw/ui/lib/icons";
-import { groupedVariables } from "@/lib/crm/template-variables";
+import { groupedVariables } from "../../template-variables";
 
 /**
  * The list of things a template can fill in, and a way to put one in.

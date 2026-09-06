@@ -12,7 +12,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import {
   ASSESSMENT_KIND_LABELS,
   type AssessmentKind,

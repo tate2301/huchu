@@ -6,7 +6,7 @@ import { randomUUID } from "crypto";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { canUser, denialMessage } from "@/lib/crm/permissions";
-import { TEMPLATE_KINDS, templateProblems, templateSchema } from "@/lib/crm/blocks";
+import { TEMPLATE_KINDS, templateProblems, templateSchema } from "@corelithzw/module-documents/blocks";
 
 export async function GET(request: NextRequest) {
   try {

@@ -1,6 +1,6 @@
 "use client";
 
-import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import type { UniversalDocumentPayload } from "./types";
 
 import { inferTableSourceKey, type TableExportFormat } from "@corelithzw/ui/lib/table-export";
 

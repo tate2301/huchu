@@ -15,7 +15,7 @@ import {
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronDown, DotsThree, Kanban, ListBullets, Plus, Users } from "@corelithzw/ui/lib/icons";

@@ -10,7 +10,7 @@ import { useSearchParams } from "next/navigation";
 
 import { PageActions } from "@corelithzw/ui/layout/page-actions";
 import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
@@ -33,8 +33,8 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchAttendance, fetchSites, type AttendanceRecord } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 
 export default function AttendanceHistoryPage() {
   const { data: session } = useSession();

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";

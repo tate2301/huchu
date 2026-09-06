@@ -35,14 +35,14 @@ import { Popover, PopoverContent, PopoverTrigger } from "@corelithzw/ui/componen
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import {
-  DEFAULT_TEMPLATE_CATALOG,
+  defaultTemplateCatalog,
   resolveCatalogTemplateEntry,
-} from "@/lib/documents/default-template-catalog";
+} from "@corelithzw/module-documents/default-template-catalog";
 import {
   defaultTemplateSchema,
   type DocumentTemplateSchema,
   templateSchema,
-} from "@/lib/documents/template-schema";
+} from "@corelithzw/module-documents/template-schema";
 import { CheckIcon, ChevronDown, DotsThree } from "@corelithzw/ui/lib/icons";
 
 type DocumentType =
@@ -272,7 +272,7 @@ export default function TemplateSettingsPage() {
   const sourceOptions = useMemo<SourceOption[]>(() => {
     const map = new Map<string, SourceOption>();
 
-    for (const entry of DEFAULT_TEMPLATE_CATALOG) {
+    for (const entry of defaultTemplateCatalog()) {
       const id = buildSourceOptionId(entry.sourceKey, entry.documentType, entry.targetType);
       map.set(id, {
         id,

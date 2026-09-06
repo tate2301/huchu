@@ -26,7 +26,7 @@
 import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
-import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import type { UniversalDocumentPayload } from "@corelithzw/module-documents/types";
 
 type Resolution = {
   targetType: "LIST" | "RECORD" | "DASHBOARD";

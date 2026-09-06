@@ -6,8 +6,8 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import type { Block } from "@/lib/crm/blocks";
-import { sampleValues } from "@/lib/crm/template-variables";
+import type { Block } from "../../blocks";
+import { sampleValues } from "../../template-variables";
 
 import { BlockRenderer } from "./block-renderer";
 

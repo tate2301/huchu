@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/schools/common/states";

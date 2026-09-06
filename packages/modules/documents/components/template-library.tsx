@@ -12,8 +12,8 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { AttributeChips } from "@/components/crm/templates/attribute-header";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
+import { AttributeChips } from "./templates/attribute-header";
 import {
   Select,
   SelectContent,
@@ -27,12 +27,12 @@ import {
   TEMPLATE_KIND_DESCRIPTIONS,
   TEMPLATE_KIND_LABELS,
   type TemplateKind,
-} from "@/lib/crm/blocks";
+} from "../blocks";
 import {
   starterBlocks,
   starterTemplate,
   startersForKind,
-} from "@/lib/crm/starter-templates";
+} from "../starter-templates";
 import { FileText, Plus } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 

@@ -1,12 +1,12 @@
 import { createHash } from "crypto";
 import { put } from "@vercel/blob";
 import { prisma } from "@corelithzw/db/client";
-import { renderCsv } from "@/lib/documents/csv-renderer";
-import { renderDocumentHtml } from "@/lib/documents/html-renderer";
-import { renderPdfFromHtml } from "@/lib/documents/pdf-renderer";
-import { resolveSourcePayload, type SourceResolutionInput } from "@/lib/documents/source-registry";
-import { resolveTemplate } from "@/lib/documents/template-resolver";
-import { getDocumentBranding } from "@/lib/documents/branding-snapshot";
+import { renderCsv } from "./csv-renderer";
+import { renderDocumentHtml } from "./html-renderer";
+import { renderPdfFromHtml } from "./pdf-renderer";
+import { resolveSourcePayload, type SourceResolutionInput } from "./source-registry";
+import { resolveTemplate } from "./template-resolver";
+import { getDocumentBranding } from "./branding-snapshot";
 
 export type RenderFormat = "pdf" | "csv";
 

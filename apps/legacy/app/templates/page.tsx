@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { TemplateLibrary } from "@/components/templates/template-library";
+import { TemplateLibrary } from "@corelithzw/module-documents/components/template-library";
 import { authOptions } from "@/lib/auth";
 
 export default async function TemplatesPage() {

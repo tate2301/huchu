@@ -13,6 +13,7 @@
  */
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
 import "./manifests";
+import { registerDocumentSource } from "@corelithzw/module-documents";
 import { registerSearchArm } from "@corelithzw/module-records";
 import { onApprovalAction } from "@corelithzw/module-workflow";
 
@@ -61,4 +62,30 @@ registerSearchArm({
     const { searchOperations } = await import("@/lib/operations/search");
     return searchOperations(db, { ...input, types: input.types as Parameters<typeof searchOperations>[1]["types"] });
   },
+});
+
+// Where each printable document's content comes from, by the module that owns
+// the records. The school and payroll sources move with their modules.
+registerDocumentSource({
+  id: "schools",
+  matches: (key) => key.startsWith("schools."),
+  resolve: async (input) => {
+    const { isSchoolDocumentSourceKey, resolveSchoolDocument } = await import("@/lib/schools/document-sources");
+    if (!isSchoolDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
+    return resolveSchoolDocument(input.companyId, { ...input, sourceKey: input.sourceKey });
+  },
+});
+registerDocumentSource({
+  id: "hr",
+  matches: (key) => key.startsWith("hr."),
+  resolve: async (input) => {
+    const { isHrDocumentSourceKey, resolveHrDocumentSource } = await import("@/lib/hr/document-sources");
+    if (!isHrDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
+    return resolveHrDocumentSource({ ...input, sourceKey: input.sourceKey });
+  },
+});
+registerDocumentSource({
+  id: "legacy",
+  matches: (key) => ["accounting.", "reports.", "dashboard."].some((prefix) => key.startsWith(prefix)),
+  resolve: async (input) => (await import("@/lib/host/document-sources")).legacyDocumentSource.resolve(input),
 });

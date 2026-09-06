@@ -1,13 +1,14 @@
 import "@/scripts/lib/env";
 import { createHash } from "crypto";
 import { prisma } from "@corelithzw/db/client";
-import { DEFAULT_TEMPLATE_CATALOG } from "@/lib/documents/default-template-catalog";
+import "@/manifests";
+import { defaultTemplateCatalog, type DefaultTemplateCatalogEntry } from "@corelithzw/module-documents/default-template-catalog";
 
 function checksumForSchema(schemaJson: string) {
   return createHash("sha256").update(schemaJson).digest("hex");
 }
 
-async function seedEntry(entry: (typeof DEFAULT_TEMPLATE_CATALOG)[number]) {
+async function seedEntry(entry: DefaultTemplateCatalogEntry) {
   const schemaJson = JSON.stringify(entry.schema);
   const schemaChecksum = checksumForSchema(schemaJson);
 
@@ -117,9 +118,9 @@ async function seedEntry(entry: (typeof DEFAULT_TEMPLATE_CATALOG)[number]) {
 }
 
 async function main() {
-  console.log(`[templates:seed-defaults] seeding ${DEFAULT_TEMPLATE_CATALOG.length} entries`);
+  console.log(`[templates:seed-defaults] seeding ${defaultTemplateCatalog().length} entries`);
 
-  for (const entry of DEFAULT_TEMPLATE_CATALOG) {
+  for (const entry of defaultTemplateCatalog()) {
     const templateId = await seedEntry(entry);
     console.log(
       `[templates:seed-defaults] upserted ${entry.sourceKey} (${entry.documentType}/${entry.targetType}) -> ${templateId}`,

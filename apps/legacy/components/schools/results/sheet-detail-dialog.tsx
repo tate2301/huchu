@@ -4,7 +4,7 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Badge, Button } from "@corelithzw/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { LoadError, NothingYet, TableRowsSkeleton } from "@/components/schools/common/states";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { fetchResultSheet, type ResultModerationAction } from "@/lib/schools/results-v2";

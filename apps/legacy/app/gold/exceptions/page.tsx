@@ -15,11 +15,11 @@ import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { ExportMenu } from "@corelithzw/ui/components/export-menu";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import {
   fetchGoldCorrections,
   fetchGoldDispatches,

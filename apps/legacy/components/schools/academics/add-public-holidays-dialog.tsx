@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { Button } from "@corelithzw/ui/components/button";
 import { Label } from "@corelithzw/ui/components/label";
 import {

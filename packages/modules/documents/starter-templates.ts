@@ -1,4 +1,4 @@
-import type { Block, TemplateKind } from "@/lib/crm/blocks";
+import type { Block, TemplateKind } from "./blocks";
 
 /**
  * Somewhere to start.

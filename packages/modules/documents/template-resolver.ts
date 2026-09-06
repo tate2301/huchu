@@ -1,6 +1,6 @@
 import { prisma } from "@corelithzw/db/client";
-import { defaultTemplateSchema, parseTemplateSchema, type DocumentTemplateSchema } from "@/lib/documents/template-schema";
-import { resolveCatalogTemplateEntry } from "@/lib/documents/default-template-catalog";
+import { defaultTemplateSchema, parseTemplateSchema, type DocumentTemplateSchema } from "./template-schema";
+import { resolveCatalogTemplateEntry } from "./default-template-catalog";
 
 export type TemplateResolutionInput = {
   companyId: string;

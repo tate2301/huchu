@@ -11,6 +11,7 @@ import { CRM_CAPABILITY_SET } from "./capabilities";
  */
 export const manifest: ModuleManifest = {
   id: "crm",
+  requires: ["records", "documents"],
   permissions: { capabilities: CRM_CAPABILITY_SET },
   records: {
     types: [

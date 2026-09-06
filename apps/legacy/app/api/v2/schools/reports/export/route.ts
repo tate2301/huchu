@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { renderDocumentSync } from "@/lib/documents/service";
+import { renderDocumentSync } from "@corelithzw/module-documents/service";
 import {
   generateCollectionsReport,
   generateArrearsAgingReport,

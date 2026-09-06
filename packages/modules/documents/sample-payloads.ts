@@ -1,4 +1,4 @@
-import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import type { UniversalDocumentPayload } from "./types";
 
 /**
  * Representative sample payloads used by the template editor's live preview —

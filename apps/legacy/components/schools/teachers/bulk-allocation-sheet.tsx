@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import type {
   SchoolsClassRecord,
   TeacherProfileRecord,

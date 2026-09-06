@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";

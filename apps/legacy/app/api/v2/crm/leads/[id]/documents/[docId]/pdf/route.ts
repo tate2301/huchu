@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { renderDocumentSync } from "@/lib/documents/service";
+import { renderDocumentSync } from "@corelithzw/module-documents/service";
 
 export const runtime = "nodejs";
 

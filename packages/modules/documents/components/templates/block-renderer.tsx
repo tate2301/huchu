@@ -13,8 +13,8 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { Label } from "@corelithzw/ui/components/label";
-import { resolveVariables, type VariableValues } from "@/lib/crm/template-variables";
-import type { Block, LeafBlock } from "@/lib/crm/blocks";
+import { resolveVariables, type VariableValues } from "../../template-variables";
+import type { Block, LeafBlock } from "../../blocks";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 /**

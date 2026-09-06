@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { Badge, Button, Card, Combobox, Switch } from "@corelithzw/react";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";

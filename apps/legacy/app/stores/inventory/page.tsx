@@ -3,7 +3,7 @@
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { StoresShell } from "@/components/stores/stores-shell";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { ExportMenu } from "@corelithzw/ui/components/export-menu";
@@ -45,8 +45,8 @@ import {
   type InventoryItem,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { Plus, QrCode } from "@corelithzw/ui/lib/icons";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 import { useReservedId } from "@/hooks/use-reserved-id";

@@ -1,70 +1,12 @@
-import { z } from "zod";
+/**
+ * The document sources this host's modules have not taken with them yet: the
+ * accounting documents, the mine's shift and plant reports, the attendance
+ * report and the executive dashboard. Each moves into its module when that
+ * module is extracted; the pipeline they resolve into is
+ * `@corelithzw/module-documents`.
+ */
 import { prisma } from "@corelithzw/db/client";
-import type { ExportTargetType, UniversalDocumentPayload } from "@/lib/documents/types";
-import {
-  isSchoolDocumentSourceKey,
-  resolveSchoolDocument,
-} from "@/lib/documents/schools-sources";
-import {
-  isHrDocumentSourceKey,
-  resolveHrDocumentSource,
-} from "@/lib/documents/hr-sources";
-
-const sourceInputSchema = z.object({
-  target: z.enum(["LIST", "RECORD", "DASHBOARD"]),
-  sourceKey: z.string().min(1),
-  recordId: z.string().uuid().optional(),
-  filters: z.record(z.string(), z.string()).optional(),
-  payload: z
-    .object({
-      title: z.string().min(1),
-      subtitle: z.string().optional(),
-      fileName: z.string().optional(),
-      meta: z.array(z.object({ label: z.string(), value: z.string() })).optional(),
-      list: z
-        .object({
-          columns: z.array(z.object({ key: z.string(), label: z.string() })).optional(),
-          rows: z.array(z.record(z.string(), z.unknown())),
-        })
-        .optional(),
-      record: z
-        .object({
-          sections: z.array(
-            z.object({
-              title: z.string(),
-              rows: z.array(z.object({ label: z.string(), value: z.string() })),
-            }),
-          ),
-          lines: z.array(z.record(z.string(), z.unknown())).optional(),
-          lineColumns: z.array(z.object({ key: z.string(), label: z.string() })).optional(),
-        })
-        .optional(),
-      dashboard: z
-        .object({
-          metrics: z.array(
-            z.object({
-              label: z.string(),
-              value: z.string(),
-              detail: z.string().optional(),
-            }),
-          ),
-          notes: z.array(z.string()).optional(),
-        })
-        .optional(),
-    })
-    .optional(),
-});
-
-export type SourceResolutionInput = z.infer<typeof sourceInputSchema>;
-
-export type SourceResolution = {
-  targetType: ExportTargetType;
-  documentType: "REPORT_TABLE" | "DASHBOARD_PACK" | "SALES_INVOICE" | "SALES_QUOTATION" | "SALES_RECEIPT" | "GENERIC_RECORD";
-  sourceKey: string;
-  fileName: string;
-  payload: UniversalDocumentPayload;
-  rowsForCsv?: Array<Record<string, unknown>>;
-};
+import type { DocumentSource, SourceResolution } from "@corelithzw/module-documents/source-registry";
 
 function isoDate(value: Date | null | undefined): string {
   return value ? value.toISOString().slice(0, 10) : "-";
@@ -582,74 +524,40 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
   };
 }
 
-export async function resolveSourcePayload(
-  companyId: string,
-  rawInput: SourceResolutionInput,
-): Promise<SourceResolution> {
-  const input = sourceInputSchema.parse(rawInput);
+export const LEGACY_DOCUMENT_SOURCE_PREFIXES = ["accounting.", "reports.", "dashboard."] as const;
 
-  if (input.payload) {
-    return {
-      targetType: input.target,
-      documentType:
-        input.target === "LIST"
-          ? "REPORT_TABLE"
-          : input.target === "DASHBOARD"
-            ? "DASHBOARD_PACK"
-            : "GENERIC_RECORD",
-      sourceKey: input.sourceKey,
-      fileName: input.payload.fileName || `${input.sourceKey.replace(/[^a-z0-9-]/gi, "-")}.pdf`,
-      payload: input.payload,
-      rowsForCsv: input.payload.list?.rows,
-    };
-  }
-
-  // Iteration 5 — the school's own documents. Kept in their own file because
-  // there are eight of them and this one is long enough; dispatched here so a
-  // school document is rendered by the same pipeline, the same template and the
-  // same letterhead as everything else the product prints.
-  if (isSchoolDocumentSourceKey(input.sourceKey)) {
-    return resolveSchoolDocument(companyId, {
-      sourceKey: input.sourceKey,
-      recordId: input.recordId,
-      filters: input.filters,
-    });
-  }
-
-  // The payslip. Same reasoning as the school documents above: dispatched here so
-  // it gets the same letterhead, the same PDF renderer and the same template
-  // editor as everything else the product prints, rather than payroll growing its
-  // own printing.
-  if (isHrDocumentSourceKey(input.sourceKey)) {
-    return resolveHrDocumentSource({
-      companyId,
-      sourceKey: input.sourceKey,
-      recordId: input.recordId,
-    });
-  }
-
-  switch (input.sourceKey) {
-    case "accounting.sales.invoice":
-      if (!input.recordId) throw new Error("recordId is required for invoice export");
-      return resolveInvoice(companyId, input.recordId);
-    case "accounting.sales.quotation":
-      if (!input.recordId) throw new Error("recordId is required for quotation export");
-      return resolveQuotation(companyId, input.recordId);
-    case "accounting.sales.receipt":
-      if (!input.recordId) throw new Error("recordId is required for receipt export");
-      return resolveReceipt(companyId, input.recordId);
-    case "accounting.sales.credit-note":
-      if (!input.recordId) throw new Error("recordId is required for credit note export");
-      return resolveCreditNote(companyId, input.recordId);
-    case "reports.shift":
-      return resolveShiftList(companyId, input.filters);
-    case "reports.attendance":
-      return resolveAttendanceList(companyId, input.filters);
-    case "reports.plant":
-      return resolvePlantList(companyId, input.filters);
-    case "dashboard.executive-summary":
-      return resolveDashboardSummary(companyId);
-    default:
-      throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
-  }
+export function matchesLegacyDocumentSource(sourceKey: string): boolean {
+  return LEGACY_DOCUMENT_SOURCE_PREFIXES.some((prefix) => sourceKey.startsWith(prefix));
 }
+
+export const legacyDocumentSource: DocumentSource = {
+  id: "legacy",
+  matches: matchesLegacyDocumentSource,
+  resolve: async (input) => {
+    const { companyId } = input;
+      switch (input.sourceKey) {
+      case "accounting.sales.invoice":
+        if (!input.recordId) throw new Error("recordId is required for invoice export");
+        return resolveInvoice(companyId, input.recordId);
+      case "accounting.sales.quotation":
+        if (!input.recordId) throw new Error("recordId is required for quotation export");
+        return resolveQuotation(companyId, input.recordId);
+      case "accounting.sales.receipt":
+        if (!input.recordId) throw new Error("recordId is required for receipt export");
+        return resolveReceipt(companyId, input.recordId);
+      case "accounting.sales.credit-note":
+        if (!input.recordId) throw new Error("recordId is required for credit note export");
+        return resolveCreditNote(companyId, input.recordId);
+      case "reports.shift":
+        return resolveShiftList(companyId, input.filters);
+      case "reports.attendance":
+        return resolveAttendanceList(companyId, input.filters);
+      case "reports.plant":
+        return resolvePlantList(companyId, input.filters);
+      case "dashboard.executive-summary":
+        return resolveDashboardSummary(companyId);
+      default:
+        throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
+    }
+  },
+};

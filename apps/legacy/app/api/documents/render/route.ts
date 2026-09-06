@@ -6,20 +6,20 @@ import {
   enqueueDocumentRenderJob,
   processDocumentRenderJobsBatch,
   renderDocumentSync,
-} from "@/lib/documents/service";
+} from "@corelithzw/module-documents/service";
 import { hasFeature } from "@corelithzw/platform/features";
 import {
   isSchoolDocumentSourceKey,
   SCHOOL_DOCUMENT_ACCESS,
-} from "@/lib/documents/schools-sources";
+} from "@/lib/schools/document-sources";
 import {
   canRenderPayslip,
   HR_DOCUMENT_ACCESS,
   isHrDocumentSourceKey,
-} from "@/lib/documents/hr-sources";
+} from "@/lib/hr/document-sources";
 import { isApproverRole } from "@corelithzw/module-workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
-import type { DocumentRenderRequest } from "@/lib/documents/service";
+import type { DocumentRenderRequest } from "@corelithzw/module-documents/service";
 
 export const runtime = "nodejs";
 

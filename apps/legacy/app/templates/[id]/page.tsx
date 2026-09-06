@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { TemplateEditor } from "@/components/crm/templates/template-editor";
+import { TemplateEditor } from "@corelithzw/module-documents/components/templates/template-editor";
 import { authOptions } from "@/lib/auth";
 
 export default async function TemplatePage({

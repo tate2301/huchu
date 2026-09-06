@@ -13,7 +13,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 

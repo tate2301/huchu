@@ -10,7 +10,7 @@ import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   LoadError,

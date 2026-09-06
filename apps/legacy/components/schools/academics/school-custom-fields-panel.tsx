@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Card } from "@corelithzw/react";
 import type { CrmFieldType } from "@corelithzw/db";
 
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {

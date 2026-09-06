@@ -11,7 +11,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { fetchJson } from "@corelithzw/platform/api-client";
-import { blockSchema, type Block, type TemplateKind } from "@/lib/crm/blocks";
+import { blockSchema, type Block, type TemplateKind } from "@corelithzw/module-documents/blocks";
 import { z } from "zod";
 
 /**

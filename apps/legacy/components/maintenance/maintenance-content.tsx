@@ -13,7 +13,7 @@ import {
 } from "@corelithzw/ui/lib/icons";
 
 import { MaintenanceShell } from "@/components/maintenance/maintenance-shell";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
@@ -55,8 +55,8 @@ import {
   fetchWorkOrders,
 } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { EmployeePosition } from "@corelithzw/db";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@corelithzw/ui/components/table";
 import { useReservedId } from "@/hooks/use-reserved-id";

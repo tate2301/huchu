@@ -1,7 +1,7 @@
 import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
-import type { UniversalDocumentPayload } from "@/lib/documents/types";
+import type { UniversalDocumentPayload } from "@corelithzw/module-documents/types";
 import type { SchoolResource } from "@/lib/schools/permissions";
 
 /**

@@ -14,7 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { defaultIsTeachingDay } from "@/lib/schools/calendar-kinds";
 import type { SchoolsCalendarEventRecord } from "@/lib/schools/admin-v2";
 

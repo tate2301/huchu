@@ -6,7 +6,7 @@ import { useMutation } from "@tanstack/react-query";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { MobileList, MobileListEmpty } from "@corelithzw/react";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   issuePortalInvites,

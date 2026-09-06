@@ -21,7 +21,7 @@ import {
   DialogTitle,
 } from "@corelithzw/ui/components/dialog";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import {
   Select,
   SelectContent,
@@ -32,8 +32,8 @@ import {
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { type DocumentExportFormat } from "@/lib/documents/export-client";
-import { exportElementToDocument } from "@/lib/pdf";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
 import { goldRoutes } from "@/app/gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 

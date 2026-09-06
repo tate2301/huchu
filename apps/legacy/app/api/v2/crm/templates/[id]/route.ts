@@ -5,7 +5,7 @@ import type { Prisma } from "@corelithzw/db";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { canUser, denialMessage } from "@/lib/crm/permissions";
-import { TEMPLATE_KINDS, templateProblems, templateSchema } from "@/lib/crm/blocks";
+import { TEMPLATE_KINDS, templateProblems, templateSchema } from "@corelithzw/module-documents/blocks";
 
 const patchSchema = templateSchema.partial();
 

@@ -15,7 +15,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { Textarea } from "@corelithzw/ui/components/textarea";
-import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordDialog } from "@corelithzw/ui/components/record-dialog";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Plus, Trash2 } from "@corelithzw/ui/lib/icons";

@@ -8,7 +8,7 @@ import { PageHeading } from "@corelithzw/ui/layout/page-heading";
 import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import { PdfTemplate } from "@/components/pdf/pdf-template";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
