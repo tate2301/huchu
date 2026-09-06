@@ -10,24 +10,34 @@
 - Make architectural decisions for the long term. Do not accept a stopgap that only works for now and is meant to be replaced later.
 
 ## Project Structure & Module Organization
-- `app/` holds the Next.js App Router routes and feature modules (e.g., `app/shift-report`, `app/gold`).
-- `components/` contains reusable UI and feature components, with primitives in `components/ui`.
-- `lib/` and `hooks/` provide shared utilities and React hooks.
-- `prisma/` contains the Prisma schema and database configuration.
-- `scripts/` includes operational CLI scripts for admin tasks (users, inventory, equipment).
-- `public/` is for static assets; `types/` holds shared TypeScript types.
+This is a pnpm workspace (Turborepo). The split into products is described in
+`docs/rollout/product-split-plan.md`; the deployment side in `docs/rollout/product-split-deployment.md`.
+- `apps/legacy/` is the application as it ships today: one Next.js host composing every module.
+  - `app/` holds the App Router routes and feature modules (e.g., `app/shift-report`, `app/gold`).
+  - `components/` contains reusable UI and feature components, with primitives in `components/ui`.
+  - `lib/` and `hooks/` provide shared utilities and React hooks.
+  - `scripts/` includes operational CLI scripts for admin tasks (users, inventory, equipment).
+  - `public/` is for static assets; `types/` holds shared TypeScript types.
+- `packages/db/` owns the Prisma schema (`prisma/schema/<module>.prisma`), the migrations, the config and the client.
+  Import `@corelithzw/db` for types and enums, `@corelithzw/db/client` for `prisma`. Only this package depends on `@prisma/client`.
+- `packages/config/` holds shared TypeScript presets; `packages/modules/` receives modules as they are extracted.
+- `scripts/` at the root holds the agent guardrail hooks only.
 - `docker/` includes container-related assets.
 
 ## Build, Test, and Development Commands
-- `pnpm dev` - run the local dev server.
-- `pnpm build` - build the production bundle.
-- `pnpm start` - serve the production build.
+Run from the repository root.
+- `pnpm dev` - generate the client and run the local dev server.
+- `pnpm build` - build every package (the client, then the production bundle).
+- `pnpm legacy start` - serve the production build.
 - `pnpm lint` - run ESLint (Next.js core-web-vitals + TypeScript rules).
+- `pnpm typecheck` - run `tsc --noEmit` for every package (the app script sets the 7 GB heap it needs).
+- `pnpm test` - run Vitest (needs Postgres; `DATABASE_URL_TEST`).
 - `pnpm db:generate` - generate the Prisma client.
-- `pnpm db:push` - push the schema to the database (dev workflow).
-- Admin scripts (examples):
-  - `pnpm create-user --email user@example.com --name "User" --password "..." --role manager --company-id <uuid>`
-  - `pnpm manage-inventory list --company-id <uuid> --category consumables`
+- `pnpm db:migrate:dev --name <change>` - create a migration from a schema change.
+- `pnpm db:push` - push the schema to a throwaway local database only.
+- `pnpm legacy <script>` - run any script of the application package. Admin scripts (examples):
+  - `pnpm legacy create-user --email user@example.com --name "User" --password "..." --role manager --company-id <uuid>`
+  - `pnpm legacy manage-inventory list --company-id <uuid> --category consumables`
 
 ## Coding Style & Naming Conventions
 - Use TypeScript for new modules and components; keep code consistent with existing 2-space indentation.
@@ -48,18 +58,18 @@
   - Apply typographic hierarchy and `font-mono` for numeric/time values.
 
 ## Testing Guidelines
-- There is no automated test runner configured yet (`package.json` has no `test` script).
-- For now, validate changes with `pnpm lint` and a manual smoke test of affected screens.
-- If you add tests, use `.test.ts` or `.test.tsx` naming and colocate with the feature; add a `test` script in `package.json` and document it here.
+- `pnpm test` runs Vitest across the workspace; CI (`.github/workflows/ci.yml`) runs lint, typecheck, the tests against a migrated Postgres, the feature-gate audit, the schema drift check and the build on every pull request.
+- Use `.test.ts` or `.test.tsx` naming and colocate tests with the feature.
+- Tests that need a database say so in their header and use the `DATABASE_URL_TEST` database, which must have the migrations applied.
 
 ## Commit & Pull Request Guidelines
 - Recent history favors Conventional Commits (e.g., `feat: add shift report filters`). Follow that style for new commits.
 - PRs should include: a concise summary, linked issue (if any), and UI screenshots when behavior or layout changes.
-- Call out database changes explicitly and note whether `pnpm db:push` or migrations are required.
+- Call out database changes explicitly. A schema change ships with its migration under `packages/db/prisma/migrations/`; production applies it through the database release workflow, expand-first.
 
 ## Security & Configuration Tips
 - Secrets belong in `.env` only; never commit credentials.
-- For database and production setup, follow `DATABASE_SETUP.md` and `PRODUCTION_DEPLOYMENT.md`.
+- For database and production setup, follow `docs/_start-here/DATABASE_SETUP.md`, `docs/_start-here/PRODUCTION_DEPLOYMENT.md` and `docs/rollout/product-split-deployment.md`.
 
 ---
 
@@ -67,13 +77,15 @@
 
 ### Agent roster
 
+Paths below are relative to `apps/legacy/` unless they start with `packages/`.
+
 | Agent | Charter (owns) | Forbidden from |
 |---|---|---|
 | `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files |
-| `gold-data-foundation` | `prisma/schema.prisma`, `migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source |
-| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `prisma/schema.prisma`, UI files |
+| `gold-data-foundation` | `packages/db/prisma/schema/gold.prisma`, `packages/db/prisma/migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source |
+| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `packages/db/prisma/`, UI files |
 | `gold-import-workflow` | `app/api/gold/imports/**`, `lib/gold/import-*`, worker | UI, other Gold APIs |
-| `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `prisma/` |
+| `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `packages/db/prisma/` |
 | `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files |
 | `gold-reviewer` | Reads diffs, runs gates, approves/blocks — no code | All source files |
 

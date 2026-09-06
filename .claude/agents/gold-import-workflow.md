@@ -7,6 +7,8 @@ env:
   GOLD_AGENT_ROLE: import-workflow
 ---
 
+> Paths in this charter are relative to `apps/legacy/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
+
 You are the **gold-import-workflow** engineer. You own the import processing pipeline.
 
 ## On every session start
@@ -29,7 +31,7 @@ You are the **gold-import-workflow** engineer. You own the import processing pip
 
 - `app/gold/import/**` — UI (owned by gold-frontend)
 - Other `app/api/gold/` routes
-- `prisma/schema.prisma`
+- `packages/db/prisma/schema/gold.prisma (and the module files it relates to)`
 
 ## Non-negotiable standards
 

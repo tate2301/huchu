@@ -85,13 +85,13 @@ openssl rand -base64 32
 
 ```bash
 # Generate Prisma Client
-pnpm prisma generate
+pnpm db:generate
 
 # Push schema to database
-pnpm prisma db push
+pnpm db:push
 
 # Or use migrations (recommended for production)
-pnpm prisma migrate dev --name init
+pnpm db:migrate:dev --name init
 ```
 
 ## Step 5: Seed Initial Data (Optional)
@@ -100,7 +100,7 @@ Create a seed script or manually add initial data:
 
 ```bash
 # Open Prisma Studio to add data via GUI
-pnpm prisma studio
+pnpm db:studio
 ```
 
 ### Example Seed Data
@@ -163,17 +163,17 @@ VALUES
 If you prefer not to use Prisma Studio, you can add users from the command line:
 
 ```bash
-pnpm create-user --email admin@huchu.com --name "Admin User" --password "admin123" --role superadmin --company-id 550e8400-e29b-41d4-a716-446655440000
+pnpm legacy create-user --email admin@huchu.com --name "Admin User" --password "admin123" --role superadmin --company-id 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ## Step 6: Verify Setup
 
 ```bash
 # Check database connection
-pnpm prisma db pull
+pnpm --filter @corelithzw/db exec prisma db pull
 
 # View database in Prisma Studio
-pnpm prisma studio
+pnpm db:studio
 ```
 
 ## Step 7: Start Development Server
@@ -231,17 +231,17 @@ ALTER USER postgres PASSWORD 'newpassword';
 
 ```bash
 # Regenerate Prisma Client
-pnpm prisma generate
+pnpm db:generate
 ```
 
 ### Migration Errors
 
 ```bash
 # Reset database (WARNING: deletes all data)
-pnpm prisma migrate reset
+pnpm --filter @corelithzw/db exec prisma migrate reset
 
 # Force push schema
-pnpm prisma db push --force-reset
+pnpm db:push --force-reset
 ```
 
 ## Backup and Restore

@@ -452,7 +452,7 @@ work, not to be exact.
 | `packages/modules/compliance` (add-on) | `app/compliance`, `app/api/compliance`, `components/compliance`, `app/reports/compliance-incidents`, the two compliance notification emitters | 3k |
 | `packages/modules/books` | `lib/accounting`, `app/api/accounting`, `app/accounting`, `components/accounting` | 42k |
 | `packages/modules/stock` | `lib/inventory`, `app/api/inventory`, `app/api/v2/inventory`, `app/api/stock-locations`, `app/stores`, `components/{inventory,stores}` | 8k |
-| `packages/platform` | `lib/platform` (minus `provision.ts`), `lib/auth-core`, `lib/auth.ts`, `lib/admin-portal*`, `proxy.ts` (as a factory), `lib/{roles,public-routes,api-utils,api-response,api-client,audit,logging,observability,id-generator,money,serialize-decimals,uploads,preferences,settings,user-management-api,site-url,prisma}`, `app/api/{auth,users,settings,preferences,sites,sections,uploads,ids,onboarding,webhooks,workspace-app-icon}`, `app/{login,access-blocked,preview-host,preferences,user-management,management,status}`, `components/{settings,preferences,user-management,management,status,onboarding}` | 32k |
+| `packages/platform` | `lib/platform` (minus `provision.ts`), `lib/auth-core`, `lib/auth.ts`, `lib/admin-portal*`, `proxy.ts` (as a factory), `lib/{roles,public-routes,api-utils,api-response,api-client,audit,logging,observability,id-generator,money,serialize-decimals,uploads,preferences,settings,user-management-api,site-url}`, `app/api/{auth,users,settings,preferences,sites,sections,uploads,ids,onboarding,webhooks,workspace-app-icon}`, `app/{login,access-blocked,preview-host,preferences,user-management,management,status}`, `components/{settings,preferences,user-management,management,status,onboarding}` | 32k |
 | `apps/admin` | `app/admin`, `app/portal/admin`, `app/api/platform-admin`, `components/admin-portal`, `scripts/platform`, `lib/platform/provision.ts` | 33k |
 | `packages/ui` | `components/{ui,layout,shared,charts,providers,auth,corelith}`, `hooks`, `lib/{icons,ui,utils,animation,charts,data-table-adapter,navigation,workspaces,workspace-products,primary-actions,saved-record}`, `lib/platform/gating/nav-filter.ts`, `app/globals.css`, `app/styles`, plus the strays: `RecordDialog`, `PersonAvatar`, `SearchableOption`, the navbar's `crm-members` | 23k |
 | `packages/modules/records` | `lib/records`, `components/records`, `app/api/v2/records`, the collaboration tables, and from the CRM: `custom-fields`, `record-ref`, `collections-client`, the search aggregation | 6k plus the CRM pieces |
@@ -508,6 +508,14 @@ Adopt this document. Make the repository private. Record the Gold reversal in th
 plan's changelog. Confirm the host names.
 
 ### Phase 1 — The monorepo around the monolith (1–2 weeks)
+
+*Executed 2026-09-06 (this branch): the move, `packages/db` with the split schema, Turborepo,
+CI and the database release job are in the repository. The Vercel root-directory change and
+the release-job secrets are operator steps; see `product-split-deployment.md`. The
+`@corelithzw/db` package also owns the client singleton (`lib/prisma.ts` moved there), so the
+"What moves where" row for `platform` no longer lists `prisma`. Two findings from executing it:
+the migration history did not apply to an empty database (fixed, guarded, verified), and
+`pnpm lint` carries 28 pre-existing errors, so lint reports in CI without blocking yet.*
 
 - `git mv` the current app to `apps/legacy` (history is preserved). Add `pnpm-workspace.yaml`
   packages, `turbo.json`, `packages/config`.
@@ -640,6 +648,7 @@ than `apps/enterprise` when the first private module is written.
 
 | Date | Commit | Description |
 |---|---|---|
+| 2026-09-06 | — | **Phase 1 executed.** The app moved to `apps/legacy`, the database to `packages/db` with the schema split one file per module (zero-diff both against the old file and against the migration history), Turborepo and the workspace root added, GitHub Actions CI and the database release workflow added, `docs/rollout/product-split-deployment.md` written for the operator steps. The client singleton lives in `packages/db` (`@corelithzw/db/client`), not in `platform`. Migration 61 guarded so the history applies to an empty database. |
 | 2026-09-05 | — | **Third revision: the mechanisms are decided, not deferred to the business.** The earlier proposals — modules distributed from npm with a published SDK and a `corelith sync` codegen step, Gold moved to its own repository, a column-only schema rule to make packages composable — are reversed with reasons (options F and H). Decided instead: one private monorepo; workspace modules with manifests and public entrypoints, nothing published or generated; ordinary Prisma relations kept; shared screens re-exported by hand and shared APIs mounted through catch-all routes; Gold stays as a module composed only into `apps/enterprise`, the monolith renamed on its current host, so the mine tenants never migrate; Compliance and Maintenance as add-on modules; extensibility through configuration and the API first, private modules when paid for, publishing last; every product purchasable alone with the marketing plans as bundles above. The evidence sections are unchanged. |
 | 2026-09-05 | — | Second revision for the follow-up decisions: Gold as a shadow product in its own repository, Compliance as an add-on, a module contract with npm distribution and two extension tiers. Superseded by the third revision. |
 | 2026-09-05 | — | Document created: the split decision, the evidence it rests on, the target shape, the sequence, and the decisions the business still owes. |

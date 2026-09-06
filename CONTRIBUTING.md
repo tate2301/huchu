@@ -50,8 +50,8 @@ If pnpm reports ignored builds, review and approve/deny package build scripts us
 | Business/domain logic | `lib/<domain>/...` |
 | Shared platform logic | `lib/platform/...` |
 | Auth/session logic | `lib/auth-core/...`, `lib/auth.ts`, and NextAuth route files |
-| Schema | `prisma/schema.prisma` and `prisma/migrations/...` |
-| Operational scripts | `scripts/...` |
+| Schema | `packages/db/prisma/schema/<module>.prisma` and `packages/db/prisma/migrations/...` |
+| Operational scripts | `apps/legacy/scripts/...` (run with `pnpm legacy <script>`) |
 | Tests | Colocated `.test.ts` / `.test.tsx`; browser tests in `e2e/` |
 | Product/system docs | `docs/...` |
 
@@ -88,12 +88,12 @@ Use canonical feature keys consistently across catalog, route registry, navigati
 
 ## Database And Migrations
 
-- Local development can use `pnpm db:push`.
-- Shared or production-bound schema changes need migrations under `prisma/migrations`.
+- Local development against a throwaway database can use `pnpm db:push`.
+- Shared or production-bound schema changes need migrations under `packages/db/prisma/migrations` (`pnpm db:migrate:dev --name <change>`). Production applies them through the database release workflow; ship expand-first.
 - Run `pnpm db:generate` after schema changes.
 - P0 migrations require a migration witness test in the same commit.
 - Backfills belong in `scripts/backfill-*.ts` or a clearly named script.
-- Document operator steps when a release requires a migration, `pnpm db:push`, backfill, or data repair command.
+- Document operator steps when a release requires a backfill or data repair command; migrations apply themselves from the release workflow.
 - Never use destructive database reset commands against shared or production databases.
 
 ## Testing And Quality Gates

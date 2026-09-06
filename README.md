@@ -10,7 +10,7 @@ This repository is broad. In the current checkout:
 
 - `273` App Router page files live under `app/`.
 - `449` API route handlers live under `app/api/`.
-- `215` Prisma models live in `prisma/schema.prisma`.
+- `295` Prisma models live in `packages/db/prisma/schema/`, one file per module.
 - `31` Vitest files and `1` Playwright spec are present.
 - Core workspace families include gold, scrap metal, schools, retail/POS, auto sales, accounting, HR/payroll, stores, maintenance, compliance, CCTV, reports, admin, and platform management.
 
@@ -31,7 +31,28 @@ This repository is broad. In the current checkout:
 
 Use Node.js 20+; Node 24 is known to work in this workspace. Use pnpm through Corepack.
 
-## Repository Map
+## Workspace Layout
+
+This is a pnpm workspace with Turborepo. The platform is being split into products that
+share one kernel (`docs/rollout/product-split-plan.md`); Phase 1 put the monorepo around
+the monolith without changing what runs in production.
+
+| Path | Purpose |
+| --- | --- |
+| `apps/legacy/` | The application as it ships today — every module in one Next.js host. Renamed to `apps/enterprise` once the products have their own hosts. |
+| `packages/db/` | The database: one Prisma schema split one file per module, one generated client, one migration history. Import `@corelithzw/db` for types and enums, `@corelithzw/db/client` for the connection. |
+| `packages/config/` | Shared TypeScript presets. |
+| `packages/modules/` | Where the shared and product modules land as they are extracted (Phase 2). |
+| `scripts/` | Repository-level tooling: the agent guardrail hooks. Operational scripts live in `apps/legacy/scripts/`. |
+| `docs/`, `design/`, `docker/` | Documentation, design assets, container assets. |
+| `.github/workflows/` | CI on every pull request; the database release job for production migrations. |
+
+Run everything from the repository root: `pnpm dev`, `pnpm build`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` go through Turborepo; `pnpm db:*` delegates to the database
+package; `pnpm legacy <script>` runs any script of the application package
+(for example `pnpm legacy worker:pdf`, `pnpm legacy create-company --name Acme`).
+
+## Application Map (`apps/legacy/`)
 
 | Path | Purpose |
 | --- | --- |
@@ -40,14 +61,10 @@ Use Node.js 20+; Node 24 is known to work in this workspace. Use pnpm through Co
 | `components/` | Reusable UI and feature components. Base primitives live in `components/ui`. |
 | `lib/` | Domain services, shared utilities, auth, platform gating, offline runtime, accounting, and vertical business logic. |
 | `hooks/` | Shared React hooks. |
-| `prisma/` | Prisma schema and migrations. |
-| `scripts/` | Operational CLI scripts, platform TUI, backfills, worker scripts, and agent guardrails. |
-| `docs/` | Product specs, system reference, UX playbook, rollout plans, and implementation notes. |
+| `scripts/` | Operational CLI scripts, platform TUI, backfills, and worker scripts. |
 | `e2e/` | Playwright tests. |
 | `public/` | Static assets, PWA assets, service worker, fonts, and uploads used in local/dev flows. |
 | `types/` | Shared TypeScript declaration files. |
-| `docker/` | Container-related assets. |
-| `cctv-server/` | CCTV conversion/gateway notes and supporting server code. |
 
 ## Quick Start
 
@@ -156,41 +173,46 @@ Commit the resulting `pnpm-workspace.yaml` change so other developers do not hit
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Start the Next.js dev server. |
-| `pnpm build` | Generate Prisma Client and build the production bundle. |
-| `pnpm start` | Start the built production app. |
+| `pnpm dev` | Generate the Prisma client, then start the Next.js dev server for `apps/legacy`. |
+| `pnpm build` | Build every package: generate the client, then the production bundle. |
+| `pnpm legacy start` | Start the built production app. |
 | `pnpm lint` | Run ESLint. |
-| `npx tsc --noEmit` | Run the TypeScript compiler check. |
-| `pnpm test` | Run Vitest once. |
-| `pnpm test:watch` | Run Vitest in watch mode. |
-| `pnpm test:e2e` | Run Playwright tests. Starts `pnpm dev` unless `E2E_BASE_URL` is set. |
-| `pnpm db:generate` | Generate Prisma Client. |
-| `pnpm db:push` | Push Prisma schema to the configured development database. |
-| `pnpm db:prepare:platform` | Backfill legacy company rows for platform tenancy fields. |
-| `pnpm templates:seed-defaults` | Seed or update default document templates. |
-| `pnpm worker:pdf` | Run the PDF render worker loop. |
+| `pnpm typecheck` | Run the TypeScript compiler check (the app needs a 7 GB heap; the script sets it). |
+| `pnpm test` | Run Vitest once. Needs Postgres — see `docs/_start-here/LOCAL_DEV.md`. |
+| `pnpm legacy test:watch` | Run Vitest in watch mode. |
+| `pnpm test:e2e` | Run Playwright tests. Starts the dev server unless `E2E_BASE_URL` is set. |
+| `pnpm db:generate` | Generate the Prisma client. |
+| `pnpm db:migrate:dev` | Create a migration from a schema change. |
+| `pnpm db:migrate:status` | Applied and pending migrations for `DATABASE_URL`. |
+| `pnpm db:check:drift` | Prove the migrations produce the schema (scratch database). |
+| `pnpm db:push` | Push the schema to a throwaway local database. |
+| `pnpm legacy db:prepare:platform` | Backfill legacy company rows for platform tenancy fields. |
+| `pnpm legacy templates:seed-defaults` | Seed or update default document templates. |
+| `pnpm legacy worker:pdf` | Run the PDF render worker loop. |
 
 ## Operational CLI Scripts
 
-Most scripts read `.env`, connect to `DATABASE_URL`, and use the Prisma PostgreSQL adapter.
+Scripts live in `apps/legacy/scripts/` and run through `pnpm legacy <script>`. They read the
+repository-root `.env` (or `apps/legacy/.env`), connect to `DATABASE_URL`, and use the Prisma
+PostgreSQL adapter.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm create-company --name <name> [--slug <slug>]` | Create a tenant company. |
-| `pnpm create-site --name <name> --code <code> [--company-id <uuid>]` | Create a site. |
-| `pnpm create-user --email <email> --name <name> --password <password> --role <superadmin|manager|clerk> [--company-id <uuid>]` | Create an app user. |
-| `pnpm create-employee --name <name> --phone <phone> ...` | Create an employee record. |
-| `pnpm manage-employees ...` | List, show, update, activate, deactivate, or delete employees. |
-| `pnpm manage-inventory ...` | List, show, create, update, or delete inventory items. |
-| `pnpm manage-equipment ...` | List, show, create, update, activate, deactivate, or delete equipment. |
-| `pnpm platform --actor <email>` | Start the Ink platform operator TUI. |
-| `pnpm platform --actor <email> --read-only` | Start the platform TUI in read-only mode. |
-| `pnpm manage-platform ...` | Legacy/automation-friendly platform admin command mode. |
-| `pnpm platform:audit-feature-gates` | Audit platform feature-gate configuration. |
-| `pnpm platform:accounting-replay` | Replay accounting integration events. |
-| `pnpm platform:accounting-backfill-events` | Backfill accounting integration events. |
-| `pnpm backfill:gold-valuations` | Backfill gold valuation data. |
-| `pnpm backfill:gold-accounting-usd` | Backfill gold accounting USD values. |
+| `pnpm legacy create-company --name <name> [--slug <slug>]` | Create a tenant company. |
+| `pnpm legacy create-site --name <name> --code <code> [--company-id <uuid>]` | Create a site. |
+| `pnpm legacy create-user --email <email> --name <name> --password <password> --role <superadmin|manager|clerk> [--company-id <uuid>]` | Create an app user. |
+| `pnpm legacy create-employee --name <name> --phone <phone> ...` | Create an employee record. |
+| `pnpm legacy manage-employees ...` | List, show, update, activate, deactivate, or delete employees. |
+| `pnpm legacy manage-inventory ...` | List, show, create, update, or delete inventory items. |
+| `pnpm legacy manage-equipment ...` | List, show, create, update, activate, deactivate, or delete equipment. |
+| `pnpm legacy platform --actor <email>` | Start the Ink platform operator TUI. |
+| `pnpm legacy platform --actor <email> --read-only` | Start the platform TUI in read-only mode. |
+| `pnpm legacy manage-platform ...` | Legacy/automation-friendly platform admin command mode. |
+| `pnpm legacy platform:audit-feature-gates` | Audit platform feature-gate configuration. |
+| `pnpm legacy platform:accounting-replay` | Replay accounting integration events. |
+| `pnpm legacy platform:accounting-backfill-events` | Backfill accounting integration events. |
+| `pnpm legacy backfill:gold-valuations` | Backfill gold valuation data. |
+| `pnpm legacy backfill:gold-accounting-usd` | Backfill gold accounting USD values. |
 
 Run any script with `--help` for exact flags when available.
 

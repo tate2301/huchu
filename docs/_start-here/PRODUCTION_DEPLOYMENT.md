@@ -73,24 +73,27 @@ BLOB_READ_WRITE_TOKEN="<vercel-blob-read-write-token>"
 
 ## Database Setup
 
-1. Install Prisma CLI (if not installed):
+The schema is applied with migrations, never `db push`, on any database that outlives a
+laptop. From the repository root:
+
+1. Generate the Prisma client:
 ```bash
-pnpm add -g prisma
+pnpm db:generate
 ```
 
-2. Generate Prisma Client:
+2. Apply the migration history (`DATABASE_URL` must be a direct, non-pooled connection):
 ```bash
-pnpm prisma generate
+pnpm db:migrate:deploy
+pnpm db:migrate:status   # expect "Database schema is up to date!"
 ```
 
-3. Create database schema:
-```bash
-pnpm prisma db push
-```
+   In production this runs from the **database release** GitHub Actions job on merge;
+   `docs/rollout/product-split-deployment.md` §4 describes enabling it and the baseline
+   check that has to pass first.
 
-4. Seed initial data (using Prisma Studio):
+3. Seed initial data (using Prisma Studio):
 ```bash
-pnpm prisma studio
+pnpm db:studio
 ```
 
 ### Required Seed Data
@@ -246,6 +249,13 @@ For issues:
 3. Verify environment variables
 4. Review Prisma migrations
 5. Check NextAuth configuration
+
+## Vercel project settings (workspace layout)
+
+The repository is a pnpm workspace: the app builds from `apps/legacy`, so the Vercel
+project's *Root Directory* is `apps/legacy` with source files outside the root included.
+The full list of settings, the order to change them in, and the rollback path are in
+`docs/rollout/product-split-deployment.md` §2.
 
 ## Production Checklist
 

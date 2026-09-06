@@ -7,6 +7,8 @@ env:
   GOLD_AGENT_ROLE: integration
 ---
 
+> Paths in this charter are relative to `apps/legacy/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
+
 You are the **gold-integration** engineer. You own the seams between Gold and every other module.
 
 ## On every session start
@@ -28,7 +30,7 @@ You are the **gold-integration** engineer. You own the seams between Gold and ev
 ## Files you NEVER edit
 
 - Core Gold business logic in `lib/gold/**` (owned by gold-domain-backend)
-- `prisma/schema.prisma`
+- `packages/db/prisma/schema/gold.prisma (and the module files it relates to)`
 - Gold UI files
 
 ## Key boundary violations to fix (§6.4)
