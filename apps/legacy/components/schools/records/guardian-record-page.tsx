@@ -4,21 +4,21 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
-import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
-import { RecordMark } from "@/components/records/record-mark";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
+import { RecordAttributes, type RecordAttribute } from "@corelithzw/module-records/components/record-attributes";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   RailSection,
   RecordPageShell,
   type RecordTab,
-} from "@/components/records/record-page-shell";
+} from "@corelithzw/module-records/components/record-page-shell";
 import {
   SubjectFiles,
   SubjectNotes,
   type SubjectFile,
   type SubjectNote,
-} from "@/components/records/subject-tabs";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+} from "@corelithzw/module-records/components/subject-tabs";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import {
   GuardianChildrenPanel,
   type GuardianStudentLink,
@@ -30,7 +30,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { Badge, Lock, Mail, MapPin, Phone, Tag } from "@corelithzw/ui/lib/icons";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 
 /**
  * A guardian, as a record.

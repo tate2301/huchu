@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { fieldOptionSchema } from "@/lib/crm/custom-fields";
+import { fieldOptionSchema } from "@corelithzw/module-records/custom-fields";
 import { prisma } from "@corelithzw/db/client";
-import { SCHOOL_RECORD_TYPES } from "@/lib/records/registry";
+import { SCHOOL_RECORD_TYPES } from "@/lib/schools/record-types";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
 /**

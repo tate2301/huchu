@@ -8,7 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { buildCustomFieldValues } from "@/lib/crm/custom-fields";
+import { buildCustomFieldValues } from "@corelithzw/module-records/custom-fields";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";

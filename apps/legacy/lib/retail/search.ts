@@ -19,7 +19,7 @@ import {
   SEARCH_PER_TYPE_LIMIT,
   wordMatches,
   type SearchResult,
-} from "@/lib/records/search-result";
+} from "@corelithzw/module-records/search-result";
 
 type Tx = Prisma.TransactionClient;
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRecordHref, recordHref, sameRecord } from "@/lib/crm/record-ref";
+import { parseRecordHref, recordHref, sameRecord } from "@corelithzw/module-records/record-ref";
 
 describe("parseRecordHref", () => {
   it("reads each entity out of its own path segment", () => {

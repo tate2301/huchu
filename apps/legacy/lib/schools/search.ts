@@ -34,7 +34,7 @@
  */
 import type { Prisma } from "@corelithzw/db";
 
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 import {
   facts,
   pluralise,
@@ -42,7 +42,7 @@ import {
   wordMatches,
   type SearchResult,
   type SearchResultType,
-} from "@/lib/records/search-result";
+} from "@corelithzw/module-records/search-result";
 import type { SchoolResource } from "@/lib/schools/permissions";
 
 type Tx = Prisma.TransactionClient;

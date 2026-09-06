@@ -34,7 +34,7 @@ import {
   CRM_FIELD_TYPE_LABELS,
   CRM_FIELD_TYPES,
   normalizeFieldKey,
-} from "@/lib/crm/custom-fields";
+} from "@corelithzw/module-records/custom-fields";
 import type { CrmFieldEntity, CrmFieldType } from "@corelithzw/db";
 import { cn } from "@corelithzw/ui/lib/utils";
 

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { Badge, Button } from "@corelithzw/react";
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { Building2, Coins, Funnel, Mail, UserRound, Users } from "@corelithzw/ui/lib/icons";
 import {
   DropdownMenu,
@@ -25,14 +25,14 @@ import {
   RecordTable,
   recordCellTone,
   type RecordTableColumn,
-} from "@/components/records/record-table";
-import { ViewToolbarChip } from "@/components/records/view-toolbar";
+} from "@corelithzw/module-records/components/record-table";
+import { ViewToolbarChip } from "@corelithzw/module-records/components/view-toolbar";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   DirectoryCell,
   DirectoryName,
-} from "@/components/records/people-directory";
+} from "@corelithzw/module-records/components/people-directory";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
 import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";

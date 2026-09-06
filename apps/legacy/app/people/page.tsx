@@ -18,8 +18,8 @@ import {
   DirectoryNote,
   EmploymentBadge,
   EMPLOYMENT_TYPE_LABEL,
-} from "@/components/records/people-directory"
-import { ViewToolbarChip } from "@/components/records/view-toolbar"
+} from "@corelithzw/module-records/components/people-directory"
+import { ViewToolbarChip } from "@corelithzw/module-records/components/view-toolbar"
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert"
 import { Badge } from "@corelithzw/ui/components/badge"
 import { Button } from "@corelithzw/ui/components/button"

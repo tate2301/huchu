@@ -30,22 +30,22 @@ import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
 
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   automationTab,
   historyTab,
   paperworkTab,
   tasksTab,
 } from "./record-tabs";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 import { NextStepCard } from "./next-step-card";
 import { RelationAttribute } from "./relation-attribute";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { EntityLink } from "@/components/records/entity-link";
-import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@corelithzw/module-records/components/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { SiteFormSheet } from "./site-form-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";

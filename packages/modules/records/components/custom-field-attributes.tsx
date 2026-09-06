@@ -14,8 +14,8 @@ import {
   UserRound,
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
-import { formatFieldValue, type FieldDefinition } from "@/lib/crm/custom-fields";
-import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
+import { formatFieldValue, type FieldDefinition } from "../custom-fields";
+import type { FieldDefinitionRecord as CrmFieldDefinitionRecord } from "../custom-fields";
 
 import type { RecordAttribute, RecordAttributeTone } from "./record-attributes";
 

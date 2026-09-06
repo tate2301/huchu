@@ -15,7 +15,7 @@ import {
   DropdownMenuRadioItem,
   DropdownMenuTrigger,
 } from "@corelithzw/ui/components/dropdown-menu";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { LayoutSwitch, type RecordLayout } from "@/components/crm/records/layout-switch";
 import {
   RecordList,
@@ -28,8 +28,8 @@ import {
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
-} from "@/components/records/record-table";
-import { ViewToolbarChip } from "@/components/records/view-toolbar";
+} from "@corelithzw/module-records/components/record-table";
+import { ViewToolbarChip } from "@corelithzw/module-records/components/view-toolbar";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";

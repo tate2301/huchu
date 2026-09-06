@@ -16,7 +16,7 @@ import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { RecordPicker, type PickedRecord } from "./record-picker";
 
 const ROLES = [

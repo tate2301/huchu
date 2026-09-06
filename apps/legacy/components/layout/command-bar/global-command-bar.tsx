@@ -36,7 +36,7 @@ import {
   Wrench,
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
-import type { SearchResult, SearchResultType } from "@/lib/records/search-result";
+import type { SearchResult, SearchResultType } from "@corelithzw/module-records/search-result";
 
 import { CommandBar } from "./command-bar";
 import type { CommandGroup, CommandItem } from "./command-bar-types";

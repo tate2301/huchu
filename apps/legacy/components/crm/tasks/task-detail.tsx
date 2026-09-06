@@ -9,9 +9,9 @@ import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordAttributes } from "@/components/records/record-attributes";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { deleteCrmTask, type CrmTaskRecord } from "@/lib/crm/crm-v2";
 import {

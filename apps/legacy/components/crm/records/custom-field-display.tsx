@@ -1,7 +1,7 @@
 "use client";
 
 import { Badge } from "@corelithzw/ui/components/badge";
-import { formatFieldValue, type FieldDefinition } from "@/lib/crm/custom-fields";
+import { formatFieldValue, type FieldDefinition } from "@corelithzw/module-records/custom-fields";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 
 /**

@@ -33,6 +33,26 @@ export type NotificationActionTemplate = {
   confirmMessage?: string;
 };
 
+/**
+ * A record type, as its module declares it: what it is called, where its list
+ * and its page are, which REST resource its attributes go to, and the query key
+ * a saved attribute invalidates. `{id}` stands for the record's id. Data, so a
+ * manifest can carry it; the records module turns it into the functions the
+ * screens call.
+ */
+export type RecordTypeTemplate = {
+  type: string;
+  label: string;
+  labelPlural: string;
+  /** How the mark is drawn; one of the records module's `RecordKind`s. */
+  kind: string;
+  isPerson: boolean;
+  indexHref: string;
+  href: string;
+  apiPath: string;
+  queryKey: readonly string[];
+};
+
 export type ModuleManifest = {
   id: ModuleId;
   /** The modules this one imports from, by id. The boundary test holds it to this. */
@@ -42,6 +62,10 @@ export type ModuleManifest = {
   permissions?: {
     /** What a person may do inside the module, as the permission catalog lists it. */
     capabilities?: CapabilitySet;
+  };
+  records?: {
+    /** The record types this module owns, for the shared record page, mark and editor. */
+    types?: readonly RecordTypeTemplate[];
   };
   notifications?: {
     /** Where a notice about one of the module's entities opens: entity type → path template with `{id}`. */

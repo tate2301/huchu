@@ -9,14 +9,16 @@
  */
 import { registerModules, unmetModuleRequirements } from "@corelithzw/platform/manifest";
 import { manifest as notifications } from "@corelithzw/module-notifications";
+import { manifest as records } from "@corelithzw/module-records";
 import { manifest as workflow } from "@corelithzw/module-workflow";
 import { manifest as compliance } from "@/lib/compliance/manifest";
 import { manifest as crm } from "@/lib/crm/manifest";
 import { manifest as gold } from "@/lib/gold/manifest";
 import { manifest as maintenance } from "@/lib/maintenance/manifest";
 import { manifest as people } from "@/lib/people/manifest";
+import { manifest as schools } from "@/lib/schools/manifest";
 
-registerModules([workflow, notifications, crm, people, gold, compliance, maintenance]);
+registerModules([workflow, notifications, records, crm, schools, people, gold, compliance, maintenance]);
 
 const unmet = unmetModuleRequirements();
 if (unmet.length > 0) {

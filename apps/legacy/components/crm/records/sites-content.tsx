@@ -4,16 +4,16 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@corelithzw/react";
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { fetchCrmSites } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { Building2, Calendar, Coins, MapPin, UserRound } from "@corelithzw/ui/lib/icons";
 
 import { SiteFormSheet } from "./site-form-sheet";
 import { RecordList, RecordListPager, type RecordListRow } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "@corelithzw/module-records/components/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { RecordListShell } from "./record-list-shell";
 
 const PAGE_SIZE = 50;

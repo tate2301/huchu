@@ -27,7 +27,7 @@ import {
 } from "@corelithzw/ui/components/select";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 import { RELATIONSHIP_OPTIONS, relationshipLabel } from "./relationships";
 
 /**

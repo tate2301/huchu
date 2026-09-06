@@ -9,7 +9,7 @@ import { formatSlaRemaining, stageSla } from "@/lib/crm/sla";
 import type { CrmBoardCard } from "@/lib/crm/crm-v2";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { useBoardField } from "@/components/crm/records/board-fields";
 
 import { formatDaysAgo, formatLeadValue, isOverdue } from "./stage-config";

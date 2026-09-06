@@ -401,3 +401,20 @@ export function groupBySection(definitions: FieldDefinition[]) {
   }
   return Array.from(sections.entries()).map(([section, fields]) => ({ section, fields }));
 }
+
+/** A field definition as the API returns it, whichever module's entity it is for. */
+export type FieldDefinitionRecord = {
+  id: string;
+  entity: string;
+  key: string;
+  label: string;
+  description: string | null;
+  type: string;
+  isRequired: boolean;
+  defaultValue: unknown;
+  options: Array<{ value: string; label: string; colorToken?: string }> | null;
+  section: string | null;
+  position: number;
+  showInTable: boolean;
+  archivedAt: string | null;
+};

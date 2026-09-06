@@ -9,7 +9,7 @@ import { Empty, EmptyDescription, EmptyTitle } from "@corelithzw/ui/components/e
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import type { RecordSubject } from "@/lib/records/subject";
+import type { RecordSubject } from "../subject";
 
 /**
  * Notes and files on a record, for any record type.

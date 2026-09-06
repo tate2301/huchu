@@ -26,10 +26,10 @@ import { fetchCrmRep, type CrmRepDetail } from "@/lib/crm/crm-v2";
 
 import { formatMoney } from "@/components/crm/documents/document-types";
 import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";
-import { RecordMark } from "@/components/records/record-mark";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 import { HistoryFeed, type HistoryEvent } from "@/components/crm/records/history-feed";
-import { RecordPageShell } from "@/components/records/record-page-shell";
+import { RecordPageShell } from "@corelithzw/module-records/components/record-page-shell";
 import { FilesTab } from "@/components/crm/records/files-tab";
 import { RepSettingsTab } from "@/components/crm/reps/rep-settings-tab";
 

@@ -13,7 +13,7 @@ import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { LayoutSwitch } from "@/components/crm/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
 import { ListSearch } from "@/components/crm/records/list-search";
-import { ViewToolbar } from "@/components/records/view-toolbar";
+import { ViewToolbar } from "@corelithzw/module-records/components/view-toolbar";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import {
   bulkUpdateCrmLeads,

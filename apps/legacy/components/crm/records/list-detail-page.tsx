@@ -17,7 +17,7 @@ import {
 } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "./record-list";
-import { RecordMark, type RecordKind } from "@/components/records/record-mark";
+import { RecordMark, type RecordKind } from "@corelithzw/module-records/components/record-mark";
 
 /**
  * What each entity's list rows look like, and where a row goes.

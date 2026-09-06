@@ -4,6 +4,10 @@
 import path from "node:path";
 import { config as loadEnv } from "dotenv";
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
+// What this host composes, on every side — a test that asks the record registry
+// or the template catalogue a question gets the same answer as the app. Data
+// only (lib/host/manifests.test.ts keeps it that way), so no mock is bypassed.
+import "@/manifests";
 
 loadEnv({ path: [path.join(__dirname, ".env"), path.join(__dirname, "../../.env")], quiet: true });
 

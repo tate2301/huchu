@@ -3,21 +3,21 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordAttributes, type RecordAttribute } from "@corelithzw/module-records/components/record-attributes";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   RailSection,
   RecordPageShell,
   RelatedList,
   type RecordTab,
-} from "@/components/records/record-page-shell";
+} from "@corelithzw/module-records/components/record-page-shell";
 import {
   SubjectFiles,
   SubjectNotes,
   type SubjectFile,
   type SubjectNote,
-} from "@/components/records/subject-tabs";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+} from "@corelithzw/module-records/components/subject-tabs";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { ClassStreamsPanel } from "@/components/schools/classes/class-streams-panel";
 import { ClassSubjectsPanel } from "@/components/schools/classes/class-subjects-panel";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
@@ -25,7 +25,7 @@ import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/a
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Calendar, Layers, Tag, UserPlus, Users } from "@corelithzw/ui/lib/icons";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 
 /**
  * A class, as a record.

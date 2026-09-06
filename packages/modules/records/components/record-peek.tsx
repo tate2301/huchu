@@ -9,13 +9,13 @@ import { Badge, type Accent } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@corelithzw/ui/components/sheet";
 import { fetchJson } from "@corelithzw/platform/api-client";
-import { useRecordTrail } from "@/components/records/record-trail";
+import { useRecordTrail } from "./record-trail";
 import {
   ENTITY_LABEL,
   parseRecordHref,
   type RecordEntity,
   type RecordRef,
-} from "@/lib/crm/record-ref";
+} from "../record-ref";
 import { ArrowRight, Building2, Funnel, MapPin, User, Users } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 

@@ -8,7 +8,7 @@
 import type { CrmAccountStatus, CrmCompanyType, CrmContactType, Prisma } from "@corelithzw/db";
 import { z } from "zod";
 
-import { customFieldWhere } from "@/lib/crm/custom-fields";
+import { customFieldWhere } from "@corelithzw/module-records/custom-fields";
 
 export const recordSortSchema = z.object({
   field: z.string().trim().max(60),

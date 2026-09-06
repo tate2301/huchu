@@ -38,7 +38,7 @@ import { visitItemsToQuotationLines } from "@/lib/crm/site-visits";
 import type { CrmDocumentLineInput } from "@/lib/crm/accounting-bridge";
 
 import { DocumentList } from "@/components/crm/documents/document-list";
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { formatMoney, invoiceOutstanding } from "@/components/crm/documents/document-types";
 import { LeadFormSheet } from "@/components/crm/leads/lead-form-sheet";
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
@@ -72,14 +72,14 @@ import {
 import { NextStepCard } from "@/components/crm/records/next-step-card";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { RecordStory } from "@/components/crm/records/record-story";
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 // RailSection comes from the shell rather than being redefined here: this
 // file had its own copy, which is why the rail on a lead kept its frames
 // when every other record lost theirs.
-import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@corelithzw/module-records/components/record-page-shell";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { buildStory } from "@/lib/crm/story";
 import { AttributesPanel } from "./attributes-panel";
 import { StageProgress } from "./stage-progress";

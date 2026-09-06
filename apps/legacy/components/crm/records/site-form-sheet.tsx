@@ -19,7 +19,7 @@ import {
 } from "@/lib/crm/crm-v2";
 
 import { CustomFieldInputs } from "./custom-field-inputs";
-import { RecordMarkField } from "@/components/records/record-mark-field";
+import { RecordMarkField } from "@corelithzw/module-records/components/record-mark-field";
 
 type FormState = {
   emoji: string;

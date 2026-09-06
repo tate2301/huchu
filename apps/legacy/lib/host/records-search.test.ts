@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 
-import { groupSearchResults, SEARCH_TYPE_ORDER } from "./search-result";
-import { searchRecords, type SearchScope } from "./search";
+import "@/modules";
+import { groupSearchResults, SEARCH_TYPE_ORDER } from "@corelithzw/module-records/search-result";
+import { searchRecords, type SearchScope } from "@corelithzw/module-records/search";
 import { searchCrm } from "@/lib/crm/search";
 import { searchGold } from "@/lib/gold/search";
 import { searchOperations } from "@/lib/operations/search";

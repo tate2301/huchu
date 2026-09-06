@@ -4,8 +4,8 @@ import { useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordMark } from "@/components/records/record-mark";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { Building2, Calendar, Checklist, Coins, Funnel, Users } from "@corelithzw/ui/lib/icons";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
@@ -29,7 +29,7 @@ import {
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
-} from "@/components/records/record-table";
+} from "@corelithzw/module-records/components/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 
 const PAGE_SIZE = 50;

@@ -10,7 +10,7 @@ import {
   buildCustomFieldValues,
   mergeCustomFields,
   type FieldDefinition,
-} from "@/lib/crm/custom-fields";
+} from "@corelithzw/module-records/custom-fields";
 import { recordFieldChanges } from "@/lib/crm/history";
 import { recordMarkFields } from "@/lib/crm/record-mark";
 import { isCompanyUser } from "../../_helpers";

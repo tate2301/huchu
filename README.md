@@ -44,7 +44,7 @@ the monolith without changing what runs in production.
 | `packages/ui/` | The design-system layer: wrappers around `@corelithzw/react`, charts, icons, hooks, `cn`, the page chrome (`layout/`) and shared screen furniture (`shared/`). Domain-free. Import by path: `@corelithzw/ui/components/button`. |
 | `packages/platform/` | The kernel: tenancy and entitlements, feature gating, the auth core and guards, roles, API utilities, money, ids, uploads, preferences. Depends on `packages/db` only. Import by path: `@corelithzw/platform/api-utils`. The host fills its registries at boot in `apps/legacy/modules.ts`. |
 | `packages/config/` | Shared TypeScript presets. |
-| `packages/modules/` | The modules, one package each (`@corelithzw/module-<id>`), each with a data-only manifest the host composes with. So far: `workflow`, `notifications`. |
+| `packages/modules/` | The modules, one package each (`@corelithzw/module-<id>`), each with a data-only manifest the host composes with. So far: `workflow`, `notifications`, `records`. |
 | `scripts/` | Repository-level tooling: the agent guardrail hooks. Operational scripts live in `apps/legacy/scripts/`. |
 | `docs/`, `design/`, `docker/` | Documentation, design assets, container assets. |
 | `.github/workflows/` | CI on every pull request; the database release job for production migrations. |

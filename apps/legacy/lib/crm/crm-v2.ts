@@ -2,6 +2,7 @@
  * CRM client SDK — typed fetchers over the /api/v2/crm endpoints.
  * Mirrors the lib/autos/autos-v2.ts pattern.
  */
+import type { FieldDefinitionRecord } from "@corelithzw/module-records/custom-fields";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import type {
   CrmListRecord,
@@ -587,21 +588,7 @@ export type CrmPipelineRecord = {
   _count?: { deals: number };
 };
 
-export type CrmFieldDefinitionRecord = {
-  id: string;
-  entity: string;
-  key: string;
-  label: string;
-  description: string | null;
-  type: string;
-  isRequired: boolean;
-  defaultValue: unknown;
-  options: Array<{ value: string; label: string; colorToken?: string }> | null;
-  section: string | null;
-  position: number;
-  showInTable: boolean;
-  archivedAt: string | null;
-};
+export type CrmFieldDefinitionRecord = FieldDefinitionRecord;
 
 /** Turn a filter object into query params, flattening arrays and custom fields. */
 export function recordFiltersToParams(

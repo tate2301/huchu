@@ -8,7 +8,7 @@ import {
   fieldDefinitionInputSchema,
   normalizeFieldKey,
   validateDefinition,
-} from "@/lib/crm/custom-fields";
+} from "@corelithzw/module-records/custom-fields";
 import { requireCrmCapability } from "../_helpers";
 
 export async function GET(request: NextRequest) {

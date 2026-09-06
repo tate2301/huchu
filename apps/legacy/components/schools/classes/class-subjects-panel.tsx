@@ -19,7 +19,7 @@ import {
   fetchTeacherAssignments,
   type TeacherAssignmentRecord,
 } from "@/lib/schools/admin-v2";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 import { ClassSubjectFormDialog } from "@/components/schools/classes/class-subject-form-dialog";
 
 /**

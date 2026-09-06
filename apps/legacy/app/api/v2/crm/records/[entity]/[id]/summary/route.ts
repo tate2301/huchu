@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
+import { RECORD_ENTITIES, type RecordEntity } from "@corelithzw/module-records/record-ref";
 
 /**
  * One record, small enough to look at without going there.

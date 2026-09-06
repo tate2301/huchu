@@ -4,12 +4,12 @@ import type { ReactNode } from "react";
 
 import { Badge, type BadgeTone } from "@corelithzw/react";
 
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "./record-mark";
 import {
   RecordCell,
   RecordTableName,
   type RecordCellKind,
-} from "@/components/records/record-table";
+} from "./record-table";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 /**

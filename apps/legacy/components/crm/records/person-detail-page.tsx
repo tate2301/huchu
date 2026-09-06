@@ -16,9 +16,9 @@ import { RecordStory } from "@/components/crm/records/record-story";
 import { buildStory } from "@/lib/crm/story";
 import type { LeadActivity } from "@/components/crm/lead-detail/lead-types";
 
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   automationTab,
   historyTab,
@@ -26,10 +26,10 @@ import {
   tasksTab,
   useRecordComments,
 } from "./record-tabs";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { EntityLink } from "@/components/records/entity-link";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import {
   AddressBook,
   Buildings,
@@ -48,7 +48,7 @@ import { daysSince, resolveNextStep } from "@/lib/crm/tones";
 import { CONTACT_ACTIVITY_KIND } from "@/components/crm/records/event-kind";
 import { NextStepCard } from "./next-step-card";
 
-import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated, RelatedList } from "@corelithzw/module-records/components/record-page-shell";
 import { ConversationComposer } from "@/components/crm/collaboration/conversation-composer";
 import { DealFormSheet } from "./deal-form-sheet";
 import { PersonFormSheet } from "./person-form-sheet";

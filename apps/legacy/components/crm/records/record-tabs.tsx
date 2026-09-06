@@ -8,7 +8,7 @@ import {
   ConversationComposer,
   type ConversationTarget,
 } from "@/components/crm/collaboration/conversation-composer";
-import { SubSections } from "@/components/records/sub-sections";
+import { SubSections } from "@corelithzw/module-records/components/sub-sections";
 import { RecordStory, type StoryEvent } from "./record-story";
 import { MentionsTab } from "./mentions-tab";
 import { AutomationTab } from "./automation-tab";
@@ -21,7 +21,7 @@ import { fetchCrmComments, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
 
 import { Checklist, Clock, FileText, FlowArrow, History } from "@corelithzw/ui/lib/icons";
 
-import type { RecordTab } from "@/components/records/record-page-shell";
+import type { RecordTab } from "@corelithzw/module-records/components/record-page-shell";
 
 /**
  * The tabs every record has, written once.

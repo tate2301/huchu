@@ -14,7 +14,7 @@ import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
 import { buildFullName } from "@/lib/crm/conversion";
 import { findPersonDuplicates } from "@/lib/crm/duplicates";
 import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
-import { buildCustomFieldValues, type FieldDefinition } from "@/lib/crm/custom-fields";
+import { buildCustomFieldValues, type FieldDefinition } from "@corelithzw/module-records/custom-fields";
 import { recordMarkFields } from "@/lib/crm/record-mark";
 import {
   boolParam,

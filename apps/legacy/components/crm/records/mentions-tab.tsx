@@ -7,7 +7,7 @@ import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
 import { fetchJson } from "@corelithzw/platform/api-client";
 
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 
 type Mention = {
   id: string;

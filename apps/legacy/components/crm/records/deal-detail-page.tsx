@@ -63,16 +63,16 @@ import { VisitReportSheet, type MeasurementDraft } from "@/components/crm/visits
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import { useJobsTab } from "@/components/crm/work-orders/jobs-tab";
 
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
 import { CustomFieldDisplay } from "./custom-field-display";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { DealContactsTab } from "./deal-contacts-tab";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 import { RelationAttribute } from "./relation-attribute";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
-import { EntityLink } from "@/components/records/entity-link";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { DealStageBar, StageChecklist } from "./deal-stage-bar";
-import { RailSection, RecordPageShell, RecordRelated } from "@/components/records/record-page-shell";
+import { RailSection, RecordPageShell, RecordRelated } from "@corelithzw/module-records/components/record-page-shell";
 
 import { Stack } from "@corelithzw/react";
 

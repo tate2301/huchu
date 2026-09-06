@@ -8,7 +8,7 @@
 import type { CrmFieldEntity, Prisma } from "@corelithzw/db";
 import { z } from "zod";
 
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 
 /**
  * The record types people discuss.

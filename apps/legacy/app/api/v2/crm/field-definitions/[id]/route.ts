@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { fieldOptionSchema } from "@/lib/crm/custom-fields";
+import { fieldOptionSchema } from "@corelithzw/module-records/custom-fields";
 import { requireCrmCapability } from "../../_helpers";
 
 const updateSchema = z.object({

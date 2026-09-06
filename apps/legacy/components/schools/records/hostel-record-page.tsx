@@ -3,28 +3,28 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordAttributes, type RecordAttribute } from "@corelithzw/module-records/components/record-attributes";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   RailSection,
   RecordPageShell,
   RelatedList,
   type RecordTab,
-} from "@/components/records/record-page-shell";
+} from "@corelithzw/module-records/components/record-page-shell";
 import {
   SubjectFiles,
   SubjectNotes,
   type SubjectFile,
   type SubjectNote,
-} from "@/components/records/subject-tabs";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+} from "@corelithzw/module-records/components/subject-tabs";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
 import { HostelRoomsPanel } from "@/components/schools/boarding/hostel-rooms-panel";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Home, Tag, ToggleLeft, UserPlus, Users } from "@corelithzw/ui/lib/icons";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
 
 /**

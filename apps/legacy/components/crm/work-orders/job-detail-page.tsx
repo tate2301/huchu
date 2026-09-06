@@ -11,14 +11,14 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Progress } from "@corelithzw/ui/components/progress";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordAttributes } from "@/components/records/record-attributes";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { RecordAttributes } from "@corelithzw/module-records/components/record-attributes";
 import {
   RailSection,
   RecordPageShell,
   RecordRelated,
-} from "@/components/records/record-page-shell";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+} from "@corelithzw/module-records/components/record-page-shell";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { NextStepCard } from "@/components/crm/records/next-step-card";
 import { RelationAttribute } from "@/components/crm/records/relation-attribute";
 import {

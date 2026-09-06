@@ -18,7 +18,7 @@ import {
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { useIsMobile } from "@corelithzw/ui/hooks/use-mobile";
-import { useRecordTrail } from "@/components/records/record-trail";
+import { useRecordTrail } from "./record-trail";
 import { DotsThree, SidebarRight, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import type { CanonicalUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 import { cn } from "@corelithzw/ui/lib/utils";

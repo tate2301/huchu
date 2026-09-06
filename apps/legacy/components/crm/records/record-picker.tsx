@@ -9,7 +9,7 @@ import { fetchJson } from "@corelithzw/platform/api-client";
 import { Search, X } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { RecordMark, type RecordKind } from "@/components/records/record-mark";
+import { RecordMark, type RecordKind } from "@corelithzw/module-records/components/record-mark";
 
 /**
  * "What is this about?"

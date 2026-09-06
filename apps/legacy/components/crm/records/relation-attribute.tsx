@@ -6,8 +6,8 @@ import { Button } from "@corelithzw/ui/components/button";
 import { ResponsivePopover } from "@corelithzw/ui/components/responsive-popover";
 import { Pencil, X } from "@corelithzw/ui/lib/icons";
 
-import { EntityLink } from "@/components/records/entity-link";
-import { ATTRIBUTE_ROW } from "@/components/records/record-attributes";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { ATTRIBUTE_ROW } from "@corelithzw/module-records/components/record-attributes";
 import { cn } from "@corelithzw/ui/lib/utils";
 import { RecordPicker, type PickableType, type PickedRecord } from "./record-picker";
 

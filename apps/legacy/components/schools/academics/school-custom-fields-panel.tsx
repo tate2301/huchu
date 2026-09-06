@@ -33,8 +33,8 @@ import {
   CRM_FIELD_TYPE_LABELS,
   CRM_FIELD_TYPES,
   normalizeFieldKey,
-} from "@/lib/crm/custom-fields";
-import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@/lib/records/registry";
+} from "@corelithzw/module-records/custom-fields";
+import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@/lib/schools/record-types";
 
 /**
  * The extra questions a school asks about its own records.

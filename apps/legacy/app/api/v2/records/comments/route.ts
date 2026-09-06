@@ -9,7 +9,7 @@ import {
   recordSubjectSchema,
   subjectData,
   subjectWhere,
-} from "@/lib/records/subject";
+} from "@corelithzw/module-records/subject";
 
 import { guardRecordSubject } from "../_guard";
 

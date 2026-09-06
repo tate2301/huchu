@@ -8,7 +8,7 @@ import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchCrmReps } from "@/lib/crm/crm-v2";
 
 import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { formatMoney } from "@/components/crm/documents/document-types";
 

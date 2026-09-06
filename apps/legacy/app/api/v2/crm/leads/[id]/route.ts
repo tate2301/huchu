@@ -10,7 +10,7 @@ import {
   buildCustomFieldValues,
   mergeCustomFields,
   type FieldDefinition,
-} from "@/lib/crm/custom-fields";
+} from "@corelithzw/module-records/custom-fields";
 import { isCompanyUser } from "../../_helpers";
 
 const updateSchema = z.object({

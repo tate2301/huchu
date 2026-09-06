@@ -41,6 +41,7 @@
     "@base-ui/react": "^1.1.0",
     "@corelithzw/db": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
+    "@corelithzw/module-records": "workspace:*",
     "@corelithzw/module-workflow": "workspace:*",
     "@corelithzw/platform": "workspace:*",
     "@corelithzw/react": "^0.4.1",

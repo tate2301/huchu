@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { Button } from "@corelithzw/ui/components/button";
-import { SplitView } from "@/components/records/split-view";
+import { SplitView } from "@corelithzw/module-records/components/split-view";
 import { fetchCrmTasks, type CrmTaskRecordRef } from "@/lib/crm/crm-v2";
 import { Plus } from "@corelithzw/ui/lib/icons";
 

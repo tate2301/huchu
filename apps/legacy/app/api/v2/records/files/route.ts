@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { recordSubjectSchema, subjectData, subjectWhere } from "@/lib/records/subject";
+import { recordSubjectSchema, subjectData, subjectWhere } from "@corelithzw/module-records/subject";
 
 import { guardRecordSubject } from "../_guard";
 

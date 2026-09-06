@@ -6,9 +6,9 @@ import {
   fieldDefinitionInputSchema,
   normalizeFieldKey,
   validateDefinition,
-} from "@/lib/crm/custom-fields";
+} from "@corelithzw/module-records/custom-fields";
 import { prisma } from "@corelithzw/db/client";
-import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@/lib/records/registry";
+import { SCHOOL_RECORD_TYPES, type SchoolRecordType } from "@/lib/schools/record-types";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
 /**

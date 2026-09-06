@@ -6,7 +6,7 @@ import type { ReactNode } from "react";
 import { Badge, Stack } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { EntityLink } from "@/components/records/entity-link";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { eventKindStyle, type EventKind } from "@/components/crm/records/event-kind";
 import { richTextToPlain } from "@/lib/crm/rich-text";
 import { fileMark, formatFileSize, meetingPlace, timeToStart } from "@/lib/crm/panels";

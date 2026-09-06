@@ -8,7 +8,7 @@ import { EmptyState, Skeleton } from "@corelithzw/react";
 import { Button } from "@corelithzw/ui/components/button";
 import { Progress } from "@corelithzw/ui/components/progress";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
-import type { RecordTab } from "@/components/records/record-page-shell";
+import type { RecordTab } from "@corelithzw/module-records/components/record-page-shell";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import { WORK_ORDER_STATUS } from "@/lib/crm/tones";
 import { WORK_ORDER_STATUS_LABELS, type WorkOrderCounts } from "@/lib/crm/work-orders";

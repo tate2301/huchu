@@ -13,7 +13,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { CRM_FIELD_TYPES } from "@/lib/crm/custom-fields";
+import { CRM_FIELD_TYPES } from "../custom-fields";
 
 import { NUMBER_EDITABLE, TEXT_EDITABLE } from "./custom-field-attributes";
 

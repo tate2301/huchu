@@ -16,7 +16,7 @@ import {
   subjectData,
   subjectFromEntity,
   subjectWhere,
-} from "@/lib/records/subject";
+} from "@corelithzw/module-records/subject";
 import { emitCrmNotification } from "@/lib/notifications";
 import { crmRecordExists } from "../_helpers";
 

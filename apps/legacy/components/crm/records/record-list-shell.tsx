@@ -8,7 +8,7 @@ import { Plus } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 import { ListSearch } from "./list-search";
-import { ViewToolbar } from "@/components/records/view-toolbar";
+import { ViewToolbar } from "@corelithzw/module-records/components/view-toolbar";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**

@@ -27,7 +27,7 @@ import {
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";
 
 import { CustomFieldInputs } from "./custom-field-inputs";
-import { RecordMarkField } from "@/components/records/record-mark-field";
+import { RecordMarkField } from "@corelithzw/module-records/components/record-mark-field";
 import { DuplicateWarningDialog, type DuplicateEntry } from "./duplicate-warning-dialog";
 
 const COMPANY_TYPES = [

@@ -6,18 +6,18 @@ import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@corelithzw/react";
 
-import { customFieldAttributes } from "@/components/records/custom-field-attributes";
-import { RecordAttributes, type RecordAttribute } from "@/components/records/record-attributes";
-import { RecordMark } from "@/components/records/record-mark";
+import { customFieldAttributes } from "@corelithzw/module-records/components/custom-field-attributes";
+import { RecordAttributes, type RecordAttribute } from "@corelithzw/module-records/components/record-attributes";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import {
   RailSection,
   RecordPageShell,
   RelatedList,
   type RecordTab,
-} from "@/components/records/record-page-shell";
-import { useAttributeEditor } from "@/components/records/use-attribute-editor";
+} from "@corelithzw/module-records/components/record-page-shell";
+import { useAttributeEditor } from "@corelithzw/module-records/components/use-attribute-editor";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
-import { SubjectNotes, type SubjectNote } from "@/components/records/subject-tabs";
+import { SubjectNotes, type SubjectNote } from "@corelithzw/module-records/components/subject-tabs";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -59,7 +59,7 @@ import {
   UserCheck,
   Users,
 } from "@corelithzw/ui/lib/icons";
-import { recordType } from "@/lib/records/registry";
+import { recordType } from "@corelithzw/module-records/registry";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { normalizeUiStatus } from "@corelithzw/ui/lib/ui/status-map";
 

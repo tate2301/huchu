@@ -31,14 +31,14 @@ import type { CrmLeadListRecord } from "@/lib/crm/crm-v2";
 import type { ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { EntityLink } from "@/components/records/entity-link";
-import { RecordMark } from "@/components/records/record-mark";
+import { EntityLink } from "@corelithzw/module-records/components/entity-link";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { RecordList, RecordListPager } from "@/components/crm/records/record-list";
 import {
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
-} from "@/components/records/record-table";
+} from "@corelithzw/module-records/components/record-table";
 
 import type { LeadFilterOwner } from "./leads-filters";
 import {

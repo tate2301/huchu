@@ -21,7 +21,7 @@ import {
   PEOPLE_SEARCH_TYPES,
   type PeopleSearchType,
 } from "@/lib/people/search";
-import { groupSearchResults, searchRecords, type SearchScope } from "@/lib/records/search";
+import { groupSearchResults, searchRecords, type SearchScope } from "@corelithzw/module-records/search";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import {
   SCHOOL_SEARCH_FEATURES,

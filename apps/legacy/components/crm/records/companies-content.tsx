@@ -15,9 +15,9 @@ import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 
 import { CompanyFormSheet } from "./company-form-sheet";
 import { RecordListPager, type RecordListRow } from "./record-list";
-import { RecordTable, RecordTableName, type RecordTableColumn } from "@/components/records/record-table";
+import { RecordTable, RecordTableName, type RecordTableColumn } from "@corelithzw/module-records/components/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
-import { RecordMark } from "@/components/records/record-mark";
+import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { RecordBoard } from "./record-board";
 import { ColumnPicker } from "@corelithzw/ui/components/column-picker";
 import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visible-columns";

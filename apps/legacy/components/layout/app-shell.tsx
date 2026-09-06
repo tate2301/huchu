@@ -9,8 +9,8 @@ import { PageChromeProvider } from "@corelithzw/ui/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@corelithzw/ui/components/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
 import { isPublicPath } from "@corelithzw/platform/public-routes";
-import { RecordPeekProvider } from "@/components/records/record-peek";
-import { RecordTrailProvider } from "@/components/records/record-trail";
+import { RecordPeekProvider } from "@corelithzw/module-records/components/record-peek";
+import { RecordTrailProvider } from "@corelithzw/module-records/components/record-trail";
 
 export function AppShell({
   children,

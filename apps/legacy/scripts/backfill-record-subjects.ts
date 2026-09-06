@@ -25,7 +25,7 @@
 import "@/scripts/lib/env";
 
 import { prisma } from "@corelithzw/db/client";
-import { subjectOf } from "@/lib/records/subject";
+import { subjectOf } from "@corelithzw/module-records/subject";
 
 const apply = process.argv.includes("--apply");
 
