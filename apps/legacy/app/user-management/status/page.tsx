@@ -1,5 +1,2 @@
-import { redirect } from "next/navigation";
-
-export default function UserManagementStatusPage() {
-  redirect("/preferences/organization/users");
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/user-management/status/page";

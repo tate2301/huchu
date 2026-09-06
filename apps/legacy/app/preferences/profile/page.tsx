@@ -1,22 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { ProfilePreferences } from "@/components/preferences/account/profile-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { authOptions } from "@/lib/auth";
-
-export default async function PreferencesProfilePage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <PreferencesShell
-      title="Profile"
-      description="Manage your account details for this workspace."
-    >
-      <ProfilePreferences />
-    </PreferencesShell>
-  );
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/profile/page";

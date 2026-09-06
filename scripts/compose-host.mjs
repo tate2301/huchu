@@ -2,7 +2,11 @@
 /**
  * Compose a host's `app/` tree from the modules it lists.
  *
- *   node scripts/compose-host.mjs apps/legacy campus sell
+ *   node scripts/compose-host.mjs apps/legacy platform campus sell
+ *
+ * `platform` names the kernel (`packages/platform`, its routes under `api/`),
+ * `shell` the workspace chrome (`packages/shell`, its pages under `pages/`);
+ * any other id is a module under `packages/modules`.
  *
  * A module keeps its route handlers under `packages/modules/<id>/api/**\/route.ts`
  * and its screens under `packages/modules/<id>/pages/**\/{page,layout,loading,
@@ -21,6 +25,12 @@ if (!hostDir || moduleIds.length === 0) {
   process.exit(1);
 }
 const ROOT = process.cwd();
+/** Where a package lives and what it is called: the kernel and the shell by name, a module under packages/modules. */
+function packageOf(id) {
+  if (id === "platform") return { dir: "packages/platform", name: "@corelithzw/platform" };
+  if (id === "shell") return { dir: "packages/shell", name: "@corelithzw/shell" };
+  return { dir: `packages/modules/${id}`, name: `@corelithzw/module-${id}` };
+}
 const PAGE_FILES = new Set(["page.tsx", "layout.tsx", "loading.tsx", "error.tsx", "not-found.tsx", "template.tsx", "default.tsx"]);
 /**
  * Next reads the route segment config (`dynamic`, `runtime`, `maxDuration`, …)
@@ -79,15 +89,15 @@ function exportsOf(file) {
 
 let written = 0;
 for (const id of moduleIds) {
-  const base = join(ROOT, "packages", "modules", id);
-  const spec = `@corelithzw/module-${id}`;
+  const { dir, name: spec } = packageOf(id);
+  const base = join(ROOT, dir);
   for (const file of walk(join(base, "api"))) {
     if (basename(file) !== "route.ts") continue;
     const rest = relative(join(base, "api"), file);
     const { names, configs } = exportsOf(file);
     const target = join(ROOT, hostDir, "app", "api", rest);
     const from = `${spec}/api/${rest.replace(/\.ts$/, "")}`.replace(/\\/g, "/");
-    write(target, `export { ${names.join(", ")} } from "${from}";\n` + configs.map((line) => `${line}\n`).join(""), id);
+    write(target, `export { ${names.join(", ")} } from "${from}";\n` + configs.map((line) => `${line}\n`).join(""), spec);
   }
   for (const file of walk(join(base, "pages"))) {
     if (!PAGE_FILES.has(basename(file))) continue;
@@ -100,12 +110,12 @@ for (const id of moduleIds) {
     if (hasDefault) body += `export { default } from "${from}";\n`;
     if (names.length) body += `export { ${names.join(", ")} } from "${from}";\n`;
     body += configs.map((line) => `${line}\n`).join("");
-    write(target, body, id);
+    write(target, body, spec);
   }
 }
-function write(target, body, id) {
+function write(target, body, spec) {
   mkdirSync(dirname(target), { recursive: true });
-  const header = `// Composed from @corelithzw/module-${id} by scripts/compose-host.mjs; edit the module, then run it again.\n`;
+  const header = `// Composed from ${spec} by scripts/compose-host.mjs; edit the module, then run it again.\n`;
   writeFileSync(target, header + body);
   written++;
 }

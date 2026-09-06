@@ -7,6 +7,11 @@ import { letterTemplate, reportTemplate } from "@corelithzw/module-documents/def
  */
 export const manifest: ModuleManifest = {
   id: "people",
+  // Checked on the prefix by the proxy, so a school teacher signing into a
+  // tenant that also runs payroll cannot reach the salary bill by typing the URL.
+  roleRestrictedRoutes: [
+    { paths: ["/people", "/payroll"], roles: ["SUPERADMIN", "MANAGER", "CLERK"], message: "People and payroll access is restricted" },
+  ],
   requires: ["books", "workflow", "documents", "records", "notifications"],
   notifications: {
     viewPaths: {

@@ -11,7 +11,11 @@ admin-portal(.ts)   the control-plane host: who is a superuser, which host is th
 permission-catalog  what a person may do: features from entitlements, capabilities from the modules
 registry            the registries a host fills at boot
 manifest            the module manifest contract and the modules a host composes
-client/, hooks/     the browser's clients for the kernel's own endpoints (sites, ids, users) and the reserved-id hook
+client/, hooks/     the browser's clients for the kernel's own endpoints (sites, ids, users, managed users) and the reserved-id hook
+api/                the kernel's route handlers (sign-in, ids, onboarding, preferences, settings, sites, uploads, users, health, pricing), composed into a host like a module's
+proxy               the edge proxy every host runs (`createProxy()`), over the manifests the host registered
+auth-core/create-auth-options   NextAuth's options (`createAuthOptions()`); a host builds them once and registers them
+v2-collection       the empty collection response a v2 endpoint returns while its resource has no listing
 auth-core/session-shape   next-auth's session, user and token typed from the kernel's claims
 roles, public-routes, api-utils, api-response, api-client, logging, observability/
 id-generator, money, serialize-decimals, uploads/, preferences/, audit/, workspace-products
@@ -29,6 +33,8 @@ Import by path: `import { validateSession } from "@corelithzw/platform/api-utils
   the module manifests as they arrive. A host fills them at boot in its
   `modules.ts`, imported from `instrumentation.ts`; a test that reads a
   registry imports the same file.
-- NextAuth's options themselves stay in the host (`apps/legacy/lib/auth.ts`):
-  they name the host's providers and adapter, and one callback asks the retail
-  module a question.
+- NextAuth's options and the edge proxy are the kernel's, and what a module
+  contributes to either is manifest data (`portals`, `roleRestrictedRoutes`):
+  the kernel reads the registry, never the module. A host builds the options
+  once (`createAuthOptions()`), registers them, and composes the proxy
+  (`createProxy()`) under the matcher Next reads statically from its own file.

@@ -1,5 +1,6 @@
 import type { FeatureRouteEntry } from "./gating/types";
 import type { CapabilitySet } from "./permission-catalog";
+import { getPortalHostDescriptorByPrefix, type PortalHostKey } from "./portal-hosts";
 import { registry } from "./registry";
 
 /**
@@ -68,6 +69,33 @@ export type DocumentTemplateEntry = {
   schema: Record<string, unknown>;
 };
 
+/**
+ * A portal a module serves on its own host (`pos-<slug>.<root>`), by the
+ * kernel's portal-host key. The proxy sends the portal's roles home to it,
+ * pins them to its host when asked, and serves its public paths bare; the
+ * sign-in refuses roles the portal does not admit.
+ */
+export type PortalEntry = {
+  key: PortalHostKey;
+  /** Roles whose home is this portal: sent there from anywhere else on the host. */
+  homeRoles: readonly string[];
+  /** Roles that may sign in on the portal's host; any role when absent. */
+  signInRoles?: readonly string[];
+  /** The reason the sign-in gives a role the portal does not admit. */
+  signInDeniedReason?: string;
+  /** Paths the portal serves bare on its host, `/` included; a portal without them serves its internal tree. */
+  publicPaths?: readonly string[];
+  /** Whether the portal's roles are kept on the portal host even when they arrive on the tenant host. */
+  pinRolesToHost?: boolean;
+};
+
+/** Routes only some roles may reach, enforced on the edge before any page or handler runs. */
+export type RoleRestrictedRoutes = {
+  paths: readonly string[];
+  roles: readonly string[];
+  message: string;
+};
+
 export type ModuleManifest = {
   id: ModuleId;
   /** The modules this one imports from, by id. The boundary test holds it to this. */
@@ -92,6 +120,10 @@ export type ModuleManifest = {
     /** What an approver can do from the notice itself: notification type → action templates. */
     approvalActions?: Readonly<Record<string, readonly NotificationActionTemplate[]>>;
   };
+  /** The portals the module serves on their own hosts. */
+  portals?: readonly PortalEntry[];
+  /** Routes only some roles may reach. */
+  roleRestrictedRoutes?: readonly RoleRestrictedRoutes[];
 };
 
 const modules = registry<Map<ModuleId, ModuleManifest>>("modules", () => new Map());
@@ -106,6 +138,25 @@ export function registeredModules(): ModuleManifest[] {
 
 export function isModuleRegistered(id: ModuleId): boolean {
   return modules.has(id);
+}
+
+/** Every portal the registered modules serve. */
+export function registeredPortals(): PortalEntry[] {
+  return registeredModules().flatMap((manifest) => [...(manifest.portals ?? [])]);
+}
+
+export function registeredPortalByPrefix(prefix: string | null | undefined): PortalEntry | undefined {
+  const descriptor = getPortalHostDescriptorByPrefix(prefix);
+  return descriptor ? registeredPortal(descriptor.key) : undefined;
+}
+
+export function registeredPortal(key: PortalHostKey): PortalEntry | undefined {
+  return registeredPortals().find((portal) => portal.key === key);
+}
+
+/** Every role-restricted route the registered modules declare. */
+export function registeredRoleRestrictedRoutes(): RoleRestrictedRoutes[] {
+  return registeredModules().flatMap((manifest) => [...(manifest.roleRestrictedRoutes ?? [])]);
 }
 
 /** Every route the registered modules gate; the route registry reads these beside its own. */

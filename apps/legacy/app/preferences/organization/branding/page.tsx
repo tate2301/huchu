@@ -1,8 +1,2 @@
-import { redirect } from "next/navigation";
-
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesBrandingPage() {
-  await requirePreferencesAccess("branding");
-  redirect("/preferences/organization/branding/identity");
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/branding/page";

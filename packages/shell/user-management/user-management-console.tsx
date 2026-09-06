@@ -1,0 +1,1036 @@
+"use client";
+
+import * as React from "react";
+import { useRouter } from "next/navigation";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSession } from "next-auth/react";
+
+import { ManagementShell } from "../management-shell";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/data-table";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@corelithzw/ui/components/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@corelithzw/ui/components/dropdown-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import {
+  changeManagedUserRole,
+  createManagedUser,
+  fetchManagedUsers,
+  type ManagedUserSummary,
+  resetManagedUserPassword,
+  setManagedUserStatus,
+  type ManagedUserRole,
+} from "@corelithzw/platform/user-management-api";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
+import {
+  ArrowRightLeft,
+  CheckCircle2,
+  ChevronDown,
+  type LucideIcon,
+  ManageAccounts,
+  Plus,
+  ShieldCheck,
+  UserX,
+} from "@corelithzw/ui/lib/icons";
+import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
+import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";
+
+export type UserManagementMode =
+  | "directory"
+  | "create"
+  | "status"
+  | "password-reset"
+  | "role-change";
+
+type RoleFilter = "ALL" | ManagedUserRole;
+type StatusFilter = "ALL" | "ACTIVE" | "INACTIVE";
+type ManagedUserTargetBase = {
+  userId: string;
+  userEmail: string;
+};
+
+const USER_FEATURE_ACCESS_KEY = "admin.user-management.feature-access";
+
+const modeMeta: Record<UserManagementMode, { title: string; description: string }> = {
+  directory: {
+    title: "User Directory",
+    description: "Browse managed user accounts for this organization.",
+  },
+  create: {
+    title: "Create User",
+    description: "Provision new managed user accounts.",
+  },
+  status: {
+    title: "User Status",
+    description: "Activate or deactivate managed user accounts.",
+  },
+  "password-reset": {
+    title: "Reset User Password",
+    description: "Reset credentials for managed users.",
+  },
+  "role-change": {
+    title: "Change User Role",
+    description: "Assign roles for managed users.",
+  },
+};
+
+function formatTimestamp(value: string | undefined): string {
+  if (!value) return "N/A";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "N/A";
+  return date.toLocaleString();
+}
+
+function defaultRoleForMode(mode: UserManagementMode, roles: ManagedUserRole[]): ManagedUserRole {
+  if (mode === "create" && roles.includes("OPERATOR")) return "OPERATOR";
+  if (roles.includes("MANAGER")) return "MANAGER";
+  return roles[0] ?? "MANAGER";
+}
+
+function toManagedRole(
+  role: string | undefined,
+  managedRoles: ManagedUserRole[],
+): ManagedUserRole | null {
+  if (role && managedRoles.includes(role as ManagedUserRole)) return role as ManagedUserRole;
+  return null;
+}
+
+export function UserManagementConsole({ mode }: { mode: UserManagementMode }) {
+  const router = useRouter();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const { data: session } = useSession();
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  const workspaceProfile = (session?.user as { workspaceProfile?: string } | undefined)?.workspaceProfile;
+
+  const managedRoleOptions = React.useMemo(
+    () =>
+      getAllowedUserRoleOptionsForWorkspace({
+        workspaceProfile,
+        enabledFeatures,
+      }).filter((role) => role.value !== "CLERK") as Array<{ value: ManagedUserRole; label: string }>,
+    [enabledFeatures, workspaceProfile],
+  );
+  const managedRoles = React.useMemo(
+    () => managedRoleOptions.map((role) => role.value),
+    [managedRoleOptions],
+  );
+
+  const canView =
+    sessionRole === "SUPERADMIN" ||
+    (sessionRole === "MANAGER" && mode === "directory");
+  const canMutate = sessionRole === "SUPERADMIN";
+  const canManageFeatureAccess =
+    canMutate && hasTokenFeature(enabledFeatures, USER_FEATURE_ACCESS_KEY);
+  const actionsVisible = {
+    status: mode === "directory" || mode === "status",
+    password: mode === "directory" || mode === "password-reset",
+    role: mode === "directory" || mode === "role-change",
+    featureAccess: mode === "directory" && canManageFeatureAccess,
+  };
+
+  const [queryState, setQueryState] = React.useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
+  const [roleFilter, setRoleFilter] = React.useState<RoleFilter>("ALL");
+  const [statusFilter, setStatusFilter] = React.useState<StatusFilter>("ALL");
+
+  const [createOpen, setCreateOpen] = React.useState(false);
+  const [createDraft, setCreateDraft] = React.useState({
+    name: "",
+    email: "",
+    password: "",
+    role: defaultRoleForMode(mode, managedRoles),
+  });
+
+  const [statusTarget, setStatusTarget] = React.useState<
+    (ManagedUserTargetBase & {
+      isActive: boolean;
+    }) | null
+  >(null);
+  const [passwordTarget, setPasswordTarget] = React.useState<
+    (ManagedUserTargetBase & {
+      newPassword: string;
+    }) | null
+  >(null);
+  const [roleTarget, setRoleTarget] = React.useState<
+    (ManagedUserTargetBase & {
+      role: ManagedUserRole;
+    }) | null
+  >(null);
+
+  React.useEffect(() => {
+    if (mode === "create" && canMutate) {
+      setCreateOpen(true);
+    }
+  }, [canMutate, mode]);
+
+  React.useEffect(() => {
+    if (!managedRoles.includes(createDraft.role)) {
+      setCreateDraft((current) => ({
+        ...current,
+        role: defaultRoleForMode(mode, managedRoles),
+      }));
+    }
+  }, [createDraft.role, managedRoles, mode]);
+
+  const usersQuery = useQuery({
+    queryKey: [
+      "managed-users",
+      queryState.page,
+      queryState.pageSize,
+      queryState.search,
+      roleFilter,
+      statusFilter,
+    ],
+    queryFn: () =>
+      fetchManagedUsers({
+        role: roleFilter === "ALL" ? undefined : roleFilter,
+        active:
+          statusFilter === "ALL"
+            ? undefined
+            : statusFilter === "ACTIVE",
+        search: queryState.search || undefined,
+        page: queryState.page,
+        limit: queryState.pageSize,
+      }),
+    enabled: canView && managedRoles.length > 0,
+  });
+
+  const users = React.useMemo(() => usersQuery.data?.data ?? [], [usersQuery.data?.data]);
+  const usersById = React.useMemo(
+    () => new Map(users.map((user) => [user.id, user])),
+    [users],
+  );
+
+  const totalRows = usersQuery.data?.pagination?.total ?? users.length;
+  const totalPages = usersQuery.data?.pagination?.pages ?? 1;
+
+  const refreshUsers = React.useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ["managed-users"] });
+  }, [queryClient]);
+
+  const createUserMutation = useMutation({
+    mutationFn: createManagedUser,
+    onSuccess: () => {
+      toast({
+        title: "User created",
+        description: "User account was created successfully.",
+        variant: "success",
+      });
+      setCreateOpen(false);
+      setCreateDraft({
+        name: "",
+        email: "",
+        password: "",
+        role: defaultRoleForMode(mode, managedRoles),
+      });
+      refreshUsers();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to create user",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const setStatusMutation = useMutation({
+    mutationFn: setManagedUserStatus,
+    onSuccess: () => {
+      toast({
+        title: "Status updated",
+        description: "User status was updated successfully.",
+        variant: "success",
+      });
+      setStatusTarget(null);
+      refreshUsers();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update status",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const resetPasswordMutation = useMutation({
+    mutationFn: resetManagedUserPassword,
+    onSuccess: () => {
+      toast({
+        title: "Password reset",
+        description: "User password was reset successfully.",
+        variant: "success",
+      });
+      setPasswordTarget(null);
+      refreshUsers();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to reset password",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const roleChangeMutation = useMutation({
+    mutationFn: changeManagedUserRole,
+    onSuccess: () => {
+      toast({
+        title: "Role updated",
+        description: "User role was updated successfully.",
+        variant: "success",
+      });
+      setRoleTarget(null);
+      refreshUsers();
+    },
+    onError: (error) => {
+      toast({
+        title: "Unable to update role",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const columns = React.useMemo<ColumnDef<ManagedUserSummary>[]>(
+    () => {
+      const baseColumns: ColumnDef<ManagedUserSummary>[] = [
+        {
+          accessorKey: "name",
+          header: "Name",
+          cell: ({ row }) => (
+            <div className="font-medium">{row.original.name}</div>
+          ),
+        },
+        {
+          accessorKey: "email",
+          header: "Email",
+          cell: ({ row }) => (
+            <span className="font-mono text-sm">{row.original.email}</span>
+          ),
+        },
+        {
+          accessorKey: "role",
+          header: "Role",
+          cell: ({ row }) => (
+            <Badge variant="outline">{row.original.role}</Badge>
+          ),
+        },
+        {
+          id: "status",
+          header: "Status",
+          cell: ({ row }) => (
+            <Badge variant={row.original.isActive ? "secondary" : "destructive"}>
+              {row.original.isActive ? "Active" : "Inactive"}
+            </Badge>
+          ),
+        },
+        {
+          id: "updatedAt",
+          header: "Updated",
+          cell: ({ row }) => (
+            <span className="font-mono text-sm">
+              {formatTimestamp(row.original.updatedAt)}
+            </span>
+          ),
+        },
+      ];
+
+      if (!canMutate) {
+        return baseColumns;
+      }
+
+      return [
+        ...baseColumns,
+        {
+          id: "actions",
+          header: "Actions",
+          cell: ({ row }) => {
+            const managedRole = toManagedRole(row.original.role, managedRoles);
+            const rowActions: Array<{
+              key: string;
+              label: string;
+              icon: LucideIcon;
+              onClick: () => void;
+            }> = [];
+
+            if (actionsVisible.status) {
+              rowActions.push({
+                key: "status",
+                label: row.original.isActive ? "Deactivate" : "Activate",
+                icon: row.original.isActive ? UserX : CheckCircle2,
+                onClick: () =>
+                  setStatusTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    isActive: !row.original.isActive,
+                  }),
+              });
+            }
+
+            if (actionsVisible.password) {
+              rowActions.push({
+                key: "password",
+                label: "Reset Password",
+                icon: ManageAccounts,
+                onClick: () =>
+                  setPasswordTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    newPassword: "",
+                  }),
+              });
+            }
+
+            if (actionsVisible.role) {
+              rowActions.push({
+                key: "role",
+                label: "Change Role",
+                icon: ArrowRightLeft,
+                onClick: () =>
+                  setRoleTarget({
+                    userId: row.original.id,
+                    userEmail: row.original.email,
+                    role: managedRole ?? defaultRoleForMode(mode, managedRoles),
+                  }),
+              });
+            }
+
+            if (actionsVisible.featureAccess) {
+              rowActions.push({
+                key: "feature",
+                label: "Permissions",
+                icon: ShieldCheck,
+                onClick: () =>
+                  router.push(`/preferences/organization/users/${row.original.id}`),
+              });
+            }
+
+            if (rowActions.length === 0) {
+              return null;
+            }
+
+            const [primaryAction, ...moreActions] = rowActions;
+            const PrimaryIcon = primaryAction.icon;
+
+            return (
+              <div className="flex justify-end">
+                <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-[var(--edge-subtle)] bg-background shadow-[var(--surface-frame-shadow)]">
+                  <Button
+                    type="button"
+                    size="sm"
+                    variant="ghost"
+                    className="rounded-none border-r border-[var(--edge-subtle)] px-3"
+                    onClick={primaryAction.onClick}
+                  >
+                    <PrimaryIcon className="mr-1.5 h-4 w-4" />
+                    {primaryAction.label}
+                  </Button>
+
+                  {moreActions.length > 0 ? (
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button type="button" size="sm" variant="ghost" className="rounded-none px-2.5">
+                          <ChevronDown className="h-4 w-4" />
+                          <span className="sr-only">More user actions</span>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        {moreActions.map((action) => {
+                          const ActionIcon = action.icon;
+                          return (
+                            <DropdownMenuItem key={action.key} onClick={action.onClick}>
+                              <ActionIcon className="h-4 w-4" />
+                              <span>{action.label}</span>
+                            </DropdownMenuItem>
+                          );
+                        })}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  ) : null}
+                </div>
+              </div>
+            );
+          },
+        },
+      ];
+    },
+    [
+      actionsVisible.featureAccess,
+      actionsVisible.password,
+      actionsVisible.role,
+      actionsVisible.status,
+      canMutate,
+      managedRoles,
+      mode,
+      router,
+    ],
+  );
+
+  const heading = modeMeta[mode];
+
+  const showHeaderActions = canMutate && (mode === "directory" || mode === "create");
+  const headerActions = showHeaderActions ? (
+    <div className="inline-flex items-center overflow-hidden rounded-[10px] border border-[var(--edge-subtle)] bg-background shadow-[var(--surface-frame-shadow)]">
+      <Button type="button" className="rounded-none border-r border-[var(--edge-subtle)] px-3" onClick={() => setCreateOpen(true)}>
+        <Plus className="mr-1.5 h-4 w-4" />
+        New User
+      </Button>
+      {mode === "directory" ? (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button type="button" variant="ghost" className="rounded-none px-3">
+              More
+              <ChevronDown className="ml-1.5 h-4 w-4" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              onClick={() =>
+                setStatusTarget({
+                  userId: "",
+                  userEmail: "",
+                  isActive: true,
+                })}
+            >
+              <CheckCircle2 className="h-4 w-4" />
+              <span>Set Status</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                setPasswordTarget({
+                  userId: "",
+                  userEmail: "",
+                  newPassword: "",
+                })}
+            >
+              <ManageAccounts className="h-4 w-4" />
+              <span>Reset Password</span>
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={() =>
+                setRoleTarget({
+                  userId: "",
+                  userEmail: "",
+                  role: defaultRoleForMode(mode, managedRoles),
+                })}
+            >
+              <ArrowRightLeft className="h-4 w-4" />
+              <span>Change Role</span>
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      ) : null}
+    </div>
+  ) : null;
+
+  if (!canView) {
+    return (
+      <ManagementShell area="users" title={heading.title}>
+        <Alert variant="destructive">
+          <AlertTitle>Access restricted</AlertTitle>
+          <AlertDescription>
+            {mode === "directory"
+              ? "User Management directory is available to superadmins and managers only."
+              : "Only SUPERADMIN can access this user-management action route."}
+          </AlertDescription>
+        </Alert>
+      </ManagementShell>
+    );
+  }
+
+  return (
+    <ManagementShell area="users" title={heading.title} actions={headerActions}>
+      {!canMutate ? (
+        <Alert>
+          <AlertTitle>Read-only mode for your role</AlertTitle>
+          <AlertDescription>
+            You can browse users, but only SUPERADMIN can create or mutate user accounts.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {canMutate && mode === "directory" && !canManageFeatureAccess ? (
+        <Alert>
+          <AlertTitle>Permission controls unavailable</AlertTitle>
+          <AlertDescription>
+            Enable the <span className="font-mono">{USER_FEATURE_ACCESS_KEY}</span> feature to
+            manage per-user permissions.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {usersQuery.error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load users</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(usersQuery.error)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      {usersQuery.isLoading ? (
+        <Skeleton className="h-12 w-full" />
+      ) : (
+        <DataTable
+          data={users}
+          columns={columns}
+          queryState={queryState}
+          onQueryStateChange={(next) =>
+            setQueryState((current) => ({
+              ...current,
+              ...next,
+            }))
+          }
+          features={{ sorting: false, globalFilter: true, pagination: true }}
+          pagination={{
+            enabled: true,
+            server: true,
+            total: totalRows,
+            totalPages,
+          }}
+          searchPlaceholder="Search by name or email"
+          searchSubmitLabel="Search"
+          tableClassName="text-sm"
+          noResultsText="No users found for current filters."
+          toolbar={
+            <>
+              <Select
+                value={roleFilter}
+                onValueChange={(value) => {
+                  setRoleFilter(value as RoleFilter);
+                  setQueryState((current) => ({ ...current, page: 1 }));
+                }}
+              >
+                <SelectTrigger className="h-8 w-[190px]">
+                  <SelectValue placeholder="Role filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Company Users</SelectItem>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}s
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+
+              <Select
+                value={statusFilter}
+                onValueChange={(value) => {
+                  setStatusFilter(value as StatusFilter);
+                  setQueryState((current) => ({ ...current, page: 1 }));
+                }}
+              >
+                <SelectTrigger className="h-8 w-[180px]">
+                  <SelectValue placeholder="Status filter" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Statuses</SelectItem>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </>
+          }
+        />
+      )}
+
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
+        <DialogContent size="md">
+          <DialogHeader>
+            <DialogTitle>Create User</DialogTitle>
+            <DialogDescription>Create a superadmin, manager, or operator account.</DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Name</label>
+              <Input
+                value={createDraft.name}
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, name: event.target.value }))}
+                placeholder="Full name"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Email</label>
+              <Input
+                value={createDraft.email}
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, email: event.target.value }))}
+                placeholder="user@company.com"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Password</label>
+              <Input
+                type="password"
+                value={createDraft.password}
+                onChange={(event) =>
+                  setCreateDraft((current) => ({ ...current, password: event.target.value }))}
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Role</label>
+              <Select
+                value={createDraft.role}
+                onValueChange={(value) =>
+                  setCreateDraft((current) => ({
+                    ...current,
+                    role: value as ManagedUserRole,
+                  }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setCreateOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={createUserMutation.isPending}
+              onClick={() =>
+                createUserMutation.mutate({
+                  name: createDraft.name,
+                  email: createDraft.email,
+                  password: createDraft.password,
+                  role: createDraft.role,
+                })}
+            >
+              {createUserMutation.isPending ? "Creating..." : "Create User"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(statusTarget)}
+        onOpenChange={(open) => {
+          if (!open) setStatusTarget(null);
+        }}
+      >
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Set User Status</DialogTitle>
+            <DialogDescription>
+              {statusTarget?.userEmail
+                ? `Update status for ${statusTarget.userEmail}`
+                : "Select a user and set status."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">User</label>
+              <Select
+                value={statusTarget?.userId || "__none"}
+                onValueChange={(value) => {
+                  if (value === "__none") return;
+                  const selected = usersById.get(value);
+                  if (!selected) return;
+                  setStatusTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          userId: selected.id,
+                          userEmail: selected.email,
+                          isActive: selected.isActive,
+                        }
+                      : current);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Select user</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {`${user.name} (${user.email})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Status</label>
+              <Select
+                value={statusTarget?.isActive ? "ACTIVE" : "INACTIVE"}
+                onValueChange={(value) =>
+                  setStatusTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          isActive: value === "ACTIVE",
+                        }
+                      : current)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ACTIVE">Active</SelectItem>
+                  <SelectItem value="INACTIVE">Inactive</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setStatusTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!statusTarget?.userId || setStatusMutation.isPending}
+              onClick={() => {
+                if (!statusTarget) return;
+                setStatusMutation.mutate({
+                  userId: statusTarget.userId,
+                  isActive: statusTarget.isActive,
+                });
+              }}
+            >
+              {setStatusMutation.isPending ? "Saving..." : "Apply Status"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(passwordTarget)}
+        onOpenChange={(open) => {
+          if (!open) setPasswordTarget(null);
+        }}
+      >
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Reset Password</DialogTitle>
+            <DialogDescription>
+              {passwordTarget?.userEmail
+                ? `Reset password for ${passwordTarget.userEmail}`
+                : "Select a user and enter a new password."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">User</label>
+              <Select
+                value={passwordTarget?.userId || "__none"}
+                onValueChange={(value) => {
+                  if (value === "__none") return;
+                  const selected = usersById.get(value);
+                  if (!selected) return;
+                  setPasswordTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          userId: selected.id,
+                          userEmail: selected.email,
+                        }
+                      : current);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Select user</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {`${user.name} (${user.email})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">New Password</label>
+              <Input
+                type="password"
+                value={passwordTarget?.newPassword ?? ""}
+                onChange={(event) =>
+                  setPasswordTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          newPassword: event.target.value,
+                        }
+                      : current)}
+                placeholder="Minimum 8 characters"
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPasswordTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={
+                !passwordTarget?.userId ||
+                passwordTarget.newPassword.trim().length < 8 ||
+                resetPasswordMutation.isPending
+              }
+              onClick={() => {
+                if (!passwordTarget) return;
+                resetPasswordMutation.mutate({
+                  userId: passwordTarget.userId,
+                  newPassword: passwordTarget.newPassword,
+                });
+              }}
+            >
+              {resetPasswordMutation.isPending ? "Resetting..." : "Reset Password"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={Boolean(roleTarget)}
+        onOpenChange={(open) => {
+          if (!open) setRoleTarget(null);
+        }}
+      >
+        <DialogContent size="sm">
+          <DialogHeader>
+            <DialogTitle>Change User Role</DialogTitle>
+            <DialogDescription>
+              {roleTarget?.userEmail
+                ? `Set role for ${roleTarget.userEmail}`
+                : "Select a user and assign a role."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div>
+              <label className="mb-2 block text-sm font-semibold">User</label>
+              <Select
+                value={roleTarget?.userId || "__none"}
+                onValueChange={(value) => {
+                  if (value === "__none") return;
+                  const selected = usersById.get(value);
+                  if (!selected) return;
+                  setRoleTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          userId: selected.id,
+                          userEmail: selected.email,
+                          role: toManagedRole(selected.role, managedRoles) ?? defaultRoleForMode(mode, managedRoles),
+                        }
+                      : current);
+                }}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select user" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none">Select user</SelectItem>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {`${user.name} (${user.email})`}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <label className="mb-2 block text-sm font-semibold">Role</label>
+              <Select
+                value={roleTarget?.role ?? defaultRoleForMode(mode, managedRoles)}
+                onValueChange={(value) =>
+                  setRoleTarget((current) =>
+                    current
+                      ? {
+                          ...current,
+                          role: value as ManagedUserRole,
+                        }
+                      : current)}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select role" />
+                </SelectTrigger>
+                <SelectContent>
+                  {managedRoleOptions.map((role) => (
+                    <SelectItem key={role.value} value={role.value}>
+                      {role.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setRoleTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              disabled={!roleTarget?.userId || roleChangeMutation.isPending}
+              onClick={() => {
+                if (!roleTarget) return;
+                roleChangeMutation.mutate({
+                  userId: roleTarget.userId,
+                  role: roleTarget.role,
+                });
+              }}
+            >
+              {roleChangeMutation.isPending ? "Saving..." : "Apply Role"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </ManagementShell>
+  );
+}

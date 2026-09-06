@@ -1,7 +1,2 @@
-import { BrandingSettingsSection } from "@/components/settings/branding/branding-settings-section";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesBrandingFinancePage() {
-  await requirePreferencesAccess("branding");
-  return <BrandingSettingsSection section="finance" />;
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/branding/finance/page";

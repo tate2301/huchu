@@ -1,16 +1,2 @@
-import { SitesPreferences } from "@/components/preferences/organization/sites-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesSitesPage() {
-  await requirePreferencesAccess("sites");
-
-  return (
-    <PreferencesShell
-      title="Sites"
-      description="Manage operational sites used across reporting and workflows."
-    >
-      <SitesPreferences />
-    </PreferencesShell>
-  );
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/sites/page";

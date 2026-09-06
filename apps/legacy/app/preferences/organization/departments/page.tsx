@@ -1,16 +1,2 @@
-import { DepartmentsPreferences } from "@/components/preferences/organization/departments-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesDepartmentsPage() {
-  await requirePreferencesAccess("departments");
-
-  return (
-    <PreferencesShell
-      title="Departments"
-      description="Manage departments used for people, compensation, and approvals."
-    >
-      <DepartmentsPreferences />
-    </PreferencesShell>
-  );
-}
+// Composed from @corelithzw/module-people by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-people/pages/preferences/organization/departments/page";

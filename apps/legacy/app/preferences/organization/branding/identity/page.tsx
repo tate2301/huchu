@@ -1,7 +1,2 @@
-import { BrandingSettingsSection } from "@/components/settings/branding/branding-settings-section";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesBrandingIdentityPage() {
-  await requirePreferencesAccess("branding");
-  return <BrandingSettingsSection section="identity" />;
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/branding/identity/page";

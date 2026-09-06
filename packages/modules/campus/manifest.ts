@@ -11,6 +11,11 @@ import { letterTemplate, recordTemplate, reportTemplate } from "@corelithzw/modu
  */
 export const manifest: ModuleManifest = {
   id: "schools",
+  portals: [
+    { key: "parent", homeRoles: ["PARENT"] },
+    { key: "student", homeRoles: ["STUDENT"] },
+    { key: "teacher", homeRoles: ["TEACHER"] },
+  ],
   requires: ["records", "documents", "books", "offline", "people", "notifications"],
   records: {
     // The academic ladder (classes, subjects) moved under Management > Master

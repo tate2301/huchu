@@ -18,7 +18,7 @@ import { canAccessCapabilityWithToken, hasTokenFeature } from "@corelithzw/platf
 import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import { PageChromeProvider } from "@corelithzw/ui/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@corelithzw/ui/components/sidebar";
-import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
+import { OnboardingProvider } from "@corelithzw/shell/onboarding/onboarding-provider";
 import { isPublicPath } from "@corelithzw/platform/public-routes";
 import { RecordPeekProvider } from "@corelithzw/module-records/components/record-peek";
 import { RecordTrailProvider } from "@corelithzw/module-records/components/record-trail";

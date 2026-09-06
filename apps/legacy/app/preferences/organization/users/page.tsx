@@ -1,16 +1,2 @@
-import { UsersPreferences } from "@/components/preferences/organization/users-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesUsersPage() {
-  await requirePreferencesAccess("users");
-
-  return (
-    <PreferencesShell
-      title="Users"
-      description="Manage workspace users, roles, and account lifecycle."
-    >
-      <UsersPreferences />
-    </PreferencesShell>
-  );
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/users/page";

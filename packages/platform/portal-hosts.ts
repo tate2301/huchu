@@ -47,6 +47,12 @@ export function getPortalHostDescriptors(): PortalHostDescriptor[] {
   return PORTAL_HOSTS;
 }
 
+export function getPortalHostDescriptorByKey(key: PortalHostKey): PortalHostDescriptor {
+  const descriptor = PORTAL_HOSTS.find((candidate) => candidate.key === key);
+  if (!descriptor) throw new Error(`No portal host descriptor for ${key}`);
+  return descriptor;
+}
+
 export function getPortalHostDescriptorByPrefix(prefix: string | null | undefined): PortalHostDescriptor | null {
   const normalizedPrefix = normalizePrefix(prefix);
   if (!normalizedPrefix) {

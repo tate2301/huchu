@@ -1,4 +1,5 @@
 import type { ModuleManifest } from "@corelithzw/platform/manifest";
+import { POS_ALL_PUBLIC_PATHS } from "./pos-host";
 
 /**
  * Sell: the till and everything around it. The manifest id is "retail", the
@@ -7,5 +8,15 @@ import type { ModuleManifest } from "@corelithzw/platform/manifest";
  */
 export const manifest: ModuleManifest = {
   id: "retail",
+  portals: [
+    {
+      key: "pos",
+      homeRoles: ["POS_CASHIER", "CASHIER"],
+      signInRoles: ["CASHIER", "POS_CASHIER"],
+      signInDeniedReason: "POS_PORTAL_ACCESS_REQUIRED",
+      publicPaths: POS_ALL_PUBLIC_PATHS,
+      pinRolesToHost: true,
+    },
+  ],
   requires: ["books", "offline", "records", "stock", "workflow"],
 };

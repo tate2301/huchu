@@ -30,7 +30,7 @@ import {
   Payments,
   type LucideIcon,
 } from "@corelithzw/ui/lib/icons";
-import { getVisibleManagementModuleItems } from "@/lib/settings/management-nav";
+import { getVisibleManagementModuleItems } from "@corelithzw/shell/management";
 import { isRouteAllowedForRole } from "@corelithzw/platform/auth-core/role-routes";
 
 export { WORKSPACE_PROFILES };

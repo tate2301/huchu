@@ -1,16 +1,2 @@
-import { OrganizationOverviewPreferences } from "@/components/preferences/organization/organization-overview-preferences";
-import { PreferencesShell } from "@/components/preferences/preferences-shell";
-import { requirePreferencesAccess } from "@corelithzw/platform/preferences/server";
-
-export default async function PreferencesOrganizationPage() {
-  await requirePreferencesAccess("organization");
-
-  return (
-    <PreferencesShell
-      title="Organization"
-      description="Review workspace identity and access context."
-    >
-      <OrganizationOverviewPreferences />
-    </PreferencesShell>
-  );
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/preferences/organization/page";

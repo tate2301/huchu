@@ -16,6 +16,8 @@ permission-matrix.tsx   the capabilities-per-role editor the user-management and
 module-shell.tsx  the category rail and page band every module's screens sit in
 management.ts     the Management area's registry (modules, areas, labels) and its helpers
 management-shell, master-data-page, master-data-shell   the Management chrome and the master-data pattern
+pages/            the workspace pages a host composes: sign-in, access blocked, help, status, the preview-host page, preferences, the users console, the master-data hub
+preferences/, user-management/, status/, branding/, onboarding/   what those pages render
 ```
 
 Import by path: `import { ModuleShell } from "@corelithzw/shell/module-shell"`.

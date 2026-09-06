@@ -1,19 +1,2 @@
-import { NextRequest, NextResponse } from "next/server";
-import { getCredentialsPrecheckFailure } from "@corelithzw/platform/auth-core/credentials-precheck";
-
-export async function GET(request: NextRequest) {
-  const failure = await getCredentialsPrecheckFailure(request.headers);
-
-  if (!failure) {
-    return NextResponse.json({ ok: true });
-  }
-
-  return NextResponse.json(
-    {
-      error: failure.error,
-      code: failure.code,
-      message: failure.message,
-    },
-    { status: failure.status },
-  );
-}
+// Composed from @corelithzw/platform by scripts/compose-host.mjs; edit the module, then run it again.
+export { GET } from "@corelithzw/platform/api/auth/credentials-precheck/route";

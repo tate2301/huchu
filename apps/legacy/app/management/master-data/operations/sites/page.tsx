@@ -1,5 +1,2 @@
-import { redirect } from "next/navigation";
-
-export default function SitesManagementPage() {
-  redirect("/preferences/organization/sites");
-}
+// Composed from @corelithzw/shell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/shell/pages/management/master-data/operations/sites/page";

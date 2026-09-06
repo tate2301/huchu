@@ -13,6 +13,8 @@
   "dependencies": {
     "@corelithzw/db": "workspace:*",
     "@corelithzw/platform": "workspace:*",
+    "@corelithzw/react": "^0.4.1",
+    "@corelithzw/shell": "workspace:*",
     "@corelithzw/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.16",
     "date-fns": "^4.1.0",
