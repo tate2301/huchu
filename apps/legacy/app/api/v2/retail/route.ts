@@ -4,7 +4,7 @@ import { startOfMonth, subDays } from "date-fns";
 import { successResponse } from "@corelithzw/platform/api-response";
 import { atMost, money, sumMoney, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "./_helpers";
 
 /**

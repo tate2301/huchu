@@ -45,8 +45,8 @@ import { randomUUID } from "node:crypto"
 import { Prisma, type RetailTenderType } from "@corelithzw/db"
 import { money, multiplyMoney, rate, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
-import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
-import { upsertShelfListing } from "@/lib/retail/shelf-listing"
+import { saveRetailSetupProfile } from "@corelithzw/module-sell/setup-profile"
+import { upsertShelfListing } from "@corelithzw/module-sell/shelf-listing"
 
 function readArg(name: string): string | undefined {
   const prefix = `--${name}=`

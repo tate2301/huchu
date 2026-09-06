@@ -4,7 +4,7 @@ import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/guards";
 import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
 import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
-import { canAccessPosPortal, normalizePosCallbackUrl } from "@/lib/retail/pos-host";
+import { canAccessPosPortal, normalizePosCallbackUrl } from "@corelithzw/module-sell/pos-host";
 import { companyLabelFromHost } from "@corelithzw/ui/lib/utils";
 import { PosPortalLoginClient } from "./client";
 

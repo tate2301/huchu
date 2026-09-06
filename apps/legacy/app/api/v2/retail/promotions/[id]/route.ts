@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { RetailPromotionStatus } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 const patchSchema = z.object({

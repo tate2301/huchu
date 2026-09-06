@@ -27,8 +27,8 @@ import { put } from "@vercel/blob";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { catalogImagePath, checkCatalogImage } from "@/lib/retail/catalog-image";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { catalogImagePath, checkCatalogImage } from "@corelithzw/module-sell/catalog-image";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 export async function POST(request: NextRequest) {

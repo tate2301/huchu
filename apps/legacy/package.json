@@ -50,6 +50,7 @@
     "@corelithzw/module-offline": "workspace:*",
     "@corelithzw/module-people": "workspace:*",
     "@corelithzw/module-records": "workspace:*",
+    "@corelithzw/module-sell": "workspace:*",
     "@corelithzw/module-stock": "workspace:*",
     "@corelithzw/module-workflow": "workspace:*",
     "@corelithzw/platform": "workspace:*",

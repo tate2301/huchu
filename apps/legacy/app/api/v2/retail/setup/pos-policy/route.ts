@@ -2,14 +2,14 @@
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_POS_POLICY,
   getRetailPosPolicy,
   RETAIL_POS_POLICY_PROVIDER_KEY,
   saveRetailPosPolicy,
-} from "@/lib/retail/pos-policy";
+} from "@corelithzw/module-sell/pos-policy";
 
 const posPolicySchema = z.object({
   requiredReferenceTenders: z.array(z.enum(["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"])).min(1),

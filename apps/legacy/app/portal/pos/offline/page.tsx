@@ -1,5 +1,5 @@
-import { PosOfflineQueueView } from "@/components/retail/portal/pos-offline-queue-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosOfflineQueueView } from "@corelithzw/module-sell/components/portal/pos-offline-queue-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalOfflineQueuePage() {
   return (

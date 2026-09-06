@@ -39,14 +39,14 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { serializeRetailZReport, tradingDayKey } from "@/lib/retail/z-report";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { serializeRetailZReport, tradingDayKey } from "@corelithzw/module-sell/z-report";
 import { prisma } from "@corelithzw/db/client";
 import { requireRetailSession } from "../_helpers";
 import {
   generateRetailZReportTransaction,
   listRetailZReportCandidates,
-} from "../_services";
+} from "@corelithzw/module-sell/transactions";
 
 const generateSchema = z.object({
   registerCode: z.string().trim().min(1).max(64),

@@ -1,8 +1,8 @@
 ﻿import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
-import { getRetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
+import { getRetailSetupSnapshot } from "@corelithzw/module-sell/setup-snapshot";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

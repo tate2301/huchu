@@ -1,14 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
 import { prisma } from "@corelithzw/db/client";
 import {
   archiveShelfListing,
   loadShelfListing,
   upsertShelfListing,
-} from "@/lib/retail/shelf-listing";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+} from "@corelithzw/module-sell/shelf-listing";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { ensureInventoryItemAccess, requireRetailSession } from "../../_helpers";
 
 /**

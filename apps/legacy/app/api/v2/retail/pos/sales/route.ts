@@ -11,21 +11,21 @@ import {
   LOYALTY_MAX_REDEEM_SHARE,
   LOYALTY_REDEEM_POINTS_PER_USD,
   parseLoyaltyRedeemPoints,
-} from "@/lib/retail/loyalty";
-import { canRetailRoleDo, canSeeRetailCostPrice, requireRetailPermission } from "@/lib/retail/permissions";
-import { getRetailTenderPolicy, validateTenderReferences } from "@/lib/retail/tender-policy";
-import { calculateRetailCheckout } from "@/lib/retail/checkout";
-import { OFFLINE_REPLAY_NOTE_MARKER } from "@/lib/retail/offline-queue-verdict";
-import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
-import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
+} from "@corelithzw/module-sell/loyalty";
+import { canRetailRoleDo, canSeeRetailCostPrice, requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { getRetailTenderPolicy, validateTenderReferences } from "@corelithzw/module-sell/tender-policy";
+import { calculateRetailCheckout } from "@corelithzw/module-sell/checkout";
+import { OFFLINE_REPLAY_NOTE_MARKER } from "@corelithzw/module-sell/offline-queue-verdict";
+import { reviewReplayedPrices } from "@corelithzw/module-sell/replay-price-review";
+import { loadSellableProducts } from "@corelithzw/module-sell/shelf-listing";
+import { resolveShelfPrices } from "@corelithzw/module-sell/shelf-pricing";
 import {
   resolveRetailSite,
   getPosSupportedPromotionTypes,
   isPosSupportedPromotionType,
   requireRetailSession,
 } from "../../_helpers";
-import { createRetailSaleTransaction } from "../../_services";
+import { createRetailSaleTransaction } from "@corelithzw/module-sell/transactions";
 
 const saleLineSchema = z.object({
   /**

@@ -26,11 +26,11 @@ import { Prisma, RetailTenderType } from "@corelithzw/db";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { calculateRetailCheckout } from "@/lib/retail/checkout";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
-import { reviewReplayedPrices } from "@/lib/retail/replay-price-review";
-import { loadSellableProducts } from "@/lib/retail/shelf-listing";
-import { resolveShelfPrices } from "@/lib/retail/shelf-pricing";
+import { calculateRetailCheckout } from "@corelithzw/module-sell/checkout";
+import { canRetailRoleDo, requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { reviewReplayedPrices } from "@corelithzw/module-sell/replay-price-review";
+import { loadSellableProducts } from "@corelithzw/module-sell/shelf-listing";
+import { resolveShelfPrices } from "@corelithzw/module-sell/shelf-pricing";
 import {
   getPosSupportedPromotionTypes,
   requireRetailSession,
@@ -41,8 +41,8 @@ import {
   openRetailShiftTransaction,
   refundRetailSaleTransaction,
   voidRetailSaleTransaction,
-} from "../../_services";
-import { fiscaliseRetailSales } from "@/lib/retail/fiscalisation";
+} from "@corelithzw/module-sell/transactions";
+import { fiscaliseRetailSales } from "@corelithzw/module-sell/fiscalisation";
 
 // ── Request Schemas ─────────────────────────────────────────────────────────
 

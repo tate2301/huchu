@@ -5,11 +5,11 @@ import { useMemo } from "react";
 import { Alert, Badge, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { useQuery } from "@tanstack/react-query";
 import { AdminDualBarChart, AdminDonutChart } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronRight, Palette } from "@corelithzw/ui/lib/icons";
-import type { RetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
+import type { RetailSetupSnapshot } from "@corelithzw/module-sell/setup-snapshot";
 
 type SetupOverviewResponse = RetailSetupSnapshot;
 

@@ -1,15 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { canRetailRoleDo } from "@/lib/retail/permissions";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
+import { canRetailRoleDo } from "@corelithzw/module-sell/permissions";
 import {
   managerOverrideSchema,
   verifyManagerOverride,
   withApprover,
-} from "@/lib/retail/manager-override";
+} from "@corelithzw/module-sell/manager-override";
 import { requireRetailSession } from "../../../../_helpers";
-import { voidRetailSaleTransaction } from "../../../../_services";
+import { voidRetailSaleTransaction } from "@corelithzw/module-sell/transactions";
 
 const voidSchema = z.object({
   shiftId: z.string().uuid(),

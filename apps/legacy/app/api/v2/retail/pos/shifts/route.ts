@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { requireRetailSession, resolveRetailSite } from "../../_helpers";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { openRetailShiftTransaction } from "../../_services";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
+import { openRetailShiftTransaction } from "@corelithzw/module-sell/transactions";
 
 const openPosShiftSchema = z.object({
   shiftNo: z.string().min(1).max(50).optional(),

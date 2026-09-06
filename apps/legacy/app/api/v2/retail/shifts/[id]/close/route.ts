@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../../_helpers";
-import { closeRetailShiftTransaction } from "../../../_services";
+import { closeRetailShiftTransaction } from "@corelithzw/module-sell/transactions";
 
 const closeShiftSchema = z.object({
   countedCash: z.number().min(0),

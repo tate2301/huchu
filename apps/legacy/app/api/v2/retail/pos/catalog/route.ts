@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@corelithzw/platform/api-response";
-import { loadShelfListings } from "@/lib/retail/shelf-listing";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery } from "@/lib/retail/request";
+import { loadShelfListings } from "@corelithzw/module-sell/shelf-listing";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { parseRetailQuery } from "@corelithzw/module-sell/request";
 import { requireRetailSession } from "../../_helpers";
 
 /**

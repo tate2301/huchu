@@ -65,12 +65,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { resolveBaseCurrency } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { canRetailRoleDo, requireRetailPermission } from "@/lib/retail/permissions";
-import { getRetailPosPolicy } from "@/lib/retail/pos-policy";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
-import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
-import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
-import { summariseShelfTax, summariseTillCapabilities } from "@/lib/retail/till-settings";
+import { canRetailRoleDo, requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { getRetailPosPolicy } from "@corelithzw/module-sell/pos-policy";
+import { getRetailSetupProfile } from "@corelithzw/module-sell/setup-profile";
+import { SHELF_PRICE_LIST_NAME } from "@corelithzw/module-sell/shelf-pricing";
+import { getRetailTenderPolicy } from "@corelithzw/module-sell/tender-policy";
+import { summariseShelfTax, summariseTillCapabilities } from "@corelithzw/module-sell/till-settings";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {

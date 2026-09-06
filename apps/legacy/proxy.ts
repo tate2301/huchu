@@ -40,7 +40,7 @@ import {
   isRouteAllowedForRole,
   landingPathForRole,
 } from "@corelithzw/platform/auth-core/role-routes";
-import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@/lib/retail/pos-host";
+import { getPosHostForCompany, isCashierRole, isPublicPosPath } from "@corelithzw/module-sell/pos-host";
 import { PUBLIC_BASE_PATHS } from "@corelithzw/platform/public-routes";
 
 const ACCESS_BLOCKED_PATH = "/access-blocked";

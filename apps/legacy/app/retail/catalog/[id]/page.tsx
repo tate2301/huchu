@@ -6,8 +6,8 @@ import { useParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Skeleton, StatCard } from "@corelithzw/react";
 
-import { RetailShell } from "@/components/retail/retail-shell";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
+import { retailMoney } from "@corelithzw/module-sell/components/sale-detail";
 import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Coins, TableRows } from "@corelithzw/ui/lib/icons";

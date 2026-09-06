@@ -29,17 +29,17 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
 import { toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import {
   RETAIL_CASH_MOVEMENT_REASON_CODES,
   RETAIL_CASH_MOVEMENT_TYPES,
-} from "@/lib/retail/cash-movements";
-import { cashMovementDelta, sumCashMovementDeltas } from "@/lib/retail/cash-up";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+} from "@corelithzw/module-sell/cash-movements";
+import { cashMovementDelta, sumCashMovementDeltas } from "@corelithzw/module-sell/cash-up";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../../_helpers";
-import { recordRetailCashMovementTransaction } from "../../../_services";
+import { recordRetailCashMovementTransaction } from "@corelithzw/module-sell/transactions";
 
 const cashMovementSchema = z.object({
   type: z.enum(RETAIL_CASH_MOVEMENT_TYPES),

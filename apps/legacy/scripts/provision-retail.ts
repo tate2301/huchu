@@ -1,7 +1,7 @@
 import "@/scripts/lib/env";
 
 import { prisma } from "@corelithzw/db/client";
-import { provisionRetail, retailTradingBlockers } from "@/lib/retail/provision";
+import { provisionRetail, retailTradingBlockers } from "@corelithzw/module-sell/provision";
 
 /**
  * Open a shop on a tenant that has already been provisioned as a company.

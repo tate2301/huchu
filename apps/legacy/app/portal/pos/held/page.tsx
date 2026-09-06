@@ -1,5 +1,5 @@
-import { PosHeldView } from "@/components/retail/portal/pos-held-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosHeldView } from "@corelithzw/module-sell/components/portal/pos-held-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalHeldPage() {
   return (

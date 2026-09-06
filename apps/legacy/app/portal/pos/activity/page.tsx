@@ -1,5 +1,5 @@
-import { PosTillActivityView } from "@/components/retail/portal/pos-till-activity-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosTillActivityView } from "@corelithzw/module-sell/components/portal/pos-till-activity-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalActivityPage() {
   return (

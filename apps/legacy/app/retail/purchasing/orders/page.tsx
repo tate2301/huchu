@@ -11,10 +11,10 @@ import {
   AdminDistributionChart,
   AdminDonutChart,
 } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { ReportChartShell } from "@/components/retail/reports/report-chart-shell";
-import { ReportFilterBar } from "@/components/retail/reports/report-filter-bar";
-import { ReportBigNumber } from "@/components/retail/reports/report-big-number";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
+import { ReportChartShell } from "@corelithzw/module-sell/components/reports/report-chart-shell";
+import { ReportFilterBar } from "@corelithzw/module-sell/components/reports/report-filter-bar";
+import { ReportBigNumber } from "@corelithzw/module-sell/components/reports/report-big-number";
 import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import {

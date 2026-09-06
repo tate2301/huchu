@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { buildV2CollectionResponse } from "../_shared";
 
 /**

@@ -31,10 +31,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, parseRetailQuery, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, parseRetailQuery, retailIdParams } from "@corelithzw/module-sell/request";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { retailZReportToCsv, serializeRetailZReport } from "@/lib/retail/z-report";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { retailZReportToCsv, serializeRetailZReport } from "@corelithzw/module-sell/z-report";
 import { requireRetailSession } from "../../_helpers";
 
 const zReportQuery = z.object({ format: z.enum(["csv"]).optional() });

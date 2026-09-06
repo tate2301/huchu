@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { getCustomerLoyaltyBalance } from "@/lib/retail/loyalty";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery } from "@/lib/retail/request";
+import { getCustomerLoyaltyBalance } from "@corelithzw/module-sell/loyalty";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { parseRetailQuery } from "@corelithzw/module-sell/request";
 import { requireRetailSession } from "../../_helpers";
 
 /**

@@ -54,7 +54,7 @@ registerSearchArm({
 registerSearchArm({
   id: "retail",
   run: async (db, input) => {
-    const { searchRetail } = await import("@/lib/retail/search");
+    const { searchRetail } = await import("@corelithzw/module-sell/search");
     return searchRetail(db, { ...input, types: input.types as Parameters<typeof searchRetail>[1]["types"] });
   },
 });

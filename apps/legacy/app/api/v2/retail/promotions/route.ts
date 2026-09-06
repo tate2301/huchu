@@ -4,7 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../_helpers";
 
 const promotionSchema = z.object({

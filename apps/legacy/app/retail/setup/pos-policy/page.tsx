@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Card, Skeleton, StatCard } from "@corelithzw/react";
 import { AdminDistributionChart, AdminDualBarChart, AdminDonutChart } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";
 import { Input } from "@corelithzw/ui/components/input";
@@ -13,7 +13,7 @@ import { Label } from "@corelithzw/ui/components/label";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRight, CheckCircle2, Save, Settings2, ShieldCheck } from "@corelithzw/ui/lib/icons";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import type { RetailPosPolicy } from "@/lib/retail/pos-policy";
+import type { RetailPosPolicy } from "@corelithzw/module-sell/pos-policy";
 
 type PosPolicyResponse = {
   data: RetailPosPolicy;

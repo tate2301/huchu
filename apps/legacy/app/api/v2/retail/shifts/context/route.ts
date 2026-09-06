@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
+import { getRetailSetupProfile } from "@corelithzw/module-sell/setup-profile";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

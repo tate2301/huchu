@@ -4,8 +4,8 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { money, sumMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery, retailOffsetQuery, slicePage } from "@/lib/retail/request";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { parseRetailQuery, retailOffsetQuery, slicePage } from "@corelithzw/module-sell/request";
 import { requireRetailSession } from "../_helpers";
 
 /**

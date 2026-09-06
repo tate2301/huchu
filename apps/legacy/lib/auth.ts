@@ -18,7 +18,7 @@ import {
   isTenantStatusActive,
   resolveTenantFromHost,
 } from "@corelithzw/platform/tenant";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
 import { getSubscriptionHealth } from "@corelithzw/platform/subscription";
 import {
   validateAuthConfiguration,

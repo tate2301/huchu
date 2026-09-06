@@ -5,12 +5,12 @@ import { useParams, useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Alert, Skeleton } from "@corelithzw/react";
 
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import {
   RetailSaleDetailBody,
   retailTypeLabel,
   type RetailSaleDetail,
-} from "@/components/retail/sale-detail";
+} from "@corelithzw/module-sell/components/sale-detail";
 import { Button } from "@corelithzw/ui/components/button";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClipboardList } from "@corelithzw/ui/lib/icons";

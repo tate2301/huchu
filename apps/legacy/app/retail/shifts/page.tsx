@@ -14,7 +14,7 @@ import {
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
@@ -36,7 +36,7 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BarChart3, ChevronDown, Grid3x3, Payments, Plus, ReceiptLong } from "@corelithzw/ui/lib/icons";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
 import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 
 type Shift = {

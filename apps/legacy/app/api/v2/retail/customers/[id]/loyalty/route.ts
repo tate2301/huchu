@@ -1,10 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
 import { toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@/lib/retail/loyalty";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { getCustomerLoyaltyBalance, parseLoyaltyRedeemPoints } from "@corelithzw/module-sell/loyalty";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../../_helpers";
 
 export async function GET(

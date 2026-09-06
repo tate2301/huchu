@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 import {
   DEFAULT_RETAIL_TENDER_POLICY,
   getRetailTenderPolicy,
   saveRetailTenderPolicy,
-} from "@/lib/retail/tender-policy";
+} from "@corelithzw/module-sell/tender-policy";
 
 const tenderPolicySchema = z.object({
   requiredReferenceTenders: z

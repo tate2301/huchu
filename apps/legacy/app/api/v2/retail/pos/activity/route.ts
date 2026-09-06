@@ -27,13 +27,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import {
   buildTillActivity,
   countTillActivity,
   type TillActivityMovementRow,
   type TillActivitySaleRow,
-} from "@/lib/retail/till-activity";
+} from "@corelithzw/module-sell/till-activity";
 import { requireRetailSession } from "../../_helpers";
 
 /** How far back the timeline reaches, and the most shifts it will span. */

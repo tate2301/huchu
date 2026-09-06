@@ -4,7 +4,7 @@ import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { recordStockMovement } from "@corelithzw/module-stock/stock-movements";
 import { multiplyMoney, toNumberOrZero } from "@corelithzw/platform/money";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import {
   ensureInventoryItemAccess,
   resolveRetailSite,

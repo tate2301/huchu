@@ -1,5 +1,5 @@
-import { PosPriceCheckView } from "@/components/retail/portal/pos-price-check-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosPriceCheckView } from "@corelithzw/module-sell/components/portal/pos-price-check-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 /**
  * This page was a `redirect("/portal/pos")`.

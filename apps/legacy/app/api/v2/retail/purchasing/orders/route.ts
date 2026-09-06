@@ -5,7 +5,7 @@ import { errorResponse, successResponse } from "@corelithzw/platform/api-respons
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import {
   ensureInventoryItemAccess,
   resolveRetailSite,

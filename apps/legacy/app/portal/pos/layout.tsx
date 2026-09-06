@@ -1,8 +1,8 @@
 import type { ReactNode } from "react";
 import { headers } from "next/headers";
-import { PosPortalProvider } from "@/components/retail/portal/pos-portal-state";
-import { PosPortalLayoutFrame } from "@/components/retail/portal/pos-portal-layout-frame";
-import { PosTillLockProvider } from "@/components/retail/portal/pos-lock-screen";
+import { PosPortalProvider } from "@corelithzw/module-sell/components/portal/pos-portal-state";
+import { PosPortalLayoutFrame } from "@corelithzw/module-sell/components/portal/pos-portal-layout-frame";
+import { PosTillLockProvider } from "@corelithzw/module-sell/components/portal/pos-lock-screen";
 import { getHostHeaderFromRequestHeaders, getPortalRequestRouting } from "@corelithzw/platform/tenant";
 import { resolveWorkspaceIdentityForHost } from "@corelithzw/platform/workspace-identity";
 

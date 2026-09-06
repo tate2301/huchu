@@ -3,9 +3,9 @@ import { Prisma } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { loadShelfListings, upsertShelfListing } from "@/lib/retail/shelf-listing";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { parseRetailQuery } from "@/lib/retail/request";
+import { loadShelfListings, upsertShelfListing } from "@corelithzw/module-sell/shelf-listing";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { parseRetailQuery } from "@corelithzw/module-sell/request";
 import { ensureInventoryItemAccess, requireRetailSession } from "../_helpers";
 
 /**

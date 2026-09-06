@@ -27,8 +27,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
-import { isTillPinLocked, tillPinDenial } from "@/lib/retail/till-pin";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { isTillPinLocked, tillPinDenial } from "@corelithzw/module-sell/till-pin";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 /** The same cost factor the platform hashes passwords at. */

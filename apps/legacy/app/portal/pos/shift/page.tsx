@@ -1,5 +1,5 @@
-import { PosShiftView } from "@/components/retail/portal/pos-shift-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosShiftView } from "@corelithzw/module-sell/components/portal/pos-shift-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalShiftPage() {
   return (

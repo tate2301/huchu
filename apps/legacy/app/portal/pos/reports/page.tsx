@@ -1,5 +1,5 @@
-import { PosReportsView } from "@/components/retail/portal/pos-reports-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosReportsView } from "@corelithzw/module-sell/components/portal/pos-reports-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalReportsPage() {
   return (

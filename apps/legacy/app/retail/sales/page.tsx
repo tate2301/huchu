@@ -12,8 +12,8 @@ import {
   AdminDualBarChart,
 } from "@corelithzw/ui/charts/admin-headless-charts";
 import { Alert, Card, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { RetailSaleDetailBody } from "@/components/retail/sale-detail";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
+import { RetailSaleDetailBody } from "@corelithzw/module-sell/components/sale-detail";
 import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
@@ -26,7 +26,7 @@ import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { BarChart3, Package, Payments, ReceiptLong } from "@corelithzw/ui/lib/icons";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
 
 type SaleRow = {
   id: string;

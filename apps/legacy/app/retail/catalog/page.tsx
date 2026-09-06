@@ -7,8 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, EmptyState, Skeleton, StatCard } from "@corelithzw/react";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { CatalogImageField } from "@/components/retail/catalog-image-field";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
+import { CatalogImageField } from "@corelithzw/module-sell/components/catalog-image-field";
 import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import {
@@ -27,7 +27,7 @@ import {
 } from "@corelithzw/ui/components/dropdown-menu";
 import { Input } from "@corelithzw/ui/components/input";
 import { Badge } from "@corelithzw/ui/components/badge";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@corelithzw/module-sell/components/sale-detail";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import {
   Select,

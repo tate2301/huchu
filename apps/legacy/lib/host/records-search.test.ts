@@ -7,7 +7,7 @@ import { searchCrm } from "@/lib/crm/search";
 import { searchGold } from "@corelithzw/module-gold/gold/search";
 import { searchOperations } from "@corelithzw/module-gold/operations/search";
 import { searchPeople } from "@corelithzw/module-people/people/search";
-import { searchRetail } from "@/lib/retail/search";
+import { searchRetail } from "@corelithzw/module-sell/search";
 import { searchSchools } from "@corelithzw/module-campus/search";
 
 /**
@@ -24,7 +24,7 @@ vi.mock("@/lib/crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-campus/search", () => ({ searchSchools: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-people/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-gold/gold/search", () => ({ searchGold: vi.fn(async () => []) }));
-vi.mock("@/lib/retail/search", () => ({ searchRetail: vi.fn(async () => []) }));
+vi.mock("@corelithzw/module-sell/search", () => ({ searchRetail: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-gold/operations/search", () => ({ searchOperations: vi.fn(async () => []) }));
 
 const db = {} as never;

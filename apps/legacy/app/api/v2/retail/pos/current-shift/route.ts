@@ -8,8 +8,8 @@ import {
   toNumberOrZero,
 } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { getCashNetFromPayments } from "@/lib/retail/cash-up";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { getCashNetFromPayments } from "@corelithzw/module-sell/cash-up";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { requireRetailSession } from "../../_helpers";
 
 export async function GET(request: NextRequest) {

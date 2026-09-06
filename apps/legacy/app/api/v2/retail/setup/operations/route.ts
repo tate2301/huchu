@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import {
   ensureRetailRegisterAccess,
   requireRetailSession,
@@ -11,8 +11,8 @@ import {
 import {
   getRetailSetupProfile,
   saveRetailSetupProfile,
-} from "@/lib/retail/setup-profile";
-import { getRetailSetupSnapshot } from "@/lib/retail/setup-snapshot";
+} from "@corelithzw/module-sell/setup-profile";
+import { getRetailSetupSnapshot } from "@corelithzw/module-sell/setup-snapshot";
 
 const operationSchema = z
   .object({

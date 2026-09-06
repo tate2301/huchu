@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { prisma } from "@corelithzw/db/client";
 import { requireRetailSession } from "../../_helpers";
-import { getRetailSetupProfile } from "@/lib/retail/setup-profile";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
-import { getRetailTenderPolicy } from "@/lib/retail/tender-policy";
+import { getRetailSetupProfile } from "@corelithzw/module-sell/setup-profile";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
+import { getRetailTenderPolicy } from "@corelithzw/module-sell/tender-policy";
 
 export async function GET(request: NextRequest) {
   const { response, session } = await requireRetailSession(request);

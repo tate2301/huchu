@@ -19,8 +19,8 @@ import {
   AdminDualBarChart,
   AdminDistributionChart,
 } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
-import { ReportExportButton } from "@/components/retail/reports/report-export-button";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
+import { ReportExportButton } from "@corelithzw/module-sell/components/reports/report-export-button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";

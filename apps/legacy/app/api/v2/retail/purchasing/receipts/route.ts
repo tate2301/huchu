@@ -6,8 +6,8 @@ import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-
 import { recordStockMovement } from "@corelithzw/module-stock/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { auditGoodsReceived } from "@/lib/retail/audit";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { auditGoodsReceived } from "@corelithzw/module-sell/audit";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import {
   ensureInventoryItemAccess,
   ensureLocationAccess,

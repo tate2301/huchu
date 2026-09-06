@@ -11,7 +11,7 @@ import { getNavSectionsForRole, navSections } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,

@@ -9,12 +9,12 @@ import {
   AdminDualBarChart,
   AdminDonutChart,
 } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
 import { DataTable } from "@corelithzw/ui/components/data-table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@corelithzw/ui/components/dialog";
 import { Badge } from "@corelithzw/ui/components/badge";
-import { retailMoney } from "@/components/retail/sale-detail";
+import { retailMoney } from "@corelithzw/module-sell/components/sale-detail";
 import {
   MobileListCard,
   MobileListCardHeader,

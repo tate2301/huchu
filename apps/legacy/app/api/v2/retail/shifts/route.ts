@@ -3,13 +3,13 @@ import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { sumMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
-import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@/lib/retail/request";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
+import { pageArgs, pageResult, parseRetailQuery, retailPageQuery } from "@corelithzw/module-sell/request";
 import {
   requireRetailSession,
   resolveRetailSite,
 } from "../_helpers";
-import { openRetailShiftTransaction } from "../_services";
+import { openRetailShiftTransaction } from "@corelithzw/module-sell/transactions";
 
 const openShiftSchema = z.object({
   shiftNo: z.string().min(1).max(50).optional(),

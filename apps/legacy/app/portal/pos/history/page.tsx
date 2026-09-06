@@ -1,5 +1,5 @@
-import { PosHistoryView } from "@/components/retail/portal/pos-history-view";
-import { PosPortalAuthGuard } from "@/components/retail/portal/pos-auth-guard";
+import { PosHistoryView } from "@corelithzw/module-sell/components/portal/pos-history-view";
+import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
 
 export default async function PosPortalHistoryPage() {
   return (

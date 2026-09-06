@@ -13,7 +13,7 @@ import {
   type TrendChartRow,
   type WaterfallRow,
 } from "@corelithzw/ui/charts/admin-headless-charts";
-import { RetailShell } from "@/components/retail/retail-shell";
+import { RetailShell } from "@corelithzw/module-sell/components/retail-shell";
 import { Button } from "@corelithzw/ui/components/button";
 import {
   DropdownMenu,
@@ -34,7 +34,7 @@ import {
   Users,
 } from "@corelithzw/ui/lib/icons";
 import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
-import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { canAccessPosPortal } from "@corelithzw/module-sell/pos-host";
 
 type RetailDashboardPayload = {
   summary: {

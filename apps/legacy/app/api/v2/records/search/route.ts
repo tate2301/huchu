@@ -14,7 +14,7 @@ import {
   RETAIL_SEARCH_FEATURES,
   RETAIL_SEARCH_TYPES,
   type RetailSearchType,
-} from "@/lib/retail/search";
+} from "@corelithzw/module-sell/search";
 import {
   PEOPLE_SEARCH_FEATURES,
   PEOPLE_SEARCH_RESOURCES,

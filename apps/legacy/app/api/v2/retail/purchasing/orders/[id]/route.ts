@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { RetailPurchaseOrderStatus } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { parseRetailParams, retailIdParams } from "@/lib/retail/request";
+import { parseRetailParams, retailIdParams } from "@corelithzw/module-sell/request";
 import { money, multiplyMoney } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { requireRetailPermission } from "@/lib/retail/permissions";
+import { requireRetailPermission } from "@corelithzw/module-sell/permissions";
 import { ensureInventoryItemAccess, ensureSiteAccess, requireRetailSession } from "../../../_helpers";
 
 const lineSchema = z.object({

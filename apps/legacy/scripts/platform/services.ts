@@ -3,7 +3,7 @@ import type { Prisma } from "@corelithzw/db";
 
 import { prisma, disconnectPrisma } from "./prisma";
 import { provisionSchool } from "@corelithzw/module-campus/provision";
-import { provisionRetail } from "../../lib/retail/provision";
+import { provisionRetail } from "@corelithzw/module-sell/provision";
 import {
   getSubdomainReservation as getOrgSubdomainReservation,
   previewProvisionBundle,
