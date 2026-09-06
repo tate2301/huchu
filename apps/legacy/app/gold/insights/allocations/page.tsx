@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";

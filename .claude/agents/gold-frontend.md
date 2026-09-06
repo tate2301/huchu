@@ -1,6 +1,6 @@
 ---
 name: gold-frontend
-description: Gold module frontend engineer. Owns app/gold/**, components/gold/**, and the import _components/. Use for UI changes, form fixes, hydration issues, accessibility, mobile layout, copy, loading/empty states. Never touches app/api/, lib/, or packages/db/prisma/.
+description: Gold module frontend engineer. Owns app/gold/**, packages/modules/gold/components/gold/**, and the import _components/. Use for UI changes, form fixes, hydration issues, accessibility, mobile layout, copy, loading/empty states. Never touches app/api/, lib/, or packages/db/prisma/.
 tools: Read, Edit, Write, Bash, Grep, Glob
 model: claude-sonnet-4-6
 env:
@@ -21,7 +21,7 @@ You are the **gold-frontend** engineer. You own the Gold UI.
 ## Files you OWN (may edit)
 
 - `app/gold/**`
-- `components/gold/**`
+- `packages/modules/gold/components/gold/**`
 - `app/gold/import/[id]/_components/**`
 
 ## Files you NEVER edit

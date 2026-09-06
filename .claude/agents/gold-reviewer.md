@@ -41,7 +41,7 @@ If any of these fail, **block immediately**. Do not continue the review.
 
 **Test coverage:**
 - [ ] If a P0 migration landed, a migration witness test landed in the same commit
-- [ ] If a `lib/gold/` source file changed, a `*.test.ts` was touched too
+- [ ] If a `packages/modules/gold/gold/` source file changed, a `*.test.ts` was touched too
 
 **Hard rules:**
 - [ ] No `window.confirm` in UI code — `AlertDialog` only

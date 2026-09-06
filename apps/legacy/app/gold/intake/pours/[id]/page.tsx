@@ -3,14 +3,14 @@
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { DetailShell, DetailSection, FactGrid } from "@corelithzw/module-gold/components/gold/detail-shell";
 import { Gem, ArrowRightLeft, Scale, FileCheck, Building2, Coins } from "@corelithzw/ui/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 
 type PourDetail = {
   id: string;

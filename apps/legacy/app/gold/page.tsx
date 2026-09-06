@@ -5,14 +5,14 @@ import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
 
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 type GoldSummary = {

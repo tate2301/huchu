@@ -10,7 +10,7 @@ import { prisma } from "@corelithzw/db/client";
 import {
   createBuyerReceiptCorrection,
   captureGoldCorrectionAccountingEvent,
-} from "@/lib/gold/corrections";
+} from "@corelithzw/module-gold/gold/corrections";
 import { writeGoldAuditEvent } from "@/lib/audit/gold";
 
 const receiptCorrectionSchema = z.object({

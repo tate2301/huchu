@@ -8,7 +8,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest"
 import { prisma } from "@corelithzw/db/client"
-import { factories } from "@/lib/gold/test-factories"
+import { factories } from "@corelithzw/module-gold/gold/test-factories"
 import type {
   GoldLedgerEntryStatus,
   GoldLedgerImportStatus,

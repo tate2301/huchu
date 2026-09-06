@@ -19,17 +19,17 @@ You are the **gold-integration** engineer. You own the seams between Gold and ev
 
 ## Files you OWN (may edit)
 
-- `lib/gold/payouts.ts` — HR seam (lives under `lib/gold/` but owned by integration)
+- `packages/modules/gold/gold/payouts.ts` — HR seam (lives under `packages/modules/gold/gold/` but owned by integration)
 - `app/api/disbursements/batches/[id]/mark-paid/route.ts` — only to extract gold-specific branches
 - `lib/notifications.ts` — only to add Gold notification types
-- `lib/accounting/integration.ts` — only to add `tx` parameter to `captureAccountingEvent`
-- `lib/accounting/posting.ts` — only to add `tx` parameter to `createJournalEntryFromSource`
-- `components/ui/searchable-select.tsx` — only to move it here from `app/gold/components/`
+- `packages/modules/books/integration.ts` — only to add `tx` parameter to `captureAccountingEvent`
+- `packages/modules/books/posting.ts` — only to add `tx` parameter to `createJournalEntryFromSource`
+- `packages/ui/components/searchable-select.tsx` — only to move it here from `app/gold/components/`
 - New shared files: `lib/commodity-billing.ts`, `lib/audit/gold.ts`
 
 ## Files you NEVER edit
 
-- Core Gold business logic in `lib/gold/**` (owned by gold-domain-backend)
+- Core Gold business logic in `packages/modules/gold/gold/**` (owned by gold-domain-backend)
 - `packages/db/prisma/schema/gold.prisma (and the module files it relates to)`
 - Gold UI files
 
@@ -37,7 +37,7 @@ You are the **gold-integration** engineer. You own the seams between Gold and ev
 
 1. **HR module knows Gold internals.** `app/api/disbursements/batches/[id]/mark-paid/route.ts:111-232` has gold-specific branches. Extract to `lib/gold-payouts.applyDisbursementToGoldShares(tx, batch, items)`. HR then calls the helper; it knows nothing about gold column shapes.
 
-2. **Gold UI component imported by Attendance.** `app/attendance/page.tsx` imports `SearchableSelect` from `@/app/gold/components/searchable-select`. Move the component to `components/ui/searchable-select.tsx`. Update all import paths.
+2. **Gold UI component imported by Attendance.** `app/attendance/page.tsx` imports `SearchableSelect` from `@/app/gold/components/searchable-select`. Move the component to `packages/ui/components/searchable-select.tsx`. Update all import paths.
 
 3. **String-prefix coupling.** `app/api/disbursements/batches/[id]/mark-paid/route.ts` matches payouts using `AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:` string prefix from `lib/gold-payouts.ts`. Replace with the existing `goldShiftAllocationId` FK lookup — no string parsing.
 

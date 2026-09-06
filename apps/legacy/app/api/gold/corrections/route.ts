@@ -14,7 +14,7 @@ import {
   captureGoldCorrectionAccountingEvent,
   verifyEntityOwnership,
   type SupportedEntityType,
-} from "@/lib/gold/corrections";
+} from "@corelithzw/module-gold/gold/corrections";
 import { writeGoldAuditEvent } from "@/lib/audit/gold";
 
 // Legacy JSON-blob correction GET kept for read-only backward compat.

@@ -43,6 +43,7 @@
     "@corelithzw/module-books": "workspace:*",
     "@corelithzw/module-compliance": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
+    "@corelithzw/module-gold": "workspace:*",
     "@corelithzw/module-maintenance": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
     "@corelithzw/module-offline": "workspace:*",

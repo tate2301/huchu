@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse, hasRole } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { computeRollForward } from "@/lib/gold/reconcile"
+import { computeRollForward } from "@corelithzw/module-gold/gold/reconcile"
 
 export async function GET(request: NextRequest) {
   try {

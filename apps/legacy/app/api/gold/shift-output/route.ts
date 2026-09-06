@@ -7,8 +7,8 @@ import {
   hasRole,
 } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
-import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { snapshotGoldUsdValue } from "@corelithzw/module-gold/gold/valuation"
+import { recordInventoryEvent } from "@corelithzw/module-gold/gold/inventory"
 import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { z } from "zod"

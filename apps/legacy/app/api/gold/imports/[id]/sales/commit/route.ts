@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, errorResponse, successResponse, hasRole } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { linkFifoSale } from "@/lib/gold/fifo-link";
-import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close";
+import { linkFifoSale } from "@corelithzw/module-gold/gold/fifo-link";
+import { assertPeriodOpen, PeriodClosedError } from "@corelithzw/module-gold/gold/period-close";
 
 const bodySchema = z.object({
   saleGrams: z.number().positive(),

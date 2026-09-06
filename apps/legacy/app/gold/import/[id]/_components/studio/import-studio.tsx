@@ -38,7 +38,7 @@ import {
 import { useParams, useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import {
   AlertDialog,

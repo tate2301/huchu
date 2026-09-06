@@ -9,7 +9,7 @@ import { prisma } from "@corelithzw/db/client"
 import {
   purgeImportArtifacts,
   resetEntriesAfterPurge,
-} from "@/lib/gold/import-cleanup"
+} from "@corelithzw/module-gold/gold/import-cleanup"
 import { writeGoldAuditEvent } from "@/lib/audit/gold"
 
 /**

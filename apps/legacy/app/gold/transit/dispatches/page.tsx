@@ -8,8 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { DispatchForm } from "@/components/gold/forms/dispatch-form";
-import { GoldShell } from "@/components/gold/gold-shell";
+import { DispatchForm } from "@corelithzw/module-gold/components/gold/forms/dispatch-form";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { PageIntro } from "@corelithzw/ui/shared/page-intro";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
@@ -31,7 +31,7 @@ import {
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 
 type GoldDispatchRow = Awaited<
   ReturnType<typeof fetchGoldDispatches>

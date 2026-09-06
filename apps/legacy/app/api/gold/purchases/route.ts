@@ -9,12 +9,12 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils"
-import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
+import { snapshotGoldUsdValue } from "@corelithzw/module-gold/gold/valuation"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
-import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { recordInventoryEvent } from "@corelithzw/module-gold/gold/inventory"
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
-import { createPurchaseBill, upsertGoldVendor } from "@/lib/commodity-billing"
+import { createPurchaseBill, upsertGoldVendor } from "@corelithzw/module-gold/commodity-billing"
 
 const goldPurchaseSchema = z
   .object({

@@ -10,10 +10,10 @@ import {
 } from "@corelithzw/platform/api-utils"
 import { resolveBaseCurrency } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
-import { settlementPermissionDenial } from "@/lib/settlements/permissions"
-import { persistSettlementRun } from "@/lib/settlements/persist"
-import { buildSettlementRunDraft } from "@/lib/settlements/runs"
-import { parseSettlementSource } from "@/lib/settlements/sources"
+import { settlementPermissionDenial } from "@corelithzw/module-gold/settlements/permissions"
+import { persistSettlementRun } from "@corelithzw/module-gold/settlements/persist"
+import { buildSettlementRunDraft } from "@corelithzw/module-gold/settlements/runs"
+import { parseSettlementSource } from "@corelithzw/module-gold/settlements/sources"
 
 /**
  * Computing a settlement.

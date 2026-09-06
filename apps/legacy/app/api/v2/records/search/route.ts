@@ -4,12 +4,12 @@ import { errorResponse, successResponse, validateSession } from "@corelithzw/pla
 import { prisma } from "@corelithzw/db/client";
 import { getFeatureMap } from "@corelithzw/platform/features";
 import { hrPermissionDenial } from "@corelithzw/module-people/hr/permissions";
-import { GOLD_SEARCH_FEATURES, GOLD_SEARCH_TYPES, type GoldSearchType } from "@/lib/gold/search";
+import { GOLD_SEARCH_FEATURES, GOLD_SEARCH_TYPES, type GoldSearchType } from "@corelithzw/module-gold/gold/search";
 import {
   OPERATIONS_SEARCH_FEATURES,
   OPERATIONS_SEARCH_TYPES,
   type OperationsSearchType,
-} from "@/lib/operations/search";
+} from "@corelithzw/module-gold/operations/search";
 import {
   RETAIL_SEARCH_FEATURES,
   RETAIL_SEARCH_TYPES,

@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { PageIntro } from "@corelithzw/ui/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";

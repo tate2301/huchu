@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse, hasRole } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { runImportDryRun } from "@/lib/gold/import-validators"
+import { runImportDryRun } from "@corelithzw/module-gold/gold/import-validators"
 
 /**
  * Read-only validation pass that mirrors the rules the commit endpoint

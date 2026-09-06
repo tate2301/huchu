@@ -7,20 +7,20 @@ import {
   hasRole,
   paginationResponse,
 } from "@corelithzw/platform/api-utils"
-import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
-import { recordInventoryEvent } from "@/lib/gold/inventory"
-import { assertPeriodOpen, PeriodClosedError } from "@/lib/gold/period-close"
+import { snapshotGoldUsdValue } from "@corelithzw/module-gold/gold/valuation"
+import { recordInventoryEvent } from "@corelithzw/module-gold/gold/inventory"
+import { assertPeriodOpen, PeriodClosedError } from "@corelithzw/module-gold/gold/period-close"
 import {
   goldPourWithAllocation,
   goldDispatchEmbedded,
   goldBuyerReceiptBatches,
-} from "@/lib/gold/prisma-includes"
+} from "@corelithzw/module-gold/gold/prisma-includes"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"
-import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
+import { createSalesInvoice, upsertGoldCustomer } from "@corelithzw/module-gold/commodity-billing"
 
 const buyerReceiptSchema = z
   .object({

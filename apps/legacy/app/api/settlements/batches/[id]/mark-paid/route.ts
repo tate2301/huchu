@@ -4,8 +4,8 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { money, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
-import { recordSettlementPayment } from "@/lib/settlements/payments"
-import { settlementPermissionDenial } from "@/lib/settlements/permissions"
+import { recordSettlementPayment } from "@corelithzw/module-gold/settlements/payments"
+import { settlementPermissionDenial } from "@corelithzw/module-gold/settlements/permissions"
 import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 
 /**

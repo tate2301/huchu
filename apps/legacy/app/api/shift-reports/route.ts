@@ -6,7 +6,7 @@ import {
   getPaginationParams,
   paginationResponse,
 } from "@corelithzw/platform/api-utils";
-import { SHIFT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@/lib/operations/access";
+import { SHIFT_REPORT_FEATURE_KEY, canSessionAccessOperationalFeature } from "@corelithzw/module-gold/operations/access";
 import { prisma } from "@corelithzw/db/client";
 import { z } from "zod";
 import { WorkType } from "@corelithzw/db";

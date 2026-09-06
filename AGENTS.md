@@ -87,12 +87,14 @@ Paths below are relative to `apps/legacy/` unless they start with `packages/`.
 | Agent | Charter (owns) | Forbidden from |
 |---|---|---|
 | `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files |
-| `gold-data-foundation` | `packages/db/prisma/schema/gold.prisma`, `packages/db/prisma/migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `lib/gold/*.ts` source |
-| `gold-domain-backend` | `lib/gold/**`, `lib/accounting/**`, `app/api/gold/**` | `packages/db/prisma/`, UI files |
-| `gold-import-workflow` | `app/api/gold/imports/**`, `lib/gold/import-*`, worker | UI, other Gold APIs |
-| `gold-frontend` | `app/gold/**`, `components/gold/**` | `app/api/**`, `lib/**`, `packages/db/prisma/` |
+| `gold-data-foundation` | `packages/db/prisma/schema/gold.prisma`, `packages/db/prisma/migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `packages/modules/gold/gold/*.ts` source |
+| `gold-domain-backend` | `packages/modules/gold/gold/**`, `packages/modules/books/**`, `app/api/gold/**` | `packages/db/prisma/`, UI files |
+| `gold-import-workflow` | `app/api/gold/imports/**`, `packages/modules/gold/gold/import-*`, worker | UI, other Gold APIs |
+| `gold-frontend` | `app/gold/**`, `packages/modules/gold/components/gold/**` | `app/api/**`, `lib/**`, `packages/db/prisma/` |
 | `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files |
 | `gold-reviewer` | Reads diffs, runs gates, approves/blocks — no code | All source files |
+
+Since Phase 2.3i the Gold domain and screens live in `packages/modules/gold` (`gold/`, `settlements/`, `operations/`, `dashboard/`, `components/`), the ledger in `packages/modules/books`; the API routes under `apps/legacy/app/api/gold` and the pages under `apps/legacy/app/gold` stay in the host. The charters above name the new paths.
 
 ### Workflow per ticket
 

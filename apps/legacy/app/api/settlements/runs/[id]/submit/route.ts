@@ -1,4 +1,4 @@
-import { settlementWorkflowRoute } from "@/lib/settlements/workflow-route"
+import { settlementWorkflowRoute } from "@corelithzw/module-gold/settlements/workflow-route"
 import { prisma } from "@corelithzw/db/client"
 
 /**

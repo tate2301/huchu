@@ -5,13 +5,13 @@ import {
   errorResponse,
   hasRole,
 } from "@corelithzw/platform/api-utils"
-import { snapshotGoldUsdValue } from "@/lib/gold/valuation"
-import { recordInventoryEvent } from "@/lib/gold/inventory"
+import { snapshotGoldUsdValue } from "@corelithzw/module-gold/gold/valuation"
+import { recordInventoryEvent } from "@corelithzw/module-gold/gold/inventory"
 import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { reserveIdentifier } from "@corelithzw/platform/id-generator"
 import { z } from "zod"
-import { createSalesInvoice, upsertGoldCustomer } from "@/lib/commodity-billing"
+import { createSalesInvoice, upsertGoldCustomer } from "@corelithzw/module-gold/commodity-billing"
 
 const batchReceiptSchema = z.object({
   goldDispatchId: z.string().uuid().optional(),

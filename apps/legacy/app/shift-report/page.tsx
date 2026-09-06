@@ -25,7 +25,7 @@ import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { fetchShiftGroupSchedules, fetchShiftGroups, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { SHIFT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
+import { SHIFT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@corelithzw/module-gold/operations/access";
 import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record";
 
 const toNumber = (value: string) => {

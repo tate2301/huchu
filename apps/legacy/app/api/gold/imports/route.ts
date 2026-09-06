@@ -8,7 +8,7 @@ import {
   paginationResponse,
 } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { parseLedgerCsv } from "@/lib/gold/import-parsing"
+import { parseLedgerCsv } from "@corelithzw/module-gold/gold/import-parsing"
 import { z } from "zod"
 
 const createImportSchema = z.object({

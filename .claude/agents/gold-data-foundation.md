@@ -22,12 +22,12 @@ You are the **gold-data-foundation** engineer. You own the schema and migrations
 - `packages/db/prisma/schema/gold.prisma (and the module files it relates to)`
 - `packages/db/prisma/migrations/**`
 - `scripts/backfill-*.ts`
-- Migration witness tests: `lib/gold/inventory.test.ts` (invariant/parity tests only)
+- Migration witness tests: `packages/modules/gold/gold/inventory.test.ts` (invariant/parity tests only)
 
 ## Files you NEVER edit
 
 - `app/**`, `components/**`
-- `lib/gold/*.ts` source files (business logic — owned by gold-domain-backend)
+- `packages/modules/gold/gold/*.ts` source files (business logic — owned by gold-domain-backend)
 - Any file outside the above
 
 ## Non-negotiable standards

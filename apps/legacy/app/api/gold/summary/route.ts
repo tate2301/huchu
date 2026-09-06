@@ -5,8 +5,8 @@ import {
   errorResponse,
 } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { getLatestGoldPriceSnapshot } from "@/lib/gold/valuation"
-import { getOnHandGrams } from "@/lib/gold/inventory"
+import { getLatestGoldPriceSnapshot } from "@corelithzw/module-gold/gold/valuation"
+import { getOnHandGrams } from "@corelithzw/module-gold/gold/inventory"
 
 function startOfWeekUtc(date: Date): Date {
   const d = new Date(date)

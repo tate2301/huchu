@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { addDays, format } from "date-fns";
 import { useSession } from "next-auth/react";
 
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
@@ -34,7 +34,7 @@ import { fetchGoldShiftAllocations } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 /**

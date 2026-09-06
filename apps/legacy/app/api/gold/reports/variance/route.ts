@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { validateSession, successResponse, errorResponse, hasRole } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { computeVariance } from "@/lib/gold/reconcile"
+import { computeVariance } from "@corelithzw/module-gold/gold/reconcile"
 
 export async function GET(request: NextRequest) {
   try {

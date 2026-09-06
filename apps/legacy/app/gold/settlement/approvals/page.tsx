@@ -8,7 +8,7 @@ import { useSession } from "next-auth/react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
@@ -41,7 +41,7 @@ import {
   getSettlementSourceMeta,
   parseSettlementSource,
   resolveDefaultSettlementSource,
-} from "@/lib/settlements/sources";
+} from "@corelithzw/module-gold/settlements/sources";
 import type { SettlementSource } from "@corelithzw/db";
 
 /**

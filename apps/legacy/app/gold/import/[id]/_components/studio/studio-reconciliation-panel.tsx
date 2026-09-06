@@ -6,7 +6,7 @@ import { fetchJson } from "@corelithzw/platform/api-client";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { TrendingUp, TrendingDown, AlertCircle, X } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
-import type { VarianceReport, RollForwardRow } from "@/lib/gold/reconcile";
+import type { VarianceReport, RollForwardRow } from "@corelithzw/module-gold/gold/reconcile";
 import type { ImportDetail } from "../types";
 
 type BacklogResult = { count: number; totalUsd: number };

@@ -2,7 +2,7 @@
 
 import type { ComponentProps, ReactNode } from "react";
 import { useEffect, useMemo, useState } from "react";
-import type { SearchableOption } from "@/app/gold/types";
+import type { SearchableOption } from "@corelithzw/module-gold/types";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import { executeOperation } from "@/components/admin-portal/api";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";

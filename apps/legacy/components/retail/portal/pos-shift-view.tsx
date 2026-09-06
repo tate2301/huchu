@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
+import type { SearchableOption } from "@corelithzw/module-gold/types";
 import { FieldHelp } from "@corelithzw/ui/shared/field-help";
 import { Button } from "@corelithzw/ui/components/button";
 import { Dialog, DialogContent, DialogFooter } from "@corelithzw/ui/components/dialog";

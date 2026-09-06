@@ -8,7 +8,7 @@ import type {
   HealthIncidentRecord,
   RunbookDefinitionRecord,
 } from "@/scripts/platform/types";
-import type { SearchableOption } from "@/app/gold/types";
+import type { SearchableOption } from "@corelithzw/module-gold/types";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { CompanyWorkspace } from "@/components/admin-portal/types";
 import { executeOperation } from "@/components/admin-portal/api";

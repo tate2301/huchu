@@ -4,8 +4,8 @@ import "@/modules";
 import { groupSearchResults, SEARCH_TYPE_ORDER } from "@corelithzw/module-records/search-result";
 import { searchRecords, type SearchScope } from "@corelithzw/module-records/search";
 import { searchCrm } from "@/lib/crm/search";
-import { searchGold } from "@/lib/gold/search";
-import { searchOperations } from "@/lib/operations/search";
+import { searchGold } from "@corelithzw/module-gold/gold/search";
+import { searchOperations } from "@corelithzw/module-gold/operations/search";
 import { searchPeople } from "@corelithzw/module-people/people/search";
 import { searchRetail } from "@/lib/retail/search";
 import { searchSchools } from "@/lib/schools/search";
@@ -23,9 +23,9 @@ import { searchSchools } from "@/lib/schools/search";
 vi.mock("@/lib/crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
 vi.mock("@/lib/schools/search", () => ({ searchSchools: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-people/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
-vi.mock("@/lib/gold/search", () => ({ searchGold: vi.fn(async () => []) }));
+vi.mock("@corelithzw/module-gold/gold/search", () => ({ searchGold: vi.fn(async () => []) }));
 vi.mock("@/lib/retail/search", () => ({ searchRetail: vi.fn(async () => []) }));
-vi.mock("@/lib/operations/search", () => ({ searchOperations: vi.fn(async () => []) }));
+vi.mock("@corelithzw/module-gold/operations/search", () => ({ searchOperations: vi.fn(async () => []) }));
 
 const db = {} as never;
 

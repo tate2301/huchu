@@ -3,8 +3,8 @@ import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { settlementPermissionDenial } from "@/lib/settlements/permissions"
-import { parseSettlementSource } from "@/lib/settlements/sources"
+import { settlementPermissionDenial } from "@corelithzw/module-gold/settlements/permissions"
+import { parseSettlementSource } from "@corelithzw/module-gold/settlements/sources"
 
 /**
  * Which upstream records have been settled, and how far along each one is.

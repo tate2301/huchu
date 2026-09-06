@@ -47,7 +47,7 @@ registerSearchArm({
 registerSearchArm({
   id: "gold",
   run: async (db, input) => {
-    const { searchGold } = await import("@/lib/gold/search");
+    const { searchGold } = await import("@corelithzw/module-gold/gold/search");
     return searchGold(db, { ...input, types: input.types as Parameters<typeof searchGold>[1]["types"] });
   },
 });
@@ -61,7 +61,7 @@ registerSearchArm({
 registerSearchArm({
   id: "operations",
   run: async (db, input) => {
-    const { searchOperations } = await import("@/lib/operations/search");
+    const { searchOperations } = await import("@corelithzw/module-gold/operations/search");
     return searchOperations(db, { ...input, types: input.types as Parameters<typeof searchOperations>[1]["types"] });
   },
 });

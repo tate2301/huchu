@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { settlementPermissionDenial } from "@/lib/settlements/permissions"
+import { settlementPermissionDenial } from "@corelithzw/module-gold/settlements/permissions"
 import { createApprovalAction, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 
 /**

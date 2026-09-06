@@ -9,8 +9,8 @@ import { useSession } from "next-auth/react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { ReceiptForm } from "@/components/gold/forms/receipt-form";
-import { GoldShell } from "@/components/gold/gold-shell";
+import { ReceiptForm } from "@corelithzw/module-gold/components/gold/forms/receipt-form";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { PageIntro } from "@corelithzw/ui/shared/page-intro";
 import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
@@ -30,7 +30,7 @@ import {
   fetchGoldReceipts,
 } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 type GoldReceiptRow = Awaited<

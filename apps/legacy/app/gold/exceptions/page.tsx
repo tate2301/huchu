@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 
-import { GoldShell } from "@/components/gold/gold-shell";
+import { GoldShell } from "@corelithzw/module-gold/components/gold/gold-shell";
 import { PageIntro } from "@corelithzw/ui/shared/page-intro";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";
@@ -28,7 +28,7 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { goldRoutes } from "@/app/gold/routes";
+import { goldRoutes } from "@corelithzw/module-gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
 
 type MissingDispatchRow = {

@@ -23,7 +23,7 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchDowntimeCodes, fetchSites } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { PLANT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@/lib/operations/access";
+import { PLANT_REPORT_FEATURE_KEY, canAccessOperationalFeature } from "@corelithzw/module-gold/operations/access";
 import { buildSavedRecordRedirect } from "@corelithzw/ui/lib/saved-record";
 
 const toNumber = (value: string) => {

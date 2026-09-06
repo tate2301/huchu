@@ -9,18 +9,18 @@ import {
 import {
   calculateDelta,
   getExecutiveDashboardAggregations,
-} from "@/lib/dashboard/executive-aggregations";
+} from "@corelithzw/module-gold/dashboard/executive-aggregations";
 import {
   EXECUTIVE_FULL_VIEW_ROLES,
   getQuickLinkBasePriority,
   getQuickLinkModule,
   parseExecutiveDashboardRange,
-} from "@/lib/dashboard/executive-config";
+} from "@corelithzw/module-gold/dashboard/executive-config";
 import {
   EXECUTIVE_MODULE_ORDER,
   scoreExecutiveModuleStatus,
   type ExecutiveModuleKey,
-} from "@/lib/dashboard/executive-thresholds";
+} from "@corelithzw/module-gold/dashboard/executive-thresholds";
 import { getNavSectionsForRole } from "@/lib/navigation";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { prisma } from "@corelithzw/db/client";

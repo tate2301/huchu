@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useSession } from "next-auth/react";
-import { DetailShell, DetailSection, FactGrid } from "@/components/gold/detail-shell";
+import { DetailShell, DetailSection, FactGrid } from "@corelithzw/module-gold/components/gold/detail-shell";
 import { Coins, Users, Gem, FileCheck, Wallet, Scale, Building2 } from "@corelithzw/ui/lib/icons";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";

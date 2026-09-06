@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { Alert, EmptyState, Skeleton } from "@corelithzw/react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
-import type { SearchableOption } from "@/app/gold/types";
+import type { SearchableOption } from "@corelithzw/module-gold/types";
 import { RetailShell } from "@/components/retail/retail-shell";
 import { FieldHelp } from "@corelithzw/ui/shared/field-help";
 import { Button } from "@corelithzw/ui/components/button";
