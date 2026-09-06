@@ -12,7 +12,7 @@
 ## Project Structure & Module Organization
 This is a pnpm workspace (Turborepo). The split into products is described in
 `docs/rollout/product-split-plan.md`; the deployment side in `docs/rollout/product-split-deployment.md`.
-- `apps/legacy/` is the application as it ships today: one Next.js host composing every module.
+- `apps/legacy/` is the application as it ships today: one Next.js host composing every module. `apps/campus/` is the first product host: the same shape with a shorter module list — its own `manifests.ts`, `modules.ts`, `modules.client.ts`, navigation, management data, workspace catalogue and offline scope, the kernel's `createProxy()` and `createAuthOptions()`, and an `app/` tree that is composed (`pnpm compose apps/campus platform shell campus …`). A change that touches host composition is made in both hosts; a module change reaches both through the packages.
   - `app/` holds the App Router routes and feature modules (e.g., `app/shift-report`, `app/gold`).
   - `components/` contains reusable UI and feature components, with primitives in `components/ui`.
   - `lib/` and `hooks/` provide shared utilities and React hooks.

@@ -20,7 +20,9 @@
     "db:migrate:status": "pnpm --filter @corelithzw/db run migrate:status",
     "db:studio": "pnpm --filter @corelithzw/db run studio",
     "db:check:drift": "pnpm --filter @corelithzw/db run check:drift",
-    "db:check:deps": "pnpm --filter @corelithzw/db run check:deps"
+    "db:check:deps": "pnpm --filter @corelithzw/db run check:deps",
+    "campus": "pnpm --filter @corelithzw/campus run",
+    "dev:campus": "turbo run dev --filter=@corelithzw/campus"
   },
   "devDependencies": {
     "turbo": "2.10.12",

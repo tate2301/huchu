@@ -108,4 +108,5 @@ jobs:
           # same heap the typecheck script gives tsc, or the runner's default
           # (about 4 GB) dies with "heap out of memory" after compiling.
           NODE_OPTIONS: --max-old-space-size=7168
-        run: pnpm turbo run build ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+        # Two hosts build here now; one at a time, for the runner's memory.
+        run: pnpm turbo run build --concurrency=1 ${{ github.event_name == 'pull_request' && '--affected' || '' }}
