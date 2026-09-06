@@ -1,10 +1,2 @@
-import { PosHeldView } from "@corelithzw/module-sell/components/portal/pos-held-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-export default async function PosPortalHeldPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/held">
-      <PosHeldView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/held/page";

@@ -2,7 +2,8 @@ import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
 import type { UniversalDocumentPayload } from "@corelithzw/module-documents/types";
-import type { SchoolResource } from "./permissions";
+import type { DocumentAuthorization } from "@corelithzw/module-documents/source-registry";
+import { canSchoolRoleDo, type SchoolResource } from "./permissions";
 
 /**
  * The school's printable documents.
@@ -958,4 +959,23 @@ export async function resolveSchoolDocument(
     case "schools.attendance-register":
       return resolveAttendanceRegister(companyId, input.filters);
   }
+}
+
+/** The feature that opens each school document, for the render route's check. */
+export function schoolDocumentFeatureKeys(sourceKey: string): string[] {
+  return isSchoolDocumentSourceKey(sourceKey) ? [SCHOOL_DOCUMENT_ACCESS[sourceKey].feature] : [];
+}
+
+/**
+ * A school document is a pupil's data — a class list is every child's
+ * guardian and phone number on one page — so the tenant having bought the
+ * module is not the bar. `view` because rendering reads; nothing here writes.
+ */
+export function authorizeSchoolDocument(input: { session: { user: { role: string } }; sourceKey: string }): DocumentAuthorization {
+  if (!isSchoolDocumentSourceKey(input.sourceKey)) return { allowed: true };
+  const { resource } = SCHOOL_DOCUMENT_ACCESS[input.sourceKey];
+  if (!canSchoolRoleDo(input.session.user.role, resource, "view")) {
+    return { allowed: false, status: 403, message: `Your role cannot view ${resource.replace("schools.", "")}` };
+  }
+  return { allowed: true };
 }

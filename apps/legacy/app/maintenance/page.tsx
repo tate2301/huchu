@@ -1,26 +1,2 @@
-import { redirect } from "next/navigation";
-import {
-  MaintenanceContent,
-  type MaintenanceView,
-} from "@corelithzw/module-maintenance/components/maintenance-content";
-
-const maintenanceRoutes: Record<MaintenanceView, string> = {
-  dashboard: "/maintenance",
-  equipment: "/maintenance/equipment",
-  "work-orders": "/maintenance/work-orders",
-  breakdown: "/maintenance/breakdown",
-  schedule: "/maintenance/schedule",
-};
-
-export default async function MaintenanceDashboardPage({
-  searchParams,
-}: {
-  searchParams?: Promise<{ view?: string }>;
-}) {
-  const resolvedSearchParams = await searchParams;
-  const viewParam = resolvedSearchParams?.view as MaintenanceView | undefined;
-  if (viewParam && maintenanceRoutes[viewParam]) {
-    redirect(maintenanceRoutes[viewParam]);
-  }
-  return <MaintenanceContent activeView="dashboard" />;
-}
+// Composed from @corelithzw/module-maintenance by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-maintenance/pages/maintenance/page";

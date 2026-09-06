@@ -1,26 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { SubjectRecordPage } from "@corelithzw/module-campus/components/records/subject-record-page";
-import { authOptions } from "@/lib/auth";
-
-/** One subject, as a record, inside the Master Data shell its list moved to. */
-export default async function SubjectRecordMasterDataRoute({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  const { id } = await params;
-
-  return (
-    <MasterDataShell activeTab="schools-subjects" title="Subjects">
-      <SubjectRecordPage subjectId={id} />
-    </MasterDataShell>
-  );
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/management/master-data/schools/subjects/[id]/page";

@@ -1,10 +1,2 @@
-import { PosCheckoutView } from "@corelithzw/module-sell/components/portal/pos-checkout-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-export default async function PosPortalPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos">
-      <PosCheckoutView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/page";

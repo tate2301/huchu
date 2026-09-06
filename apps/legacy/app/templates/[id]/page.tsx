@@ -1,21 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { TemplateEditor } from "@corelithzw/module-documents/components/templates/template-editor";
-import { authOptions } from "@/lib/auth";
-
-export default async function TemplatePage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-  const { id } = await params;
-
-  return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6">
-      <TemplateEditor templateId={id} />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-documents by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-documents/pages/templates/[id]/page";

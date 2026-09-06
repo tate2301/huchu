@@ -16,7 +16,8 @@
     "@corelithzw/ui": "workspace:*",
     "@tanstack/react-query": "^5.90.16",
     "date-fns": "^4.1.0",
-    "next-auth": "^4.24.13"
+    "next-auth": "^4.24.13",
+    "zod": "^4.3.5"
   },
   "peerDependencies": {
     "next": "16.1.1",

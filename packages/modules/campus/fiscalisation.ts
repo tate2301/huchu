@@ -463,3 +463,20 @@ export async function tryIssueSchoolFeeReceiptFiscalisation(input: {
     );
   }
 }
+
+/**
+ * Posted fee receipts with no fiscal receipt at all — a process that died
+ * between the payment's commit and the fiscal call — oldest first, for the
+ * books' replay to sweep. A school without the add-on has none to sweep.
+ */
+export async function unattemptedSchoolFeeReceipts(args: { companyId: string; limit: number }): Promise<string[]> {
+  if (args.limit <= 0) return [];
+  if (!(await hasFeature(args.companyId, SCHOOL_FISCALISATION_FEATURE))) return [];
+  const receipts = await prisma.schoolFeeReceipt.findMany({
+    where: { companyId: args.companyId, status: "POSTED", fiscalReceipt: { is: null } },
+    orderBy: [{ createdAt: "asc" }],
+    take: args.limit,
+    select: { id: true },
+  });
+  return receipts.map((receipt) => receipt.id);
+}

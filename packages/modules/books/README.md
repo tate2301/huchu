@@ -10,6 +10,8 @@ payment-ledger, retail-posting, listview-*, format, tab-config, visibility      
 api-client.ts                    the browser's client for /api/accounting
 components/                      the accounting shell, hubs, list views, fiscalisation and tax screens
 manifest.ts                      id "books"; requires documents, notifications
+api/                             the route handlers, on the paths a host serves them at
+pages/                           the pages and layouts, on the paths a host serves them at
 ```
 
 Import by path: `import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"`.

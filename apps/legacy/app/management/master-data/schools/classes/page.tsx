@@ -1,17 +1,3 @@
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
 "use client";
-
-import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { SchoolsClassesContent } from "@corelithzw/module-campus/components/classes/schools-classes-content";
-
-/** The year-group ladder and the streams inside each one. */
-export default function SchoolsClassesMasterDataPage() {
-  return (
-    <MasterDataShell
-      activeTab="schools-classes"
-      title="Classes and Streams"
-      description="The year-group ladder and the streams inside each one."
-    >
-      <SchoolsClassesContent />
-    </MasterDataShell>
-  );
-}
+export { default } from "@corelithzw/module-campus/pages/management/master-data/schools/classes/page";

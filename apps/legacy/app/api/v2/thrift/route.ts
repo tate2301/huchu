@@ -1,6 +1,6 @@
 import { NextRequest } from "next/server";
 import { errorResponse } from "@corelithzw/platform/api-response";
-import { buildV2CollectionResponse } from "../_shared";
+import { buildV2CollectionResponse } from "@corelithzw/platform/v2-collection";
 
 export async function GET(request: NextRequest) {
   try {

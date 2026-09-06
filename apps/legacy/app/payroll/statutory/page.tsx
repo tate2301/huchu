@@ -1,7 +1,3 @@
-import { StatutoryTablesContent } from "@corelithzw/module-people/components/payroll/statutory/statutory-tables-content";
-
+// Composed from @corelithzw/module-people by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-people/pages/payroll/statutory/page";
 export const dynamic = "force-dynamic";
-
-export default function StatutoryTablesPage() {
-  return <StatutoryTablesContent />;
-}

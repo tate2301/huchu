@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@corelithzw/db": "workspace:*",
+    "@corelithzw/module-books": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-notifications": "workspace:*",
     "@corelithzw/module-people": "workspace:*",

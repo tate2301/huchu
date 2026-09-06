@@ -1,10 +1,2 @@
-import { PosTillActivityView } from "@corelithzw/module-sell/components/portal/pos-till-activity-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-export default async function PosPortalActivityPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/activity">
-      <PosTillActivityView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/activity/page";

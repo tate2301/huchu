@@ -1,11 +1,2 @@
-import { PosCustomersView } from "@corelithzw/module-sell/components/portal/pos-customers-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-/** Was a redirect stub back to checkout. See `price-check/page.tsx`. */
-export default async function PosPortalCustomersPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/customers">
-      <PosCustomersView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/customers/page";

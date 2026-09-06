@@ -530,7 +530,20 @@ export function matchesLegacyDocumentSource(sourceKey: string): boolean {
   return LEGACY_DOCUMENT_SOURCE_PREFIXES.some((prefix) => sourceKey.startsWith(prefix));
 }
 
+/** The feature that opens each legacy source; sales documents open from the books or the CRM. */
+const LEGACY_DOCUMENT_FEATURES: Record<string, string[]> = {
+  "reports.shift": ["reports.shift"],
+  "reports.attendance": ["reports.attendance"],
+  "reports.plant": ["reports.plant"],
+  "dashboard.executive-summary": ["reports.dashboard"],
+  "accounting.sales.invoice": ["accounting.ar", "crm.documents"],
+  "accounting.sales.quotation": ["accounting.ar", "crm.documents"],
+  "accounting.sales.receipt": ["accounting.ar", "crm.documents"],
+  "accounting.sales.credit-note": ["accounting.ar"],
+};
+
 export const legacyDocumentSource: DocumentSource = {
+  access: async (sourceKey) => ({ featureKeys: LEGACY_DOCUMENT_FEATURES[sourceKey] ?? [] }),
   id: "legacy",
   matches: matchesLegacyDocumentSource,
   resolve: async (input) => {

@@ -1,10 +1,2 @@
-import { PosHistoryView } from "@corelithzw/module-sell/components/portal/pos-history-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-export default async function PosPortalHistoryPage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/history">
-      <PosHistoryView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/history/page";

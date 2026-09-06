@@ -184,6 +184,29 @@ export function registerFiscalDrainIssuer<K extends keyof Omit<FiscalDrainIssuer
   registeredIssuers[kind] = issuer;
 }
 
+/**
+ * The receipts another module posted but never fiscalised — a process that
+ * died between the payment's commit and the fiscal call — which the replay
+ * sweeps as well as the retries. The module that owns the receipts finds
+ * them; the host registers it beside the issuer.
+ */
+export type FiscalDrainSweep = {
+  unattempted: (args: { companyId: string; limit: number }) => Promise<string[]>;
+};
+
+const registeredSweeps = registry<Partial<Record<keyof Omit<FiscalDrainIssuers, "salesInvoice">, FiscalDrainSweep>>>(
+  "books.fiscal-drain-sweeps",
+  () => ({}),
+);
+
+export function registerFiscalDrainSweep<K extends keyof Omit<FiscalDrainIssuers, "salesInvoice">>(kind: K, sweep: FiscalDrainSweep): void {
+  registeredSweeps[kind] = sweep;
+}
+
+export function fiscalDrainSweep<K extends keyof Omit<FiscalDrainIssuers, "salesInvoice">>(kind: K): FiscalDrainSweep | undefined {
+  return registeredSweeps[kind];
+}
+
 export const defaultFiscalDrainIssuers: FiscalDrainIssuers = {
   salesInvoice: async ({ companyId, invoiceId }) => {
     const result = await issueFiscalReceipt(companyId, invoiceId, DRAIN_ACTOR_ID);

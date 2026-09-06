@@ -1,25 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
-import { DocumentsListContent } from "@corelithzw/module-crm/components/documents/documents-list-content";
-import { authOptions } from "@/lib/auth";
-
-export default async function CrmQuotesPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  return (
-    <CrmPage
-      title="Quotes"
-      description="what is out with customers"
-    >
-      <DocumentsListContent
-        kind="QUOTATION"
-        title="Quotes"
-        searchPlaceholder="Search by quote number, customer or deal"
-        emptyBody="Quotes are raised from a deal — open one and use “New quotation”."
-      />
-    </CrmPage>
-  );
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/quotes/page";

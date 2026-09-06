@@ -14,9 +14,11 @@ pos-host.ts         which host serves the POS portal (the host's auth and proxy 
 permissions.ts      the retail resources and actions
 components/         the retail shell, the sale detail, the POS portal, the reports
 manifest.ts         id "retail"; requires books, offline, records, stock, workflow
+api/                the route handlers, on the paths a host serves them at
+pages/              the pages and layouts, on the paths a host serves them at
 ```
 
 Import by path: `import { createRetailSaleTransaction } from "@corelithzw/module-sell/transactions"`.
 
-The API routes and the pages stay in the host until the Sell host composes
-this module; the manifest id stays `retail`, the schema's name for it.
+A host composes the routes, the pages and the POS portal with
+`pnpm compose <host dir> sell`; the manifest id stays `retail`, the schema's name for it.

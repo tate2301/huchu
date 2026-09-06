@@ -12,9 +12,11 @@ capabilities.ts    what the CRM lets a person do, declared in the manifest
 notifications.ts   the CRM's notices, on the notifications service
 components/        the screens: records, leads, pipelines, tasks, visits, work orders, reps, settings, the public pages
 manifest.ts        id "crm"; requires records, documents, books, stock, notifications
+api/               the route handlers, on the paths a host serves them at
+pages/             the pages and layouts, on the paths a host serves them at
 ```
 
 Import by path: `import { movePipelineStage } from "@corelithzw/module-crm/pipeline"`.
 
-The API routes, the pages and the public token pages stay in the host until
-the CRM host composes this module.
+A host composes the routes, the pages and the public token pages with
+`pnpm compose <host dir> crm`.

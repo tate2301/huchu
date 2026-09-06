@@ -2,7 +2,7 @@
   "name": "@corelithzw/module-stock",
   "version": "0.0.0",
   "private": true,
-  "description": "Stock: the catalogue, price lists, stock locations and movements — what the business holds, and what it sells.",
+  "description": "Stock: the catalogue, price lists, stock locations and movements \u2014 what the business holds, and what it sells.",
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
@@ -12,6 +12,8 @@
   },
   "dependencies": {
     "@corelithzw/db": "workspace:*",
+    "@corelithzw/module-books": "workspace:*",
+    "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-people": "workspace:*",
     "@corelithzw/module-records": "workspace:*",
     "@corelithzw/platform": "workspace:*",

@@ -1,17 +1,2 @@
-import { NextRequest, NextResponse } from "next/server";
-import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getAccountingSetupReadiness } from "@corelithzw/module-books/bootstrap";
-
-export async function GET(request: NextRequest) {
-  try {
-    const sessionResult = await validateSession(request);
-    if (sessionResult instanceof NextResponse) return sessionResult;
-    const { session } = sessionResult;
-
-    const readiness = await getAccountingSetupReadiness(session.user.companyId);
-    return successResponse(readiness);
-  } catch (error) {
-    console.error("[API] GET /api/accounting/setup/readiness error:", error);
-    return errorResponse("Failed to load accounting setup readiness");
-  }
-}
+// Composed from @corelithzw/module-books by scripts/compose-host.mjs; edit the module, then run it again.
+export { GET } from "@corelithzw/module-books/api/accounting/setup/readiness/route";

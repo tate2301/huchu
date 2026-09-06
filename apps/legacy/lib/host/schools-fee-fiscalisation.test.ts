@@ -29,6 +29,8 @@ import type { AddressInfo } from "node:net";
 import { Prisma } from "@corelithzw/db";
 import { prisma } from "@corelithzw/db/client";
 import { grantBundleToCompany } from "@corelithzw/platform/entitlements";
+// The replay drains through the registries the host fills.
+import "@/modules";
 
 const { validateSessionMock } = vi.hoisted(() => ({
   validateSessionMock: vi.fn(),

@@ -1,0 +1,69 @@
+import { NextRequest, NextResponse } from "next/server"
+import {
+  errorResponse,
+  getPaginationParams,
+  paginationResponse,
+  successResponse,
+  validateSession,
+} from "@corelithzw/platform/api-utils"
+import { hrPermissionDenial } from "../../../hr/permissions"
+import { prisma } from "@corelithzw/db/client"
+
+export async function GET(request: NextRequest) {
+  try {
+    const sessionResult = await validateSession(request)
+    if (sessionResult instanceof NextResponse) return sessionResult
+    const { session } = sessionResult
+    const denial = hrPermissionDenial(session, "hr.payroll", "view")
+    if (denial) return errorResponse(denial, 403)
+    const { searchParams } = new URL(request.url)
+    const { page, limit, skip } = getPaginationParams(request)
+
+    const entityType = searchParams.get("entityType")
+    const entityId = searchParams.get("entityId")
+    const actedById = searchParams.get("actedById")
+    const startDate = searchParams.get("startDate")
+    const endDate = searchParams.get("endDate")
+    const search = searchParams.get("search")?.trim()
+
+    const where: Record<string, unknown> = {
+      companyId: session.user.companyId,
+    }
+    if (entityType) where.entityType = entityType
+    if (entityId) where.entityId = entityId
+    if (actedById) where.actedById = actedById
+    if (startDate || endDate) {
+      where.actedAt = {
+        ...(startDate ? { gte: new Date(startDate) } : {}),
+        ...(endDate ? { lte: new Date(endDate) } : {}),
+      }
+    }
+    if (search) {
+      where.OR = [
+        { entityId: { contains: search, mode: "insensitive" } },
+        { note: { contains: search, mode: "insensitive" } },
+        { fromStatus: { contains: search, mode: "insensitive" } },
+        { toStatus: { contains: search, mode: "insensitive" } },
+        { actedBy: { name: { contains: search, mode: "insensitive" } } },
+      ]
+    }
+
+    const [records, total] = await Promise.all([
+      prisma.approvalAction.findMany({
+        where,
+        include: {
+          actedBy: { select: { id: true, name: true, role: true } },
+        },
+        orderBy: { actedAt: "desc" },
+        skip,
+        take: limit,
+      }),
+      prisma.approvalAction.count({ where }),
+    ])
+
+    return successResponse(paginationResponse(records, total, page, limit))
+  } catch (error) {
+    console.error("[API] GET /api/approvals/history error:", error)
+    return errorResponse("Failed to fetch approval history")
+  }
+}

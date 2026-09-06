@@ -2,7 +2,7 @@
   "name": "@corelithzw/module-documents",
   "version": "0.0.0",
   "private": true,
-  "description": "Documents: one render pipeline for everything the product prints — sources, branded templates, the template editor, PDF, HTML and CSV.",
+  "description": "Documents: one render pipeline for everything the product prints \u2014 sources, branded templates, the template editor, PDF, HTML and CSV.",
   "main": "./index.ts",
   "types": "./index.ts",
   "scripts": {
@@ -15,6 +15,7 @@
     "@corelithzw/module-records": "workspace:*",
     "@corelithzw/platform": "workspace:*",
     "@corelithzw/react": "^0.4.1",
+    "@corelithzw/shell": "workspace:*",
     "@corelithzw/ui": "workspace:*",
     "@sparticuz/chromium": "^143.0.4",
     "@tanstack/react-query": "^5.90.16",

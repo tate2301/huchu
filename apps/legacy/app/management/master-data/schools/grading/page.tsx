@@ -1,22 +1,3 @@
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
 "use client";
-
-import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
-import { GradingContent } from "@corelithzw/module-campus/components/academics/grading-content";
-
-/**
- * Grading and publishing.
- *
- * New: grading schemes had a create endpoint and no UI, and a publishing
- * window could only be opened with a REST client.
- */
-export default function SchoolsGradingMasterDataPage() {
-  return (
-    <MasterDataShell
-      activeTab="schools-grading"
-      title="Grading and Publishing"
-      description="Grade boundaries, and the windows in which results may be published."
-    >
-      <GradingContent />
-    </MasterDataShell>
-  );
-}
+export { default } from "@corelithzw/module-campus/pages/management/master-data/schools/grading/page";

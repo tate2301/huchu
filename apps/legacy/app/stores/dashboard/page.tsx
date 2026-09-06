@@ -1,16 +1,3 @@
+// Composed from @corelithzw/module-stock by scripts/compose-host.mjs; edit the module, then run it again.
 "use client";
-
-import { useSearchParams } from "next/navigation";
-
-import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
-import { StockOverview } from "@corelithzw/module-stock/components/stock-overview";
-
-export default function StoresDashboardPage() {
-  const siteId = useSearchParams().get("siteId") ?? undefined;
-
-  return (
-    <StoresShell activeTab="dashboard" title="Stock overview">
-      <StockOverview siteId={siteId} />
-    </StoresShell>
-  );
-}
+export { default } from "@corelithzw/module-stock/pages/stores/dashboard/page";

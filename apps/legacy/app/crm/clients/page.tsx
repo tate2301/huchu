@@ -1,9 +1,2 @@
-import { redirect } from "next/navigation";
-
-/**
- * Clients became Companies when the CRM grew a full record set. Old links —
- * bookmarks, notification deep-links, anything already sent out — still work.
- */
-export default function CrmClientsPage() {
-  redirect("/crm/companies");
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/clients/page";

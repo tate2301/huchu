@@ -1,16 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { TemplateLibrary } from "@corelithzw/module-documents/components/template-library";
-import { authOptions } from "@/lib/auth";
-
-export default async function TemplatesPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-
-  return (
-    <div className="mx-auto w-full max-w-5xl px-4 py-6">
-      <TemplateLibrary />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-documents by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-documents/pages/templates/page";

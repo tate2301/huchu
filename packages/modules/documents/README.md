@@ -16,6 +16,8 @@ components/templates/        the block editor, renderer, public form, analytics,
 components/template-library  the template library screen
 components/pdf/              the PDF viewer
 manifest.ts                  id "documents"; requires records
+api/                         the route handlers, on the paths a host serves them at
+pages/                       the pages and layouts, on the paths a host serves them at
 ```
 
 Import by path: `import { renderDocument } from "@corelithzw/module-documents/service"`.

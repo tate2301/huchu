@@ -1,10 +1,2 @@
-import { PosOfflineQueueView } from "@corelithzw/module-sell/components/portal/pos-offline-queue-view";
-import { PosPortalAuthGuard } from "@corelithzw/module-sell/components/portal/pos-auth-guard";
-
-export default async function PosPortalOfflineQueuePage() {
-  return (
-    <PosPortalAuthGuard pathname="/portal/pos/offline">
-      <PosOfflineQueueView />
-    </PosPortalAuthGuard>
-  );
-}
+// Composed from @corelithzw/module-sell by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-sell/pages/portal/pos/offline/page";

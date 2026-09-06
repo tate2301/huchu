@@ -1,12 +1,3 @@
-import { ApprovalContent } from "@corelithzw/module-crm/components/public/approval-content";
-
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/a/[token]/page";
 export const dynamic = "force-dynamic";
-
-export default async function PublicApprovalPage({ params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  return (
-    <main className="min-h-screen bg-neutral-50">
-      <ApprovalContent token={token} />
-    </main>
-  );
-}

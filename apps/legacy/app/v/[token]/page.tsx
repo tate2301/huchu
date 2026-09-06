@@ -1,16 +1,3 @@
-import { VisitBriefContent } from "@corelithzw/module-crm/components/public/visit-brief-content";
-
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/v/[token]/page";
 export const dynamic = "force-dynamic";
-
-export default async function PublicVisitBriefPage({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = await params;
-  return (
-    <main className="min-h-screen bg-neutral-50">
-      <VisitBriefContent token={token} />
-    </main>
-  );
-}

@@ -1,5 +1,2 @@
-import { HolidaysContent } from "@corelithzw/module-people/components/people/leave/holidays-content";
-
-export default function PublicHolidaysPage() {
-  return <HolidaysContent />;
-}
+// Composed from @corelithzw/module-people by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-people/pages/people/leave/holidays/page";

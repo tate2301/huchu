@@ -8,5 +8,5 @@ import type { ModuleManifest } from "@corelithzw/platform/manifest";
  */
 export const manifest: ModuleManifest = {
   id: "stock",
-  requires: ["people", "records"],
+  requires: ["people", "records", "books", "documents"],
 };

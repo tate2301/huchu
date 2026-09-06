@@ -27,6 +27,9 @@ import { Prisma } from "@corelithzw/db";
 
 import { prisma } from "@corelithzw/db/client";
 import type { UniversalDocumentPayload } from "@corelithzw/module-documents/types";
+import type { DocumentAuthorization } from "@corelithzw/module-documents/source-registry";
+import { isApproverRole } from "@corelithzw/module-workflow/approvals";
+import { hasFeature } from "@corelithzw/platform/features";
 
 type Resolution = {
   targetType: "LIST" | "RECORD" | "DASHBOARD";
@@ -387,4 +390,41 @@ export async function canRenderPayslip(input: {
     return { allowed: true };
   }
   return refusal;
+}
+
+/**
+ * The features that open a payslip: either key, because an employee fetching
+ * their own has `hr.employee-self-service` and not `hr.payslips` — the
+ * row-level check in `authorizeHrDocument` is what keeps them to their own.
+ */
+export function hrDocumentFeatureKeys(sourceKey: string): string[] {
+  if (!isHrDocumentSourceKey(sourceKey)) return [];
+  const access = HR_DOCUMENT_ACCESS[sourceKey];
+  return access.selfServiceFeature ? [access.feature, access.selfServiceFeature] : [access.feature];
+}
+
+/**
+ * A payslip is one named person's pay. The feature check says the tenant has
+ * payroll; this says whose payslip the caller may see. HR staff see any;
+ * everybody else sees their own and nothing else.
+ */
+export async function authorizeHrDocument(input: {
+  session: { user: { id: string; role: string; companyId: string } };
+  sourceKey: string;
+  recordId?: string;
+}): Promise<DocumentAuthorization> {
+  if (!isHrDocumentSourceKey(input.sourceKey)) return { allowed: true };
+  if (!input.recordId) return { allowed: false, status: 400, message: "A payslip needs the payroll line it belongs to" };
+  const decision = await canRenderPayslip({
+    companyId: input.session.user.companyId,
+    lineItemId: input.recordId,
+    userId: input.session.user.id,
+    hasPayrollAccess:
+      isApproverRole(input.session.user.role) &&
+      (await hasFeature(input.session.user.companyId, HR_DOCUMENT_ACCESS["hr.payslip"].feature)),
+  });
+  // 404, not 403: a 403 would confirm the payslip exists, which lets somebody
+  // map the workforce by probing ids.
+  if (!decision.allowed) return { allowed: false, status: 404, message: decision.reason };
+  return { allowed: true };
 }

@@ -56,9 +56,19 @@ export type SourceResolutionInput = z.infer<typeof sourceInputSchema>;
  * the universal payload the renderers print. The modules that own the records
  * register theirs from the host's `modules.ts`; this file names none of them.
  */
+export type DocumentSourceSession = { user: { id: string; role: string; companyId: string } };
+export type DocumentAuthorization = { allowed: true } | { allowed: false; status: number; message: string };
+
 export type DocumentSource = {
   id: string;
   matches: (sourceKey: string) => boolean;
+  /**
+   * The feature keys that may authorise a render of this source; a tenant needs
+   * only ONE of them. None means the session alone decides.
+   */
+  access?: (sourceKey: string) => Promise<{ featureKeys: string[] }>;
+  /** Whether this caller may render this source, beyond the tenant having bought it. */
+  authorize?: (input: { session: DocumentSourceSession; sourceKey: string; recordId?: string }) => Promise<DocumentAuthorization>;
   resolve: (input: {
     companyId: string;
     sourceKey: string;
@@ -75,6 +85,10 @@ export function registerDocumentSource(source: DocumentSource): void {
 
 export function registeredDocumentSources(): DocumentSource[] {
   return [...sources.values()];
+}
+
+export function documentSourceFor(sourceKey: string): DocumentSource | undefined {
+  return registeredDocumentSources().find((source) => source.matches(sourceKey));
 }
 
 export type SourceResolution = {

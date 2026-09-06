@@ -1,7 +1,3 @@
+// Composed from @corelithzw/module-gold by scripts/compose-host.mjs; edit the module, then run it again.
 "use client";
-
-import { ImportStudio } from "./_components/studio/import-studio";
-
-export default function GoldImportDetailPage() {
-  return <ImportStudio />;
-}
+export { default } from "@corelithzw/module-gold/pages/gold/import/[id]/page";

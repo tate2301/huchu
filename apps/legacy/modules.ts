@@ -14,9 +14,11 @@
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
 import "./manifests";
 import "./modules.client";
-import { onFiscalBacklog, registerFiscalDrainIssuer } from "@corelithzw/module-books/fiscal-drain";
+import { onFiscalBacklog, registerFiscalDrainIssuer, registerFiscalDrainSweep } from "@corelithzw/module-books/fiscal-drain";
+import { onSalesInvoiceCreated, onSalesReceiptCreated } from "@corelithzw/module-books/sales-hooks";
 import { registerDocumentSource } from "@corelithzw/module-documents/source-registry";
 import { registerSearchArm } from "@corelithzw/module-records/search";
+import { registerRecordSubjectGuard } from "@corelithzw/module-records/subject-guard";
 import { onApprovalAction } from "@corelithzw/module-workflow/approvals";
 
 registerAuthOptions(async () => (await import("@/lib/auth")).authOptions);
@@ -34,6 +36,10 @@ onApprovalAction(async (tx, event) => {
   await emitPeopleApprovalNotification(tx, event);
   await emitGoldApprovalNotification(tx, event);
 });
+
+// Who may file against a record: the module that owns the record type decides.
+registerRecordSubjectGuard("crm", async (session, action) => (await import("@corelithzw/module-crm/record-guard")).crmRecordGuard(session, action));
+registerRecordSubjectGuard("schools", async (session, action) => (await import("@corelithzw/module-campus/record-guard")).schoolRecordGuard(session, action));
 
 // The search box's arms: one per module with records worth typing at.
 registerSearchArm({ id: "crm", run: async (db, input) => (await import("@corelithzw/module-crm/search")).searchCrm(db, input) });
@@ -78,6 +84,8 @@ registerSearchArm({
 registerDocumentSource({
   id: "schools",
   matches: (key) => key.startsWith("schools."),
+  access: async (key) => ({ featureKeys: (await import("@corelithzw/module-campus/document-sources")).schoolDocumentFeatureKeys(key) }),
+  authorize: async (input) => (await import("@corelithzw/module-campus/document-sources")).authorizeSchoolDocument(input),
   resolve: async (input) => {
     const { isSchoolDocumentSourceKey, resolveSchoolDocument } = await import("@corelithzw/module-campus/document-sources");
     if (!isSchoolDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
@@ -87,6 +95,8 @@ registerDocumentSource({
 registerDocumentSource({
   id: "hr",
   matches: (key) => key.startsWith("hr."),
+  access: async (key) => ({ featureKeys: (await import("@corelithzw/module-people/hr/document-sources")).hrDocumentFeatureKeys(key) }),
+  authorize: async (input) => (await import("@corelithzw/module-people/hr/document-sources")).authorizeHrDocument(input),
   resolve: async (input) => {
     const { isHrDocumentSourceKey, resolveHrDocumentSource } = await import("@corelithzw/module-people/hr/document-sources");
     if (!isHrDocumentSourceKey(input.sourceKey)) throw new Error(`Unknown sourceKey: ${input.sourceKey}`);
@@ -107,6 +117,14 @@ registerFiscalDrainIssuer("schoolFeeReceipt", async (args) => {
   const result = await issueSchoolFeeReceiptFiscalisation(args);
   return { status: result.fiscalStatus, error: result.fiscalError ?? null };
 });
+registerFiscalDrainSweep("schoolFeeReceipt", {
+  unattempted: async (args) => (await import("@corelithzw/module-campus/fiscalisation")).unattemptedSchoolFeeReceipts(args),
+});
+
+// The books announce a sales document; the CRM, downstream of the money,
+// keeps its quote and its deal in step.
+onSalesInvoiceCreated(async (event) => (await import("@corelithzw/module-crm/accounting-hooks")).onAccountingInvoiceCreated(event));
+onSalesReceiptCreated(async (event) => (await import("@corelithzw/module-crm/accounting-hooks")).onAccountingReceiptCreated(event));
 onFiscalBacklog(async (event) => {
   const [{ emitIncidentNotification }, { prisma }] = await Promise.all([
     import("@corelithzw/module-compliance/notifications"),

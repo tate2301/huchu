@@ -1,5 +1,5 @@
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { V2SuccessPayload } from "../_shared";
+import { V2SuccessPayload } from "@corelithzw/platform/v2-collection";
 
 type V2HealthData = {
   service: "api-v2";

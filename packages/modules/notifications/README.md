@@ -9,6 +9,7 @@ components/notification-center   the bell and the list
 components/notification-renderers
 hooks/use-notification-stream    the server-sent stream
 manifest.ts                      id "notifications"; requires nothing
+api/                             the route handlers, on the paths a host serves them at
 ```
 
 Import by path: `import { createNotification } from "@corelithzw/module-notifications/service"`.

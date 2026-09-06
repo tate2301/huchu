@@ -1,25 +1,2 @@
-import { getServerSession } from "next-auth";
-import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
-import { redirect } from "next/navigation";
-
-import { PipelineWorkspace } from "@corelithzw/module-crm/components/records/pipeline-workspace";
-import { authOptions } from "@/lib/auth";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-export default async function CrmDealsPage({ searchParams }: { searchParams: SearchParams }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-  const params = await searchParams;
-  // Landing here means "show me a deal pipeline"; the menu can walk back to
-  // leads without a navigation.
-  const pipeline = typeof params.pipeline === "string" ? params.pipeline : "deals";
-  return (
-    <CrmPage
-      title="Deals"
-      description="what is in the pipeline, and what it is worth"
-    >
-      <PipelineWorkspace initial={pipeline} openCreate={params.new === "1"} />
-    </CrmPage>
-  );
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/deals/page";

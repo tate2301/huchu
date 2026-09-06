@@ -11,6 +11,7 @@ custom-fields.ts   custom-field definitions and values; the field-definition API
 record-ref.ts      parsing a record's href back into a reference
 components/        record page shell, mark, attributes, table, peek, trail, entity link, …
 manifest.ts        id "records"; requires nothing
+api/               the route handlers, on the paths a host serves them at
 ```
 
 Import by path: `import { recordType } from "@corelithzw/module-records/registry"`.

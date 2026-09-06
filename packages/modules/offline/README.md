@@ -11,6 +11,7 @@ service-worker/sw.ts                                                      the wo
 components/                                                               the provider, banner, keypad, sync panel, badges
 hooks/use-offline-connectivity
 manifest.ts                                                               id "offline"; requires nothing
+pages/                                                                    the pages and layouts, on the paths a host serves them at
 ```
 
 The module names no other module. The definitions — which routes to warm,

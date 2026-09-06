@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-import { goldRoutes } from "@corelithzw/module-gold/routes";
-
-export default function GoldAuditLegacyPage() {
-  redirect(`${goldRoutes.exceptions.home}?view=corrections`);
-}
+// Composed from @corelithzw/module-gold by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-gold/pages/gold/audit/page";

@@ -1,0 +1,290 @@
+﻿"use client";
+
+import Link from "next/link";
+import { useMemo, useState } from "react";
+import { ChevronRight } from "@corelithzw/ui/lib/icons";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useQuery } from "@tanstack/react-query";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+
+import { ClientDate } from "@corelithzw/ui/components/client-date";
+import { PourForm } from "../../../../components/gold/forms/pour-form";
+import { GoldShell } from "../../../../components/gold/gold-shell";
+import { PageIntro } from "@corelithzw/ui/shared/page-intro";
+import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { DataTable } from "@corelithzw/ui/components/data-table";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@corelithzw/ui/components/sheet";
+import { StatusChip } from "@corelithzw/ui/components/status-chip";
+import { fetchEmployees } from "@corelithzw/module-people/api-client";
+import { fetchGoldPours } from "../../../../api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { getApiErrorMessage } from "@corelithzw/platform/api-client";
+
+type GoldPourRow = Awaited<ReturnType<typeof fetchGoldPours>>["data"][number];
+
+export default function GoldIntakePoursPage() {
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const createRequested = searchParams.get("create") === "1";
+  const createOpen = manualCreateOpen || createRequested;
+
+  const handleCloseCreate = () => {
+    setManualCreateOpen(false);
+    if (!createRequested) return;
+    const params = new URLSearchParams(searchParams.toString());
+    params.delete("create");
+    const next = params.toString();
+    router.replace(next ? `${pathname}?${next}` : pathname, { scroll: false });
+  };
+
+  const { data, isLoading, error } = useQuery({
+    queryKey: ["gold-pours", "intake-lane"],
+    queryFn: () => fetchGoldPours({ limit: 300, sourceType: "PRODUCTION" }),
+  });
+  const { data: employeesData, isLoading: employeesLoading } = useQuery({
+    queryKey: ["employees", "gold-intake-modal"],
+    queryFn: () =>
+      fetchEmployees({
+        active: true,
+        position: ["MANAGER", "CLERK"],
+        limit: 500,
+      }),
+    enabled: createOpen,
+  });
+  const { data: sitesData, isLoading: sitesLoading } = useQuery({
+    queryKey: ["sites", "gold-intake-modal"],
+    queryFn: fetchSites,
+    enabled: createOpen,
+  });
+
+  const rows = useMemo(
+    () =>
+      (data?.data ?? [])
+        .slice()
+        .sort((a, b) => b.pourDate.localeCompare(a.pourDate)),
+    [data],
+  );
+  const employees = useMemo(() => employeesData?.data ?? [], [employeesData]);
+  const sites = useMemo(() => sitesData ?? [], [sitesData]);
+
+  const columns = useMemo<ColumnDef<GoldPourRow>[]>(
+    () => [
+      {
+        id: "date",
+        header: "Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            <ClientDate value={row.original.pourDate} />
+          </NumericCell>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 128,
+      },
+      {
+        id: "pourBarId",
+        header: "Batch ID",
+        cell: ({ row }) => (
+          <Link
+            href={`/gold/intake/pours/${row.original.id}`}
+            className="inline-flex items-center gap-1 font-mono font-semibold text-primary hover:underline"
+            title="View batch details"
+          >
+            {row.original.pourBarId}
+            <ChevronRight className="h-3 w-3 opacity-60" />
+          </Link>
+        ),
+        size: 130,
+        minSize: 130,
+        maxSize: 160,
+      },
+      {
+        id: "lifecycleStatus",
+        header: "Status",
+        cell: ({ row }) => {
+          const counts = (row.original as {
+            _count?: {
+              receipts: number;
+              dispatches: number;
+              dispatchBatches: number;
+            };
+          })._count ?? {
+            receipts: 0,
+            dispatches: 0,
+            dispatchBatches: 0,
+          };
+          if (counts.receipts > 0) {
+            return <StatusChip status="passing" label="Sold" />;
+          }
+          if (counts.dispatches > 0 || counts.dispatchBatches > 0) {
+            return <StatusChip status="warning" label="In transit" />;
+          }
+          return <StatusChip status="pending" label="On site" />;
+        },
+        size: 120,
+        minSize: 120,
+        maxSize: 140,
+      },
+      {
+        id: "site",
+        header: "Site",
+        cell: ({ row }) => row.original.site.name,
+        size: 280,
+        minSize: 220,
+        maxSize: 420,
+      },
+      {
+        id: "storageLocation",
+        header: "Storage",
+        accessorKey: "storageLocation",
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "grossWeight",
+        header: "Gross Weight",
+        cell: ({ row }) => (
+          <NumericCell>{Number(row.original.grossWeight).toFixed(3)} g</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+      {
+        id: "shiftLeader",
+        header: "Shift Leader",
+        cell: ({ row }) => row.original.shiftLeaderName ?? "-",
+        size: 180,
+        minSize: 160,
+        maxSize: 240,
+      },
+      {
+        id: "recordedBy",
+        header: "Recorded By",
+        cell: ({ row }) => row.original.createdBy?.name ?? "-",
+        size: 180,
+        minSize: 160,
+        maxSize: 240,
+      },
+      {
+        id: "recordedAt",
+        header: "Recorded At",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            <ClientDate value={row.original.createdAt} />
+          </NumericCell>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 160,
+      },
+      {
+        id: "valueUsd",
+        header: "Value",
+        cell: ({ row }) => (
+          <NumericCell>${Number(row.original.valueUsd ?? 0).toFixed(2)}</NumericCell>
+        ),
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+    ],
+    [],
+  );
+
+  return (
+    <GoldShell
+      activeTab="batches"
+      title="Batches"
+      actions={
+        <Button size="sm" onClick={() => setManualCreateOpen(true)}>
+          Record Batch
+        </Button>
+      }
+    >
+      <RecordSavedBanner entityLabel="gold batch" />
+
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load batches</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <section className="space-y-3">
+        <header className="space-y-1">
+          <h2 className="text-base text-foreground font-bold tracking-tight">
+            Batch History
+          </h2>
+        </header>
+        <DataTable
+          data={rows}
+          columns={columns}
+          searchPlaceholder="Search by batch ID, site, or storage"
+          searchSubmitLabel="Search"
+          tableClassName="text-sm"
+          pagination={{ enabled: true }}
+          emptyState={
+            isLoading ? (
+              <div className="space-y-2 p-2">
+                {[...Array(5)].map((_, i) => (
+                  <div key={i} className="flex gap-3">
+                    <div className="h-4 w-28 rounded bg-muted animate-pulse" />
+                    <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                    <div className="h-4 flex-1 rounded bg-muted animate-pulse" />
+                  </div>
+                ))}
+              </div>
+            ) : (
+              "No batches found."
+            )
+          }
+        />
+      </section>
+
+      <Sheet
+        open={createOpen}
+        onOpenChange={(next) => {
+          if (next) {
+            setManualCreateOpen(true);
+            return;
+          }
+          handleCloseCreate();
+        }}
+      >
+        <SheetContent size="xl" className="w-full p-6">
+          <SheetHeader>
+            <SheetTitle>Record Batch</SheetTitle>
+            <SheetDescription>
+              Create the first chain record for produced gold.
+            </SheetDescription>
+          </SheetHeader>
+          <div className="mt-6">
+            <PourForm
+              mode="modal"
+              redirectOnSuccess={false}
+              onSuccess={handleCloseCreate}
+              onCancel={handleCloseCreate}
+              employees={employees}
+              employeesLoading={employeesLoading}
+              sites={sites}
+              sitesLoading={sitesLoading}
+            />
+          </div>
+        </SheetContent>
+      </Sheet>
+    </GoldShell>
+  );
+}

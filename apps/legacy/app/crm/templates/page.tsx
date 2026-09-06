@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-
-/** Templates are global, not a CRM feature. They live at the sidebar root. */
-export default function CrmTemplatesPage() {
-  redirect("/templates");
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/templates/page";

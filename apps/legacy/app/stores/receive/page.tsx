@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-
-/** Receiving stock is a dialog now. See the issue route for why. */
-export default function StoresReceivePage() {
-  redirect("/stores/movements?record=receive");
-}
+// Composed from @corelithzw/module-stock by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-stock/pages/stores/receive/page";

@@ -1,17 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { CrmSettingsShell } from "@corelithzw/module-crm/components/crm-settings-shell";
-import { authOptions } from "@/lib/auth";
-
-export default async function CrmSettingsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-  return (
-    <>
-      <PageChrome title="CRM settings" />
-      <CrmSettingsShell />
-    </>
-  );
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/settings/page";

@@ -22,6 +22,12 @@ if (!hostDir || moduleIds.length === 0) {
 }
 const ROOT = process.cwd();
 const PAGE_FILES = new Set(["page.tsx", "layout.tsx", "loading.tsx", "error.tsx", "not-found.tsx", "template.tsx", "default.tsx"]);
+/**
+ * Next reads the route segment config (`dynamic`, `runtime`, `maxDuration`, …)
+ * statically from the route file itself and refuses a re-export, so a module's
+ * literal is copied into the host's file rather than re-exported.
+ */
+const SEGMENT_CONFIG = new Set(["dynamic", "dynamicParams", "revalidate", "fetchCache", "runtime", "preferredRegion", "maxDuration"]);
 
 function walk(dir, out = []) {
   if (!existsSync(dir)) return out;
@@ -38,6 +44,7 @@ function exportsOf(file) {
   const text = readFileSync(file, "utf8");
   const sf = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const names = new Set();
+  const configs = [];
   let hasDefault = false;
   for (const stmt of sf.statements) {
     const mods = ts.canHaveModifiers(stmt) ? (ts.getModifiers(stmt) ?? []) : [];
@@ -53,11 +60,21 @@ function exportsOf(file) {
     if (!exported) continue;
     if (isDefault) { hasDefault = true; continue; }
     if (ts.isFunctionDeclaration(stmt) || ts.isClassDeclaration(stmt)) { if (stmt.name) names.add(stmt.name.text); }
-    else if (ts.isVariableStatement(stmt)) for (const d of stmt.declarationList.declarations) if (ts.isIdentifier(d.name)) names.add(d.name.text);
+    else if (ts.isVariableStatement(stmt)) {
+      for (const d of stmt.declarationList.declarations) {
+        if (!ts.isIdentifier(d.name)) continue;
+        if (SEGMENT_CONFIG.has(d.name.text)) {
+          const init = d.initializer;
+          const literal = init && (ts.isStringLiteral(init) || ts.isNumericLiteral(init) || init.kind === ts.SyntaxKind.TrueKeyword || init.kind === ts.SyntaxKind.FalseKeyword);
+          if (!literal) throw new Error(`${file}: the segment config \`${d.name.text}\` must be a literal for the host to copy it`);
+          configs.push(`export const ${d.name.text} = ${init.getText(sf)};`);
+        } else names.add(d.name.text);
+      }
+    }
     // types and interfaces are not runtime exports Next cares about; skip them
   }
   const client = /^\s*(['"])use client\1/.test(text);
-  return { names: [...names], hasDefault, client };
+  return { names: [...names], hasDefault, client, configs };
 }
 
 let written = 0;
@@ -67,21 +84,22 @@ for (const id of moduleIds) {
   for (const file of walk(join(base, "api"))) {
     if (basename(file) !== "route.ts") continue;
     const rest = relative(join(base, "api"), file);
-    const { names } = exportsOf(file);
+    const { names, configs } = exportsOf(file);
     const target = join(ROOT, hostDir, "app", "api", rest);
     const from = `${spec}/api/${rest.replace(/\.ts$/, "")}`.replace(/\\/g, "/");
-    write(target, `export { ${names.join(", ")} } from "${from}";\n`, id);
+    write(target, `export { ${names.join(", ")} } from "${from}";\n` + configs.map((line) => `${line}\n`).join(""), id);
   }
   for (const file of walk(join(base, "pages"))) {
     if (!PAGE_FILES.has(basename(file))) continue;
     const rest = relative(join(base, "pages"), file);
-    const { names, hasDefault, client } = exportsOf(file);
+    const { names, hasDefault, client, configs } = exportsOf(file);
     const target = join(ROOT, hostDir, "app", rest);
     const from = `${spec}/pages/${rest.replace(/\.tsx$/, "")}`.replace(/\\/g, "/");
     let body = "";
     if (client) body += `"use client";\n`;
     if (hasDefault) body += `export { default } from "${from}";\n`;
     if (names.length) body += `export { ${names.join(", ")} } from "${from}";\n`;
+    body += configs.map((line) => `${line}\n`).join("");
     write(target, body, id);
   }
 }

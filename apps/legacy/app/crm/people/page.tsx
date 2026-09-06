@@ -1,19 +1,2 @@
-import { getServerSession } from "next-auth";
-import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
-import { redirect } from "next/navigation";
-
-import { PeopleContent } from "@corelithzw/module-crm/components/records/people-content";
-import { authOptions } from "@/lib/auth";
-
-type SearchParams = Promise<Record<string, string | string[] | undefined>>;
-
-export default async function CrmPeoplePage({ searchParams }: { searchParams: SearchParams }) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) redirect("/login");
-  const params = await searchParams;
-  return (
-    <CrmPage title="People" description="everyone you deal with, and who they work for">
-      <PeopleContent openCreate={params.new === "1"} />
-    </CrmPage>
-  );
-}
+// Composed from @corelithzw/module-crm by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-crm/pages/crm/people/page";

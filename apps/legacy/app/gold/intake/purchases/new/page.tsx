@@ -1,7 +1,2 @@
-import { redirect } from "next/navigation"
-
-import { goldRoutes } from "@corelithzw/module-gold/routes"
-
-export default function GoldPurchaseCreateRedirectPage() {
-  redirect(goldRoutes.intake.createPurchase)
-}
+// Composed from @corelithzw/module-gold by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-gold/pages/gold/intake/purchases/new/page";

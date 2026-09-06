@@ -1,0 +1,223 @@
+"use client";
+
+import { useMemo, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
+import { AccountingShell } from "../../../components/accounting-shell";
+import { BandChip } from "../../../components/band-chip";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Button } from "@corelithzw/ui/components/button";
+import { AccountingListView as DataTable } from "../../../components/listview/accounting-list-view";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import {
+  Sheet,
+  SheetContent,
+  SheetDescription,
+  SheetHeader,
+  SheetTitle,
+} from "@corelithzw/ui/components/sheet";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { type CurrencyRateRecord, fetchCurrencyRates } from "../../../api-client";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { ArrowRightLeft } from "@corelithzw/ui/lib/icons";
+import { AccountingNewButton } from "../../../components/accounting-new-button";
+
+const today = format(new Date(), "yyyy-MM-dd");
+
+export default function CurrencyRatesPage() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [formOpen, setFormOpen] = useState(false);
+  const [formState, setFormState] = useState({
+    baseCurrency: "USD",
+    quoteCurrency: "ZWL",
+    rate: "",
+    effectiveDate: today,
+  });
+
+  const { data: ratesData, isLoading, error } = useQuery({
+    queryKey: ["accounting", "currency"],
+    queryFn: () => fetchCurrencyRates({ limit: 200 }),
+  });
+
+  const rates = ratesData?.data ?? [];
+
+  const columns = useMemo<ColumnDef<CurrencyRateRecord>[]>(
+    () => [
+      {
+        id: "pair",
+        header: "Pair",
+        cell: ({ row }) => (
+          <span className="font-mono">
+            {row.original.baseCurrency}/{row.original.quoteCurrency}
+          </span>
+        ),
+        size: 280,
+        minSize: 220,
+        maxSize: 420},
+      {
+        id: "rate",
+        header: "Rate",
+        cell: ({ row }) => <NumericCell>{row.original.rate.toFixed(6)}</NumericCell>,
+        size: 88,
+        minSize: 88,
+        maxSize: 88},
+      {
+        id: "date",
+        header: "Effective Date",
+        cell: ({ row }) => (
+          <NumericCell align="left">
+            {format(new Date(row.original.effectiveDate), "yyyy-MM-dd")}
+          </NumericCell>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 128},
+    ],
+    [],
+  );
+
+  const createMutation = useMutation({
+    mutationFn: async (payload: Record<string, unknown>) =>
+      fetchJson("/api/accounting/currency", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      }),
+    onSuccess: () => {
+      toast({
+        title: "Rate created",
+        description: "Currency rate saved successfully.",
+        variant: "success",
+      });
+      setFormOpen(false);
+      setFormState({ baseCurrency: "USD", quoteCurrency: "ZWL", rate: "", effectiveDate: today });
+      queryClient.invalidateQueries({ queryKey: ["accounting", "currency"] });
+    },
+    onError: (err) => {
+      toast({
+        title: "Unable to create rate",
+        description: getApiErrorMessage(err),
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+
+    if (!formState.baseCurrency.trim() || !formState.quoteCurrency.trim() || !formState.rate) {
+      toast({
+        title: "Missing details",
+        description: "Base currency, quote currency, and rate are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    createMutation.mutate({
+      baseCurrency: formState.baseCurrency.trim(),
+      quoteCurrency: formState.quoteCurrency.trim(),
+      rate: Number(formState.rate),
+      effectiveDate: formState.effectiveDate,
+    });
+  };
+
+  return (
+    <AccountingShell
+      activeTab="currency"
+      title="Currency Rates"
+      description="what each currency was worth, and on which day"
+      bandSlot={<BandChip label="Rates" value={String(rates.length)} tone="mute" />}
+      actions={
+        <AccountingNewButton items={[{ label: "New Rate", icon: ArrowRightLeft, onClick: () => setFormOpen(true) }]} />
+      }
+    >
+      {error ? (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load currency rates</AlertTitle>
+          <AlertDescription>{getApiErrorMessage(error)}</AlertDescription>
+        </Alert>
+      ) : null}
+
+      <DataTable
+        data={rates}
+        columns={columns}
+        groupBy="baseCurrency"
+        searchPlaceholder="Search currency pairs"
+        searchSubmitLabel="Search"
+        pagination={{ enabled: true }}
+        emptyState={isLoading ? "Loading currency rates..." : "No currency rates found."}
+      />
+
+      <Sheet open={formOpen} onOpenChange={setFormOpen}>
+        <SheetContent size="md" className="w-full p-6">
+          <SheetHeader>
+            <SheetTitle>New Currency Rate</SheetTitle>
+            <SheetDescription>Add a new base/quote exchange rate.</SheetDescription>
+          </SheetHeader>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Base Currency *</label>
+                <Input
+                  value={formState.baseCurrency}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, baseCurrency: event.target.value }))
+                  }
+                  placeholder="USD"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Quote Currency *</label>
+                <Input
+                  value={formState.quoteCurrency}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, quoteCurrency: event.target.value }))
+                  }
+                  placeholder="ZWL"
+                  required
+                />
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <label className="block text-sm font-semibold mb-2">Rate *</label>
+                <Input
+                  type="number"
+                  min="0"
+                  step="0.000001"
+                  value={formState.rate}
+                  onChange={(event) => setFormState((prev) => ({ ...prev, rate: event.target.value }))}
+                  className="text-right font-mono"
+                  required
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2">Effective Date *</label>
+                <Input
+                  type="date"
+                  value={formState.effectiveDate}
+                  onChange={(event) =>
+                    setFormState((prev) => ({ ...prev, effectiveDate: event.target.value }))
+                  }
+                  required
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <Button type="submit" className="flex-1" disabled={createMutation.isPending}>
+                Save Rate
+              </Button>
+              <Button type="button" variant="outline" onClick={() => setFormOpen(false)}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </SheetContent>
+      </Sheet>
+    </AccountingShell>
+  );
+}

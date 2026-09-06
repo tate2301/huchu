@@ -12,7 +12,9 @@ commodity-billing.ts
 routes.ts, types.ts   the gold screens' routes and shared shapes
 api-client.ts    the browser's client
 components/      the gold and dashboard screens
-manifest.ts      id "gold"; requires people, books, records, workflow, documents
+manifest.ts      id "gold"; requires people, books, records, workflow, documents, notifications
+api/             the route handlers, on the paths a host serves them at
+pages/           the pages and layouts, on the paths a host serves them at
 ```
 
 Composed only into the enterprise host; never into a marketed product.
