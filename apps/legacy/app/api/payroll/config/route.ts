@@ -3,7 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 const updateSchema = z
   .object({
     payrollCycle: z.enum(["MONTHLY", "FORTNIGHTLY"]).optional(),

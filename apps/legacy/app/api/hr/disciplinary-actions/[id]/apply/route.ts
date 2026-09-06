@@ -3,7 +3,7 @@ import { z } from "zod"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { prisma } from "@corelithzw/db/client"
 
 const applySchema = z.object({

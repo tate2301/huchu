@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { ensureAutoPeriods } from "@/lib/payroll-periods"
 import { prisma } from "@corelithzw/db/client"
 

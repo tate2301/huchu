@@ -1,6 +1,6 @@
 import type { PayrollCycle, PrismaClient } from "@corelithzw/db"
 
-import { deriveCyclePeriodKey, deriveCycleWindow, nextCycleAnchor, startOfDayUtc } from "@/lib/workflow/periods"
+import { deriveCyclePeriodKey, deriveCycleWindow, nextCycleAnchor, startOfDayUtc } from "@corelithzw/module-workflow/periods"
 
 /**
  * Payroll periods, seeded ahead of time.

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { ensureApproverRole } from "@/lib/workflow/approvals";
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals";
 import { prisma } from "@corelithzw/db/client";
 
 const updateGoldPriceSchema = z.object({

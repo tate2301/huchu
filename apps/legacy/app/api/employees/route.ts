@@ -11,7 +11,7 @@ import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { toNumberOrZero } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { z } from "zod"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import {
   EMPLOYEE_POSITION_VALUES,
   getDefaultEmployeePosition,

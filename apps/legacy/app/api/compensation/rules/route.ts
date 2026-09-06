@@ -9,7 +9,7 @@ import {
 } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 const ruleSchema = z.object({
   name: z.string().trim().min(1).max(200),
   type: z.enum(["ALLOWANCE", "DEDUCTION"]),

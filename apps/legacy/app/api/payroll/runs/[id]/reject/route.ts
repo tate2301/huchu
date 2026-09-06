@@ -3,7 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 const rejectSchema = z.object({
   note: z.string().trim().min(1).max(1000),
 })

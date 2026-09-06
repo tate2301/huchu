@@ -8,7 +8,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { ensureApproverRole } from "@/lib/workflow/approvals";
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals";
 import { prisma } from "@corelithzw/db/client";
 
 const createGoldPriceSchema = z.object({

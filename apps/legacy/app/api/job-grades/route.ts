@@ -8,7 +8,7 @@ import {
   validateSession,
 } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
 
 const gradeSchema = z.object({

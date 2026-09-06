@@ -13,7 +13,7 @@ import {
   isTwoStepActionAllowed,
   normalizeWorkflowNote,
   type StandardWorkflowAction,
-} from "@/lib/workflow/approvals"
+} from "@corelithzw/module-workflow/approvals"
 
 /**
  * Submit, approve and reject, written once.

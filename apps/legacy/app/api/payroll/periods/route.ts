@@ -10,8 +10,8 @@ import {
 } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
-import { deriveCyclePeriodKey, deriveCycleWindow, monthPeriodKey, nextCycleAnchor } from "@/lib/workflow/periods"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
+import { deriveCyclePeriodKey, deriveCycleWindow, monthPeriodKey, nextCycleAnchor } from "@corelithzw/module-workflow/periods"
 import { ensureAutoPeriods } from "@/lib/payroll-periods"
 
 const periodSchema = z.object({

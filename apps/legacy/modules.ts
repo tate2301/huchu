@@ -15,11 +15,19 @@
  */
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
 import { registerModules, unmetModuleRequirements } from "@corelithzw/platform/manifest";
+import { manifest as workflow, onApprovalAction } from "@corelithzw/module-workflow";
 import { manifest as crm } from "@/lib/crm/manifest";
 
 registerAuthOptions(async () => (await import("@/lib/auth")).authOptions);
 
-registerModules([crm]);
+registerModules([workflow, crm]);
+
+// Code the modules hook into each other with, wired here and imported on first
+// use, so reading the composition costs nothing but the manifests. After an
+// approval action, for this host: the approvers are told.
+onApprovalAction(async (tx, event) =>
+  (await import("@/lib/notifications")).emitWorkflowNotificationFromApprovalAction(tx, event),
+);
 
 const unmet = unmetModuleRequirements();
 if (unmet.length > 0) {

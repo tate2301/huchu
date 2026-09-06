@@ -56,9 +56,9 @@ vi.mock("@corelithzw/db/client", () => ({
   prisma: prismaMock,
 }))
 
-vi.mock("@/lib/workflow/approvals", async () => {
-  const actual = await vi.importActual<typeof import("@/lib/workflow/approvals")>(
-    "@/lib/workflow/approvals",
+vi.mock("@corelithzw/module-workflow/approvals", async () => {
+  const actual = await vi.importActual<typeof import("@corelithzw/module-workflow/approvals")>(
+    "@corelithzw/module-workflow/approvals",
   )
 
   return {

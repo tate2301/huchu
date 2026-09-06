@@ -18,7 +18,7 @@ import {
   holidayKeysForSite,
 } from "@/lib/people/leave/working-days"
 import { prisma } from "@corelithzw/db/client"
-import { createApprovalAction } from "@/lib/workflow/approvals"
+import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 
 /**
  * Asking for time off.

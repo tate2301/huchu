@@ -5,7 +5,7 @@ import type { CompensationCalcMethod, CompensationRuleType } from "@corelithzw/d
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { writePlatformAuditEvent } from "@corelithzw/platform/audit/platform"
-import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { ensureHrPayrollDefaults } from "@/lib/hr/bootstrap"
 import {
   assembleSalaryRun,

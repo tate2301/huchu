@@ -33,7 +33,7 @@ import {
   tradingDayAsDate,
   tradingDayWindow,
 } from "@/lib/retail/z-report";
-import { createApprovalAction } from "@/lib/workflow/approvals";
+import { createApprovalAction } from "@corelithzw/module-workflow/approvals";
 import {
   auditCashMoved,
   auditSalePosted,

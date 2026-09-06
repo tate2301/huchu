@@ -3,7 +3,7 @@ import { errorResponse, successResponse, validateSession } from "@corelithzw/pla
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@corelithzw/db/client"
-import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 import { money, toBaseAmount, toNumberOrZero } from "@corelithzw/platform/money"
 
 export async function POST(

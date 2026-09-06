@@ -4,7 +4,7 @@ import { errorResponse, successResponse, validateSession } from "@corelithzw/pla
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@corelithzw/db/client"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 const patchSchema = z
   .object({
     method: z.enum(["CASH"]).optional(),

@@ -1,5 +1,5 @@
 import type { Prisma } from "@corelithzw/db"
-import { createApprovalAction } from "@/lib/workflow/approvals"
+import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 import { generateSettlementRunCode, type SettlementRunDraft } from "@/lib/settlements/runs"
 
 /**

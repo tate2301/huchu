@@ -4,7 +4,7 @@ import type {
   Prisma,
 } from "@corelithzw/db"
 import type { AuthenticatedSession } from "@corelithzw/platform/api-utils"
-import { emitWorkflowNotificationFromApprovalAction } from "@/lib/notifications"
+import { registry } from "@corelithzw/platform/registry"
 
 /**
  * The submit → approve → reject workflow, and its audit trail.
@@ -29,6 +29,36 @@ type ApprovalActionInput = {
   fromStatus?: string | null
   toStatus?: string | null
   note?: string | null
+}
+
+/**
+ * What happened, for whoever wants to know.
+ *
+ * Recording an approval action and telling people about it were one function,
+ * which made this module import the notifications module and, through it, the
+ * payroll, gold and settlement entities those notifications describe. Now the
+ * module records and fires; a host registers the listeners it composes
+ * (`onApprovalAction` from its `modules.ts`), and the notifications module is
+ * the first of them. Listeners run inside the caller's transaction, in
+ * registration order, so a workflow step is never recorded but silent.
+ */
+export type ApprovalActionEvent = Pick<
+  ApprovalActionInput,
+  "companyId" | "entityType" | "entityId" | "action" | "actedById"
+>
+
+export type ApprovalActionListener = (
+  tx: Prisma.TransactionClient,
+  event: ApprovalActionEvent,
+) => Promise<unknown>
+
+const listeners = registry<Set<ApprovalActionListener>>(
+  "workflow.approval-action-listeners",
+  () => new Set(),
+)
+
+export function onApprovalAction(listener: ApprovalActionListener) {
+  listeners.add(listener)
 }
 
 export type StandardWorkflowStatus =
@@ -86,9 +116,9 @@ export function isTwoStepActionAllowed(
 }
 
 /**
- * Write the audit row and notify.
+ * Write the audit row and tell the listeners.
  *
- * Both, always, and inside the caller's transaction. Splitting the notification
+ * Both, always, and inside the caller's transaction. Splitting the listeners
  * out would mean a workflow step that is recorded but silent, which is how an
  * approval waiting on someone goes unnoticed.
  */
@@ -109,11 +139,14 @@ export async function createApprovalAction(
     },
   })
 
-  await emitWorkflowNotificationFromApprovalAction(tx, {
+  const event: ApprovalActionEvent = {
     companyId: input.companyId,
     entityType: input.entityType,
     entityId: input.entityId,
     action: input.action,
     actedById: input.actedById,
-  })
+  }
+  for (const listener of listeners) {
+    await listener(tx, event)
+  }
 }

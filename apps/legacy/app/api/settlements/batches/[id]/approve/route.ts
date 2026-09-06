@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { prisma } from "@corelithzw/db/client"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"
-import { createApprovalAction, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
+import { createApprovalAction, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 
 /**
  * A settlement batch's status is `DisbursementBatchStatus`, which has a PAID

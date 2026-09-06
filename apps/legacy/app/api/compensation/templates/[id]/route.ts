@@ -3,7 +3,7 @@ import { z } from "zod"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { ensureApproverRole } from "@/lib/workflow/approvals"
+import { ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { EMPLOYEE_POSITION_VALUES } from "@corelithzw/platform/vertical-defaults"
 
 const patchTemplateSchema = z

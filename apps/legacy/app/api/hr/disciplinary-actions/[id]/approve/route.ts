@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
-import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole, isTwoStepActionAllowed } from "@corelithzw/module-workflow/approvals"
 import { prisma } from "@corelithzw/db/client"
 
 export async function POST(

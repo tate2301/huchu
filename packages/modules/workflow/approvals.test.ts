@@ -25,6 +25,7 @@
 
 import { describe, expect, it } from "vitest";
 import { execSync } from "node:child_process";
+import { resolve } from "node:path";
 import { readPrismaSchemaSource } from "@corelithzw/db/schema";
 
 import { $Enums } from "@corelithzw/db";
@@ -36,6 +37,9 @@ import { $Enums } from "@corelithzw/db";
  * delete the value from `enum ApprovalTargetType` in the schema.
  */
 const RETIRED_BUT_DECLARED = ["IRREGULAR_PAYOUT_BATCH"] as const;
+
+/** Every host and every module: the rule is product-wide, wherever the code lives. */
+const WORKSPACE_ROOT = resolve(__dirname, "../../..");
 
 describe("ApprovalTargetType", () => {
   it.each(RETIRED_BUT_DECLARED)("still declares the retired value %s", (value) => {
@@ -61,12 +65,12 @@ describe("ApprovalTargetType", () => {
     // purpose so the history screen can display old rows, and the schema and this
     // file both mention it.
     const hits = execSync(
-      `grep -rn "${value}" --include=*.ts --include=*.tsx app components lib || true`,
-      { cwd: process.cwd(), encoding: "utf8" },
+      `grep -rn "${value}" --include=*.ts --include=*.tsx --exclude-dir=node_modules --exclude-dir=.next apps packages || true`,
+      { cwd: WORKSPACE_ROOT, encoding: "utf8" },
     )
       .split("\n")
       .filter(Boolean)
-      .filter((line) => !line.startsWith("lib/workflow/approvals.test.ts"))
+      .filter((line) => !line.startsWith("packages/modules/workflow/approvals.test.ts"))
       // A quoted member of a union type, not an argument being passed.
       .filter((line) => !/^\S+:\d+:\s*\|\s*"/.test(line))
       .filter((line) => !/^\S+:\d+:\s*(\/\/|\*|\/\*)/.test(line));

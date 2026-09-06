@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
-import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { canTransitionStandardWorkflow, createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { prisma } from "@corelithzw/db/client"
 
 export async function POST(

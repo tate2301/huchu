@@ -11,7 +11,7 @@ import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { captureAccountingEvent } from "@/lib/accounting/integration"
 import { prisma } from "@corelithzw/db/client"
 import { generateDisbursementCode } from "@/lib/payroll/disbursements"
-import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { isZeroOrLess, money, sumMoney } from "@corelithzw/platform/money"
 import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 

@@ -12,7 +12,7 @@ import { money, rate, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"
 import { getSettlementSourceMeta, parseSettlementSource } from "@/lib/settlements/sources"
-import { createApprovalAction } from "@/lib/workflow/approvals"
+import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 
 /**
  * What is owed, before anyone decides to pay it.

@@ -6,7 +6,7 @@ import { money, sumMoney } from "@corelithzw/platform/money"
 import { prisma } from "@corelithzw/db/client"
 import { recordSettlementPayment } from "@/lib/settlements/payments"
 import { settlementPermissionDenial } from "@/lib/settlements/permissions"
-import { createApprovalAction } from "@/lib/workflow/approvals"
+import { createApprovalAction } from "@corelithzw/module-workflow/approvals"
 
 /**
  * Money out the door.

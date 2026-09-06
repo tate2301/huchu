@@ -17,7 +17,7 @@ import {
   HR_DOCUMENT_ACCESS,
   isHrDocumentSourceKey,
 } from "@/lib/documents/hr-sources";
-import { isApproverRole } from "@/lib/workflow/approvals";
+import { isApproverRole } from "@corelithzw/module-workflow/approvals";
 import { canSchoolRoleDo } from "@/lib/schools/permissions";
 import type { DocumentRenderRequest } from "@/lib/documents/service";
 

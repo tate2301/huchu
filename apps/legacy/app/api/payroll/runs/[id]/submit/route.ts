@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils"
 import { hrPermissionDenial } from "@/lib/hr/permissions"
 import { prisma } from "@corelithzw/db/client"
-import { createApprovalAction, ensureApproverRole } from "@/lib/workflow/approvals"
+import { createApprovalAction, ensureApproverRole } from "@corelithzw/module-workflow/approvals"
 import { createRouteLogger } from "@corelithzw/platform/observability/route-logger"
 
 export async function POST(
