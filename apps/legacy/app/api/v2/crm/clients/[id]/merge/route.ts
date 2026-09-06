@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { mergeClients } from "@/lib/crm/dedupe";
+import { mergeClients } from "@corelithzw/module-crm/dedupe";
 import { requireCrmCapability } from "../../../_helpers";
 
 const bodySchema = z.object({ mergeClientId: z.string().uuid() });

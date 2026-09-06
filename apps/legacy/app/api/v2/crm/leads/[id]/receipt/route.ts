@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { recordReceiptForLead } from "@/lib/crm/accounting-bridge";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { recordReceiptForLead } from "@corelithzw/module-crm/accounting-bridge";
 
 const bodySchema = z.object({
   invoiceDocumentId: z.string().uuid(),

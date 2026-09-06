@@ -21,7 +21,7 @@ import {
   workOrderCountsFromGroups,
   type WorkOrderCounts,
   type WorkOrderQueue,
-} from "@/lib/crm/work-orders";
+} from "@corelithzw/module-crm/work-orders";
 import { isCompanyUser } from "../_helpers";
 import { jobRecordRefs, recordJobActivity } from "./_shared";
 

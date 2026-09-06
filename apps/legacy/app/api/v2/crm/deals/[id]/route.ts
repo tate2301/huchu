@@ -3,16 +3,16 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
 import {
   buildCustomFieldValues,
   mergeCustomFields,
   type FieldDefinition,
 } from "@corelithzw/module-records/custom-fields";
-import { recordFieldChanges } from "@/lib/crm/history";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordFieldChanges } from "@corelithzw/module-crm/history";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 import { isCompanyUser } from "../../_helpers";
-import { recordFieldChanges as recordFieldDiff } from "@/lib/crm/field-history";
+import { recordFieldChanges as recordFieldDiff } from "@corelithzw/module-crm/field-history";
 
 // stageId and status are deliberately absent: a stage move has side effects
 // (stageEnteredAt, probability, won/lost stamps) and belongs to the stage

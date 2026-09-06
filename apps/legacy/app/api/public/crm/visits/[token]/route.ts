@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
-import { buildVisitBrief, isBriefExpired } from "@/lib/crm/visit-brief";
+import { buildVisitBrief, isBriefExpired } from "@corelithzw/module-crm/visit-brief";
 
 /**
  * A site visit, readable by whoever holds the link.

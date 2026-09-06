@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
-import { getApprovalByToken, respondToApproval } from "@/lib/crm/approvals";
+import { getApprovalByToken, respondToApproval } from "@corelithzw/module-crm/approvals";
 
 const respondSchema = z.object({
   action: z.enum(["APPROVE", "DECLINE"]),

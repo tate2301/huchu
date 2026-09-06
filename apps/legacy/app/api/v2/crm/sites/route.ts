@@ -10,9 +10,9 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
+import { listIdFilter, listRecordIds } from "@corelithzw/module-crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@corelithzw/module-records/custom-fields";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 import {
   boolParam,
   buildRecordOrderBy,
@@ -21,7 +21,7 @@ import {
   listParam,
   recordSortSchema,
   siteFiltersSchema,
-} from "@/lib/crm/records";
+} from "@corelithzw/module-crm/records";
 
 const createSiteSchema = z.object({
   ...recordMarkFields,

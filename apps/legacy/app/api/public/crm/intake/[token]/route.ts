@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
-import { parseIntakeFormConfig } from "@/lib/crm/intake-schema";
+import { parseIntakeFormConfig } from "@corelithzw/module-crm/intake-schema";
 
 /**
  * Public: fetch an active intake form's definition for rendering at /f/[token].

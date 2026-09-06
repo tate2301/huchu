@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { TasksRegisterContent } from "@/components/crm/tasks/tasks-register-content";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
+import { TasksRegisterContent } from "@corelithzw/module-crm/components/tasks/tasks-register-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { getRepPerformance } from "@/lib/crm/insights";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
-import { rangeToDates, REPORT_RANGES, type ReportRange } from "@/lib/crm/reports";
+import { getRepPerformance } from "@corelithzw/module-crm/insights";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
+import { rangeToDates, REPORT_RANGES, type ReportRange } from "@corelithzw/module-crm/reports";
 
 /** How much of a rep's book to put on one page before it stops being readable. */
 const SAMPLE = 20;

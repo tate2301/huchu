@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
 import { redirect } from "next/navigation";
 
-import { PipelineWorkspace } from "@/components/crm/records/pipeline-workspace";
+import { PipelineWorkspace } from "@corelithzw/module-crm/components/records/pipeline-workspace";
 import { authOptions } from "@/lib/auth";
 
 type SearchParams = Promise<Record<string, string | string[] | undefined>>;

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
 import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
-import { buildSubmissionSchema, parseIntakeFormConfig } from "@/lib/crm/intake-schema";
-import { ingestLead } from "@/lib/crm/intake-ingest";
+import { buildSubmissionSchema, parseIntakeFormConfig } from "@corelithzw/module-crm/intake-schema";
+import { ingestLead } from "@corelithzw/module-crm/intake-ingest";
 
 // Only accept photo URLs that came from our own blob store — arbitrary
 // external URLs would otherwise be rendered as <img> inside the CRM.

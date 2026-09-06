@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { checkRateLimit } from "@corelithzw/platform/auth-core/rate-limit";
-import { verifyApiKey } from "@/lib/crm/api-keys";
-import { ingestLead } from "@/lib/crm/intake-ingest";
+import { verifyApiKey } from "@corelithzw/module-crm/api-keys";
+import { ingestLead } from "@corelithzw/module-crm/intake-ingest";
 
 const webhookSchema = z
   .object({

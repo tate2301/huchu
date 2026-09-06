@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { WorkOrdersContent } from "@/components/crm/work-orders/work-orders-content";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
+import { WorkOrdersContent } from "@corelithzw/module-crm/components/work-orders/work-orders-content";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
 import { isCompanyUser } from "../_helpers";
 

@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 import "@/modules";
 import { groupSearchResults, SEARCH_TYPE_ORDER } from "@corelithzw/module-records/search-result";
 import { searchRecords, type SearchScope } from "@corelithzw/module-records/search";
-import { searchCrm } from "@/lib/crm/search";
+import { searchCrm } from "@corelithzw/module-crm/search";
 import { searchGold } from "@corelithzw/module-gold/gold/search";
 import { searchOperations } from "@corelithzw/module-gold/operations/search";
 import { searchPeople } from "@corelithzw/module-people/people/search";
@@ -20,7 +20,7 @@ import { searchSchools } from "@corelithzw/module-campus/search";
  * on every keystroke a school typed.
  */
 
-vi.mock("@/lib/crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
+vi.mock("@corelithzw/module-crm/search", () => ({ searchCrm: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-campus/search", () => ({ searchSchools: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-people/people/search", () => ({ searchPeople: vi.fn(async () => []) }));
 vi.mock("@corelithzw/module-gold/gold/search", () => ({ searchGold: vi.fn(async () => []) }));

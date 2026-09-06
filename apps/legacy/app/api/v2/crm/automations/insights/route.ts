@@ -2,13 +2,13 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { REPORT_RANGES, rangeToDates, type ReportRange } from "@/lib/crm/reports";
+import { REPORT_RANGES, rangeToDates, type ReportRange } from "@corelithzw/module-crm/reports";
 import {
   failureGroups,
   rulePerformance,
   runTotals,
   type RunRecord,
-} from "@/lib/crm/run-insights";
+} from "@corelithzw/module-crm/run-insights";
 
 /**
  * How the workflows have been behaving.

@@ -11,7 +11,7 @@
 import type { CrmActivityType, Prisma, PrismaClient } from "@corelithzw/db";
 
 import type { AuthenticatedSession } from "@corelithzw/platform/api-utils";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
 
 export const JOB_ACTION_INCLUDE = {

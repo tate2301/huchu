@@ -1,4 +1,4 @@
-import { VisitBriefContent } from "@/components/crm/public/visit-brief-content";
+import { VisitBriefContent } from "@corelithzw/module-crm/components/public/visit-brief-content";
 
 export const dynamic = "force-dynamic";
 

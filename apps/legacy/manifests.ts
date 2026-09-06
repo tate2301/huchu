@@ -21,7 +21,7 @@ import { manifest as stock } from "@corelithzw/module-stock/manifest";
 import { manifest as workflow } from "@corelithzw/module-workflow/manifest";
 import { manifest as books } from "@corelithzw/module-books/manifest";
 import { manifest as compliance } from "@corelithzw/module-compliance/manifest";
-import { manifest as crm } from "@/lib/crm/manifest";
+import { manifest as crm } from "@corelithzw/module-crm/manifest";
 import { manifest as gold } from "@corelithzw/module-gold/manifest";
 import { manifest as maintenance } from "@corelithzw/module-maintenance/manifest";
 import { manifest as people } from "@corelithzw/module-people/manifest";

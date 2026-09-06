@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { VIEW_ENTITY_KEYS } from "@/lib/crm/views-registry";
+import { VIEW_ENTITY_KEYS } from "@corelithzw/module-crm/views-registry";
 
 const createListSchema = z.object({
   entity: z.enum(VIEW_ENTITY_KEYS),

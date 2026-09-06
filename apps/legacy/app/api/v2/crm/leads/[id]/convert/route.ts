@@ -3,9 +3,9 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { convertLead, convertLeadSchema, splitName } from "@/lib/crm/conversion";
-import { findCompanyDuplicates, findPersonDuplicates } from "@/lib/crm/duplicates";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { convertLead, convertLeadSchema, splitName } from "@corelithzw/module-crm/conversion";
+import { findCompanyDuplicates, findPersonDuplicates } from "@corelithzw/module-crm/duplicates";
 
 /**
  * GET returns what the conversion screen needs to be filled in: the lead's

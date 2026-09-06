@@ -1,11 +1,11 @@
 import { z } from "zod";
 
 import type { AuthenticatedSession } from "@corelithzw/platform/api-utils";
-import type { CollabRecord } from "@/lib/crm/collaboration";
-import { canUser, type CrmCapability } from "@/lib/crm/permissions";
+import type { CollabRecord } from "@corelithzw/module-crm/collaboration";
+import { canUser, type CrmCapability } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
 
-export { crmLeadStageSchema } from "@/lib/crm/pipeline";
+export { crmLeadStageSchema } from "@corelithzw/module-crm/pipeline";
 
 export const crmDocumentLineSchema = z.object({
   description: z.string().trim().min(1).max(300),

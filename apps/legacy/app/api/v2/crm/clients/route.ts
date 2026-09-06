@@ -10,7 +10,7 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
+import { normalizeEmail, normalizePhoneE164 } from "@corelithzw/module-crm/phone";
 import { isCompanyUser } from "../_helpers";
 
 const createClientSchema = z.object({

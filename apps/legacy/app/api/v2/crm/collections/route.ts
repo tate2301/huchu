@@ -11,7 +11,7 @@ import {
   orderChaseList,
   summarizeAgeing,
   validateCollectionNote,
-} from "@/lib/crm/collections";
+} from "@corelithzw/module-crm/collections";
 
 /** What is still owed on an invoice, after payments, credits and write-offs. */
 function outstandingOf(invoice: {

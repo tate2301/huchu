@@ -4,9 +4,9 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
-import { buildFullName } from "@/lib/crm/conversion";
-import { normalizeName } from "@/lib/crm/duplicates";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { buildFullName } from "@corelithzw/module-crm/conversion";
+import { normalizeName } from "@corelithzw/module-crm/duplicates";
 import {
   IMPORT_FIELDS,
   MAX_IMPORT_ROWS,
@@ -17,7 +17,7 @@ import {
   parseImportNumber,
   type ImportEntity,
   type ImportPlan,
-} from "@/lib/crm/import";
+} from "@corelithzw/module-crm/import";
 
 const requestSchema = importMappingSchema.extend({
   csv: z.string().min(1).max(5_000_000),

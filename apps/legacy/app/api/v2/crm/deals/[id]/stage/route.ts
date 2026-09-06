@@ -3,10 +3,10 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { runAutomations } from "@/lib/crm/automation-runner";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { missingRequiredFields } from "@/lib/crm/pipelines";
-import { fieldLabel } from "@/lib/crm/history";
+import { runAutomations } from "@corelithzw/module-crm/automation-runner";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { missingRequiredFields } from "@corelithzw/module-crm/pipelines";
+import { fieldLabel } from "@corelithzw/module-crm/history";
 
 const bodySchema = z.object({
   stageId: z.string().uuid(),

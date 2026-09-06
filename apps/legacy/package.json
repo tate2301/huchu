@@ -43,6 +43,7 @@
     "@corelithzw/module-books": "workspace:*",
     "@corelithzw/module-campus": "workspace:*",
     "@corelithzw/module-compliance": "workspace:*",
+    "@corelithzw/module-crm": "workspace:*",
     "@corelithzw/module-documents": "workspace:*",
     "@corelithzw/module-gold": "workspace:*",
     "@corelithzw/module-maintenance": "workspace:*",

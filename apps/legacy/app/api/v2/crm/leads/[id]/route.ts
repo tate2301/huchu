@@ -1,11 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { scoreLead } from "@/lib/crm/lead-scoring";
+import { scoreLead } from "@corelithzw/module-crm/lead-scoring";
 import { prisma } from "@corelithzw/db/client";
-import { recordFieldChanges } from "@/lib/crm/history";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { crmLeadChannelSchema } from "@/lib/crm/views";
+import { recordFieldChanges } from "@corelithzw/module-crm/history";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { crmLeadChannelSchema } from "@corelithzw/module-crm/views";
 import {
   buildCustomFieldValues,
   mergeCustomFields,

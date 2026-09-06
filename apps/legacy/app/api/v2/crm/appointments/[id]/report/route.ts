@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { buildDefaultChecklist, siteVisitReportSchema } from "@/lib/crm/site-visits";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { buildDefaultChecklist, siteVisitReportSchema } from "@corelithzw/module-crm/site-visits";
 
 async function loadAppointment(companyId: string, id: string) {
   return prisma.crmAppointment.findFirst({

@@ -29,7 +29,7 @@ onApprovalAction(async (tx, event) =>
 );
 
 // The search box's arms: one per module with records worth typing at.
-registerSearchArm({ id: "crm", run: async (db, input) => (await import("@/lib/crm/search")).searchCrm(db, input) });
+registerSearchArm({ id: "crm", run: async (db, input) => (await import("@corelithzw/module-crm/search")).searchCrm(db, input) });
 registerSearchArm({
   id: "schools",
   run: async (db, input) => {

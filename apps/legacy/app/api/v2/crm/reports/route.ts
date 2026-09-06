@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
 import {
   REPORT_RANGES,
   bucketByPeriod,
@@ -17,7 +17,7 @@ import {
   winRate,
   type ReportRange,
   type StageChange,
-} from "@/lib/crm/reports";
+} from "@corelithzw/module-crm/reports";
 
 /**
  * The sales report.

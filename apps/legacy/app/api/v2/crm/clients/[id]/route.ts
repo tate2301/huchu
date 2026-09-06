@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { normalizeEmail, normalizePhoneE164 } from "@corelithzw/module-crm/phone";
 import { isCompanyUser } from "../../_helpers";
 
 const updateSchema = z.object({

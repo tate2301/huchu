@@ -8,7 +8,7 @@ import {
   allowedTransitions,
   scheduleWorkOrderSchema,
   transitionOutcome,
-} from "@/lib/crm/work-orders";
+} from "@corelithzw/module-crm/work-orders";
 import { isCompanyUser } from "../../../_helpers";
 import { canWorkJob, jobRecordRefs, loadJobForAction, recordJobActivity } from "../../_shared";
 

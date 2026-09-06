@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
-import { leadSortSchema } from "@/lib/crm/views";
-import { allowedViewTypes, VIEW_ENTITY_KEYS, type ViewEntity } from "@/lib/crm/views-registry";
+import { leadSortSchema } from "@corelithzw/module-crm/views";
+import { allowedViewTypes, VIEW_ENTITY_KEYS, type ViewEntity } from "@corelithzw/module-crm/views-registry";
 
 const createViewSchema = z.object({
   entity: z.enum(VIEW_ENTITY_KEYS).optional(),

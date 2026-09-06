@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { Prisma } from "@corelithzw/db";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { insightsRepFilter } from "@/lib/crm/scope";
+import { insightsRepFilter } from "@corelithzw/module-crm/scope";
 
 export async function GET(request: NextRequest) {
   try {

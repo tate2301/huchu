@@ -8,9 +8,9 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
-import { createTaskSchema, taskQueueWhere, type TaskQueue } from "@/lib/crm/tasks";
+import { createTaskSchema, taskQueueWhere, type TaskQueue } from "@corelithzw/module-crm/tasks";
 import { isCompanyUser } from "../_helpers";
 
 const QUEUES: TaskQueue[] = [

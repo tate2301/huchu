@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
 import { redirect } from "next/navigation";
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { CrmOverview } from "@/components/crm/crm-overview";
+import { CrmOverview } from "@corelithzw/module-crm/components/crm-overview";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmDashboardPage() {

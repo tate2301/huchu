@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { getSourceAttribution } from "@/lib/crm/insights";
+import { getSourceAttribution } from "@corelithzw/module-crm/insights";
 
 export async function GET(request: NextRequest) {
   try {

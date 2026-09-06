@@ -12,6 +12,7 @@ command-bar/      the command palette and its types (the host composes what it s
 breadcrumbs.tsx, guided-mode-toggle.tsx
 providers/        the session and appearance providers
 auth/             the login forms and the role gate
+permission-matrix.tsx   the capabilities-per-role editor the user-management and rep-settings screens render
 module-shell.tsx  the category rail and page band every module's screens sit in
 management.ts     the Management area's registry (modules, areas, labels) and its helpers
 management-shell, master-data-page, master-data-shell   the Management chrome and the master-data pattern

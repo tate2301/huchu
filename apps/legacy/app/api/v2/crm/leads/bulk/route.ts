@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { recordEditor } from "@/lib/crm/permissions";
-import { changeLeadStage, crmLeadStageSchema } from "@/lib/crm/pipeline";
+import { recordEditor } from "@corelithzw/module-crm/permissions";
+import { changeLeadStage, crmLeadStageSchema } from "@corelithzw/module-crm/pipeline";
 import { isCompanyUser } from "../../_helpers";
 
 const MAX_BULK_IDS = 100;

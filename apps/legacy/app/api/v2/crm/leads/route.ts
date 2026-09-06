@@ -9,17 +9,17 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { crmLeadStageSchema, defaultProbabilityForStage } from "@/lib/crm/pipeline";
-import { deriveLeadChannel } from "@/lib/crm/sources";
+import { crmLeadStageSchema, defaultProbabilityForStage } from "@corelithzw/module-crm/pipeline";
+import { deriveLeadChannel } from "@corelithzw/module-crm/sources";
 import {
   buildLeadOrderBy,
   buildLeadWhere,
   leadSortSchema,
   parseLeadFiltersFromParams,
-} from "@/lib/crm/views";
-import { autoAssignLead } from "@/lib/crm/auto-assign";
-import { runAutomations } from "@/lib/crm/automation-runner";
-import { scoreLead } from "@/lib/crm/lead-scoring";
+} from "@corelithzw/module-crm/views";
+import { autoAssignLead } from "@corelithzw/module-crm/auto-assign";
+import { runAutomations } from "@corelithzw/module-crm/automation-runner";
+import { scoreLead } from "@corelithzw/module-crm/lead-scoring";
 import { isCompanyUser } from "../_helpers";
 
 const createLeadSchema = z.object({

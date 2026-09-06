@@ -8,8 +8,8 @@ import {
   mergeCustomFields,
   type FieldDefinition,
 } from "@corelithzw/module-records/custom-fields";
-import { recordFieldChanges } from "@/lib/crm/history";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordFieldChanges } from "@corelithzw/module-crm/history";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 
 const updateSiteSchema = z.object({
   ...recordMarkFields,

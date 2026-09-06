@@ -10,11 +10,11 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
-import { extractDomain, findCompanyDuplicates } from "@/lib/crm/duplicates";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
+import { normalizeEmail, normalizePhoneE164 } from "@corelithzw/module-crm/phone";
+import { extractDomain, findCompanyDuplicates } from "@corelithzw/module-crm/duplicates";
+import { listIdFilter, listRecordIds } from "@corelithzw/module-crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@corelithzw/module-records/custom-fields";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 import {
   boolParam,
   buildCompanyWhere,
@@ -23,7 +23,7 @@ import {
   customFieldParams,
   listParam,
   recordSortSchema,
-} from "@/lib/crm/records";
+} from "@corelithzw/module-crm/records";
 import { isCompanyUser } from "../_helpers";
 
 const createCompanySchema = z.object({

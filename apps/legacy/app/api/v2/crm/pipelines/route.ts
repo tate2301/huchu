@@ -10,7 +10,7 @@ import {
   validateStages,
   type StageInput,
   type StageTemplate,
-} from "@/lib/crm/pipelines";
+} from "@corelithzw/module-crm/pipelines";
 import { requireCrmCapability } from "../_helpers";
 
 const createPipelineSchema = z.object({

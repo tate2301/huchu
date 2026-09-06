@@ -11,7 +11,7 @@ import {
   overviewLayoutSchema,
   type OverviewScope,
   type WidgetInstance,
-} from "@/lib/crm/widgets";
+} from "@corelithzw/module-crm/widgets";
 
 const scopeSchema = z.enum(OVERVIEW_SCOPES);
 

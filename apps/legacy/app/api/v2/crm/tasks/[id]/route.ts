@@ -3,14 +3,14 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
 import {
   CRM_TASK_OUTCOME_LABELS,
   nextOccurrence,
   outcomesForType,
   requiresOutcome,
   suggestsFollowUp,
-} from "@/lib/crm/tasks";
+} from "@corelithzw/module-crm/tasks";
 import { isCompanyUser } from "../../_helpers";
 
 const updateTaskSchema = z.object({

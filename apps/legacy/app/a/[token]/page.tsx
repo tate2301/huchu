@@ -1,4 +1,4 @@
-import { ApprovalContent } from "@/components/crm/public/approval-content";
+import { ApprovalContent } from "@corelithzw/module-crm/components/public/approval-content";
 
 export const dynamic = "force-dynamic";
 

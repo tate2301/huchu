@@ -4,8 +4,8 @@ import type { Prisma } from "@corelithzw/db";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
-import { automationSchema } from "@/lib/crm/automation";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { automationSchema } from "@corelithzw/module-crm/automation";
 
 const updateSchema = automationSchema.partial();
 

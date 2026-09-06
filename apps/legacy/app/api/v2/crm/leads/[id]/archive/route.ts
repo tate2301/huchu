@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
 
 /**
  * Put a lead away, or take it back out.

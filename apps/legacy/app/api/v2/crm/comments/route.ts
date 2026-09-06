@@ -9,7 +9,7 @@ import {
   commentAudience,
   createCommentSchema,
   type CollabRecord,
-} from "@/lib/crm/collaboration";
+} from "@corelithzw/module-crm/collaboration";
 import { extractMentionedUserIds, toPlainText } from "@corelithzw/module-records/rich-text";
 import {
   isValidReplyParent,
@@ -17,7 +17,7 @@ import {
   subjectFromEntity,
   subjectWhere,
 } from "@corelithzw/module-records/subject";
-import { emitCrmNotification } from "@/lib/notifications";
+import { emitCrmNotification } from "@corelithzw/module-crm/notifications";
 import { crmRecordExists } from "../_helpers";
 
 const authorSelect = { select: { id: true, name: true, email: true } } as const;

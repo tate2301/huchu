@@ -10,10 +10,10 @@ import {
 } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
 import { reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { ensureDefaultPipeline, firstOpenStage } from "@/lib/crm/pipelines";
-import { listIdFilter, listRecordIds } from "@/lib/crm/lists";
+import { ensureDefaultPipeline, firstOpenStage } from "@corelithzw/module-crm/pipelines";
+import { listIdFilter, listRecordIds } from "@corelithzw/module-crm/lists";
 import { buildCustomFieldValues, type FieldDefinition } from "@corelithzw/module-records/custom-fields";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 import {
   boolParam,
   buildDealWhere,
@@ -23,7 +23,7 @@ import {
   listParam,
   numberParam,
   recordSortSchema,
-} from "@/lib/crm/records";
+} from "@corelithzw/module-crm/records";
 import { isCompanyUser } from "../_helpers";
 
 const createDealSchema = z.object({

@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { canAskForSignOff, generateSignOffToken } from "@/lib/crm/sign-off";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { canAskForSignOff, generateSignOffToken } from "@corelithzw/module-crm/sign-off";
 
 /** Ask the client to sign the job off, or withdraw the request. */
 export async function POST(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

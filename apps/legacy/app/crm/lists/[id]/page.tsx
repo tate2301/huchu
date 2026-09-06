@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { ListDetailPage } from "@/components/crm/records/list-detail-page";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
+import { ListDetailPage } from "@corelithzw/module-crm/components/records/list-detail-page";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmListPage({

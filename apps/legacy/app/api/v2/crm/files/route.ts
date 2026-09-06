@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { fileOwnerSchema, recordFileSchema } from "@/lib/crm/record-files";
+import { fileOwnerSchema, recordFileSchema } from "@corelithzw/module-crm/record-files";
 import { subjectData, subjectFromFileOwner, subjectWhere } from "@corelithzw/module-records/subject";
 
 /**

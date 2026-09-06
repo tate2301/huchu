@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { insightsRepFilter } from "@/lib/crm/scope";
-import { getFunnel, getPipelineValue } from "@/lib/crm/insights";
+import { insightsRepFilter } from "@corelithzw/module-crm/scope";
+import { getFunnel, getPipelineValue } from "@corelithzw/module-crm/insights";
 
 function parseDateParam(value: string | null): Date | undefined {
   if (!value) return undefined;

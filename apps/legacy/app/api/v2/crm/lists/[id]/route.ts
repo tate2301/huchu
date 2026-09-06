@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
 
 const updateListSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),

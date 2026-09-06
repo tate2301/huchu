@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { DocumentsListContent } from "@/components/crm/documents/documents-list-content";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
+import { DocumentsListContent } from "@corelithzw/module-crm/components/documents/documents-list-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmQuotesPage() {

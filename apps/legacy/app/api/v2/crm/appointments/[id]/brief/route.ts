@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { generateBriefToken } from "@/lib/crm/visit-brief";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { generateBriefToken } from "@corelithzw/module-crm/visit-brief";
 
 /**
  * Share a visit, or stop sharing it.

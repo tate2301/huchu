@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { CRM_LEAD_STAGES } from "@/lib/crm/pipeline";
-import { buildLeadWhere, parseLeadFiltersFromParams } from "@/lib/crm/views";
+import { CRM_LEAD_STAGES } from "@corelithzw/module-crm/pipeline";
+import { buildLeadWhere, parseLeadFiltersFromParams } from "@corelithzw/module-crm/views";
 
 /**
  * Cards fetched per column. The board is for working the pipeline, not for

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { armedRules, type EnrolmentEntity } from "@/lib/crm/run-insights";
+import { armedRules, type EnrolmentEntity } from "@corelithzw/module-crm/run-insights";
 
 /**
  * What the workflows have done to this record, and what could still happen.

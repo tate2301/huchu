@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
+import { CRM_LEAD_CHANNELS } from "@corelithzw/module-crm/sources";
 import { requireCrmCapability } from "../_helpers";
 
 const createSchema = z.object({

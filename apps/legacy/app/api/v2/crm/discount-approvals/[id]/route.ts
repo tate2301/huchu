@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
-import { emitCrmNotification } from "@/lib/notifications";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
+import { emitCrmNotification } from "@corelithzw/module-crm/notifications";
 
 const decisionSchema = z.object({
   decision: z.enum(["APPROVED", "DECLINED"]),

@@ -3,13 +3,13 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
 import {
   WORK_ORDER_STATUS_LABELS,
   allowedTransitions,
   cancelWorkOrderSchema,
   transitionOutcome,
-} from "@/lib/crm/work-orders";
+} from "@corelithzw/module-crm/work-orders";
 import { jobRecordRefs, loadJobForAction, recordJobActivity } from "../../_shared";
 
 /**

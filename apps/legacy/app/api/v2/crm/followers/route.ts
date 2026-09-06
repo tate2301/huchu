@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { collabRecordSchema, type CollabRecord } from "@/lib/crm/collaboration";
+import { collabRecordSchema, type CollabRecord } from "@corelithzw/module-crm/collaboration";
 import { crmRecordExists, isCompanyUser } from "../_helpers";
 
 const followSchema = collabRecordSchema.extend({

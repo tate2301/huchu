@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { CrmPage } from "@/components/crm/crm-page";
-import { WorkflowRunsContent } from "@/components/crm/workflows/workflow-runs-content";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
+import { WorkflowRunsContent } from "@corelithzw/module-crm/components/workflows/workflow-runs-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmWorkflowRunsPage() {

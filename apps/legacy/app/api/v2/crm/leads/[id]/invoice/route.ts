@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { createInvoiceForLead } from "@/lib/crm/accounting-bridge";
-import { createOrRotateApproval } from "@/lib/crm/approvals";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { createInvoiceForLead } from "@corelithzw/module-crm/accounting-bridge";
+import { createOrRotateApproval } from "@corelithzw/module-crm/approvals";
 import { crmDocumentLineSchema } from "../../../_helpers";
 
 const bodySchema = z

@@ -2,9 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { changeLeadStage, crmLeadStageSchema } from "@/lib/crm/pipeline";
-import { runAutomations } from "@/lib/crm/automation-runner";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { changeLeadStage, crmLeadStageSchema } from "@corelithzw/module-crm/pipeline";
+import { runAutomations } from "@corelithzw/module-crm/automation-runner";
 
 const bodySchema = z.object({
   stage: crmLeadStageSchema,

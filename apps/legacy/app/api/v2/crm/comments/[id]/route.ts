@@ -3,8 +3,8 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
-import { updateCommentSchema } from "@/lib/crm/collaboration";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
+import { updateCommentSchema } from "@corelithzw/module-crm/collaboration";
 import { extractMentionedUserIds } from "@corelithzw/module-records/rich-text";
 
 const authorSelect = { select: { id: true, name: true, email: true } } as const;

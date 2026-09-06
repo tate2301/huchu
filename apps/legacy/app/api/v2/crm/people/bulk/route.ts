@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { recordEditor } from "@/lib/crm/permissions";
+import { recordEditor } from "@corelithzw/module-crm/permissions";
 
 const MAX_BULK_IDS = 100;
 

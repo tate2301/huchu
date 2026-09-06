@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import {
   PERSON_MERGE_FIELDS,
   mergeLists,
@@ -11,8 +11,8 @@ import {
   resolveMerge,
   validateMergePair,
   type FieldChoice,
-} from "@/lib/crm/merge";
-import { buildFullName } from "@/lib/crm/conversion";
+} from "@corelithzw/module-crm/merge";
+import { buildFullName } from "@corelithzw/module-crm/conversion";
 
 const mergeSchema = z.object({
   loserId: z.string().uuid(),

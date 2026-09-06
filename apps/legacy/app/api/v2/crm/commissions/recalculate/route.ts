@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { recalculatePeriod } from "@/lib/crm/commission-recalc";
+import { recalculatePeriod } from "@corelithzw/module-crm/commission-recalc";
 import { requireCrmCapability } from "../../_helpers";
 
 const bodySchema = z.object({

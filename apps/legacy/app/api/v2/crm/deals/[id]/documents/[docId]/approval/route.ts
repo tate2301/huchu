@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
-import { createOrRotateApproval } from "@/lib/crm/approvals";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
+import { createOrRotateApproval } from "@corelithzw/module-crm/approvals";
 
 const bodySchema = z.object({ expiresInDays: z.number().int().min(1).max(90).optional() });
 

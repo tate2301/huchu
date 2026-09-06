@@ -1,11 +1,11 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
 import { redirect } from "next/navigation";
 
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { ImportWizard } from "@/components/crm/import/import-wizard";
+import { ImportWizard } from "@corelithzw/module-crm/components/import/import-wizard";
 import { authOptions } from "@/lib/auth";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
 
 export default async function CrmImportPage() {
   const session = await getServerSession(authOptions);

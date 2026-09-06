@@ -4,7 +4,7 @@ import { validateSession, successResponse, errorResponse, getPaginationParams, p
 import { prisma } from "@corelithzw/db/client";
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 import { recalcSalesInvoiceBalance } from "@corelithzw/module-books/balances";
-import { onAccountingReceiptCreated } from "@/lib/crm/accounting-hooks";
+import { onAccountingReceiptCreated } from "@corelithzw/module-crm/accounting-hooks";
 
 const receiptSchema = z.object({
   invoiceId: z.string().uuid().optional(),

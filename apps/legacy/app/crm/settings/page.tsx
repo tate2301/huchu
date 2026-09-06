@@ -2,7 +2,7 @@ import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
 import { PageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { CrmSettingsShell } from "@/components/crm/crm-settings-shell";
+import { CrmSettingsShell } from "@corelithzw/module-crm/components/crm-settings-shell";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmSettingsPage() {

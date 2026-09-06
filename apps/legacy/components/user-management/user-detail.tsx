@@ -23,7 +23,7 @@ import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { PermissionMatrix } from "@/components/user-management/permission-matrix";
+import { PermissionMatrix } from "@corelithzw/shell/permission-matrix";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowLeft, RefreshCcw, ShieldCheck, Trash2, UserCheck, UserX } from "@corelithzw/ui/lib/icons";
 import { getAllowedUserRoleOptionsForWorkspace } from "@corelithzw/platform/vertical-roles";

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { ensureDefaultPipeline } from "@/lib/crm/pipelines";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
+import { ensureDefaultPipeline } from "@corelithzw/module-crm/pipelines";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
 
 /**
  * Cards fetched per column. The board is for working a pipeline, not for

@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
-import { CrmPage } from "@/components/crm/crm-page";
+import { CrmPage } from "@corelithzw/module-crm/components/crm-page";
 import { redirect } from "next/navigation";
-import { CrmFormBuilderContent } from "@/components/crm/crm-form-builder-content";
+import { CrmFormBuilderContent } from "@corelithzw/module-crm/components/crm-form-builder-content";
 import { authOptions } from "@/lib/auth";
 
 export default async function CrmFormBuilderPage({ params }: { params: Promise<{ id: string }> }) {

@@ -4,8 +4,8 @@ import type { Prisma } from "@corelithzw/db";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { createInvoiceForLead } from "@/lib/crm/accounting-bridge";
-import { canEditRecord, canUser, denialMessage } from "@/lib/crm/permissions";
+import { createInvoiceForLead } from "@corelithzw/module-crm/accounting-bridge";
+import { canEditRecord, canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import {
   clearInvoiceClaim,
   invoiceWorkOrderSchema,
@@ -20,7 +20,7 @@ import {
   writeInvoiceClaim,
   writeInvoiceLink,
   type WorkOrderInvoiceLink,
-} from "@/lib/crm/work-orders";
+} from "@corelithzw/module-crm/work-orders";
 import { jobRecordRefs, loadJobForAction, recordJobActivity } from "../../_shared";
 
 /**

@@ -3,18 +3,18 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { canEditRecord } from "@/lib/crm/permissions";
-import { normalizeEmail, normalizePhoneE164 } from "@/lib/crm/phone";
-import { extractDomain } from "@/lib/crm/duplicates";
+import { canEditRecord } from "@corelithzw/module-crm/permissions";
+import { normalizeEmail, normalizePhoneE164 } from "@corelithzw/module-crm/phone";
+import { extractDomain } from "@corelithzw/module-crm/duplicates";
 import {
   buildCustomFieldValues,
   mergeCustomFields,
   type FieldDefinition,
 } from "@corelithzw/module-records/custom-fields";
-import { recordFieldChanges } from "@/lib/crm/history";
-import { recordMarkFields } from "@/lib/crm/record-mark";
+import { recordFieldChanges } from "@corelithzw/module-crm/history";
+import { recordMarkFields } from "@corelithzw/module-crm/record-mark";
 import { isCompanyUser } from "../../_helpers";
-import { recordFieldChanges as recordFieldDiff } from "@/lib/crm/field-history";
+import { recordFieldChanges as recordFieldDiff } from "@corelithzw/module-crm/field-history";
 
 const updateCompanySchema = z.object({
   ...recordMarkFields,

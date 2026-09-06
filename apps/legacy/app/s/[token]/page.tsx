@@ -1,4 +1,4 @@
-import { SignOffContent } from "@/components/crm/public/sign-off-content";
+import { SignOffContent } from "@corelithzw/module-crm/components/public/sign-off-content";
 
 export const dynamic = "force-dynamic";
 

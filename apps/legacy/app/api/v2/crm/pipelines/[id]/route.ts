@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { stageInputSchema, validateStages } from "@/lib/crm/pipelines";
+import { stageInputSchema, validateStages } from "@corelithzw/module-crm/pipelines";
 import { requireCrmCapability } from "../../_helpers";
 
 const updatePipelineSchema = z.object({

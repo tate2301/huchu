@@ -2,10 +2,10 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { canUser, denialMessage } from "@/lib/crm/permissions";
+import { canUser, denialMessage } from "@corelithzw/module-crm/permissions";
 import { prisma } from "@corelithzw/db/client";
-import { hasCrmFullAccess } from "@/lib/crm/scope";
-import { leadSortSchema } from "@/lib/crm/views";
+import { hasCrmFullAccess } from "@corelithzw/module-crm/scope";
+import { leadSortSchema } from "@corelithzw/module-crm/views";
 
 const updateViewSchema = z.object({
   name: z.string().trim().min(1).max(80).optional(),

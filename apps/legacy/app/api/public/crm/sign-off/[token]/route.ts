@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { prisma } from "@corelithzw/db/client";
-import { buildSignOffJob, signOffSubmissionSchema } from "@/lib/crm/sign-off";
+import { buildSignOffJob, signOffSubmissionSchema } from "@corelithzw/module-crm/sign-off";
 
 /**
  * The job, for the person paying for it.

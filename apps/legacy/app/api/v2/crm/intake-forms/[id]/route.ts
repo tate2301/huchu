@@ -6,7 +6,7 @@ import {
   crmIntakeFieldsSchema,
   crmIntakeFormConfigSchema,
   crmIntakeServicesSchema,
-} from "@/lib/crm/intake-schema";
+} from "@corelithzw/module-crm/intake-schema";
 import { isCompanyUser, requireCrmCapability } from "../../_helpers";
 
 const updateSchema = z.object({

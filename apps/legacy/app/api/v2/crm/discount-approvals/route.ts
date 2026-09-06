@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { emitCrmNotification, getCrmManagerRecipients } from "@/lib/notifications";
+import { emitCrmNotification, getCrmManagerRecipients } from "@corelithzw/module-crm/notifications";
 
 const requestSchema = z.object({
   documentId: z.string().uuid(),
