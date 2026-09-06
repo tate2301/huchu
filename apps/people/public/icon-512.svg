@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Huchu icon">
+  <rect width="512" height="512" rx="120" fill="#0f172a" />
+  <rect x="52" y="52" width="408" height="408" rx="92" fill="#2563eb" />
+  <path d="M154 138h56v90h92v-90h56v236h-56v-96h-92v96h-56z" fill="#f8fafc" />
+</svg>

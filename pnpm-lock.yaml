@@ -534,6 +534,118 @@ importers:
         specifier: ^4.1.4
         version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
 
+  apps/people:
+    dependencies:
+      '@corelithzw/db':
+        specifier: workspace:*
+        version: link:../../packages/db
+      '@corelithzw/module-books':
+        specifier: workspace:*
+        version: link:../../packages/modules/books
+      '@corelithzw/module-compliance':
+        specifier: workspace:*
+        version: link:../../packages/modules/compliance
+      '@corelithzw/module-documents':
+        specifier: workspace:*
+        version: link:../../packages/modules/documents
+      '@corelithzw/module-notifications':
+        specifier: workspace:*
+        version: link:../../packages/modules/notifications
+      '@corelithzw/module-offline':
+        specifier: workspace:*
+        version: link:../../packages/modules/offline
+      '@corelithzw/module-people':
+        specifier: workspace:*
+        version: link:../../packages/modules/people
+      '@corelithzw/module-records':
+        specifier: workspace:*
+        version: link:../../packages/modules/records
+      '@corelithzw/module-workflow':
+        specifier: workspace:*
+        version: link:../../packages/modules/workflow
+      '@corelithzw/platform':
+        specifier: workspace:*
+        version: link:../../packages/platform
+      '@corelithzw/react':
+        specifier: ^0.4.1
+        version: 0.4.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@corelithzw/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
+      '@corelithzw/ui':
+        specifier: workspace:*
+        version: link:../../packages/ui
+      '@phosphor-icons/react':
+        specifier: ^2.1.10
+        version: 2.1.10(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@rtcamp/frappe-ui-react':
+        specifier: ^1.1.0
+        version: 1.1.0(@floating-ui/dom@1.7.5)(@tiptap/core@3.20.0(@tiptap/pm@3.20.0))(@tiptap/extension-code-block@3.20.0(@tiptap/core@3.20.0(@tiptap/pm@3.20.0))(@tiptap/pm@3.20.0))(@tiptap/extensions@3.20.0(@tiptap/core@3.20.0(@tiptap/pm@3.20.0))(@tiptap/pm@3.20.0))(@types/react-dom@19.2.3(@types/react@19.2.8))(@types/react@19.2.8)(highlight.js@11.11.1)
+      '@sparticuz/chromium':
+        specifier: ^143.0.4
+        version: 143.0.4
+      '@tanstack/react-query':
+        specifier: ^5.90.16
+        version: 5.90.19(react@19.2.3)
+      '@vercel/analytics':
+        specifier: ^2.0.1
+        version: 2.0.1(next@16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react@19.2.3)
+      dotenv:
+        specifier: ^17.2.3
+        version: 17.2.3
+      next:
+        specifier: 16.1.1
+        version: 16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      next-auth:
+        specifier: ^4.24.13
+        version: 4.24.13(next@16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      puppeteer-core:
+        specifier: ^24.37.5
+        version: 24.37.5
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+    devDependencies:
+      '@corelithzw/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+      '@svgr/webpack':
+        specifier: ^8.1.0
+        version: 8.1.0(typescript@5.9.3)
+      '@tailwindcss/postcss':
+        specifier: ^4
+        version: 4.1.18
+      '@types/node':
+        specifier: ^20
+        version: 20.19.30
+      '@types/react':
+        specifier: ^19
+        version: 19.2.8
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.8)
+      eslint:
+        specifier: ^9
+        version: 9.39.2(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.1
+        version: 16.1.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      tailwindcss:
+        specifier: ^4
+        version: 4.1.18
+      tw-animate-css:
+        specifier: ^1.4.0
+        version: 1.4.0
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+
   apps/sell:
     dependencies:
       '@corelithzw/db':

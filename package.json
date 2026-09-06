@@ -26,7 +26,9 @@
     "sell": "pnpm --filter @corelithzw/sell run",
     "dev:sell": "turbo run dev --filter=@corelithzw/sell",
     "crm": "pnpm --filter @corelithzw/crm run",
-    "dev:crm": "turbo run dev --filter=@corelithzw/crm"
+    "dev:crm": "turbo run dev --filter=@corelithzw/crm",
+    "people": "pnpm --filter @corelithzw/people run",
+    "dev:people": "turbo run dev --filter=@corelithzw/people"
   },
   "devDependencies": {
     "turbo": "2.10.12",
