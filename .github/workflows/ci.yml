@@ -93,9 +93,11 @@ jobs:
       # One package at a time here too: every package's tests share the one
       # service database, and two suites truncating and seeding it at once
       # fail each other (seen locally as the fiscalisation suite timing out
-      # while the books suite ran).
+      # while the books suite ran). `--continue` so a failing suite does not
+      # stop the ones after it from running: the step still fails, and the
+      # log shows every package's result rather than the first red one.
       - name: Test
-        run: pnpm turbo run test --concurrency=1 ${{ github.event_name == 'pull_request' && '--affected' || '' }}
+        run: pnpm turbo run test --concurrency=1 --continue ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
       # Runs even when a test failed, so one run answers both "do the tests
       # pass" and "does it build". The job still fails on either.
