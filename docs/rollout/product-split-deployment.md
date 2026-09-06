@@ -204,6 +204,12 @@ result, so a run still answers whether the app builds.
   (`packages/db`) are workspace packages the app imports by path. Each has its own
   `typecheck`, `lint` and `test` scripts; `pnpm test` at the root runs all of them. The kernel's
   own tests need the same `DATABASE_URL_TEST` as the app's (one of them provisions a company).
+- A module's route handlers and pages live in its package once it has been cut for a
+  product host (Campus first: `packages/modules/campus/api/**`, `packages/modules/campus/pages/**`);
+  the host's `app/` tree carries a generated one-line re-export for each, so the URLs, the
+  proxy's matchers and the gate audit are unchanged and production needs nothing. After adding
+  or renaming a route in such a module run `pnpm compose apps/legacy <module>` and commit the
+  regenerated files; the app's typecheck fails on a stale re-export rather than serving one.
 - `apps/legacy` typechecks in about the same time as before; the split schema alone does
   not shrink the type-check, because the app still imports the whole client. That gain
   arrives with per-package project references as modules are extracted (Phase 2).

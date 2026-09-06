@@ -11,6 +11,7 @@
     "test": "turbo run test",
     "test:e2e": "pnpm --filter @corelithzw/legacy run test:e2e",
     "legacy": "pnpm --filter @corelithzw/legacy run",
+    "compose": "node scripts/compose-host.mjs",
     "db:generate": "pnpm --filter @corelithzw/db run generate",
     "db:validate": "pnpm --filter @corelithzw/db run validate",
     "db:push": "pnpm --filter @corelithzw/db run push",

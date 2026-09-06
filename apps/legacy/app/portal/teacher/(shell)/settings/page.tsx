@@ -1,6 +1,2 @@
-import { TeacherSettingsScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-settings-screen";
-
-/** The teacher's own settings, and the school rules they sit under. */
-export default function TeacherSettingsPage() {
-  return <TeacherSettingsScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/settings/page";

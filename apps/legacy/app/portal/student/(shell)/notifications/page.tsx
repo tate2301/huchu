@@ -1,6 +1,2 @@
-import { StudentNotificationsScreen } from "@corelithzw/module-campus/components/portal/student/student-notifications-screen";
-
-/** What the school has told this pupil. Auth and chrome are the layout's job. */
-export default function StudentNotificationsPage() {
-  return <StudentNotificationsScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/notifications/page";

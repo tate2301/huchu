@@ -1,27 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { WelfareContent } from "@corelithzw/module-campus/components/boarding/welfare-content";
-import { authOptions } from "@/lib/auth";
-
-/**
- * Health, allergies and consent.
- *
- * Under Boarding because that is the band it is sold in and the persona that
- * needs it at two in the morning, but it covers day pupils too — an allergy
- * does not care whether a child sleeps at school.
- *
- * The heading lives inside the content component: its primary action is gated
- * on the signed-in person's grants, which a server component cannot ask.
- */
-export default async function WelfarePage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <WelfareContent />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/boarding/welfare/page";

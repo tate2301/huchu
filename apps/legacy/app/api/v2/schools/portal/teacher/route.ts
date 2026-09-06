@@ -1,6 +1,2 @@
-import { NextRequest } from "next/server";
-import { handleTeacherPortalGet } from "../../../portal/_handlers";
-
-export async function GET(request: NextRequest) {
-  return handleTeacherPortalGet(request);
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { GET } from "@corelithzw/module-campus/api/v2/schools/portal/teacher/route";

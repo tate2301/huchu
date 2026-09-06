@@ -1,6 +1,2 @@
-import { TeacherReportsScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-reports-screen";
-
-/** How the teacher's own classes are doing this term. */
-export default function TeacherReportsPage() {
-  return <TeacherReportsScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/reports/page";

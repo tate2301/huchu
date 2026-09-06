@@ -1,11 +1,2 @@
-import { StudentMarksScreen } from "@corelithzw/module-campus/components/portal/student/student-marks-screen";
-
-/**
- * The Marks tab.
- *
- * Auth, the pupil's record and the portal chrome are all the shell layout's
- * job, so this is the screen and nothing else.
- */
-export default function StudentMarksPage() {
-  return <StudentMarksScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/marks/page";

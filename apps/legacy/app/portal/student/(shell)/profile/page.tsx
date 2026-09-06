@@ -1,6 +1,2 @@
-import { StudentProfileScreen } from "@corelithzw/module-campus/components/portal/student/student-profile-screen";
-
-/** The pupil's own profile. Auth and chrome are the layout's job. */
-export default function StudentProfilePage() {
-  return <StudentProfileScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/profile/page";

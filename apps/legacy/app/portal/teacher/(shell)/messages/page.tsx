@@ -1,6 +1,2 @@
-import { TeacherMessagesScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-messages-screen";
-
-/** Conversations with families, about their children. */
-export default function TeacherMessagesPage() {
-  return <TeacherMessagesScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/messages/page";

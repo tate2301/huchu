@@ -1,6 +1,2 @@
-import { TeacherMeetingsScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-meetings-screen";
-
-/** The teacher's parents' evening: the slots, who booked them, and what is free. */
-export default function TeacherMeetingsPage() {
-  return <TeacherMeetingsScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/meetings/page";

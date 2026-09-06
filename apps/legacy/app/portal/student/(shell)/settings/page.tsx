@@ -1,6 +1,2 @@
-import { StudentSettingsScreen } from "@corelithzw/module-campus/components/portal/student/student-settings-screen";
-
-/** Sign-in and notifications, with what is not built named as such. */
-export default function StudentSettingsPage() {
-  return <StudentSettingsScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/settings/page";

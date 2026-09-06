@@ -1,5 +1,2 @@
-import { redirect } from "next/navigation";
-
-export default function SchoolsTeacherPortalAliasPage() {
-  redirect("/portal/teacher");
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/portal/teacher/page";

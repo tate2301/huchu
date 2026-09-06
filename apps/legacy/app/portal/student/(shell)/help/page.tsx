@@ -1,6 +1,2 @@
-import { StudentHelpScreen } from "@corelithzw/module-campus/components/portal/student/student-help-screen";
-
-/** Questions a pupil actually asks about this app. */
-export default function StudentHelpPage() {
-  return <StudentHelpScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/help/page";

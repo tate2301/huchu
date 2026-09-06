@@ -1,22 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { GoalsOversightContent } from "@corelithzw/module-campus/components/goals/goals-oversight-content";
-import { authOptions } from "@/lib/auth";
-
-export default async function SchoolsGoalsPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
-        title="Subject targets"
-        description="What each pupil is aiming for this term, and which pupils nobody has set a target for."
-      />
-      <GoalsOversightContent />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/goals/page";

@@ -1,6 +1,2 @@
-import { TeacherMarksBookScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-marks-book-screen";
-
-/** Where every child stands this term, for the class the rail has selected. */
-export default function TeacherMarksBookPage() {
-  return <TeacherMarksBookScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/marks-book/page";

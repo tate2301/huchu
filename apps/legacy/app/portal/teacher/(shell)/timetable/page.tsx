@@ -1,6 +1,2 @@
-import { TeacherTimetableScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-timetable-screen";
-
-/** The teacher's own week — days across, periods down, free periods included. */
-export default function TeacherTimetablePage() {
-  return <TeacherTimetableScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/timetable/page";

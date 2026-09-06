@@ -1,6 +1,2 @@
-import { TeacherProfileScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-profile-screen";
-
-/** Who the teacher is, as the school holds it. Auth and chrome are the layout's job. */
-export default function TeacherProfilePage() {
-  return <TeacherProfileScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/profile/page";

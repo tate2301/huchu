@@ -1,25 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { PageHeading } from "@corelithzw/ui/layout/page-heading";
-import { FeesGradePicker } from "@corelithzw/module-campus/components/fees/fees-grade-picker";
-import { authOptions } from "@/lib/auth";
-
-/**
- * Fees start with "whose fees?" — S-4.6, the same shape students, attendance and
- * results already have. The year group is the route; the ledger it used to open
- * with lives at `/schools/finance/ledger`.
- */
-export default async function SchoolsFinancePage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading title="Fees and finance" />
-      <FeesGradePicker />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/finance/page";

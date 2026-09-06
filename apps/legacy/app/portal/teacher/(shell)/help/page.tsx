@@ -1,6 +1,2 @@
-import { TeacherHelpScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-help-screen";
-
-/** How-to guides and frequently asked questions for the teacher portal. */
-export default function TeacherHelpPage() {
-  return <TeacherHelpScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/help/page";

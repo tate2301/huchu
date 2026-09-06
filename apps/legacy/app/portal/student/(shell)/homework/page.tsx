@@ -1,10 +1,2 @@
-import { StudentHomeworkScreen } from "@corelithzw/module-campus/components/portal/student/student-homework-screen";
-
-/**
- * Homework, reached from Home rather than a tab.
- *
- * Auth, the pupil's record and the portal chrome are the shell layout's job.
- */
-export default function StudentHomeworkPage() {
-  return <StudentHomeworkScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/student/(shell)/homework/page";

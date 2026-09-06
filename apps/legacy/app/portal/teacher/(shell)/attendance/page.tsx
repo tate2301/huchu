@@ -1,6 +1,2 @@
-import { TeacherRegisterScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-register-screen";
-
-/** Taking the register for the class the rail has selected. */
-export default function TeacherAttendancePage() {
-  return <TeacherRegisterScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/attendance/page";

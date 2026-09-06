@@ -1,21 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-
-import { TeacherRecordPage } from "@corelithzw/module-campus/components/records/teacher-record-page";
-import { authOptions } from "@/lib/auth";
-
-/** S-4.3 — a teacher is a record page. See the student route for why no heading. */
-export default async function TeacherRecordRoute({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  const { id } = await params;
-
-  return <TeacherRecordPage teacherId={id} />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/teachers/[id]/page";

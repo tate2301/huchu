@@ -1,10 +1,2 @@
-import { redirect } from "next/navigation";
-
-/**
- * The invoice list is one view of the ledger, which S-4.6 moved out of
- * `/schools/finance` when that became the year-group picker. Kept as a redirect
- * because links to it exist in the wild.
- */
-export default function SchoolsFinanceInvoicesPage() {
-  redirect("/schools/finance/ledger?view=invoices");
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/finance/invoices/page";

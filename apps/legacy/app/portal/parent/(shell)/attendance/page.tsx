@@ -1,6 +1,2 @@
-import { ParentAttendanceScreen } from "@corelithzw/module-campus/components/portal/parent/parent-attendance-screen";
-
-/** The shell's layout owns the guard and the household — see `(shell)/layout.tsx`. */
-export default function Page() {
-  return <ParentAttendanceScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/parent/(shell)/attendance/page";

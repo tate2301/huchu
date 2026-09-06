@@ -1,14 +1,2 @@
-import { redirect } from "next/navigation";
-
-/**
- * A class record moved with its list. The id is kept through the redirect so
- * an existing link to one class still lands on that class.
- */
-export default async function ClassRecordRoute({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-  redirect(`/management/master-data/schools/classes/${id}`);
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/classes/[id]/page";

@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-
-/** Classes moved to Master Data. Links to this route exist in the wild. */
-export default function SchoolsClassesPage() {
-  redirect("/management/master-data/schools/classes");
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/classes/page";

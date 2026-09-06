@@ -1,24 +1,2 @@
-import { getServerSession } from "next-auth";
-import { redirect } from "next/navigation";
-import { SchoolsNoticesContent } from "@corelithzw/module-campus/components/notices/schools-notices-content";
-import { authOptions } from "@/lib/auth";
-
-/**
- * What the school has told people.
- *
- * The heading and the send verb are inside the client component: the one
- * primary action here opens the compose dialog, and a heading in this file
- * could not reach the state that dialog runs on.
- */
-export default async function SchoolsNoticesPage() {
-  const session = await getServerSession(authOptions);
-  if (!session?.user) {
-    redirect("/login");
-  }
-
-  return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <SchoolsNoticesContent />
-    </div>
-  );
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/notices/page";

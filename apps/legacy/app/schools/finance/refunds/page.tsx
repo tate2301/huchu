@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-
-/** Kept as a redirect because links to it exist in the wild. */
-export default function SchoolsFinanceRefundsPage() {
-  redirect("/schools/finance/ledger?view=refunds");
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/finance/refunds/page";

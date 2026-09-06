@@ -1,6 +1,2 @@
-import { redirect } from "next/navigation";
-
-/** Identity settings moved to Master Data > School Records. */
-export default function SchoolsIdentityPage() {
-  redirect("/management/master-data/schools/identity");
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/schools/academics/identity/page";

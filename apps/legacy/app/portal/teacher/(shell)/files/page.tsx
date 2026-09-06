@@ -1,6 +1,2 @@
-import { TeacherFilesScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-files-screen";
-
-/** The department's teaching resources, and the teacher's own drafts. */
-export default function TeacherFilesPage() {
-  return <TeacherFilesScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/files/page";

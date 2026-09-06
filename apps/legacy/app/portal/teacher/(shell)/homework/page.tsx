@@ -1,6 +1,2 @@
-import { TeacherHomeworkScreen } from "@corelithzw/module-campus/components/portal/teacher/teacher-homework-screen";
-
-/** What the teacher has set, and what has come back. */
-export default function TeacherHomeworkPage() {
-  return <TeacherHomeworkScreen />;
-}
+// Composed from @corelithzw/module-campus by scripts/compose-host.mjs; edit the module, then run it again.
+export { default } from "@corelithzw/module-campus/pages/portal/teacher/(shell)/homework/page";
