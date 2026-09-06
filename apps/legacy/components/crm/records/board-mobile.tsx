@@ -4,7 +4,7 @@ import { useState, type ReactNode } from "react";
 
 import { EmptyState } from "@corelithzw/react";
 
-import { RecordList, type RecordListRow } from "./record-list";
+import { RecordList, type RecordListRow } from "@corelithzw/module-records/components/record-list";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 /**

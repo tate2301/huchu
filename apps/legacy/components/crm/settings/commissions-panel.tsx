@@ -20,7 +20,7 @@ import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Plus, X } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SetupPanel } from "./setup-chrome";
+import { SetupPanel } from "@corelithzw/ui/layout/setup-chrome";
 
 type Basis = "INVOICED" | "PAID";
 

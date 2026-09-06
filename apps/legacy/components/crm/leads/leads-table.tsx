@@ -33,7 +33,7 @@ import { cn } from "@corelithzw/ui/lib/utils";
 
 import { EntityLink } from "@corelithzw/module-records/components/entity-link";
 import { RecordMark } from "@corelithzw/module-records/components/record-mark";
-import { RecordList, RecordListPager } from "@/components/crm/records/record-list";
+import { RecordList, RecordListPager } from "@corelithzw/module-records/components/record-list";
 import {
   RecordTable,
   RecordTableName,

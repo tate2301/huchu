@@ -15,6 +15,7 @@ import { areaLabels, areaNavItems, managementModuleItems } from "@/lib/settings/
 import { manifest as notifications } from "@corelithzw/module-notifications/manifest";
 import { manifest as documents } from "@corelithzw/module-documents/manifest";
 import { manifest as records } from "@corelithzw/module-records/manifest";
+import { manifest as stock } from "@corelithzw/module-stock/manifest";
 import { manifest as workflow } from "@corelithzw/module-workflow/manifest";
 import { manifest as books } from "@corelithzw/module-books/manifest";
 import { manifest as compliance } from "@/lib/compliance/manifest";
@@ -24,7 +25,7 @@ import { manifest as maintenance } from "@/lib/maintenance/manifest";
 import { manifest as people } from "@corelithzw/module-people/manifest";
 import { manifest as schools } from "@/lib/schools/manifest";
 
-registerModules([workflow, notifications, records, documents, books, crm, schools, people, gold, compliance, maintenance]);
+registerModules([workflow, notifications, records, documents, books, stock, crm, schools, people, gold, compliance, maintenance]);
 
 // The navigation model is data the host still owns; the chrome reads it here.
 registerNavigationSections(navSections);

@@ -6,7 +6,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Alert, EmptyState, KpiGrid, RowCard, Skeleton, StatHero } from "@corelithzw/react";
 
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
+import { fetchInventoryItems, fetchStockMovements } from "../api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ChevronRight } from "@corelithzw/ui/lib/icons";
 

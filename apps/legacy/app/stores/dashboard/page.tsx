@@ -2,8 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { StoresShell } from "@/components/stores/stores-shell";
-import { StockOverview } from "@/components/stores/stock-overview";
+import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
+import { StockOverview } from "@corelithzw/module-stock/components/stock-overview";
 
 export default function StoresDashboardPage() {
   const siteId = useSearchParams().get("siteId") ?? undefined;

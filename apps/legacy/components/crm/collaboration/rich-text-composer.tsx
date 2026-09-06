@@ -15,12 +15,12 @@ import {
   toggleMarker,
   togglePrefix,
   type Reference,
-} from "@/lib/crm/rich-text";
+} from "@corelithzw/module-records/rich-text";
 import { Eye, ListBullets, Smiley, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 import { referenceChipElement } from "./reference-chip";
-import { RichTextRenderer } from "./rich-text-renderer";
+import { RichTextRenderer } from "@corelithzw/module-records/components/rich-text-renderer";
 
 type TeamResponse = { data: { id: string; name: string | null; email: string }[] };
 type SearchResponse = {

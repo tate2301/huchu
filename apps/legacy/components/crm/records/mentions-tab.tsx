@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 
 import { EmptyState, Skeleton, Stack } from "@corelithzw/react";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
-import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
+import { RichTextRenderer } from "@corelithzw/module-records/components/rich-text-renderer";
 import { fetchJson } from "@corelithzw/platform/api-client";
 
 import { EntityLink } from "@corelithzw/module-records/components/entity-link";

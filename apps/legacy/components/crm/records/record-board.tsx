@@ -30,7 +30,7 @@ import { cn } from "@corelithzw/ui/lib/utils";
 
 import { BoardColumnHeader } from "./board-column-header";
 import { MobileBoard } from "./board-mobile";
-import type { RecordListRow } from "./record-list";
+import type { RecordListRow } from "@corelithzw/module-records/components/record-list";
 
 const DROP_ANIMATION: DropAnimation = {
   duration: 220,

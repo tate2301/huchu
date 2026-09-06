@@ -5,7 +5,7 @@ import { errorResponse, successResponse, validateSession } from "@corelithzw/pla
 import { prisma } from "@corelithzw/db/client";
 import { hasCrmFullAccess } from "@/lib/crm/scope";
 import { updateCommentSchema } from "@/lib/crm/collaboration";
-import { extractMentionedUserIds } from "@/lib/crm/rich-text";
+import { extractMentionedUserIds } from "@corelithzw/module-records/rich-text";
 
 const authorSelect = { select: { id: true, name: true, email: true } } as const;
 

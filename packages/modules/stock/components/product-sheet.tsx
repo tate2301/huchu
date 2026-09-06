@@ -13,7 +13,7 @@ import {
   UNIT_LABELS,
   isStockable,
   type CatalogueProduct,
-} from "@/lib/inventory/catalogue";
+} from "../catalogue";
 
 export type ProductRecord = CatalogueProduct & {
   category: string | null;

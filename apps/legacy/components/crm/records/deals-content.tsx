@@ -24,7 +24,7 @@ import { useVisibleColumns, type ColumnOption } from "@corelithzw/ui/lib/ui/visi
 import { DealFormSheet } from "./deal-form-sheet";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { RecordListShell } from "./record-list-shell";
-import { RecordList, RecordListPager } from "./record-list";
+import { RecordList, RecordListPager } from "@corelithzw/module-records/components/record-list";
 import {
   RecordTable,
   RecordTableName,

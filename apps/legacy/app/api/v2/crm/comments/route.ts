@@ -10,7 +10,7 @@ import {
   createCommentSchema,
   type CollabRecord,
 } from "@/lib/crm/collaboration";
-import { extractMentionedUserIds, toPlainText } from "@/lib/crm/rich-text";
+import { extractMentionedUserIds, toPlainText } from "@corelithzw/module-records/rich-text";
 import {
   isValidReplyParent,
   subjectData,

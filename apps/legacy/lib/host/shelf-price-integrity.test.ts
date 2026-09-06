@@ -53,7 +53,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { money, percent } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
-import { priceProduct, type PricedProduct } from "@/lib/inventory/catalogue-service";
+import { priceProduct, type PricedProduct } from "@corelithzw/module-stock/catalogue-service";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 
 /**

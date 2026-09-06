@@ -6,7 +6,6 @@ import {
   extractReferences,
   insertReference,
   parseInline,
-  referenceHref,
   segmentRichText,
   toPlainText,
   togglePrefix,
@@ -131,27 +130,10 @@ describe("parseInline", () => {
   });
 });
 
-describe("referenceHref", () => {
-  it("sends a person mention to the rep page, not the contact page", () => {
-    // A mention is a colleague; a person reference is a customer contact. They
-    // are different records and the same id would open the wrong one.
-    expect(referenceHref({ kind: "user", id: USER, label: "Ada" })).toBe(`/crm/reps/${USER}`);
-    expect(referenceHref({ kind: "person", id: USER, label: "Ada" })).toBe(
-      `/crm/people/${USER}`,
-    );
-  });
-
-  it("sends a school reference to the record page S-4.3 built", () => {
-    // Through `lib/records/registry.ts`, so a route change moves the mention
-    // with the page rather than leaving a link that 404s.
-    expect(referenceHref({ kind: "student", id: USER, label: "Tendai" })).toBe(
-      `/schools/students/${USER}`,
-    );
-    expect(referenceHref({ kind: "class", id: USER, label: "Form 2 Blue" })).toBe(
-      `/management/master-data/schools/classes/${USER}`,
-    );
-  });
-
+// Where a reference sends the reader is the record registry's answer, and the
+// registry is filled by a host's manifests; the href cases live in the host
+// (`apps/legacy/lib/host/rich-text-references.test.ts`).
+describe("references", () => {
   it("reads a school reference somebody typed", () => {
     const segments = segmentRichText(`Sat with @[Form 2 Blue](class:${USER})`);
     expect(segments[1]).toEqual({

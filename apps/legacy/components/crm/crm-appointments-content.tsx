@@ -15,7 +15,7 @@ import {
   GroupedRecordList,
   bucketByDueDate,
   type RecordListSection,
-} from "@/components/crm/records/record-list-groups";
+} from "@corelithzw/module-records/components/record-list-groups";
 import { VisitReportSheet } from "@/components/crm/visits/visit-report-sheet";
 import { VisitScheduleSheet } from "@/components/crm/visits/visit-schedule-sheet";
 import type { LeadFilterOwner } from "@/components/crm/leads/leads-filters";

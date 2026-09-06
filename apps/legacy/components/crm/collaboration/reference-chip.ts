@@ -1,7 +1,7 @@
 import { accentFor } from "@corelithzw/react";
 
 import { chipToken, TOKEN_ATTRIBUTE } from "@/lib/crm/reference-dom";
-import type { Reference, ReferenceKind } from "@/lib/crm/rich-text";
+import type { Reference, ReferenceKind } from "@corelithzw/module-records/rich-text";
 
 /**
  * What a reference looks like inside the editor.

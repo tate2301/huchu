@@ -38,7 +38,7 @@ import {
 import type { CrmFieldEntity, CrmFieldType } from "@corelithzw/db";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SetupPanel } from "./setup-chrome";
+import { SetupPanel } from "@corelithzw/ui/layout/setup-chrome";
 
 type OptionDraft = { value: string; label: string };
 

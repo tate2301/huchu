@@ -23,7 +23,9 @@ import {
 } from "@corelithzw/ui/components/select";
 import { FormShell } from "@corelithzw/ui/shared/form-shell";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchEmployees, fetchInventoryItems, fetchSites } from "@/lib/api";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchEmployees } from "@corelithzw/module-people/directory";
+import { fetchInventoryItems } from "../api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 

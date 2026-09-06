@@ -18,7 +18,7 @@
 import type { Prisma } from "@corelithzw/db";
 
 import { normalizePhoneE164 } from "@/lib/crm/phone";
-import { PRODUCT_KIND_LABELS, UNIT_LABELS } from "@/lib/inventory/catalogue";
+import { PRODUCT_KIND_LABELS, UNIT_LABELS } from "@corelithzw/module-stock/catalogue";
 import {
   facts,
   pluralise,

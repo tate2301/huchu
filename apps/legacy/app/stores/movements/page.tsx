@@ -2,8 +2,8 @@
 
 import { useSearchParams } from "next/navigation";
 
-import { StoresShell } from "@/components/stores/stores-shell";
-import { StockMovementsFeed } from "@/components/stores/stock-movements-feed";
+import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
+import { StockMovementsFeed } from "@corelithzw/module-stock/components/stock-movements-feed";
 
 export default function StoresMovementsPage() {
   const siteId = useSearchParams().get("siteId") ?? undefined;

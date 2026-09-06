@@ -2,9 +2,9 @@
 
 import type { ReactNode } from "react";
 
-import { Card, CardContent, CardHeader, CardTitle } from "@corelithzw/ui/components/card";
-import type { LucideIcon } from "@corelithzw/ui/lib/icons";
-import { cn } from "@corelithzw/ui/lib/utils";
+import { Card, CardContent, CardHeader, CardTitle } from "../components/card";
+import type { LucideIcon } from "../lib/icons";
+import { cn } from "../lib/utils";
 
 /**
  * The three shapes every CRM setup section is drawn from.

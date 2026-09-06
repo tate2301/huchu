@@ -4,7 +4,7 @@ import { useMemo } from "react";
 
 import { isHistoryActivity, type FieldChange } from "@/lib/crm/history";
 
-import { HistoryFeed, type HistoryEvent } from "./history-feed";
+import { HistoryFeed, type HistoryEvent } from "@corelithzw/module-records/components/history-feed";
 
 /** Same rule `describeChange` uses: an unset field reads as a dash, not "null". */
 function emptyToNull(value: unknown): string | null {

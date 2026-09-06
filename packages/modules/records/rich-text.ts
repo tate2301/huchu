@@ -14,7 +14,7 @@
  * of every other thing you might want to do with the words later.
  */
 
-import { recordType } from "@corelithzw/module-records/registry";
+import { recordType } from "./registry";
 
 export const REFERENCE_KINDS = [
   "user",

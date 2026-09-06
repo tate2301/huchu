@@ -2,7 +2,7 @@
 
 import { useRef, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { StoresShell } from "@/components/stores/stores-shell";
+import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
 import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Button } from "@corelithzw/ui/components/button";

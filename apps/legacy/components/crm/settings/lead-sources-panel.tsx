@@ -34,7 +34,7 @@ import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
 import { CRM_CHANNEL_COLOR } from "@/lib/crm/tones";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SetupNote, SetupPanel, SetupStat } from "./setup-chrome";
+import { SetupNote, SetupPanel, SetupStat } from "@corelithzw/ui/layout/setup-chrome";
 
 export type LeadSourceRecord = {
   id: string;

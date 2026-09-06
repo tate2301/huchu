@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { richTextToPlain } from "@/lib/crm/rich-text";
+import { richTextToPlain } from "@corelithzw/module-records/rich-text";
 
 describe("richTextToPlain", () => {
   it("reads a mention as the person's name, not its token", () => {

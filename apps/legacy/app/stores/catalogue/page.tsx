@@ -1,8 +1,8 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { StoresShell } from "@/components/stores/stores-shell";
-import { CataloguePanel } from "@/components/inventory/catalogue-panel";
+import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
+import { CataloguePanel } from "@corelithzw/module-stock/components/catalogue-panel";
 import { authOptions } from "@/lib/auth";
 
 /**

@@ -2,7 +2,7 @@
 
 import { useMemo, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { StoresShell } from "@/components/stores/stores-shell";
+import { StoresShell } from "@corelithzw/module-stock/components/stores-shell";
 import { FrappeStatCard } from "@corelithzw/ui/charts/frappe-stat-card";
 import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";

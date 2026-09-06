@@ -21,7 +21,7 @@ import {
   RecordList,
   RecordListPager,
   type RecordListRow,
-} from "@/components/crm/records/record-list";
+} from "@corelithzw/module-records/components/record-list";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import {
   RecordCell,

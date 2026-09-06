@@ -5,7 +5,7 @@ import {
   type RetailTenderType,
 } from "@corelithzw/db";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { recordStockMovement } from "@corelithzw/module-stock/stock-movements";
 import {
   ZERO,
   exceeds,

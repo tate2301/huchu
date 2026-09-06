@@ -45,6 +45,7 @@
     "@corelithzw/module-notifications": "workspace:*",
     "@corelithzw/module-people": "workspace:*",
     "@corelithzw/module-records": "workspace:*",
+    "@corelithzw/module-stock": "workspace:*",
     "@corelithzw/module-workflow": "workspace:*",
     "@corelithzw/platform": "workspace:*",
     "@corelithzw/react": "^0.4.1",

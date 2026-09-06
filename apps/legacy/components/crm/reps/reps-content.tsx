@@ -7,7 +7,7 @@ import { Badge } from "@corelithzw/react";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { fetchCrmReps } from "@/lib/crm/crm-v2";
 
-import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";
+import { RecordList, type RecordListRow } from "@corelithzw/module-records/components/record-list";
 import { RecordMark } from "@corelithzw/module-records/components/record-mark";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { formatMoney } from "@/components/crm/documents/document-types";

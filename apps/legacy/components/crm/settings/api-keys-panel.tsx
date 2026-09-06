@@ -28,7 +28,7 @@ import { CopyLink, Lock, TriangleAlert } from "@corelithzw/ui/lib/icons";
 import { CRM_CHANNEL_LABELS, CRM_LEAD_CHANNELS } from "@/lib/crm/sources";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SetupNote, SetupPanel } from "./setup-chrome";
+import { SetupNote, SetupPanel } from "@corelithzw/ui/layout/setup-chrome";
 
 type ApiKey = {
   id: string;

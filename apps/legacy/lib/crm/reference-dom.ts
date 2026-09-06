@@ -2,7 +2,7 @@ import {
   referenceToken,
   segmentRichText,
   type Reference,
-} from "@/lib/crm/rich-text";
+} from "@corelithzw/module-records/rich-text";
 
 /**
  * The bridge between the stored body and what somebody types into.

@@ -9,7 +9,7 @@ import { DataTableFloatingActions } from "@corelithzw/ui/components/data-table-f
 import { ChevronRight } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { RecordCell, type RecordCellKind } from "@corelithzw/module-records/components/record-table";
+import { RecordCell, type RecordCellKind } from "./record-table";
 
 /**
  * The CRM record list.

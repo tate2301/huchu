@@ -42,7 +42,7 @@ import { STAGE_OUTCOME_TONE } from "@/lib/crm/tones";
 import { validateStages, type StageInput } from "@/lib/crm/pipelines";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SetupNote, SetupPanel } from "./setup-chrome";
+import { SetupNote, SetupPanel } from "@corelithzw/ui/layout/setup-chrome";
 
 /**
  * The stage dot. Open is the brand, and the two outcomes are the tones that

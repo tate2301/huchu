@@ -10,7 +10,7 @@ import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 import { Building2, Calendar, Coins, MapPin, UserRound } from "@corelithzw/ui/lib/icons";
 
 import { SiteFormSheet } from "./site-form-sheet";
-import { RecordList, RecordListPager, type RecordListRow } from "./record-list";
+import { RecordList, RecordListPager, type RecordListRow } from "@corelithzw/module-records/components/record-list";
 import { RecordTable, RecordTableName, type RecordTableColumn } from "@corelithzw/module-records/components/record-table";
 import { LayoutSwitch, type RecordLayout } from "./layout-switch";
 import { RecordMark } from "@corelithzw/module-records/components/record-mark";

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { priceEntrySchema, priceListSchema, validatePriceList } from "@/lib/inventory/catalogue";
+import { priceEntrySchema, priceListSchema, validatePriceList } from "@corelithzw/module-stock/catalogue";
 
 const updateSchema = priceListSchema.partial().extend({
   /** Replace the list's prices wholesale. */

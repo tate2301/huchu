@@ -5,7 +5,7 @@ import { Avatar } from "@corelithzw/react";
 
 import { Button } from "@corelithzw/ui/components/button";
 import { ChevronDown, ChevronRight, Download } from "@corelithzw/ui/lib/icons";
-import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
+import { RichTextRenderer } from "./rich-text-renderer";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 import { bucketByDate } from "./record-list-groups";

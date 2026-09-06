@@ -11,7 +11,7 @@ import { ViewToolbar } from "@corelithzw/module-records/components/view-toolbar"
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { fetchCrmTasks } from "@/lib/crm/crm-v2";
 import { Checklist, Plus } from "@corelithzw/ui/lib/icons";
-import { bucketByDueDate } from "@/components/crm/records/record-list-groups";
+import { bucketByDueDate } from "@corelithzw/module-records/components/record-list-groups";
 
 import { TaskFormSheet } from "./task-form-sheet";
 import { TaskList } from "./task-list";

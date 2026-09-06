@@ -3,7 +3,7 @@ import { Prisma } from "@corelithzw/db";
 import { z } from "zod";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator";
-import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { recordStockMovement } from "@corelithzw/module-stock/stock-movements";
 import { money, multiplyMoney, sumMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 import { auditGoodsReceived } from "@/lib/retail/audit";

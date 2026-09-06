@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { captureAccountingEvent } from "@corelithzw/module-books/integration";
 import { errorResponse, successResponse } from "@corelithzw/platform/api-response";
-import { recordStockMovement } from "@/lib/inventory/stock-movements";
+import { recordStockMovement } from "@corelithzw/module-stock/stock-movements";
 import { multiplyMoney, toNumberOrZero } from "@corelithzw/platform/money";
 import { requireRetailPermission } from "@/lib/retail/permissions";
 import {

@@ -22,7 +22,7 @@ import { Bell, BellRing, Check, PushPin, Trash2 } from "@corelithzw/ui/lib/icons
 import { cn } from "@corelithzw/ui/lib/utils";
 
 import { RichTextComposer } from "./rich-text-composer";
-import { RichTextRenderer } from "./rich-text-renderer";
+import { RichTextRenderer } from "@corelithzw/module-records/components/rich-text-renderer";
 
 function initials(name: string | null, email: string): string {
   const source = name?.trim() || email;

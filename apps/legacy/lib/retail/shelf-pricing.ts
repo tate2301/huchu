@@ -37,7 +37,7 @@
  * The parity test asserts no such listing exists; if one ever does, the shop
  * still trades and the fallback is visible in the payload rather than silent.
  */
-import { choosePriceList, resolvePrice, type PriceEntry } from "@/lib/inventory/catalogue";
+import { choosePriceList, resolvePrice, type PriceEntry } from "@corelithzw/module-stock/catalogue";
 import { money, percent, toNumberOrZero, type MoneyLike } from "@corelithzw/platform/money";
 import { prisma } from "@corelithzw/db/client";
 

@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { extractMentionedUserIds } from "@/lib/crm/rich-text";
+import { extractMentionedUserIds } from "@corelithzw/module-records/rich-text";
 import {
   isValidReplyParent,
   recordSubjectSchema,

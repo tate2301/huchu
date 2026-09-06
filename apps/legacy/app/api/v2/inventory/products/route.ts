@@ -4,8 +4,8 @@ import type { Prisma, ProductKind } from "@corelithzw/db";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { PRODUCT_KINDS, productSchema } from "@/lib/inventory/catalogue";
-import { priceProducts } from "@/lib/inventory/catalogue-service";
+import { PRODUCT_KINDS, productSchema } from "@corelithzw/module-stock/catalogue";
+import { priceProducts } from "@corelithzw/module-stock/catalogue-service";
 
 /**
  * The shared catalogue.

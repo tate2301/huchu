@@ -19,7 +19,7 @@ import { fetchCrmPeople } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@corelithzw/ui/hooks/use-debounced";
 
 import { PersonFormSheet } from "./person-form-sheet";
-import { RecordListPager, type RecordListRow } from "./record-list";
+import { RecordListPager, type RecordListRow } from "@corelithzw/module-records/components/record-list";
 import {
   RecordCell,
   RecordTable,
@@ -40,7 +40,7 @@ import {
   GroupedRecordList,
   bucketByLetter,
   type RecordListSection,
-} from "./record-list-groups";
+} from "@corelithzw/module-records/components/record-list-groups";
 import { RecordListShell } from "./record-list-shell";
 
 const PAGE_SIZE = 50;

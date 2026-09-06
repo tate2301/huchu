@@ -4,8 +4,8 @@ import type { Prisma } from "@corelithzw/db";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { productSchema } from "@/lib/inventory/catalogue";
-import { priceProduct } from "@/lib/inventory/catalogue-service";
+import { productSchema } from "@corelithzw/module-stock/catalogue";
+import { priceProduct } from "@corelithzw/module-stock/catalogue-service";
 
 const updateSchema = productSchema.partial().extend({
   /** Link this catalogue item to the stock record at a site. */

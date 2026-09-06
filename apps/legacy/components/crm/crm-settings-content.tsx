@@ -7,7 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import { Coins, Dataset, Funnel, Lock, Megaphone, Package, type LucideIcon } from "@corelithzw/ui/lib/icons";
 import { NavRail, NavRailItem } from "@corelithzw/ui/components/nav-rail";
-import { CataloguePanel } from "@/components/inventory/catalogue-panel";
+import { CataloguePanel } from "@corelithzw/module-stock/components/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";
 import { CustomFieldsPanel } from "@/components/crm/settings/custom-fields-panel";

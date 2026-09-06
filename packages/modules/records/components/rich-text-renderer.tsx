@@ -10,7 +10,7 @@ import {
   referenceHref,
   segmentRichText,
   type Reference,
-} from "@/lib/crm/rich-text";
+} from "../rich-text";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 /**

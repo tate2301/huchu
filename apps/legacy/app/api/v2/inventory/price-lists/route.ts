@@ -3,7 +3,7 @@ import { z } from "zod";
 
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
 import { prisma } from "@corelithzw/db/client";
-import { priceListSchema, validatePriceList } from "@/lib/inventory/catalogue";
+import { priceListSchema, validatePriceList } from "@corelithzw/module-stock/catalogue";
 
 export async function GET(request: NextRequest) {
   try {

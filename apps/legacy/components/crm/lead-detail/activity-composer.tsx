@@ -8,7 +8,7 @@ import { RichTextComposer } from "@/components/crm/collaboration/rich-text-compo
 import { SegmentedControl } from "@corelithzw/ui/components/segmented-control";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import { richTextToPlain } from "@/lib/crm/rich-text";
+import { richTextToPlain } from "@corelithzw/module-records/rich-text";
 
 const ACTIVITY_TYPES = [
   { value: "NOTE", label: "Note" },

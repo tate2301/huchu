@@ -9,7 +9,7 @@ import {
   type EventKind,
   eventKindStyle,
 } from "@/components/crm/records/event-kind";
-import { RichTextRenderer } from "@/components/crm/collaboration/rich-text-renderer";
+import { RichTextRenderer } from "@corelithzw/module-records/components/rich-text-renderer";
 import { cn } from "@corelithzw/ui/lib/utils";
 
 const PAGE_SIZE = 25;

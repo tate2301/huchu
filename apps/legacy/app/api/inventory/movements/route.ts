@@ -5,7 +5,7 @@ import { createJournalEntryFromSource } from '@corelithzw/module-books/posting';
 import { Prisma } from '@corelithzw/db';
 import { z } from 'zod';
 import { normalizeProvidedId } from '@corelithzw/platform/id-generator';
-import { recordStockMovement } from '@/lib/inventory/stock-movements';
+import { recordStockMovement } from '@corelithzw/module-stock/stock-movements';
 import { multiplyMoney, ZERO } from '@corelithzw/platform/money';
 
 const stockMovementSchema = z.object({
