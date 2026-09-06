@@ -5,7 +5,7 @@ import { Card, SegmentedControl } from "@corelithzw/react";
 import {
   type AppearancePreference,
   useAppearance,
-} from "@/components/providers/appearance-provider";
+} from "@corelithzw/shell/providers/appearance-provider";
 
 const appearanceOptions: Array<{
   value: AppearancePreference;

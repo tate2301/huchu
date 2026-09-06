@@ -1,6 +1,6 @@
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { LoginForm } from "@/components/auth/login-form";
+import { LoginForm } from "@corelithzw/shell/auth/login-form";
 import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/guards";
 import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
 import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";

@@ -2,9 +2,20 @@
 
 import * as React from "react";
 import { usePathname } from "next/navigation";
+import { useSession } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 
-import { Navbar } from "@/components/layout/navbar";
-import { AppSidebar } from "@/components/layout/app-sidebar";
+import { Navbar } from "@corelithzw/shell/navbar";
+import { AppSidebar } from "@corelithzw/shell/app-sidebar";
+import type { SidebarModelArgs } from "@corelithzw/shell/sidebar-model";
+import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
+import { CrmMembers } from "@/components/crm/crm-members";
+import { SidebarCrmCollections } from "@/components/crm/sidebar-crm-collections";
+import { NotificationCenter } from "@corelithzw/module-notifications/components/notification-center";
+import { OfflineStatusButton } from "@corelithzw/module-offline/components/offline-status-button";
+import { fetchStockLocations } from "@corelithzw/module-stock/api-client";
+import { canAccessCapabilityWithToken, hasTokenFeature } from "@corelithzw/platform/gating/token-check";
+import { getWorkspaceSidebarModel } from "@/lib/workspaces";
 import { PageChromeProvider } from "@corelithzw/ui/layout/page-chrome";
 import { SidebarInset, SidebarProvider } from "@corelithzw/ui/components/sidebar";
 import { OnboardingProvider } from "@/components/onboarding/onboarding-provider";
@@ -20,6 +31,33 @@ export function AppShell({
   hostPortalPath?: string | null;
 }) {
   const pathname = usePathname();
+  const { data: session } = useSession();
+  const enabledFeatures = (session?.user as { enabledFeatures?: string[] } | undefined)?.enabledFeatures;
+  // Which stock surfaces are worth offering depends on how the stock is laid
+  // out, and that is a fact about the tenant rather than about its plan — a
+  // transfer needs two active locations at one site before it has anywhere to
+  // go. Only asked for where a stock surface could appear at all.
+  const stockLocationsQuery = useQuery({
+    queryKey: ["stock-locations", "active"],
+    queryFn: () => fetchStockLocations({ active: true, limit: 200 }),
+    enabled: hasTokenFeature(enabledFeatures, "stores.inventory"),
+    staleTime: 5 * 60_000,
+  });
+  const activeStockLocationSiteIds = React.useMemo(
+    () => stockLocationsQuery.data?.data.map((location) => location.siteId),
+    [stockLocationsQuery.data],
+  );
+  const resolveSidebarModel = React.useCallback(
+    (args: SidebarModelArgs) => getWorkspaceSidebarModel({ ...args, activeStockLocationSiteIds }),
+    [activeStockLocationSiteIds],
+  );
+  const showNotificationCenter = canAccessCapabilityWithToken(
+    "notification.center.widget",
+    enabledFeatures,
+  ).allowed;
+  // The CRM is the one module that is genuinely a shared book, so it is the
+  // one that shows you who else is in it.
+  const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
   const isAuthRoute = pathname === "/login";
   // "/" is the marketing home on the marketing domain. On a tenant host the
   // root redirects before rendering, so it never reaches the shell.
@@ -55,7 +93,7 @@ export function AppShell({
   return (
     <PageChromeProvider>
       <SidebarProvider>
-        <AppSidebar />
+        <AppSidebar resolveModel={resolveSidebarModel} collections={<SidebarCrmCollections />} />
         {/* Flat: no inset margin, rounding or gutter. The framed card read as a
             window floating over a desktop, which cost space on every side.
             What it does carry is one crisp hairline on the seam it shares with
@@ -63,7 +101,16 @@ export function AppShell({
             at `--border` on white it was invisible. Drawn here as an inset
             shadow rather than a border so it costs no layout width. */}
         <SidebarInset className="flex h-[100dvh] min-h-[100dvh] flex-col overflow-hidden bg-surface-base border-l border-(--chrome-edge)">
-          <Navbar />
+          <Navbar
+            members={showMembers ? <CrmMembers className="mr-1" /> : null}
+            tools={
+              <>
+                <GlobalCommandBar />
+                <OfflineStatusButton />
+                {showNotificationCenter ? <NotificationCenter /> : null}
+              </>
+            }
+          />
           <main
             // One padding rule for every route now. The two exceptions were
             // CCTV (a full-bleed video wall, hence no vertical padding) and

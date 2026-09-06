@@ -3,7 +3,7 @@
 import Link from "next/link";
 import * as React from "react";
 
-import type { NavItem } from "@/lib/navigation";
+import type { NavItem } from "../navigation";
 import { MedusaCirclePlusIcon } from "@corelithzw/ui/lib/icons";
 import { cn } from "@corelithzw/ui/lib/utils";
 import {

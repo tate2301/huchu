@@ -20,6 +20,11 @@ export type NavigationItem = {
 
 export type NavigationGroup = { id: string; label: string };
 
+/** The hosts' names for the same shapes. */
+export type NavItem = NavigationItem;
+export type NavGroup = NavigationGroup;
+export type NavSection = NavigationSection;
+
 export type NavigationSection = {
   id: string;
   title: string;

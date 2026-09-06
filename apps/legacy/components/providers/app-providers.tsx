@@ -10,7 +10,7 @@ import { SessionProvider } from "next-auth/react"
 import type { Session } from "next-auth"
 
 import { OfflineChrome } from "@corelithzw/module-offline/components"
-import { AppearanceProvider } from "@/components/providers/appearance-provider"
+import { AppearanceProvider } from "@corelithzw/shell/providers/appearance-provider"
 import { OfflineProvider } from "@corelithzw/module-offline/components/offline-provider"
 import { TableExportProvider } from "@corelithzw/ui/lib/table-export"
 import { documentsTableExporter } from "@corelithzw/module-documents/table-exporter"

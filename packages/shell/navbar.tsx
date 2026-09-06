@@ -10,9 +10,8 @@ import {
 } from "react";
 import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
-import { useSession } from "next-auth/react";
 
-import { getCurrentPageTitle } from "@/components/layout/breadcrumbs";
+import { getCurrentPageTitle } from "./breadcrumbs";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -21,14 +20,9 @@ import {
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { SidebarTrigger } from "@corelithzw/ui/components/sidebar";
 import { usePageChrome } from "@corelithzw/ui/layout/page-chrome";
-import { GlobalCommandBar } from "@/components/layout/command-bar/global-command-bar";
-import { OfflineStatusButton } from "@corelithzw/module-offline/components/offline-status-button";
-import { CrmMembers } from "@/components/crm/crm-members";
-import { NotificationCenter } from "@corelithzw/module-notifications/components/notification-center";
 import { ArrowLeft, MoreHorizontal, type LucideIcon } from "@corelithzw/ui/lib/icons";
-import { navSections } from "@/lib/navigation";
+import { navigationSections } from "./navigation";
 import { cn } from "@corelithzw/ui/lib/utils";
-import { canAccessCapabilityWithToken } from "@corelithzw/platform/gating/token-check";
 
 /**
  * The icon the sidebar shows for this route, so a page that has not declared
@@ -37,7 +31,7 @@ import { canAccessCapabilityWithToken } from "@corelithzw/platform/gating/token-
  */
 function routeIcon(pathname: string): LucideIcon | undefined {
   let best: { length: number; icon: LucideIcon } | undefined;
-  for (const section of navSections) {
+  for (const section of navigationSections()) {
     for (const item of section.items) {
       if (pathname !== item.href && !pathname.startsWith(`${item.href}/`)) continue;
       if (!best || item.href.length > best.length) {
@@ -48,19 +42,19 @@ function routeIcon(pathname: string): LucideIcon | undefined {
   return best?.icon;
 }
 
-export function Navbar() {
+export function Navbar({
+  tools,
+  members,
+}: {
+  /** The quiet icons at the right: the command palette, the modules' status buttons. */
+  tools?: ReactNode;
+  /** Who else is in this book, shown on the wide layout when the host says so. */
+  members?: ReactNode;
+}) {
   const { actions, identity } = usePageChrome();
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
-  const { data: session } = useSession();
-  const enabledFeatures = (
-    session?.user as { enabledFeatures?: string[] } | undefined
-  )?.enabledFeatures;
-  const showNotificationCenter = canAccessCapabilityWithToken(
-    "notification.center.widget",
-    enabledFeatures,
-  ).allowed;
 
   const title = identity?.title ?? getCurrentPageTitle(pathname, view);
   // Held lowercase and rendered through `createElement`, the way the sidebar
@@ -68,9 +62,6 @@ export function Navbar() {
   // as a component defined during render, which would reset its state.
   const pageIcon = identity?.icon ?? routeIcon(pathname);
   const back = identity?.back;
-  // The CRM is the one module that is genuinely a shared book, so it is the
-  // one that shows you who else is in it.
-  const showMembers = pathname === "/crm" || pathname.startsWith("/crm/");
 
   return (
     // Sticky, so it is genuinely floating over the scrolling content: a crisp
@@ -115,9 +106,7 @@ export function Navbar() {
                 page's own action is set apart from them by a wider gap —
                 which is the only spacing in the row that means anything. */}
             <div className="flex shrink-0 items-center gap-0.5">
-              <GlobalCommandBar />
-              <OfflineStatusButton />
-              {showNotificationCenter ? <NotificationCenter /> : null}
+              {tools}
             </div>
             <MobileNavbarActions actions={actions} className="ml-1.5" />
           </div>
@@ -146,10 +135,8 @@ export function Navbar() {
             </div>
 
             <div className="flex shrink-0 items-center gap-2">
-              {showMembers ? <CrmMembers className="mr-1" /> : null}
-              <GlobalCommandBar />
-              <OfflineStatusButton />
-              {showNotificationCenter ? <NotificationCenter /> : null}
+              {members}
+              {tools}
               {actions ? (
                 <div className="flex items-center gap-2">{actions}</div>
               ) : null}

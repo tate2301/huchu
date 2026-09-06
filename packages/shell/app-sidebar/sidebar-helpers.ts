@@ -1,7 +1,7 @@
 "use client";
 
-import type { NavSection } from "@/lib/navigation";
-import type { WorkspaceNavSection } from "@/lib/workspaces";
+import type { NavSection } from "../navigation";
+import type { WorkspaceNavSection } from "../sidebar-model";
 import {
   Gem,
   Home,

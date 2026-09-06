@@ -1,7 +1,7 @@
 "use client";
 
 import { Home } from "@corelithzw/ui/lib/icons";
-import { PortalLoginForm } from "@/components/auth/portal-login-form";
+import { PortalLoginForm } from "@corelithzw/shell/auth/portal-login-form";
 
 export function ParentPortalLoginClient({
   companyLabel,

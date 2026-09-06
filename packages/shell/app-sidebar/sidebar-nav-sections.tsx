@@ -3,8 +3,8 @@
 import * as React from "react";
 import Link from "next/link";
 
-import type { NavItem } from "@/lib/navigation";
-import type { WorkspaceNavSection } from "@/lib/workspaces";
+import type { NavItem } from "../navigation";
+import type { WorkspaceNavSection } from "../sidebar-model";
 import {
   MedusaChevronDownIcon,
   MedusaChevronRightIcon,

@@ -1,6 +1,12 @@
 import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@corelithzw/module-books/tab-config";
 import { filterAccountingTabsByFeatures } from "@corelithzw/module-books/visibility";
-import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
+import type { NavGroup, NavItem, NavSection } from "@corelithzw/shell/navigation";
+import type {
+  SidebarModelArgs,
+  WorkspaceNavSection,
+  WorkspaceSectionGroup,
+  WorkspaceSidebarModel,
+} from "@corelithzw/shell/sidebar-model";
 import { getNavSectionsForRole, navSections } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@corelithzw/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
@@ -30,26 +36,9 @@ import { isRouteAllowedForRole } from "@corelithzw/platform/auth-core/role-route
 export { WORKSPACE_PROFILES };
 export type { WorkspaceModuleId, WorkspaceProfile };
 
-export type WorkspaceSectionGroup = "primary" | "additional";
+export type { WorkspaceNavSection, WorkspaceSectionGroup, WorkspaceSidebarModel };
 
-export type WorkspaceNavSection = NavSection & {
-  workspaceGroup?: WorkspaceSectionGroup;
-};
-
-export type WorkspaceSidebarModel = {
-  homeHref: string;
-  homeLabel: string;
-  workspaceLabel: string;
-  workspaceIcon: LucideIcon;
-  quickActions: NavItem[];
-  sections: WorkspaceNavSection[];
-  supportItems: NavItem[];
-};
-
-type WorkspaceModelArgs = {
-  role: string | null | undefined;
-  enabledFeatures: string[] | undefined;
-  workspaceProfile: string | null | undefined;
+export type WorkspaceModelArgs = SidebarModelArgs & {
   /**
    * The site each *active* stock location belongs to, one entry per location.
    *

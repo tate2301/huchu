@@ -3,13 +3,10 @@
 import * as React from "react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
-import { useQuery } from "@tanstack/react-query";
 
 import { useGuidedMode } from "@corelithzw/ui/hooks/use-guided-mode";
 import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@corelithzw/ui/lib/icons";
-import { fetchStockLocations } from "@/lib/api";
-import { hasTokenFeature } from "@corelithzw/platform/gating/token-check";
-import { getWorkspaceSidebarModel } from "@/lib/workspaces";
+import type { SidebarModelArgs, WorkspaceSidebarModel } from "./sidebar-model";
 import {
   Sidebar,
   SidebarContent,
@@ -19,14 +16,21 @@ import {
   SidebarRail,
   useSidebar,
 } from "@corelithzw/ui/components/sidebar";
-import { SidebarAccountMenu } from "@/components/layout/app-sidebar/sidebar-account-menu";
-import { getActiveNavHref } from "@/components/layout/app-sidebar/sidebar-helpers";
-import { SidebarNavSections } from "@/components/layout/app-sidebar/sidebar-nav-sections";
-import { SidebarCrmCollections } from "@/components/layout/app-sidebar/sidebar-crm-collections";
-import { SidebarQuickActions } from "@/components/layout/app-sidebar/sidebar-quick-actions";
-import { SidebarSupport } from "@/components/layout/app-sidebar/sidebar-support";
+import { SidebarAccountMenu } from "./app-sidebar/sidebar-account-menu";
+import { getActiveNavHref } from "./app-sidebar/sidebar-helpers";
+import { SidebarNavSections } from "./app-sidebar/sidebar-nav-sections";
+import { SidebarQuickActions } from "./app-sidebar/sidebar-quick-actions";
+import { SidebarSupport } from "./app-sidebar/sidebar-support";
 
-export function AppSidebar() {
+export function AppSidebar({
+  resolveModel,
+  collections,
+}: {
+  /** The host's answer to what this person's sidebar holds; see `sidebar-model.ts`. */
+  resolveModel: (args: SidebarModelArgs) => WorkspaceSidebarModel;
+  /** The person's own shelves, rendered below the product's structure. */
+  collections?: React.ReactNode;
+}) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const view = searchParams.get("view");
@@ -45,30 +49,9 @@ export function AppSidebar() {
   const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
   const isCollapsed = state === "collapsed";
 
-  // Which stock surfaces are worth offering depends on how the stock is laid
-  // out, and that is a fact about the tenant rather than about its plan — a
-  // transfer needs two active locations at one site before it has anywhere to
-  // go. Only asked for where a stock surface could appear at all.
-  const stockLocationsQuery = useQuery({
-    queryKey: ["stock-locations", "active"],
-    queryFn: () => fetchStockLocations({ active: true, limit: 200 }),
-    enabled: hasTokenFeature(enabledFeatures, "stores.inventory"),
-    staleTime: 5 * 60_000,
-  });
-  const activeStockLocationSiteIds = React.useMemo(
-    () => stockLocationsQuery.data?.data.map((location) => location.siteId),
-    [stockLocationsQuery.data],
-  );
-
   const sidebarModel = React.useMemo(
-    () =>
-      getWorkspaceSidebarModel({
-        role,
-        enabledFeatures,
-        workspaceProfile,
-        activeStockLocationSiteIds,
-      }),
-    [activeStockLocationSiteIds, enabledFeatures, role, workspaceProfile],
+    () => resolveModel({ role, enabledFeatures, workspaceProfile }),
+    [enabledFeatures, resolveModel, role, workspaceProfile],
   );
 
   const orderedSections = React.useMemo(
@@ -233,7 +216,7 @@ export function AppSidebar() {
 
         {/* The user's own shelves, below the product's structure — these are
             what this person keeps to hand, not part of the app's shape. */}
-        <SidebarCrmCollections isCollapsed={isCollapsed} />
+        {collections}
 
         <SidebarSupport
           isCollapsed={isCollapsed}

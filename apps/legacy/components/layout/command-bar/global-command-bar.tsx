@@ -38,8 +38,8 @@ import {
 } from "@corelithzw/ui/lib/icons";
 import type { SearchResult, SearchResultType } from "@corelithzw/module-records/search-result";
 
-import { CommandBar } from "./command-bar";
-import type { CommandGroup, CommandItem } from "./command-bar-types";
+import { CommandBar } from "@corelithzw/shell/command-bar/command-bar";
+import type { CommandGroup, CommandItem } from "@corelithzw/shell/command-bar/command-bar-types";
 import {
   ActionPreview,
   DateChip,

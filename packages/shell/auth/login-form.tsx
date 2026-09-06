@@ -5,7 +5,7 @@ import { signIn } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { Input, Button } from '@corelithzw/react';
 
-import { normalizeCallbackUrl } from "@/lib/auth-redirect";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
 import {
   AlertCircle,
   Eye,

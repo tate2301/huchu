@@ -53,46 +53,9 @@ import { hasRole, type UserRole } from "@corelithzw/platform/roles";
 // which checks it on the route prefix before the page renders.
 const WORKFORCE_MODULE_ALLOWED_ROLES: UserRole[] = ["SUPERADMIN", "MANAGER", "CLERK"];
 
-export type NavItem = {
-  href: string;
-  label: string;
-  icon: LucideIcon;
-  roles?: UserRole[];
-  /**
-   * Which group inside the section this belongs to. Items with no group render
-   * first and unlabelled, which keeps every existing section rendering exactly
-   * as it did.
-   */
-  group?: string;
-};
+import type { NavGroup, NavItem, NavSection } from "@corelithzw/shell/navigation";
 
-/**
- * A labelled band of related items inside a section.
- *
- * Only worth it once a section is long enough that a flat list stops being
- * scannable — a sixteen-item CRM reads as inventory rather than navigation.
- * A group whose items are all gated away disappears with them.
- */
-export type NavGroup = {
-  id: string;
-  label: string;
-};
-
-export type NavSection = {
-  id: string;
-  title: string;
-  description?: string;
-  featureKey?: string;
-  /** Declares group order and labels. Groups with no visible items are dropped. */
-  groups?: NavGroup[];
-  /**
-   * Render each group as its own root-level entry instead of as a band inside
-   * this section. For a section whose title names a category rather than a
-   * destination, the groups are the places people are actually going.
-   */
-  flattenGroups?: boolean;
-  items: NavItem[];
-};
+export type { NavGroup, NavItem, NavSection };
 
 export const navSections: NavSection[] = [
   {

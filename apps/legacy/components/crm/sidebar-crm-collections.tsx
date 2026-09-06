@@ -7,7 +7,8 @@ import { Kanban, ListBullets } from "@corelithzw/ui/lib/icons";
 import { fetchCrmLists, fetchCrmSavedViews } from "@/lib/crm/collections-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 
-import { SidebarCollection, type SidebarCollectionEntry } from "./sidebar-collection";
+import { useSidebar } from "@corelithzw/ui/components/sidebar";
+import { SidebarCollection, type SidebarCollectionEntry } from "@corelithzw/shell/app-sidebar/sidebar-collection";
 
 const ENTITY_EMOJI: Record<string, string> = {
   LEAD: "✨",
@@ -52,7 +53,8 @@ function LayoutMark({ layout }: { layout: "TABLE" | "BOARD" }) {
  *
  * Only rendered inside the CRM, where saved views and lists exist.
  */
-export function SidebarCrmCollections({ isCollapsed }: { isCollapsed?: boolean }) {
+export function SidebarCrmCollections() {
+  const isCollapsed = useSidebar().state === "collapsed";
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const router = useRouter();

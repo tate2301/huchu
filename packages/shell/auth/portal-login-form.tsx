@@ -7,7 +7,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { Label } from "@corelithzw/ui/components/label";
 import { Button } from "@corelithzw/ui/components/button";
 import { Checkbox } from "@corelithzw/ui/components/checkbox";
-import { normalizeCallbackUrl } from "@/lib/auth-redirect";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
 import {
   AlertCircle,
   ArrowRight,

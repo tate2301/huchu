@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useSession } from "next-auth/react";
+import "@corelithzw/platform/auth-core/session-shape";
 import { Avatar } from "@corelithzw/react";
 
 import {
