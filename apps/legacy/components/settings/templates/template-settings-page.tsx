@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { IconTile, Stack } from "@corelithzw/react";
-import { ManagementShell } from "@/components/settings/management-shell";
+import { ManagementShell } from "@corelithzw/shell/management-shell";
 import { IconButton } from "@corelithzw/ui/components/icon-button";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { Badge } from "@corelithzw/ui/components/badge";

@@ -1,6 +1,6 @@
 "use client";
 
-import { ModuleShell } from "@/components/shared/module-shell";
+import { ModuleShell } from "@corelithzw/shell/module-shell";
 import {
   PAYROLL_CATEGORIES,
   PAYROLL_TABS,

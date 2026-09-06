@@ -3,8 +3,8 @@
 import { useState, type ReactNode } from "react";
 
 import { MasterData, type DataTableColumn } from "@corelithzw/react";
-import { ManagementShell } from "@/components/settings/management-shell";
-import type { ManagementArea } from "@/lib/settings/management-nav";
+import { ManagementShell } from "./management-shell";
+import type { ManagementArea } from "./management";
 import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 

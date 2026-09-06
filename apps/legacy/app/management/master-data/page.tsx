@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { Card } from "@corelithzw/react";
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
 import { getVisibleManagementAreaNavItems } from "@/lib/settings/management-nav";
 
 export default function MasterDataOverviewPage() {

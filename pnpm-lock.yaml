@@ -44,6 +44,9 @@ importers:
       '@corelithzw/react':
         specifier: ^0.4.1
         version: 0.4.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@corelithzw/shell':
+        specifier: workspace:*
+        version: link:../../packages/shell
       '@corelithzw/ui':
         specifier: workspace:*
         version: link:../../packages/ui
@@ -569,6 +572,52 @@ importers:
       dotenv:
         specifier: ^17.2.3
         version: 17.2.3
+      eslint:
+        specifier: ^9
+        version: 9.39.2(jiti@2.6.1)
+      eslint-config-next:
+        specifier: 16.1.1
+        version: 16.1.1(eslint@9.39.2(jiti@2.6.1))(typescript@5.9.3)
+      next:
+        specifier: 16.1.1
+        version: 16.1.1(@babel/core@7.28.6)(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      react:
+        specifier: 19.2.3
+        version: 19.2.3
+      react-dom:
+        specifier: 19.2.3
+        version: 19.2.3(react@19.2.3)
+      typescript:
+        specifier: 5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.4
+        version: 4.1.4(@types/node@20.19.30)(vite@7.3.1(@types/node@20.19.30)(jiti@2.6.1)(lightningcss@1.30.2)(tsx@4.21.0))
+
+  packages/shell:
+    dependencies:
+      '@corelithzw/platform':
+        specifier: workspace:*
+        version: link:../platform
+      '@corelithzw/react':
+        specifier: ^0.4.1
+        version: 0.4.1(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+      '@corelithzw/ui':
+        specifier: workspace:*
+        version: link:../ui
+      next-auth:
+        specifier: ^4.24.13
+        version: 4.24.13(next@16.1.1(@playwright/test@1.59.1)(react-dom@19.2.3(react@19.2.3))(react@19.2.3))(react-dom@19.2.3(react@19.2.3))(react@19.2.3)
+    devDependencies:
+      '@corelithzw/config':
+        specifier: workspace:*
+        version: link:../config
+      '@types/react':
+        specifier: ^19
+        version: 19.2.8
+      '@types/react-dom':
+        specifier: ^19
+        version: 19.2.3(@types/react@19.2.8)
       eslint:
         specifier: ^9
         version: 9.39.2(jiti@2.6.1)

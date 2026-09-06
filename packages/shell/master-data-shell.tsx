@@ -1,6 +1,6 @@
 "use client";
 
-import { ManagementShell } from "@/components/settings/management-shell";
+import { ManagementShell } from "./management-shell";
 
 export type MasterDataTab =
   | "overview"

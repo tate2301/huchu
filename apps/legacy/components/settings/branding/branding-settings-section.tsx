@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MasterDataShell } from "@corelithzw/react";
-import { ManagementShell } from "@/components/settings/management-shell";
+import { ManagementShell } from "@corelithzw/shell/management-shell";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";

@@ -8,6 +8,10 @@
  * by the proxy on the edge. `lib/host/manifests.test.ts` keeps it that way.
  */
 import { registerModules, unmetModuleRequirements } from "@corelithzw/platform/manifest";
+import { registerManagementNavigation } from "@corelithzw/shell/management";
+import { registerNavigationSections } from "@corelithzw/shell/navigation";
+import { navSections } from "@/lib/navigation";
+import { areaLabels, areaNavItems, managementModuleItems } from "@/lib/settings/management-nav";
 import { manifest as notifications } from "@corelithzw/module-notifications";
 import { manifest as documents } from "@corelithzw/module-documents";
 import { manifest as records } from "@corelithzw/module-records";
@@ -21,6 +25,10 @@ import { manifest as people } from "@/lib/people/manifest";
 import { manifest as schools } from "@/lib/schools/manifest";
 
 registerModules([workflow, notifications, records, documents, books, crm, schools, people, gold, compliance, maintenance]);
+
+// The navigation model is data the host still owns; the chrome reads it here.
+registerNavigationSections(navSections);
+registerManagementNavigation({ modules: managementModuleItems, areas: areaNavItems, labels: areaLabels });
 
 const unmet = unmetModuleRequirements();
 if (unmet.length > 0) {

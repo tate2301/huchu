@@ -14,7 +14,7 @@ import {
   isActiveHref,
   isPathMatchingPrefix,
   type ManagementArea,
-} from "@/lib/settings/management-nav";
+} from "./management";
 import { getWorkspaceModulePresentation } from "@corelithzw/platform/workspace-products";
 
 type ManagementShellProps = {

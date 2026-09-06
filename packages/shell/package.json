@@ -1,0 +1,36 @@
+{
+  "name": "@corelithzw/shell",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The workspace chrome that knows about roles and features: the navigation registry the hosts fill and the module shell every module's screens sit in. Depends on ui and platform.",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@corelithzw/platform": "workspace:*",
+    "@corelithzw/react": "^0.4.1",
+    "@corelithzw/ui": "workspace:*",
+    "next-auth": "^4.24.13"
+  },
+  "peerDependencies": {
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@corelithzw/config": "workspace:*",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

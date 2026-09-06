@@ -7,7 +7,7 @@ import type { DataTableColumn } from "@corelithzw/react";
 import {
   DetailFact,
   MasterDataPage,
-} from "@/components/management/master-data/master-data-page";
+} from "@corelithzw/shell/master-data-page";
 import { Badge } from "@corelithzw/ui/components/badge";
 import { Button } from "@corelithzw/ui/components/button";
 import { Input } from "@corelithzw/ui/components/input";

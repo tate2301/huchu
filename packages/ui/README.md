@@ -15,9 +15,11 @@ lib/          utils (cn), icons, ui/* (accents, status maps, view icons), animat
 hooks/        use-debounced, use-mobile, use-guided-mode
 ```
 
-The app shell itself — sidebar, navbar, command bar, breadcrumbs — is still the
-host's (`apps/legacy/components/layout`): it names modules, and moves here once
-the manifests carry navigation and the shell reads it from a registry.
+The chrome that knows about roles and features — the module shell and the
+navigation registry — is `packages/shell`, which depends on this package and
+on `platform`; this package depends on nothing in the workspace. The app shell
+itself — sidebar, navbar, command bar, breadcrumbs — is still the host's
+(`apps/legacy/components/layout`) until the manifests carry navigation.
 
 Import by path: `import { Button } from "@corelithzw/ui/components/button"`,
 `import { cn } from "@corelithzw/ui/lib/utils"`, `import { Cube } from "@corelithzw/ui/lib/icons"`.

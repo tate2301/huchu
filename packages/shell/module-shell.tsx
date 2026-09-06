@@ -5,7 +5,7 @@ import { useSession } from "next-auth/react";
 import { PageActions } from "@corelithzw/ui/layout/page-actions";
 import { NavRail, NavRailGroup, NavRailItem } from "@corelithzw/ui/components/nav-rail";
 import { filterHrefItemsByEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";
-import { getNavSectionsForRole } from "@/lib/navigation";
+import { navigationSectionsForRole } from "./navigation";
 import {
   getWorkspaceModulePresentation,
   type WorkspaceModuleId,
@@ -40,7 +40,7 @@ type ShellTab<T extends string, C extends string> = {
 
 type ModuleShellProps<T extends string, C extends string> = {
   moduleId: WorkspaceModuleId;
-  /** The `lib/navigation.ts` section this module's tabs come from. */
+  /** The registered navigation section this module's tabs come from. */
   navSectionId: string;
   categories: ShellCategory<C>[];
   tabs: ShellTab<T, C>[];
@@ -89,7 +89,7 @@ export function ModuleShell<T extends string, C extends string>({
   );
 
   const visibleTabs = useMemo(() => {
-    const section = getNavSectionsForRole(role).find(
+    const section = navigationSectionsForRole(role).find(
       (candidate) => candidate.id === navSectionId,
     );
     const visibleHrefs = new Set(

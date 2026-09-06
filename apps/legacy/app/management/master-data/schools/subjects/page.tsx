@@ -1,6 +1,6 @@
 "use client";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
 import { SchoolsSubjectsContent } from "@/components/schools/subjects/schools-subjects-content";
 
 /** The subject catalogue — the canonical one; the other two lists link here. */

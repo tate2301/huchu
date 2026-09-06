@@ -1,7 +1,7 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
 import { SubjectRecordPage } from "@/components/schools/records/subject-record-page";
 import { authOptions } from "@/lib/auth";
 

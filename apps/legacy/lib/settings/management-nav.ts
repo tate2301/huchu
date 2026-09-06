@@ -16,10 +16,6 @@ import {
   UserRound,
   Users,
 } from "@corelithzw/ui/lib/icons";
-import {
-  canViewHrefWithEnabledFeatures,
-  filterHrefItemsByEnabledFeatures,
-} from "@corelithzw/platform/gating/nav-filter";
 
 export type ManagementArea =
   | "branding"
@@ -78,7 +74,7 @@ export const managementModuleItems: ManagementModuleItem[] = [
   },
 ];
 
-const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
+export const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
   // One entry: the branding surface is a master-data shell whose own rail
   // switches between Identity/Assets/Finance — repeating them here would be
   // two navs for the same three sections.
@@ -192,7 +188,7 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
   ],
 };
 
-const areaLabels: Record<ManagementArea, string> = {
+export const areaLabels: Record<ManagementArea, string> = {
   branding: "Branding",
   "master-data": "Master Data",
   compliance: "Compliance",
@@ -200,48 +196,13 @@ const areaLabels: Record<ManagementArea, string> = {
   "document-templates": "Document Templates",
 };
 
-export function getAreaNavItems(area: ManagementArea): ManagementNavItem[] {
-  return areaNavItems[area];
-}
-
-export function getVisibleManagementAreaNavItems(
-  area: ManagementArea,
-  enabledFeatures: string[] | undefined,
-): ManagementNavItem[] {
-  return filterHrefItemsByEnabledFeatures(getAreaNavItems(area), enabledFeatures);
-}
-
-export function getVisibleManagementModuleItems(
-  enabledFeatures: string[] | undefined,
-): ManagementModuleItem[] {
-  return managementModuleItems.flatMap((item) => {
-    if (item.id !== "master-data") {
-      return canViewHrefWithEnabledFeatures(item.href, enabledFeatures) ? [item] : [];
-    }
-
-    const visibleMasterDataItems = getVisibleManagementAreaNavItems("master-data", enabledFeatures);
-    if (visibleMasterDataItems.length === 0) {
-      return [];
-    }
-
-    return [
-      {
-        ...item,
-        href: visibleMasterDataItems[0].href,
-      },
-    ];
-  });
-}
-
-export function getAreaLabel(area: ManagementArea): string {
-  return areaLabels[area];
-}
-
-export function isPathMatchingPrefix(pathname: string, prefixes: string[]): boolean {
-  return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
-}
-
-export function isActiveHref(pathname: string, href: string): boolean {
-  const path = href.split("?")[0] || href;
-  return pathname === path || pathname.startsWith(`${path}/`);
-}
+// The chrome that reads this data lives in the shell package; the functions
+// stay importable from here for the host's own callers.
+export {
+  getAreaLabel,
+  getAreaNavItems,
+  getVisibleManagementAreaNavItems,
+  getVisibleManagementModuleItems,
+  isActiveHref,
+  isPathMatchingPrefix,
+} from "@corelithzw/shell/management";

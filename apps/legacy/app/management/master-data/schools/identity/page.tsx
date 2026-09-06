@@ -1,6 +1,6 @@
 "use client";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { MasterDataShell } from "@corelithzw/shell/master-data-shell";
 import { IdentitySettingsContent } from "@/components/schools/academics/identity-settings-content";
 import { SchoolCustomFieldsPanel } from "@/components/schools/academics/school-custom-fields-panel";
 
