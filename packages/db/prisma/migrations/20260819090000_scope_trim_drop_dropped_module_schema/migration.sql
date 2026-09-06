@@ -188,8 +188,23 @@ BEGIN
   -- financial history in the way a journal line is, but it is the audit trail
   -- for a physical quantity, and nulling one silently would leave a movement
   -- nobody can explain. It gets the same refusal.
-  SELECT count(*) INTO movement_rows
-  FROM "StockMovement" WHERE "sourceType"::text = ANY (dead_types);
+  --
+  -- And on a database built from this history alone the column does not exist
+  -- yet: the catch-up migration (20260820130000) is what adds it, because it
+  -- was a script that added it in production. So the check is conditional —
+  -- a fresh database has no stock movements to protect, and a database the
+  -- scripts built gets exactly the refusal above.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'StockMovement'
+      AND column_name = 'sourceType'
+  ) THEN
+    EXECUTE 'SELECT count(*) FROM "StockMovement" WHERE "sourceType"::text = ANY ($1)'
+      INTO movement_rows USING dead_types;
+  ELSE
+    movement_rows := 0;
+  END IF;
 
   IF journal_rows > 0 OR ledger_rows > 0 OR movement_rows > 0 THEN
     RAISE EXCEPTION
@@ -274,10 +289,20 @@ ALTER TABLE "PaymentLedgerEntry"
 ALTER TABLE "BankTransaction"
   ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
   USING ("sourceType"::text::"AccountingSourceType");
--- The sixth. See the note in the guard above for why it was missing.
-ALTER TABLE "StockMovement"
-  ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
-  USING ("sourceType"::text::"AccountingSourceType");
+-- The sixth. See the note in the guard above for why it was missing, and why
+-- it only exists on a database the scripts built: from this history alone the
+-- column arrives with the catch-up migration, already of the new type.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'StockMovement'
+      AND column_name = 'sourceType'
+  ) THEN
+    EXECUTE 'ALTER TABLE "StockMovement" ALTER COLUMN "sourceType" TYPE "AccountingSourceType" USING ("sourceType"::text::"AccountingSourceType")';
+  END IF;
+END $$;
 ALTER TABLE "JournalEntry" ALTER COLUMN "sourceType" SET DEFAULT 'MANUAL';
 
 DROP TYPE "AccountingSourceType_old";
