@@ -118,7 +118,7 @@ tells you so:
 Neither needs a drop. Run the data migrations first, then push:
 
 ```bash
-pnpm legacy db:migrate:data
+pnpm enterprise db:migrate:data
 pnpm db:push
 ```
 
@@ -148,7 +148,7 @@ value that existing rows still hold. `lib/workflow/approvals.test.ts` enforces i
 ## 6. Seed a tenant and run
 
 ```bash
-pnpm legacy exec tsx scripts/seed-payroll-demo.ts
+pnpm enterprise exec tsx scripts/seed-payroll-demo.ts
 pnpm dev
 ```
 
@@ -299,9 +299,9 @@ pg_isready || sudo pg_ctlcluster 16 main start      # Linux (16 = your cluster v
 
 `pnpm lint` exits non-zero at the baseline. Compare the count, not the exit code.
 
-**The repository is a pnpm workspace.** The app is `apps/legacy`, the database is
+**The repository is a pnpm workspace.** The app is `apps/enterprise`, the database is
 `packages/db`; run `pnpm` commands from the repository root (`pnpm dev`, `pnpm test`,
-`pnpm db:*`, and `pnpm legacy <script>` for anything in `apps/legacy/package.json`).
+`pnpm db:*`, and `pnpm enterprise <script>` for anything in `apps/enterprise/package.json`).
 The `.env` stays at the root. See `docs/rollout/product-split-deployment.md`.
 
 ## 9. Things that will bite you

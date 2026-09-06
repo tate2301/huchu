@@ -8,7 +8,7 @@ const eslintConfig = defineConfig([
   ...nextTs,
   globalIgnores(["node_modules/**"]),
   {
-    // The type scale has a floor (see apps/legacy/eslint.config.mjs for why).
+    // The type scale has a floor (see apps/enterprise/eslint.config.mjs for why).
     // The fence is the same one the host drew: what was components/ui. The
     // charts and the person avatar arrived from outside it and join it when
     // they are brought up to the scale.

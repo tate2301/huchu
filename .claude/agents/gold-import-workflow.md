@@ -7,7 +7,7 @@ env:
   GOLD_AGENT_ROLE: import-workflow
 ---
 
-> Paths in this charter are relative to `apps/legacy/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
+> Paths in this charter are relative to `apps/enterprise/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
 
 You are the **gold-import-workflow** engineer. You own the import processing pipeline.
 

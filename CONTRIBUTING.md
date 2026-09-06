@@ -51,7 +51,7 @@ If pnpm reports ignored builds, review and approve/deny package build scripts us
 | Shared platform logic | `lib/platform/...` |
 | Auth/session logic | `lib/auth-core/...`, `lib/auth.ts`, and NextAuth route files |
 | Schema | `packages/db/prisma/schema/<module>.prisma` and `packages/db/prisma/migrations/...` |
-| Operational scripts | `apps/legacy/scripts/...` (run with `pnpm legacy <script>`) |
+| Operational scripts | `apps/enterprise/scripts/...` (run with `pnpm enterprise <script>`) |
 | Tests | Colocated `.test.ts` / `.test.tsx`; browser tests in `e2e/` |
 | Product/system docs | `docs/...` |
 

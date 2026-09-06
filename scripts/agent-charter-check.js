@@ -3,7 +3,7 @@
  * PostToolUse hook — charter boundary check.
  *
  * Reads the file path from stdin (Claude tool-use JSON) and the
- * (Paths are matched as substrings, so `app/` also matches `apps/legacy/app/`
+ * (Paths are matched as substrings, so `app/` also matches `apps/enterprise/app/`
  * and `prisma/schema/` matches `packages/db/prisma/schema/gold.prisma`.)
  * GOLD_AGENT_ROLE env var set in each agent definition's frontmatter.
  * Emits a systemMessage warning if the agent is editing outside its charter.

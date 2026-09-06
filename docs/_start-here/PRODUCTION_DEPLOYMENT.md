@@ -252,8 +252,8 @@ For issues:
 
 ## Vercel project settings (workspace layout)
 
-The repository is a pnpm workspace: the app builds from `apps/legacy`, so the Vercel
-project's *Root Directory* is `apps/legacy` with source files outside the root included.
+The repository is a pnpm workspace: the app builds from `apps/enterprise`, so the Vercel
+project's *Root Directory* is `apps/enterprise` with source files outside the root included.
 The full list of settings, the order to change them in, and the rollback path are in
 `docs/rollout/product-split-deployment.md` §2.
 

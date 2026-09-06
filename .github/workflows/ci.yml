@@ -88,7 +88,7 @@ jobs:
         run: pnpm turbo run typecheck --concurrency=1 ${{ github.event_name == 'pull_request' && '--affected' || '' }}
 
       - name: Feature-gate audit
-        run: pnpm legacy platform:audit-feature-gates
+        run: pnpm enterprise platform:audit-feature-gates
 
       # One package at a time here too: every package's tests share the one
       # service database, and two suites truncating and seeding it at once

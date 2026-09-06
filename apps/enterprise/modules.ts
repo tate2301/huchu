@@ -110,9 +110,9 @@ registerDocumentSource({
   resolve: async (input) => (await import("@corelithzw/module-books/document-sources")).resolveBooksDocument(input),
 });
 registerDocumentSource({
-  id: "legacy",
+  id: "enterprise",
   matches: (key) => ["reports.", "dashboard."].some((prefix) => key.startsWith(prefix)),
-  resolve: async (input) => (await import("@/lib/host/document-sources")).legacyDocumentSource.resolve(input),
+  resolve: async (input) => (await import("@/lib/host/document-sources")).enterpriseDocumentSource.resolve(input),
 });
 
 // The fiscal drain re-issues receipts other modules write, and raises an

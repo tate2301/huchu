@@ -19,7 +19,7 @@ The chrome that knows about roles and features — the module shell and the
 navigation registry — is `packages/shell`, which depends on this package and
 on `platform`; this package depends on nothing in the workspace. The app shell
 itself — sidebar, navbar, command bar, breadcrumbs — is still the host's
-(`apps/legacy/components/layout`) until the manifests carry navigation.
+(`apps/enterprise/components/layout`) until the manifests carry navigation.
 
 Import by path: `import { Button } from "@corelithzw/ui/components/button"`,
 `import { cn } from "@corelithzw/ui/lib/utils"`, `import { Cube } from "@corelithzw/ui/lib/icons"`.

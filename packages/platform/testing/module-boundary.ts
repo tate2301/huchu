@@ -2,7 +2,7 @@
  * The rule every module package stands on, checked mechanically.
  *
  * A module imports the kernel packages, npm, and the modules its manifest
- * declares in `requires`. Never a host (no `@/` alias, no `@corelithzw/legacy`),
+ * declares in `requires`. Never a host (no `@/` alias, no `@corelithzw/enterprise` or a product host),
  * never a module it does not declare, never a file above its own root. This is
  * `lib/hr/module-boundary.test.ts` generalised: that test guarded a list of
  * directories against a list of verticals, and was evaded by moving a file one
@@ -17,7 +17,7 @@ import type { ModuleManifest } from "../manifest";
 export type BoundaryViolation = { file: string; specifier: string; reason: string };
 
 const MODULE_PREFIX = "@corelithzw/module-";
-const HOST_PREFIXES = ["@corelithzw/legacy", "@corelithzw/enterprise", "@corelithzw/admin"];
+const HOST_PREFIXES = ["@corelithzw/enterprise", "@corelithzw/campus", "@corelithzw/sell", "@corelithzw/crm", "@corelithzw/people", "@corelithzw/admin"];
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\bexport\s+\*\s+from\s*)["']([^"']+)["']/g;
 
 function sourceFiles(dir: string): string[] {

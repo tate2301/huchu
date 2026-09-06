@@ -14,20 +14,20 @@ what a product host will need when Phase 3 cuts the first product out.
 
 | Concern | Before | After Phase 1 | Production impact |
 |---|---|---|---|
-| Repository layout | The app at the repository root | The app at `apps/legacy/`; the database at `packages/db/`; workspace root holds `turbo.json`, `pnpm-workspace.yaml`, CI | None by itself — but Vercel must be told where the app now lives (§2) |
-| What is deployed | The one app, from the root | The same app, from `apps/legacy` | Same code, same routes, same hosts, same env vars |
-| Build | `prisma generate && next build` at the root | `apps/legacy`'s `build` script: generate the client from `packages/db`, then `next build`; Turborepo for local and CI builds | The Vercel build command stays on its default |
+| Repository layout | The app at the repository root | The app at `apps/enterprise/`; the database at `packages/db/`; workspace root holds `turbo.json`, `pnpm-workspace.yaml`, CI | None by itself — but Vercel must be told where the app now lives (§2) |
+| What is deployed | The one app, from the root | The same app, from `apps/enterprise` | Same code, same routes, same hosts, same env vars |
+| Build | `prisma generate && next build` at the root | `apps/enterprise`'s `build` script: generate the client from `packages/db`, then `next build`; Turborepo for local and CI builds | The Vercel build command stays on its default |
 | Prisma client | Generated into the root's `@prisma/client` | Generated into `packages/db`'s `@prisma/client`; every import goes through `@corelithzw/db` (types) or `@corelithzw/db/client` (connection) | None at runtime — same generator, same engine, same queries |
 | Schema | `prisma/schema.prisma`, one 11k-line file | `packages/db/prisma/schema/<module>.prisma`, one file per module; verified zero-diff against the old file and against the migration history | None — the database does not change |
 | Migrations | Applied by an operator running `prisma migrate deploy` | Applied by the **database release** GitHub Actions job on merge to `main` (§4) — once enabled; until then, exactly as before | A one-time setup (a secret and a variable); expand-first from then on |
 | Migration history | Failed on an empty database (migration 61 assumed a column that migration 63 creates) | Applies cleanly to an empty database; CI proves it on every pull request | None for the production database — the migration is already applied there, and `migrate deploy` never re-runs or re-verifies applied migrations (checked) |
 | CI | None (Vercel's build was the only gate) | `.github/workflows/ci.yml`: install, Prisma dependency guard, schema validation, migrations-vs-schema drift check, typecheck, feature-gate audit, tests against a migrated Postgres, build; lint reported, not yet blocking | Pull requests get a real gate; recommend requiring it in branch protection (§5) |
-| Local `.env` | Repository root | Repository root still works for everything; `apps/legacy/.env` and `packages/db/.env` are honoured first when present | None |
+| Local `.env` | Repository root | Repository root still works for everything; `apps/enterprise/.env` and `packages/db/.env` are honoured first when present | None |
 | Domains, DNS, TLS, tenant hosts, portal hosts, the Vercel API provisioning | — | Unchanged | None |
 | Environment variables | — | Unchanged; no new variable is required | None |
 | The database | — | Unchanged | None |
 | Session cookies, auth, feature gates | — | Unchanged | None |
-| Boot (Phase 2.2) | Nothing registered at start-up | `apps/legacy/instrumentation.ts` imports `modules.ts` once per Node.js server start, which registers NextAuth's options and the CRM's capability set with the kernel (`packages/platform`) | None: `instrumentation.ts` is a standard Next.js file, runs on every cold start of a Vercel function, and needs no configuration. If a request ever fails with `No auth options registered`, the registration did not run: check the instrumentation file is present and the runtime is `nodejs` |
+| Boot (Phase 2.2) | Nothing registered at start-up | `apps/enterprise/instrumentation.ts` imports `modules.ts` once per Node.js server start, which registers NextAuth's options and the CRM's capability set with the kernel (`packages/platform`) | None: `instrumentation.ts` is a standard Next.js file, runs on every cold start of a Vercel function, and needs no configuration. If a request ever fails with `No auth options registered`, the registration did not run: check the instrumentation file is present and the runtime is `nodejs` |
 
 Everything above the line "Domains" is a build-and-deploy concern. Nothing a tenant sees
 changes.
@@ -41,7 +41,8 @@ Do this **before** merging, so the pull request's preview deployment proves the 
 the merge to `main` builds first time:
 
 1. **Root Directory.** Project → Settings → General → *Root Directory*: set to
-   `apps/legacy`. Leave *Include source files outside of the Root Directory in the Build
+   `apps/enterprise` (the host was `apps/legacy` until Phase 4; a project already pointed at
+   `apps/legacy` is re-pointed, nothing else changes). Leave *Include source files outside of the Root Directory in the Build
    Step* **enabled** — the build needs `packages/db`, the lockfile and the pnpm store at
    the repository root.
 2. **Framework and commands.** Framework Preset stays *Next.js* (Vercel detects it inside
@@ -49,7 +50,7 @@ the merge to `main` builds first time:
    their defaults: Vercel installs the whole workspace from the repository root because it
    finds `pnpm-workspace.yaml` there, then runs the app's own `build` script, which
    generates the Prisma client and runs `next build`. In the build log expect
-   `Running "pnpm run build"` inside `apps/legacy`; if it shows `next build` directly
+   `Running "pnpm run build"` inside `apps/enterprise`; if it shows `next build` directly
    without the client having been generated, override *Build Command* with
    `pnpm run build`.
 3. **Package manager.** The root `package.json` pins `"packageManager": "pnpm@10.33.0"`,
@@ -70,7 +71,7 @@ the merge to `main` builds first time:
    more.
 
 Between changing the setting and merging, a push to `main` would fail to build (the app
-is not at `apps/legacy` on `main` yet). A failed build never replaces the production
+is not at `apps/enterprise` on `main` yet). A failed build never replaces the production
 deployment, so there is no downtime; just merge promptly, or make the change and merge in
 the same sitting.
 
@@ -157,7 +158,7 @@ this was checked against a migrated database before the edit was kept.
 | `pnpm db:validate` | The multi-file schema parses | A schema edit is malformed |
 | `pnpm db:check:drift` | Every migration applies to an empty Postgres, and the result equals `prisma/schema/` | A schema change without a migration, or a migration edited after the fact — run `pnpm db:migrate:dev` |
 | `turbo run typecheck` | Every package type-checks (the app needs the 7 GB heap its script sets) | A type error |
-| `pnpm legacy platform:audit-feature-gates` | Every gated route maps to a catalogued feature | An unmapped route or an orphan key |
+| `pnpm enterprise platform:audit-feature-gates` | Every gated route maps to a catalogued feature | An unmapped route or an orphan key |
 | `turbo run test` | Vitest, including the database-backed suites, against the migrated service database | A failing test. Three pre-existing failures (§5a) fail today, so this step is red until they are resolved |
 | `turbo run build` | `next build` of the app | A build error; also what Vercel would hit |
 | `turbo run lint` | ESLint | Reported only, until the pre-existing 28 errors are cleared |
@@ -191,12 +192,12 @@ result, so a run still answers whether the app builds.
 - `pnpm install` at the repository root installs every package.
 - `pnpm dev` generates the client and starts the app; `pnpm build`, `pnpm lint`,
   `pnpm typecheck`, `pnpm test` run across the workspace through Turborepo.
-- Scripts moved with the app: `pnpm legacy <script>` (`pnpm legacy worker:pdf`,
-  `pnpm legacy create-company --name Acme`, `pnpm legacy platform --actor you@corelith.co.zw`).
+- Scripts moved with the app: `pnpm enterprise <script>` (`pnpm enterprise worker:pdf`,
+  `pnpm enterprise create-company --name Acme`, `pnpm enterprise platform --actor you@corelith.co.zw`).
 - `pnpm db:generate`, `pnpm db:migrate:dev`, `pnpm db:migrate:status`, `pnpm db:push`,
   `pnpm db:studio`, `pnpm db:check:drift` delegate to `packages/db`.
 - The `.env` stays at the repository root and is read by the app, the scripts, the tests
-  and the Prisma tooling. An `apps/legacy/.env` or `packages/db/.env` takes precedence for
+  and the Prisma tooling. An `apps/enterprise/.env` or `packages/db/.env` takes precedence for
   its own package when present.
 - `pnpm test` needs Postgres with the migrations applied, as before:
   `pnpm db:migrate:deploy` against the test database, then `DATABASE_URL_TEST` in `.env`.
@@ -208,13 +209,13 @@ result, so a run still answers whether the app builds.
   `packages/modules/<id>/pages/**`); the host's `app/` tree carries a generated one-line re-export
   for each, so the URLs, the proxy's matchers and the gate audit are unchanged and production
   needs nothing. After adding or renaming a route in a module run
-  `pnpm compose apps/legacy <module>` and commit the regenerated files; the app's typecheck fails
+  `pnpm compose apps/enterprise <module>` and commit the regenerated files; the app's typecheck fails
   on a stale re-export rather than serving one. The kernel's routes (`packages/platform/api`) and
   the workspace pages (`packages/shell/pages`) compose the same way (`platform`, `shell` as ids).
 - The edge proxy and NextAuth's options are the kernel's (`createProxy()`, `createAuthOptions()`);
   the host's `proxy.ts` keeps only the matcher and `lib/auth.ts` only the call. Same behaviour,
   same environment variables; what the retail module told them is manifest data now.
-- `apps/legacy` typechecks in about the same time as before; the split schema alone does
+- `apps/enterprise` typechecks in about the same time as before; the split schema alone does
   not shrink the type-check, because the app still imports the whole client. That gain
   arrives with per-package project references as modules are extracted (Phase 2).
 
@@ -222,7 +223,7 @@ result, so a run still answers whether the app builds.
 
 Each product host in the repository ships as its own Vercel project on its own root, from the
 same repository and the same database. None of them runs until the project owner creates the
-project; production keeps serving from `apps/legacy` untouched.
+project; production keeps serving from `apps/enterprise` untouched.
 
 | Host | Since | Root Directory | Wildcard host | `PLATFORM_ROOT_DOMAIN` | Composes |
 |---|---|---|---|---|---|
@@ -271,7 +272,7 @@ project; production keeps serving from `apps/legacy` untouched.
    paths from the enterprise host, remove the module from the enterprise host's list — the
    flip described in the plan's Phase 3.
 8. **What a product host does not serve**: the marketing site (its own project), the operator
-   console (`apps/legacy`'s `/admin`, on the admin host), the executive dashboard, the payment
+   console (`apps/enterprise`'s `/admin`, on the admin host), the executive dashboard, the payment
    webhooks, and every module outside its list — the Campus host has no till, stock, CRM,
    maintenance or mine; the Sell host has no school, CRM or mine; the CRM host has no school, till, maintenance, compliance or mine; the People host has no school, till, stock, CRM, maintenance or mine. A tenant that runs a module
    from two products stays on the enterprise host until both products have hosts.
@@ -279,7 +280,7 @@ project; production keeps serving from `apps/legacy` untouched.
 ## 8. Checklist
 
 Before merge (operator):
-- [ ] Vercel *Root Directory* = `apps/legacy`; outside-root files included
+- [ ] Vercel *Root Directory* = `apps/enterprise`; outside-root files included
 - [ ] Pull request preview deployment **Ready** after the setting change
 - [ ] Repository private; branch protection requires CI
 

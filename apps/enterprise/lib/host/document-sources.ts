@@ -200,24 +200,24 @@ async function resolveDashboardSummary(companyId: string): Promise<SourceResolut
   };
 }
 
-export const LEGACY_DOCUMENT_SOURCE_PREFIXES = ["reports.", "dashboard."] as const;
+export const ENTERPRISE_DOCUMENT_SOURCE_PREFIXES = ["reports.", "dashboard."] as const;
 
-export function matchesLegacyDocumentSource(sourceKey: string): boolean {
-  return LEGACY_DOCUMENT_SOURCE_PREFIXES.some((prefix) => sourceKey.startsWith(prefix));
+export function matchesEnterpriseDocumentSource(sourceKey: string): boolean {
+  return ENTERPRISE_DOCUMENT_SOURCE_PREFIXES.some((prefix) => sourceKey.startsWith(prefix));
 }
 
-/** The feature that opens each legacy source; sales documents open from the books or the CRM. */
-const LEGACY_DOCUMENT_FEATURES: Record<string, string[]> = {
+/** The feature that opens each of the host's own sources; sales documents open from the books or the CRM. */
+const ENTERPRISE_DOCUMENT_FEATURES: Record<string, string[]> = {
   "reports.shift": ["reports.shift"],
   "reports.attendance": ["reports.attendance"],
   "reports.plant": ["reports.plant"],
   "dashboard.executive-summary": ["reports.dashboard"],
 };
 
-export const legacyDocumentSource: DocumentSource = {
-  access: async (sourceKey) => ({ featureKeys: LEGACY_DOCUMENT_FEATURES[sourceKey] ?? [] }),
-  id: "legacy",
-  matches: matchesLegacyDocumentSource,
+export const enterpriseDocumentSource: DocumentSource = {
+  access: async (sourceKey) => ({ featureKeys: ENTERPRISE_DOCUMENT_FEATURES[sourceKey] ?? [] }),
+  id: "enterprise",
+  matches: matchesEnterpriseDocumentSource,
   resolve: async (input) => {
     const { companyId } = input;
       switch (input.sourceKey) {

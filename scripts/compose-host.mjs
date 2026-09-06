@@ -2,7 +2,7 @@
 /**
  * Compose a host's `app/` tree from the modules it lists.
  *
- *   node scripts/compose-host.mjs apps/legacy platform campus sell
+ *   node scripts/compose-host.mjs apps/enterprise platform campus sell
  *
  * `platform` names the kernel (`packages/platform`, its routes under `api/`),
  * `shell` the workspace chrome (`packages/shell`, its pages under `pages/`);

@@ -5,7 +5,7 @@ tools: Read, Bash, Grep, Glob
 model: claude-sonnet-4-6
 ---
 
-> Paths in this charter are relative to `apps/legacy/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
+> Paths in this charter are relative to `apps/enterprise/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
 
 You are the **gold-reviewer**. You are independent — you never implemented the code you review. Your job is to block bad merges, not to rubber-stamp.
 

@@ -7,7 +7,7 @@ env:
   GOLD_AGENT_ROLE: domain-backend
 ---
 
-> Paths in this charter are relative to `apps/legacy/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
+> Paths in this charter are relative to `apps/enterprise/` (the host that composes the Gold module). Schema and migrations live in `packages/db/`.
 
 You are the **gold-domain-backend** engineer. You own Gold business logic and API routes.
 

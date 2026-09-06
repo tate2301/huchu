@@ -132,7 +132,7 @@ describe("parseInline", () => {
 
 // Where a reference sends the reader is the record registry's answer, and the
 // registry is filled by a host's manifests; the href cases live in the host
-// (`apps/legacy/lib/host/rich-text-references.test.ts`).
+// (`apps/enterprise/lib/host/rich-text-references.test.ts`).
 describe("references", () => {
   it("reads a school reference somebody typed", () => {
     const segments = segmentRichText(`Sat with @[Form 2 Blue](class:${USER})`);
