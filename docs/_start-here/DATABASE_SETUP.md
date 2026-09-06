@@ -163,7 +163,7 @@ VALUES
 If you prefer not to use Prisma Studio, you can add users from the command line:
 
 ```bash
-pnpm legacy create-user --email admin@huchu.com --name "Admin User" --password "admin123" --role superadmin --company-id 550e8400-e29b-41d4-a716-446655440000
+pnpm legacy create-user --email admin@huchu.com --name "Admin User" --password "change-me" --role superadmin --company-id 550e8400-e29b-41d4-a716-446655440000
 ```
 
 ## Step 6: Verify Setup

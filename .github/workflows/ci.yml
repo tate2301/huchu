@@ -21,11 +21,13 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     services:
+      # A throwaway database that lives for one job. Trust auth, no password:
+      # nothing here is a credential, and secret scanners should not think so.
       postgres:
         image: postgres:16-alpine
         env:
           POSTGRES_USER: huchu
-          POSTGRES_PASSWORD: huchu_dev
+          POSTGRES_HOST_AUTH_METHOD: trust
           POSTGRES_DB: huchu_test
         ports:
           - 5432:5432
@@ -35,8 +37,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      DATABASE_URL: postgresql://huchu:huchu_dev@localhost:5432/huchu_test
-      DATABASE_URL_TEST: postgresql://huchu:huchu_dev@localhost:5432/huchu_test
+      DATABASE_URL: postgresql://huchu@localhost:5432/huchu_test
+      DATABASE_URL_TEST: postgresql://huchu@localhost:5432/huchu_test
       NEXTAUTH_SECRET: ci-only-not-a-secret
       FEATURE_GATE_POLICY: deny
       NEXT_PUBLIC_FEATURE_GATE_POLICY: deny
