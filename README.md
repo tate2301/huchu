@@ -252,7 +252,7 @@ When a new module, vertical, or major surface is added, update all relevant laye
    - Update client templates in `lib/platform/client-templates.ts` if the module should be enabled by tenant profile.
 
 6. Cross-cutting integration:
-   - Add notifications in `lib/notifications.ts` when users need workflow feedback.
+   - Add notifications from the owning module's `notifications.ts` through `@corelithzw/module-notifications/service` (recipients and severity scale: `escalation.ts`); approval notices through a resolver for `emitApprovalNotice` in `@corelithzw/module-people/approval-notifications`.
    - Add audit/event records for sensitive operations.
    - Add document templates/rendering support if the module produces official PDFs.
    - Add offline catalog/runtime support only when the workflow has explicit offline requirements.

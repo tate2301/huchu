@@ -16,13 +16,7 @@ import { DsDataTable } from "@corelithzw/ui/corelith/ds-data-table";
 import { PageActions } from "@corelithzw/ui/layout/page-chrome";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
-import {
-  createDepartment,
-  deleteDepartment,
-  fetchDepartments,
-  type DepartmentRecord,
-  updateDepartment,
-} from "@/lib/api";
+import { createDepartment, deleteDepartment, fetchDepartments, type DepartmentRecord, updateDepartment } from "@corelithzw/module-people/api-client";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 import { Pencil, Plus, Trash2 } from "@corelithzw/ui/lib/icons";
 import { dsConfirm } from "@corelithzw/ui/components/ds-confirm";

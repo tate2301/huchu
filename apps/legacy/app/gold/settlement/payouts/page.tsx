@@ -30,7 +30,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { StatusChip } from "@corelithzw/ui/components/status-chip";
-import { fetchGoldShiftAllocations } from "@/lib/api";
+import { fetchGoldShiftAllocations } from "@corelithzw/module-gold/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

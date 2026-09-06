@@ -23,7 +23,8 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import {
   buildAxisChartConfig,
 } from "@corelithzw/ui/lib/charts/frappe-config-builders"
-import { fetchDowntimeAnalytics, fetchSites } from "@/lib/api"
+import { fetchDowntimeAnalytics } from "@corelithzw/module-gold/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 const timeRanges = {

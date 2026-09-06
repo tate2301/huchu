@@ -7,7 +7,7 @@ import { letterTemplate, reportTemplate } from "@corelithzw/module-documents/def
  */
 export const manifest: ModuleManifest = {
   id: "people",
-  requires: ["books", "workflow", "documents", "records"],
+  requires: ["books", "workflow", "documents", "records", "notifications"],
   notifications: {
     viewPaths: {
       PAYROLL_RUN: "/payroll/runs?runId={id}",

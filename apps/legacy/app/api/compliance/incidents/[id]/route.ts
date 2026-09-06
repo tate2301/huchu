@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@corelithzw/platform/api-utils";
-import { emitIncidentNotification } from "@/lib/notifications";
+import { emitIncidentNotification } from "@corelithzw/module-compliance/notifications";
 import { prisma } from "@corelithzw/db/client";
 
 const updateIncidentSchema = z.object({

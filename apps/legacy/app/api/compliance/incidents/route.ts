@@ -7,7 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { emitIncidentNotification } from "@/lib/notifications";
+import { emitIncidentNotification } from "@corelithzw/module-compliance/notifications";
 import { prisma } from "@corelithzw/db/client";
 
 const incidentSchema = z.object({

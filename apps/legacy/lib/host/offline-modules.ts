@@ -4,14 +4,8 @@
  * into that module when the manifests carry offline workflows; the runtime
  * they plug into is `@corelithzw/module-offline`.
  */
-import {
-  fetchDisciplinaryActions,
-  fetchEmployees,
-  fetchHrIncidents,
-  fetchShiftGroups,
-  fetchShiftGroupSchedules,
-  fetchSites,
-} from "@/lib/api";
+import { fetchDisciplinaryActions, fetchEmployees, fetchHrIncidents, fetchShiftGroups, fetchShiftGroupSchedules } from "@corelithzw/module-people/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson } from "@corelithzw/platform/api-client";
 import { markOfflineLocalEntitySynced, resolveOfflineEntityServerId } from "@corelithzw/module-offline/entity-store";
 import { asErrorMessage, isLikelyNetworkFailure } from "@corelithzw/module-offline/module-registry";

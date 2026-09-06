@@ -31,25 +31,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type AgingRow,
-  type BankAccountRecord,
-  type DebitNoteRecord,
-  type PurchaseBillRecord,
-  type PurchasePaymentRecord,
-  type PurchaseWriteOffRecord,
-  type StatementLineRecord,
-  type VendorRecord,
-  fetchApAging,
-  fetchBankAccounts,
-  fetchDebitNotes,
-  fetchPurchaseBills,
-  fetchPurchasePayments,
-  fetchPurchaseWriteOffs,
-  fetchTaxCodes,
-  fetchVendorStatement,
-  fetchVendors,
-} from "@/lib/api";
+import { type AgingRow, type BankAccountRecord, type DebitNoteRecord, type PurchaseBillRecord, type PurchasePaymentRecord, type PurchaseWriteOffRecord, type StatementLineRecord, type VendorRecord, fetchApAging, fetchBankAccounts, fetchDebitNotes, fetchPurchaseBills, fetchPurchasePayments, fetchPurchaseWriteOffs, fetchTaxCodes, fetchVendorStatement, fetchVendors } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, FileText, NoteAdd, Payments, Trash2 } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";

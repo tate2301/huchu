@@ -1250,3 +1250,235 @@ export type AgingRow = {
 export async function fetchTaxCategories() {
   return fetchJson<TaxCategoryRecord[]>("/api/accounting/tax/categories");
 }
+
+export type RetailAccountingBackfillResult =
+  | {
+      mode: "DRY_RUN";
+      discovered: number;
+      candidates: Array<{
+        key: string;
+        label: string;
+        entryDate: string;
+      }>;
+    }
+  | {
+      mode: "APPLY";
+      discovered: number;
+      posted: number;
+      skipped: number;
+      failed: number;
+      failures: Array<{
+        key: string;
+        error: string;
+      }>;
+    };
+
+export type CustomerRecord = {
+  id: string;
+  companyId: string;
+  taxCategoryId?: string | null;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type VendorRecord = {
+  id: string;
+  companyId: string;
+  taxCategoryId?: string | null;
+  name: string;
+  contactName?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  address?: string | null;
+  taxNumber?: string | null;
+  vatNumber?: string | null;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt?: string;
+};
+
+export type DebitNoteLineRecord = {
+  id: string;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+  taxCodeId?: string | null;
+  taxRate: number;
+  taxAmount: number;
+  lineTotal: number;
+};
+
+export type DebitNoteRecord = {
+  id: string;
+  companyId: string;
+  billId: string;
+  noteNumber: string;
+  noteDate: string;
+  status: "DRAFT" | "ISSUED" | "VOIDED";
+  currency: string;
+  subTotal: number;
+  taxTotal: number;
+  total: number;
+  reason?: string | null;
+  bill?: { billNumber?: string | null; vendor?: { name?: string | null } | null } | null;
+  lines?: DebitNoteLineRecord[];
+};
+
+export type CashFlowReport = {
+  operating: TrialBalanceRow[];
+  investing: TrialBalanceRow[];
+  financing: TrialBalanceRow[];
+  totals: {
+    operating: number;
+    investing: number;
+    financing: number;
+    netCash: number;
+  };
+};
+
+export type StatementLineRecord = {
+  date: string;
+  type: string;
+  reference: string;
+  description?: string | null;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
+export type StatementReport = {
+  openingBalance: number;
+  closingBalance: number;
+  lines: StatementLineRecord[];
+};
+
+export async function runSeedPack(params: {
+  mode: "DRY_RUN" | "APPLY";
+  fxRates?: Record<string, number | string>;
+}): Promise<AccountingSeedPackResult> {
+  return fetchJson<AccountingSeedPackResult>("/api/accounting/setup/seed-pack", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function fetchIntegrationEvents(params?: {
+  status?: string;
+  limit?: number;
+  page?: number;
+}): Promise<AccountingIntegrationEventListResponse> {
+  const qs = new URLSearchParams();
+  if (params?.status) qs.set("status", params.status);
+  if (params?.limit) qs.set("limit", String(params.limit));
+  if (params?.page) qs.set("page", String(params.page));
+  const query = qs.toString();
+  return fetchJson<AccountingIntegrationEventListResponse>(
+    `/api/accounting/integration/events${query ? `?${query}` : ""}`,
+  );
+}
+
+export async function replayIntegrationEvents(params?: {
+  limit?: number;
+  periodOverrideReason?: string;
+}): Promise<{
+  processed: number;
+  posted: number;
+  skipped: number;
+  failed: number;
+}> {
+  return fetchJson("/api/accounting/integration/replay", {
+    method: "POST",
+    body: JSON.stringify(params ?? {}),
+  });
+}
+
+export async function backfillRetailAccounting(params: {
+  dryRun?: boolean;
+  limit?: number;
+  periodOverrideReason?: string;
+}): Promise<RetailAccountingBackfillResult> {
+  return fetchJson<RetailAccountingBackfillResult>("/api/accounting/integration/backfill-retail", {
+    method: "POST",
+    body: JSON.stringify(params),
+  });
+}
+
+export async function fetchTenderMappings(): Promise<
+  TenderAccountMappingRecord[]
+> {
+  return fetchJson<TenderAccountMappingRecord[]>("/api/accounting/tender-mappings");
+}
+
+export async function fetchCustomers(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<CustomerRecord>>(`/api/accounting/sales/customers${query}`);
+}
+
+export async function fetchVendors(
+  params: { search?: string; active?: boolean; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<VendorRecord>>(`/api/accounting/purchases/vendors${query}`);
+}
+
+export async function fetchDebitNotes(
+  params: { billId?: string; status?: string; page?: number; limit?: number } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<DebitNoteRecord>>(`/api/accounting/purchases/debit-notes${query}`);
+}
+
+export async function fetchCashFlowReport(params: {
+  periodId?: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<CashFlowReport>(`/api/accounting/reports/cash-flow${query}`);
+}
+
+export async function fetchCustomerStatement(params: {
+  customerId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/customer-statement${query}`);
+}
+
+export async function fetchVendorStatement(params: {
+  vendorId: string;
+  startDate?: string;
+  endDate?: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<StatementReport>(`/api/accounting/reports/vendor-statement${query}`);
+}
+
+export async function importOpeningBalances(input: {
+  effectiveDate: string;
+  sourceReference?: string;
+  notes?: string;
+  lines: Array<{
+    accountId: string;
+    debit?: number;
+    credit?: number;
+    memo?: string;
+    costCenterId?: string;
+  }>;
+}) {
+  return fetchJson("/api/accounting/closing/opening-balances", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}

@@ -26,7 +26,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@/lib/api";
+import { fetchApprovalHistory, type ApprovalHistoryRecord } from "@corelithzw/module-people/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 export default function ApprovalsPage() {

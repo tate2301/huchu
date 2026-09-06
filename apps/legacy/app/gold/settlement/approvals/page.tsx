@@ -35,7 +35,7 @@ import {
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchEmployees } from "@/lib/api";
+import { fetchEmployees } from "@corelithzw/module-people/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   getSettlementSourceMeta,

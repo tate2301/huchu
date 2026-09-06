@@ -37,15 +37,8 @@ import { SearchableSelect } from "@corelithzw/ui/components/searchable-select";
 import type { SearchableOption } from "@corelithzw/ui/components/searchable-select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  fetchAttendance,
-  fetchEmployees,
-  fetchShiftGroupMembers,
-  fetchShiftGroupSchedules,
-  fetchShiftGroups,
-  fetchSites,
-  type AttendanceRecord,
-} from "@/lib/api";
+import { fetchAttendance, fetchEmployees, fetchShiftGroupMembers, fetchShiftGroupSchedules, fetchShiftGroups, type AttendanceRecord } from "@corelithzw/module-people/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   ATTENDANCE_STATUS_LABELS,

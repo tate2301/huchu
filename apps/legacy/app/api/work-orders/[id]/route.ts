@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 import { validateSession, successResponse, errorResponse } from "@corelithzw/platform/api-utils";
 import { captureAccountingEvent } from "@corelithzw/module-books/integration";
-import { emitWorkOrderStatusNotification } from "@/lib/notifications";
+import { emitWorkOrderStatusNotification } from "@corelithzw/module-maintenance/notifications";
 import { prisma } from "@corelithzw/db/client";
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting";
 

@@ -36,17 +36,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  closeAccountingPeriod,
-  reopenAccountingPeriod,
-  type AccountingPeriodRecord,
-  fetchAccountingPeriods,
-  fetchAccountingSummary,
-  fetchFinancialReportsHubSummary,
-  fetchChartOfAccounts,
-  importOpeningBalances,
-  setAccountingFreezeDate,
-} from "@/lib/api";
+import { closeAccountingPeriod, reopenAccountingPeriod, type AccountingPeriodRecord, fetchAccountingPeriods, fetchAccountingSummary, fetchFinancialReportsHubSummary, fetchChartOfAccounts, importOpeningBalances, setAccountingFreezeDate } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Calendar, MoreHorizontal } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";

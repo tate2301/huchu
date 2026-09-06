@@ -29,11 +29,7 @@ import {
 import { TimeAgo } from "@corelithzw/ui/components/time-ago";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type FiscalReceiptRecord,
-  fetchFiscalReceipts,
-  fetchFiscalisationConfig,
-} from "@/lib/api";
+import { type FiscalReceiptRecord, fetchFiscalReceipts, fetchFiscalisationConfig } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { cn } from "@corelithzw/ui/lib/utils";
 

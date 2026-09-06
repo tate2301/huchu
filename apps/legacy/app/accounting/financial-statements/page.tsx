@@ -20,15 +20,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import {
-  type AccountingPeriodRecord,
-  type CashFlowReport,
-  type FinancialStatementsReport,
-  type TrialBalanceRow,
-  fetchAccountingPeriods,
-  fetchCashFlowReport,
-  fetchFinancialStatements,
-} from "@/lib/api";
+import { type AccountingPeriodRecord, type CashFlowReport, type FinancialStatementsReport, type TrialBalanceRow, fetchAccountingPeriods, fetchCashFlowReport, fetchFinancialStatements } from "@corelithzw/module-books/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type StatementRow = TrialBalanceRow & { group: string; value: number };

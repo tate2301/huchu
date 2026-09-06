@@ -143,3 +143,21 @@ export async function updateNotificationPreferences(
     body: JSON.stringify(input),
   });
 }
+
+export async function saveWebPushSubscription(input: {
+  endpoint: string;
+  p256dh: string;
+  auth: string;
+}) {
+  return fetchJson("/api/notifications/push-subscriptions", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function removeWebPushSubscription(input: { endpoint: string }) {
+  return fetchJson<{ updated: number }>("/api/notifications/push-subscriptions", {
+    method: "DELETE",
+    body: JSON.stringify(input),
+  });
+}

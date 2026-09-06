@@ -7,7 +7,7 @@ import {
   successResponse,
   validateSession,
 } from "@corelithzw/platform/api-utils";
-import { emitPermitRiskNotification } from "@/lib/notifications";
+import { emitPermitRiskNotification } from "@corelithzw/module-compliance/notifications";
 import { prisma } from "@corelithzw/db/client";
 
 const permitSchema = z.object({

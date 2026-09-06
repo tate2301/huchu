@@ -28,14 +28,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type BankAccountRecord,
-  type BankReconciliationRecord,
-  type BankTransactionRecord,
-  fetchBankAccounts,
-  fetchBankReconciliations,
-  fetchBankTransactions,
-} from "@/lib/api";
+import { type BankAccountRecord, type BankReconciliationRecord, type BankTransactionRecord, fetchBankAccounts, fetchBankReconciliations, fetchBankTransactions } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRightLeft, CheckCircle2, Wallet } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";

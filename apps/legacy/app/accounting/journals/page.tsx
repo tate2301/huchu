@@ -37,13 +37,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type CostCenterRecord,
-  type JournalEntryRecord,
-  fetchChartOfAccounts,
-  fetchCostCenters,
-  fetchJournalEntries,
-} from "@/lib/api";
+import { type CostCenterRecord, type JournalEntryRecord, fetchChartOfAccounts, fetchCostCenters, fetchJournalEntries } from "@corelithzw/module-books/api-client";
 import { formatAmount } from "@corelithzw/module-books/format";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { FileCheck } from "@corelithzw/ui/lib/icons";

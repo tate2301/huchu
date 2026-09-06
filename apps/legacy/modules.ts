@@ -23,10 +23,17 @@ registerAuthOptions(async () => (await import("@/lib/auth")).authOptions);
 
 // Code the modules hook into each other with, wired here and imported on first
 // use, so reading the composition costs nothing but the manifests. After an
-// approval action, for this host: the approvers are told.
-onApprovalAction(async (tx, event) =>
-  (await import("@/lib/notifications")).emitWorkflowNotificationFromApprovalAction(tx, event),
-);
+// approval action, for this host: the people the entity concerns are told —
+// the people module's entities by its emitter, the gold module's settlement
+// allocations by its own. Each returns at once for an entity it does not own.
+onApprovalAction(async (tx, event) => {
+  const [{ emitPeopleApprovalNotification }, { emitGoldApprovalNotification }] = await Promise.all([
+    import("@corelithzw/module-people/approval-notifications"),
+    import("@corelithzw/module-gold/approval-notifications"),
+  ]);
+  await emitPeopleApprovalNotification(tx, event);
+  await emitGoldApprovalNotification(tx, event);
+});
 
 // The search box's arms: one per module with records worth typing at.
 registerSearchArm({ id: "crm", run: async (db, input) => (await import("@corelithzw/module-crm/search")).searchCrm(db, input) });
@@ -102,7 +109,7 @@ registerFiscalDrainIssuer("schoolFeeReceipt", async (args) => {
 });
 onFiscalBacklog(async (event) => {
   const [{ emitIncidentNotification }, { prisma }] = await Promise.all([
-    import("@/lib/notifications"),
+    import("@corelithzw/module-compliance/notifications"),
     import("@corelithzw/db/client"),
   ]);
   await emitIncidentNotification(prisma, {

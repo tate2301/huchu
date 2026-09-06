@@ -22,12 +22,10 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import {
-  fetchGoldCorrections,
-  fetchSites,
-  fetchStockMovements,
-  fetchWorkOrders,
-} from "@/lib/api";
+import { fetchGoldCorrections } from "@corelithzw/module-gold/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchStockMovements } from "@corelithzw/module-stock/api-client";
+import { fetchWorkOrders } from "@corelithzw/module-maintenance/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type AuditRow = {

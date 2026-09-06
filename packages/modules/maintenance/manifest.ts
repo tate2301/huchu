@@ -5,7 +5,7 @@ import type { ModuleManifest } from "@corelithzw/platform/manifest";
  */
 export const manifest: ModuleManifest = {
   id: "maintenance",
-  requires: ["stock", "people", "documents"],
+  requires: ["stock", "people", "documents", "notifications"],
   notifications: {
     viewPaths: {
       WORK_ORDER: "/maintenance/work-orders?workOrderId={id}",

@@ -37,7 +37,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchEmployeePayments, type EmployeePayment } from "@/lib/api";
+import { fetchEmployeePayments, type EmployeePayment } from "@corelithzw/module-people/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type StatusFilter = "ALL" | "DUE" | "PARTIAL";

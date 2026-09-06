@@ -19,13 +19,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  createGoldExpenseType,
-  deleteGoldExpenseType,
-  fetchGoldExpenseTypes,
-  type GoldExpenseType,
-  updateGoldExpenseType,
-} from "@/lib/api";
+import { createGoldExpenseType, deleteGoldExpenseType, fetchGoldExpenseTypes, type GoldExpenseType, updateGoldExpenseType } from "@corelithzw/module-gold/api-client";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldExpenseTypeFormState = {

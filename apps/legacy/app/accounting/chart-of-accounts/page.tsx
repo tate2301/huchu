@@ -35,11 +35,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type ChartOfAccountRecord,
-  fetchChartOfAccounts,
-  fetchTrialBalance,
-} from "@/lib/api";
+import { type ChartOfAccountRecord, fetchChartOfAccounts, fetchTrialBalance } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Search, TableRows } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";

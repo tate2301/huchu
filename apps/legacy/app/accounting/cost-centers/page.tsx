@@ -18,7 +18,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { type CostCenterRecord, fetchCostCenters } from "@/lib/api";
+import { type CostCenterRecord, fetchCostCenters } from "@corelithzw/module-books/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2 } from "@corelithzw/ui/lib/icons";
 import { AccountingNewButton } from "@corelithzw/module-books/components/accounting-new-button";

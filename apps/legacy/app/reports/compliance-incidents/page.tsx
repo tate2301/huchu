@@ -22,7 +22,8 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchIncidents, fetchSites } from "@/lib/api";
+import { fetchIncidents } from "@corelithzw/module-compliance/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 export default function ComplianceIncidentsReportPage() {

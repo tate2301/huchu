@@ -42,17 +42,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
-import {
-  fetchCompensationProfiles,
-  type CompensationProfileRecord,
-  fetchCompensationRules,
-  type CompensationRuleRecord,
-  fetchCompensationTemplates,
-  type CompensationTemplateRecord,
-  fetchDepartments,
-  fetchEmployees,
-  fetchJobGrades,
-} from "@/lib/api";
+import { fetchCompensationProfiles, type CompensationProfileRecord, fetchCompensationRules, type CompensationRuleRecord, fetchCompensationTemplates, type CompensationTemplateRecord, fetchDepartments, fetchEmployees, fetchJobGrades } from "@corelithzw/module-people/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import {
   getEmployeePositionOptions,

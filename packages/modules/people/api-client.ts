@@ -955,3 +955,61 @@ export async function fetchDisciplinaryActions(
     `/api/hr/disciplinary-actions${query}`,
   );
 }
+
+export type ApprovalHistoryRecord = {
+  id: string;
+  companyId: string;
+  /**
+   * Mirrors `ApprovalTargetType`, including the retired value.
+   *
+   * The settlement and leave values were missing, so an approval recorded against
+   * either was a row this type said could not exist — the history screen reads
+   * every row in the table, whatever wrote it. `IRREGULAR_PAYOUT_BATCH` stays for
+   * the opposite reason: nothing writes it any more, and rows from before P-1 are
+   * still there to be displayed.
+   */
+  entityType:
+    | "PAYROLL_RUN"
+    | "DISBURSEMENT_BATCH"
+    | "ADJUSTMENT_ENTRY"
+    | "COMPENSATION_PROFILE"
+    | "COMPENSATION_RULE"
+    | "GOLD_SHIFT_ALLOCATION"
+    | "DISCIPLINARY_ACTION"
+    | "SETTLEMENT_INTAKE"
+    | "SETTLEMENT_RUN"
+    | "SETTLEMENT_BATCH"
+    | "LEAVE_REQUEST"
+    | "IRREGULAR_PAYOUT_BATCH";
+  entityId: string;
+  action: "CREATE" | "SUBMIT" | "APPROVE" | "REJECT" | "ADJUST";
+  fromStatus?: string | null;
+  toStatus?: string | null;
+  note?: string | null;
+  actedAt: string;
+  createdAt: string;
+  actedBy: { id: string; name: string; role: string };
+};
+
+export async function fetchApprovalHistory(
+  params: {
+    search?: string;
+    entityType?:
+      | "PAYROLL_RUN"
+      | "DISBURSEMENT_BATCH"
+      | "ADJUSTMENT_ENTRY"
+      | "COMPENSATION_PROFILE"
+      | "COMPENSATION_RULE"
+      | "GOLD_SHIFT_ALLOCATION"
+      | "DISCIPLINARY_ACTION";
+    entityId?: string;
+    actedById?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ApprovalHistoryRecord>>(`/api/approvals/history${query}`);
+}

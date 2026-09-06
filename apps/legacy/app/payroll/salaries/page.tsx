@@ -15,16 +15,7 @@ import { DataTable, type DataTableQueryState } from "@corelithzw/ui/components/d
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell"
 import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views"
-import {
-  type DisbursementBatchRecord,
-  type EmployeePayment,
-  type PayrollPeriodRecord,
-  type PayrollRunRecord,
-  fetchDisbursementBatches,
-  fetchEmployeePayments,
-  fetchPayrollPeriods,
-  fetchPayrollRuns,
-} from "@/lib/api"
+import { type DisbursementBatchRecord, type EmployeePayment, type PayrollPeriodRecord, type PayrollRunRecord, fetchDisbursementBatches, fetchEmployeePayments, fetchPayrollPeriods, fetchPayrollRuns } from "@corelithzw/module-people/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 export default function HrSalariesPage() {

@@ -34,23 +34,7 @@ import {
 } from "@corelithzw/ui/components/dialog";
 import { Separator } from "@corelithzw/ui/components/separator";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  backfillRetailAccounting,
-  fetchAccountingReadiness,
-  fetchIntegrationEvents,
-  fetchPostingRules,
-  fetchChartOfAccounts,
-  previewPostingRule,
-  runSeedPack,
-  fetchTenderMappings,
-  type AccountingSetupReadiness,
-  type AccountingIntegrationEventRecord,
-  type AccountingSeedPackResult,
-  type PostingRuleRecord,
-  type PostingSimulationResult,
-  type RetailAccountingBackfillResult,
-  type TenderAccountMappingRecord,
-} from "@/lib/api";
+import { backfillRetailAccounting, fetchAccountingReadiness, fetchIntegrationEvents, fetchPostingRules, fetchChartOfAccounts, previewPostingRule, runSeedPack, fetchTenderMappings, type AccountingSetupReadiness, type AccountingIntegrationEventRecord, type AccountingSeedPackResult, type PostingRuleRecord, type PostingSimulationResult, type RetailAccountingBackfillResult, type TenderAccountMappingRecord } from "@corelithzw/module-books/api-client";
 import {
   RETAIL_REQUIRED_SOURCE_TYPES,
   RETAIL_TENDER_TYPES,

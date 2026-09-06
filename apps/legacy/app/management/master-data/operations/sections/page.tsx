@@ -19,14 +19,8 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  createSection,
-  deleteSection,
-  fetchSections,
-  fetchSitesList,
-  type SectionSummary,
-  updateSection,
-} from "@/lib/api";
+import { createSection, deleteSection, fetchSections, type SectionSummary, updateSection } from "@corelithzw/module-gold/api-client";
+import { fetchSitesList } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 
 type SectionFormState = {

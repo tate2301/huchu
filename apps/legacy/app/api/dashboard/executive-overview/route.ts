@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { ExecutiveModuleSummary, ExecutiveSummaryMetric } from "@/lib/api";
+import type { ExecutiveModuleSummary, ExecutiveSummaryMetric } from "@corelithzw/module-gold/api-client";
 import {
   errorResponse,
   isValidUUID,

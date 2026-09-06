@@ -31,7 +31,8 @@ import {
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchAttendance, fetchSites, type AttendanceRecord } from "@/lib/api";
+import { fetchAttendance, type AttendanceRecord } from "@corelithzw/module-people/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

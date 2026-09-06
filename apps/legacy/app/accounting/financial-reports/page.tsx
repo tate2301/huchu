@@ -28,7 +28,8 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
-import { fetchFinancialReportsHubSummary, fetchSites } from "@/lib/api";
+import { fetchFinancialReportsHubSummary } from "@corelithzw/module-books/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**

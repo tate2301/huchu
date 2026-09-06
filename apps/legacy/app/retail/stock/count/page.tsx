@@ -13,7 +13,7 @@ import { Label } from "@corelithzw/ui/components/label";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@corelithzw/ui/components/select";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import { fetchSites } from "@/lib/api";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ArrowRightLeft, LocalShipping } from "@corelithzw/ui/lib/icons";
 

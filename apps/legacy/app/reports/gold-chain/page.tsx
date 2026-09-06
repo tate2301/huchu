@@ -17,13 +17,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@corelithzw/ui/components/select";
-import {
-  fetchGoldCorrections,
-  fetchGoldDispatches,
-  fetchGoldPours,
-  fetchGoldReceipts,
-  fetchSites,
-} from "@/lib/api";
+import { fetchGoldCorrections, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@corelithzw/module-gold/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldChainReportRow = {

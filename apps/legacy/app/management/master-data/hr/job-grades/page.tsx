@@ -18,13 +18,7 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  createJobGrade,
-  deleteJobGrade,
-  fetchJobGrades,
-  type JobGradeRecord,
-  updateJobGrade,
-} from "@/lib/api";
+import { createJobGrade, deleteJobGrade, fetchJobGrades, type JobGradeRecord, updateJobGrade } from "@corelithzw/module-people/api-client";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 

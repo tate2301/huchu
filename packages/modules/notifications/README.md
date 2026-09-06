@@ -17,4 +17,7 @@ The service names no module. Where a notice about a payroll run opens, and what
 an approver may do from it, is data in the payroll module's manifest
 (`notifications.viewPaths`, `notifications.approvalActions`); the service reads
 the registered manifests. The emitters that know those entities live with their
-modules — until a module is extracted, in the host's `lib/notifications.ts`.
+modules (`notifications.ts` in each); what they share is here: `escalation.ts`,
+the managers-and-the-clerk recipients rule and the incident severity scale. The
+approval emitter is the people module's (`approval-notifications.ts`), and a
+module with approvable entities of its own gives it a resolver.

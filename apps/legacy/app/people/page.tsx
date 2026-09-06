@@ -49,13 +49,7 @@ import {
 } from "@corelithzw/ui/components/sheet"
 import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import { useToast } from "@corelithzw/ui/components/use-toast"
-import {
-  fetchCompensationTemplates,
-  fetchDepartments,
-  fetchEmployees,
-  fetchJobGrades,
-  type EmployeeSummary,
-} from "@/lib/api"
+import { fetchCompensationTemplates, fetchDepartments, fetchEmployees, fetchJobGrades, type EmployeeSummary } from "@corelithzw/module-people/api-client";
 import { fetchJson, getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client"
 import {
   getDefaultEmployeePosition,

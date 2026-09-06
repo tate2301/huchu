@@ -20,12 +20,7 @@ import { StatusChip } from "@corelithzw/ui/components/status-chip";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
-import {
-  fetchGoldCorrections,
-  fetchGoldDispatches,
-  fetchGoldPours,
-  fetchGoldReceipts,
-} from "@/lib/api";
+import { fetchGoldCorrections, fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@corelithzw/module-gold/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 import { goldRoutes } from "@corelithzw/module-gold/routes";

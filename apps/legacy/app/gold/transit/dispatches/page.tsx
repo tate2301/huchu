@@ -24,12 +24,8 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
-import {
-  fetchEmployees,
-  fetchGoldDispatches,
-  fetchGoldPours,
-  fetchGoldReceipts,
-} from "@/lib/api";
+import { fetchEmployees } from "@corelithzw/module-people/api-client";
+import { fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@corelithzw/module-gold/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { goldRoutes } from "@corelithzw/module-gold/routes";
 

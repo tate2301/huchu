@@ -44,14 +44,7 @@ import {
 } from "@corelithzw/ui/components/sheet";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  fetchPayrollConfig,
-  type PayrollPeriodRecord,
-  fetchPayrollPeriods,
-  fetchPayrollRuns,
-  updatePayrollConfig,
-  type PayrollRunRecord,
-} from "@/lib/api";
+import { fetchPayrollConfig, type PayrollPeriodRecord, fetchPayrollPeriods, fetchPayrollRuns, updatePayrollConfig, type PayrollRunRecord } from "@corelithzw/module-people/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";

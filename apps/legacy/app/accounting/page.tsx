@@ -33,17 +33,10 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@corelithzw/ui/components/dialog";
-import {
-  fetchAccountingPeriods,
-  fetchAccountingSummary,
-  fetchFinancialReportsHubSummary,
-  fetchJournalEntries,
-  fetchPayablesHubSummary,
-  fetchReceivablesHubSummary,
-  fetchSites,
-} from "@/lib/api";
+import { fetchAccountingPeriods, fetchAccountingSummary, fetchFinancialReportsHubSummary, fetchJournalEntries, fetchPayablesHubSummary, fetchReceivablesHubSummary } from "@corelithzw/module-books/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
-import type { AccountingPeriodRecord, AccountingSeedPackResult } from "@/lib/api";
+import type { AccountingPeriodRecord, AccountingSeedPackResult } from "@corelithzw/module-books/api-client";
 import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
 import {
   Coins,

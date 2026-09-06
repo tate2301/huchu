@@ -38,12 +38,8 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  fetchInventoryItems,
-  fetchSites,
-  fetchStockLocations,
-  type InventoryItem,
-} from "@/lib/api";
+import { fetchInventoryItems, fetchStockLocations, type InventoryItem } from "@corelithzw/module-stock/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

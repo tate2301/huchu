@@ -32,7 +32,8 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { formatAmount, formatHeadline } from "@corelithzw/module-books/format";
-import { fetchApAging, fetchPayablesHubSummary, fetchSites } from "@/lib/api";
+import { fetchApAging, fetchPayablesHubSummary } from "@corelithzw/module-books/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { Building2, FileText, Payments } from "@corelithzw/ui/lib/icons";
 

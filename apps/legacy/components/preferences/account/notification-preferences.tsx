@@ -6,11 +6,7 @@ import { Alert, Card, Skeleton, Switch } from "@corelithzw/react";
 
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
-import {
-  fetchNotificationPreferences,
-  updateNotificationPreferences,
-  type UserNotificationPreferences,
-} from "@/lib/api";
+import { fetchNotificationPreferences, updateNotificationPreferences, type UserNotificationPreferences } from "@corelithzw/module-notifications/api-client";
 
 type PreferenceKey = keyof Pick<
   UserNotificationPreferences,

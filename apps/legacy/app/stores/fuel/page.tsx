@@ -16,7 +16,7 @@ import {
   CardTitle,
 } from "@corelithzw/ui/components/card";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
-import { fetchInventoryItems, fetchStockMovements } from "@/lib/api";
+import { fetchInventoryItems, fetchStockMovements } from "@corelithzw/module-stock/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

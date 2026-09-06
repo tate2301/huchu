@@ -19,7 +19,7 @@ import { prisma } from "@corelithzw/db/client"
 import { createJournalEntryFromSource } from "@corelithzw/module-books/posting"
 import { z } from "zod"
 import { normalizeProvidedId, reserveIdentifier } from "@corelithzw/platform/id-generator"
-import { emitGoldDispatchReceiptedNotification } from "@/lib/notifications"
+import { emitGoldDispatchReceiptedNotification } from "@corelithzw/module-gold/notifications";
 import { createSalesInvoice, upsertGoldCustomer } from "@corelithzw/module-gold/commodity-billing"
 
 const buyerReceiptSchema = z

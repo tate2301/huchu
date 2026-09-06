@@ -24,7 +24,8 @@ import {
 } from "@corelithzw/ui/components/select";
 import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { Badge } from "@corelithzw/ui/components/badge";
-import { fetchSites, fetchStockMovements } from "@/lib/api";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchStockMovements } from "@corelithzw/module-stock/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
 import { exportElementToDocument } from "@corelithzw/module-documents/pdf";

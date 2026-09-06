@@ -19,14 +19,8 @@ import {
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  createDowntimeCode,
-  deleteDowntimeCode,
-  fetchDowntimeCodes,
-  fetchSitesList,
-  type DowntimeCode,
-  updateDowntimeCode,
-} from "@/lib/api";
+import { createDowntimeCode, deleteDowntimeCode, fetchDowntimeCodes, type DowntimeCode, updateDowntimeCode } from "@corelithzw/module-gold/api-client";
+import { fetchSitesList } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage, resolveDisplayErrorMessage } from "@corelithzw/platform/api-client";
 import { useReservedId } from "@corelithzw/platform/hooks/use-reserved-id";
 

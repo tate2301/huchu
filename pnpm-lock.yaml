@@ -515,6 +515,9 @@ importers:
       '@corelithzw/module-documents':
         specifier: workspace:*
         version: link:../documents
+      '@corelithzw/module-notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@corelithzw/module-people':
         specifier: workspace:*
         version: link:../people
@@ -843,6 +846,9 @@ importers:
       '@corelithzw/module-documents':
         specifier: workspace:*
         version: link:../documents
+      '@corelithzw/module-notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@corelithzw/module-people':
         specifier: workspace:*
         version: link:../people
@@ -1038,6 +1044,9 @@ importers:
       '@corelithzw/module-documents':
         specifier: workspace:*
         version: link:../documents
+      '@corelithzw/module-notifications':
+        specifier: workspace:*
+        version: link:../notifications
       '@corelithzw/module-records':
         specifier: workspace:*
         version: link:../records

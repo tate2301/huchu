@@ -5,7 +5,7 @@ import type { ModuleManifest } from "@corelithzw/platform/manifest";
  */
 export const manifest: ModuleManifest = {
   id: "compliance",
-  requires: ["people", "documents"],
+  requires: ["people", "documents", "notifications"],
   notifications: {
     viewPaths: {
       INCIDENT: "/compliance/incidents?createdId={id}",

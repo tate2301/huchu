@@ -20,12 +20,7 @@ import { Input } from "@corelithzw/ui/components/input";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  createGoldPrice,
-  fetchGoldPrices,
-  updateGoldPrice,
-  type GoldPriceRecord,
-} from "@/lib/api";
+import { createGoldPrice, fetchGoldPrices, updateGoldPrice, type GoldPriceRecord } from "@corelithzw/module-gold/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { ClientDate } from "@corelithzw/ui/components/client-date";
 

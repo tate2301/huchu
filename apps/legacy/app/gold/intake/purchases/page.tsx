@@ -22,7 +22,9 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
-import { fetchEmployees, fetchGoldPurchases, fetchSites } from "@/lib/api";
+import { fetchEmployees } from "@corelithzw/module-people/api-client";
+import { fetchGoldPurchases } from "@corelithzw/module-gold/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type GoldPurchaseRow = Awaited<

@@ -31,12 +31,7 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton";
 import { WorkflowStep } from "@corelithzw/ui/components/workflow-step";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
 import { useToast } from "@corelithzw/ui/components/use-toast";
-import {
-  type DisbursementBatchRecord,
-  fetchDisbursementBatches,
-  fetchPayrollRuns,
-  type PayrollRunRecord,
-} from "@/lib/api";
+import { type DisbursementBatchRecord, fetchDisbursementBatches, fetchPayrollRuns, type PayrollRunRecord } from "@corelithzw/module-people/api-client";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 type BatchForm = {

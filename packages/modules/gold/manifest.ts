@@ -7,7 +7,7 @@ import { mergeSchema, reportTemplate } from "@corelithzw/module-documents/defaul
  */
 export const manifest: ModuleManifest = {
   id: "gold",
-  requires: ["people", "books", "records", "workflow", "documents"],
+  requires: ["people", "books", "records", "workflow", "documents", "notifications"],
   notifications: {
     viewPaths: {
       GOLD_SHIFT_ALLOCATION: "/gold/settlement/approvals?allocationId={id}",

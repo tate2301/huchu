@@ -26,11 +26,7 @@ import {
   SelectValue,
 } from "@corelithzw/ui/components/select";
 import { formatAmount, formatCount } from "@corelithzw/module-books/format";
-import {
-  type AccountingPeriodRecord,
-  fetchAccountingPeriods,
-  fetchTrialBalance,
-} from "@/lib/api";
+import { type AccountingPeriodRecord, fetchAccountingPeriods, fetchTrialBalance } from "@corelithzw/module-books/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 
 /**

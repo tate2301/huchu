@@ -39,22 +39,8 @@ import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "
 import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import { useToast } from "@corelithzw/ui/components/use-toast"
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views"
-import {
-  createShiftGroup,
-  createShiftGroupSchedule,
-  deleteShiftGroupSchedule,
-  fetchEmployees,
-  fetchShiftGroup,
-  fetchShiftGroups,
-  fetchShiftGroupSchedules,
-  fetchSites,
-  permanentlyDeleteShiftGroup,
-  updateShiftGroup,
-  type EmployeeSummary,
-  type ShiftGroupRecord,
-  type ShiftGroupMemberRecord,
-  type ShiftGroupScheduleRecord,
-} from "@/lib/api"
+import { createShiftGroup, createShiftGroupSchedule, deleteShiftGroupSchedule, fetchEmployees, fetchShiftGroup, fetchShiftGroups, fetchShiftGroupSchedules, permanentlyDeleteShiftGroup, updateShiftGroup, type EmployeeSummary, type ShiftGroupRecord, type ShiftGroupMemberRecord, type ShiftGroupScheduleRecord } from "@corelithzw/module-people/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { ApiError, getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 /// A `Select` cannot hold "" as a value, so "no site" needs a sentinel. It is

@@ -9,7 +9,7 @@ import { mapEntryGrams } from "@corelithzw/module-gold/gold/decimal-utils"
 import { captureAccountingEvent } from "@corelithzw/module-books/integration"
 import { assertPeriodOpen, PeriodClosedError } from "@corelithzw/module-gold/gold/period-close"
 import { writeGoldAuditEvent } from "@/lib/audit/gold"
-import { emitGoldImportFailedNotification, emitGoldExceptionNotification } from "@/lib/notifications"
+import { emitGoldImportFailedNotification, emitGoldExceptionNotification } from "@corelithzw/module-gold/notifications";
 import { createRequestLogger } from "@corelithzw/platform/logging"
 
 // TODO (Epic 9b): require co-sign when rowsTotal > 100 or estimated USD > threshold

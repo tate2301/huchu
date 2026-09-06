@@ -16,7 +16,8 @@ import { Skeleton } from "@corelithzw/ui/components/skeleton"
 import {
   buildTimeSeriesChartConfig,
 } from "@corelithzw/ui/lib/charts/frappe-config-builders"
-import { fetchPlantReports, fetchSites } from "@/lib/api"
+import { fetchPlantReports } from "@corelithzw/module-gold/api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client"
 
 const timeRanges = {

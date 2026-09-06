@@ -15,7 +15,7 @@ import {
 import { StudioTagPicker } from "./studio-tags-panel";
 import { StudioPresetManager } from "./studio-preset-manager";
 import type { ImportDetail, LedgerEntry } from "../types";
-import type { Site } from "@/lib/api";
+import type { Site } from "@corelithzw/platform/client/sites";
 
 type Group = { id: string; name: string };
 

@@ -41,16 +41,8 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { useToast } from "@corelithzw/ui/components/use-toast";
 import { VerticalDataViews } from "@corelithzw/ui/components/vertical-data-views";
 import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
-import {
-  fetchDisciplinaryActions,
-  fetchEmployees,
-  fetchHrIncidents,
-  fetchSites,
-  type DisciplinaryActionRecord,
-  type EmployeeSummary,
-  type HrIncidentRecord,
-  type Site,
-} from "@/lib/api";
+import { fetchDisciplinaryActions, fetchEmployees, fetchHrIncidents, type DisciplinaryActionRecord, type EmployeeSummary, type HrIncidentRecord } from "@corelithzw/module-people/api-client";
+import { fetchSites, type Site } from "@corelithzw/platform/client/sites";
 import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { hasRole } from "@corelithzw/platform/roles";
 

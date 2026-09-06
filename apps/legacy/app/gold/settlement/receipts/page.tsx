@@ -24,11 +24,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@corelithzw/ui/components/sheet";
-import {
-  fetchGoldDispatches,
-  fetchGoldPours,
-  fetchGoldReceipts,
-} from "@/lib/api";
+import { fetchGoldDispatches, fetchGoldPours, fetchGoldReceipts } from "@corelithzw/module-gold/api-client";
 import { getApiErrorMessage } from "@corelithzw/platform/api-client";
 import { goldRoutes } from "@corelithzw/module-gold/routes";
 import { canViewHrefWithEnabledFeatures } from "@corelithzw/platform/gating/nav-filter";

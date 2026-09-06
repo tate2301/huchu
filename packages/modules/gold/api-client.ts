@@ -533,3 +533,254 @@ export async function fetchGoldExpenseTypes(
   );
   return response.expenseTypes;
 }
+
+export type SectionSummary = {
+  id: string;
+  name: string;
+  siteId: string;
+  isActive: boolean;
+  _count?: { shiftReports: number };
+  site?: { name: string; code: string };
+};
+
+export type DowntimeCode = {
+  id: string;
+  code: string;
+  description: string;
+  siteId?: string | null;
+  sortOrder: number;
+  isActive?: boolean;
+  site?: { id: string; name: string; code: string } | null;
+};
+
+export type ShiftReportSummary = {
+  id: string;
+  date: string;
+  shift: string;
+  siteId: string;
+  shiftGroupId?: string | null;
+  crewCount: number;
+  workType: string;
+  status: string;
+  site: { name: string; code: string };
+  shiftGroup?: { id: string; name: string; code?: string | null } | null;
+  section?: { name: string } | null;
+  groupLeader?: { name: string } | null;
+  downtimeEvents?: Array<{
+    id: string;
+    durationHours: number;
+    notes?: string | null;
+    downtimeCode: { description: string; code: string };
+  }>;
+};
+
+export type PlantReportDowntimeEvent = {
+  id: string;
+  durationHours: number;
+  notes?: string | null;
+  downtimeCode: { description: string; code: string };
+};
+
+export type PlantReport = {
+  id: string;
+  date: string;
+  siteId: string;
+  tonnesFed?: number | null;
+  tonnesProcessed?: number | null;
+  runHours?: number | null;
+  dieselUsed?: number | null;
+  grindingMedia?: number | null;
+  reagentsUsed?: number | null;
+  waterUsed?: number | null;
+  goldRecovered?: number | null;
+  notes?: string | null;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+  site: { name: string; code: string };
+  reportedBy?: { name: string } | null;
+  downtimeEvents?: PlantReportDowntimeEvent[];
+};
+
+export type DowntimeAnalytics = {
+  siteId: string;
+  startDate: string;
+  endDate: string;
+  totalDowntimeHours: number;
+  totalIncidents: number;
+  topCause: {
+    description: string;
+    code: string;
+    hours: number;
+    count: number;
+  } | null;
+  causes: Array<{
+    description: string;
+    code: string;
+    hours: number;
+    count: number;
+  }>;
+};
+
+export async function fetchSections(
+  params: {
+    siteId?: string;
+    active?: boolean;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<SectionSummary>>(`/api/sections${query}`);
+}
+
+export async function createSection(input: {
+  name: string;
+  siteId: string;
+  isActive?: boolean;
+}) {
+  return fetchJson<SectionSummary>("/api/sections", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateSection(
+  id: string,
+  input: {
+    name?: string;
+    siteId?: string;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<SectionSummary>(`/api/sections/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteSection(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/sections/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchDowntimeCodes(
+  params: { siteId?: string; active?: boolean | "all"; search?: string } = {},
+) {
+  const query = buildQuery(params);
+  const response = await fetchJson<{ codes: DowntimeCode[] }>(
+    `/api/downtime-codes${query}`,
+  );
+  return response.codes;
+}
+
+export async function createDowntimeCode(input: {
+  code?: string;
+  description: string;
+  siteId: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<DowntimeCode>("/api/downtime-codes", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateDowntimeCode(
+  id: string,
+  input: {
+    code?: string;
+    description?: string;
+    siteId?: string | null;
+    sortOrder?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<DowntimeCode>(`/api/downtime-codes/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteDowntimeCode(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(`/api/downtime-codes/${id}`, {
+    method: "DELETE",
+  });
+}
+
+export async function fetchDowntimeAnalytics(params: {
+  siteId: string;
+  startDate: string;
+  endDate: string;
+}) {
+  const query = buildQuery(params);
+  return fetchJson<DowntimeAnalytics>(`/api/analytics/downtime${query}`);
+}
+
+export async function fetchShiftReports(
+  params: {
+    search?: string;
+    siteId?: string;
+    shiftGroupId?: string;
+    startDate?: string;
+    endDate?: string;
+    status?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<ShiftReportSummary>>(
+    `/api/shift-reports${query}`,
+  );
+}
+
+export async function fetchPlantReports(
+  params: {
+    search?: string;
+    siteId?: string;
+    startDate?: string;
+    endDate?: string;
+    page?: number;
+    limit?: number;
+  } = {},
+) {
+  const query = buildQuery(params);
+  return fetchJson<Pagination<PlantReport>>(`/api/plant-reports${query}`);
+}
+
+export async function createGoldExpenseType(input: {
+  name: string;
+  sortOrder?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<GoldExpenseType>("/api/gold/expense-types", {
+    method: "POST",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function updateGoldExpenseType(
+  id: string,
+  input: {
+    name?: string;
+    sortOrder?: number;
+    isActive?: boolean;
+  },
+) {
+  return fetchJson<GoldExpenseType>(`/api/gold/expense-types/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}
+
+export async function deleteGoldExpenseType(id: string) {
+  return fetchJson<{ success: boolean; archived?: boolean }>(
+    `/api/gold/expense-types/${id}`,
+    {
+      method: "DELETE",
+    },
+  );
+}
