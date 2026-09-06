@@ -14,7 +14,7 @@
  * Run: npx vitest run lib/accounting/fiscal-day
  */
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@corelithzw/db/client";
 import {
   FISCAL_DAY_STATUS,
   FiscalDayAlreadyOpenError,
@@ -33,6 +33,8 @@ import {
 const suite = crypto.randomUUID().slice(0, 8);
 
 let companyId: string;
+/** RetailSale.siteId is a real foreign key; the sales below need a site that exists. */
+let siteId: string;
 /** The device the lifecycle tests run against, in order. */
 let providerConfigId: string;
 /** A second device, used by the concurrent-open test so it does not fight the
@@ -58,7 +60,7 @@ async function createReceipt(args: {
     data: {
       companyId,
       saleNo: `FD2-${suite}-${crypto.randomUUID().slice(0, 8)}`,
-      siteId: `site-${suite}`,
+      siteId,
       currency: args.receiptCurrency ?? "USD",
     },
   });
@@ -86,6 +88,12 @@ beforeAll(async () => {
   });
   companyId = company.id;
 
+  const site = await prisma.site.create({
+    data: { companyId, name: `Fiscal test site ${suite}`, code: `FT-${suite}` },
+    select: { id: true },
+  });
+  siteId = site.id;
+
   const main = await prisma.fiscalisationProviderConfig.create({
     data: { companyId, providerKey: `zimra-${suite}`, deviceId: "10001", isActive: true },
   });
@@ -107,6 +115,7 @@ afterAll(async () => {
   await prisma.retailSale.deleteMany({ where: { id: { in: retailSaleIds } } });
   await prisma.fiscalDay.deleteMany({ where: { companyId } });
   await prisma.fiscalisationProviderConfig.deleteMany({ where: { companyId } });
+  await prisma.site.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });
   await prisma.$disconnect();
 });

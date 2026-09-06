@@ -243,7 +243,7 @@ describe("searchSchools", () => {
     });
 
     expect(result.subtitle).toBe("Core · 4 classes");
-    expect(result.href).toBe("/schools/subjects/44444444-4444-4444-8444-444444444444");
+    expect(result.href).toBe("/management/master-data/schools/subjects/44444444-4444-4444-8444-444444444444");
   });
 
   it("refuses a query too short to mean anything", async () => {

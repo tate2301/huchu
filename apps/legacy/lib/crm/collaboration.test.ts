@@ -47,7 +47,7 @@ describe("comment record mapping", () => {
     // that EVERY type resolves, which is what a notification deep link needs.
     for (const entity of COLLAB_ENTITIES) {
       expect(collabRecordPath({ entity, recordId: "r-1" })).toMatch(
-        /^\/(crm|schools)\/[a-z/-]+\/r-1$/,
+        /^\/(crm|schools|management\/master-data\/schools)\/[a-z/-]+\/r-1$/,
       );
     }
   });

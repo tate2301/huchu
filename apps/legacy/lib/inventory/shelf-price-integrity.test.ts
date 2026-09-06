@@ -39,15 +39,20 @@
  * ## Against the real database
  *
  * Like its siblings (`schema-migration.test.ts`, `stock-movements.test.ts`) this
- * reads the configured database rather than a fixture. A fixture would prove the
- * resolver is self-consistent; only the real rows prove the range is.
+ * reads the configured database rather than only a fixture. A fixture proves the
+ * resolver is self-consistent; only the real rows prove the range is. So it does
+ * both: one known-good range (a product, its stock row, its shelf-list entry) is
+ * created for the run, and every real row present is audited alongside it. On an
+ * empty database — CI — the fixture is what keeps the file from being vacuous.
  */
 
-import { Prisma } from "@prisma/client";
-import { beforeAll, describe, expect, it } from "vitest";
+import crypto from "node:crypto";
+
+import { Prisma } from "@corelithzw/db";
+import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { money, percent } from "@/lib/money";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@corelithzw/db/client";
 import { priceProduct, type PricedProduct } from "@/lib/inventory/catalogue-service";
 import { SHELF_PRICE_LIST_NAME } from "@/lib/retail/shelf-pricing";
 
@@ -81,7 +86,81 @@ let ranged: Ranged[] = [];
  */
 const resolved = new Map<string, PricedProduct | null>();
 
+const suite = crypto.randomUUID().slice(0, 8);
+/** The fixture tenant; everything it owns is removed in afterAll. */
+let fixtureCompanyId: string | undefined;
+
+async function createFixtureRange() {
+  const company = await prisma.company.create({
+    data: { name: `Shelf price fixture ${suite}`, slug: `shelf-price-${suite}` },
+    select: { id: true },
+  });
+  fixtureCompanyId = company.id;
+  const site = await prisma.site.create({
+    data: { companyId: company.id, name: "Shop", code: `SHOP-${suite}` },
+    select: { id: true },
+  });
+  const location = await prisma.stockLocation.create({
+    data: { siteId: site.id, code: "FLOOR", name: "Shop floor" },
+    select: { id: true },
+  });
+  const product = await prisma.product.create({
+    data: {
+      companyId: company.id,
+      code: `SKU-${suite}`,
+      name: "Fixture item",
+      standardPrice: new Prisma.Decimal("11.50"),
+      defaultTaxRate: new Prisma.Decimal("15"),
+    },
+    select: { id: true },
+  });
+  const list = await prisma.priceList.create({
+    data: {
+      companyId: company.id,
+      name: SHELF_PRICE_LIST_NAME,
+      kind: "RETAIL",
+      taxInclusive: true,
+      isDefault: true,
+    },
+    select: { id: true },
+  });
+  await prisma.productPrice.create({
+    data: {
+      companyId: company.id,
+      priceListId: list.id,
+      productId: product.id,
+      minQuantity: new Prisma.Decimal(1),
+      unitPrice: new Prisma.Decimal("11.50"),
+    },
+  });
+  await prisma.inventoryItem.create({
+    data: {
+      itemCode: `SKU-${suite}`,
+      name: "Fixture item",
+      category: "GOODS",
+      unit: "each",
+      siteId: site.id,
+      locationId: location.id,
+      productId: product.id,
+    },
+  });
+}
+
+afterAll(async () => {
+  if (!fixtureCompanyId) return;
+  const companyId = fixtureCompanyId;
+  await prisma.inventoryItem.deleteMany({ where: { site: { companyId } } });
+  await prisma.productPrice.deleteMany({ where: { companyId } });
+  await prisma.priceList.deleteMany({ where: { companyId } });
+  await prisma.product.deleteMany({ where: { companyId } });
+  await prisma.stockLocation.deleteMany({ where: { site: { companyId } } });
+  await prisma.site.deleteMany({ where: { companyId } });
+  await prisma.company.delete({ where: { id: companyId } });
+});
+
 beforeAll(async () => {
+  await createFixtureRange();
+
   const rows = await prisma.inventoryItem.findMany({
     where: { productId: { not: null }, product: { isActive: true, archivedAt: null } },
     select: {

@@ -21,7 +21,7 @@
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach, vi } from "vitest";
 import crypto from "node:crypto";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@corelithzw/db/client";
 
 const { issueMock, syncMock } = vi.hoisted(() => ({
   issueMock: vi.fn(),
@@ -53,6 +53,8 @@ const suite = crypto.randomUUID().slice(0, 8);
 const KEY_ENV = `FDMS_TEST_BUNDLE_${suite.toUpperCase()}`;
 
 let companyId: string;
+/** RetailSale.siteId is a real foreign key; the sales below need a site that exists. */
+let siteId: string;
 let providerConfigId: string;
 let customerId: string;
 let publicKeyPem: string;
@@ -128,6 +130,12 @@ beforeAll(async () => {
   });
   companyId = company.id;
 
+  const site = await prisma.site.create({
+    data: { companyId, name: `Fiscal test site ${suite}`, code: `FT-${suite}` },
+    select: { id: true },
+  });
+  siteId = site.id;
+
   const provider = await prisma.fiscalisationProviderConfig.create({
     data: {
       companyId,
@@ -163,6 +171,8 @@ beforeAll(async () => {
 
 afterAll(async () => {
   delete process.env[KEY_ENV];
+  await prisma.retailSale.deleteMany({ where: { companyId } }).catch(() => {});
+  await prisma.site.deleteMany({ where: { companyId } }).catch(() => {});
   await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   await prisma.$disconnect();
 });
@@ -234,7 +244,7 @@ describe("FiscalDocumentSource — four arms, one column each", () => {
       data: {
         companyId,
         saleNo: `POS-${suite}-${seq}`,
-        siteId: `site-${suite}`,
+        siteId,
         currency: "USD",
         totalAmount: 115,
       },

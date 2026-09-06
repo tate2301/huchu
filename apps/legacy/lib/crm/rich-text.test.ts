@@ -148,7 +148,7 @@ describe("referenceHref", () => {
       `/schools/students/${USER}`,
     );
     expect(referenceHref({ kind: "class", id: USER, label: "Form 2 Blue" })).toBe(
-      `/schools/classes/${USER}`,
+      `/management/master-data/schools/classes/${USER}`,
     );
   });
 

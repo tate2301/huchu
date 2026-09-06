@@ -16,7 +16,7 @@
  * Run: npx vitest run lib/accounting/fiscal-drain
  */
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
-import { prisma } from "@/lib/prisma";
+import { prisma } from "@corelithzw/db/client";
 import {
   drainDueFiscalReceipts,
   fiscalRetryDelayMs,
@@ -26,6 +26,8 @@ import {
 const suite = crypto.randomUUID().slice(0, 8);
 
 let companyId: string;
+/** RetailSale.siteId is a real foreign key; the sales below need a site that exists. */
+let siteId: string;
 let customerId: string;
 let managerId: string;
 
@@ -103,6 +105,12 @@ beforeAll(async () => {
   });
   companyId = company.id;
 
+  const site = await prisma.site.create({
+    data: { companyId, name: `Fiscal test site ${suite}`, code: `FT-${suite}` },
+    select: { id: true },
+  });
+  siteId = site.id;
+
   const customer = await prisma.customer.create({
     data: { companyId, name: "Drain Test Customer" },
   });
@@ -128,6 +136,8 @@ afterAll(async () => {
   await prisma.salesInvoice.deleteMany({ where: { companyId } });
   await prisma.customer.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
+  await prisma.retailSale.deleteMany({ where: { companyId } });
+  await prisma.site.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });
   await prisma.$disconnect();
 });
@@ -339,7 +349,7 @@ describe("a source with no issuer yet", () => {
       data: {
         companyId,
         saleNo: `FD6-${suite}-${crypto.randomUUID().slice(0, 8)}`,
-        siteId: `site-${suite}`,
+        siteId,
         currency: "USD",
       },
     });
