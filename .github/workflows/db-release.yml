@@ -1,0 +1,52 @@
+name: Database release
+
+# Applies pending migrations to the production database. This is the one place
+# migrations run for production: never from a host's build, never by hand from
+# a laptop once this is enabled.
+#
+# It is off until two things exist in the repository settings:
+#   - the secret PRODUCTION_DATABASE_URL (a direct connection, not the pooler)
+#   - the variable DB_RELEASE_ENABLED set to "true"
+# Enable it only after `pnpm db:migrate:status` against production reports the
+# schema up to date — see docs/rollout/product-split-deployment.md.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "packages/db/prisma/migrations/**"
+  workflow_dispatch:
+
+concurrency:
+  group: db-release
+  cancel-in-progress: false
+
+jobs:
+  migrate:
+    if: vars.DB_RELEASE_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: production
+    env:
+      DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile --filter @corelithzw/db...
+
+      - name: Status before
+        run: pnpm db:migrate:status
+
+      - name: Apply pending migrations
+        run: pnpm db:migrate:deploy
+
+      - name: Status after
+        run: pnpm db:migrate:status

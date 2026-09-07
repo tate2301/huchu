@@ -1,0 +1,724 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CORELITH BRIDGE — the app's backwards-compatibility token layer.
+
+   `@corelithzw/react` is the visual source of truth. Its stylesheet is imported
+   into the `corelith` cascade layer from `app/globals.css`, which declares the
+   157 design-system tokens documented in docs/design-system/02-tokens.md.
+
+   This file declares every *other* token name the app still reads — the neutral
+   and brand ramps, the semantic status set, edges, elevation, badges, tables,
+   sidebar, charts, shadcn compatibility, geometry, type, motion — and it
+   declares each one as a derivation of a design-system token.
+
+   The one rule: NO LITERALS. Every value below resolves through a package
+   token, so changing a colour, radius or duration in `@corelithzw/react`
+   changes it here too. A hex or a px in this file is a token that has silently
+   forked from the design system.
+
+   Exceptions, deliberate and marked inline:
+     · a handful of unitless multipliers (leading, font weights) which the
+       package encodes inside `font:` shorthands and does not expose separately;
+     · `--radius-full` / `--radius-pill`, which are just `9999px`.
+
+   This layer is intentionally unlayered `:root`, so it outranks the package's
+   own `:root`. That matters only for names the package does not define — for
+   the ones it does (`--text-*`, `--border*`, `--space-*`, `--radius-*`, fonts)
+   nothing is redeclared here and the package's values stand.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* The same layer order `app/globals.css` declares, repeated here because this
+   file is a separate stylesheet entry and the bundler is free to emit it first.
+   Cascade layer order is fixed by *first appearance* in the document: whichever
+   sheet lands first sets it, and names it does not mention are appended at the
+   end. When this file went out without the declaration it established
+   `theme, base, components, utilities`, so `corelith` and `app` — unknown at
+   that point — were appended *after* `utilities`. That inverted the whole
+   system: the package's `button { padding: 0 }` reset started beating `px-2`,
+   its element styles beat every Tailwind override on the page, and headings,
+   segmented controls, menus and comboboxes all lost their app-side styling.
+   Declaring the order identically in both entries makes it order-independent. */
+@layer theme, base, corelith, app, components, utilities;
+
+:root {
+  color-scheme: light;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SURFACES
+     The package ships canvas / surface / -muted / -sunken / -deep. Everything
+     below is an alias onto that four-step ladder.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --surface-app:            var(--canvas);
+  --surface-canvas:         var(--canvas);
+  --surface-base:           var(--surface);
+  --surface-panel:          var(--surface);
+  --surface-raised:         var(--surface);
+  --surface-elevated:       var(--surface);
+  --surface-subtle:         var(--surface-muted);
+  --surface-soft:           var(--surface-sunken);
+  --surface-hover:          var(--surface-muted);
+  --surface-active:         var(--brand-soft);
+  --surface-row-highlight:  var(--brand-tint);
+  --surface-overlay:        color-mix(in oklab, var(--ink) 14%, transparent);
+
+  --bg-secondary: var(--surface-muted);
+  --bg-tertiary:  var(--surface-sunken);
+  --bg-elevated:  var(--surface);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     NEUTRAL RAMP → the package gray scale
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --neutral-0:   var(--surface);
+  --neutral-25:  color-mix(in oklab, var(--gray-50) 55%, var(--surface));
+  --neutral-50:  var(--gray-50);
+  --neutral-100: var(--gray-100);
+  --neutral-200: var(--gray-200);
+  --neutral-300: var(--gray-300);
+  --neutral-400: var(--gray-400);
+  --neutral-500: var(--gray-500);
+  --neutral-600: var(--gray-600);
+  --neutral-700: var(--gray-700);
+  --neutral-800: var(--gray-800);
+  --neutral-900: var(--gray-900);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     BRAND RAMP → --brand-*
+     `--primary` itself is a package token (= `--brand`) and is not redeclared;
+     only the numbered rungs the app reads are filled in here.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --primary-50:  var(--brand-50);
+  --primary-100: var(--brand-100);
+  --primary-200: var(--brand-200);
+  --primary-300: var(--brand-300);
+  --primary-400: color-mix(in oklab, var(--brand) 70%, var(--brand-300));
+  --primary-500: var(--brand-500);
+  --primary-600: color-mix(in oklab, var(--brand-strong) 55%, var(--brand));
+  --primary-700: var(--brand-700);
+  --primary-800: color-mix(in oklab, var(--brand-900) 55%, var(--brand-700));
+  --primary-900: var(--brand-900);
+
+  --brand-primary: var(--brand);
+  --on-brand:      var(--action-primary-fg);
+
+  /* ── Accent ramp ──────────────────────────────────────────────────────
+     The design system is deliberately single-hue, so it ships no accent scale.
+     The app needs a second, distinguishable series colour (charts, deltas),
+     and the historical accent was teal. Mixing the package's success green
+     into the brand blue reproduces that hue from package tokens only.
+
+     Deliberately no bare `--accent` rung: that name belongs to the package's
+     shadcn mapping, where it is the subtle hover surface. */
+
+  --accent-500: color-mix(in oklab, var(--tone-success) 65%, var(--brand));
+  --accent-50:  color-mix(in oklab, var(--accent-500) 10%, var(--surface));
+  --accent-100: color-mix(in oklab, var(--accent-500) 18%, var(--surface));
+  --accent-200: color-mix(in oklab, var(--accent-500) 32%, var(--surface));
+  --accent-300: color-mix(in oklab, var(--accent-500) 48%, var(--surface));
+  --accent-400: color-mix(in oklab, var(--accent-500) 74%, var(--surface));
+  --accent-600: color-mix(in oklab, var(--accent-500) 82%, var(--gray-900));
+  --accent-700: color-mix(in oklab, var(--accent-500) 68%, var(--gray-900));
+  --accent-800: color-mix(in oklab, var(--accent-500) 54%, var(--gray-900));
+  --accent-900: color-mix(in oklab, var(--accent-500) 42%, var(--gray-900));
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SEMANTIC RAMPS → --tone-*
+     Step 50 is the tone's tinted background, 100 its border, 500 the tone
+     itself; the darker rungs are mixed toward the neutral ink so prose on a
+     tint keeps its contrast floor.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --success-50:  var(--tone-success-bg);
+  --success-100: var(--tone-success-bd);
+  --success-200: color-mix(in oklab, var(--tone-success) 30%, var(--tone-success-bg));
+  --success-300: color-mix(in oklab, var(--tone-success) 50%, var(--tone-success-bg));
+  --success-400: color-mix(in oklab, var(--tone-success) 75%, var(--tone-success-bg));
+  --success-500: var(--tone-success);
+  --success-600: color-mix(in oklab, var(--tone-success) 60%, var(--tone-success-strong));
+  --success-700: var(--tone-success-strong);
+  --success-800: color-mix(in oklab, var(--tone-success-strong) 80%, var(--gray-900));
+  --success-900: color-mix(in oklab, var(--tone-success-strong) 60%, var(--gray-900));
+
+  --warning-50:  var(--tone-warn-bg);
+  --warning-100: var(--tone-warn-bd);
+  --warning-200: color-mix(in oklab, var(--tone-warn) 30%, var(--tone-warn-bg));
+  --warning-300: color-mix(in oklab, var(--tone-warn) 50%, var(--tone-warn-bg));
+  --warning-400: color-mix(in oklab, var(--tone-warn) 75%, var(--tone-warn-bg));
+  --warning-500: var(--tone-warn);
+  --warning-600: color-mix(in oklab, var(--tone-warn) 85%, var(--gray-900));
+  --warning-700: color-mix(in oklab, var(--tone-warn) 70%, var(--gray-900));
+  --warning-800: color-mix(in oklab, var(--tone-warn) 58%, var(--gray-900));
+  --warning-900: color-mix(in oklab, var(--tone-warn) 46%, var(--gray-900));
+
+  --danger-50:  var(--tone-danger-bg);
+  --danger-100: var(--tone-danger-bd);
+  --danger-200: color-mix(in oklab, var(--tone-danger) 30%, var(--tone-danger-bg));
+  --danger-300: color-mix(in oklab, var(--tone-danger) 50%, var(--tone-danger-bg));
+  --danger-400: color-mix(in oklab, var(--tone-danger) 75%, var(--tone-danger-bg));
+  --danger-500: var(--tone-danger);
+  --danger-600: color-mix(in oklab, var(--tone-danger) 60%, var(--tone-danger-strong));
+  --danger-700: var(--tone-danger-strong);
+  --danger-800: color-mix(in oklab, var(--tone-danger-strong) 80%, var(--gray-900));
+  --danger-900: color-mix(in oklab, var(--tone-danger-strong) 60%, var(--gray-900));
+
+  --info-50:  var(--tone-info-bg);
+  --info-100: var(--tone-info-bd);
+  --info-200: var(--brand-200);
+  --info-300: var(--brand-300);
+  --info-400: color-mix(in oklab, var(--tone-info) 75%, var(--brand-300));
+  --info-500: var(--tone-info);
+  --info-600: color-mix(in oklab, var(--brand-strong) 55%, var(--brand));
+  --info-700: var(--brand-700);
+  --info-800: color-mix(in oklab, var(--brand-900) 55%, var(--brand-700));
+  --info-900: var(--brand-900);
+
+  /* Soft tone washes — used where a tint must sit over an unknown surface. */
+  --tone-warn-soft:   var(--tone-warn-bg);
+  --tone-danger-soft: var(--tone-danger-bg);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TEXT
+     `--text-strong/-body/-muted/-subtle/-inverse/-link` come straight from the
+     package and are not redeclared. These are the app's older spellings.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --text-primary:   var(--text-strong);
+  --text-secondary: var(--text-body);
+  --text-tertiary:  var(--text-muted);
+  --text-danger:    var(--tone-danger);
+
+  /* The step below `--text-subtle`, which the canvas uses for a value that is
+     not there — "Not scored", "Nobody named" — and for the mark beside a
+     property's label. The package stops at `--text-subtle`, so a rail drawn to
+     the artboards had no ink for "this row is empty" that was not also the ink
+     for "this row is a label".
+
+     `--text-disabled` is the same grey under the spelling eight call sites
+     already use. It had never been declared anywhere, so every one of them was
+     resolving to nothing and inheriting its parent's colour. */
+  --text-faint:    var(--gray-400);
+  --text-disabled: var(--text-faint);
+
+  --icon-default: var(--text-muted);
+  --icon-strong:  var(--text-strong);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     EDGES
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --edge-subtle:        var(--border-subtle);
+  --edge-default:       var(--border);
+  --edge-strong:        var(--border-strong);
+  --edge-neutral-focus: var(--focus-ring-soft);
+  --border-default:     var(--border);
+  --border-soft:        var(--border-subtle);
+  --input-border:       var(--border);
+  --input-bg:           var(--surface);
+
+  --focus-ring-offset: var(--canvas);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ACTIONS
+     `--action-primary-*` and `--action-secondary-bg/-fg` are package tokens.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --action-primary-hover:    var(--action-primary-bg-hover, var(--brand-strong));
+  --action-primary-pressed:  var(--action-primary-bg-pressed, var(--brand-deeper));
+  --action-secondary-hover:  var(--action-secondary-bg-h);
+  --action-outline-bg:       var(--surface);
+  --action-outline-hover-bg: var(--surface-muted);
+  --action-outline-border:       transparent;
+  --action-outline-border-hover: transparent;
+  --action-disabled-bg:      var(--surface-muted);
+  --action-disabled-fg:      var(--text-subtle);
+
+  --interactive-primary:   var(--brand);
+  --interactive-secondary: var(--text-muted);
+  --interactive-danger:    var(--tone-danger);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     ELEVATION
+     The design system's position is that a border separates surfaces at rest
+     and a shadow only appears when something floats. The app's `--elevation-*`
+     ladder is kept, expressed as the package's border plus its shadow rungs.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --elevation-0: var(--shadow-none);
+  --elevation-1: inset 0 0 0 1px var(--border);
+  --elevation-2: inset 0 0 0 1px var(--border), var(--shadow-hover);
+  --elevation-3: inset 0 0 0 1px var(--border), var(--shadow-popover);
+  --elevation-4: inset 0 0 0 1px var(--border-strong), var(--shadow-modal);
+
+  --shadow-card: var(--shadow-rest);
+
+  --surface-frame-shadow:       inset 0 0 0 1px var(--border);
+  --surface-frame-shadow-hover: inset 0 0 0 1px var(--border-strong), var(--shadow-hover);
+
+  --button-shadow-rest:     inset 0 0 0 1px var(--border);
+  --button-shadow-hover:    inset 0 0 0 1px var(--border-strong), var(--shadow-hover);
+  --button-shadow-pressed:  inset 0 0 0 1px var(--border-strong);
+  --button-ghost-hover-bg:  var(--surface-muted);
+  --button-ghost-active-bg: var(--surface-sunken);
+
+  --card-shadow-rest: var(--shadow-rest);
+  --card-divider:     var(--border-subtle);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     STATUS
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* Status inks are the badge inks.
+     ================================
+     These three used to point at the package's `-strong` ramp positions
+     (#2E5526, #7A2419) — chosen for body text on white, and too dark once
+     they sit on their own tint, which is where a status ink almost always
+     ends up. That left the app with two status palettes: `StatusChip` on one,
+     the canvas tables on the other, both claiming to mean "overdue".
+
+     One palette now, defined under BADGES below. Every chip, pill and status
+     line in either module resolves to the same three colours. */
+  --status-success-bg:     var(--tone-success-bg);
+  --status-success-border: var(--tone-success-bd);
+  --status-success-text:   var(--badge-ok-fg);
+  --status-success-500:    var(--tone-success);
+  --status-warning-bg:     var(--tone-warn-bg);
+  --status-warning-border: var(--tone-warn-bd);
+  --status-warning-text:   var(--badge-warn-fg);
+  --status-error-bg:       var(--tone-danger-bg);
+  --status-error-border:   var(--tone-danger-bd);
+  --status-error-text:     var(--badge-bad-fg);
+  --status-danger-border:  var(--tone-danger-bd);
+  --status-info-bg:        var(--tone-info-bg);
+  --status-info-border:    var(--tone-info-bd);
+  --status-info-text:      var(--brand-strong);
+  --status-progress-bg:     var(--brand-soft);
+  --status-progress-border: var(--brand-100);
+  --status-progress-text:   var(--brand-strong);
+  --status-pending-bg:     var(--surface-muted);
+  --status-pending-border: var(--border-strong);
+  --status-pending-text:   var(--text-muted);
+  --status-inactive-bg:     var(--surface-muted);
+  --status-inactive-border: var(--border-subtle);
+  --status-inactive-text:   var(--text-subtle);
+  --status-queued:    var(--brand-strong);
+  --status-queued-bg: var(--brand-soft);
+  --status-chip:      var(--status-info-text);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     BADGES — one pair per tone, matching the package's Badge tones
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --badge-shadow:       var(--shadow-none);
+  --badge-neutral-bg:   var(--tone-neutral-bg);
+  --badge-neutral-text: var(--text-body);
+  --badge-brand-bg:     var(--brand-soft);
+  --badge-brand-text:   var(--brand-strong);
+  --badge-info-bg:      var(--tone-info-bg);
+  --badge-info-text:    var(--brand-strong);
+  --badge-success-bg:   var(--tone-success-bg);
+  --badge-success-text: var(--badge-ok-fg);
+  --badge-warning-bg:   var(--tone-warn-bg);
+  --badge-warning-text: var(--badge-warn-fg);
+  --badge-danger-bg:    var(--tone-danger-bg);
+  --badge-danger-text:  var(--badge-bad-fg);
+
+  /* ── The canvas badge palette ──────────────────────────────────────────
+     Five pairs, and they are the ones the designs are drawn in.
+
+     The BACKGROUNDS are already package tokens and match exactly, so they
+     are aliased rather than restated. The FOREGROUNDS are not: the package's
+     `-strong` inks (#2E5526 success, #7A2419 danger) were chosen for body
+     text on white, and a badge is neither — it is 10.5px of 600 weight on a
+     tint of its own hue. At that size the strong inks go so dark they read
+     as black-on-pastel and the tone stops carrying meaning. The canvas
+     lightened all three by roughly one step, and those are literals here
+     because they are decisions about a specific pairing, not a ramp
+     position anything else can be derived from.
+
+     Literal is safe here because this app is light-only (see the
+     `data-appearance` note at the foot of this file). If dark ever lands,
+     these three need the inverse treatment — on a dark tint it is the light
+     inks that stay readable — so they are grouped here to be found. */
+  --badge-ok-bg:   var(--tone-success-bg);
+  --badge-ok-fg:   #4A7042;
+  --badge-warn-bg: var(--tone-warn-bg);
+  --badge-warn-fg: #8A5C18;
+  --badge-bad-bg:  var(--tone-danger-bg);
+  --badge-bad-fg:  #8F2D20;
+  --badge-mute-bg: var(--surface-muted);
+  --badge-mute-fg: var(--text-muted);
+  /* Info needs no new pair — `--badge-info-bg`/`-text` above already resolve
+     to the canvas's #E8EFFE on #0944C2. */
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TABLES
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --table-toolbar-bg:      color-mix(in oklab, var(--surface) 86%, transparent);
+  --table-toolbar-border:  var(--border-subtle);
+  /* The canvas puts the column head on the page's own canvas tint, not on
+     `--surface-muted`. One step lighter, and it matters because the head is
+     sticky: it sits over rows as they scroll under it, so it wants to read as
+     the field the card is cut out of rather than as a fourth grey. */
+  --table-header-bg:       var(--canvas);
+  --table-header-text:     var(--text-muted);
+  /* Row rules are lighter still. At 36px a row this is the difference between
+     a table you read across and a grid you read as boxes. */
+  --table-divider:         #F4F6F9;
+  --table-row-bg:          var(--surface);
+  --table-row-bg-alt:      var(--surface);
+  --table-row-hover-bg:    var(--surface-muted);
+  --table-row-selected-bg: var(--brand-tint);
+
+  --datatable-toolbar-bg:     color-mix(in oklab, var(--surface) 90%, transparent);
+  --datatable-toolbar-border: var(--border-subtle);
+  --datatable-expanded-bg:    var(--surface-muted);
+  --datatable-empty-bg:       var(--surface-muted);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SIDEBAR
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* The sidebar is the page's own surface, not a tinted panel beside it. A
+     muted background made it read as a separate application chrome; flat white
+     lets the nav sit in the same plane as the content and puts all the visual
+     weight on the one item that is selected. */
+  --sidebar:                    var(--surface);
+  --sidebar-foreground:         var(--text-body);
+  --sidebar-primary:            var(--action-primary-bg);
+  --sidebar-primary-foreground: var(--action-primary-fg);
+  /* Hover has to darken now that the base is white — against `--surface` the
+     old value was invisible. */
+  --sidebar-accent:             var(--surface-muted);
+  --sidebar-accent-foreground:  var(--text-strong);
+  /* The seam between navigation and work, and the one under the app bar.
+     `--border` (#E5E8EE) and `--border-subtle` (#EEF0F4) are both too light to
+     read as an edge at 1px on white — the sidebar and the app bar were drawing
+     lines nobody could see, so the chrome and the content looked like one
+     undifferentiated white field. `--chrome-edge` is one step stronger, and
+     `--chrome-shadow` is a **hard** 1px offset with no blur: a crisp second
+     hairline for the sticky app bar, which genuinely is floating over the
+     scrolling content, rather than a soft glow that would violate
+     "borders at rest, shadows only when floating". */
+  --chrome-edge:                var(--border-strong);
+  --chrome-shadow:              0 1px 0 0 var(--hairline);
+  --sidebar-border:             var(--chrome-edge);
+  --sidebar-ring:               var(--focus-ring);
+
+  --sidebar-item-fg:            color-mix(in oklab, var(--text-body) 84%, var(--text-muted));
+  --sidebar-item-fg-muted:      color-mix(in oklab, var(--text-muted) 88%, var(--text-body));
+  --sidebar-item-icon:          color-mix(in oklab, var(--text-muted) 78%, var(--text-body));
+  --sidebar-item-hover-fg:      var(--text-body);
+  /* Selection is marked by a soft neutral fill and a stronger label, not by
+     colour. Brand is the primary-action colour — spending it on "you are here"
+     puts the loudest thing on the page next to every action that matters. */
+  --sidebar-item-active-bg:     var(--sidebar-accent);
+  --sidebar-item-active-fg:     var(--text-strong);
+  --sidebar-item-active-border: transparent;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     CHARTS
+     Five series that stay distinguishable while drawing only on package
+     material: the brand scale plus the three non-info tones.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --chart-1: var(--brand-500);
+  --chart-2: var(--accent-500);
+  --chart-3: var(--tone-success);
+  --chart-4: var(--tone-warn);
+  --chart-5: var(--tone-danger);
+  --chart-grid: var(--border-subtle);
+  --chart-text: var(--text-muted);
+
+  --chart-passing:      var(--tone-success);
+  --chart-failing:      var(--tone-danger);
+  --chart-need-changes: var(--tone-warn);
+  --chart-in-review:    var(--brand-500);
+  --chart-in-progress:  var(--tone-warn);
+  --chart-pending:      var(--gray-400);
+  --chart-inactive:     var(--gray-500);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     SHADCN COMPATIBILITY
+
+     Nothing to do here. `@corelithzw/react` already ships the full shadcn set
+     — `--background --foreground --card --popover --primary --secondary
+     --muted --accent --destructive --input --ring --radius` and their
+     `-foreground` pairs — mapped onto its own tokens. Redeclaring any of them
+     below would shadow the package (this block is unlayered, the package's is
+     not) and re-open exactly the drift this migration closed.
+
+     Note in particular that the package's `--accent` is `--brand-soft`, the
+     subtle hover surface shadcn means by that name. It is NOT the chart accent
+     declared further up: that ramp is `--accent-50 … --accent-900` and has no
+     bare `--accent` rung, precisely so the two cannot collide.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --warm-paper: var(--surface-muted);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     GEOMETRY
+     `--radius`, `--radius-xs … --radius-2xl`, `--button-radius`,
+     `--card-radius`, `--h-control-*`, `--input-height` and `--button-height`
+     are all package tokens.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --radius-full: 9999px;      /* literal by nature — same as --radius-pill */
+
+  /* The package ships `--card-radius: 12px`. The canvas draws every panel at
+     10, and at this density that is not a rounding difference you can wave
+     off: a 12px corner on a 36px card head reads as a pill trying to be a
+     box. One override here rather than a `rounded-[10px]` on every panel. */
+  --card-radius: 10px;
+
+  --control-height-sm: var(--h-control-sm);
+  --control-height-md: var(--h-control-md);
+
+  /* Icon slots. The design system specifies these as px on a 24×24 grid and
+     does not expose them as tokens (docs/design-system/02-tokens.md § Icons),
+     so these five are literal by necessity — `sm` is the documented default. */
+  --icon-size-xs: 14px;
+  --icon-size-sm: 16px;
+  --icon-size-md: 18px;
+  --icon-size-lg: 22px;
+  --icon-size-xl: 28px;
+
+  /* Page gutters.
+     The design system's gutter rule (≤430: 16 · 431–767: 20 · ≥768: 24) is a
+     rule for a page that sits in a container. This app's work surfaces do not:
+     the shell is edge to edge and the gutter is the only inset left, so it
+     stays at 16 at every width and tables bleed past even that. A wider
+     desktop gutter here bought whitespace on the one axis that was already
+     starved — see `--content-max` below. */
+  --content-gutter-x: var(--space-4);
+  --section-gutter-x: var(--space-4);
+  --table-gutter-x:   var(--space-3);
+
+  /* Deliberately none. Work surfaces fill the width they are given; the only
+     things that cap their width are panes that carry their own (a record
+     rail, a settings editor). Kept as a named token so a page that genuinely
+     wants a reading measure asks for it explicitly rather than inheriting a
+     cap it never chose. */
+  --content-max: none;
+  --rail-w: 184px;   /* was 220 — longest label in the app is "Public holidays" */
+
+  /* The app bar's height, and the padding `main` puts above and below a page.
+     Named because any page that wants to fill the screen has to subtract them
+     — and three copies of "3.5rem" in three files is exactly how that breaks
+     silently the next time the bar changes. `Navbar` and `AppShell`'s `main`
+     read these, so `--content-viewport` cannot drift from what a page
+     actually has. */
+  --app-bar-h:        48px;
+  /* Zero, and that is the point: `main` no longer pads the page top and
+     bottom. Every band that pins to the top of the scrollport — the page
+     band, a list toolbar, a table header — has to start at the scrollport's
+     own edge, and 24px of padding above them meant each one floated with a
+     gap the content then slid through. Bands own their vertical padding now. */
+  --content-gutter-y: 0px;
+  --content-viewport: calc(
+    100dvh - var(--app-bar-h) - env(safe-area-inset-top, 0px)
+      - (var(--content-gutter-y) * 2)
+  );
+  --table-row-min-h:  36px;   /* was 48 — four more rows per screen */
+  --table-head-min-h: 32px;   /* was 40 — it is a label strip, not a row */
+
+  /* The sticky stack.
+     Four bands pin in sequence and each offset is the sum of the ones above
+     it. Named because the alternative is a literal in every table: the first
+     time the app bar changes height, every column header in the app hides
+     behind a toolbar and nothing fails loudly. Read these, never re-type them.
+
+       app bar      top: 0                        h 48   z 40
+       page band    top: var(--app-bar-h)         h 44   z 30
+       list toolbar top: var(--band-stack-h)      h 44   z 20
+       table head   top: var(--sticky-stack-h)    h 32   z 10 */
+  --page-band-h:      44px;
+  --band-stack-h:     calc(var(--app-bar-h) + var(--page-band-h));
+  --sticky-stack-h:   calc(var(--band-stack-h) + var(--list-toolbar-h));
+
+  /* The options row on a record list — the band holding the layout switch, the
+     filters and the search. Named for the same reason the app bar is: it pins
+     to the top of the scrollport, and every sticky table header in the module
+     has to pin *below* it. A literal here and a literal in `RecordTable` is
+     how a header ends up half-hidden behind a toolbar the next time the row
+     gains a control. */
+  --list-toolbar-h:   44px;   /* was 3.25rem — the controls inside are 30px */
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TYPOGRAPHY
+     The package owns `--font-sans` / `--font-mono` / `--font-display` /
+     `--font-serif` and the `--type-*` role shorthands. The app additionally
+     reads a decomposed size/line/weight ladder — declared here off the same
+     numbers so the two spellings cannot drift.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --font-family: var(--font-sans);
+
+  /* Weights are unitless and live inside the package's `font:` shorthands;
+     the design system's rule is that weight, not family, does the emphasis. */
+  --font-weight-regular:  400;
+  --font-weight-medium:   500;
+  --font-weight-semibold: 600;
+  --font-weight-bold:     700;
+
+  --leading-tight:   1.3;    /* --type-page-title */
+  --leading-normal:  1.4;    /* --type-section-title / --type-label */
+  --leading-relaxed: 1.55;   /* --type-body */
+
+  /* The design system's size ladder: caption 12 · body-sm 13 · body 14 ·
+     body-lg 16 · page-title 22 · display-sm 32. */
+  --type-size-12: 12px;
+  --type-size-13: 13px;
+  --type-size-14: 14px;
+  --type-size-16: 16px;
+  --type-size-20: 20px;
+  --type-size-22: 22px;
+  --type-size-24: 24px;
+  --type-size-32: 32px;
+
+  --text-xs:  var(--type-size-12);
+  --text-sm:  var(--type-size-13);
+  --text-md:  var(--type-size-14);
+  --text-lg:  var(--type-size-16);
+  --text-xl:  var(--type-size-22);
+  --text-2xl: var(--type-size-32);
+  --text-kpi: var(--type-size-32);
+
+  --type-display-size:   var(--type-size-32);
+  --type-display-line:   var(--leading-tight);
+  --type-display-weight: var(--font-weight-semibold);
+
+  --type-page-title-size:   var(--type-size-22);
+  --type-page-title-line:   var(--leading-tight);
+  --type-page-title-weight: var(--font-weight-semibold);
+
+  --type-section-title-size:   var(--type-size-16);
+  --type-section-title-line:   var(--leading-normal);
+  --type-section-title-weight: var(--font-weight-semibold);
+
+  --type-body-size:   var(--type-size-14);
+  --type-body-line:   var(--leading-relaxed);
+  --type-body-weight: var(--font-weight-regular);
+
+  --type-body-lg-size:   var(--type-size-16);
+  --type-body-lg-line:   var(--leading-relaxed);
+  --type-body-lg-weight: var(--font-weight-regular);
+
+  --type-field-label-size:   var(--type-size-13);
+  --type-field-label-line:   var(--leading-normal);
+  --type-field-label-weight: var(--font-weight-medium);
+
+  --type-field-help-size:   var(--type-size-12);
+  --type-field-help-line:   var(--leading-normal);
+  --type-field-help-weight: var(--font-weight-regular);
+
+  --type-table-text-size:   var(--type-size-14);
+  --type-table-text-line:   var(--leading-relaxed);
+  --type-table-text-weight: var(--font-weight-regular);
+
+  --type-table-header-size:   var(--type-size-12);
+  --type-table-header-line:   var(--leading-tight);
+  --type-table-header-weight: var(--font-weight-medium);
+
+  --type-caption-size:   var(--type-size-12);
+  --type-caption-line:   var(--leading-normal);
+  --type-caption-weight: var(--font-weight-regular);
+
+  /* ══════════════════════════════════════════════════════════════════════
+     MOTION → --dur-* / --ease-*
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --motion-duration-instant: var(--dur-instant);
+  --motion-duration-fast:    var(--dur-fast);
+  --motion-duration-base:    var(--dur-base);
+  --motion-duration-normal:  var(--dur-base);
+  --motion-duration-slow:    var(--dur-slow);
+
+  --motion-ease-standard:   var(--ease-out);
+  --motion-ease-default:    var(--ease-out);
+  --motion-ease-emphasized: var(--ease-in-out);
+  --motion-ease-exit:       var(--ease-snap);
+  --motion-ease-spring:     var(--ease-spring);
+
+  --motion-scale-hover: 1.015;
+  --motion-scale-press: 0.985;
+  --motion-lift-y:      -2px;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     TOUCH, MOBILE LISTS, SCROLLBARS
+     ══════════════════════════════════════════════════════════════════════ */
+
+  --touch-target-min:         var(--h-control-lg);                   /* 44 */
+  --touch-target-comfortable: var(--space-9);                        /* 48 */
+  --touch-target-generous:    calc(var(--space-9) + var(--space-2)); /* 56 */
+
+  --mobile-list-item-height:    var(--space-10);                     /* 64 */
+  --mobile-list-item-padding-x: var(--content-gutter-x);
+  --mobile-list-divider-color:  var(--border-subtle);
+  --mobile-list-icon-size:      var(--space-8);                      /* 40 */
+  --mobile-list-icon-radius:    var(--radius-lg);
+
+  --scrollbar-width:       var(--space-2);
+  --scrollbar-track:       transparent;
+  --scrollbar-thumb:       var(--gray-300);
+  --scrollbar-thumb-hover: var(--gray-400);
+
+  /* The design system's canvas is flat; the historical gradient wash is off.
+     Set this to a gradient on a scoped selector if a surface wants one. */
+  --app-canvas-wash: none;
+
+  /* ══════════════════════════════════════════════════════════════════════
+     COMPONENT GAPS
+     Tokens that local components read but nothing ever declared, so they were
+     resolving to their inline fallback — or to nothing at all. Declared here
+     off design-system tokens so those components join the system.
+     ══════════════════════════════════════════════════════════════════════ */
+
+  /* components/ui/sheet.tsx — the side sheet had no width at any breakpoint.
+     Panel widths are layout, not palette; the design system does not tokenise
+     them (it tokenises `--sidebar-w` and `--content-max` only), so these three
+     rungs are literal, sized one step under the dialog ladder in dialog.tsx. */
+  --sheet-size-mobile: 100%;
+  --sheet-size-sm: 24rem;
+  --sheet-size-md: 28rem;
+  --sheet-size-lg: 32rem;
+
+  /* components/offline/offline-keypad.tsx */
+  --keypad-bg:           var(--surface-muted);
+  --keypad-text:         var(--text-strong);
+  --keypad-shadow:       var(--border-strong);
+  --keypad-shadow-color: var(--border-strong);
+  --keypad-active:       var(--surface-sunken);
+  --keypad-clear:        var(--tone-danger);
+  --keypad-enter:        var(--action-primary-bg);
+  --keypad-enter-active: var(--action-primary-pressed);
+}
+
+/* The gutter no longer widens with the viewport.
+   It used to step 16 → 20 → 24 per the design system's gutter rule, which is
+   written for pages inside a container. These are not: the extra 8px at
+   desktop was inset on a surface that had already given up 360px to
+   `max-w-7xl`, and the vertical gutter pushed every sticky band away from the
+   top of the scrollport it needed to pin to. Both are gone; the horizontal
+   gutter is a flat 16 and bands own their own vertical padding.
+
+   `--section-gutter-x` still steps, because a section header inside a pane is
+   reading material rather than a work surface. */
+@media (min-width: 431px) {
+  :root {
+    --section-gutter-x: var(--space-5);
+  }
+}
+
+@media (min-width: 768px) {
+  :root {
+    --section-gutter-x: var(--gutter-x);
+  }
+}
+
+/* The design system flips its tokens on `body.is-dark`. The app is light-only
+   today; this keeps the explicit opt-in working if a surface sets it. */
+:root[data-appearance="light"] {
+  color-scheme: light;
+}

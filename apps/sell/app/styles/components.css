@@ -1,0 +1,3715 @@
+/* ============================================================
+   Corelith — Component library
+   Inspired by Claude Code: warm-paper interface, ghost-first
+   controls, minimal borders, generous whitespace.
+   ============================================================ */
+
+/* ════════════════════════════════════════════════════════════
+   BUTTONS
+   In this system, the default button is the *secondary* button.
+   Primary is INK (dark warm grey), reserved for the single
+   most important confirmation on a screen. Clay is never used
+   as a button background.
+   ════════════════════════════════════════════════════════════ */
+
+.btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 8px;
+  height: var(--button-height);
+  padding: 0 14px;
+  border-radius: var(--button-radius);
+  border: 1px solid transparent;
+  font: 500 14px/1 var(--font-sans);
+  letter-spacing: -0.005em;
+  color: var(--text-strong);
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  text-decoration: none;
+  transition:
+    background-color var(--dur-fast) var(--ease-out),
+    border-color var(--dur-fast) var(--ease-out),
+    color var(--dur-fast) var(--ease-out),
+    box-shadow var(--dur-fast) var(--ease-out);
+}
+.btn:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+.btn .icon, .btn svg { width: 16px; height: 16px; flex: none; }
+
+/* Loading state — the React Button toggles `.is-loading` and sets `aria-busy`.
+   The label content stays in the DOM (so the button doesn't reflow), but is
+   hidden by zeroing the text colour; a CSS-only spinner replaces it at the
+   same position. Works for both plain `<button class="btn">Save</button>`
+   markup and the JSX `<Button loading>` variant (which wraps in spans).
+   The spinner uses --btn-loading-ink so it stays visible even though the
+   surrounding text is `color: transparent`. */
+.btn {
+  --btn-loading-ink: currentColor;
+}
+.btn.is-loading {
+  position: relative;
+  cursor: progress;
+  color: transparent !important;
+  pointer-events: none;
+}
+.btn.is-loading > * { visibility: hidden; }
+.btn.is-loading::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  margin: auto;
+  width: 16px; height: 16px;
+  border-radius: 50%;
+  border: 2px solid var(--btn-loading-ink);
+  border-top-color: transparent;
+  opacity: 0.85;
+  animation: btn-spin 720ms linear infinite;
+}
+.btn-primary   { --btn-loading-ink: var(--action-primary-fg); }
+.btn-secondary { --btn-loading-ink: var(--text-strong); }
+.btn-ghost     { --btn-loading-ink: var(--text-strong); }
+.btn-sm.is-loading::after { width: 13px; height: 13px; border-width: 1.5px; }
+.btn-lg.is-loading::after { width: 18px; height: 18px; }
+@keyframes btn-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) {
+  .btn.is-loading::after { animation: none; border-top-color: var(--btn-loading-ink); opacity: 0.5; }
+}
+
+.btn-primary {
+  background: var(--action-primary-bg);
+  color: var(--action-primary-fg);
+  border-color: var(--action-primary-bg);
+}
+.btn-primary:hover  { background: var(--action-primary-hover); border-color: var(--action-primary-hover); }
+.btn-primary:active { background: var(--action-primary-pressed); }
+
+.btn-secondary {
+  background: var(--surface);
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+  box-shadow: var(--shadow-rest);
+}
+.btn-secondary:hover  { background: var(--surface-muted); border-color: var(--border-strong); }
+.btn-secondary:active { background: var(--surface-sunken); }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-strong);
+}
+.btn-ghost:hover  { background: var(--surface-muted); }
+.btn-ghost:active { background: var(--surface-sunken); }
+
+.btn-quiet {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0 8px;
+}
+.btn-quiet:hover { color: var(--text-strong); background: var(--surface-muted); }
+
+.btn-destructive {
+  background: var(--action-destructive-bg);
+  color: var(--action-destructive-fg);
+  border-color: var(--action-destructive-bg);
+}
+.btn-destructive:hover { background: var(--action-destructive-hover); border-color: var(--action-destructive-hover); }
+
+/* Claude Code's "Delete account" is dark warm grey, not red —
+   for serious-but-reversible destructive actions. */
+.btn-destructive-soft {
+  background: var(--action-destructive-soft-bg);
+  color: var(--canvas);
+  border-color: var(--action-destructive-soft-bg);
+}
+.btn-destructive-soft:hover { background: var(--action-destructive-soft-hover); border-color: var(--action-destructive-soft-hover); }
+
+.btn-link {
+  background: transparent;
+  color: var(--text-link);
+  height: auto;
+  padding: 0;
+  border: none;
+}
+.btn-link:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+.btn-sm { height: var(--h-control-sm); padding: 0 10px; font-size: 13px; gap: 6px; }
+.btn-lg { height: var(--h-control-lg); padding: 0 18px; font-size: 15px; }
+.btn-icon { width: var(--button-height); padding: 0; }
+.btn-icon.btn-sm { width: var(--h-control-sm); }
+.btn[disabled], .btn[aria-disabled="true"] {
+  opacity: 0.5; pointer-events: none;
+}
+
+/* ════════════════════════════════════════════════════════════
+   ICON-LABEL — used as toolbar / pill button
+   Subtle outlined pill with icon + small label. Used in
+   Claude Code for the file-context bar (Local · huchu · worktree).
+   ════════════════════════════════════════════════════════════ */
+
+.chip {
+  display: inline-flex; align-items: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font: 400 13px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.chip:hover { background: var(--surface-muted); border-color: var(--border-strong); }
+.chip .icon, .chip svg { width: 14px; height: 14px; color: var(--text-muted); flex: none; }
+.chip .caret { color: var(--text-subtle); margin-left: 2px; }
+
+/* ════════════════════════════════════════════════════════════
+   BADGES — small inline tags. NOT clickable.
+   Used for: "Beta", "Current", "Up to 30% off", "Paid", etc.
+   ════════════════════════════════════════════════════════════ */
+
+.badge {
+  display: inline-flex; align-items: center;
+  gap: 4px;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: var(--radius-pill);
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: -0.005em;
+  white-space: nowrap;
+  border: 1px solid transparent;
+}
+.badge-neutral { background: var(--surface-muted); color: var(--text-muted); }
+.badge-info    { background: var(--tone-info-bg); color: var(--tone-info); }
+.badge-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.badge-warn    { background: var(--tone-warn-bg); color: var(--tone-warn); }
+.badge-danger  { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.badge-clay    { background: var(--clay-soft); color: var(--clay-strong); }
+.badge-outline { background: var(--surface); border-color: var(--border-strong); color: var(--text-muted); }
+
+/* ════════════════════════════════════════════════════════════
+   STATUS DOT — Claude Code's "Needs input" pattern.
+   A small colored circle + a label, inline, no background.
+   This is the *single most important* status component here.
+   ════════════════════════════════════════════════════════════ */
+
+.status-dot {
+  display: inline-flex; align-items: center;
+  gap: 6px;
+  font: 500 13px/1.4 var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.status-dot::before {
+  content: "";
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--dot-idle);
+  flex: none;
+}
+.status-dot.attention { color: var(--clay-strong); }
+.status-dot.attention::before { background: var(--dot-attention); }
+.status-dot.progress  { color: var(--tone-info); }
+.status-dot.progress::before  { background: var(--dot-progress); }
+.status-dot.ok        { color: var(--tone-success); }
+.status-dot.ok::before        { background: var(--dot-ok); }
+.status-dot.idle      { color: var(--text-subtle); }
+
+/* Ring variant — hollow circle, signals "open"/unread */
+.status-dot.ring::before {
+  background: transparent;
+  border: 1.5px solid currentColor;
+  box-sizing: border-box;
+}
+
+/* ════════════════════════════════════════════════════════════
+   INPUTS
+   ════════════════════════════════════════════════════════════ */
+
+.input, .textarea, .select {
+  width: 100%;
+  height: var(--input-height);
+  padding: 0 12px;
+  border-radius: var(--button-radius);
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  font: 400 14px/1.5 var(--font-sans);
+  color: var(--text-body);
+  outline: none;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.textarea { height: auto; padding: 12px 14px; min-height: 84px; resize: vertical; line-height: 1.55; }
+.input::placeholder, .textarea::placeholder { color: var(--text-subtle); }
+.input:hover, .textarea:hover, .select:hover { border-color: var(--border-hover); }
+.input:focus-visible, .textarea:focus-visible, .select:focus-visible {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft);
+}
+.input[aria-invalid="true"] { border-color: var(--tone-danger); }
+
+.field        { display: grid; gap: 6px; }
+.field-label  { font: var(--type-label-sm); color: var(--text-strong); }
+.field-help   { font: var(--type-caption); color: var(--text-muted); }
+.field-error  { font: var(--type-caption); color: var(--tone-danger); }
+
+/* Hero textarea — the "Describe a task or ask a question" input */
+.hero-input {
+  border: 1px solid var(--border-strong);
+  background: var(--surface);
+  border-radius: 14px;
+  padding: 14px 16px 10px;
+  transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
+}
+.hero-input:focus-within {
+  border-color: var(--border-hover);
+  box-shadow: 0 0 0 3px rgba(42,38,34,0.04);
+}
+.hero-input textarea {
+  width: 100%;
+  border: none; outline: none; background: transparent;
+  resize: none;
+  font: 400 16px/1.5 var(--font-sans);
+  color: var(--text-body);
+  min-height: 28px;
+}
+.hero-input textarea::placeholder { color: var(--text-subtle); }
+.hero-input .tools {
+  display: flex; align-items: center; gap: 8px;
+  margin-top: 10px;
+}
+.hero-input .tools .spacer { flex: 1; }
+
+/* Checkbox / Radio / Switch ─────────────────────────── */
+.check-row { display: inline-flex; align-items: center; gap: 8px; font: var(--type-body); color: var(--text-body); }
+
+.switch {
+  appearance: none;
+  width: 38px; height: 22px; border-radius: 9999px;
+  background: var(--border-strong);
+  position: relative; cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+  flex: none;
+}
+.switch::after {
+  content: ""; position: absolute;
+  top: 2px; left: 2px;
+  width: 18px; height: 18px; border-radius: 50%;
+  background: #fff;
+  box-shadow: var(--shadow-thumb);
+  transition: left var(--dur-fast) var(--ease-out);
+}
+.switch:checked { background: var(--tone-info); }
+.switch:checked::after { left: 18px; }
+
+.check {
+  appearance: none;
+  width: 16px; height: 16px;
+  border: 1.5px solid var(--border-strong);
+  border-radius: 4px;
+  background: var(--surface);
+  position: relative; cursor: pointer;
+}
+.check:checked { background: var(--ink); border-color: var(--ink); }
+.check:checked::after {
+  content: "";
+  position: absolute; inset: 0;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23FAF7F0' stroke-width='2.2' stroke-linecap='round' stroke-linejoin='round'><path d='M3.5 8.5 L7 12 L12.5 4.5'/></svg>");
+  background-size: 14px; background-position: center; background-repeat: no-repeat;
+}
+
+/* ════════════════════════════════════════════════════════════
+   CARDS
+   ════════════════════════════════════════════════════════════ */
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  overflow: clip;
+}
+.card-pad { padding: 16px 20px; }
+.card-head {
+  padding: 16px 20px 12px;
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px;
+}
+.card-head.bordered { border-bottom: 1px solid var(--border); }
+.card-title { font: var(--type-section-title); color: var(--text-strong); }
+.card-sub { font: var(--type-body-sm); color: var(--text-muted); margin-top: 2px; }
+.card-body { padding: 12px 20px 20px; }
+.card-foot { padding: 12px 20px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; }
+
+/* Soft card — no border, sits on canvas */
+.card-soft {
+  background: var(--surface-muted);
+  border-radius: var(--card-radius);
+  overflow: clip;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SIDEBAR
+   The Claude Code sidebar pattern: segmented tabs at top, a
+   primary action row, navigation items, then "Recents" list,
+   then a workspace switcher at the bottom.
+   ════════════════════════════════════════════════════════════ */
+
+.sidebar {
+  width: var(--sidebar-w);
+  background: var(--canvas);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  padding: 14px 12px;
+  gap: 14px;
+  height: 100%;
+}
+
+/* Window chrome row (back/forward/search at top of Claude Code) */
+.sb-chrome {
+  display: flex; align-items: center; gap: 4px;
+  padding: 0 4px 6px;
+}
+.sb-chrome .ic-btn {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.sb-chrome .ic-btn:hover { background: var(--surface-muted); color: var(--text-strong); }
+.sb-chrome .spacer { flex: 1; }
+
+/* Segmented control — Chat / Cowork / Code */
+.segmented {
+  display: inline-grid; grid-auto-flow: column; grid-auto-columns: 1fr;
+  background: var(--surface-muted);
+  border-radius: 9px;
+  padding: 3px;
+  gap: 2px;
+  width: 100%;
+}
+.segmented-item {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  cursor: pointer;
+  border: none; background: transparent;
+}
+.segmented-item .icon, .segmented-item svg { width: 14px; height: 14px; }
+.segmented-item:hover { color: var(--text-strong); }
+.segmented-item.active {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-inset-rest), 0 0 0 1px var(--border);
+}
+
+/* Sidebar navigation items */
+.sb-nav { display: grid; gap: 1px; }
+.sb-item {
+  display: flex; align-items: center; gap: 10px;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: 7px;
+  font: 500 13.5px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+  border: none; background: transparent;
+  text-align: left;
+}
+.sb-item:hover { background: var(--surface-muted); }
+.sb-item.active { background: var(--surface-muted); color: var(--text-strong); font-weight: 500; }
+.sb-item.primary {
+  /* "New session" / "New chat" — solid muted bg always */
+  background: var(--surface-muted);
+}
+.sb-item.primary:hover { background: var(--surface-sunken); }
+.sb-item .icon, .sb-item svg { width: 14px; height: 14px; color: var(--text-muted); flex: none; }
+.sb-item.active .icon, .sb-item.active svg { color: var(--text-strong); }
+.sb-item .count {
+  margin-left: auto;
+  font: var(--type-caption);
+  color: var(--text-subtle);
+}
+
+/* Section heading inside sidebar */
+.sb-section {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 10px 6px;
+}
+.sb-section-label {
+  font: var(--type-caption);
+  color: var(--text-subtle);
+}
+.sb-section-action {
+  width: 22px; height: 22px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-subtle);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.sb-section-action:hover { background: var(--surface-muted); color: var(--text-strong); }
+
+/* Recents — small status-dot list, single-line ellipsis */
+.recents { display: grid; gap: 1px; padding: 0; list-style: none; margin: 0; }
+.recent-item {
+  display: flex; align-items: center; gap: 8px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 6px;
+  font: 400 13px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.recent-item:hover { background: var(--surface-muted); }
+.recent-item .dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--dot-idle);
+  flex: none;
+}
+.recent-item .dot.attention { background: var(--clay); }
+.recent-item .dot.progress  { background: var(--tone-info); }
+.recent-item .dot.ok        { background: var(--tone-success); }
+.recent-item .dot.ring      { background: transparent; border: 1.5px solid var(--text-subtle); width: 8px; height: 8px; }
+.recent-item .title {
+  flex: 1; min-width: 0;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+
+/* Workspace switcher — bottom of sidebar */
+.workspace {
+  margin-top: auto;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+.workspace-btn {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+}
+.workspace-btn:hover { background: var(--surface-muted); }
+.workspace-btn .avatar { background: var(--text-muted); color: var(--canvas); }
+.workspace-btn .ws-name { font: var(--type-label-sm); color: var(--text-strong); flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.workspace-btn .ws-meta { font: var(--type-caption); color: var(--text-muted); }
+.workspace-btn .chev { color: var(--text-subtle); }
+
+/* ════════════════════════════════════════════════════════════
+   PAGE SHELL — the area to the right of the sidebar
+   ════════════════════════════════════════════════════════════ */
+
+.app-shell {
+  display: grid;
+  grid-template-columns: var(--sidebar-w) 1fr;
+  min-height: 100%;
+}
+.app-content {
+  display: flex; flex-direction: column;
+  min-width: 0;
+  background: var(--canvas);
+}
+
+/* Page header — Claude Code uses a SHORT topbar with back arrow + label */
+.page-header {
+  display: flex; align-items: center; gap: 10px;
+  padding: 16px 24px;
+  min-height: 56px;
+}
+.page-header h1 {
+  font: var(--type-page-title);
+  margin: 0;
+  color: var(--text-strong);
+}
+.page-header .back {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  margin-left: -6px;
+}
+.page-header .back:hover { background: var(--surface-muted); color: var(--text-strong); }
+.page-header .spacer { flex: 1; }
+
+/* The greeting block — large serif headline, centered or left */
+.greeting {
+  display: flex; align-items: center; justify-content: center;
+  gap: 16px;
+  padding: 48px 24px 8px;
+}
+.greeting .star {
+  width: 28px; height: 28px;
+  color: var(--clay);
+  flex: none;
+}
+.greeting h1 {
+  font: var(--type-display);
+  font-size: clamp(28px, 4vw, 44px);
+  letter-spacing: -0.02em;
+  margin: 0;
+  color: var(--text-strong);
+}
+
+/* Centered content column — for settings, chat, etc. */
+.content-col {
+  max-width: var(--content-max);
+  width: 100%;
+  margin: 0 auto;
+  padding: 0 24px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   SETTINGS SHELL — two-column inside the content area
+   ════════════════════════════════════════════════════════════ */
+
+.settings-layout {
+  display: grid;
+  grid-template-columns: var(--rail-w) 1fr;
+  gap: 48px;
+  padding: 32px 64px;
+  max-width: 1200px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.settings-rail {
+  display: flex; flex-direction: column;
+  gap: 1px;
+}
+.settings-rail .group-label {
+  font: var(--type-caption);
+  color: var(--text-subtle);
+  padding: 18px 12px 6px;
+}
+.settings-rail .rail-item {
+  display: flex; align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border-radius: 8px;
+  font: 500 14px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+  border: none; background: transparent;
+  text-align: left;
+}
+.settings-rail .rail-item:hover { background: var(--surface-muted); }
+.settings-rail .rail-item.active { background: var(--surface-muted); color: var(--text-strong); font-weight: 500; }
+.settings-rail .rail-item .tag { margin-left: 8px; }
+
+/* Settings content — sections separated by air, not borders */
+.settings-content { display: grid; gap: 40px; min-width: 0; }
+.settings-section { display: grid; gap: 12px; }
+.settings-section > h2 {
+  font: var(--type-section-title);
+  font-weight: 600;
+  color: var(--text-strong);
+  margin: 0;
+}
+
+/* The signature "label-left, control-right" row */
+.settings-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 24px;
+  align-items: center;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.settings-row:last-child { border-bottom: none; }
+.settings-row .title { font: var(--type-label); color: var(--text-strong); }
+.settings-row .help  { font: var(--type-caption); color: var(--text-muted); margin-top: 4px; max-width: 56ch; }
+.settings-row .ctl   { justify-self: end; min-width: 180px; }
+.settings-row .ctl.wide { min-width: 320px; }
+.settings-row .ctl.auto { min-width: 0; }
+
+/* ════════════════════════════════════════════════════════════
+   TABLES — minimal. No vertical borders. Generous rows.
+   ════════════════════════════════════════════════════════════ */
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font: var(--type-body);
+  color: var(--text-body);
+}
+.table thead th {
+  text-align: left;
+  padding: 12px 16px;
+  font: var(--type-table-head);
+  color: var(--text-muted);
+  font-weight: 500;
+  background: transparent;
+  border-bottom: 1px solid var(--border);
+  white-space: nowrap;
+}
+.table thead th.num { text-align: right; }
+.table tbody td {
+  padding: 16px;
+  vertical-align: middle;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.table tbody tr:last-child td { border-bottom: none; }
+.table tbody tr:hover td { background: var(--surface-muted); }
+.table td.num, .table th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.table td.action { width: 1%; white-space: nowrap; text-align: right; }
+.table .more {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-subtle);
+  border-radius: 6px;
+  cursor: pointer;
+  background: transparent; border: none;
+}
+.table .more:hover { background: var(--surface-muted); color: var(--text-strong); }
+
+/* Quiet table — no row dividers at all (Active sessions style) */
+.table.quiet tbody td { border-bottom: none; }
+.table.quiet thead th { color: var(--text-subtle); }
+
+/* ════════════════════════════════════════════════════════════
+   LISTS — the "Sessions" pattern. Border on first row only,
+   no internal dividers, hover state highlights the whole row.
+   ════════════════════════════════════════════════════════════ */
+
+.list {
+  display: grid;
+  gap: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  overflow: clip;
+  background: var(--surface);
+}
+.list-item {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  gap: 16px;
+  align-items: center;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease-out);
+}
+.list-item:last-child { border-bottom: none; }
+.list-item:hover { background: var(--surface-muted); }
+.list-item .title { font: var(--type-body); color: var(--text-strong); }
+.list-item .title.bold { font-weight: 500; }
+.list-item .sub { font: var(--type-body-sm); color: var(--text-muted); margin-top: 2px; }
+.list-item .meta { font: var(--type-caption); color: var(--text-muted); white-space: nowrap; display: inline-flex; align-items: center; gap: 8px; }
+.list-item .chev { color: var(--text-subtle); margin-left: 4px; }
+.list-item .lead { display: inline-flex; align-items: center; gap: 8px; min-width: 0; }
+.list-item .body-text {
+  display: inline; color: var(--text-strong); font-weight: 400;
+}
+.list-item .body-text .desc { color: var(--text-muted); font-weight: 400; }
+
+/* Plain list (no border container) */
+.list-plain { display: grid; gap: 1px; }
+.list-plain .list-item { border: none; padding: 10px 8px; border-radius: 8px; }
+.list-plain .list-item:hover { background: var(--surface-muted); }
+
+/* ════════════════════════════════════════════════════════════
+   NAV CENTRE — Module navigation grid (a "directory" of links)
+   ════════════════════════════════════════════════════════════ */
+
+.nav-centre {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+}
+.nav-card {
+  display: grid;
+  grid-template-columns: 36px 1fr 14px;
+  gap: 14px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  cursor: pointer;
+  text-decoration: none;
+  color: inherit;
+  transition: background-color var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.nav-card:hover { background: var(--surface-muted); border-color: var(--border-strong); }
+.nav-card .nc-ic {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  background: var(--surface-muted);
+  border-radius: 8px;
+  color: var(--text-strong);
+}
+.nav-card .nc-ic svg { width: 18px; height: 18px; }
+.nav-card .nc-text .t { font: var(--type-label); color: var(--text-strong); }
+.nav-card .nc-text .d { font: var(--type-caption); color: var(--text-muted); margin-top: 2px; }
+.nav-card .chev { color: var(--text-subtle); }
+.nav-card[aria-disabled="true"] { opacity: 0.55; pointer-events: none; }
+
+/* ════════════════════════════════════════════════════════════
+   ALERTS / CALLOUTS
+   ════════════════════════════════════════════════════════════
+   .alert is the CANONICAL class for inline notices.
+   @deprecated The doc pages "p-alert" and "b-callout" are the same
+   component — both should use .alert. The historical .p-alert /
+   .b-callout class names were never shipped as separate CSS rules
+   (they only existed as page filenames); aliases are declared below
+   to make the relationship explicit and grep-able for any
+   downstream consumer that might have rolled their own. Tracked in
+   system/audit-reuse.html finding D-2 / N-3. */
+
+.alert {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-body);
+  font: var(--type-body-sm);
+}
+.alert .icon { color: var(--text-muted); margin-top: 1px; }
+.alert .alert-title { font: var(--type-label-sm); color: var(--text-strong); }
+.alert .alert-body  { color: var(--text-muted); margin-top: 4px; line-height: 1.55; }
+.alert.info    { background: var(--tone-info-bg); border-color: var(--tone-info-bd); color: var(--tone-info); }
+.alert.success { background: var(--tone-success-bg); border-color: var(--tone-success-bd); color: var(--tone-success); }
+.alert.warn    { background: var(--tone-warn-bg); border-color: var(--tone-warn-bd); color: var(--tone-warn); }
+.alert.danger  { background: var(--tone-danger-bg); border-color: var(--tone-danger-bd); color: var(--tone-danger); }
+.alert.info .alert-title, .alert.success .alert-title, .alert.warn .alert-title, .alert.danger .alert-title { color: inherit; }
+.alert.info .alert-body, .alert.success .alert-body, .alert.warn .alert-body, .alert.danger .alert-body { color: inherit; opacity: 0.85; }
+
+/* @deprecated p-alert / b-callout — use .alert. Aliases forwarded for any
+ * legacy markup. Retained through v0.6. See audit-reuse.html D-2 / N-3. */
+.p-alert, .b-callout {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-body);
+  font: var(--type-body-sm);
+}
+.p-alert .icon, .b-callout .icon { color: var(--text-muted); margin-top: 1px; }
+.p-alert .alert-title, .b-callout .alert-title { font: var(--type-label-sm); color: var(--text-strong); }
+.p-alert .alert-body,  .b-callout .alert-body  { color: var(--text-muted); margin-top: 4px; line-height: 1.55; }
+.p-alert.info,    .b-callout.info    { background: var(--tone-info-bg);    border-color: var(--tone-info-bd);    color: var(--tone-info); }
+.p-alert.success, .b-callout.success { background: var(--tone-success-bg); border-color: var(--tone-success-bd); color: var(--tone-success); }
+.p-alert.warn,    .b-callout.warn    { background: var(--tone-warn-bg);    border-color: var(--tone-warn-bd);    color: var(--tone-warn); }
+.p-alert.danger,  .b-callout.danger  { background: var(--tone-danger-bg);  border-color: var(--tone-danger-bd);  color: var(--tone-danger); }
+
+/* ════════════════════════════════════════════════════════════
+   AVATAR / KBD / MISC
+   ════════════════════════════════════════════════════════════ */
+
+.avatar {
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: var(--surface-sunken);
+  color: var(--text-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 500 11px/1 var(--font-sans);
+  flex: none;
+  overflow: clip;
+}
+.avatar.sm { width: 20px; height: 20px; font-size: 10px; }
+.avatar.lg { width: 36px; height: 36px; font-size: 13px; }
+.avatar.clay { background: var(--clay); color: #fff; }
+.avatar.ink  { background: var(--ink); color: var(--canvas); }
+
+.kbd {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px;
+  padding: 0 4px;
+  font: 500 11px/1 var(--font-mono);
+  color: var(--text-muted);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+}
+
+.hr { height: 1px; background: var(--border); border: 0; margin: 0; }
+
+/* ════════════════════════════════════════════════════════════
+   ADDITIONAL PRIMITIVES & COMPOUNDS
+   ════════════════════════════════════════════════════════════ */
+
+/* — Page toolbar (minimal): breadcrumb + primary + actions menu — */
+.page-toolbar {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 24px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+.page-toolbar .breadcrumb { display: inline-flex; align-items: center; gap: 8px; font: var(--type-body); color: var(--text-muted); }
+.page-toolbar .breadcrumb a { color: inherit; text-decoration: none; }
+.page-toolbar .breadcrumb a:last-child { color: var(--text-strong); font-weight: 500; }
+.page-toolbar .breadcrumb .sep { color: var(--text-subtle); display: inline-flex; }
+.page-toolbar .spacer { flex: 1; }
+.page-toolbar .ic-btn {
+  width: 32px; height: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted); border-radius: 6px;
+  background: transparent; border: none; cursor: pointer;
+}
+.page-toolbar .ic-btn:hover { background: var(--surface-muted); color: var(--text-strong); }
+.page-toolbar .ic-btn .badge-mini {
+  position: absolute; top: -2px; right: -2px;
+  min-width: 14px; height: 14px;
+  border-radius: 9999px;
+  background: var(--brand);
+  color: #fff;
+  font: 600 9px/1 var(--font-sans);
+  display: inline-flex; align-items: center; justify-content: center;
+  padding: 0 3px;
+}
+.page-toolbar .ic-btn.has-dot { position: relative; }
+.page-toolbar .ic-btn.has-dot::after {
+  content: ""; position: absolute; top: 6px; right: 6px;
+  width: 6px; height: 6px; border-radius: 50%;
+  background: var(--brand);
+  border: 1.5px solid var(--surface);
+}
+
+/* — Dropdown menu / Popover surface — */
+.menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  padding: 6px;
+  min-width: 220px;
+  display: grid; gap: 1px;
+}
+.menu .menu-label {
+  padding: 8px 10px 4px;
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.menu .menu-item {
+  display: grid; grid-template-columns: 16px 1fr auto; gap: 10px;
+  align-items: center;
+  padding: 8px 10px;
+  border-radius: 6px;
+  font: var(--type-body);
+  color: var(--text-body);
+  cursor: pointer;
+  border: none; background: transparent; text-align: left;
+}
+.menu .menu-item:hover { background: var(--surface-muted); }
+.menu .menu-item.danger { color: var(--tone-danger); }
+.menu .menu-item.danger:hover { background: var(--tone-danger-bg); }
+.menu .menu-item .icon, .menu .menu-item svg { color: var(--text-muted); }
+.menu .menu-item.danger .icon, .menu .menu-item.danger svg { color: var(--tone-danger); }
+.menu .menu-item .shortcut { color: var(--text-subtle); font: var(--type-mono); }
+.menu .menu-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* — Action button with caret (opens dropdown) — */
+.btn-split {
+  display: inline-flex; align-items: stretch;
+  border-radius: var(--button-radius);
+  overflow: clip;
+}
+.btn-split .btn { border-radius: 0; border-right-width: 0; }
+.btn-split .btn:first-child { border-top-left-radius: var(--button-radius); border-bottom-left-radius: var(--button-radius); }
+.btn-split .btn:last-child  { border-top-right-radius: var(--button-radius); border-bottom-right-radius: var(--button-radius); border-right-width: 1px; padding: 0 8px; }
+.btn-split .btn:last-child::before {
+  content: ""; position: absolute; left: 0; top: 8px; bottom: 8px;
+  width: 1px; background: rgba(255,255,255,0.2);
+}
+.btn-split .btn { position: relative; }
+
+/* — Segmented control (e.g. Activity / Reconcile) — */
+.seg-tabs {
+  display: inline-flex; gap: 2px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border-radius: 8px;
+}
+.seg-tabs button {
+  padding: 6px 14px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.seg-tabs button:hover { color: var(--text-strong); }
+.seg-tabs button.active { background: var(--surface); color: var(--text-strong); box-shadow: var(--shadow-inset-soft); }
+
+/* — Tooltip — */
+.tooltip {
+  display: inline-block;
+  padding: 6px 10px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 6px;
+  font: 500 12px/1.3 var(--font-sans);
+  white-space: nowrap;
+  box-shadow: var(--shadow-popover);
+}
+.tooltip-kbd { display: inline-block; margin-left: 6px; padding: 1px 5px; background: rgba(255,255,255,0.15); border-radius: 3px; font: 500 11px/1 var(--font-mono); color: rgba(255,255,255,0.85); }
+
+/* — Modal / Sheet — */
+.modal-scrim { position: absolute; inset: 0; background: rgba(42,38,34,0.32); display: grid; place-items: center; padding: 32px; }
+/* @deprecated Use .x-bottom-sheet — the desktop adaptation (>= 720px) of
+ * .x-bottom-sheet IS the canonical centred-dialog. .modal-card is retained
+ * as a backwards-compat alias through v0.6 so existing markup continues to
+ * render. New code MUST use .x-bottom-sheet (see system/x-bottom-sheet.html).
+ * Tracked in system/audit-reuse.html finding D-1. */
+.modal-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  box-shadow: var(--shadow-modal);
+  width: 100%; max-width: 480px;
+  overflow: clip;
+}
+.modal-h { padding: 20px 24px 8px; }
+.modal-h .t { font: var(--type-section-title); color: var(--text-strong); }
+.modal-h .s { color: var(--text-muted); margin-top: 4px; font: var(--type-body-sm); }
+.modal-b { padding: 12px 24px 20px; display: grid; gap: 12px; }
+.modal-f { padding: 14px 24px; border-top: 1px solid var(--border); display: flex; justify-content: flex-end; gap: 8px; background: var(--surface-muted); }
+
+/* — Empty state — */
+.empty-state { padding: 56px 32px; text-align: center; display: grid; gap: 8px; justify-items: center; }
+.empty-state .ic { width: 44px; height: 44px; background: var(--surface-muted); border-radius: 10px; display: grid; place-items: center; color: var(--text-muted); margin-bottom: 6px; }
+.empty-state h3 { font: var(--type-section-title); margin: 0; color: var(--text-strong); }
+.empty-state p { font: var(--type-body); color: var(--text-muted); margin: 0; max-width: 44ch; }
+
+/* — Inline empty state (for inside a card) — small, single-row, under 80px tall —
+   Use when the parent surface is already a card; .empty-state's 56px padding
+   is too heavy for that case (see audit M-3). */
+.p-empty-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  border-radius: 10px;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+}
+.p-empty-inline .ic {
+  flex: none;
+  width: 24px; height: 24px;
+  display: grid; place-items: center;
+  color: var(--text-subtle);
+}
+.p-empty-inline .msg {
+  flex: 1; min-width: 0;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+}
+.p-empty-inline .msg strong { font-weight: 500; color: var(--text-strong); }
+.p-empty-inline .cta { flex: none; }
+
+/* — Sticky save bar (form panel / page footer) — slides up when dirty,
+   sits flush to the bottom of its scroll container. Honour the iOS
+   safe-area inset so on-phone forms don't end under the home indicator.
+   See audit M-1. */
+.p-save-bar {
+  position: sticky;
+  bottom: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom, 0px));
+  background: var(--surface);
+  border-top: 1px solid var(--border-strong);
+  box-shadow: 0 -6px 16px -8px rgba(22, 24, 29, 0.18);
+  transform: translateY(110%);
+  transition: transform 240ms cubic-bezier(0.2, 0, 0.1, 1);
+  z-index: 5;
+}
+.p-save-bar.dirty { transform: translateY(0); }
+.p-save-bar .label { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.p-save-bar .label .title { font: 500 13px/1.3 var(--font-sans); color: var(--text-strong); }
+.p-save-bar .label .summary { font: var(--type-body-sm); color: var(--text-muted); }
+.p-save-bar .actions { display: flex; gap: 8px; flex: none; }
+@media (max-width: 720px) {
+  .p-save-bar { padding-left: 12px; padding-right: 12px; }
+  .p-save-bar .label .summary { display: none; }
+}
+
+/* — Pagination row (lifts .pg + count + page-size into a single primitive) —
+   See audit M-2. */
+.p-pagination {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 0;
+  font: var(--type-body-sm);
+  color: var(--text-muted);
+}
+.p-pagination .pg-count { color: var(--text-muted); }
+.p-pagination .pg-count strong { color: var(--text-strong); font-weight: 500; }
+.p-pagination .pg-size { display: inline-flex; align-items: center; gap: 8px; }
+.p-pagination .pg-spacer { flex: 1; }
+.p-pagination .pg-nav { display: inline-flex; align-items: center; gap: 2px; }
+.p-pagination .pg-nav button,
+.p-pagination .pg-nav .pn {
+  min-width: 30px; height: 30px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 6px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+  padding: 0 8px;
+}
+.p-pagination .pg-nav button:hover,
+.p-pagination .pg-nav .pn:hover { background: var(--surface-muted); color: var(--text-strong); }
+.p-pagination .pg-nav .pn.current,
+.p-pagination .pg-nav button[aria-current="page"] {
+  background: var(--brand); color: #fff;
+}
+.p-pagination .pg-nav .pn.dot { cursor: default; }
+.p-pagination .pg-nav button[disabled] { color: var(--text-subtle); cursor: not-allowed; }
+@media (max-width: 720px) {
+  .p-pagination { flex-wrap: wrap; gap: 10px; }
+  .p-pagination .pg-size { display: none; }
+}
+
+/* — Drag handle / grabber — two rows of dots; cursor hints the affordance.
+   Drag logic is the consumer's; this is presentation only. See audit M-4. */
+.p-grabber {
+  display: inline-grid;
+  grid-template-columns: repeat(2, 3px);
+  grid-template-rows: repeat(3, 3px);
+  gap: 2px;
+  width: 8px;
+  padding: 6px 4px;
+  cursor: grab;
+  color: var(--text-subtle);
+  background: transparent;
+  border: 0;
+  border-radius: 4px;
+}
+.p-grabber::before,
+.p-grabber {
+  /* dots are drawn via background-image on the children pseudo */
+}
+.p-grabber > i,
+.p-grabber > span {
+  width: 3px; height: 3px;
+  border-radius: 50%;
+  background: currentColor;
+  display: block;
+}
+.p-grabber:hover { color: var(--text-muted); background: var(--surface-muted); }
+.p-grabber:active { cursor: grabbing; }
+.p-grabber:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 2px; }
+
+/* — File upload zone — */
+.upload-zone {
+  display: grid; gap: 6px;
+  padding: 28px;
+  border: 1.5px dashed var(--border-strong);
+  border-radius: 12px;
+  background: var(--surface);
+  text-align: center;
+  color: var(--text-muted);
+  transition: border-color var(--dur-fast) var(--ease-out), background-color var(--dur-fast) var(--ease-out);
+}
+.upload-zone:hover, .upload-zone.dragover { border-color: var(--brand); background: var(--brand-soft); color: var(--brand-strong); }
+.upload-zone .uz-ic { width: 36px; height: 36px; border-radius: 8px; background: var(--surface-muted); display: inline-flex; align-items: center; justify-content: center; color: var(--text-muted); margin: 0 auto 8px; }
+.upload-zone .uz-title { font: var(--type-label); color: var(--text-strong); }
+.upload-zone .uz-help { font: var(--type-caption); }
+.upload-zone .uz-actions { margin-top: 12px; }
+
+.file-row {
+  display: grid;
+  grid-template-columns: 36px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.file-row .fr-ic { width: 36px; height: 36px; background: var(--surface-muted); border-radius: 8px; display: grid; place-items: center; color: var(--text-muted); font: 600 11px/1 var(--font-mono); }
+.file-row .fr-name { font: var(--type-label); color: var(--text-strong); }
+.file-row .fr-meta { font: var(--type-caption); color: var(--text-muted); margin-top: 2px; font-family: var(--font-mono); }
+
+/* — Progress bar — */
+.progress { height: 6px; background: var(--surface-muted); border-radius: 9999px; overflow: clip; }
+.progress > span { display: block; height: 100%; background: var(--brand); border-radius: inherit; transition: width var(--dur-base) var(--ease-out); }
+.progress.success > span { background: var(--tone-success); }
+.progress.warn > span    { background: var(--tone-warn); }
+.progress.danger > span  { background: var(--tone-danger); }
+
+/* — Spinner — */
+.spinner {
+  width: 16px; height: 16px;
+  border: 2px solid var(--border-strong);
+  border-top-color: var(--brand);
+  border-radius: 50%;
+  display: inline-block;
+  animation: cor-spin 0.8s linear infinite;
+}
+@keyframes cor-spin { to { transform: rotate(360deg); } }
+
+/* — Skeleton — */
+.skeleton {
+  background: linear-gradient(90deg, var(--surface-muted) 0%, var(--surface-sunken) 50%, var(--surface-muted) 100%);
+  background-size: 200% 100%;
+  border-radius: 6px;
+  animation: cor-skel 1.4s ease-in-out infinite;
+}
+@keyframes cor-skel { 0% { background-position: 200% 0; } 100% { background-position: -200% 0; } }
+
+/* — Tag (compact, with X) — */
+.tag {
+  display: inline-flex; align-items: center; gap: 4px;
+  height: 22px; padding: 0 4px 0 8px;
+  border-radius: 4px;
+  background: var(--surface-muted);
+  color: var(--text-body);
+  font: 500 12px/1 var(--font-sans);
+}
+.tag .x { width: 16px; height: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-subtle); border-radius: 3px; cursor: pointer; }
+.tag .x:hover { background: var(--surface-sunken); color: var(--text-strong); }
+
+/* — Filter chip (toggleable) — */
+.fchip {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 28px; padding: 0 12px;
+  border-radius: 6px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  color: var(--text-muted);
+  font: 500 12px/1 var(--font-sans);
+  cursor: pointer;
+}
+.fchip:hover { color: var(--text-strong); background: var(--surface-muted); }
+.fchip.active { color: var(--text-strong); background: var(--surface-muted); border-color: var(--border-strong); font-weight: 600; }
+.fchip.brand { color: var(--brand-strong); border-color: var(--brand-100); background: var(--brand-soft); }
+
+/* — Notification item — */
+.notif {
+  display: grid;
+  grid-template-columns: 32px 1fr auto;
+  gap: 12px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  cursor: pointer;
+}
+.notif:last-child { border-bottom: none; }
+.notif:hover { background: var(--surface-muted); }
+.notif.unread { background: var(--brand-soft); }
+.notif.unread:hover { background: var(--brand-soft); filter: brightness(0.97); }
+.notif .n-av { width: 32px; height: 32px; border-radius: 8px; display: grid; place-items: center; background: var(--surface-muted); color: var(--text-strong); font: 600 12px/1 var(--font-sans); }
+.notif .n-av.brand { background: var(--brand-soft); color: var(--brand-strong); }
+.notif .n-av.success { background: var(--tone-success-bg); color: var(--tone-success); }
+.notif .n-av.warn { background: var(--tone-warn-bg); color: var(--tone-warn); }
+.notif .n-av.danger { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.notif .n-body { font: var(--type-body-sm); color: var(--text-body); line-height: 1.55; }
+.notif .n-body strong { color: var(--text-strong); font-weight: 500; }
+.notif .n-time { font: var(--type-caption); color: var(--text-subtle); white-space: nowrap; padding-top: 1px; }
+.notif .n-dot { width: 8px; height: 8px; background: var(--brand); border-radius: 50%; align-self: center; }
+
+/* — Stat tile (promoted from preview) — */
+.stat-tile { padding: 16px 18px; background: var(--surface); border: 1px solid var(--border); border-radius: var(--card-radius); }
+.stat-tile .lbl { font: 500 11px/1 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.stat-tile .val { font-family: var(--font-serif); font-weight: 600; font-size: 32px; letter-spacing: -0.02em; color: var(--text-strong); margin-top: 10px; line-height: 1; font-variant-numeric: tabular-nums; }
+.stat-tile .val .u { font-size: 14px; color: var(--text-muted); font-weight: 500; margin-left: 4px; font-family: var(--font-sans); }
+.stat-tile .val.success { color: var(--tone-success); }
+.stat-tile .val.warn    { color: var(--tone-warn); }
+.stat-tile .val.danger  { color: var(--tone-danger); }
+.stat-tile .delta { font: var(--type-body-sm); margin-top: 8px; }
+.stat-tile .delta.up { color: var(--tone-success); }
+.stat-tile .delta.dn { color: var(--tone-danger); }
+
+/* — ERP status pill (uppercase) — */
+.erp-pill {
+  display: inline-flex; align-items: center;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+/* Canonical tone modifiers — match the .x.tone-* shape used across the system.
+   Domain-word modifiers (.sold, .assigned…) are kept as forwards-compatible
+   aliases. Verticals own their own status→tone map (see audit O-1). */
+.erp-pill.tone-info,
+.erp-pill.on-site    { background: var(--brand-50); color: var(--brand-strong); }
+.erp-pill.tone-success,
+.erp-pill.sold,
+.erp-pill.committed,
+.erp-pill.assigned,
+.erp-pill.mapped     { background: var(--tone-success-bg); color: var(--tone-success); }
+.erp-pill.tone-warn,
+.erp-pill.pending,
+.erp-pill.anomaly,
+.erp-pill.unmapped   { background: var(--tone-warn-bg); color: var(--tone-warn); }
+.erp-pill.tone-danger,
+.erp-pill.failed     { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.erp-pill.tone-neutral,
+.erp-pill.mapping    { background: var(--surface-muted); color: var(--text-muted); }
+.erp-pill.with-dot::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; margin-right: 6px; }
+
+/* — Switch (legacy alias kept) — */
+
+/* — Range slider — */
+.range {
+  appearance: none;
+  width: 100%; height: 4px;
+  background: var(--border-strong);
+  border-radius: 9999px;
+}
+.range::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px; height: 16px;
+  background: var(--brand);
+  border: 3px solid #fff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--brand);
+  cursor: pointer;
+}
+
+/* — Tab strip (icon-strip · promoted) — */
+.iconstrip {
+  display: flex; gap: 2px;
+  padding: 6px;
+  background: var(--surface-muted);
+  border-radius: 10px;
+  overflow-x: auto;
+}
+.iconstrip-tab {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 9px 14px;
+  border-radius: 7px;
+  background: transparent; border: none;
+  color: var(--text-muted);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.iconstrip-tab:hover { color: var(--text-strong); }
+.iconstrip-tab.active { background: var(--surface); color: var(--text-strong); box-shadow: var(--shadow-inset-soft), 0 0 0 1px var(--border); }
+.iconstrip-tab svg { width: 16px; height: 16px; color: var(--text-muted); }
+.iconstrip-tab.active svg { color: var(--brand); }
+
+/* — Underline tabs (Activity / Reconcile) — */
+.under-tabs { display: flex; gap: 24px; border-bottom: 1px solid var(--border); padding: 0 4px; }
+.under-tabs button {
+  padding: 10px 0;
+  border: none; background: transparent;
+  font: 500 14px/1 var(--font-sans);
+  color: var(--text-muted);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+}
+.under-tabs button:hover { color: var(--text-strong); }
+.under-tabs button.active { color: var(--text-strong); border-bottom-color: var(--brand); }
+
+/* — Data table (richer; supersedes earlier .table for ERP use) — */
+.dtable { width: 100%; border-collapse: separate; border-spacing: 0; font: var(--type-body); }
+.dtable thead th {
+  text-align: left;
+  padding: 12px 16px;
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+  white-space: nowrap;
+  position: relative;
+}
+.dtable thead th.sortable { cursor: pointer; user-select: none; }
+.dtable thead th.sortable::after {
+  content: "";
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-left: 6px;
+  background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' fill='%239A9482'><path d='M4 3 1 7h6z'/></svg>");
+  opacity: 0.5;
+}
+.dtable thead th.sortable.asc::after  { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' fill='%230B5DF0'><path d='M4 1 1 5h6z'/></svg>"); opacity: 1; }
+.dtable thead th.sortable.desc::after { background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 8 8' fill='%230B5DF0'><path d='M4 7 1 3h6z'/></svg>"); opacity: 1; }
+.dtable thead th.num { text-align: right; }
+.dtable tbody td {
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: middle;
+}
+.dtable tbody tr:hover td { background: var(--surface-muted); }
+.dtable tbody tr.selected td { background: var(--brand-soft); }
+.dtable td.num { text-align: right; font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.dtable .id-link { color: var(--brand-strong); font-family: var(--font-mono); font-weight: 500; text-decoration: none; }
+.dtable .id-link:hover { text-decoration: underline; }
+.dtable .lead-name { color: var(--text-strong); font-weight: 500; }
+.dtable .lead-sub  { color: var(--text-muted); font: var(--type-caption); }
+.dtable .lock { color: var(--text-subtle); margin-right: 4px; }
+.dtable tfoot td { padding: 12px 16px; font: var(--type-caption); color: var(--text-muted); background: var(--surface-muted); border-top: 1px solid var(--border); }
+
+/* — Data toolbar (search · filters · export) — */
+.data-toolbar { display: flex; align-items: center; gap: 10px; padding: 14px 0; flex-wrap: wrap; }
+.data-toolbar .spacer { flex: 1; }
+.data-toolbar .search-input { position: relative; flex: 0 1 360px; }
+.data-toolbar .search-input input { width: 100%; height: 36px; padding: 0 12px 0 36px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font: var(--type-body); outline: none; }
+.data-toolbar .search-input input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus-ring-soft); }
+.data-toolbar .search-input > [data-icon] { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-subtle); }
+
+/* — Pagination row — */
+.pager-row {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 0;
+  font: var(--type-body-sm); color: var(--text-muted);
+}
+.pager-row .ctrls { display: flex; align-items: center; gap: 8px; }
+.pager-row .ctrls .t-mono { color: var(--text-strong); }
+
+/* — Toast — */
+.toast {
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: start;
+  background: var(--ink); color: #fff;
+  padding: 12px 14px;
+  border-radius: 8px;
+  box-shadow: var(--shadow-modal);
+  font: var(--type-body-sm);
+  max-width: 380px;
+}
+.toast.success { background: var(--tone-success); }
+.toast.danger  { background: var(--tone-danger); }
+.toast .t-title { font: 500 13px/1.3 var(--font-sans); }
+.toast .t-body  { opacity: 0.85; margin-top: 2px; }
+.toast .x { color: rgba(255,255,255,0.7); background: transparent; border: none; cursor: pointer; padding: 2px; }
+.toast .x:hover { color: #fff; }
+
+/* — Inline edit / annotate row — */
+.cell-locked { display: inline-flex; align-items: center; gap: 4px; color: var(--text-body); }
+.cell-locked .lock-ic { color: var(--text-subtle); }
+
+/* ════════════════════════════════════════════════════════════
+   20 ADDITIONAL PRIMITIVES & COMPOUNDS
+   ════════════════════════════════════════════════════════════ */
+
+/* 1 — Avatar group (overlapping stack) */
+.avatar-group { display: inline-flex; }
+.avatar-group .avatar { margin-left: -8px; border: 2px solid var(--surface); position: relative; }
+.avatar-group .avatar:first-child { margin-left: 0; }
+.avatar-group .avatar.more { background: var(--surface-muted); color: var(--text-muted); }
+
+/* 2 — Donut / ring meter (CSS conic-gradient) */
+.donut {
+  --size: 56px;
+  --pct: 64;
+  --track: var(--surface-muted);
+  --fill:  var(--brand);
+  width: var(--size); height: var(--size);
+  border-radius: 50%;
+  background: conic-gradient(var(--fill) calc(var(--pct) * 1%), var(--track) 0);
+  display: grid; place-items: center;
+  position: relative;
+}
+.donut::after {
+  content: ""; position: absolute; inset: 6px;
+  background: var(--surface); border-radius: 50%;
+}
+.donut .donut-label {
+  position: relative; z-index: 1;
+  font: 600 12px/1 var(--font-sans);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.donut.success { --fill: var(--tone-success); }
+.donut.warn    { --fill: var(--tone-warn); }
+.donut.danger  { --fill: var(--tone-danger); }
+
+/* 3 — Sparkline (inline SVG container) */
+.sparkline { display: inline-block; width: 80px; height: 24px; vertical-align: middle; }
+.sparkline svg { display: block; width: 100%; height: 100%; overflow: visible; }
+.sparkline path.line  { fill: none; stroke: var(--brand); stroke-width: 1.5; stroke-linejoin: round; stroke-linecap: round; }
+.sparkline path.fill  { fill: var(--brand); opacity: 0.12; }
+.sparkline.success path.line { stroke: var(--tone-success); }
+.sparkline.success path.fill { fill: var(--tone-success); }
+.sparkline.danger path.line  { stroke: var(--tone-danger); }
+.sparkline.danger path.fill  { fill: var(--tone-danger); }
+
+/* 4 — Stepper input (number with +/-) */
+.stepper-input {
+  display: inline-flex; align-items: stretch;
+  height: var(--input-height);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--button-radius);
+  overflow: clip;
+  background: var(--surface);
+}
+.stepper-input button {
+  width: 32px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.stepper-input button:hover { background: var(--surface-muted); color: var(--text-strong); }
+.stepper-input input {
+  width: 56px; border: none; outline: none; background: transparent;
+  text-align: center;
+  font: 500 14px/1 var(--font-mono);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+/* 5 — OTP / verification cells */
+.otp { display: inline-flex; gap: 8px; }
+.otp input {
+  width: 44px; height: 52px;
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  background: var(--surface);
+  text-align: center;
+  font: 600 20px/1 var(--font-mono);
+  color: var(--text-strong);
+  outline: none;
+  font-variant-numeric: tabular-nums;
+}
+.otp input:focus { border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus-ring-soft); }
+.otp .otp-gap { width: 16px; display: inline-flex; align-items: center; justify-content: center; color: var(--text-subtle); }
+
+/* 6 — Tag input (multi-value chip input) */
+.tag-input {
+  display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  padding: 5px 8px;
+  min-height: var(--input-height);
+  width: 100%;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--button-radius);
+  background: var(--surface);
+}
+.tag-input:focus-within { border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus-ring-soft); }
+.tag-input input {
+  flex: 1; min-width: 80px;
+  border: none; outline: none; background: transparent;
+  font: var(--type-body);
+  color: var(--text-body);
+  padding: 4px 2px;
+}
+
+/* 7 — Mention chip (@user inline) */
+.mention {
+  display: inline-flex; align-items: center; gap: 4px;
+  padding: 1px 6px 1px 4px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  border-radius: 4px;
+  font: 500 13px/1.3 var(--font-sans);
+  cursor: pointer;
+}
+.mention::before { content: "@"; opacity: 0.7; }
+.mention .av { width: 14px; height: 14px; border-radius: 50%; background: var(--brand); color: #fff; font: 600 9px/1 var(--font-sans); display: inline-flex; align-items: center; justify-content: center; }
+
+/* 8 — Diff line (+/- code) */
+.diff { font-family: var(--font-mono); font-size: 12px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; overflow: clip; }
+.diff-line { display: grid; grid-template-columns: 28px 1fr; gap: 0; align-items: stretch; }
+.diff-line .num { padding: 4px 8px; text-align: right; color: var(--text-subtle); border-right: 1px solid var(--border-subtle); }
+.diff-line .code { padding: 4px 12px; color: var(--text-body); white-space: pre; }
+.diff-line.add { background: rgba(94, 142, 84, 0.08); }
+.diff-line.add .code::before { content: "+ "; color: var(--tone-success); font-weight: 600; }
+.diff-line.add .code { color: var(--tone-success-strong); }
+.diff-line.rem { background: rgba(184, 58, 42, 0.08); }
+.diff-line.rem .code::before { content: "- "; color: var(--tone-danger); font-weight: 600; }
+.diff-line.rem .code { color: var(--tone-danger-strong); }
+
+/* 9 — Star rating */
+.rating { display: inline-flex; gap: 2px; color: var(--surface-deep); font-size: 18px; line-height: 1; }
+.rating span { display: inline-block; }
+.rating span.on { color: #E2A458; }
+.rating .lbl { color: var(--text-muted); margin-left: 6px; font: var(--type-body-sm); }
+
+/* 10 — Color swatch dot (with hex label) */
+.color-dot {
+  display: inline-flex; align-items: center; gap: 6px;
+  font: var(--type-mono);
+  color: var(--text-muted);
+}
+.color-dot::before {
+  content: ""; width: 14px; height: 14px;
+  border-radius: 4px;
+  background: var(--c, var(--brand));
+  border: 1px solid var(--hairline);
+  flex: none;
+}
+
+/* 11 — Wizard / step indicator (horizontal numbered) */
+.steps { display: flex; align-items: center; gap: 0; }
+.steps .st { display: inline-flex; align-items: center; gap: 8px; }
+.steps .st-bubble {
+  width: 24px; height: 24px; border-radius: 50%;
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  border: 1.5px solid var(--border-strong);
+  display: inline-flex; align-items: center; justify-content: center;
+  font: 600 12px/1 var(--font-sans);
+}
+.steps .st-label { font: var(--type-label-sm); color: var(--text-muted); }
+.steps .st.done .st-bubble { background: var(--brand); border-color: var(--brand); color: #fff; }
+.steps .st.done .st-label  { color: var(--text-body); }
+.steps .st.current .st-bubble { background: var(--surface); border-color: var(--brand); color: var(--brand-strong); }
+.steps .st.current .st-label  { color: var(--text-strong); font-weight: 500; }
+.steps .st-rail {
+  flex: 0 0 32px; height: 1px;
+  background: var(--border-strong);
+  margin: 0 12px;
+}
+.steps .st.done + .st-rail { background: var(--brand); }
+
+/* 12 — Pricing tier card */
+.pricing-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 28px 24px;
+  display: grid; gap: 14px;
+  position: relative;
+}
+.pricing-card.featured { border-color: var(--brand); box-shadow: 0 0 0 3px var(--focus-ring-soft); }
+.pricing-card .pc-name { font: var(--type-section-title); }
+.pricing-card .pc-price { font-family: var(--font-serif); font-weight: 600; font-size: 40px; letter-spacing: -0.02em; line-height: 1; color: var(--text-strong); font-variant-numeric: tabular-nums; }
+.pricing-card .pc-price .u { font-family: var(--font-sans); font-size: 14px; color: var(--text-muted); font-weight: 400; margin-left: 6px; }
+.pricing-card .pc-desc { font: var(--type-body-sm); color: var(--text-muted); }
+.pricing-card ul { list-style: none; padding: 0; margin: 0; display: grid; gap: 10px; font: var(--type-body-sm); color: var(--text-body); }
+.pricing-card ul li { display: grid; grid-template-columns: 16px 1fr; gap: 8px; align-items: start; }
+.pricing-card ul li::before { content: "✓"; color: var(--tone-success); font-weight: 600; }
+.pricing-card .pc-badge { position: absolute; top: -10px; right: 20px; padding: 4px 10px; background: var(--brand); color: #fff; border-radius: 9999px; font: 500 11px/1 var(--font-sans); letter-spacing: 0.06em; text-transform: uppercase; }
+
+/* 13 — Payment method card (Visa-style) */
+.pay-card {
+  display: grid;
+  grid-template-columns: 44px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 14px 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.pay-card .brand-tile {
+  width: 44px; height: 30px;
+  border-radius: 4px;
+  background: linear-gradient(135deg, var(--brand-700), var(--brand));
+  color: #fff;
+  display: grid; place-items: center;
+  font: 700 10px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+}
+.pay-card .brand-tile.amex { background: linear-gradient(135deg, #007F8F, #009BB0); }
+.pay-card .brand-tile.mc   { background: linear-gradient(135deg, #B71C1C, #EB7C24); }
+.pay-card .pc-line { font: var(--type-label); color: var(--text-strong); font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.pay-card .pc-meta { font: var(--type-caption); color: var(--text-muted); margin-top: 2px; }
+
+/* 14 — File preview tile */
+.file-tile {
+  display: grid;
+  grid-template-rows: 80px auto;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: clip;
+  width: 200px;
+}
+.file-tile .ft-thumb {
+  background: var(--surface-muted);
+  display: grid; place-items: center;
+  color: var(--text-muted);
+  font: 600 14px/1 var(--font-mono);
+  letter-spacing: 0.08em;
+}
+.file-tile .ft-thumb.csv { background: #E7EFE0; color: var(--tone-success); }
+.file-tile .ft-thumb.pdf { background: #F6E2DD; color: var(--tone-danger); }
+.file-tile .ft-thumb.img { background: var(--brand-soft); color: var(--brand-strong); }
+.file-tile .ft-body { padding: 10px 12px; }
+.file-tile .ft-name { font: var(--type-label-sm); color: var(--text-strong); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.file-tile .ft-meta { font: var(--type-caption); color: var(--text-muted); font-family: var(--font-mono); margin-top: 2px; }
+
+/* 15 — Accordion / FAQ */
+.accordion {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: clip;
+}
+.accordion details { border-top: 1px solid var(--border-subtle); }
+.accordion details:first-child { border-top: none; }
+.accordion summary {
+  list-style: none;
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 18px;
+  font: 500 14px/1.4 var(--font-sans);
+  color: var(--text-strong);
+  cursor: pointer;
+}
+.accordion summary::-webkit-details-marker { display: none; }
+.accordion summary::after {
+  content: ""; width: 8px; height: 8px;
+  border-right: 1.5px solid var(--text-muted);
+  border-bottom: 1.5px solid var(--text-muted);
+  transform: rotate(45deg);
+  transition: transform var(--dur-fast) var(--ease-out);
+  flex: none; margin-left: 12px;
+}
+.accordion details[open] summary::after { transform: rotate(-135deg); }
+.accordion .acc-body { padding: 0 18px 18px; font: var(--type-body-sm); color: var(--text-muted); line-height: 1.6; }
+
+/* 16 — Tree node (expandable hierarchy) */
+.tree-node {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 4px;
+  align-items: center;
+  padding: 5px 6px;
+  border-radius: 6px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.tree-node:hover { background: var(--surface-muted); }
+.tree-node .tn-chev {
+  width: 18px; height: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-subtle);
+  transition: transform var(--dur-fast) var(--ease-out);
+}
+.tree-node.open .tn-chev { transform: rotate(90deg); }
+.tree-node.empty .tn-chev { visibility: hidden; }
+.tree-node .tn-icon { color: var(--text-muted); margin-right: 4px; }
+.tree-node.active { background: var(--brand-soft); color: var(--brand-strong); }
+.tree-node.active .tn-icon, .tree-node.active .tn-chev { color: var(--brand); }
+.tree-children { margin-left: 18px; padding-left: 8px; border-left: 1px solid var(--border-subtle); }
+
+/* 17 — Comment / thread item */
+.comment {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  padding: 10px 0;
+}
+.comment .ca { width: 28px; height: 28px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-strong); display: grid; place-items: center; font: 600 11px/1 var(--font-sans); }
+.comment .ch { display: flex; align-items: baseline; gap: 8px; }
+.comment .ch .who { font: var(--type-label-sm); color: var(--text-strong); }
+.comment .ch .when { font: var(--type-caption); color: var(--text-subtle); }
+.comment .body { font: var(--type-body-sm); color: var(--text-body); margin-top: 2px; line-height: 1.55; }
+.comment .actions { display: flex; gap: 12px; margin-top: 6px; font: var(--type-caption); color: var(--text-muted); }
+.comment .actions span { cursor: pointer; }
+.comment .actions span:hover { color: var(--text-strong); }
+.comment-replies { padding-left: 40px; border-left: 1px solid var(--border-subtle); margin-left: 14px; }
+
+/* 18 — Horizontal bar chart row */
+.bar-row {
+  display: grid;
+  grid-template-columns: 140px 1fr 80px;
+  gap: 16px;
+  align-items: center;
+  padding: 8px 0;
+}
+.bar-row .bar-lbl { font: var(--type-body-sm); color: var(--text-body); }
+.bar-row .bar-track { height: 10px; background: var(--surface-muted); border-radius: 9999px; overflow: clip; }
+.bar-row .bar-track > span { display: block; height: 100%; background: var(--brand); border-radius: inherit; }
+.bar-row .bar-track.warn > span    { background: var(--tone-warn); }
+.bar-row .bar-track.danger > span  { background: var(--tone-danger); }
+.bar-row .bar-track.success > span { background: var(--tone-success); }
+.bar-row .bar-val { text-align: right; font: var(--type-mono); color: var(--text-strong); font-weight: 500; }
+
+/* 19 — Date range picker (display) */
+.daterange {
+  display: inline-flex; align-items: center; gap: 0;
+  padding: 0;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--button-radius);
+  background: var(--surface);
+  overflow: clip;
+  height: var(--input-height);
+}
+.daterange .dr-side {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 0 12px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-body);
+  cursor: pointer;
+}
+.daterange .dr-side:hover { background: var(--surface-muted); }
+.daterange .dr-side .dr-icon { color: var(--text-muted); }
+.daterange .dr-side .dr-lbl { color: var(--text-subtle); font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; }
+.daterange .dr-arrow { color: var(--text-subtle); padding: 0 4px; }
+
+/* 20 — Stat with sparkline (compound) */
+.stat-spark {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--card-radius);
+  padding: 16px 18px;
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: center;
+}
+.stat-spark .ss-l { display: grid; gap: 4px; }
+.stat-spark .ss-lbl { font: 500 11px/1 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.stat-spark .ss-val { font-family: var(--font-serif); font-weight: 600; font-size: 26px; letter-spacing: -0.02em; color: var(--text-strong); line-height: 1; font-variant-numeric: tabular-nums; }
+.stat-spark .ss-delta { font: var(--type-caption); }
+.stat-spark .ss-delta.up { color: var(--tone-success); }
+.stat-spark .ss-delta.dn { color: var(--tone-danger); }
+
+/* ════════════════════════════════════════════════════════════
+   10 MORE — MENUS, DROPDOWNS, OVERLAY PRIMITIVES
+   ════════════════════════════════════════════════════════════ */
+
+/* 21 — Dropdown menu (rich: sections, icons, shortcuts, danger) */
+.dropdown {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  padding: 6px;
+  min-width: 240px;
+  display: grid;
+  gap: 1px;
+  font: var(--type-body-sm);
+}
+.dropdown .dd-section { padding: 4px 0; }
+.dropdown .dd-section + .dd-section { border-top: 1px solid var(--border-subtle); margin-top: 4px; padding-top: 8px; }
+.dropdown .dd-label {
+  padding: 4px 12px 6px;
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.dropdown .dd-item {
+  display: grid;
+  grid-template-columns: 18px 1fr auto;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  color: var(--text-body);
+  text-align: left;
+  width: 100%;
+  cursor: pointer;
+}
+.dropdown .dd-item:hover, .dropdown .dd-item.active { background: var(--surface-muted); color: var(--text-strong); }
+.dropdown .dd-item.danger { color: var(--tone-danger); }
+.dropdown .dd-item.danger:hover { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.dropdown .dd-item .ic, .dropdown .dd-item svg { color: var(--text-muted); }
+.dropdown .dd-item.danger .ic, .dropdown .dd-item.danger svg { color: var(--tone-danger); }
+.dropdown .dd-item .sh { color: var(--text-subtle); font-family: var(--font-mono); font-size: 11px; }
+.dropdown .dd-item.has-sub::after {
+  content: ""; width: 6px; height: 6px;
+  border-right: 1.5px solid var(--text-subtle);
+  border-bottom: 1.5px solid var(--text-subtle);
+  transform: rotate(-45deg);
+}
+.dropdown .dd-divider { height: 1px; background: var(--border-subtle); margin: 4px 6px; }
+
+/* 22 — Context menu (smaller variant of dropdown) */
+.context-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-popover);
+  padding: 4px;
+  min-width: 200px;
+  font: var(--type-body-sm);
+}
+.context-menu .cm-item {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 10px; align-items: center;
+  padding: 6px 8px;
+  border-radius: 5px;
+  color: var(--text-body);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+}
+.context-menu .cm-item:hover { background: var(--surface-muted); }
+.context-menu .cm-item.danger { color: var(--tone-danger); }
+.context-menu .cm-divider { height: 1px; background: var(--border-subtle); margin: 4px 4px; }
+.context-menu .cm-item .ic { color: var(--text-subtle); }
+.context-menu .cm-item .sh { color: var(--text-subtle); font: var(--type-mono); }
+
+/* 23 — User / account menu (avatar trigger + header block + menu) */
+.user-menu {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-popover);
+  width: 260px;
+  overflow: clip;
+}
+.user-menu .um-h {
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  display: grid;
+  grid-template-columns: 40px 1fr;
+  gap: 12px;
+  align-items: center;
+}
+.user-menu .um-h .av { width: 40px; height: 40px; border-radius: 50%; background: var(--brand); color: #fff; display: grid; place-items: center; font: 600 14px/1 var(--font-sans); }
+.user-menu .um-h .nm { font: var(--type-label); color: var(--text-strong); }
+.user-menu .um-h .ml { font: var(--type-caption); color: var(--text-muted); margin-top: 2px; }
+.user-menu .um-body { padding: 6px; }
+.user-menu .um-item {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 10px; align-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  width: 100%; text-align: left;
+  cursor: pointer;
+}
+.user-menu .um-item:hover { background: var(--surface-muted); color: var(--text-strong); }
+.user-menu .um-item.danger { color: var(--tone-danger); }
+.user-menu .um-item.danger:hover { background: var(--tone-danger-bg); color: var(--tone-danger); }
+.user-menu .um-item .ic, .user-menu .um-item svg { color: var(--text-muted); }
+.user-menu .um-item.danger .ic, .user-menu .um-item.danger svg { color: var(--tone-danger); }
+.user-menu .um-item .sh { color: var(--text-subtle); font: var(--type-mono); }
+.user-menu .um-divider { height: 1px; background: var(--border-subtle); margin: 4px 6px; }
+
+/* 24 — Combobox / autocomplete */
+.combobox {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  width: 320px;
+  overflow: clip;
+}
+.combobox .cb-search {
+  display: grid; grid-template-columns: 16px 1fr; gap: 10px; align-items: center;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.combobox .cb-search .ic { color: var(--text-subtle); }
+.combobox .cb-search input {
+  border: none; outline: none; background: transparent;
+  font: var(--type-body); color: var(--text-body);
+  width: 100%;
+}
+.combobox .cb-body { max-height: 280px; overflow-y: auto; padding: 4px; }
+.combobox .cb-label {
+  padding: 6px 10px 4px;
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.combobox .cb-item {
+  display: grid;
+  grid-template-columns: 24px 1fr 14px;
+  gap: 10px; align-items: center;
+  padding: 7px 8px;
+  border-radius: 6px;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  cursor: pointer;
+  width: 100%; text-align: left;
+}
+.combobox .cb-item:hover, .combobox .cb-item.active { background: var(--surface-muted); color: var(--text-strong); }
+.combobox .cb-item .av { width: 24px; height: 24px; border-radius: 50%; background: var(--surface-muted); color: var(--text-strong); display: grid; place-items: center; font: 600 11px/1 var(--font-sans); }
+.combobox .cb-item .check-ic { color: var(--brand); opacity: 0; }
+.combobox .cb-item.selected .check-ic { opacity: 1; }
+.combobox .cb-foot { padding: 8px 14px; border-top: 1px solid var(--border-subtle); font: var(--type-caption); color: var(--text-muted); display: flex; justify-content: space-between; }
+
+/* 25 — Multi-select with checkboxes */
+.multi-select {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  width: 280px;
+  overflow: clip;
+}
+.multi-select .ms-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--type-label-sm); color: var(--text-strong);
+}
+.multi-select .ms-h .clear { font: var(--type-caption); color: var(--brand-strong); cursor: pointer; }
+.multi-select .ms-body { max-height: 260px; overflow-y: auto; padding: 4px; }
+.multi-select .ms-item {
+  display: grid;
+  grid-template-columns: 16px 1fr auto;
+  gap: 10px; align-items: center;
+  padding: 7px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+}
+.multi-select .ms-item:hover { background: var(--surface-muted); }
+.multi-select .ms-item .ct { font: var(--type-caption); color: var(--text-subtle); font-family: var(--font-mono); }
+.multi-select .ms-foot {
+  padding: 10px 14px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* 26 — Command palette (compact, fast) */
+.cmdk {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow-modal);
+  width: 560px;
+  overflow: clip;
+}
+.cmdk-input {
+  display: grid; grid-template-columns: 18px 1fr auto; gap: 12px; align-items: center;
+  padding: 14px 18px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.cmdk-input .ic { color: var(--text-subtle); }
+.cmdk-input input { border: none; outline: none; background: transparent; font: 400 15px/1 var(--font-sans); color: var(--text-strong); }
+.cmdk-input input::placeholder { color: var(--text-subtle); }
+.cmdk-input .esc { font: var(--type-mono); color: var(--text-subtle); padding: 2px 6px; border: 1px solid var(--border); border-radius: 4px; }
+.cmdk-body { max-height: 360px; overflow-y: auto; padding: 6px; }
+.cmdk-section { padding: 4px 0; }
+.cmdk-label { padding: 6px 10px 4px; font: 500 11px/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }
+.cmdk-item {
+  display: grid; grid-template-columns: 20px 1fr auto; gap: 12px; align-items: center;
+  padding: 8px 10px; border-radius: 6px;
+  font: var(--type-body); color: var(--text-body);
+  cursor: pointer; width: 100%; text-align: left;
+}
+.cmdk-item:hover, .cmdk-item.active { background: var(--brand-soft); color: var(--brand-strong); }
+.cmdk-item .ic { color: var(--text-muted); }
+.cmdk-item.active .ic { color: var(--brand); }
+.cmdk-item .sh { color: var(--text-subtle); font: var(--type-mono); }
+.cmdk-item.active .sh { color: var(--brand-strong); }
+.cmdk-foot {
+  padding: 10px 18px;
+  border-top: 1px solid var(--border-subtle);
+  display: flex; gap: 18px;
+  font: var(--type-caption); color: var(--text-muted);
+}
+.cmdk-foot .kbd { padding: 2px 5px; }
+
+/* 27 — Generic popover */
+.popover {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  padding: 16px;
+  max-width: 320px;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  position: relative;
+}
+.popover .pop-arrow {
+  position: absolute;
+  width: 12px; height: 12px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  border-top: 1px solid var(--border);
+  transform: rotate(45deg);
+  top: -7px; left: 24px;
+}
+.popover .pop-h {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 8px;
+}
+.popover .pop-h .ti { font: var(--type-label); color: var(--text-strong); }
+.popover .pop-h .x { color: var(--text-subtle); cursor: pointer; }
+.popover .pop-actions { display: flex; gap: 8px; margin-top: 12px; justify-content: flex-end; }
+
+/* 28 — Slide-over drawer / side sheet */
+.drawer {
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-modal);
+  width: 420px;
+  height: 100%;
+  display: flex; flex-direction: column;
+}
+.drawer-h {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between;
+  gap: 16px;
+}
+.drawer-h .ti { font: var(--type-section-title); color: var(--text-strong); }
+.drawer-h .sub { font: var(--type-body-sm); color: var(--text-muted); margin-top: 4px; }
+.drawer-h .x {
+  width: 28px; height: 28px;
+  display: inline-flex; align-items: center; justify-content: center;
+  color: var(--text-muted); border-radius: 6px; cursor: pointer;
+}
+.drawer-h .x:hover { background: var(--surface-muted); color: var(--text-strong); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 22px; }
+.drawer-foot {
+  padding: 14px 22px;
+  border-top: 1px solid var(--border);
+  background: var(--surface-muted);
+  display: flex; gap: 8px; justify-content: flex-end;
+}
+
+/* 29 — Inline confirmation (delete-confirm pattern) */
+.confirm-inline {
+  display: inline-flex; align-items: center; gap: 8px;
+  padding: 6px 8px 6px 12px;
+  background: var(--tone-danger-bg);
+  border: 1px solid var(--tone-danger-bd);
+  border-radius: 8px;
+  font: var(--type-body-sm);
+  color: var(--tone-danger);
+}
+.confirm-inline .ask { font-weight: 500; }
+.confirm-inline button { padding: 4px 10px; border-radius: 5px; font: 500 12px/1 var(--font-sans); cursor: pointer; }
+.confirm-inline button.yes { background: var(--tone-danger); color: #fff; }
+.confirm-inline button.yes:hover { background: var(--action-destructive-hover); }
+.confirm-inline button.no { background: transparent; color: var(--tone-danger); }
+.confirm-inline button.no:hover { background: rgba(184, 58, 42, 0.12); }
+
+/* 30 — Toolbar / button group with separators */
+.toolbar-group {
+  display: inline-flex;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: clip;
+}
+.toolbar-group button, .toolbar-group .tg-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  gap: 6px;
+  height: 32px; padding: 0 10px;
+  color: var(--text-body);
+  background: transparent;
+  border: none;
+  border-right: 1px solid var(--border-subtle);
+  font: 500 13px/1 var(--font-sans);
+  cursor: pointer;
+}
+.toolbar-group button:last-child, .toolbar-group .tg-btn:last-child { border-right: none; }
+.toolbar-group button:hover { background: var(--surface-muted); color: var(--text-strong); }
+.toolbar-group button.active { background: var(--brand-soft); color: var(--brand-strong); }
+.toolbar-group button svg { width: 14px; height: 14px; color: inherit; }
+
+/* ════════════════════════════════════════════════════════════
+   DETAIL VIEW PATTERN — record inspection pages
+   ════════════════════════════════════════════════════════════ */
+
+.detail-page { padding: 24px 32px 48px; display: grid; gap: 20px; min-width: 0; }
+
+.detail-hero {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 24px 28px;
+  display: grid;
+  grid-template-columns: 64px 1fr auto;
+  gap: 20px;
+  align-items: center;
+}
+.detail-hero .dh-mark {
+  width: 64px; height: 64px;
+  border-radius: 12px;
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+  display: grid; place-items: center;
+  font-family: var(--font-serif);
+  font-weight: 600;
+  font-size: 22px;
+  letter-spacing: -0.02em;
+}
+/* Tonal marks — consumers pick the icon, the system picks the tone.
+   Domain-named variants (.gem, .ledger, .person) stay as forwards-compatible
+   aliases (see audit O-2). */
+.detail-hero .dh-mark.tone-warn,
+.detail-hero .dh-mark.gem    { background: linear-gradient(135deg, #FEF4DA, #F4C15B); color: #6B5119; }
+.detail-hero .dh-mark.tone-info,
+.detail-hero .dh-mark.ledger { background: linear-gradient(135deg, var(--brand-soft), var(--brand-100)); color: var(--brand-strong); }
+.detail-hero .dh-mark.tone-neutral,
+.detail-hero .dh-mark.person { background: var(--surface-muted); color: var(--text-strong); }
+.detail-hero .dh-mark.tone-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.detail-hero .dh-mark.tone-danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+.detail-hero .dh-eyebrow { font: 500 11px/1 var(--font-sans); letter-spacing: 0.1em; text-transform: uppercase; color: var(--text-muted); }
+.detail-hero h1 {
+  font: var(--type-display-sm);
+  font-size: 26px;
+  margin: 6px 0 6px;
+  letter-spacing: -0.015em;
+  color: var(--text-strong);
+  display: flex; align-items: center; gap: 12px;
+}
+.detail-hero .dh-meta { display: flex; gap: 18px; flex-wrap: wrap; font: var(--type-body-sm); color: var(--text-muted); }
+.detail-hero .dh-meta strong { color: var(--text-strong); font-weight: 500; }
+.detail-hero .dh-actions { display: flex; gap: 8px; align-items: center; }
+
+.detail-stats { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+
+.detail-grid { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+
+.detail-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: clip;
+}
+.detail-card .dc-h {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.detail-card .dc-h .ti { font: var(--type-section-title); color: var(--text-strong); }
+.detail-card .dc-h .sub { font: var(--type-body-sm); color: var(--text-muted); }
+.detail-card .dc-body { padding: 20px 22px; }
+.detail-card .dc-body.compact { padding: 4px 22px 14px; }
+
+.meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 18px 28px; padding: 4px 0; }
+.meta-grid > div { display: grid; gap: 4px; }
+.meta-grid .k { font: 500 11px/1 var(--font-sans); letter-spacing: 0.08em; text-transform: uppercase; color: var(--text-subtle); }
+.meta-grid .v { font: var(--type-body); color: var(--text-strong); }
+.meta-grid .v.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+
+/* Right-rail activity */
+.activity-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 18px 20px;
+  align-self: start;
+}
+.activity-card .ac-h { display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px; }
+.activity-card .ac-h .ti { font: var(--type-label); color: var(--text-strong); }
+.activity-card .ac-tabs { display: flex; gap: 4px; font: var(--type-caption); color: var(--text-muted); }
+.activity-card .ac-tabs span { padding: 4px 8px; border-radius: 4px; cursor: pointer; }
+.activity-card .ac-tabs span.active { background: var(--surface-muted); color: var(--text-strong); }
+.activity-card .ac-list { display: grid; gap: 16px; position: relative; padding-left: 18px; }
+.activity-card .ac-list::before { content: ""; position: absolute; left: 5px; top: 8px; bottom: 8px; width: 1px; background: var(--border); }
+.activity-card .ac-item { position: relative; }
+.activity-card .ac-item::before { content: ""; position: absolute; left: -19px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: var(--surface); border: 2px solid var(--border-strong); }
+.activity-card .ac-item.brand::before { background: var(--brand); border-color: var(--brand); }
+.activity-card .ac-item.success::before { background: var(--tone-success); border-color: var(--tone-success); }
+.activity-card .ac-item.warn::before { background: var(--tone-warn); border-color: var(--tone-warn); }
+.activity-card .ac-item .who { font: var(--type-label-sm); color: var(--text-strong); }
+.activity-card .ac-item .body { font: var(--type-body-sm); color: var(--text-body); margin-top: 2px; line-height: 1.55; }
+.activity-card .ac-item .when { font: var(--type-caption); color: var(--text-subtle); margin-top: 2px; font-family: var(--font-mono); }
+
+
+/* ════════════════════════════════════════════════════════════
+   MODAL — settings-style full-page modal
+   ════════════════════════════════════════════════════════════ */
+
+.modal-backdrop {
+  position: absolute; inset: 0;
+  background: rgba(42, 38, 34, 0.36);
+  display: grid; place-items: center;
+  padding: 32px;
+}
+/* @deprecated Use .x-bottom-sheet — see D-1 in system/audit-reuse.html.
+ * Aliases retained for backwards-compat through v0.6; the only consumer
+ * (portals/admin/demo.html) will migrate before removal. */
+.modal-window {
+  background: var(--canvas);
+  border-radius: 14px;
+  box-shadow: var(--shadow-modal);
+  width: 100%;
+  max-width: 1100px;
+  height: 100%;
+  max-height: 760px;
+  display: flex; flex-direction: column;
+  overflow: clip;
+}
+.modal-titlebar {
+  display: flex; align-items: center; gap: 10px;
+  padding: 14px 16px;
+  min-height: 48px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-titlebar .traffic { display: flex; gap: 6px; }
+.modal-titlebar .traffic span { width: 12px; height: 12px; border-radius: 50%; background: var(--surface-deep); }
+
+/* ════════════════════════════════════════════════════════════
+   UTILITIES
+   ════════════════════════════════════════════════════════════ */
+.row    { display: flex; align-items: center; }
+.col    { display: flex; flex-direction: column; }
+.center { align-items: center; }
+.between{ justify-content: space-between; }
+.gap-1 { gap: 4px; } .gap-2 { gap: 8px; } .gap-3 { gap: 12px; }
+.gap-4 { gap: 16px; } .gap-5 { gap: 20px; } .gap-6 { gap: 24px; }
+.grow  { flex: 1 1 auto; min-width: 0; }
+.ml-auto { margin-left: auto; }
+.wrap  { flex-wrap: wrap; }
+.nowrap{ white-space: nowrap; }
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0,0,0,0); white-space: nowrap; border: 0; }
+
+/* ============================================================
+   Entrance animations — utility classes used across all pages.
+   These were referenced site-wide (anim-fade-up etc.) but never
+   defined; this is the canonical definition. Honors reduced-motion.
+   ============================================================ */
+@keyframes hx-fade-up   { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: none; } }
+@keyframes hx-fade-in   { from { opacity: 0; } to { opacity: 1; } }
+@keyframes hx-scale-in  { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: scale(1); } }
+@keyframes hx-slide-right { from { opacity: 0; transform: translateX(-14px); } to { opacity: 1; transform: none; } }
+@keyframes hx-pulse      { 0%,100% { opacity: 1; } 50% { opacity: 0.45; } }
+
+.anim-fade-up    { animation: hx-fade-up   var(--dur-slow, 320ms) var(--ease-out, cubic-bezier(0.2,0,0,1)) both; }
+.anim-fade-in    { animation: hx-fade-in   var(--dur-slow, 320ms) var(--ease-out, cubic-bezier(0.2,0,0,1)) both; }
+.anim-scale-in   { animation: hx-scale-in  var(--dur-base, 220ms) var(--ease-out, cubic-bezier(0.2,0,0,1)) both; }
+.anim-slide-right{ animation: hx-slide-right var(--dur-slow, 320ms) var(--ease-out, cubic-bezier(0.2,0,0,1)) both; }
+.anim-pulse      { animation: hx-pulse 1.6s ease-in-out infinite; }
+
+/* Stagger helpers */
+.anim-delay-1 { animation-delay: 60ms; }
+.anim-delay-2 { animation-delay: 120ms; }
+.anim-delay-3 { animation-delay: 180ms; }
+.anim-delay-4 { animation-delay: 240ms; }
+.anim-delay-5 { animation-delay: 300ms; }
+.anim-delay-6 { animation-delay: 360ms; }
+
+@media (prefers-reduced-motion: reduce) {
+  .anim-fade-up, .anim-fade-in, .anim-scale-in, .anim-slide-right, .anim-pulse {
+    animation: none !important;
+  }
+}
+
+/* ============================================================
+   Cross-cutting module grid (shared/* modules) — was referenced
+   but never defined, so .modules-grid rendered as a plain block.
+   ============================================================ */
+.modules-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-top: 8px;
+}
+.module-card {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 18px 20px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  text-decoration: none; color: inherit;
+  transition: border-color var(--dur-fast, 140ms) var(--ease-out), transform var(--dur-fast, 140ms) var(--ease-out);
+}
+a.module-card:hover { border-color: var(--border-strong); transform: translateY(-1px); }
+.module-card .num { font: 500 11px/1 var(--font-mono); color: var(--text-subtle); }
+.module-card .nm  { font: 600 15px/1.3 var(--font-sans); color: var(--text-strong); }
+.module-card .ds  { font: var(--type-body-sm); color: var(--text-muted); line-height: 1.5; }
+.module-card .arrow { margin-top: auto; font: 500 13px/1 var(--font-sans); color: var(--brand-strong); display: inline-flex; align-items: center; gap: 5px; }
+@media (max-width: 900px)  { .modules-grid { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px)  { .modules-grid { grid-template-columns: 1fr; } }
+
+/* ============================================================
+   Recurring portal patterns — promoted from bespoke portal CSS.
+   Each block here was duplicated in 3+ portal demos as a one-off
+   (.gd-tabs / .ow-tabs / .pa-tabs / .pd-tabs etc.). Lifted into
+   the system so portals can adopt a single canonical class.
+
+   Tokens-only. No portal-specific colours bleed into the system —
+   portals tint via --brand and tonal vars on their own root.
+   ============================================================ */
+
+/* ── .b-bottom-tabs ────────────────────────────────────────
+   Mobile bottom tab bar. Used by every portal as the primary
+   phone-resolution nav. Lives at the viewport bottom with a
+   safe-area inset for iOS notch / home indicator.
+   Doc page: system/b-bottom-tabs.html
+   Replaces: .gd-tabs .pa-tabs .ow-tabs .pd-tabs .sd-tabs .st-tabs .bt-nav
+   --------------------------------------------------------- */
+.b-bottom-tabs {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 60;
+  height: 64px;
+  padding: 6px 6px calc(6px + env(safe-area-inset-bottom, 8px));
+  display: flex; align-items: stretch;
+  background: var(--surface);
+  border-top: 1px solid var(--border);
+  box-shadow: var(--shadow-bar-bottom);
+}
+.b-bottom-tabs button,
+.b-bottom-tabs a {
+  flex: 1; min-height: 52px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 3px; padding: 4px 0;
+  border: 0; background: transparent; cursor: pointer; text-decoration: none;
+  color: var(--text-subtle);
+  /* Caption-tier label under each tab icon — uses --type-eyebrow size (11px). */
+  font: 500 11px/1 var(--font-sans);
+  border-radius: 10px;
+  position: relative;
+}
+.b-bottom-tabs button:hover,
+.b-bottom-tabs a:hover { color: var(--text-strong); }
+.b-bottom-tabs .b-bt-ic { width: 22px; height: 22px; display: grid; place-items: center; }
+.b-bottom-tabs button.active,
+.b-bottom-tabs a.active { color: var(--brand-strong); }
+.b-bottom-tabs button.active .b-bt-ic,
+.b-bottom-tabs a.active .b-bt-ic { color: var(--brand); }
+.b-bottom-tabs .b-bt-badge {
+  position: absolute; top: 2px; right: calc(50% - 18px);
+  min-width: 16px; height: 16px; padding: 0 4px;
+  background: var(--tone-danger); color: #fff;
+  border-radius: 9999px;
+  font: 600 10px/16px var(--font-mono); text-align: center;
+}
+/* Show only on phone; hide on tablet/desktop where the sidebar is primary. */
+@media (min-width: 901px) { .b-bottom-tabs { display: none; } }
+
+/* ── .b-filter-chips ───────────────────────────────────────
+   Horizontally-scrolling chip row, typically above a list, with
+   optional unread/count badge. Same shape in pos, parent,
+   student, teacher, staff.
+   Doc page: system/b-filter-chips.html
+   Replaces: .filter-chips / .hist-filter / .audit-h .filter-chip
+   --------------------------------------------------------- */
+.b-filter-chips {
+  display: flex; gap: 8px;
+  padding: 12px 16px 4px;
+  overflow-x: auto; scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.b-filter-chips::-webkit-scrollbar { display: none; }
+.b-filter-chips .b-fc {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 7px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+  /* Caption tier (12px) — matches --type-caption. */
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-strong);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.b-filter-chips .b-fc:hover { background: var(--surface-muted); }
+.b-filter-chips .b-fc .b-fc-ct {
+  font: 600 11px/1 var(--font-sans);
+  padding: 2px 7px; border-radius: 9999px;
+  background: var(--surface-muted); color: var(--text-muted);
+}
+.b-filter-chips .b-fc.on {
+  background: var(--brand); color: #fff; border-color: var(--brand);
+}
+.b-filter-chips .b-fc.on .b-fc-ct {
+  background: rgba(255, 255, 255, 0.22); color: #fff;
+}
+
+/* ── .b-row-card ───────────────────────────────────────────
+   Full-width tap-target row card — primary mobile list shape.
+   One per record. Tapping opens a detail sheet. Name + sub on
+   the left, primary number on the right, optional pill below.
+   Doc page: system/b-row-card.html
+   Replaces: .row-card / .pl-row (mobile variant) / .flag-row layout
+   --------------------------------------------------------- */
+.b-row-card {
+  display: block; width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 11px;
+  padding: 12px 14px;
+  margin-bottom: 8px;
+  text-align: left; color: var(--text-body);
+  font-family: var(--font-sans);
+  cursor: pointer;
+  transition: background var(--dur-fast, 140ms) var(--ease-out, ease),
+              border-color var(--dur-fast, 140ms) var(--ease-out, ease);
+}
+.b-row-card:hover,
+.b-row-card:active {
+  background: var(--surface-muted);
+  border-color: var(--border-strong);
+}
+.b-row-card .b-rc-top {
+  display: flex; align-items: flex-start; gap: 10px;
+}
+.b-row-card .b-rc-info { flex: 1; min-width: 0; }
+.b-row-card .b-rc-nm {
+  font: 600 14px/1.3 var(--font-sans);
+  color: var(--text-strong);
+}
+.b-row-card .b-rc-sb {
+  font: 12px/1.3 var(--font-sans);
+  color: var(--text-muted);
+  margin-top: 3px;
+}
+.b-row-card .b-rc-val {
+  font: 700 18px/1 var(--font-sans);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+.b-row-card .b-rc-delta {
+  /* Caption tier — matches --type-caption (12px). */
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-muted);
+  margin-top: 4px;
+}
+.b-row-card .b-rc-delta.up   { color: var(--tone-success); }
+.b-row-card .b-rc-delta.dn   { color: var(--tone-danger); }
+.b-row-card .b-rc-meta {
+  display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px;
+}
+.b-row-card .b-rc-meta .b-rc-m-l {
+  /* Eyebrow tier — matches --type-eyebrow size (11px). */
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.07em; text-transform: uppercase;
+  color: var(--text-subtle);
+}
+.b-row-card .b-rc-meta .b-rc-m-v {
+  font: 600 13px/1 var(--font-mono);
+  color: var(--text-strong);
+  margin-top: 3px;
+}
+
+/* ── .b-stat-hero ──────────────────────────────────────────
+   The opener block: one large brand-tinted "hero" stat, with a
+   row of smaller secondary stats beneath. Used by Parent,
+   Student, Owner, Gold, Scrap, Admin overview screens.
+   Doc page: system/b-stat-hero.html
+   Replaces: .phero + .stat-row / .hero-card + .stat-row
+   --------------------------------------------------------- */
+.b-stat-hero {
+  display: flex; flex-direction: column; gap: 12px;
+  margin-bottom: 18px;
+}
+.b-stat-hero .b-sh-lead {
+  background: linear-gradient(135deg, var(--brand) 0%, var(--brand-deeper, var(--brand-strong)) 100%);
+  color: #fff;
+  border-radius: 14px;
+  padding: 18px 18px 20px;
+  position: relative;
+  overflow: clip;
+}
+.b-stat-hero .b-sh-lead::before {
+  content: ""; position: absolute; right: -40px; top: -40px;
+  width: 160px; height: 160px; border-radius: 50%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.18), transparent 70%);
+}
+.b-stat-hero .b-sh-lead .b-sh-l {
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  opacity: 0.82;
+}
+.b-stat-hero .b-sh-lead .b-sh-v {
+  font: 700 32px/1.05 var(--font-sans);
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  margin-top: 10px;
+}
+.b-stat-hero .b-sh-lead .b-sh-d {
+  font: 13.5px/1.4 var(--font-sans);
+  opacity: 0.85; margin-top: 6px; max-width: 28ch;
+}
+.b-stat-hero .b-sh-row {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+}
+@media (max-width: 600px) {
+  .b-stat-hero .b-sh-row { grid-template-columns: repeat(2, 1fr); }
+}
+.b-stat-hero .b-sh-s {
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.b-stat-hero .b-sh-s .b-sh-l {
+  font: 500 11px/1 var(--font-sans);
+  letter-spacing: 0.06em; text-transform: uppercase;
+  color: var(--text-muted);
+}
+.b-stat-hero .b-sh-s .b-sh-v {
+  font: 700 20px/1 var(--font-sans);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  margin-top: 8px;
+}
+.b-stat-hero .b-sh-s .b-sh-sb {
+  font: 500 11.5px/1.3 var(--font-sans);
+  color: var(--text-muted); margin-top: 4px;
+}
+
+/* ── .b-day-list ───────────────────────────────────────────
+   Two-column day/value list. The "tiny chart fallback" used on
+   phones where a real bar chart wouldn't read — owner's revenue
+   by day, parent's payment ladder, gold's daily pour log.
+   Doc page: system/b-day-list.html
+   Replaces: .day-list (owner) + ad-hoc dt/dd pairs in other portals
+   --------------------------------------------------------- */
+.b-day-list {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0 14px;
+}
+.b-day-list .b-dl-l {
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-body);
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.b-day-list .b-dl-v {
+  font: 600 13px/1 var(--font-mono);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+  padding: 8px 0;
+  text-align: right;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.b-day-list > :nth-last-child(-n+2) { border-bottom: 0; }
+.b-day-list .b-dl-v.up { color: var(--tone-success); }
+.b-day-list .b-dl-v.dn { color: var(--tone-danger); }
+
+/* ── .x-bottom-sheet ───────────────────────────────────────
+   Bottom-anchored sheet on phone, centred dialog on desktop.
+   Header + scrollable body + sticky footer. Drag handle on
+   mobile only. Used by admin, parent, student, gold for detail
+   views, pickers, action lists.
+   Doc page: system/x-bottom-sheet.html
+   Replaces: .sheet / .more-sheet / .modal (mobile variant) / .sheet-scrim
+   --------------------------------------------------------- */
+.x-bs-scrim {
+  position: fixed; inset: 0; z-index: 90;
+  background: rgba(22, 24, 29, 0.55);
+  display: flex; align-items: flex-end; justify-content: center;
+  opacity: 0; pointer-events: none;
+  transition: opacity 200ms var(--ease-out, ease);
+}
+.x-bs-scrim.open { opacity: 1; pointer-events: auto; }
+.x-bottom-sheet {
+  background: var(--surface);
+  width: 100%; max-width: 460px;
+  max-height: 90vh;
+  border-top-left-radius: 18px;
+  border-top-right-radius: 18px;
+  display: flex; flex-direction: column;
+  box-shadow: var(--shadow-sheet-bottom);
+  transform: translateY(100%);
+  transition: transform 260ms cubic-bezier(0.2, 0, 0.1, 1);
+  padding-bottom: env(safe-area-inset-bottom);
+  overflow: hidden;
+}
+.x-bs-scrim.open .x-bottom-sheet { transform: translateY(0); }
+.x-bottom-sheet .x-bs-grab {
+  width: 38px; height: 4px; border-radius: 9999px;
+  background: var(--border-strong);
+  margin: 8px auto 4px; flex: none;
+}
+.x-bottom-sheet .x-bs-head {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 18px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  flex: none;
+}
+.x-bottom-sheet .x-bs-head h3 {
+  font: 600 16px/1.2 var(--font-sans);
+  color: var(--text-strong);
+  margin: 0; flex: 1;
+}
+.x-bottom-sheet .x-bs-head .x-bs-close {
+  width: 36px; height: 36px;
+  border-radius: 9px;
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  display: grid; place-items: center;
+  border: 0; cursor: pointer; flex: none;
+}
+.x-bottom-sheet .x-bs-body {
+  flex: 1; overflow-y: auto;
+  padding: 14px 18px;
+  -webkit-overflow-scrolling: touch;
+}
+.x-bottom-sheet .x-bs-foot {
+  display: flex; gap: 8px;
+  padding: 12px 16px calc(12px + env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border-subtle);
+  background: var(--surface);
+  flex: none;
+}
+/* @deprecated Bespoke .x-bs-foot button rules removed (audit-reuse A-4).
+ * Footer buttons must carry .btn (and .btn-primary / .btn-secondary /
+ * .btn-destructive) so tone-token updates propagate everywhere. The legacy
+ * .primary / .alt / .danger flat-button classes are kept as thin aliases
+ * below for one release so old markup keeps rendering. New code MUST use
+ * <button class="btn btn-primary">. */
+.x-bottom-sheet .x-bs-foot .btn { flex: 1; min-height: 44px; }
+.x-bottom-sheet .x-bs-foot button:not(.btn) {
+  /* Legacy shape — same metrics .btn would give, retained so portal demos
+   * shipping <button class="primary"> in a sheet footer don't regress. */
+  flex: 1; min-height: 44px;
+  padding: 0 14px; border-radius: 10px;
+  font: 600 14px/1 var(--font-sans);
+  border: 0; cursor: pointer;
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.x-bottom-sheet .x-bs-foot button.primary { background: var(--brand); color: #fff; }
+.x-bottom-sheet .x-bs-foot button.primary:hover { background: var(--brand-strong); }
+.x-bottom-sheet .x-bs-foot button.alt {
+  background: var(--surface-muted); color: var(--text-strong);
+}
+.x-bottom-sheet .x-bs-foot button.danger {
+  background: var(--tone-danger); color: #fff;
+}
+
+/* Desktop adaptation: centre the sheet as a dialog. */
+@media (min-width: 720px) {
+  .x-bs-scrim { align-items: center; padding: 24px; }
+  .x-bottom-sheet {
+    border-radius: 14px;
+    max-width: 520px; max-height: 80vh;
+    transform: translateY(20px) scale(0.98); opacity: 0;
+    transition: transform 200ms var(--ease-out, ease),
+                opacity 200ms var(--ease-out, ease);
+  }
+  .x-bs-scrim.open .x-bottom-sheet { transform: none; opacity: 1; }
+  .x-bottom-sheet .x-bs-grab { display: none; }
+}
+
+/* @deprecated Backwards-compat aliases for the legacy modal classes.
+ * .modal-card and .modal-window now also receive the same surface treatment
+ * as .x-bottom-sheet so consumers can migrate at their own pace. New code
+ * MUST use .x-bottom-sheet. Tracked: audit-reuse.html finding D-1. */
+.modal-card,
+.modal-window {
+  /* Inherit-by-aliasing — keep the legacy block-level rules above intact
+   * (max-widths, shadows etc. still apply). Nothing extra needed here; this
+   * selector exists to make the alias relationship grep-able and to give
+   * future migration tools a single hook to rewrite. */
+}
+
+/* ============================================================
+   Canonical tone vocabulary (audit-reuse N-1).
+   ---------------------------------------------------------------
+   One shape across every tonable primitive:
+     .x.tone-success / .tone-warn / .tone-danger / .tone-info
+   matching the --tone-* token names. Legacy postfix
+   (.badge-success) and compound (.alert.success) variants are
+   retained above as backwards-compat aliases — see the
+   `@deprecated` comments next to each.
+   New code MUST use .tone-*. Tracked: audit-reuse.html finding N-1.
+   ============================================================ */
+
+/* ── badge ───────────────────────────────────────────────── */
+.badge.tone-neutral { background: var(--surface-muted); color: var(--text-muted); }
+.badge.tone-info    { background: var(--tone-info-bg);    color: var(--tone-info); }
+.badge.tone-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.badge.tone-warn    { background: var(--tone-warn-bg);    color: var(--tone-warn); }
+.badge.tone-danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+
+/* ── alert ───────────────────────────────────────────────── */
+.alert.tone-info    { background: var(--tone-info-bg);    border-color: var(--tone-info-bd);    color: var(--tone-info); }
+.alert.tone-success { background: var(--tone-success-bg); border-color: var(--tone-success-bd); color: var(--tone-success); }
+.alert.tone-warn    { background: var(--tone-warn-bg);    border-color: var(--tone-warn-bd);    color: var(--tone-warn); }
+.alert.tone-danger  { background: var(--tone-danger-bg);  border-color: var(--tone-danger-bd);  color: var(--tone-danger); }
+.alert.tone-info .alert-title,
+.alert.tone-success .alert-title,
+.alert.tone-warn .alert-title,
+.alert.tone-danger .alert-title { color: inherit; }
+.alert.tone-info .alert-body,
+.alert.tone-success .alert-body,
+.alert.tone-warn .alert-body,
+.alert.tone-danger .alert-body { color: inherit; opacity: 0.85; }
+
+/* ── donut ───────────────────────────────────────────────── */
+.donut.tone-success { --fill: var(--tone-success); }
+.donut.tone-warn    { --fill: var(--tone-warn); }
+.donut.tone-danger  { --fill: var(--tone-danger); }
+.donut.tone-info    { --fill: var(--tone-info); }
+
+/* ── progress ────────────────────────────────────────────── */
+.progress.tone-success > span { background: var(--tone-success); }
+.progress.tone-warn    > span { background: var(--tone-warn); }
+.progress.tone-danger  > span { background: var(--tone-danger); }
+.progress.tone-info    > span { background: var(--tone-info); }
+
+/* ── toast ───────────────────────────────────────────────── */
+.toast.tone-success { background: var(--tone-success); }
+.toast.tone-warn    { background: var(--tone-warn); }
+.toast.tone-danger  { background: var(--tone-danger); }
+.toast.tone-info    { background: var(--tone-info); }
+
+/* ── sparkline ───────────────────────────────────────────── */
+.sparkline.tone-success path.line { stroke: var(--tone-success); }
+.sparkline.tone-success path.fill { fill:   var(--tone-success); }
+.sparkline.tone-warn    path.line { stroke: var(--tone-warn); }
+.sparkline.tone-warn    path.fill { fill:   var(--tone-warn); }
+.sparkline.tone-danger  path.line { stroke: var(--tone-danger); }
+.sparkline.tone-danger  path.fill { fill:   var(--tone-danger); }
+.sparkline.tone-info    path.line { stroke: var(--tone-info); }
+.sparkline.tone-info    path.fill { fill:   var(--tone-info); }
+
+/* ── erp-pill ────────────────────────────────────────────── */
+.erp-pill.tone-info    { background: var(--tone-info-bg);    color: var(--tone-info); }
+.erp-pill.tone-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.erp-pill.tone-warn    { background: var(--tone-warn-bg);    color: var(--tone-warn); }
+.erp-pill.tone-danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+.erp-pill.tone-neutral { background: var(--surface-muted);   color: var(--text-muted); }
+
+/* ── pill (generic; primitive not yet defined — this is a
+   forward declaration so any future .pill ships with the
+   same vocabulary out of the box) ─────────────────────────── */
+.pill.tone-info    { background: var(--tone-info-bg);    color: var(--tone-info); }
+.pill.tone-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.pill.tone-warn    { background: var(--tone-warn-bg);    color: var(--tone-warn); }
+.pill.tone-danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+.pill.tone-neutral { background: var(--surface-muted);   color: var(--text-muted); }
+
+/* ── dh-mark (detail-hero brand mark) ─────────────────────── */
+.detail-hero .dh-mark.tone-warn    { background: linear-gradient(135deg, #FEF4DA, #F4C15B); color: #6B5119; }
+.detail-hero .dh-mark.tone-info    { background: linear-gradient(135deg, var(--brand-soft), var(--brand-100)); color: var(--brand-strong); }
+.detail-hero .dh-mark.tone-neutral { background: var(--surface-muted); color: var(--text-strong); }
+.detail-hero .dh-mark.tone-success { background: var(--tone-success-bg); color: var(--tone-success); }
+.detail-hero .dh-mark.tone-danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+
+/* ── btn (action-tone overlay so .btn.tone-danger reads as
+   destructive even if the consumer hasn't typed .btn-destructive) */
+.btn.tone-danger  { background: var(--tone-danger); color: #fff; border-color: transparent; }
+.btn.tone-danger:hover { background: var(--tone-danger); filter: brightness(0.95); }
+.btn.tone-warn    { background: var(--tone-warn);    color: #fff; border-color: transparent; }
+.btn.tone-success { background: var(--tone-success); color: #fff; border-color: transparent; }
+.btn.tone-info    { background: var(--tone-info);    color: #fff; border-color: transparent; }
+
+/* ── Legacy compound-class forwards (@deprecated — use .tone-*).
+   Keep historic markup rendering identically. The original
+   .badge-success / .alert.success / .donut.success rules above
+   are also retained; these add the alternate compound shapes
+   (.badge.success, etc.) some portals already ship. Removal of
+   both shapes is a v0.6 follow-up. */
+/* @deprecated .badge.success → use .badge.tone-success */
+.badge.success { background: var(--tone-success-bg); color: var(--tone-success); }
+/* @deprecated .badge.warn → use .badge.tone-warn */
+.badge.warn    { background: var(--tone-warn-bg);    color: var(--tone-warn); }
+/* @deprecated .badge.danger → use .badge.tone-danger */
+.badge.danger  { background: var(--tone-danger-bg);  color: var(--tone-danger); }
+/* @deprecated .badge.info → use .badge.tone-info */
+.badge.info    { background: var(--tone-info-bg);    color: var(--tone-info); }
+/* @deprecated .badge.neutral → use .badge.tone-neutral */
+.badge.neutral { background: var(--surface-muted);   color: var(--text-muted); }
+
+/* @deprecated Filter-chip aliases — use .b-filter-chips / .b-fc.
+ * Audit-reuse.html D-4 chose b-filter-chips as the canonical mobile pill row.
+ * Legacy markup (.filter-chips / .chip-bar / .hist-filter) keeps working by
+ * inheriting the same horizontal scroll-row layout; their inner pills inherit
+ * .fchip styling. New code MUST use .b-filter-chips > .b-fc.
+ * Retained through v0.6. */
+.filter-chips,
+.chip-bar,
+.hist-filter {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+  padding: 4px 0;
+}
+.filter-chips::-webkit-scrollbar,
+.chip-bar::-webkit-scrollbar,
+.hist-filter::-webkit-scrollbar { display: none; }
+.filter-chips > *,
+.chip-bar > *,
+.hist-filter > * { flex: none; }
+
+/* @deprecated Dropdown menu aliases — use .dropdown (documented on
+ * p-dropdown-menu.html). .menu, .context-menu and .user-menu remain as
+ * working CSS earlier in this file so existing markup keeps rendering; new
+ * code MUST use .dropdown with .dropdown--compact / .dropdown--user
+ * modifiers. The no-op selector below exists so migration tooling has a
+ * single grep hook. Tracked: audit-reuse.html finding D-5. */
+.menu,
+.context-menu,
+.user-menu {
+  /* Inherit-by-aliasing — see earlier rules. */
+}
+
+/* @deprecated Popover aliases — use .popover (documented on p-popover.html).
+ * Audit-reuse.html D-5 picks .popover as the canonical rich-content floating
+ * surface. .hover-card and .pop-card from legacy portal demos forward to the
+ * same surface treatment. Retained through v0.6. */
+.hover-card,
+.pop-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: var(--shadow-popover);
+  padding: 16px;
+  max-width: 320px;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+}
+
+/* @deprecated Table alias — .dtable is canonical for full-feature data
+ * tables (consume via x-data-table). .table remains as the bare HTML
+ * semantic primitive (documented on p-table.html). Audit-reuse.html D-6
+ * keeps both but documents the relationship: simple list = .table;
+ * rich data grid with sort/select/pagination = .dtable.
+ * The .data-table alias below is a no-op grep hook for migration tooling. */
+.data-table {
+  /* Inherit-by-aliasing — apply class="dtable data-table" and the existing
+   * .dtable rules take over. */
+}
+
+/* @deprecated Tab-strip aliases — use .p-tabs (documented on p-tabs.html,
+ * which folds .seg-tabs / .iconstrip / .under-tabs into three variants of
+ * one Tabs primitive). .kit-tab / .tabs / .tabstrip from older portal demos
+ * forward to .under-tabs styling so visuals stay consistent.
+ * Audit-reuse.html D-7. */
+.kit-tab,
+.tabs,
+.tabstrip {
+  display: flex;
+  gap: 24px;
+  border-bottom: 1px solid var(--border);
+  padding: 0 4px;
+}
+.kit-tab > a,
+.kit-tab > button,
+.tabs > a,
+.tabs > button,
+.tabstrip > a,
+.tabstrip > button {
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  padding: 10px 2px;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  cursor: pointer;
+  text-decoration: none;
+}
+.kit-tab > .active,
+.kit-tab > [aria-selected="true"],
+.tabs > .active,
+.tabs > [aria-selected="true"],
+.tabstrip > .active,
+.tabstrip > [aria-selected="true"] {
+  color: var(--text-strong);
+  border-bottom-color: var(--brand);
+}
+
+/* @deprecated .kpi-grid — audit-reuse.html D-3 picks .b-stat-hero (one lead
+ * + N secondary tiles) and .b-stat-card (single tile) as the canonical stat
+ * surfaces. .kpi-grid is just a CSS grid wrapper around stat cards; new
+ * code SHOULD write `display: grid; gap: 12px; grid-template-columns:
+ * repeat(N, 1fr);` directly with .b-stat-card children. The selector below
+ * preserves the layout for existing markup. */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+@media (max-width: 720px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+}
+
+/* ============================================================
+   Accessibility safety net (added 2026-06-03 by a11y audit).
+   1. Restore visible focus rings on interactive elements whose
+      built-in outline was suppressed for visual styling reasons.
+      Uses :focus-visible so mouse clicks stay quiet but keyboard
+      navigation always shows a ring. Matches --focus-ring-soft
+      so it reads as part of the system, not a browser default.
+   2. Honour prefers-reduced-motion across all decorative
+      transitions and animations the design system ships.
+   3. Provide a generic .ds-skip-link helper for "skip to main"
+      links — visually hidden until focused.
+   ============================================================ */
+
+:where(.btn-ghost, .btn-text, .icon-btn, .ds-tab-btn, .ds-viewport-btn,
+       .ds-copy-btn, .fchip, .chip, .b-bt-item, .b-fc, .cmdk-input input,
+       .otp input, .tag-input, .hero-input input, .data-toolbar .search-input input)
+       :focus-visible,
+:where(.btn-ghost, .btn-text, .icon-btn, .ds-tab-btn, .ds-viewport-btn,
+       .ds-copy-btn, .fchip, .chip, .b-bt-item, .b-fc,
+       .otp input, .tag-input)
+       :focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Links embedded in a block of text must be distinguishable without colour
+   alone (WCAG 1.4.1). Underline links inside paragraphs, list items and
+   the lede block. Standalone links (in chrome/nav) keep the plain look. */
+p a:not(.btn):not(.badge):not(.tag),
+li a:not(.btn):not(.badge):not(.tag),
+.lede a:not(.btn):not(.badge):not(.tag),
+.au-sec a:not(.btn):not(.badge):not(.tag) {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+/* Generic safety net: anything with role="button", a button or a link
+   gets a visible focus ring when focused via the keyboard. */
+button:focus-visible,
+[role="button"]:focus-visible,
+a:focus-visible,
+summary:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+/* Form fields that have stripped their outline — fall back to the soft
+   ring so the active-field state remains keyboard-visible. */
+input:focus-visible:not(:where(.input, .textarea, .select)),
+select:focus-visible:not(.input):not(.select),
+textarea:focus-visible:not(.textarea) {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Skip-to-main helper. Append <a class="ds-skip-link" href="#main">…</a>
+   as the first focusable element on any page. */
+.ds-skip-link {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  padding: 8px 14px;
+  background: var(--surface);
+  color: var(--text-link);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  font: 500 13px/1 var(--font-sans);
+  z-index: 9999;
+  transform: translateY(-150%);
+  transition: transform 120ms ease;
+}
+.ds-skip-link:focus-visible {
+  transform: translateY(0);
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Code preview font size inside recipe specimens. Cookbook recipes embed
+   small snippet code blocks (<pre>/<code>) inside .ds-specimen-stage; the
+   default rendering was too large (~14-15px) and crowded the preview.
+   Land it at a comfortable 12px with tight line-height. */
+.ds-specimen-stage pre,
+.ds-specimen-stage code,
+.ds-specimen pre,
+.ds-specimen code {
+  font-size: 12px;
+  line-height: 1.55;
+}
+@media (max-width: 720px) {
+  .ds-specimen-stage pre,
+  .ds-specimen-stage code,
+  .ds-specimen pre,
+  .ds-specimen code {
+    font-size: 11px;
+  }
+}
+
+/* Reduced-motion expansion: also kill transitions on hover/focus
+   surfaces and the slide-in for the skip link. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
+  .ds-skip-link { transition: none; }
+}
+
+/* ════════════════════════════════════════════════════════════
+   RECIPE-DRIVEN ADDITIONS (audit findings R-1..R-4)
+   Small, tokenised additions extracted from in-flight cookbook
+   recipes so authors stop re-inventing them inline. Each is
+   intentionally small — the variant story is on the doc page.
+   ════════════════════════════════════════════════════════════ */
+
+/* R-1 — Stepper primitive. The visual indicator at the top of a
+   wizard ("step 2 of 4"). Renders horizontally as a row of pill
+   segments. See system/p-stepper.html. */
+.p-stepper {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+.p-stepper .p-step {
+  flex: 1;
+  height: 6px;
+  border-radius: 3px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  transition: background var(--dur-fast) var(--ease-out),
+              border-color var(--dur-fast) var(--ease-out);
+}
+.p-stepper .p-step.done    { background: var(--brand); border-color: var(--brand); }
+.p-stepper .p-step.current { background: var(--brand); border-color: var(--brand); }
+.p-stepper .p-step.pending { background: var(--surface-muted); border-color: var(--border); }
+.p-stepper.p-stepper--labelled {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 8px;
+}
+.p-stepper.p-stepper--labelled .p-step {
+  height: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  display: flex; align-items: center; gap: 8px;
+  font: var(--type-label-sm); color: var(--text-muted);
+}
+.p-stepper.p-stepper--labelled .p-step.current { color: var(--brand-deeper); }
+.p-stepper.p-stepper--labelled .p-step.done    { color: var(--text-strong); }
+
+/* R-2 — Inline edit wrapper. The "tap to edit, Enter to save,
+   Esc to cancel" pattern used by inline-editable table cells and
+   inline-rename fields. See cookbook/forms-inline-edit-row.html. */
+.p-inline-edit {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 6px;
+  background: var(--surface);
+  border: 1px solid var(--brand);
+  box-shadow: 0 0 0 2px var(--focus-ring-soft);
+}
+.p-inline-edit input {
+  flex: 1 1 auto;
+  min-width: 80px;
+  border: none;
+  outline: none;
+  background: transparent;
+  font: inherit;
+  color: var(--text-strong);
+  padding: 2px 4px;
+}
+.p-inline-edit .p-inline-edit-save,
+.p-inline-edit .p-inline-edit-cancel {
+  display: inline-grid; place-items: center;
+  width: 22px; height: 22px;
+  border-radius: 5px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+.p-inline-edit .p-inline-edit-save:hover   { background: var(--tone-success-bg); color: var(--tone-success); }
+.p-inline-edit .p-inline-edit-cancel:hover { background: var(--surface-muted); color: var(--text-strong); }
+
+/* R-3 — Transient toast tone. Used for short-lived optimistic
+   confirmations ("Saved — Undo"). Same shape as .toast but fades
+   faster and gives the action button the loudest weight. The
+   actual scheduling lives in the toast manager — this class is
+   the visual signal. */
+.toast.tone-transient {
+  background: var(--surface);
+  color: var(--text-strong);
+  border: 1px solid var(--border);
+  animation: p-toast-transient-fade 1.5s var(--ease-out) forwards;
+  animation-delay: 1.5s;
+}
+.toast.tone-transient .t-title { color: var(--text-strong); }
+.toast.tone-transient .t-body  { color: var(--text-muted); opacity: 1; }
+.toast.tone-transient .x       { color: var(--text-subtle); }
+.toast.tone-transient .x:hover { color: var(--text-strong); }
+.toast.tone-transient button.action,
+.toast.tone-transient .t-action {
+  font: 600 13px/1 var(--font-sans);
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.toast.tone-transient button.action:hover,
+.toast.tone-transient .t-action:hover {
+  background: var(--brand);
+  color: #fff;
+}
+@keyframes p-toast-transient-fade {
+  from { opacity: 1; }
+  to   { opacity: 0; visibility: hidden; }
+}
+
+/* R-4 — Role switcher primitive. The "Clerk | Manager" segmented
+   toggle. Generic for any role enum: pass any number of buttons,
+   mark the active one with aria-pressed="true". See
+   system/p-role-switcher.html. */
+.p-role-switcher {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 9999px;
+}
+.p-role-switcher button {
+  appearance: none;
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font: 500 13px/1 var(--font-sans);
+  padding: 6px 14px;
+  border-radius: 9999px;
+  cursor: pointer;
+  transition: background var(--dur-fast) var(--ease-out),
+              color var(--dur-fast) var(--ease-out);
+}
+.p-role-switcher button:hover { color: var(--text-strong); }
+.p-role-switcher button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--text-strong);
+  border-color: var(--border);
+  box-shadow: var(--shadow-inset-rest);
+}
+.p-role-switcher button:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* ════════════════════════════════════════════════════════════
+   v0.2.0 — Input with leading/trailing icons, sidebar brand,
+   nav groups, sidebar nav items, collapsible sidebar rail
+   ════════════════════════════════════════════════════════════ */
+
+/* Wraps an `<input>` when it has leading/trailing icons. The bare `<input>`
+   is still used when no icons are present (preserves existing layouts). */
+.input-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0 10px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: 8px;
+  min-height: 32px;
+  color: var(--text-body);
+  transition: border-color var(--dur-fast) var(--ease-out),
+              box-shadow var(--dur-fast) var(--ease-out);
+}
+.input-wrap:focus-within {
+  border-color: var(--focus-ring);
+  box-shadow: 0 0 0 3px var(--focus-ring-soft, rgba(0, 0, 0, 0.08));
+}
+.input-wrap.is-invalid { border-color: var(--tone-danger); }
+.input-wrap > .input {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  min-height: auto;
+  flex: 1;
+  box-shadow: none;
+  outline: none;
+}
+.input-wrap > .input:focus { box-shadow: none; }
+.input-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+  flex: none;
+}
+.input-icon-trailing { color: var(--text-subtle); }
+
+/* Sidebar brand mark + product name (top-left of the sidebar). */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  font: 600 12px/1 var(--font-sans);
+  color: var(--text-strong);
+  text-decoration: none;
+  min-height: 34px;
+}
+.sidebar-brand:hover { background: var(--surface-muted); }
+.sidebar-brand-mark {
+  width: 22px;
+  height: 22px;
+  border-radius: 5px;
+  background: var(--brand);
+  display: inline-grid;
+  place-items: center;
+  color: var(--on-brand, #fff);
+  flex: none;
+}
+.sidebar-brand-name { font: inherit; color: inherit; }
+
+/* Labeled <nav> group inside the sidebar. */
+.nav-group {
+  display: grid;
+  gap: 1px;
+}
+.nav-group-label {
+  margin: 0;
+  padding: 4px 8px;
+  font: 500 9px/1 var(--font-sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-subtle);
+}
+
+/* Single nav item — anchor with active state, optional icon + badge. */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 6px;
+  font: 500 12px/1 var(--font-sans);
+  color: var(--text-body);
+  text-decoration: none;
+  min-height: 28px;
+}
+.nav-item:hover { background: var(--surface-muted); }
+.nav-item.is-active {
+  background: var(--brand-soft);
+  color: var(--brand-strong);
+}
+.nav-item-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  flex: none;
+  color: currentColor;
+}
+.nav-item-label { font: inherit; color: inherit; flex: 1; min-width: 0; }
+.nav-item-badge {
+  margin-left: auto;
+  font: 500 9px/1 var(--font-mono);
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger);
+  padding: 2px 5px;
+  border-radius: 9999px;
+}
+
+/* Sidebar collapsible head + toggle button. */
+.sidebar-head {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 4px 4px;
+}
+.sidebar-toggle {
+  width: 24px;
+  height: 24px;
+  display: inline-grid;
+  place-items: center;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 12px;
+  line-height: 1;
+}
+.sidebar-toggle:hover { color: var(--text-strong); background: var(--surface-muted); }
+.sidebar-toggle:focus-visible {
+  outline: 2px solid var(--focus-ring);
+  outline-offset: 2px;
+}
+
+/* Inner <nav> rendered automatically inside .sidebar. */
+.sidebar > .sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Collapsed icon-rail variant — applied either via data-collapsed on the
+   shell or directly on the sidebar. Width shrinks to a 56px rail, the nav
+   labels hide, badges become dots. */
+.app-shell[data-collapsed="true"] .sidebar,
+.sidebar[data-collapsed="true"] {
+  width: 56px;
+  padding-left: 6px;
+  padding-right: 6px;
+}
+.app-shell[data-collapsed="true"] .sidebar .nav-item-label,
+.app-shell[data-collapsed="true"] .sidebar .nav-group-label,
+.app-shell[data-collapsed="true"] .sidebar .sidebar-brand-name,
+.sidebar[data-collapsed="true"] .nav-item-label,
+.sidebar[data-collapsed="true"] .nav-group-label,
+.sidebar[data-collapsed="true"] .sidebar-brand-name {
+  display: none;
+}
+.app-shell[data-collapsed="true"] .sidebar .nav-item,
+.sidebar[data-collapsed="true"] .nav-item {
+  justify-content: center;
+}
+.app-shell[data-collapsed="true"] .sidebar .nav-item-badge,
+.sidebar[data-collapsed="true"] .nav-item-badge {
+  position: absolute;
+  margin-left: 0;
+  transform: translate(8px, -8px);
+  width: 6px;
+  height: 6px;
+  padding: 0;
+  border-radius: 9999px;
+  font-size: 0;
+}
+
+/* ── 79 — AlertDialog (v0.2.1) ───────────────────────────────────
+ * Built on .modal-card. Tightens the body padding and adds a
+ * right-aligned actions footer + an inline icon slot. */
+.alert-dialog .modal-h { padding-bottom: 4px; }
+.alert-dialog .modal-b { padding-top: 4px; }
+.alert-dialog-title {
+  display: inline-flex; align-items: center; gap: 10px;
+}
+.alert-dialog-icon {
+  display: inline-grid; place-items: center;
+  width: 28px; height: 28px; border-radius: 9999px;
+  background: var(--surface-muted); color: var(--text-strong);
+  flex: 0 0 28px;
+}
+.alert-dialog-danger .alert-dialog-icon {
+  background: var(--tone-danger-soft, var(--surface-muted));
+  color: var(--tone-danger, var(--text-strong));
+}
+.alert-dialog-warning .alert-dialog-icon {
+  background: var(--tone-warn-soft, var(--surface-muted));
+  color: var(--tone-warn, var(--text-strong));
+}
+.alert-dialog-desc {
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  line-height: 1.55;
+}
+.alert-dialog-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+
+/* ── 80 — KanbanBoard (v0.2.1) ────────────────────────────────── */
+.kanban-board {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(260px, 1fr);
+  gap: 16px;
+  overflow-x: auto;
+  padding: 4px;
+}
+.kanban-column {
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 12px;
+  padding: 12px;
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 80px;
+  transition: background var(--dur-fast) var(--ease-out), border-color var(--dur-fast) var(--ease-out);
+}
+.kanban-column.is-drop-target {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  border-style: dashed;
+}
+.kanban-column-header {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px;
+  font: var(--type-label-sm);
+  color: var(--text-strong);
+}
+.kanban-column-title { font-weight: 600; }
+.kanban-column-count {
+  font: var(--type-caption);
+  color: var(--text-muted);
+  background: var(--surface);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  border: 1px solid var(--border-subtle);
+}
+.kanban-wip-warn {
+  background: var(--tone-warn-soft, #fff3cd);
+  color: var(--tone-warn, #8a6d3b);
+  border-color: var(--tone-warn, #f0ad4e);
+}
+.kanban-column-body {
+  display: flex; flex-direction: column; gap: 8px;
+  min-height: 24px;
+}
+.kanban-card {
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  padding: 10px 12px;
+  cursor: grab;
+  user-select: none;
+  box-shadow: var(--shadow-sm, 0 1px 0 rgba(0,0,0,0.04));
+  transition: box-shadow var(--dur-fast) var(--ease-out), transform var(--dur-fast) var(--ease-out);
+}
+.kanban-card:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+}
+.kanban-card.is-dragging {
+  opacity: 0.5;
+  cursor: grabbing;
+}
+.kanban-card.is-picked-up {
+  border-color: var(--brand);
+  box-shadow: 0 0 0 2px var(--brand-soft);
+}
+.kanban-card-title {
+  font: var(--type-label-sm); color: var(--text-strong); font-weight: 500;
+}
+.kanban-card-subtitle {
+  font: var(--type-caption); color: var(--text-muted);
+  margin-top: 2px;
+}
+
+/* ── 81 — CommentsThread (v0.2.1) ─────────────────────────────── */
+.comments-thread {
+  display: flex; flex-direction: column; gap: 4px;
+}
+.comments-thread .comment {
+  /* Override the original grid layout from rule 17 — we use a stacked layout
+   * so the row, replies, and reply-composer can each be full-width. */
+  display: block;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.comments-thread .comment:last-child { border-bottom: 0; }
+.comment-row {
+  display: grid;
+  grid-template-columns: 28px 1fr;
+  gap: 12px;
+  align-items: start;
+}
+.comment-row .comment-head {
+  display: contents;
+}
+.comment-row .ca {
+  width: 28px; height: 28px; border-radius: 50%;
+  background: var(--brand-soft); color: var(--brand-strong);
+  display: grid; place-items: center;
+  font: 600 11px/1 var(--font-sans);
+}
+.comment-row .comment-meta {
+  display: flex; align-items: baseline; gap: 8px;
+  flex-wrap: wrap;
+}
+.comment-row .who { font: var(--type-label-sm); color: var(--text-strong); }
+.comment-row .when { font: var(--type-caption); color: var(--text-subtle); }
+.comment-resolved-pill {
+  font: var(--type-caption);
+  background: var(--surface-muted);
+  color: var(--text-muted);
+  border-radius: 9999px;
+  padding: 1px 8px;
+}
+.comment-replying-to {
+  grid-column: 2;
+  font: var(--type-caption);
+  color: var(--text-muted);
+}
+.comments-thread .comment .comment-body {
+  grid-column: 2;
+  margin-top: 4px;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  line-height: 1.55;
+}
+.comment-body .mention {
+  color: var(--brand-strong);
+  background: var(--brand-soft);
+  border-radius: 4px;
+  padding: 0 4px;
+}
+.comment-react-row {
+  grid-column: 2;
+  display: flex; flex-wrap: wrap; gap: 4px;
+  margin-top: 6px;
+}
+.comment-react {
+  display: inline-flex; align-items: center; gap: 4px;
+  font: var(--type-caption);
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 9999px;
+  padding: 2px 8px;
+  cursor: pointer;
+}
+.comment-react.is-mine {
+  background: var(--brand-soft);
+  border-color: var(--brand);
+  color: var(--brand-strong);
+}
+.comment-react .count {
+  font-variant-numeric: tabular-nums;
+}
+.comments-thread .comment .comment-actions {
+  grid-column: 2;
+  display: flex; gap: 12px;
+  margin-top: 8px;
+  font: var(--type-caption);
+  color: var(--text-muted);
+}
+.comments-thread .comment .comment-actions button {
+  background: none; border: 0; padding: 0;
+  color: inherit; cursor: pointer;
+  font: inherit;
+}
+.comments-thread .comment .comment-actions button:hover {
+  color: var(--text-strong);
+}
+.comment.is-resolved {
+  opacity: 0.7;
+}
+.comment.is-resolved .comment-body {
+  text-decoration: line-through;
+}
+.comment-editing .comment-body {
+  background: var(--surface-muted);
+  border-radius: 8px;
+  padding: 8px;
+}
+.comment-replies {
+  margin-top: 8px;
+  padding-left: 40px;
+  border-left: 1px solid var(--border-subtle);
+  margin-left: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.comment-reply-box {
+  grid-column: 2;
+  margin-top: 12px;
+  margin-left: 40px;
+}
+.comment-composer {
+  position: relative;
+  display: flex; flex-direction: column; gap: 6px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 8px;
+}
+.comment-composer-input {
+  width: 100%;
+  resize: vertical;
+  border: 0;
+  outline: none;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  background: transparent;
+}
+.comment-composer-actions {
+  display: flex; justify-content: flex-end; gap: 8px;
+}
+.comments-show-resolved {
+  align-self: flex-start;
+  background: none; border: 0;
+  font: var(--type-caption);
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 4px 0;
+}
+.comments-show-resolved:hover { color: var(--text-strong); }
+
+/* ── 82 — Mention autocomplete (v0.2.1) ───────────────────────── */
+.mention-popover {
+  position: absolute;
+  top: 100%; left: 8px;
+  z-index: 20;
+  margin: 4px 0 0;
+  padding: 4px;
+  list-style: none;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: var(--shadow-popover);
+  min-width: 180px;
+}
+.mention-popover li { margin: 0; }
+.mention-item {
+  display: flex; align-items: baseline; justify-content: space-between;
+  gap: 12px;
+  width: 100%;
+  padding: 6px 8px;
+  background: none; border: 0;
+  border-radius: 6px;
+  cursor: pointer;
+  font: var(--type-body-sm);
+  color: var(--text-body);
+  text-align: left;
+}
+.mention-item:hover, .mention-item:focus { background: var(--surface-muted); }
+.mention-name { color: var(--text-strong); font-weight: 500; }
+.mention-id { font: var(--type-caption); color: var(--text-muted); }
+
+/* ── 83 — NotificationMatrix (v0.2.1) ─────────────────────────── */
+.notif-matrix-wrap {
+  display: flex; flex-direction: column; gap: 16px;
+}
+.notif-matrix-pause {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 12px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+}
+.notif-matrix-pause-label {
+  font: var(--type-label-sm); color: var(--text-strong);
+  margin-right: 4px;
+}
+.notif-matrix {
+  width: 100%;
+  border-collapse: collapse;
+  background: var(--surface);
+  border: 1px solid var(--border-subtle);
+  border-radius: 10px;
+  overflow: hidden;
+}
+.notif-matrix thead th {
+  text-align: center;
+  font: var(--type-label-sm); color: var(--text-strong);
+  background: var(--surface-muted);
+  padding: 10px 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.notif-matrix thead th.notif-matrix-corner { text-align: left; }
+.notif-matrix tbody th {
+  text-align: left; font-weight: 500;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border-subtle);
+  vertical-align: top;
+}
+.notif-matrix-event-label {
+  font: var(--type-label-sm); color: var(--text-strong);
+}
+.notif-matrix-event-desc {
+  font: var(--type-caption); color: var(--text-muted);
+  margin-top: 2px;
+}
+.notif-matrix-cell {
+  text-align: center;
+  padding: 8px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+.notif-matrix tbody tr:last-child th,
+.notif-matrix tbody tr:last-child td { border-bottom: 0; }
+
+/* ── 84 — DatePicker trigger (v0.2.1) ─────────────────────────── */
+.date-picker-trigger {
+  cursor: pointer;
+}
+.date-picker-trigger[readonly] {
+  background: var(--surface);
+}

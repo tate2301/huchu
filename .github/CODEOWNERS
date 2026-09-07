@@ -1,0 +1,10 @@
+# Code owners. Empty of assignments on purpose: the repository is one team's.
+#
+# A client's own module (packages/modules/private/<id>, see
+# packages/modules/private/example/README.md) is the one place another team
+# owns code here. Give them their folder and nothing else, one line each:
+#
+#   /packages/modules/private/<id>/   @<org>/<their-team>
+#
+# With branch protection requiring owner review, their changes to their module
+# need their approval, and their access stops at the folder's edge.

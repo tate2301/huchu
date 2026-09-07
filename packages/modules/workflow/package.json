@@ -1,0 +1,37 @@
+{
+  "name": "@corelithzw/module-workflow",
+  "version": "0.0.0",
+  "private": true,
+  "description": "The submit → approve → reject workflow and its audit trail, written to by eight domains. A leaf: what happens after an action is up to the listeners a host registers.",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "scripts": {
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@corelithzw/db": "workspace:*",
+    "@corelithzw/platform": "workspace:*",
+    "@corelithzw/ui": "workspace:*"
+  },
+  "peerDependencies": {
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3"
+  },
+  "devDependencies": {
+    "@corelithzw/config": "workspace:*",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "dotenv": "^17.2.3",
+    "eslint": "^9",
+    "eslint-config-next": "16.1.1",
+    "next": "16.1.1",
+    "react": "19.2.3",
+    "react-dom": "19.2.3",
+    "typescript": "5.9.3",
+    "vitest": "^4.1.4"
+  }
+}

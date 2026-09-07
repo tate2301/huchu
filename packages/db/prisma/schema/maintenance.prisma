@@ -1,0 +1,61 @@
+// Maintenance add-on: equipment and work orders.
+
+model Equipment {
+  id            String  @id @default(uuid())
+  equipmentCode String
+  name          String
+  category      String // CRUSHER, MILL, PUMP, VEHICLE, etc.
+  siteId        String
+  locationId    String
+  numberOfItems Int     @default(1)
+  qrCode        String? @unique
+  isActive      Boolean @default(true)
+
+  // Service tracking
+  serviceHours    Float?
+  serviceDays     Int?
+  lastServiceDate DateTime?
+  nextServiceDue  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site       Site          @relation(fields: [siteId], references: [id])
+  location   StockLocation @relation(fields: [locationId], references: [id])
+  workOrders WorkOrder[]
+
+  @@unique([siteId, equipmentCode])
+  @@index([siteId])
+  @@index([locationId])
+}
+
+enum WorkOrderStatus {
+  OPEN
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model WorkOrder {
+  id            String          @id @default(uuid())
+  equipmentId   String
+  issue         String
+  downtimeStart DateTime
+  downtimeEnd   DateTime?
+  workDone      String?
+  partsUsed     String? // JSON array
+  partsCost     Float?          @default(0)
+  laborCost     Float?          @default(0)
+  technicianId  String?
+  status        WorkOrderStatus @default(OPEN)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  equipment  Equipment @relation(fields: [equipmentId], references: [id])
+  technician Employee? @relation("WorkOrderTechnicians", fields: [technicianId], references: [id])
+
+  @@index([equipmentId])
+  @@index([status])
+}
+

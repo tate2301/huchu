@@ -1,0 +1,28 @@
+import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/session";
+import { redirect } from "next/navigation";
+
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
+import { LessonPlansPageContent } from "../../../../components/timetable/lesson-plans-page-content";
+
+/**
+ * The office's lesson planner: every assignment in the school, not one
+ * teacher's.
+ *
+ * The component was built and imported by nobody — the only planner anybody
+ * could reach was the teacher portal's, which is scoped to the signed-in
+ * teacher. That is the wrong half for an office arranging cover, which is the
+ * one job here a teacher cannot do for herself.
+ */
+export default async function SchoolsLessonPlansPage() {
+  const session = await getCurrentAuthSession();
+  if (!session?.user) {
+    redirect("/login");
+  }
+
+  return (
+    <div className="mx-auto w-full max-w-7xl space-y-6">
+      <PageHeading title="Lesson plans" />
+      <LessonPlansPageContent />
+    </div>
+  );
+}

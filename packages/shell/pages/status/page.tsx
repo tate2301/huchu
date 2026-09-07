@@ -1,0 +1,13 @@
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
+import { SystemStatus } from "../../status/system-status";
+
+export default function StatusPage() {
+  return (
+    <div className="mx-auto w-full max-w-9xl space-y-6">
+      <PageHeading
+        title="Implementation Status"
+      />
+      <SystemStatus />
+    </div>
+  );
+}

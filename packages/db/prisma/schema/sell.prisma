@@ -1,0 +1,733 @@
+// Sell product: registers, shifts, tills, held carts, sales, purchase orders, goods receipts, promotions.
+
+/// Retail's status vocabularies.
+///
+/// These were `String` columns with the values living only in handler code, which
+/// is the state `docs/system-reference/building-a-vertical.md` §1a names outright:
+/// a comment is not enforced by the database. Retail was the last module in the
+/// repo with no enums at all — schools has 30, CRM 31, even car sales has 6.
+///
+/// The values are the ones the code actually writes, harvested from the handlers
+/// and the offline runtime rather than invented. An enum an audit row holds may
+/// gain a value later but must never lose one: Postgres refuses to drop a value a
+/// row still uses, and the alternatives falsify or destroy the trail.
+
+/// `POSTED` on creation; `VOIDED` only via the void route, which writes a
+/// reversing sale rather than mutating the original's money.
+enum RetailSaleStatus {
+  POSTED
+  VOIDED
+}
+
+/// A refund and a void are both reversing documents, and the ledger tells them
+/// apart by this: `_services.ts` maps `REFUND` and `VOID` to different source
+/// types and inverts the posting direction for both.
+enum RetailSaleType {
+  SALE
+  REFUND
+  VOID
+}
+
+enum RetailShiftStatus {
+  OPEN
+  CLOSED
+}
+
+/// S-7.1 — why cash left or entered the drawer between opening and cash-up.
+///
+/// Three values, and the direction is in the name on purpose. "Pickup" is the
+/// ambiguous word in this trade: `docs/design-system/portals/pos.html` uses it for
+/// safe → drawer, most of the sector uses it for drawer → safe, and a label that
+/// can be read either way on a row that changes `expectedCash` is how the defect
+/// this ticket fixes would come back.
+///
+/// - `DROP_TO_SAFE` — the manager banks part of the takings mid-shift. Ordinary
+///   practice in a bottle store on a Friday, and the case that made `variance`
+///   read as a shortfall exactly equal to what was banked.
+/// - `FLOAT_TOP_UP` — cash carried the other way, safe → drawer, because the till
+///   has run out of small notes to give change with.
+/// - `PAYOUT` — cash out of the drawer to somebody who is not the bank: a supplier
+///   paid on delivery, or a refund handed over outside a reversing sale. Kept apart
+///   from `DROP_TO_SAFE` because the money is gone rather than moved, and a Z-report
+///   (S-7.2) has to state the two separately.
+///
+/// An enum an audit row holds may gain values and must never lose one, so this is
+/// the smallest set that covers the two directions and the one destination that is
+/// not the safe. A cash-up correction is deliberately absent: correcting a count is
+/// what `variance` is, not a movement.
+enum RetailCashMovementType {
+  DROP_TO_SAFE
+  FLOAT_TOP_UP
+  PAYOUT
+}
+
+/// S-7.1 — why the cash moved, from a fixed list.
+///
+/// The list `docs/design-system/portals/pos.html` puts behind the reason field,
+/// and it is a `select` there rather than a text box for a reason worth keeping: a
+/// reason typed in a queue is a reason no Z-report can group by. "Cash level too
+/// high" three times in a week is a float that is set wrong; three rows of
+/// free text saying roughly that are three rows nobody counts.
+///
+/// `OTHER` carries the cases the list does not, and `RetailCashMovement.reason`
+/// holds the words. The API requires those words when the code is `OTHER`, so the
+/// escape hatch cannot be used to record an unexplained movement — which is the
+/// unexplained variance this ticket exists to prevent, moved one row over.
+///
+/// `SUPPLIER_PAYOUT` and `PETTY_CASH` are not in the prototype's list because the
+/// prototype has no payout; `RetailCashMovementType.PAYOUT` does, and a payout
+/// reading "Cash level too high" would be a lie.
+enum RetailCashMovementReason {
+  CASH_LEVEL_TOO_HIGH
+  BANK_DEPOSIT
+  END_OF_SHIFT_SKIM
+  MANAGER_REQUEST
+  CHANGE_REQUIRED
+  SUPPLIER_PAYOUT
+  PETTY_CASH
+  OTHER
+}
+
+/// `RELEASED` is the offline runtime's doing and is not reachable online.
+///
+/// There is no discard route on the till: `held-carts/route.ts` lists and creates,
+/// `recall` moves a cart to `RECALLED`, and nothing else writes this column. But
+/// `lib/retail/offline-held-cart.ts` has `deleteHeldCart`, and its queued
+/// `delete-held-cart` operation lands in `pos/sync/route.ts` writing `"RELEASED"`
+/// — a value that appeared nowhere else in the codebase and that the `String`
+/// column happily accepted. It survived because the list query filters on `HELD`,
+/// so any unrecognised value hides the row and looks like success.
+///
+/// It is named here rather than folded into `RECALLED`, which would be a lie:
+/// recalled means pulled back into a sale, released means thrown away.
+enum RetailHeldCartStatus {
+  HELD
+  RECALLED
+  RELEASED
+}
+
+/// `DRAFT` on creation, then driven by receipts: `PARTIAL` while quantities are
+/// outstanding, `RECEIVED` once they are not.
+enum RetailPurchaseOrderStatus {
+  DRAFT
+  PARTIAL
+  RECEIVED
+}
+
+enum RetailGoodsReceiptStatus {
+  POSTED
+}
+
+/// `PERCENT` and `AMOUNT` are the two the till can apply offline —
+/// `getPosSupportedPromotionTypes()` filters to exactly these. The other two are
+/// accepted by the admin API and are not yet honoured at the point of sale.
+enum RetailPromotionType {
+  PERCENT
+  AMOUNT
+  BUY_X_GET_Y
+  BUNDLE
+}
+
+enum RetailPromotionStatus {
+  ACTIVE
+  SCHEDULED
+  INACTIVE
+}
+
+/// Mirrors `RetailTenderType` in `lib/retail/tender-policy.ts`, which is the set
+/// the checkout zod schemas already enforce at the edge. This puts the same set
+/// behind the column, so a payment row cannot disagree with the policy.
+enum RetailTenderType {
+  CASH
+  CARD
+  MOBILE_MONEY
+  TRANSFER
+  VOUCHER
+}
+
+model RetailRegister {
+  id        String   @id @default(uuid())
+  companyId String
+  code      String
+  name      String
+  siteId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site    Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([companyId, code])
+  @@index([companyId, siteId, isActive])
+}
+
+model RetailPromotion {
+  id        String    @id @default(uuid())
+  companyId String
+  promoCode String
+  name      String
+  type      RetailPromotionType
+  value     Decimal @default(0) @db.Decimal(14, 2)
+  startsAt  DateTime?
+  endsAt    DateTime?
+  status    RetailPromotionStatus @default(ACTIVE)
+  notes     String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@unique([companyId, promoCode])
+  @@index([companyId, status])
+}
+
+model RetailPurchaseOrder {
+  id           String    @id @default(uuid())
+  companyId    String
+  poNo         String
+  siteId       String
+  supplierName String
+  status       RetailPurchaseOrderStatus @default(DRAFT)
+  expectedDate DateTime?
+  notes        String?
+  createdById  String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  lines RetailPurchaseOrderLine[]
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  createdBy User?   @relation("RetailPurchaseOrderCreatedBy", fields: [createdById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([companyId, poNo])
+  @@index([companyId, siteId, status])
+}
+
+model RetailPurchaseOrderLine {
+  id               String   @id @default(uuid())
+  /// R-1.3 — denormalised from the order. This table is reached by direct query
+  /// (`purchasing/orders/[id]/route.ts`), so it carries its own tenant rather
+  /// than trusting every caller to remember the join.
+  companyId        String
+  purchaseOrderId  String
+  inventoryItemId  String?
+  itemName         String
+  quantity         Decimal @default(0) @db.Decimal(12, 4)
+  unitCost         Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal        Decimal @default(0) @db.Decimal(14, 2)
+  receivedQuantity Decimal @default(0) @db.Decimal(12, 4)
+  createdAt        DateTime @default(now())
+
+  purchaseOrder RetailPurchaseOrder @relation(fields: [purchaseOrderId], references: [id], onDelete: Cascade)
+
+  company       Company        @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem? @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([purchaseOrderId])
+  @@index([companyId])
+}
+
+model RetailGoodsReceipt {
+  id              String    @id @default(uuid())
+  companyId       String
+  receiptNo       String
+  purchaseOrderId String?
+  siteId          String
+  supplierName    String
+  status          RetailGoodsReceiptStatus @default(POSTED)
+  notes           String?
+  receivedById    String?
+  createdAt       DateTime  @default(now())
+  postedAt        DateTime?
+  updatedAt       DateTime  @updatedAt
+
+  lines RetailGoodsReceiptLine[]
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site       Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  receivedBy User?   @relation("RetailGoodsReceiptReceivedBy", fields: [receivedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@unique([companyId, receiptNo])
+  @@index([companyId, siteId, status])
+}
+
+model RetailGoodsReceiptLine {
+  id              String   @id @default(uuid())
+  /// R-1.3 — denormalised from the receipt. Reached directly by
+  /// `purchasing/receipts/route.ts`.
+  companyId       String
+  receiptId       String
+  inventoryItemId String
+  itemName        String
+  quantity        Decimal @default(0) @db.Decimal(12, 4)
+  unitCost        Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  createdAt       DateTime @default(now())
+
+  receipt RetailGoodsReceipt @relation(fields: [receiptId], references: [id], onDelete: Cascade)
+
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@index([receiptId])
+  @@index([companyId])
+}
+
+model RetailShift {
+  id           String    @id @default(uuid())
+  companyId    String
+  shiftNo      String
+  registerCode String
+  registerName String
+  siteId       String
+  cashierId    String
+  cashierName  String
+  openingFloat Decimal @default(0) @db.Decimal(14, 2)
+  status       RetailShiftStatus @default(OPEN)
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  expectedCash Decimal @default(0) @db.Decimal(14, 2)
+  countedCash  Decimal? @db.Decimal(14, 2)
+  variance     Decimal? @db.Decimal(14, 2)
+  notes        String?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site      Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashier   User    @relation("RetailShiftCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  heldCarts     RetailHeldCart[]
+  sales         RetailSale[]
+  cashMovements RetailCashMovement[]
+
+  @@unique([companyId, shiftNo])
+  @@index([companyId, siteId, status])
+  @@index([cashierId, status])
+}
+
+/// S-7.1 — cash that left or entered the drawer between opening and cash-up.
+///
+/// `RetailShift` had `openingFloat`, `expectedCash`, `countedCash` and `variance`
+/// and nowhere to say that the manager banked $200 at four o'clock. `expectedCash`
+/// went on counting money that was no longer in the drawer, `countedCash` correctly
+/// did not, and the cashier was short on paper by exactly what had been banked.
+/// This is the row that explains the difference.
+///
+/// Every movement adjusts `expectedCash` when it is recorded, by
+/// `cashMovementDelta` in `lib/retail/cash-movements.ts`: `FLOAT_TOP_UP` adds,
+/// `DROP_TO_SAFE` and `PAYOUT` subtract. That is the same incremental discipline
+/// `_services.ts` already uses for a sale's net cash, so the column stays the one
+/// number the till and the back office both read.
+model RetailCashMovement {
+  id        String @id @default(uuid())
+  /// This module's rule: if a query can reach a table, it carries its own tenant.
+  /// Cash-up reads these directly, filtered by shift, so it carries its own.
+  companyId String
+  shiftId   String
+  type      RetailCashMovementType
+  /// Always positive. The direction is `type`'s job, not the sign's — a negative
+  /// `DROP_TO_SAFE` would be two ways of saying the same thing and one of them
+  /// would eventually be wrong.
+  amount    Decimal @default(0) @db.Decimal(14, 2)
+  /// R-1.5, mirroring `RetailSale` and `RetailSalePayment`. A drop can be a bundle
+  /// of ZWG notes out of a drawer the shop prices in USD, and a movement that does
+  /// not say which one it means cannot be reconciled against the count.
+  currency     String  @default("USD")
+  /// Quote units per one base unit, the same sense as `CurrencyRate.rate`: 27.5
+  /// means 27.5 ZWG buys one USD. Always 1 for the company's own currency.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  /// `amount` in `AccountingSettings.baseCurrency`. This — not `amount` — is what
+  /// moves `expectedCash`, which is denominated in the base currency because
+  /// `openingFloat` is.
+  baseAmount   Decimal @default(0) @db.Decimal(14, 2)
+  /// Why, from the fixed list. This is the column a Z-report groups by.
+  reasonCode     RetailCashMovementReason @default(OTHER)
+  /// Why, in the cashier's own words — the prototype's "Receipt # for the safe log,
+  /// etc." Optional against a named `reasonCode`, and required by the API when the
+  /// code is `OTHER`, so the escape hatch cannot record an unexplained movement.
+  reason         String?
+  /// The bundle, counted. `{ currency, lines: [{ denomination, count }] }`, holding
+  /// only the rows a cashier actually keyed.
+  ///
+  /// Persisted rather than discarded because "we banked $340" is close to useless
+  /// to a shop investigating a shortfall and "we banked 3×$100, 2×$20" is not: the
+  /// bundle in the safe can be checked against it. The API recomputes `amount` from
+  /// these lines and refuses a mismatch, so the breakdown can never drift from the
+  /// total it is supposed to explain.
+  ///
+  /// Keyed to the row's own `currency`, never assumed to be USD — a ZWG drop has
+  /// entirely different denominations. `Json?` rather than a line table because
+  /// nothing queries inside it: it is read back whole, with its movement.
+  denominations  Json?
+  recordedById   String?
+  /// Denormalised for the same reason `RetailSale.cashierName` is: the user row can
+  /// go, and a reprinted safe log still has to name who carried the money.
+  recordedByName String?
+  createdAt      DateTime @default(now())
+
+  company    Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift      RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  recordedBy User?       @relation("RetailCashMovementRecordedBy", fields: [recordedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  @@index([companyId, shiftId, createdAt])
+  @@index([companyId, type])
+}
+
+/// S-7.5 — the four digits that unlock a till that is already signed in.
+///
+/// Not a credential. `app/portal/pos/login` and a password are the only way into
+/// the system; this unlocks a terminal whose session is already open, so the
+/// cashier can lock the screen between customers without typing a password on a
+/// tablet in front of a queue. See `lib/retail/till-pin.ts` for the threat model
+/// and the lockout arithmetic.
+///
+/// A table of its own rather than columns on `User`, for three reasons: it is a
+/// retail concern on an enum of roles shared by every vertical, keeping it off
+/// `User` keeps a four-digit code from ever sitting beside the password column as
+/// though the two were the same kind of thing, and a shop turning the feature off
+/// deletes rows rather than nulling columns.
+model RetailTillPin {
+  id        String @id @default(uuid())
+  companyId String
+  /// One PIN per person, not per device. A cashier who works two tills types the
+  /// same four digits at both, and a device that changes hands carries nothing.
+  userId    String @unique
+  /// bcrypt, the same cost as `User.password`. The digits are never stored,
+  /// returned by any endpoint, or written to a log.
+  pinHash   String
+  /// Consecutive wrong guesses since the last correct one. Reset on success and
+  /// when a lock expires.
+  failedAttempts Int       @default(0)
+  /// Set on the fifth wrong guess. While it is in the future the unlock route
+  /// refuses without comparing the hash at all.
+  lockedUntil    DateTime?
+  /// When the terminal was last unlocked with it. Shown on the settings screen so
+  /// a cashier can tell whether a PIN they have forgotten is in use.
+  lastUnlockedAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  user    User    @relation("RetailTillPinUser", fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([companyId])
+}
+
+/// S-7.2 — one register's trading day, closed and frozen.
+///
+/// The document a Zimbabwean shop banks its takings against and the one
+/// fiscalisation will eventually attach to. Scope is **per register per trading
+/// day**, covering every shift whose drawer was opened on that date: a bottle
+/// store runs two cashiers over one till and banks once, so per shift would split
+/// the day across two documents and reconcile neither against the deposit slip.
+/// `lib/retail/z-report.ts` carries the full argument.
+///
+/// ## Why it is a table and not a query
+///
+/// "Final, can't be changed" is only true of something written down. Every figure
+/// below is **persisted at generation and never recomputed**, so a reprint a month
+/// later is identical even though a sale has since been voided, a price has moved
+/// and a register has been renamed. A view over `RetailSale` would quietly restate
+/// all three, which is the one thing this document may not do.
+///
+/// Immutability is structural rather than a flag:
+///
+///  - `@@unique([companyId, registerCode, businessDate])` — Postgres refuses the
+///    second report for a register-day, so two managers pressing the button at
+///    once get one document rather than a race.
+///  - `reportNo` is derived from those same two keys (`Z-TILL02-20260814`), so a
+///    reprint carries the original's number because no other number exists for it.
+///  - There is no update path. No route writes this table after the insert, and
+///    the row carries no status column to flip — a mutable "FINAL" flag would be
+///    the way an immutable document stops being one.
+///
+/// ## Typed columns for the figures, JSON for the tables
+///
+/// Every number a shop, an accountant or the ledger is held to is its own
+/// `Decimal(14,2)` column: they are fixed in count, summed across days in SQL, and
+/// must never round-trip through the double a `Json` column would store them as —
+/// which is the precision S-1 spent a whole ticket removing from retail.
+///
+/// The four breakdowns are `Json` because they are *repeating rows of a rendered
+/// table*: read back whole with their report, never filtered, never joined. Four
+/// child tables with their own tenants, foreign keys and indexes would buy nothing
+/// and cost four more things to keep in step. Money inside them is written as a
+/// decimal **string** for the reason above. Same bargain as
+/// `RetailCashMovement.denominations`, and the same discipline.
+model RetailZReport {
+  id        String @id @default(uuid())
+  /// This module's rule: if a query can reach a table, it carries its own tenant.
+  companyId String
+  /// `Z-<REGISTER>-<YYYYMMDD>`. Derived, not reserved — see the header.
+  reportNo  String
+  /// The trading day, as a bare `date`. A drawer belongs to the day it was opened
+  /// on, so a sale rung at 00:15 stays on the night it was taken rather than
+  /// jumping to the next report while its cash sits in last night's till.
+  businessDate DateTime @db.Date
+  /// Denormalised from `RetailShift`, which is what the shifts themselves carry —
+  /// and deliberately, not merely conveniently: a till renamed in March must not
+  /// restate a report locked in February.
+  registerCode String
+  registerName String
+  siteId       String
+  /// `AccountingSettings.baseCurrency`. Every amount below is in it, because the
+  /// day's tenders arrive in two currencies and only one of them is the drawer's.
+  currency     String @default("USD")
+
+  generatedAt     DateTime @default(now())
+  generatedById   String?
+  /// Denormalised for the same reason `RetailSale.cashierName` is: a reprint still
+  /// has to name who closed the day after that person has left.
+  generatedByName String?
+
+  shiftCount  Int @default(0)
+  saleCount   Int @default(0)
+  refundCount Int @default(0)
+  voidCount   Int @default(0)
+  /// Distinct products that moved. The "out of 184" beside the best-sellers table.
+  itemCount   Int @default(0)
+
+  /// `netSales + discountTotal` — revenue before VAT and before discount.
+  ///
+  /// Derived, not `Σ RetailSale.subtotal`. That column is ex-VAT on a sale and
+  /// VAT-inclusive on a refund (`refundRetailSaleTransaction` rebuilds it from
+  /// `quantity × unitPrice`), so summing the two mixes bases and breaks
+  /// `subtotal − discount + tax = total` on any day with a return.
+  /// `lib/retail/z-report.ts` sets out the defect and why this document declines
+  /// to read the column.
+  grossSales     Decimal @default(0) @db.Decimal(14, 2)
+  discountTotal  Decimal @default(0) @db.Decimal(14, 2)
+  /// `grossTakings − taxTotal`. What the ledger books as revenue, in one basis
+  /// whatever the document type.
+  netSales       Decimal @default(0) @db.Decimal(14, 2)
+  /// Σ `RetailSale.taxAmount` — the VAT actually charged, carved out of
+  /// tax-inclusive shelf prices line by line. Never a rate applied to a total.
+  taxTotal       Decimal @default(0) @db.Decimal(14, 2)
+  /// `taxTotal ÷ netSales`, derived back out so the header can name the rate the
+  /// day was charged at. 15%-inclusive shelf prices give 15.00. The POS prototype
+  /// prints 14.5% — Zimbabwe's rate from 2020 to 2022, restored to 15% on
+  /// 1 January 2023 — and nothing here takes a rate from it.
+  taxRatePercent Decimal @default(0) @db.Decimal(5, 2)
+  /// Σ `RetailSale.totalAmount` — what customers paid, and the figure the two
+  /// above are derived from.
+  grossTakings   Decimal @default(0) @db.Decimal(14, 2)
+  /// Positive magnitudes. The signed values are already inside the totals above.
+  refundTotal    Decimal @default(0) @db.Decimal(14, 2)
+  voidTotal      Decimal @default(0) @db.Decimal(14, 2)
+
+  openingFloat    Decimal @default(0) @db.Decimal(14, 2)
+  /// Cash across the counter, net of change, refunds already negative.
+  cashTakings     Decimal @default(0) @db.Decimal(14, 2)
+  cashDropTotal   Decimal @default(0) @db.Decimal(14, 2)
+  cashTopUpTotal  Decimal @default(0) @db.Decimal(14, 2)
+  cashPayoutTotal Decimal @default(0) @db.Decimal(14, 2)
+  /// S-7.1's signed sum, from `sumCashMovementDeltas`. A Z-report without this is
+  /// wrong in exactly the way cash-up was: short on paper by what was banked.
+  cashMovementNet Decimal @default(0) @db.Decimal(14, 2)
+  /// From `expectedCashForShift`, per drawer, summed.
+  expectedCash    Decimal @default(0) @db.Decimal(14, 2)
+  countedCash     Decimal @default(0) @db.Decimal(14, 2)
+  cashVariance    Decimal @default(0) @db.Decimal(14, 2)
+
+  /// `[{ tenderType, count, amount, share }]`. Shares sum to exactly 100.00.
+  tenderBreakdown Json
+  /// `[{ rank, itemKey, itemName, sku, quantity, amount }]`, best sellers first.
+  topItems        Json
+  /// `[{ type, reasonCode, count, amount }]` — grouped by the pair
+  /// `RetailCashMovementReason` exists to be grouped by.
+  cashMovements   Json
+  /// One row per shift on the register that day, each with its own float, takings,
+  /// movements, expected, counted and variance. This is what makes a two-cashier
+  /// day auditable per drawer without splitting the document.
+  shifts          Json
+
+  createdAt DateTime @default(now())
+
+  company     Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site        Site    @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  generatedBy User?   @relation("RetailZReportGeneratedBy", fields: [generatedById], references: [id], onDelete: SetNull, onUpdate: Cascade)
+
+  /// The re-run rule, in the database. One register, one day, one report.
+  @@unique([companyId, registerCode, businessDate])
+  @@unique([companyId, reportNo])
+  @@index([companyId, businessDate])
+  @@index([companyId, siteId, businessDate])
+}
+
+model RetailHeldCart {
+  id           String   @id @default(uuid())
+  companyId    String
+  holdNo       String
+  shiftId      String
+  cashierId    String
+  label        String?
+  cartSnapshot Json
+  status       RetailHeldCartStatus @default(HELD)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  company Company     @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  shift   RetailShift @relation(fields: [shiftId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  cashier User        @relation("RetailHeldCartCashier", fields: [cashierId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+
+  @@unique([companyId, holdNo])
+  @@index([companyId, shiftId, status])
+}
+
+model RetailSale {
+  id             String    @id @default(uuid())
+  companyId      String
+  saleNo         String
+  /// S-7.7 — the till's key for one checkout attempt, and the only thing between
+  /// a lost response and a customer charged twice.
+  ///
+  /// The POS used to send its generated key as `saleNo` itself, so every receipt
+  /// carried a 19-digit `RSL-1787005857220984` where `reserveIdentifier` would
+  /// have allocated `S-005080`. Splitting the two lets the server number the
+  /// receipt for the human and the till key the attempt for the machine.
+  ///
+  /// Null on every sale rung before the split and on anything the back office
+  /// posts. Postgres treats NULLs as distinct in a unique index, so any number
+  /// of them coexist.
+  clientRef      String?
+  shiftId        String?
+  sourceSaleId   String?
+  siteId         String
+  cashierId      String?
+  cashierName    String?
+  customerName   String?
+  saleType       RetailSaleType @default(SALE)
+  subtotal       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount      Decimal @default(0) @db.Decimal(14, 2)
+  totalAmount    Decimal @default(0) @db.Decimal(14, 2)
+  tenderedAmount Decimal? @db.Decimal(14, 2)
+  changeAmount   Decimal? @db.Decimal(14, 2)
+  /// R-1.5 — what the shelf price is quoted in. Zimbabwe trades in both, and a
+  /// bottle store prices in USD while taking ZWG across the counter all day, so a
+  /// sale that does not say which one it means is a sale nobody can reconcile.
+  /// Copied onto the row at posting so a later rate change cannot restate a
+  /// receipt that has already been handed over.
+  ///
+  /// FD-0.4b gave it a second job. A fiscal receipt carries `receiptCurrency`
+  /// and its signature is computed over the total in that currency's minor
+  /// units, so a sale that does not know what it was rung in cannot be
+  /// fiscalised at all. Every row predating R-1.5 is USD — the platform's base
+  /// currency and the only one the till has ever priced in — which is why the
+  /// default doubles as the backfill rule.
+  currency       String   @default("USD")
+  /// Quote units per one base unit, the same sense as `CurrencyRate.rate` and
+  /// `SchoolFeeInvoice.exchangeRate`: 27.5 means 27.5 ZWG buys one USD. Always 1
+  /// for a sale already in the company's base currency.
+  exchangeRate   Decimal  @default(1) @db.Decimal(12, 4)
+  /// `totalAmount` in `AccountingSettings.baseCurrency` — what reaches the ledger
+  /// and what a day's takings are summed in when the till has seen both.
+  baseAmount     Decimal  @default(0) @db.Decimal(14, 2)
+  tenderSummary  Json?
+  promotionCode  String?
+  overrideReason String?
+  voidReason     String?
+  status         RetailSaleStatus @default(POSTED)
+  notes          String?
+  postedAt       DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  lines         RetailSaleLine[]
+  payments      RetailSalePayment[]
+  fiscalReceipt FiscalReceipt?      @relation("RetailSaleFiscalReceipt")
+
+  company    Company      @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  site       Site         @relation(fields: [siteId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  cashier    User?        @relation("RetailSaleCashier", fields: [cashierId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  shift      RetailShift? @relation(fields: [shiftId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceSale RetailSale?  @relation("RetailSaleSource", fields: [sourceSaleId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reversals  RetailSale[] @relation("RetailSaleSource")
+
+  @@unique([companyId, saleNo])
+  @@unique([companyId, clientRef])
+  @@index([companyId, siteId, status, postedAt])
+  @@index([shiftId])
+}
+
+model RetailSaleLine {
+  id              String   @id @default(uuid())
+  /// R-1.3 — denormalised from the sale. This is the table holding cost and
+  /// margin, and it is read directly by `pos/sales/[id]/route.ts` and by every
+  /// product-level report, so it carries its own tenant.
+  companyId       String
+  saleId          String
+  sourceLineId    String?
+  inventoryItemId String
+  /// S-4b — what was sold, in the one item master. `inventoryItemId` stays: it is
+  /// the stock row that moved, at one site, which is not the same fact as the
+  /// product that left the shop.
+  ///
+  /// Nullable because history has lines that predate any product link and because
+  /// a product may be archived out from under a receipt; `itemName` is what a
+  /// reprint actually renders, and it is denormalised for exactly that reason.
+  productId       String?
+  itemName        String
+  quantity        Decimal @default(0) @db.Decimal(12, 4)
+  unitPrice       Decimal @default(0) @db.Decimal(14, 2)
+  discountAmount  Decimal @default(0) @db.Decimal(14, 2)
+  taxAmount       Decimal @default(0) @db.Decimal(14, 2)
+  lineTotal       Decimal @default(0) @db.Decimal(14, 2)
+  costUnit        Decimal @default(0) @db.Decimal(14, 2)
+  costTotal       Decimal @default(0) @db.Decimal(14, 2)
+  createdAt       DateTime @default(now())
+
+  sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  company       Company            @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  inventoryItem InventoryItem      @relation(fields: [inventoryItemId], references: [id], onDelete: Restrict, onUpdate: Cascade)
+  /// `SetNull`, not `Restrict`, for the reason `scripts/retail-foreign-keys.ts`
+  /// gives for `cashierId`: losing the link is bad, and blocking the parent's
+  /// deletion because of it is worse. A sold-out line archived off the range must
+  /// not make six months of receipts undeletable, and the receipt still reprints
+  /// from `itemName`.
+  product       Product?           @relation(fields: [productId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  sourceLine    RetailSaleLine?    @relation("RetailSaleLineSource", fields: [sourceLineId], references: [id], onDelete: SetNull, onUpdate: Cascade)
+  reversals     RetailSaleLine[]   @relation("RetailSaleLineSource")
+
+  @@index([saleId])
+  @@index([sourceLineId])
+  @@index([companyId, inventoryItemId])
+  /// Best-sellers and margin-by-line group on the product now, not the listing.
+  @@index([companyId, productId])
+}
+
+model RetailSalePayment {
+  id         String   @id @default(uuid())
+  /// R-1.3 — denormalised from the sale. Cash-up sums a day's tenders straight
+  /// off this table.
+  companyId  String
+  saleId     String
+  tenderType RetailTenderType
+  amount     Decimal @default(0) @db.Decimal(14, 2)
+  /// R-1.5 — the currency of *this tender*, which need not be the sale's.
+  ///
+  /// A split payment across the counter is the normal case in Harare, not an edge
+  /// one: a USD-priced basket settled part in USD notes and part in ZWG or
+  /// EcoCash. `normalizeRetailPostingPayments` already accepted a per-payment
+  /// currency and dropped it on the floor because there was no column, so both
+  /// halves were recorded as bare numbers in one pool and the drawer could not be
+  /// counted against them.
+  currency   String   @default("USD")
+  /// The rate applied to *this tender* at the moment it was taken.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  /// `amount` in the company's base currency, so a mixed-tender sale still adds up.
+  baseAmount Decimal @default(0) @db.Decimal(14, 2)
+  reference  String?
+  createdAt  DateTime @default(now())
+
+  sale RetailSale @relation(fields: [saleId], references: [id], onDelete: Cascade)
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+
+  @@index([saleId])
+  @@index([companyId, tenderType])
+}
+

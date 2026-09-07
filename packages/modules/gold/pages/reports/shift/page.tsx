@@ -1,0 +1,453 @@
+"use client";
+
+import Link from "next/link";
+import { useCallback, useMemo, useRef, useState } from "react";
+import type { ColumnDef } from "@tanstack/react-table";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { format, subDays } from "date-fns";
+import { useSession } from "next-auth/react";
+import { useRouter, useSearchParams } from "next/navigation";
+
+import { PageActions } from "@corelithzw/ui/layout/page-actions";
+import { PageHeading } from "@corelithzw/ui/layout/page-heading";
+import { PdfTemplate } from "@corelithzw/module-documents/components/pdf/pdf-template";
+import { RecordSavedBanner } from "@corelithzw/ui/shared/record-saved-banner";
+import { Alert, AlertDescription, AlertTitle } from "@corelithzw/ui/components/alert";
+import { Badge } from "@corelithzw/ui/components/badge";
+import { Button } from "@corelithzw/ui/components/button";
+import {
+  DataTable,
+  type DataTableQueryState,
+} from "@corelithzw/ui/components/data-table";
+import { ExportMenu } from "@corelithzw/ui/components/export-menu";
+import { Input } from "@corelithzw/ui/components/input";
+import { NumericCell } from "@corelithzw/ui/components/numeric-cell";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@corelithzw/ui/components/select";
+import { Skeleton } from "@corelithzw/ui/components/skeleton";
+import { useToast } from "@corelithzw/ui/components/use-toast";
+import { fetchShiftReports, type ShiftReportSummary } from "../../../api-client";
+import { fetchSites } from "@corelithzw/platform/client/sites";
+import { fetchJson, getApiErrorMessage } from "@corelithzw/platform/api-client";
+import { type DocumentExportFormat } from "@corelithzw/module-documents/export-client";
+import { exportElementToDocument } from "@corelithzw/module-documents/pdf";
+
+export default function ShiftReportHistoryPage() {
+  const { data: session } = useSession();
+  const { toast } = useToast();
+  const router = useRouter();
+  const queryClient = useQueryClient();
+  const searchParams = useSearchParams();
+  const createdId = searchParams.get("createdId");
+  const sessionRole = (session?.user as { role?: string } | undefined)?.role;
+  const isSuperAdmin = sessionRole === "SUPERADMIN";
+  const [listSiteId, setListSiteId] = useState(
+    searchParams.get("siteId") ?? "all",
+  );
+  const [listStartDate, setListStartDate] = useState(
+    searchParams.get("startDate") ??
+      format(subDays(new Date(), 6), "yyyy-MM-dd"),
+  );
+  const [listEndDate, setListEndDate] = useState(
+    searchParams.get("endDate") ?? format(new Date(), "yyyy-MM-dd"),
+  );
+  const [queryState, setQueryState] = useState<DataTableQueryState>({
+    mode: "paginated",
+    page: 1,
+    pageSize: 25,
+    search: "",
+  });
+  const shiftReportPdfRef = useRef<HTMLDivElement>(null);
+
+  const {
+    data: sites,
+    isLoading: sitesLoading,
+    error: sitesError,
+  } = useQuery({
+    queryKey: ["sites"],
+    queryFn: fetchSites,
+  });
+
+  const activeListSiteId = listSiteId === "all" ? "" : listSiteId;
+  const {
+    data: shiftReportsData,
+    isLoading: shiftReportsLoading,
+    error: shiftReportsError,
+  } = useQuery({
+    queryKey: [
+      "shift-reports",
+      "list",
+      activeListSiteId || "all",
+      listStartDate,
+      listEndDate,
+      queryState.search,
+    ],
+    queryFn: () =>
+      fetchShiftReports({
+        siteId: activeListSiteId || undefined,
+        startDate: listStartDate,
+        endDate: listEndDate,
+        search: queryState.search?.trim() || undefined,
+        limit: 200,
+      }),
+    enabled: !!listStartDate && !!listEndDate,
+  });
+
+  const shiftReportRecords = useMemo(
+    () => shiftReportsData?.data ?? [],
+    [shiftReportsData],
+  );
+
+  const deleteShiftReportMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchJson<{ success: boolean; deleted?: boolean }>(
+        `/api/shift-reports/${id}`,
+        {
+          method: "DELETE",
+        },
+      ),
+    onSuccess: () => {
+      toast({ title: "Shift report deleted", variant: "success" });
+      queryClient.invalidateQueries({ queryKey: ["shift-reports"] });
+    },
+    onError: (error) =>
+      toast({
+        title: "Unable to delete shift report",
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      }),
+  });
+
+  const handleDeleteShiftReport = useCallback(
+    (record: ShiftReportSummary) => {
+      const confirmed = window.confirm(
+        `Delete shift report for ${format(new Date(record.date), "yyyy-MM-dd")} (${record.shift})?`,
+      );
+      if (!confirmed) return;
+      deleteShiftReportMutation.mutate(record.id);
+    },
+    [deleteShiftReportMutation],
+  );
+
+  const activeListSiteName =
+    listSiteId === "all"
+      ? "All sites"
+      : (sites?.find((site) => site.id === listSiteId)?.name ??
+        "Selected site");
+  const columns = useMemo<ColumnDef<ShiftReportSummary>[]>(() => {
+    const baseColumns: ColumnDef<ShiftReportSummary>[] = [
+      {
+        id: "date",
+        header: "Date",
+        accessorFn: (row) => row.date,
+        cell: ({ row }) => (
+          <div>
+            <NumericCell align="left">
+              {format(new Date(row.original.date), "MMM d, yyyy")}
+            </NumericCell>
+            {createdId === row.original.id ? (
+              <Badge variant="secondary">Saved</Badge>
+            ) : null}
+          </div>
+        ),
+        size: 128,
+        minSize: 128,
+        maxSize: 128,
+      },
+      {
+        id: "shift",
+        header: "Shift",
+        accessorFn: (row) => row.shift,
+        cell: ({ row }) => row.original.shift,
+        size: 280,
+        minSize: 220,
+        maxSize: 420,
+      },
+      {
+        id: "site",
+        header: "Site",
+        accessorFn: (row) => row.site?.name ?? "",
+        cell: ({ row }) => row.original.site?.name ?? "-",
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "shiftGroup",
+        header: "Group",
+        accessorFn: (row) => row.shiftGroup?.name ?? "",
+        cell: ({ row }) => row.original.shiftGroup?.name ?? "-",
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "groupLeader",
+        header: "Leader",
+        accessorFn: (row) => row.groupLeader?.name ?? "",
+        cell: ({ row }) => row.original.groupLeader?.name ?? "-",
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "workType",
+        header: "Work Type",
+        accessorFn: (row) => row.workType,
+        cell: ({ row }) => row.original.workType,
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "crew",
+        header: "Crew",
+        accessorFn: (row) => row.crewCount,
+        cell: ({ row }) => <NumericCell>{row.original.crewCount}</NumericCell>,
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      },
+      {
+        id: "status",
+        header: "Status",
+        accessorFn: (row) => row.status,
+        cell: ({ row }) => row.original.status,
+        size: 120,
+        minSize: 120,
+        maxSize: 120,
+      },
+    ];
+
+    if (isSuperAdmin) {
+      baseColumns.push({
+        id: "actions",
+        header: "",
+        cell: ({ row }) => (
+          <div className="flex justify-end gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() =>
+                router.push(`/shift-report?editId=${row.original.id}`)
+              }
+              disabled={deleteShiftReportMutation.isPending}
+            >
+              Edit
+            </Button>
+            <Button
+              size="sm"
+              variant="destructive"
+              onClick={() => handleDeleteShiftReport(row.original)}
+              disabled={deleteShiftReportMutation.isPending}
+            >
+              Delete
+            </Button>
+          </div>
+        ),
+        size: 160,
+        minSize: 160,
+        maxSize: 160,
+      });
+    }
+
+    return baseColumns;
+  }, [
+    createdId,
+    isSuperAdmin,
+    deleteShiftReportMutation.isPending,
+    handleDeleteShiftReport,
+    router,
+  ]);
+
+  const handleExport = async (format: DocumentExportFormat) => {
+    if (!shiftReportPdfRef.current) return;
+    try {
+      await exportElementToDocument(
+        shiftReportPdfRef.current,
+        `shift-reports-${listStartDate}-to-${listEndDate}.${format}`,
+        format,
+      );
+    } catch (error) {
+      toast({
+        title: `${format.toUpperCase()} export failed`,
+        description: getApiErrorMessage(error),
+        variant: "destructive",
+      });
+    }
+  };
+
+  return (
+    <div className="w-full space-y-6">
+      <PageActions>
+        {isSuperAdmin ? (
+          <Button asChild size="sm" variant="outline">
+            <Link href="/shift-report">New Shift Report</Link>
+          </Button>
+        ) : null}
+        <ExportMenu
+          variant="outline"
+          size="sm"
+          onExport={handleExport}
+          disabled={shiftReportsLoading || shiftReportRecords.length === 0}
+        />
+      </PageActions>
+
+      <PageHeading
+        title="Shift Reports"
+      />
+      <RecordSavedBanner entityLabel="shift report" />
+      {!isSuperAdmin ? (
+        <Alert>
+          <AlertTitle>Read-only access</AlertTitle>
+          <AlertDescription>
+            Only SUPERADMIN can create, edit, or delete shift reports for
+            backfilling.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {(sitesError || shiftReportsError) && (
+        <Alert variant="destructive">
+          <AlertTitle>Unable to load shift reports</AlertTitle>
+          <AlertDescription>
+            {getApiErrorMessage(sitesError || shiftReportsError)}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      <section className="space-y-3">
+        <header className="space-y-1">
+          <h2 className="text-section-title text-foreground font-bold tracking-tight">
+            Submitted Reports
+          </h2>
+          <p className="text-sm text-muted-foreground">
+            Filter by site and date range.
+          </p>
+        </header>
+        {shiftReportsLoading ? (
+          <Skeleton className="h-24 w-full" />
+        ) : shiftReportRecords.length === 0 ? (
+          <div className="text-sm text-muted-foreground">
+            No shift reports for this range.
+          </div>
+        ) : (
+          <DataTable
+            data={shiftReportRecords}
+            columns={columns}
+            queryState={queryState}
+            onQueryStateChange={(next) =>
+              setQueryState((prev) => ({ ...prev, ...next }))
+            }
+            searchPlaceholder="Search site, group, leader, work type, status"
+            searchSubmitLabel="Search"
+            tableClassName="text-sm"
+            pagination={{ enabled: true }}
+            toolbar={
+              <>
+                {sitesLoading ? (
+                  <Skeleton className="h-8 w-[180px]" />
+                ) : (
+                  <Select
+                    value={listSiteId}
+                    onValueChange={(value) => {
+                      setListSiteId(value);
+                      setQueryState((prev) => ({ ...prev, page: 1 }));
+                    }}
+                  >
+                    <SelectTrigger className="h-8 w-[180px]">
+                      <SelectValue placeholder="Select site" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All sites</SelectItem>
+                      {sites?.length ? (
+                        sites.map((site) => (
+                          <SelectItem key={site.id} value={site.id}>
+                            {site.name}
+                          </SelectItem>
+                        ))
+                      ) : (
+                        <SelectItem value="no-sites" disabled>
+                          No sites available
+                        </SelectItem>
+                      )}
+                    </SelectContent>
+                  </Select>
+                )}
+                <Input
+                  type="date"
+                  value={listStartDate}
+                  onChange={(event) => {
+                    setListStartDate(event.target.value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="h-8 w-[155px]"
+                />
+                <Input
+                  type="date"
+                  value={listEndDate}
+                  onChange={(event) => {
+                    setListEndDate(event.target.value);
+                    setQueryState((prev) => ({ ...prev, page: 1 }));
+                  }}
+                  className="h-8 w-[155px]"
+                />
+              </>
+            }
+          />
+        )}
+      </section>
+
+      <div className="absolute left-[-9999px] top-0">
+        <div ref={shiftReportPdfRef}>
+          <PdfTemplate
+            title="Shift Reports"
+            meta={[
+              { label: "Site", value: activeListSiteName },
+              {
+                label: "Total reports",
+                value: String(shiftReportRecords.length),
+              },
+            ]}
+          >
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-200 text-left">
+                  <th className="py-2">Date</th>
+                  <th className="py-2">Shift</th>
+                  <th className="py-2">Site</th>
+                  <th className="py-2">Group</th>
+                  <th className="py-2">Leader</th>
+                  <th className="py-2">Work Type</th>
+                  <th className="py-2">Crew</th>
+                  <th className="py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {shiftReportRecords.map((report) => (
+                  <tr key={report.id} className="border-b border-gray-100">
+                    <td className="py-2">
+                      {format(new Date(report.date), "MMM d, yyyy")}
+                    </td>
+                    <td className="py-2">{report.shift}</td>
+                    <td className="py-2">{report.site?.name}</td>
+                    <td className="py-2">{report.shiftGroup?.name ?? "-"}</td>
+                    <td className="py-2">{report.groupLeader?.name ?? "-"}</td>
+                    <td className="py-2">{report.workType}</td>
+                    <td className="py-2">{report.crewCount}</td>
+                    <td className="py-2">{report.status}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </PdfTemplate>
+        </div>
+      </div>
+    </div>
+  );
+}

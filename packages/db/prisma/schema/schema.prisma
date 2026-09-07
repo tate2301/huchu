@@ -1,0 +1,14 @@
+// One Prisma schema, one file per module. Prisma's multi-file schema reads every
+// .prisma file in this folder as a single datamodel: relations across files are
+// ordinary relations, there is one generated client and one migration history.
+// A module's tables live in its file; a module writes another module's tables only
+// through that module's public entrypoint (docs/rollout/product-split-plan.md).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+

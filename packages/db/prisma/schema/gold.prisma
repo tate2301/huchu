@@ -1,0 +1,1190 @@
+// Gold (enterprise-only, composed into the enterprise host only): pours, purchases, dispatches, buyer receipts, shift allocations, ledger imports, period close, settlements, shift and plant reports, downtime.
+
+// ============================================
+// COMMODITY & VARIABLE SETTLEMENTS
+// ============================================
+//
+// Paying somebody for a quantity of something — grams of gold from a shift
+// allocation, a scrap balance, a sales commission — rather than for a period of
+// employment.
+//
+// This is a separate domain from payroll, and it has its own tables for a
+// specific reason. Settlement used to run *through* payroll: a `PayrollRun` with
+// `domain = GOLD_PAYOUT`, four gold columns bolted onto that run, and
+// `PayrollLineItem.baseAmount` widened to `Decimal(14,4)` so it could carry a
+// weight in grams while every other row in the table held money. A payroll
+// module cannot be sold on its own while its core tables carry a mining
+// discriminator, and a money column that sometimes holds grams is a rounding bug
+// waiting for someone to treat it as money.
+//
+// So quantity is `quantity`, money is `amount`, and neither pretends to be the
+// other.
+
+enum SettlementSource {
+  GOLD
+  SCRAP
+  COMMISSION
+  OTHER
+}
+
+enum SettlementMode {
+  /// Settle what the period itself produced.
+  CURRENT_PERIOD
+  /// Settle what falls due in the period, which may have been produced earlier.
+  NEXT_PERIOD
+}
+
+/// What is owed, before anyone decides to pay it.
+///
+/// Gold does not use this — its source of truth is `GoldShiftAllocation`, which
+/// the gold module already approves through its own workflow, and duplicating
+/// those rows here would give two answers to "what does this worker have coming".
+/// Scrap, commission and everything else have no such record, so an operator
+/// enters one.
+model SettlementIntake {
+  id             String           @id @default(uuid())
+  companyId      String
+  source         SettlementSource
+  label          String
+  periodStart    DateTime
+  periodEnd      DateTime
+  dueDate        DateTime
+  currency       String           @default("USD")
+  workflowStatus WorkflowStatus   @default(DRAFT)
+  notes          String?
+  createdById    String
+  submittedById  String?
+  approvedById   String?
+  submittedAt    DateTime?
+  approvedAt     DateTime?
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User                   @relation("SettlementIntakeCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                  @relation("SettlementIntakeSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                  @relation("SettlementIntakeApprovedBy", fields: [approvedById], references: [id])
+  items       SettlementIntakeItem[]
+  settledInto SettlementLineOrigin[]
+
+  @@index([companyId, source, workflowStatus, dueDate])
+}
+
+model SettlementIntakeItem {
+  id         String   @id @default(uuid())
+  intakeId   String
+  employeeId String
+  /// How much of the thing. Grams, kilos, units — whatever `unit` says.
+  quantity   Decimal  @default(0) @db.Decimal(12, 4)
+  unit       String   @default("unit")
+  /// What it is worth. Money, always, at money's scale.
+  amount     Decimal  @db.Decimal(14, 2)
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  intake   SettlementIntake @relation(fields: [intakeId], references: [id], onDelete: Cascade)
+  employee Employee         @relation(fields: [employeeId], references: [id])
+
+  @@unique([intakeId, employeeId])
+  @@index([employeeId])
+}
+
+/// One settlement, computed and frozen.
+///
+/// The payroll analogue is `PayrollRun`, and the workflow is the same shape —
+/// draft, submit, approve — so the two read alike on screen. What it is not is a
+/// `PayrollRun` with a flag.
+model SettlementRun {
+  id                   String           @id @default(uuid())
+  companyId            String
+  code                 String
+  source               SettlementSource
+  periodStart          DateTime
+  periodEnd            DateTime
+  dueDate              DateTime
+  mode                 SettlementMode   @default(CURRENT_PERIOD)
+  currency             String           @default("USD")
+  /// Money per unit of quantity, weighted across the run. Four places because a
+  /// gold price per gram is not a price in cents.
+  ratePerUnit          Decimal?         @db.Decimal(14, 4)
+  rateUnit             String           @default("unit")
+  totalQuantity        Decimal          @default(0) @db.Decimal(14, 4)
+  totalAmount          Decimal          @default(0) @db.Decimal(14, 2)
+  status               PayrollRunStatus @default(DRAFT)
+  journalEntryId       String?
+  postingSkippedReason String?
+  notes                String?
+  createdById          String
+  submittedById        String?
+  approvedById         String?
+  submittedAt          DateTime?
+  approvedAt           DateTime?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  company     Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy   User               @relation("SettlementRunCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?              @relation("SettlementRunSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?              @relation("SettlementRunApprovedBy", fields: [approvedById], references: [id])
+  lines       SettlementLine[]
+  batches     SettlementBatch[]
+  payments    SettlementPayment[]
+
+  @@unique([companyId, source, code])
+  @@index([companyId, source, status, periodStart])
+}
+
+model SettlementLine {
+  id         String  @id @default(uuid())
+  runId      String
+  employeeId String
+  /// The quantity being settled. This is the column that used to be
+  /// `PayrollLineItem.baseAmount` on a gold run.
+  quantity   Decimal @default(0) @db.Decimal(12, 4)
+  unit       String  @default("unit")
+  unitRate   Decimal @default(0) @db.Decimal(14, 4)
+  grossAmount Decimal @db.Decimal(14, 2)
+  netAmount   Decimal @db.Decimal(14, 2)
+  currency    String  @default("USD")
+  /// Frozen at compute time, so a later rate change cannot restate a settled run.
+  exchangeRate Decimal @default(1) @db.Decimal(12, 4)
+  baseAmount   Decimal @default(0) @db.Decimal(14, 2)
+  notes        String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  run      SettlementRun         @relation(fields: [runId], references: [id], onDelete: Cascade)
+  employee Employee              @relation(fields: [employeeId], references: [id])
+  items    SettlementBatchItem[]
+  payments SettlementPayment[]
+  origins  SettlementLineOrigin[]
+
+  @@unique([runId, employeeId])
+  @@index([employeeId])
+}
+
+/// Which upstream records a line settled.
+///
+/// A line aggregates: one gold worker can have shares from six shifts in a
+/// month, and they settle as one payment. Without this, "has allocation X been
+/// settled?" had no answer — the code that needed it wrote
+/// `AUTO_PAYOUT_FROM_SHIFT_ALLOCATION:<uuid>` into a free-text `notes` column and
+/// parsed the UUID back out with a regex, which loses the link the moment anyone
+/// edits the note.
+model SettlementLineOrigin {
+  id                    String  @id @default(uuid())
+  lineId                String
+  goldShiftAllocationId String?
+  settlementIntakeId    String?
+  /// The share of the line this origin contributed, so a partially settled
+  /// upstream record can be reconciled.
+  quantity              Decimal @default(0) @db.Decimal(12, 4)
+  amount                Decimal @default(0) @db.Decimal(14, 2)
+
+  line                SettlementLine       @relation(fields: [lineId], references: [id], onDelete: Cascade)
+  goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
+  settlementIntake    SettlementIntake?    @relation(fields: [settlementIntakeId], references: [id])
+
+  @@unique([lineId, goldShiftAllocationId])
+  @@unique([lineId, settlementIntakeId])
+  @@index([goldShiftAllocationId])
+  @@index([settlementIntakeId])
+}
+
+/// Handing the money over.
+///
+/// `settlementRunId` is required, which is the mirror image of
+/// `DisbursementBatch.payrollRunId` being required — and the reason a gold payout
+/// had to fabricate a `PayrollRun` before this model existed.
+model SettlementBatch {
+  id              String                    @id @default(uuid())
+  companyId       String
+  settlementRunId String
+  code            String
+  method          PayoutMethod              @default(CASH)
+  cashCustodian   String?
+  cashIssuedAt    DateTime?
+  status          DisbursementBatchStatus   @default(DRAFT)
+  totalAmount     Decimal                   @default(0) @db.Decimal(14, 2)
+  currency        String                    @default("USD")
+  itemCount       Int                       @default(0)
+  notes           String?
+  createdById     String
+  submittedById   String?
+  approvedById    String?
+  submittedAt     DateTime?
+  approvedAt      DateTime?
+  paidAt          DateTime?
+  createdAt       DateTime                  @default(now())
+  updatedAt       DateTime                  @updatedAt
+
+  company     Company               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  run         SettlementRun         @relation(fields: [settlementRunId], references: [id], onDelete: Cascade)
+  createdBy   User                  @relation("SettlementBatchCreatedBy", fields: [createdById], references: [id])
+  submittedBy User?                 @relation("SettlementBatchSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy  User?                 @relation("SettlementBatchApprovedBy", fields: [approvedById], references: [id])
+  items       SettlementBatchItem[]
+  payments    SettlementPayment[]
+
+  @@unique([companyId, code])
+  @@index([companyId, status, createdAt])
+  @@index([settlementRunId])
+}
+
+model SettlementBatchItem {
+  id         String                  @id @default(uuid())
+  batchId    String
+  lineId     String
+  employeeId String
+  amount     Decimal                 @db.Decimal(14, 2)
+  paidAmount Decimal?                @db.Decimal(14, 2)
+  currency   String                  @default("USD")
+  status     String                  @default("DUE")
+  paidAt     DateTime?
+  receiptReference String?
+  notes      String?
+  createdAt  DateTime                @default(now())
+  updatedAt  DateTime                @updatedAt
+
+  batch    SettlementBatch     @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  line     SettlementLine      @relation(fields: [lineId], references: [id])
+  employee Employee            @relation(fields: [employeeId], references: [id])
+  payments SettlementPayment[]
+
+  @@unique([batchId, employeeId])
+  @@index([lineId])
+  @@index([employeeId])
+}
+
+/// What an employee was actually paid, per settlement.
+///
+/// Replaces the gold half of `EmployeePayment`, which carried `amount Float` read
+/// in whatever `unit` said — grams on a gold payout — plus five gold-specific
+/// columns. Here `quantity` is the weight and `amount` is the money, so neither
+/// needs a comment explaining that it means something else on Tuesdays.
+model SettlementPayment {
+  id                    String           @id @default(uuid())
+  companyId             String
+  employeeId            String
+  source                SettlementSource
+  settlementRunId       String?
+  lineId                String?
+  batchId               String?
+  batchItemId           String?
+  quantity              Decimal          @default(0) @db.Decimal(12, 4)
+  unit                  String           @default("unit")
+  valuationDate         DateTime?
+  unitPrice             Decimal?         @db.Decimal(14, 4)
+  amount                Decimal          @db.Decimal(14, 2)
+  paidAmount            Decimal?         @db.Decimal(14, 2)
+  currency              String           @default("USD")
+  periodStart           DateTime
+  periodEnd             DateTime
+  dueDate               DateTime
+  paidAt                DateTime?
+  status                String           @default("DUE")
+  notes                 String?
+  createdById           String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  company             Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  employee            Employee             @relation(fields: [employeeId], references: [id])
+  run                 SettlementRun?       @relation(fields: [settlementRunId], references: [id])
+  line                SettlementLine?      @relation(fields: [lineId], references: [id])
+  batch               SettlementBatch?     @relation(fields: [batchId], references: [id])
+  batchItem           SettlementBatchItem? @relation(fields: [batchItemId], references: [id])
+  createdBy           User?                @relation("SettlementPaymentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, employeeId, source, status])
+  @@index([settlementRunId])
+}
+
+// ============================================
+// PHASE 1: DAILY OPERATIONS
+// ============================================
+
+enum GoldShiftSplitMode {
+  DEFAULT_50_50
+  OVERRIDE_WORKER_WEIGHT
+}
+
+enum ReportStatus {
+  DRAFT
+  SUBMITTED
+  VERIFIED
+  APPROVED
+  REJECTED
+}
+
+model ShiftReport {
+  id            String   @id @default(uuid())
+  date          DateTime
+  shift         String
+  siteId        String
+  sectionId     String?
+  shiftGroupId  String?
+  groupLeaderId String
+  crewCount     Int
+  workType      WorkType
+
+  // Output metrics (flexible per site)
+  outputTonnes       Float?
+  outputTrips        Int?
+  outputWheelbarrows Int?
+  metresAdvanced     Float?
+
+  // Safety and handover
+  hasIncident   Boolean @default(false)
+  incidentNotes String?
+  handoverNotes String?
+
+  // Photos (stored as JSON array of URLs)
+  photos String? // JSON array
+
+  // Workflow
+  status       ReportStatus @default(DRAFT)
+  createdById  String
+  verifiedById String?
+  approvedById String?
+  verifiedAt   DateTime?
+  approvedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site                Site                 @relation(fields: [siteId], references: [id])
+  section             Section?             @relation(fields: [sectionId], references: [id])
+  shiftGroup          ShiftGroup?          @relation(fields: [shiftGroupId], references: [id])
+  groupLeader         Employee             @relation("GroupLeaderReports", fields: [groupLeaderId], references: [id])
+  createdBy           User                 @relation("CreatedBy", fields: [createdById], references: [id])
+  verifiedBy          User?                @relation("VerifiedBy", fields: [verifiedById], references: [id])
+  approvedBy          User?                @relation("ApprovedBy", fields: [approvedById], references: [id])
+  downtimeEvents      DowntimeEvent[]
+  goldShiftAllocation GoldShiftAllocation?
+
+  @@index([siteId, date])
+  @@index([date])
+  @@index([shiftGroupId])
+}
+
+model DowntimeCode {
+  id          String   @id @default(uuid())
+  code        String
+  description String
+  siteId      String? // null = company-wide defaults
+  isActive    Boolean  @default(true)
+  sortOrder   Int      @default(0)
+  createdAt   DateTime @default(now())
+
+  site   Site?           @relation(fields: [siteId], references: [id])
+  events DowntimeEvent[]
+
+  @@index([siteId])
+}
+
+model DowntimeEvent {
+  id             String   @id @default(uuid())
+  shiftReportId  String?
+  plantReportId  String?
+  downtimeCodeId String
+  durationHours  Float
+  notes          String?
+  createdAt      DateTime @default(now())
+
+  shiftReport  ShiftReport? @relation(fields: [shiftReportId], references: [id])
+  plantReport  PlantReport? @relation(fields: [plantReportId], references: [id])
+  downtimeCode DowntimeCode @relation(fields: [downtimeCodeId], references: [id])
+
+  @@index([shiftReportId])
+  @@index([plantReportId])
+}
+
+// ============================================
+// PHASE 2: PLANT REPORTING
+// ============================================
+
+model PlantReport {
+  id              String   @id @default(uuid())
+  date            DateTime
+  siteId          String
+  tonnesFed       Float?
+  tonnesProcessed Float?
+  runHours        Float?
+
+  // Consumables
+  dieselUsed    Float?
+  grindingMedia Float?
+  reagentsUsed  Float?
+  waterUsed     Float?
+
+  // Gold recovered (if poured)
+  goldRecovered Float?
+
+  notes        String?
+  reportedById String
+  status       ReportStatus @default(DRAFT)
+  createdAt    DateTime     @default(now())
+  updatedAt    DateTime     @updatedAt
+
+  site           Site            @relation(fields: [siteId], references: [id])
+  reportedBy     User            @relation(fields: [reportedById], references: [id])
+  downtimeEvents DowntimeEvent[]
+
+  @@index([siteId, date])
+}
+
+// ============================================
+// PHASE 3: GOLD CONTROL
+// ============================================
+
+enum GoldPriceSource {
+  CONFIGURED // a GoldPrice row matched the business date
+  LIVE // resolved via live API (within 24h cache)
+  FALLBACK // fell back to default $80/g
+}
+
+model GoldSpotPriceCache {
+  id              String   @id @default(uuid())
+  fetchedAt       DateTime @default(now())
+  source          String // e.g. "metals-api", "lbma-am-fix"
+  priceUsdPerGram Decimal  @db.Decimal(12, 4)
+  rawResponse     String? // JSON string
+
+  @@index([fetchedAt])
+}
+
+model GoldPrice {
+  id              String   @id @default(uuid())
+  companyId       String
+  effectiveDate   DateTime
+  priceUsdPerGram Decimal  @db.Decimal(12, 4)
+  note            String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, effectiveDate])
+  @@index([companyId, effectiveDate])
+}
+
+model GoldExpenseType {
+  id        String   @id @default(uuid())
+  companyId String
+  name      String
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive])
+}
+
+model GoldPour {
+  id                       String           @id @default(uuid())
+  // Global unique kept for backward-compat. Phase D (drop this) is a domain-backend ticket.
+  pourBarId                String           @unique
+  pourDate                 DateTime
+  siteId                   String
+  companyId                String?
+  sourceType               GoldLotSource    @default(PRODUCTION)
+  createdById              String?
+  goldShiftAllocationId    String?
+  grossWeight              Decimal          @db.Decimal(12, 4)
+  estimatedPurity          Decimal?         @db.Decimal(5, 2)
+  witness1Id               String
+  witness2Id               String
+  storageLocation          String
+  additionalExpensesWeight Decimal?         @db.Decimal(12, 4)
+  additionalExpensesNote   String?
+  notes                    String?
+  goldPriceUsdPerGram      Decimal?         @db.Decimal(12, 4)
+  goldPriceSource          GoldPriceSource?
+  valuationDate            DateTime?
+  valueUsd                 Decimal?         @db.Decimal(14, 2)
+
+  // Audit trail
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  corrections String? // JSON log of corrections
+
+  site                Site                 @relation(fields: [siteId], references: [id])
+  company             Company?             @relation("GoldPourCompany", fields: [companyId], references: [id])
+  witness1            Employee             @relation("Witness1", fields: [witness1Id], references: [id])
+  witness2            Employee             @relation("Witness2", fields: [witness2Id], references: [id])
+  createdBy           User?                @relation("GoldPourRecordedBy", fields: [createdById], references: [id])
+  goldShiftAllocation GoldShiftAllocation? @relation(fields: [goldShiftAllocationId], references: [id])
+  purchase            GoldPurchase?
+  dispatches          GoldDispatch[]
+  dispatchBatches     GoldDispatchBatch[]
+  receipts            BuyerReceipt[]
+  receiptBatches      BuyerReceiptBatch[]
+
+  @@unique([companyId, pourBarId])
+  @@index([siteId])
+  @@index([pourDate])
+  @@index([createdById])
+  @@index([goldShiftAllocationId])
+  @@index([companyId, pourDate(sort: Desc)])
+}
+
+enum GoldLotSource {
+  PRODUCTION
+  PURCHASE_PUBLIC
+}
+
+enum GoldSellerType {
+  EMPLOYEE
+  EXTERNAL
+}
+
+model GoldCompanyConfig {
+  companyId                       String   @id
+  defaultSplitMode                String   @default("DEFAULT_50_50")
+  defaultPayCycleWeeks            Int      @default(2)
+  defaultStorageLocation          String   @default("Vault A")
+  defaultEstimatedPurity          Decimal  @default(92.5) @db.Decimal(5, 2)
+  liveSpotPriceEnabled            Boolean  @default(false)
+  liveSpotPriceProvider           String?
+  importCommitCoSignThresholdRows Int      @default(100)
+  importCommitCoSignThresholdUsd  Decimal  @default(10000) @db.Decimal(14, 2)
+  createdAt                       DateTime @default(now())
+  updatedAt                       DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+}
+
+model GoldPurchase {
+  id               String         @id @default(uuid())
+  companyId        String
+  siteId           String
+  goldPourId       String         @unique
+  purchaseNumber   String
+  purchaseDate     DateTime
+  sellerType       GoldSellerType @default(EXTERNAL)
+  sellerEmployeeId String?
+  sellerName       String
+  sellerPhone      String
+  grossWeight      Decimal        @db.Decimal(12, 4)
+  estimatedPurity  Decimal?       @db.Decimal(5, 2)
+  storageLocation  String
+  receiver1Id      String
+  receiver2Id      String
+  paidAmount       Decimal        @db.Decimal(14, 2)
+  currency         String         @default("USD")
+  paymentMethod    String
+  paymentChannel   String?
+  paymentReference String?
+  attachmentsJson  String?
+  notes            String?
+  createdById      String
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+
+  company        Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site           Site      @relation(fields: [siteId], references: [id])
+  goldPour       GoldPour  @relation(fields: [goldPourId], references: [id])
+  sellerEmployee Employee? @relation("GoldPurchaseSeller", fields: [sellerEmployeeId], references: [id])
+  receiver1      Employee  @relation("GoldPurchaseReceiver1", fields: [receiver1Id], references: [id])
+  receiver2      Employee  @relation("GoldPurchaseReceiver2", fields: [receiver2Id], references: [id])
+  createdBy      User      @relation("GoldPurchaseCreatedBy", fields: [createdById], references: [id])
+
+  @@unique([companyId, purchaseNumber])
+  @@index([companyId, purchaseDate])
+  @@index([siteId, purchaseDate])
+  @@index([sellerEmployeeId])
+  @@index([receiver1Id])
+  @@index([receiver2Id])
+}
+
+model GoldDispatch {
+  id                  String           @id @default(uuid())
+  goldPourId          String
+  companyId           String?
+  dispatchDate        DateTime
+  courier             String
+  vehicle             String?
+  destination         String
+  sealNumbers         String
+  handedOverById      String
+  receivedBy          String?
+  notes               String?
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
+  goldPriceSource     GoldPriceSource?
+  valuationDate       DateTime?
+  valueUsd            Decimal?         @db.Decimal(14, 2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goldPour          GoldPour               @relation(fields: [goldPourId], references: [id])
+  company           Company?               @relation("GoldDispatchCompany", fields: [companyId], references: [id])
+  handedOverBy      Employee               @relation("GoldDispatchHandovers", fields: [handedOverById], references: [id])
+  buyerReceipts     BuyerReceipt[]
+  batches           GoldDispatchBatch[]
+  receiptDispatches BuyerReceiptDispatch[]
+
+  @@index([goldPourId])
+  @@index([companyId, dispatchDate])
+}
+
+model GoldDispatchBatch {
+  id         String   @id @default(uuid())
+  dispatchId String
+  goldPourId String
+  companyId  String?
+  sortOrder  Int      @default(0)
+  createdAt  DateTime @default(now())
+
+  dispatch GoldDispatch @relation(fields: [dispatchId], references: [id], onDelete: Cascade)
+  goldPour GoldPour     @relation(fields: [goldPourId], references: [id])
+  company  Company?     @relation("GoldDispatchBatchCompany", fields: [companyId], references: [id])
+
+  @@unique([dispatchId, goldPourId])
+  @@index([dispatchId])
+  @@index([goldPourId])
+  @@index([companyId])
+}
+
+model BuyerReceipt {
+  id                  String           @id @default(uuid())
+  // legacy single-FK, prefer the join tables (batches / dispatches)
+  goldDispatchId      String?
+  // legacy single-FK, prefer the join tables (batches / dispatches)
+  goldPourId          String?
+  companyId           String?
+  receiptNumber       String
+  receiptDate         DateTime
+  assayResult         Decimal?         @db.Decimal(5, 2) // actual purity
+  paidAmount          Decimal          @db.Decimal(14, 2)
+  paymentMethod       String
+  paymentChannel      String?
+  paymentReference    String?
+  notes               String?
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
+  goldPriceSource     GoldPriceSource?
+  valuationDate       DateTime?
+  // paidValueUsd dropped in Epic 7 (duplicated paidAmount; gold is USD-only per §8 Q2)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  goldDispatch GoldDispatch? @relation(fields: [goldDispatchId], references: [id])
+  goldPour     GoldPour?     @relation(fields: [goldPourId], references: [id])
+  company      Company?      @relation("BuyerReceiptCompany", fields: [companyId], references: [id])
+
+  // Aggregate join: a single BuyerReceipt may cover N pours and N dispatches.
+  // The legacy single FKs above remain populated for backward compatibility
+  // (UI fallbacks, prior reports, accounting hooks) but new code should
+  // prefer iterating these.
+  batches     BuyerReceiptBatch[]
+  dispatches  BuyerReceiptDispatch[]
+  corrections BuyerReceiptCorrection[]
+
+  @@unique([companyId, receiptNumber])
+  @@index([goldPourId])
+  @@index([goldDispatchId])
+  @@index([receiptDate])
+  @@index([companyId, receiptDate(sort: Desc)])
+}
+
+/// Join row: BuyerReceipt covers a portion of a GoldPour. Multiple rows per
+/// receipt allow a single sale to span many batches (FIFO ledger imports,
+/// multi-batch dispatches paid in one go, etc.).
+model BuyerReceiptBatch {
+  id                  String           @id @default(uuid())
+  buyerReceiptId      String
+  goldPourId          String
+  companyId           String?
+  grams               Decimal          @db.Decimal(12, 4)
+  valueUsd            Decimal?         @db.Decimal(14, 2)
+  goldPriceUsdPerGram Decimal?         @db.Decimal(12, 4)
+  goldPriceSource     GoldPriceSource?
+  notes               String?
+  createdAt           DateTime         @default(now())
+
+  buyerReceipt BuyerReceipt @relation(fields: [buyerReceiptId], references: [id], onDelete: Cascade)
+  goldPour     GoldPour     @relation(fields: [goldPourId], references: [id])
+  company      Company?     @relation("BuyerReceiptBatchCompany", fields: [companyId], references: [id])
+
+  @@unique([buyerReceiptId, goldPourId])
+  @@index([buyerReceiptId])
+  @@index([goldPourId])
+  @@index([companyId])
+}
+
+/// Join row: BuyerReceipt covers one or more GoldDispatch trips. A receipt
+/// may settle several dispatches in a single payment.
+model BuyerReceiptDispatch {
+  id             String   @id @default(uuid())
+  buyerReceiptId String
+  goldDispatchId String
+  createdAt      DateTime @default(now())
+
+  buyerReceipt BuyerReceipt @relation(fields: [buyerReceiptId], references: [id], onDelete: Cascade)
+  goldDispatch GoldDispatch @relation(fields: [goldDispatchId], references: [id])
+
+  @@unique([buyerReceiptId, goldDispatchId])
+  @@index([buyerReceiptId])
+  @@index([goldDispatchId])
+}
+
+model GoldShiftAllocation {
+  id                        String             @id @default(uuid())
+  date                      DateTime
+  shift                     String
+  siteId                    String
+  companyId                 String?
+  shiftGroupId              String?
+  shiftReportId             String             @unique
+  totalWeight               Decimal            @db.Decimal(12, 4)
+  netWeight                 Decimal            @db.Decimal(12, 4)
+  splitMode                 GoldShiftSplitMode @default(DEFAULT_50_50)
+  workerShareOverrideWeight Decimal?           @db.Decimal(12, 4)
+  splitOverrideReason       String?
+  workerShareWeight         Decimal            @db.Decimal(12, 4)
+  companyShareWeight        Decimal            @db.Decimal(12, 4)
+  perWorkerWeight           Decimal            @db.Decimal(12, 4)
+  goldPriceUsdPerGram       Decimal?           @db.Decimal(12, 4)
+  goldPriceSource           GoldPriceSource?
+  valuationDate             DateTime?
+  totalWeightValueUsd       Decimal?           @db.Decimal(14, 2)
+  netWeightValueUsd         Decimal?           @db.Decimal(14, 2)
+  workerShareValueUsd       Decimal?           @db.Decimal(14, 2)
+  companyShareValueUsd      Decimal?           @db.Decimal(14, 2)
+  perWorkerValueUsd         Decimal?           @db.Decimal(14, 2)
+  payCycleWeeks             Int                @default(2)
+  workflowStatus            WorkflowStatus     @default(DRAFT)
+  createdById               String
+  submittedById             String?
+  approvedById              String?
+  submittedAt               DateTime?
+  approvedAt                DateTime?
+  createdAt                 DateTime           @default(now())
+  updatedAt                 DateTime           @updatedAt
+
+  site             Site                   @relation(fields: [siteId], references: [id])
+  company          Company?               @relation("GoldShiftAllocationCompany", fields: [companyId], references: [id])
+  shiftGroup       ShiftGroup?            @relation("GoldShiftAllocationsByGroup", fields: [shiftGroupId], references: [id])
+  shiftReport      ShiftReport            @relation(fields: [shiftReportId], references: [id])
+  createdBy        User                   @relation("GoldShiftAllocationCreatedBy", fields: [createdById], references: [id])
+  submittedBy      User?                  @relation("GoldShiftAllocationSubmittedBy", fields: [submittedById], references: [id])
+  approvedBy       User?                  @relation("GoldShiftAllocationApprovedBy", fields: [approvedById], references: [id])
+  expenses         GoldShiftExpense[]
+  workerShares     GoldShiftWorkerShare[]
+  pours            GoldPour[]
+  settlementOrigins SettlementLineOrigin[]
+
+  @@unique([siteId, date, shift, shiftGroupId])
+  @@index([siteId, date])
+  @@index([workflowStatus])
+  @@index([companyId, workflowStatus, date])
+}
+
+model GoldShiftExpense {
+  id           String  @id @default(uuid())
+  allocationId String
+  type         String
+  weight       Decimal @db.Decimal(12, 4)
+
+  allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+
+  @@index([allocationId])
+}
+
+model GoldShiftWorkerShare {
+  id            String   @id @default(uuid())
+  allocationId  String
+  employeeId    String
+  shareWeight   Decimal  @db.Decimal(12, 4)
+  shareValueUsd Decimal? @db.Decimal(14, 2)
+
+  allocation GoldShiftAllocation @relation(fields: [allocationId], references: [id], onDelete: Cascade)
+  employee   Employee            @relation(fields: [employeeId], references: [id])
+
+  @@unique([allocationId, employeeId])
+  @@index([allocationId])
+  @@index([employeeId])
+}
+
+enum GoldCorrectionType {
+  ADJUST_AMOUNT
+  ADJUST_ASSAY
+  ADJUST_GRAMS
+  VOID
+  RECLASSIFY
+  OTHER
+}
+
+model GoldLedgerCorrection {
+  id                String             @id @default(uuid())
+  companyId         String
+  entityType        String
+  entityId          String
+  type              GoldCorrectionType
+  reason            String
+  beforeJson        Json?
+  afterJson         Json?
+  deltaUsd          Decimal?           @db.Decimal(14, 2)
+  deltaGrams        Decimal?           @db.Decimal(12, 4)
+  adjustmentEntryId String?
+  createdById       String
+  createdAt         DateTime           @default(now())
+
+  company         Company          @relation("GoldLedgerCorrectionCompany", fields: [companyId], references: [id])
+  createdBy       User             @relation("GoldLedgerCorrectionCreatedBy", fields: [createdById], references: [id])
+  adjustmentEntry AdjustmentEntry? @relation("GoldLedgerCorrectionAdjustment", fields: [adjustmentEntryId], references: [id])
+
+  @@index([companyId, entityType, entityId])
+  @@index([companyId, createdAt(sort: Desc)])
+}
+
+model BuyerReceiptCorrection {
+  id                String             @id @default(uuid())
+  buyerReceiptId    String
+  companyId         String
+  type              GoldCorrectionType
+  reason            String
+  beforeJson        Json?
+  afterJson         Json?
+  deltaAmountUsd    Decimal?           @db.Decimal(14, 2)
+  deltaAssay        Decimal?           @db.Decimal(5, 2)
+  adjustmentEntryId String?
+  createdById       String
+  createdAt         DateTime           @default(now())
+
+  buyerReceipt    BuyerReceipt     @relation(fields: [buyerReceiptId], references: [id], onDelete: Cascade)
+  company         Company          @relation("BuyerReceiptCorrectionCompany", fields: [companyId], references: [id])
+  createdBy       User             @relation("BuyerReceiptCorrectionCreatedBy", fields: [createdById], references: [id])
+  adjustmentEntry AdjustmentEntry? @relation("BuyerReceiptCorrectionAdjustment", fields: [adjustmentEntryId], references: [id])
+
+  @@index([buyerReceiptId, createdAt(sort: Desc)])
+  @@index([companyId, createdAt(sort: Desc)])
+}
+
+enum GoldInventoryDirection {
+  IN
+  OUT
+}
+
+enum GoldInventorySourceType {
+  POUR
+  RECEIPT
+  ADJUSTMENT
+  SHIFT_ALLOCATION
+  REVERSAL
+  DISPATCH
+  PURCHASE
+}
+
+/// APPEND-ONLY TABLE — do NOT UPDATE or DELETE rows from GoldInventoryEvent.
+/// On rollback, insert a compensating REVERSAL event (opposite direction, same
+/// sourceType/sourceId, negated grams). getOnHandGrams() sums IN minus OUT and
+/// remains correct because IN + REVERSAL(OUT) cancel. Mutating or deleting rows
+/// silently invalidates any reconciliation snapshot taken before the mutation.
+///
+/// TODO (future migration): add a Postgres trigger to enforce this at the DB level:
+///
+///   CREATE OR REPLACE FUNCTION gold_inventory_event_append_only()
+///   RETURNS trigger LANGUAGE plpgsql AS $$
+///   BEGIN
+///     RAISE EXCEPTION
+///       'GoldInventoryEvent is append-only. INSERT REVERSAL events instead of UPDATE/DELETE.';
+///   END;
+///   $$;
+///
+///   CREATE TRIGGER trg_gold_inventory_event_no_update
+///   BEFORE UPDATE ON "GoldInventoryEvent"
+///   FOR EACH ROW EXECUTE FUNCTION gold_inventory_event_append_only();
+///
+///   CREATE TRIGGER trg_gold_inventory_event_no_delete
+///   BEFORE DELETE ON "GoldInventoryEvent"
+///   FOR EACH ROW EXECUTE FUNCTION gold_inventory_event_append_only();
+///
+/// See docs/gold-module-review-2026-05-09.md §4.3, §4.4 C-4, §8 Q7, §13.1 P0.1.
+model GoldInventoryEvent {
+  id                  String                  @id @default(uuid())
+  companyId           String
+  siteId              String
+  eventDate           DateTime
+  direction           GoldInventoryDirection
+  grams               Decimal                 @db.Decimal(12, 4)
+  goldPriceUsdPerGram Decimal?                @db.Decimal(12, 4)
+  goldPriceSource     GoldPriceSource?
+  valueUsd            Decimal?                @db.Decimal(14, 2)
+  sourceType          GoldInventorySourceType
+  sourceId            String?
+  notes               String?
+  createdById         String?
+  createdAt           DateTime                @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site      Site    @relation(fields: [siteId], references: [id])
+  createdBy User?   @relation("GoldInventoryEventCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, siteId, eventDate])
+  @@index([sourceType, sourceId])
+}
+
+enum GoldExceptionCategory {
+  INVENTORY_DEFICIT
+  NAME_UNMAPPED
+  EXPENSE_MISMATCH
+  BALANCE_DRIFT
+  WITNESS_MISSING
+  IMPORT_FAILURE
+}
+
+enum GoldExceptionSeverity {
+  INFO
+  WARNING
+  CRITICAL
+}
+
+enum GoldExceptionStatus {
+  OPEN
+  ACKNOWLEDGED
+  RESOLVED
+}
+
+model GoldException {
+  id               String                @id @default(uuid())
+  companyId        String
+  siteId           String?
+  category         GoldExceptionCategory
+  severity         GoldExceptionSeverity @default(WARNING)
+  status           GoldExceptionStatus   @default(OPEN)
+  entityType       String?
+  entityId         String?
+  description      String
+  metadata         String? // JSON
+  acknowledgedById String?
+  acknowledgedAt   DateTime?
+  resolvedById     String?
+  resolvedAt       DateTime?
+  createdById      String?
+  createdAt        DateTime              @default(now())
+  updatedAt        DateTime              @updatedAt
+
+  company        Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site           Site?   @relation(fields: [siteId], references: [id])
+  acknowledgedBy User?   @relation("GoldExceptionAck", fields: [acknowledgedById], references: [id])
+  resolvedBy     User?   @relation("GoldExceptionResolved", fields: [resolvedById], references: [id])
+  createdBy      User?   @relation("GoldExceptionCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, status])
+  @@index([category])
+  @@index([entityType, entityId])
+}
+
+enum GoldLedgerImportStatus {
+  DRAFT
+  MAPPING
+  PREVIEW
+  COMMITTED
+  FAILED
+  ROLLED_BACK
+}
+
+enum GoldLedgerEntryStatus {
+  PENDING
+  CREATED
+  ANOMALY
+  FAILED
+}
+
+model GoldLedgerImport {
+  id               String                 @id @default(uuid())
+  companyId        String
+  siteId           String?
+  uploadedById     String
+  fileName         String
+  rowsTotal        Int                    @default(0)
+  rowsCreated      Int                    @default(0)
+  rowsAnomaly      Int                    @default(0)
+  rowsFailed       Int                    @default(0)
+  status           GoldLedgerImportStatus @default(DRAFT)
+  mappingsJson     String? // JSON: { "Mutemeri": "shift-group-uuid", ... }
+  notes            String?
+  createdAt        DateTime               @default(now())
+  updatedAt        DateTime               @updatedAt
+  committedAt      DateTime?
+  name             String?
+  assignedToId     String?
+  sourceFileSha256 String?
+  tombstonedAt     DateTime?
+  archivedAt       DateTime?
+  presetId         String?
+  sampleHeaderHash String? // SHA of the original CSV header row, used to match an import to a saved mapping preset (Epic 14)
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?                     @relation(fields: [siteId], references: [id])
+  uploadedBy User                      @relation("GoldLedgerImportUploadedBy", fields: [uploadedById], references: [id])
+  assignedTo User?                     @relation("GoldLedgerImportAssignedTo", fields: [assignedToId], references: [id])
+  preset     GoldLedgerImportPreset?   @relation(fields: [presetId], references: [id])
+  entries    GoldLedgerEntry[]
+  tags       GoldLedgerImportTag[]
+  comments   GoldLedgerImportComment[]
+  snapshots  GoldImportSnapshot[]
+
+  @@index([companyId, createdAt])
+  @@index([companyId, archivedAt])
+  @@index([companyId, tombstonedAt])
+  @@index([sourceFileSha256])
+}
+
+model GoldLedgerEntry {
+  id                    String                @id @default(uuid())
+  importId              String
+  companyId             String?
+  lineNo                Int
+  rawJson               String // JSON of original CSV row
+  rawLine               String? // original CSV line label or manual-sale descriptor, preserved for diagnostics (Epic 14)
+  parsedDate            DateTime?
+  parsedName            String?
+  mappedShiftGroupId    String?
+  gramsTotal            Decimal?              @db.Decimal(12, 4)
+  expensesJson          String? // JSON: [{type, weight}, ...]
+  boysGrams             Decimal?              @db.Decimal(12, 4)
+  mdaraGrams            Decimal?              @db.Decimal(12, 4)
+  balGrams              Decimal?              @db.Decimal(12, 4) // negative => sale
+  status                GoldLedgerEntryStatus @default(PENDING)
+  goldShiftAllocationId String?
+  goldPourId            String? // bare-pour fallback OR set after auto-pour for cleanup tracking
+  buyerReceiptId        String?
+  errorMessage          String?
+  /// Parser-origin warnings (set at parse time, never cleared on recommit
+  /// cleanup). Distinct from errorMessage which is post-commit context.
+  parserWarning         String?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  import     GoldLedgerImport          @relation(fields: [importId], references: [id], onDelete: Cascade)
+  company    Company?                  @relation("GoldLedgerEntryCompany", fields: [companyId], references: [id])
+  shiftGroup ShiftGroup?               @relation("GoldLedgerEntryShiftGroup", fields: [mappedShiftGroupId], references: [id])
+  attendance Attendance[]              @relation("AttendanceGoldLedgerEntry")
+  comments   GoldLedgerImportComment[]
+
+  @@unique([importId, lineNo])
+  @@index([importId, status])
+  @@index([companyId, status])
+}
+
+model EditingLock {
+  resource  String   @id // e.g. "import:abc123" or "period-close:co-1:2026-01"
+  userId    String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation("EditingLockUser", fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([expiresAt])
+}
+
+model GoldLedgerImportPreset {
+  id               String   @id @default(uuid())
+  companyId        String
+  name             String
+  mappingJson      String
+  sampleHeaderHash String?
+  isDefault        Boolean  @default(false)
+  createdById      String
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  company   Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User               @relation("GoldLedgerImportPresetCreatedBy", fields: [createdById], references: [id])
+  imports   GoldLedgerImport[]
+
+  @@unique([companyId, name])
+  @@index([companyId, sampleHeaderHash])
+}
+
+model GoldLedgerImportTag {
+  id        String   @id @default(uuid())
+  importId  String
+  label     String
+  createdAt DateTime @default(now())
+
+  import GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+
+  @@unique([importId, label])
+  @@index([label])
+}
+
+model GoldLedgerImportComment {
+  id            String   @id @default(uuid())
+  importId      String
+  ledgerEntryId String?
+  body          String
+  createdById   String
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  import      GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  ledgerEntry GoldLedgerEntry? @relation(fields: [ledgerEntryId], references: [id], onDelete: Cascade)
+  createdBy   User             @relation("GoldLedgerImportCommentCreatedBy", fields: [createdById], references: [id])
+
+  @@index([importId, createdAt])
+  @@index([ledgerEntryId])
+}
+
+model GoldImportSnapshot {
+  id          String   @id @default(uuid())
+  importId    String
+  takenAt     DateTime @default(now())
+  reason      String
+  payloadJson String
+  takenById   String
+
+  import  GoldLedgerImport @relation(fields: [importId], references: [id], onDelete: Cascade)
+  takenBy User             @relation("GoldImportSnapshotTakenBy", fields: [takenById], references: [id])
+
+  @@index([importId, takenAt(sort: Desc)])
+}
+
+model GoldImportSavedView {
+  id         String   @id @default(uuid())
+  companyId  String
+  userId     String
+  name       String
+  filterJson String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  company Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  user    User    @relation("GoldImportSavedViewUser", fields: [userId], references: [id])
+
+  @@unique([companyId, userId, name])
+  @@index([companyId, userId])
+}
+
+model GoldPeriodClose {
+  id             String    @id @default(uuid())
+  companyId      String
+  siteId         String?
+  periodStart    DateTime
+  periodEnd      DateTime
+  closedAt       DateTime  @default(now())
+  closedById     String
+  overrideReason String?
+  overrideById   String?
+  overrideAt     DateTime?
+
+  company    Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  site       Site?   @relation(fields: [siteId], references: [id])
+  closedBy   User    @relation("GoldPeriodCloseClosedBy", fields: [closedById], references: [id])
+  overrideBy User?   @relation("GoldPeriodCloseOverrideBy", fields: [overrideById], references: [id])
+
+  @@unique([companyId, siteId, periodStart])
+  @@index([companyId, periodStart])
+}
+

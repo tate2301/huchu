@@ -1,0 +1,1739 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   CORELITH APP STYLESHEET
+
+   `@corelithzw/react` is the single source of truth for design tokens and for
+   the styling of every component it exports. This file only wires Tailwind
+   around it. Every legacy token name the app still references is re-derived
+   from a package token in `app/themes/corelith-bridge.css` — no colour, size,
+   radius, shadow or duration literal belongs in this file.
+
+   See docs/design-system/02-tokens.md for the token catalogue.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* Cascade layer order. Declared ahead of the imports so it is the order that
+   sticks (Tailwind re-declares `theme, base, components, utilities` and layers
+   are ordered by first appearance).
+
+     corelith  the design-system package — sits above Tailwind's preflight, so
+               its resets and its `:root` token values win over Tailwind's.
+     app       this repo's element-level base styles, layered above the package
+               so the app keeps the last word on `body` and friends.
+
+   Utilities stay on top: a Tailwind class on a design-system component still
+   overrides the component's own CSS.
+
+   This statement has to be the first `@layer` the browser sees. Layer order is
+   fixed by first appearance and unknown names are appended at the end, so when
+   frappe's theme was imported from `app/layout.tsx` ahead of this file it
+   established `theme, base, components, utilities` on its own and `corelith`
+   and `app` landed *after* `utilities`. Every Tailwind utility in the app then
+   lost to the design system's element resets — `button { padding: 0 }` beat
+   `px-2`, headings collapsed to body size, and segmented controls, menus and
+   comboboxes all rendered unstyled. `app/layout.tsx` imports this file first
+   for that reason; frappe's `@source` directive rules out pulling it in here
+   through `@import`, so import order is what holds the line. */
+@layer theme, base, corelith, app, components, utilities;
+
+/* Atkinson Hyperlegible — the design system's typeface, and the app's since the
+   SS Huchu face was retired.
+
+   The package's styles.css pulls this itself on its line 14, but that `@import`
+   lands *inside* `@layer corelith` once bundled, and an `@import` nested in a
+   layer block is invalid CSS that browsers drop. Hoisting it here is what
+   actually loads the font; the nested copy is inert. If a CSP or an offline
+   build blocks Google Fonts, the stack falls back to `-apple-system` and the
+   intended metrics are lost — self-host the two families to fix that. */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@200..800&family=Atkinson+Hyperlegible+Mono:wght@400..700&display=swap");
+
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@corelithzw/react/styles.css" layer(corelith);
+/* Components the package exports but whose CSS never made it into its bundle.
+   Same layer, so it behaves exactly as if the package had shipped it — and it
+   goes away the day a release does. See the file header for the audit. */
+@import "./themes/corelith-missing.css" layer(corelith);
+
+@source "../node_modules/@rtcamp/frappe-ui-react/dist";
+/* Workspace packages render with these classes too; Tailwind does not look
+   inside node_modules on its own, and the packages arrive through symlinks there. */
+@source "../../../packages";
+
+/* ── Tailwind Theme Mappings ────────────────────────────────────────────────
+   Deliberately thin. Tailwind's own theme keys (`--font-sans`, `--font-mono`,
+   `--radius-*`, `--ease-*`) are left alone: the package redefines those exact
+   names in the `corelith` layer, which outranks Tailwind's `theme` layer, so
+   `font-sans`, `rounded-lg`, `ease-out` and the rest already resolve to
+   design-system values. Only names Tailwind does not ship are declared here.
+
+   Every value is `var(--package-token)` so a token change in the package flows
+   through without editing this file. */
+
+@theme inline {
+  /* Design-system palette → colour utilities (bg-*, text-*, border-*) */
+  --color-canvas: var(--canvas);
+  --color-surface: var(--surface);
+  --color-surface-muted: var(--surface-muted);
+  --color-surface-sunken: var(--surface-sunken);
+  --color-surface-deep: var(--surface-deep);
+
+  --color-brand: var(--brand);
+  --color-brand-strong: var(--brand-strong);
+  --color-brand-deeper: var(--brand-deeper);
+  --color-brand-soft: var(--brand-soft);
+  --color-ink: var(--ink);
+  --color-ink-soft: var(--ink-soft);
+
+  --color-text-strong: var(--text-strong);
+  --color-text-body: var(--text-body);
+  --color-text-muted: var(--text-muted);
+  --color-text-subtle: var(--text-subtle);
+  --color-text-inverse: var(--text-inverse);
+  --color-text-link: var(--text-link);
+
+  --color-border-subtle: var(--border-subtle);
+  --color-border-strong: var(--border-strong);
+  --color-hairline: var(--hairline);
+
+  /* Semantic tones. The short aliases (`text-info`, `bg-danger`, …) are the
+     names call sites already use; the `tone-*` spellings match the package. */
+  --color-tone-info: var(--tone-info);
+  --color-tone-success: var(--tone-success);
+  --color-tone-warn: var(--tone-warn);
+  --color-tone-danger: var(--tone-danger);
+  --color-tone-neutral: var(--tone-neutral);
+  --color-info: var(--tone-info);
+  --color-success: var(--tone-success);
+  --color-warning: var(--tone-warn);
+  --color-danger: var(--tone-danger);
+
+  /* Surface tokens (legacy spellings — see corelith-bridge.css) */
+  --color-surface-canvas: var(--surface-canvas);
+  --color-surface-base: var(--surface-base);
+  --color-surface-raised: var(--surface-raised);
+  --color-surface-subtle: var(--surface-subtle);
+
+  /* Action tokens */
+  --color-action-primary-bg: var(--action-primary-bg);
+  --color-action-primary-fg: var(--action-primary-fg);
+  --color-action-secondary-bg: var(--action-secondary-bg);
+  --color-action-secondary-fg: var(--action-secondary-fg);
+
+  /* Status tokens */
+  --color-status-success-bg: var(--status-success-bg);
+  --color-status-success-text: var(--status-success-text);
+  --color-status-warning-bg: var(--status-warning-bg);
+  --color-status-warning-text: var(--status-warning-text);
+  --color-status-error-bg: var(--status-error-bg);
+  --color-status-error-text: var(--status-error-text);
+
+  /* Shadcn compatibility tokens */
+  --color-focus-ring: var(--focus-ring);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Radius. `--radius-xs … --radius-2xl` come from the package (4/6/8/10/14/18)
+     and need no mapping. Only the two rungs the design system does not define
+     are extended here, kept on the same +4px cadence as `--radius-xl`. */
+  --radius-3xl: calc(var(--radius-2xl) + 4px);
+  --radius-4xl: calc(var(--radius-2xl) + 8px);
+
+  /* POS-specific breakpoints */
+  --breakpoint-ms: 520px;
+  --breakpoint-3xl: 1920px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   ROOT DESIGN TOKEN SYSTEM
+
+   Deliberately empty. Every token the app reads — the neutral and brand ramps,
+   the semantic status set, edges, elevation, geometry, type, motion, spacing —
+   is now declared once in `app/themes/corelith-bridge.css`, derived from the
+   `@corelithzw/react` token set. Adding a literal back here would silently
+   outrank the package, which is the failure mode this migration removed.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── App Base Layer ─────────────────────────────────────────────────────────
+   Everything element-level lives in the `app` layer, above `corelith`. The
+   package's own `body` and `button` resets ship unlayered inside styles.css and
+   would otherwise outrank anything written here.
+
+   Type, colour and canvas all come from the package's `body` rule; this layer
+   only adds what the app needs on top of it. */
+
+/* A default border colour and focus ring, so an element that draws a border
+   without naming a colour gets the theme's rather than the browser's.
+
+   This has to live in `base`, not `app`. A universal selector in a layer that
+   comes *after* `corelith` outranks every design-system rule setting a border
+   colour — specificity never enters into it, later layer simply wins. That is
+   why the selected tab's underline rendered the same grey as the unselected
+   ones: `.utab.current { border-bottom-color: var(--brand) }` was losing to
+   `*`. Every other DS state drawn as a border colour was losing the same way.
+
+   In `base` the order is the one everybody expects: this loses to the design
+   system, and the design system loses to a call site's own `border-*` utility. */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+}
+
+/* ── Overlay stacking order ─────────────────────────────────────────────────
+   One scale, declared once, read by every overlay in the app.
+
+   Before this, every overlay primitive in `components/ui` carried a bare
+   `z-50` — sheet, dialog, alert dialog, popover, menu, select — while the
+   design system painted its own drawer at 1100 and its toast viewport at 1200.
+   With six surfaces tied at 50 the winner was whichever portal happened to
+   mount last, and against the DS's 1100 they simply lost: opening the sidebar
+   on a phone and then tapping the workspace switcher put the menu *behind* the
+   sidebar, which is what a screenshot of it showed.
+
+   `docs/design-system/05-rules.md` publishes a rung per overlay kind — drawer
+   80, popover 90, modal 100. Every fixed order of those three is wrong in one
+   direction or the other, because this product nests them both ways: a filter
+   sheet made of popovers and a form dialog whose client picker is a sheet say
+   popover-and-drawer-over-modal, while a "discard these changes?" dialog
+   raised from inside a form sheet says the opposite. Measured, not reasoned
+   about: with drawers pinned below modals the client picker opened *behind*
+   the dialog that asked for it.
+
+   So every dismissable overlay shares one rung and **open order decides**,
+   which is the only rule that is right in both directions — a portal mounts
+   when it opens, so the newest layer is last in the DOM and paints on top.
+   Within a single overlay the scrim is written before its panel, so the panel
+   still covers its own scrim.
+
+   What keeps its own rung is the chrome that is never nested: the sidebar and
+   the app bar below, toasts above (they have to be readable over a modal). */
+:root {
+  --z-sidebar: 50;
+  --z-nav: 60;
+  --z-overlay: 100;
+  --z-toast: 200;
+}
+
+@layer app {
+  /* The design system's own drawer and toast, brought onto the scale. Its
+     `Sidebar` shell renders a `p-drawer` on mobile, so this is the rule that
+     decides whether a menu opened inside the sidebar can be seen at all.
+
+     `!important` because the package writes `zIndex: 1100` as an *inline
+     style* on the overlay (`src/primitives/Drawer.tsx`), and an inline style
+     outranks every layer. Verified in the browser: with a plain rule the
+     workspace menu still painted behind the sidebar. */
+  .p-drawer-overlay {
+    z-index: var(--z-overlay) !important;
+  }
+
+  .p-drawer {
+    z-index: var(--z-overlay);
+  }
+
+  .toast-viewport {
+    z-index: var(--z-toast);
+  }
+
+  /* No desktop rail on a phone, not even for one frame.
+
+     The design system's `Sidebar` decides between a pinned `<aside>` and a
+     drawer with `useMediaQuery`, which cannot know the answer during server
+     rendering or before hydration — so the first paint of every cold load on a
+     phone was the desktop rail with the page squeezed into what was left
+     beside it. Caught on `/crm/clients`, which redirects and so paints that
+     frame for long enough to photograph.
+
+     The drawer keeps its copy: the same `<aside>` renders inside `.p-drawer`
+     when the sidebar is opened, and that one is the phone's sidebar. */
+  @media (max-width: 767.98px) {
+    .sidebar:not(.p-drawer .sidebar) {
+      display: none;
+    }
+  }
+
+  /* ── Bottom sheets ───────────────────────────────────────────────────────
+     A bottom sheet is as tall as what is in it.
+
+     `.drawer-bottom` takes a fixed `height: var(--drawer-size)` from the
+     design system, so every bottom sheet in the product opened at exactly
+     420px whatever it held — half a phone screen, with the controls in the top
+     third and dead space under them. That is the "modals launch in half
+     screen" this fixes. The size now bounds the sheet rather than fixing it:
+     short content hugs, long content scrolls at the cap.
+
+     The rounded top corners and the safe-area padding come with it. A sheet
+     that meets the bottom edge of the screen with square corners reads as a
+     panel that failed to finish, and on a phone with a home indicator its last
+     row sits under the bar. */
+  .drawer.drawer-bottom {
+    height: auto;
+    max-height: min(var(--drawer-size, 420px), calc(100dvh - 3rem));
+    border-top-left-radius: var(--radius-2xl);
+    border-top-right-radius: var(--radius-2xl);
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  .drawer.drawer-top {
+    height: auto;
+    max-height: min(var(--drawer-size, 420px), calc(100dvh - 3rem));
+    border-bottom-left-radius: var(--radius-2xl);
+    border-bottom-right-radius: var(--radius-2xl);
+  }
+
+  /* The grabber. Not draggable — it is the standing convention for "this came
+     up from the bottom edge and goes back down", and a sheet without one reads
+     as a page that half-loaded. Drawn on the sheet rather than added to every
+     call site's markup. */
+  .drawer.drawer-bottom::before {
+    content: "";
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    display: block;
+    width: 2.25rem;
+    height: 0.25rem;
+    margin: 0.5rem auto 0.25rem;
+    flex: none;
+    border-radius: var(--radius-full);
+    background: var(--border-strong);
+  }
+
+  body {
+    position: relative;
+    background-image: var(--app-canvas-wash);
+    background-attachment: fixed;
+    text-rendering: optimizeLegibility;
+  }
+
+  @media (hover: none) and (pointer: coarse) {
+    body {
+      background-attachment: scroll;
+    }
+  }
+
+  .app-root {
+    isolation: isolate;
+  }
+
+  /* Prevent iOS zoom on input focus.
+
+     `[contenteditable]` is a safety net only: a call site that sets its own
+     `text-sm` still wins, because utilities are a later layer than `app`. Any
+     composer that needs 16px on a phone has to say so itself. */
+  @media (max-width: 640px) {
+    html { font-size: 16px; }
+    input, select, textarea, [contenteditable="true"] { font-size: 16px; }
+  }
+
+  /* A record page is one column on anything smaller than a laptop.
+     `.detail-grid` ships from the design system as a hard `1fr 320px` with no
+     media query of its own — at phone width that crushes the content column to
+     a few pixels beside a full-width rail, and at tablet width it leaves ~380px
+     for a timeline or a table. iPad portrait (768/810/834) all land in that
+     band, so this collapses at `lg` rather than `md`. Precedent: the settings
+     shell, whose rail is 100px narrower, already collapses at 900px. */
+  @media (max-width: 1023.98px) {
+    .detail-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+
+  /* A stat tile is half a phone wide, and its number has to fit in it.
+
+     `.stat-tile .val` and `.b-sh-lead .v` ship at 32px and 40px with no media
+     query, which is right for a tile on a desk and wrong for one at 173px:
+     "USD 108,500" overflowed its own box, which is why every stat grid in this
+     repo used to stack one-per-row on a phone and spend three screens saying
+     six numbers. The tiles are two-up now, so the numerals come down to the
+     size that fits. Padding follows — 18px of it either side of a 137px
+     column is a quarter of the tile spent on air.
+
+     Nothing else about the tile changes: same label, same delta, same tone. */
+  @media (max-width: 639.98px) {
+    .stat-tile {
+      padding: 12px 14px;
+    }
+
+    .stat-tile .val {
+      font-size: 24px;
+    }
+
+    /* `StatHero` is drawn with inline styles rather than classes, so its 24px
+       padding and its change/subtitle row can only be reached from here — and
+       only with `!important`, which is what an inline style costs. The row
+       holds a delta and a sentence side by side with no wrap, which at 390px
+       becomes two ~170px columns of two-word lines. Wrapping puts the sentence
+       back on its own line. */
+    .b-stat-hero {
+      padding: 16px !important;
+    }
+
+    .b-stat-hero > div:last-child {
+      flex-wrap: wrap;
+    }
+
+    /* The same trade for the KPI cell, which is what a metric widget on the
+       CRM overview is made of. Two-up at 390px gives it ~165px; a display-sm
+       numeral needs more than that for anything with a thousands separator
+       in it. */
+    .kpi-cell {
+      padding: var(--space-3);
+      gap: var(--space-1);
+    }
+
+    .kpi-cell-val {
+      font: var(--type-section-title);
+    }
+  }
+
+  /* --- Control geometry -------------------------------------------------
+     Everything that reads as a button is built like one: same height, same
+     gap, same radius. Three places where that had drifted.
+
+     1. `.btn` carries `gap: 8px`, but the design system's Button wraps every
+        child in a `.btn-label` span it never styles. An icon passed as a
+        child therefore lands *inside* that span, where the button's gap
+        cannot reach it — measured at exactly 0px against the words on
+        "New lead", "Filter" and "Fields". The DS's own answer is the
+        `startIcon`/`endIcon` props, which render as siblings of the label;
+        this makes the label behave the same way for the hundreds of call
+        sites that pass an icon as a child instead. `gap: inherit` rather
+        than a number, so a button that sets its own gap keeps it. */
+  .btn-label {
+    display: inline-flex;
+    align-items: center;
+    gap: inherit;
+    min-width: 0;
+  }
+
+  /*    A button stretched to full width is a row, not a centred label: a
+        sheet of stacked controls, a form field filling its column. The words
+        start at the left edge and a trailing caret goes to the *right* edge,
+        which is where the eye looks for it and where a thumb reaches.
+
+        `:not(:only-child)` is doing real work. `:last-child` counts elements
+        only, so in `<span class="btn-label"><svg/>Filter</span>` — an icon
+        followed by a text node, which is how ~200 call sites pass an icon —
+        the icon is both the first and the last *element*, and the auto margin
+        shoved the icon and its label together against the right edge. A
+        genuine trailing caret has a sibling element before it. */
+  .btn:where(.w-full) {
+    justify-content: flex-start;
+  }
+  .btn:where(.w-full) > .btn-label {
+    flex: 1 1 auto;
+  }
+  .btn:where(.w-full) > .btn-label > svg:last-child:not(:only-child) {
+    margin-inline-start: auto;
+  }
+
+  /*    The same grammar for a column of controls a parent stretches, where
+        the class lands on nothing the parent owns. A sheet of filters is the
+        case: it stacks components it was handed, so it can set their width
+        but cannot put `w-full` on the button inside each one — which is why
+        that sheet rendered six centred labels where it meant to render six
+        rows. Named rather than repeated inline so the two stay in step. */
+  .stacked-controls > *,
+  .stacked-controls .btn,
+  .stacked-controls .segmented {
+    width: 100%;
+  }
+  .stacked-controls .btn {
+    justify-content: flex-start;
+  }
+  .stacked-controls .btn > .btn-label {
+    flex: 1 1 auto;
+  }
+  .stacked-controls .btn > .btn-label > svg:last-child:not(:only-child) {
+    margin-inline-start: auto;
+  }
+
+  /*    The app bar is one row of controls, so they are one height. Measured
+        at 390px it was four: a 30px sidebar toggle, a 30px search box drawing
+        its own padding, a 36px notification bell and a 30px page action. The
+        sidebar toggle ships from the design system and cannot be sized from
+        its call site, so the row states the height it wants and everything in
+        it obeys — including the toggle. */
+  header .btn,
+  header [data-sidebar="trigger"],
+  header [data-slot="sidebar-trigger"] {
+    height: var(--h-control-md);
+    min-height: var(--h-control-md);
+  }
+  header [data-sidebar="trigger"],
+  header [data-slot="sidebar-trigger"] {
+    width: var(--h-control-md);
+  }
+
+  /* 2. A segmented control is a row of buttons, so it stands as tall as one.
+        The DS sizes it off its own scale rather than the control-height
+        scale: `md` came out 34px and `sm` 28px beside 36px and 30px buttons,
+        which is what put a 24px Board/List toggle next to a 36px Filter
+        button in the same toolbar. Item height is the button height less the
+        track's own padding, so the *outer* edges line up — that is the part
+        anybody sees. Font sizes come up to the button's at the same size;
+        the DS's 12px `sm` is below this repo's floor anyway. */
+  .segmented {
+    padding: 3px;
+  }
+  .segmented .segmented-item {
+    height: calc(var(--h-control-md) - 6px);
+    font-size: 14px;
+    gap: 8px;
+  }
+  .segmented.segmented-sm {
+    padding: 2px;
+  }
+  .segmented.segmented-sm .segmented-item {
+    height: calc(var(--h-control-sm) - 4px);
+    font-size: 13px;
+    gap: 6px;
+  }
+
+  /* Date input color scheme */
+  input[type="date"],
+  input[type="datetime-local"] {
+    color-scheme: light;
+  }
+
+  input[type="date"]::-webkit-calendar-picker-indicator,
+  input[type="datetime-local"]::-webkit-calendar-picker-indicator {
+    opacity: 0.65;
+  }
+
+  :where(
+    a, button, input, select, textarea,
+    [role="button"], [tabindex]
+  ):focus-visible {
+    outline: 2px solid var(--focus-ring);
+    outline-offset: 2px;
+  }
+
+  /* ── Links ──────────────────────────────────────────────────────────────
+     The package's `tokens.css` paints every anchor `--text-link` (blue) and
+     underlines it on hover. Almost every anchor in this app is navigation or a
+     table affordance rather than a prose reference, so that rule turned rails,
+     tabs and cells into a page full of hyperlinks. Anchors inherit their
+     surrounding colour here; prose opts back in through `.link`, and links
+     inside running text keep an underline so they stay distinguishable without
+     relying on colour (WCAG 1.4.1). */
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+  a:hover { text-decoration: none; }
+
+  .link { color: var(--text-link); }
+
+  /* Declared after the reset above, and each selector outranks `a:hover`, so
+     the surfaces that genuinely want an underline keep it: deliberate accent
+     links, the text-button variant, table id cells, and links inside running
+     text (WCAG 1.4.1 — prose links must not rely on colour alone). */
+  .link:hover,
+  .btn-link:hover,
+  .dtable .id-link:hover {
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  /* `:not([class])`, not the package's `:not(.btn):not(.badge):not(.tag)`.
+     Menus are `<ul><li><a>`, so the looser selector underlined every item in
+     the app sidebar — the links this rule is for are the unstyled ones inside
+     running text, and those never carry a class. */
+  p a:not([class]),
+  li a:not([class]),
+  .lede a:not([class]) {
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   SECONDARY NAVIGATION — the vertical rail and the in-page tab strip.
+
+   Both surfaces follow the same rule: secondary navigation is a quiet list,
+   not a stack of controls. No outline, no shadow, no link colour, no
+   underline. Rest is body text on nothing; hover and active share one soft
+   fill and are separated by the weight of the label. Brand colour is the
+   primary-action colour and is never spent on marking position.
+
+   `.settings-rail` is the package's class name for this surface and
+   `.nav-rail` the app's general one — they render identically, and
+   `components/ui/nav-rail.tsx` is the only thing that should emit either.
+   This lives in `@layer app` so it outranks the package's own `.settings-rail`
+   block while Tailwind utilities still win over both.
+   ══════════════════════════════════════════════════════════════════════════ */
+
+@layer app {
+  :root {
+    /* Outer bound for a page carrying its own secondary sidebar. */
+    --shell-max: 1536px;
+  }
+
+  /* ── Avatars get their colour back ──────────────────────────────────────
+     The package hashes a name onto one of thirteen hues, stamps it on the
+     element as `data-accent`, and paints it with `.avatar-accent`. It then
+     emits its plain `.avatar` rule — `background: var(--surface-sunken)` —
+     twenty thousand characters *later* in the same bundle. Two single-class
+     selectors of equal specificity in one layer: the last one wins, so every
+     avatar in the product came out the same grey, and a timeline or a comment
+     thread showed four colleagues as four identical discs.
+
+     `@layer app` outranks `corelith` whatever the order inside it, and the
+     two-class selector keeps this above the package's own rule if the bundle
+     is ever fixed. `data-accent` sits on the avatar itself, so the hue is its
+     own and not inherited from a tinted ancestor. */
+  .avatar.avatar-accent {
+    background: var(--accent-bg);
+    color: var(--accent-fg);
+  }
+
+  /* ── Solid marks ────────────────────────────────────────────────────────
+     The filled discs that carry a colour code: a record's timeline chips, the
+     mark beside each row of "contact so far", and any avatar filled solid.
+
+     `--accent-solid` reverses white on ten of the thirteen hues. On orange,
+     amber and yellow it does not — white lands at 3.4, 2.9 and 2.5 to one —
+     which is why the package pairs those three with a near-black `--accent-on`
+     instead. That pairing passes as a *number* and fails as a *mark*: a 14px
+     stroked glyph in #3D2800 on #D08A05 is mud, and two initials in it are
+     worse, because thin strokes need far more separation than the body text
+     those ratios were derived for.
+
+     So those three take `--accent-fg` — the same hue, darkened to the value the
+     package already uses for text — and reverse white out of it at 5.5 to one,
+     better than the teal and red solids already in service. Every mark in the
+     product is now a white glyph on a solid fill, and no hue is dropped to get
+     there. */
+  .solid-mark,
+  .avatar.avatar-accent.avatar-accent-solid {
+    background: var(--accent-solid);
+    color: var(--accent-on);
+  }
+  [data-accent="orange"].solid-mark,
+  [data-accent="amber"].solid-mark,
+  [data-accent="yellow"].solid-mark,
+  .avatar[data-accent="orange"].avatar-accent-solid,
+  .avatar[data-accent="amber"].avatar-accent-solid,
+  .avatar[data-accent="yellow"].avatar-accent-solid {
+    background: var(--accent-fg);
+    color: #fff;
+  }
+
+  .settings-layout {
+    display: grid;
+    grid-template-columns: var(--rail-w, 220px) minmax(0, 1fr);
+    gap: 32px;
+    /* Was `32px 64px`. `.content-shell` already applies `--content-gutter-x`
+       and `py-6`, so that padding stacked on top of the frame's own and pushed
+       the rail a couple of inches off the edge. Only the trailing space below
+       the last section is ours to add. */
+    padding: 0 0 24px;
+    max-width: var(--shell-max);
+    margin-inline: auto;
+    width: 100%;
+  }
+
+  @media (max-width: 900px) {
+    .settings-layout {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 20px;
+    }
+  }
+
+  .settings-rail,
+  .nav-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    min-width: 0;
+  }
+
+  .settings-rail .group-label,
+  .nav-rail .group-label {
+    font: var(--type-caption);
+    color: var(--text-subtle);
+    padding: 18px 12px 6px;
+  }
+
+  .settings-rail > .group-label:first-child,
+  .nav-rail > .group-label:first-child { padding-top: 2px; }
+
+  .settings-rail .rail-item,
+  .nav-rail .rail-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+    min-width: 0;
+    min-height: 36px;
+    padding: 0 12px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    box-shadow: none;
+    font: 500 14px/1.2 var(--font-sans);
+    color: var(--text-body);
+    text-align: left;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      background-color var(--motion-duration-fast, 120ms) var(--motion-ease-standard, ease),
+      color var(--motion-duration-fast, 120ms) var(--motion-ease-standard, ease);
+  }
+
+  /* Hover and active must not be the same paint.
+
+     Both were `--surface-muted`, so pointing at a rail put a second row in
+     exactly the selected state — two items that look chosen, and no way to
+     tell which one you are actually on. Hover is now the lighter tint, and
+     selection is carried by a sunken ground plus a brand bar down the leading
+     edge, which is a mark hovering never produces. */
+  .settings-rail .rail-item:hover,
+  .nav-rail .rail-item:hover {
+    background: var(--surface-subtle, var(--surface-muted));
+    color: var(--text-strong);
+  }
+
+  .settings-rail .rail-item.active,
+  .nav-rail .rail-item.active,
+  .settings-rail .rail-item[aria-current="page"],
+  .nav-rail .rail-item[aria-current="page"] {
+    position: relative;
+    background: var(--surface-muted);
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .settings-rail .rail-item.active::before,
+  .nav-rail .rail-item.active::before,
+  .settings-rail .rail-item[aria-current="page"]::before,
+  .nav-rail .rail-item[aria-current="page"]::before {
+    content: "";
+    position: absolute;
+    inset-block: 6px;
+    inset-inline-start: 0;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--action-primary-bg, var(--brand));
+  }
+
+  .settings-rail .rail-item:disabled,
+  .nav-rail .rail-item:disabled {
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  .settings-rail .rail-item .tag,
+  .nav-rail .rail-item .tag { margin-left: 8px; }
+
+  .settings-rail .rail-item-icon,
+  .nav-rail .rail-item-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: var(--text-muted);
+  }
+
+  .settings-rail .rail-item:hover .rail-item-icon,
+  .settings-rail .rail-item.active .rail-item-icon,
+  .nav-rail .rail-item:hover .rail-item-icon,
+  .nav-rail .rail-item.active .rail-item-icon { color: var(--text-strong); }
+
+  .settings-rail .rail-item-label,
+  .nav-rail .rail-item-label {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .settings-rail .rail-item-count,
+  .nav-rail .rail-item-count {
+    margin-left: auto;
+    flex: none;
+    font: 500 11px/1 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-subtle);
+  }
+
+  .settings-rail .rail-item.active .rail-item-count,
+  .nav-rail .rail-item.active .rail-item-count { color: var(--text-muted); }
+
+  .settings-rail .rail-item-trailing,
+  .nav-rail .rail-item-trailing {
+    margin-left: auto;
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Below `lg` the rail becomes a scrolling strip rather than eating the whole
+     first screen before any content appears. */
+  .nav-rail[data-orientation="responsive"] {
+    flex-direction: row;
+    gap: 4px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .nav-rail[data-orientation="responsive"]::-webkit-scrollbar { display: none; }
+  .nav-rail[data-orientation="responsive"] .rail-item { width: auto; flex: none; }
+  .nav-rail[data-orientation="responsive"] .rail-item-label { overflow: visible; }
+  /* A group heading only reads as one once the rail is a column again. */
+  .nav-rail[data-orientation="responsive"] > .group-label { display: none; }
+
+  /* On a phone the strip runs to the edges of the screen. Cut short of the
+     gutter, the last tab looked clipped by a bug; cut by the screen itself, a
+     half-visible tab is the platform's own way of saying "this scrolls". Snap
+     so a swipe lands on a tab rather than halfway through one. */
+  @media (max-width: 639.98px) {
+    .nav-rail[data-orientation="responsive"] {
+      margin-inline: calc(var(--content-gutter-x) * -1);
+      padding-inline: var(--content-gutter-x);
+      scroll-padding-inline: var(--content-gutter-x);
+      scroll-snap-type: x proximity;
+    }
+    .nav-rail[data-orientation="responsive"] .rail-item { scroll-snap-align: start; }
+  }
+
+  /* ── Segmented control ───────────────────────────────────────────────────
+     `.segmented` is an equal-columns grid at `width: 100%`, which is right
+     until the labels stop fitting: six segments on a 390px screen gave each
+     62px, and "On site" wrapped to two lines *inside its own pill* while the
+     strip still ran off the right of the page. Both halves of that are fixed
+     here — a label never wraps, and a strip that cannot fit scrolls instead of
+     squashing. `minmax(max-content, 1fr)` keeps the equal widths whenever
+     there is room for them, so nothing changes on a desktop. */
+  .segmented {
+    grid-auto-columns: minmax(max-content, 1fr);
+    overflow-x: auto;
+    /* Stated, not left to the spec's default: a single `overflow-x` makes the
+       other axis compute to `auto`, which is a vertical scrollbar waiting to
+       appear on a 34px-tall control. */
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    scrollbar-width: none;
+  }
+
+  .segmented::-webkit-scrollbar { display: none; }
+
+  .segmented-item { white-space: nowrap; }
+
+  @media (min-width: 1024px) {
+    .nav-rail[data-orientation="responsive"] {
+      flex-direction: column;
+      gap: 1px;
+      overflow-x: visible;
+    }
+    .nav-rail[data-orientation="responsive"] .rail-item { width: 100%; }
+    .nav-rail[data-orientation="responsive"] > .group-label { display: block; }
+  }
+
+  /* ── Section tabs ────────────────────────────────────────────────────────
+     The in-page horizontal strip that sits above a section's content, usually
+     beside a rail. Active is strong text over a neutral indicator — not a blue
+     label on a blue rule, which is what six modules had each reinvented. */
+
+  .section-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    /* `flex-end`, not `stretch` — inside a stretched grid row (`.settings-content`
+       is `display: grid`) stretching would tear the active indicator away from
+       its label and leave it floating at the bottom of the row. */
+    align-items: flex-end;
+    align-content: flex-end;
+    gap: 2px;
+    width: 100%;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .section-tabs .section-tab {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    margin-bottom: -1px;
+    border: 0;
+    border-bottom: 2px solid transparent;
+    background: transparent;
+    font: 500 13px/1.2 var(--font-sans);
+    color: var(--text-muted);
+    white-space: nowrap;
+    text-decoration: none;
+    cursor: pointer;
+    transition:
+      color var(--motion-duration-fast, 120ms) var(--motion-ease-standard, ease),
+      border-color var(--motion-duration-fast, 120ms) var(--motion-ease-standard, ease);
+  }
+
+  .section-tabs .section-tab:hover { color: var(--text-strong); }
+
+  .section-tabs .section-tab.active {
+    color: var(--text-strong);
+    font-weight: 600;
+    border-bottom-color: var(--text-strong);
+  }
+
+  .section-tabs .section-tab svg {
+    width: 16px;
+    height: 16px;
+    flex: none;
+    color: currentColor;
+  }
+
+  .section-tabs .section-tab-count {
+    font: 500 11px/1 var(--font-mono);
+    font-variant-numeric: tabular-nums;
+    color: var(--text-subtle);
+  }
+}
+
+/* ── Utility Classes ────────────────────────────────────────────────────── */
+
+@layer utilities {
+  /* Typography utilities */
+  .text-page-title {
+    font-size: var(--type-page-title-size);
+    line-height: var(--type-page-title-line);
+    font-weight: var(--type-page-title-weight);
+  }
+
+  .text-section-title {
+    font-size: var(--type-section-title-size);
+    line-height: var(--type-section-title-line);
+    font-weight: var(--type-section-title-weight);
+  }
+
+  .text-field-label {
+    font-size: var(--type-field-label-size);
+    line-height: var(--type-field-label-line);
+    font-weight: var(--type-field-label-weight);
+  }
+
+  .text-field-help {
+    font-size: var(--type-field-help-size);
+    line-height: var(--type-field-help-line);
+    font-weight: var(--type-field-help-weight);
+  }
+
+  .text-table-cell {
+    font-size: var(--type-table-text-size);
+    line-height: var(--type-table-text-line);
+    font-weight: var(--type-table-text-weight);
+  }
+
+  /* Matches the design system's `--type-table-head` (500 12/1.3). Sentence
+     case, not caps — the type rules in docs/design-system/02-tokens.md rule out
+     ALL CAPS everywhere, `<th>` included. */
+  .text-table-header {
+    font-size: var(--type-table-header-size);
+    line-height: var(--type-table-header-line);
+    font-weight: var(--type-table-header-weight);
+    color: var(--table-header-text);
+  }
+
+  .text-body-base {
+    font-size: var(--type-body-size);
+    line-height: var(--type-body-line);
+    font-weight: var(--type-body-weight);
+  }
+
+  .text-caption {
+    font-size: var(--type-caption-size);
+    line-height: var(--type-caption-line);
+    font-weight: var(--type-caption-weight);
+  }
+
+  /* Elevation utilities */
+  .elev-1 { box-shadow: var(--elevation-1); }
+  .elev-2 { box-shadow: var(--elevation-2); }
+  .elev-3 { box-shadow: var(--elevation-3); }
+
+  /* Surface frame (Attio-style inset border cards) */
+  .surface-framed {
+    box-shadow: var(--surface-frame-shadow);
+  }
+
+  .surface-framed-hover {
+    transition: box-shadow var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .surface-framed-hover:hover {
+    box-shadow: var(--surface-frame-shadow-hover);
+  }
+
+  /* Scroll container utilities */
+  .scroll-rail {
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .scroll-rail::-webkit-scrollbar {
+    display: none;
+  }
+
+  .scroll-rail-y {
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scroll-rail-y::-webkit-scrollbar {
+    width: var(--scrollbar-width);
+  }
+
+  .scroll-rail-y::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  .scroll-rail-y::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border-radius: var(--radius-full);
+  }
+
+  .scroll-rail-y::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
+  /* Table utilities */
+  .table-rail {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 0;
+  }
+
+  .table-rail > [data-slot="table"] {
+    width: max(100%, max-content);
+    min-width: 100%;
+  }
+
+  .table-edge-to-edge {
+    width: calc(100% + (var(--content-gutter-x) * 2));
+    margin-inline: calc(var(--content-gutter-x) * -1);
+    max-width: none;
+  }
+
+  /* Layout shells */
+  .content-shell {
+    padding-inline: var(--content-gutter-x);
+  }
+
+  /* A band that pins to the top of the scrollport.
+     `main` carries the page gutter, so a band nested inside it would stop 16px
+     short of each edge and its bottom hairline would float with a gap at both
+     ends — which reads as a broken rule rather than a boundary. This bleeds
+     back out by the gutter and immediately puts it back as padding: the
+     background and the hairline reach the full width of the scrollport while
+     the band's content still lines up with the page below it.
+
+     Opaque on purpose. A translucent band over a scrolling table smears the
+     row underneath it and repaints every frame. */
+  .band-shell {
+    width: calc(100% + (var(--content-gutter-x) * 2));
+    margin-inline: calc(var(--content-gutter-x) * -1);
+    padding-inline: var(--content-gutter-x);
+    max-width: none;
+  }
+
+  /* The record page's frame.
+
+     A record is the one surface in the module that does not scroll as a page.
+     The artboard draws it as a fixed shell — an identity band that never moves,
+     and three panes beside each other that each scroll on their own — so
+     reading forty messages in the conversation never takes the properties or
+     the section rail off the screen with it.
+
+     Two things that asks of `main`. The shell fills the scrollport exactly, so
+     `main` itself has nothing left to scroll: `--content-viewport` is defined
+     as the height `main` actually has, which is why it can be trusted here. And
+     it bleeds back out of the page gutter, because the seams between the panes
+     are full-height rules that have to meet the frame — stopping 16px short at
+     each end reads as three floating columns rather than one divided surface.
+
+     Written as a class rather than utilities because the negation has to be a
+     `calc()`. Tailwind's leading-minus shorthand cannot negate a bare custom
+     property — it emits a literal ellipsis, which is not CSS, and Turbopack
+     then fails the whole stylesheet, so every page 500s rather than this one
+     merely looking wrong.
+
+     Below `md` none of it applies: a phone gets the landing view and drills
+     into one section at a time, which is a page that scrolls like any other. */
+  @media (min-width: 48rem) {
+    .record-shell {
+      display: flex;
+      flex-direction: column;
+      height: var(--content-viewport);
+      overflow: hidden;
+      width: calc(100% + (var(--content-gutter-x) * 2));
+      margin-inline: calc(var(--content-gutter-x) * -1);
+      max-width: none;
+    }
+  }
+
+  /* `--stack-top` is "the next free offset in this scrollport".
+     Each band that pins reads it, then republishes it one band lower to its
+     own children. The bands compose without any of them knowing what is above:
+     a list toolbar on a page with a view switcher lands at 88, the same
+     toolbar on a page without one lands at 44, and neither page states a
+     number. This is what stops a column header hiding behind a toolbar the
+     next time a band is added or removed. */
+  .band-stack-content {
+    --stack-top: var(--page-band-h);
+  }
+
+  /* frappe's ListView, made to pin.
+     Its header is a grid sibling above the rows, and the wrapper around both
+     sets `overflow-y: hidden` — which makes that wrapper a scroll container
+     and silently disables `position: sticky` on anything inside it. The header
+     scrolled away with the rows and there was no way to switch it on from the
+     component's own API. Both halves are needed: release the wrapper, then
+     pin the header at whatever the stack has reached. */
+  .acct-listview .overflow-y-hidden {
+    overflow-y: visible;
+  }
+
+  /* The table gets its own viewport.
+
+     A wide ledger needs `overflow-x: auto` for its columns, and CSS will not
+     let one axis scroll while the other stays visible — the cross axis is
+     forced to `auto` too. That makes frappe's table region a scroll container,
+     and a scroll container is the containing block for any `position: sticky`
+     inside it. So a header pinned to the *page* offset could never work here:
+     it stuck to a box that was itself scrolling away.
+
+     Bounding the region's height turns that constraint into the better
+     behaviour. The table scrolls in place under a header pinned to the top of
+     its own box, both axes move together so the header stays aligned with its
+     columns, and the bands above it never move at all. The height is whatever
+     the viewport has left once the sticky stack above has taken its share. */
+  .acct-listview .overflow-x-auto {
+    max-height: calc(var(--content-viewport) - var(--table-head-top, 0px) - 4rem);
+  }
+
+  .acct-listview .bg-surface-gray-2 {
+    position: sticky;
+    top: 0;
+    z-index: 10;
+  }
+
+  /* The canvas panel, on every work surface.
+
+     The package tunes `.card` for a reader being introduced to the product:
+     20px of horizontal padding, 16 above the title, and a 16px section-title
+     with no rule under it. The artboards draw something else — a 36px head at
+     13px padding, a 12.5px bold title, and a hairline separating head from
+     body — and they draw it identically in accounting and in CRM setup,
+     because it is one panel.
+
+     Scoped to `.band-stack-content`, which the accounting, CRM and module
+     shells all set. That covers every work surface and deliberately leaves
+     the marketing and onboarding pages on the roomier default, where a reader
+     is being introduced rather than checking a figure.
+
+     The head is `min-height` rather than `height`: a panel whose head carries
+     a control — a select, a segmented switch — needs to grow rather than clip
+     it, and the artboards that do this draw a taller head. */
+  .band-stack-content .card-head {
+    min-height: 36px;
+    /* 6px rather than the artboard's 0: a single line still lands on 36
+       because min-height governs, and a head whose note wraps on a narrow
+       column gets room instead of colliding with its own border. */
+    padding: 6px 13px;
+    align-items: center;
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .band-stack-content .card-title {
+    font-size: var(--text-sm);
+    font-weight: 700;
+    line-height: 1.3;
+    color: var(--text-strong);
+  }
+
+  .band-stack-content .card-sub {
+    font-size: var(--text-sm);
+    color: var(--text-subtle);
+  }
+
+  .band-stack-content .card-body {
+    padding: 8px 13px 13px;
+  }
+
+  .band-stack-content .card-pad {
+    padding: 12px 13px;
+  }
+
+  .band-stack-content .card-foot {
+    padding: 10px 13px;
+    border-top: 1px solid var(--border-subtle);
+  }
+
+  /* ── The canvas badge ────────────────────────────────────────────────
+     A status badge in a 36px table row, drawn to the artboards: 18px tall,
+     4px corners, 10.5px at 600.
+
+     Written as CSS rather than utilities for two reasons. It is one shape
+     used in every accounting table, so it belongs in one place — and the
+     type scale's 13px floor is enforced on Tailwind class strings, which is
+     the right rule for prose and the wrong one for a chip whose height is
+     fixed at 18px. Naming it here keeps that exception visible and countable
+     instead of scattering arbitrary sizes through the pages.
+
+     The tone is an attribute rather than five classes so a page can pass a
+     tone straight through from data without a lookup table of class names. */
+  .acct-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 18px;
+    padding: 0 7px;
+    border-radius: 4px;
+    font-size: 10.5px;
+    font-weight: 600;
+    line-height: 1;
+    white-space: nowrap;
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  .acct-badge[data-tone="ok"] {
+    background: var(--badge-ok-bg);
+    color: var(--badge-ok-fg);
+  }
+
+  .acct-badge[data-tone="warn"] {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .acct-badge[data-tone="bad"] {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
+  .acct-badge[data-tone="info"] {
+    background: var(--badge-info-bg);
+    color: var(--badge-info-text);
+  }
+
+  /* ── The canvas stat tile ────────────────────────────────────────────
+     A KPI as the artboards draw it: a tone dot, a label, the figure, then
+     the two things that qualify it — a delta and what the delta is against.
+
+     Same reasoning as `.acct-badge` for living in CSS: the label and the
+     footer sit below the 13px type floor by design, because this tile packs
+     five pieces of information into 78px and six of them sit across a
+     2xl row. Keeping the sizes here makes that one decision rather than
+     forty scattered ones. */
+  .acct-stat {
+    padding: 11px 13px 12px;
+  }
+
+  .acct-stat-dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 2px;
+    flex-shrink: 0;
+  }
+
+  .acct-stat-label {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  /* Tabular mono at 23px with the tracking pulled in. The figure is the one
+     thing on the tile that gets read at a glance, and mono is what lets a
+     column of them line up on the decimal. */
+  .acct-stat-value {
+    font-size: 23px;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+    line-height: 1.1;
+  }
+
+  .acct-stat-delta,
+  .acct-stat-note {
+    font-size: 10.5px;
+  }
+
+  .acct-stat-delta {
+    font-weight: 700;
+  }
+
+  .acct-stat-note {
+    color: var(--text-subtle);
+  }
+
+  /* ── The design system's Badge, brought onto the canvas ──────────────
+     The package draws `.badge` as a 22px pill at 11px/500, and colours each
+     tone from the mid-ramp (`--tone-danger`, `#B83A2A`) rather than from the
+     status inks. That gave the app two different badges claiming to mean the
+     same thing: `.acct-badge` in the accounting tables, and this one in the
+     ~140 call sites that use `<Badge>` — different height, different corner,
+     different red.
+
+     This is the same shape as `.acct-badge`, so the two are interchangeable
+     and a page can mix a `<Badge>` with a table cell chip without the seam
+     showing. The pill was the loudest single difference: a fully rounded
+     22px chip beside a 4px 18px one reads as a control rather than a label.
+
+     Scoped overrides rather than a fork of the component — `<Badge>` keeps
+     its API, its tones and its dot slot. Only the geometry and the three
+     tone inks move.
+
+     `.badge-mini` is deliberately untouched: it is a notification count on a
+     nav item, where a circle is correct. */
+  .badge:not(.badge-mini) {
+    height: 18px;
+    padding: 0 7px;
+    gap: 4px;
+    border-radius: 4px;
+    font: 600 10.5px/1 var(--font-sans);
+  }
+
+  .badge-success {
+    background: var(--badge-ok-bg);
+    color: var(--badge-ok-fg);
+  }
+
+  .badge-warn {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .badge-danger {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
+  .badge-info {
+    background: var(--badge-info-bg);
+    color: var(--badge-info-text);
+  }
+
+  .badge-neutral {
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  /* The record band's stage chip — every stage named, inline.
+
+     22px tall at 11px so eight of them fit across a 44px band beside a status
+     chip and a reference. Below the type floor by design: these are labels in
+     a control strip, not prose, and the current one is the only one that has
+     to be read at a glance — which it earns with fill, not size. */
+  .acct-stage-chip {
+    display: flex;
+    height: 22px;
+    flex-shrink: 0;
+    align-items: center;
+    border-radius: 4px;
+    padding-inline: 8px;
+    font-size: 11px;
+  }
+
+  /* The canvas field label.
+
+     11.5px at 600 in the muted ink, 5px above its control. Same reasoning as
+     the badge for living in CSS: it is one shape repeated across every form in
+     both modules, and the size is a deliberate step below the body floor
+     because a label sits directly above the value it names — it does not
+     compete for reading, it points.
+
+     Replaces the `text-xs text-muted-foreground mb-1 block` that had accreted
+     across the editor sheets, which was both the wrong size and the wrong
+     grey — `--muted-foreground` is a shadcn holdover, not a token this design
+     system defines a role for. */
+  .acct-field-label {
+    display: block;
+    margin-bottom: 5px;
+    font-size: 11.5px;
+    font-weight: 600;
+    line-height: 1.3;
+    color: var(--text-muted);
+  }
+
+  /* A hint or caption under a control — the same step down as a field label,
+     but at normal weight and with no block/margin of its own, because it
+     follows its subject rather than introducing one.
+
+     Also replaces `text-muted-foreground`, a shadcn holdover this design
+     system has no role for; `--text-subtle` is the token for text that
+     recedes. */
+  .acct-caption {
+    font-size: 11.5px;
+    color: var(--text-subtle);
+  }
+
+  /* The canvas column head.
+     A label strip rather than a row of prose: 10px, heavy, uppercase, and
+     letterspaced so the caps stay legible at that size. Shared by the CRM
+     record tables and `ReportTable`, so a list and a report drawn on the same
+     page have the same chrome. */
+  .acct-col-head {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--table-header-text);
+  }
+
+  /* Group headings and secondary lines inside a narrow rail — the posting
+     rules index, and anything else that lists grouped records beside a detail
+     pane. Same reasoning as the badge for living here: these are 10px and
+     10.5px by design, in a 264px column where a 13px heading would wrap. */
+  .acct-rail-heading {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 0.09em;
+    text-transform: uppercase;
+    color: var(--text-subtle);
+  }
+
+  .acct-rail-sub {
+    font-family: var(--font-mono);
+    font-size: 10.5px;
+    color: var(--gray-400);
+  }
+
+  /* The rail's count badge is the same idea two steps smaller — it sits in a
+     29px nav row rather than a table cell, and it carries a number, not a
+     word, so it can afford to be tighter and heavier. */
+  .acct-rail-badge {
+    display: inline-flex;
+    align-items: center;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 4px;
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    flex-shrink: 0;
+    background: var(--badge-mute-bg);
+    color: var(--badge-mute-fg);
+  }
+
+  .acct-rail-badge[data-tone="warn"] {
+    background: var(--badge-warn-bg);
+    color: var(--badge-warn-fg);
+  }
+
+  .acct-rail-badge[data-tone="bad"] {
+    background: var(--badge-bad-bg);
+    color: var(--badge-bad-fg);
+  }
+
+  .section-shell {
+    margin-inline: 0;
+    padding-inline: var(--content-gutter-x);
+  }
+
+  /* Mobile list layout */
+  .mobile-list {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mobile-list-item {
+    display: flex;
+    align-items: center;
+    gap: var(--space-3);
+    min-height: var(--mobile-list-item-height);
+    padding-inline: var(--mobile-list-item-padding-x);
+    border-bottom: 1px solid var(--mobile-list-divider-color);
+    transition: background-color var(--motion-duration-fast) var(--motion-ease-standard);
+  }
+
+  .mobile-list-item:last-child {
+    border-bottom: none;
+  }
+
+  .mobile-list-item:active {
+    background-color: var(--surface-muted);
+  }
+
+  .mobile-list-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: var(--mobile-list-icon-size);
+    height: var(--mobile-list-icon-size);
+    border-radius: var(--mobile-list-icon-radius);
+    background: var(--surface-soft);
+    border: 1px solid var(--edge-default);
+    box-shadow: var(--surface-frame-shadow);
+    flex-shrink: 0;
+  }
+
+  .mobile-list-content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .mobile-list-title {
+    font-size: var(--type-size-14);
+    font-weight: 500;
+    color: var(--text-body);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-list-subtitle {
+    font-size: var(--type-size-13);
+    color: var(--text-muted);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobile-list-meta {
+    font-size: var(--type-size-12);
+    color: var(--text-subtle);
+    text-align: right;
+    flex-shrink: 0;
+  }
+
+  /* Touch action utilities */
+  .touch-action-pan-y {
+    touch-action: pan-y;
+  }
+
+  .touch-scroll-snap {
+    scroll-snap-type: x mandatory;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .touch-scroll-snap > * {
+    scroll-snap-align: start;
+  }
+
+  /* Scrollbar hide utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Scroll snap utilities */
+  .scroll-snap-x {
+    scroll-snap-type: x mandatory;
+  }
+  .scroll-snap-y {
+    scroll-snap-type: y mandatory;
+  }
+  .scroll-snap-both {
+    scroll-snap-type: both mandatory;
+  }
+
+  /* Reduced motion support */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+}
+
+/* ── Global Keyframes ───────────────────────────────────────────────────── */
+
+@keyframes shimmer {
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+/* ── POS Terminal Theme ─────────────────────────────────────────────────── */
+
+.pos-terminal {
+  /* Navigation rail */
+  --pos-rail-bg: #0c1015;
+  --pos-rail-border: rgba(255,255,255,0.07);
+  --pos-rail-text-idle: rgba(255,255,255,0.36);
+  --pos-rail-text-active: #ffffff;
+  --pos-rail-active-bg: rgba(47,107,255,0.18);
+  --pos-rail-active-ring: rgba(47,107,255,0.42);
+  --pos-rail-workspace-shadow: 0 8px 28px rgba(0,0,0,0.5);
+
+  /* Dark instrument panel (dialog headers, amount display, table headers) */
+  --pos-amount-bg: #090e18;
+  --pos-amount-surface: #111827;
+  --pos-amount-text: #f0f9ff;
+  --pos-amount-label: rgba(240,249,255,0.42);
+  --pos-amount-border: rgba(255,255,255,0.07);
+  --pos-amount-pill-bg: rgba(255,255,255,0.07);
+  --pos-amount-pill-text: rgba(255,255,255,0.6);
+  --pos-amount-pill-hover-bg: rgba(255,255,255,0.12);
+  --pos-amount-pill-active-bg: rgba(47,107,255,0.22);
+  --pos-amount-pill-active-text: #93b4ff;
+  --pos-amount-pill-active-ring: rgba(47,107,255,0.45);
+  --pos-change-bg: rgba(34,197,94,0.14);
+  --pos-change-text: #4ade80;
+  --pos-due-bg: rgba(245,158,11,0.14);
+  --pos-due-text: #fbbf24;
+
+  /* Physical keypad */
+  --pos-key-bg: #ffffff;
+  --pos-key-border: #cdd5df;
+  --pos-key-shadow: #96a5b5;
+  --pos-key-text: #0f172a;
+  --pos-key-hover-bg: #f8fafc;
+  --pos-key-preset-bg: #f0fdf4;
+  --pos-key-preset-border: #bbf7d0;
+  --pos-key-preset-shadow: #86efac;
+  --pos-key-preset-text: #15803d;
+  --pos-key-back-bg: #f8fafc;
+  --pos-key-back-border: #e2e8f0;
+  --pos-key-back-shadow: #94a3b8;
+  --pos-key-back-text: #475569;
+  --pos-key-clear-bg: #fff1f2;
+  --pos-key-clear-border: #fecdd3;
+  --pos-key-clear-shadow: #fca5a5;
+  --pos-key-clear-text: #be123c;
+
+  /* Flat ringed status banners */
+  --pos-status-success-bg: rgba(34,197,94,0.08);
+  --pos-status-success-ring: rgba(34,197,94,0.25);
+  --pos-status-success-text: #15803d;
+  --pos-status-warning-bg: rgba(245,158,11,0.08);
+  --pos-status-warning-ring: rgba(245,158,11,0.25);
+  --pos-status-warning-text: #92400e;
+  --pos-status-danger-bg: rgba(239,68,68,0.08);
+  --pos-status-danger-ring: rgba(239,68,68,0.25);
+  --pos-status-danger-text: #b91c1c;
+  --pos-status-info-bg: rgba(47,107,255,0.08);
+  --pos-status-info-ring: rgba(47,107,255,0.25);
+  --pos-status-info-text: #1f46c4;
+
+  /* Primary CTA */
+  --pos-cta-bg: #2f6bff;
+  --pos-cta-text: #ffffff;
+  --pos-cta-shadow: #1f46c4;
+
+  /* Tender buttons */
+  --pos-tender-idle-bg: #ffffff;
+  --pos-tender-idle-border: #cdd5df;
+  --pos-tender-idle-shadow: #96a5b5;
+  --pos-tender-idle-text: #475569;
+  --pos-tender-cash-bg: #15803d;
+  --pos-tender-cash-shadow: #14532d;
+  --pos-tender-card-bg: #2563eb;
+  --pos-tender-card-shadow: #1e40af;
+  --pos-tender-mobile-bg: #ea580c;
+  --pos-tender-mobile-shadow: #9a3412;
+  --pos-tender-transfer-bg: #7c3aed;
+  --pos-tender-transfer-shadow: #5b21b6;
+  --pos-tender-voucher-bg: #d97706;
+  --pos-tender-voucher-shadow: #92400e;
+
+  /* LCD numeric input */
+  --pos-lcd-bg: #f0f4f8;
+  --pos-lcd-bg-active: #e0eaf5;
+  --pos-lcd-border: #cdd5df;
+  --pos-lcd-text: #0f172a;
+  --pos-lcd-text-active: var(--action-primary-bg);
+  --pos-lcd-label: #64748b;
+
+  /* Shadow utilities */
+  --shadow-card: 0 1px 3px rgba(15,23,42,0.06), 0 8px 24px rgba(15,23,42,0.06);
+  --shadow-popover: 0 4px 6px -1px rgba(15,23,42,0.1), 0 2px 4px -2px rgba(15,23,42,0.1);
+}
+
+/* No `prefers-color-scheme` block. The product is light-only: reading the
+   operating system's preference put a dark terminal in front of anyone whose
+   laptop was set that way, which nobody had asked for. A dark POS skin, if it
+   is wanted, is an explicit choice on the terminal — not an inference. */
+
+/* ── campus motion ───────────────────────────────────────────────────
+   Animation the campus screens use, in one place so the timings agree.
+   Every one is short, purposeful and reduced-motion aware: the point is
+   to say something arrived or changed, never to decorate a wait.
+
+   The DS ships a global `prefers-reduced-motion` block that flattens all
+   animation to 0.01ms, so these inherit that for free. */
+
+@keyframes campus-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes campus-fade-in {
+  from { opacity: 0; transform: translateY(-4px) scale(0.98); }
+  to   { opacity: 1; transform: none; }
+}
+
+@keyframes campus-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50%       { opacity: 0.45; transform: scale(0.82); }
+}
+
+/* A skeleton row, cascading in rather than switching on all at once.
+   `backwards` holds the start frame through the delay, so a row waiting
+   its turn is invisible rather than drawn then hidden. */
+.campus-skeleton-row {
+  animation: campus-row-in var(--dur-base, 0.2s) var(--ease-out, cubic-bezier(.22,1,.36,1)) backwards;
+}
+
+/* Rows that have just landed. Same cascade, so the real list arrives the
+   way its skeleton did and nothing appears to jump. */
+.campus-row-in {
+  animation: campus-row-in var(--dur-base, 0.2s) var(--ease-out, cubic-bezier(.22,1,.36,1)) backwards;
+}
+
+.campus-fade-in {
+  animation: campus-fade-in var(--dur-fast, 0.14s) var(--ease-out, cubic-bezier(.22,1,.36,1));
+}
+
+/* The dot on a "Saving…" pill. A heartbeat, not a spinner: it says work is
+   in flight without implying a percentage nobody can measure. */
+.campus-pulse-dot {
+  animation: campus-pulse 1.1s var(--ease-in-out, cubic-bezier(.65,0,.35,1)) infinite;
+}

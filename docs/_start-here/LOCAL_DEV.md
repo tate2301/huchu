@@ -95,7 +95,7 @@ On Windows without `openssl`, PowerShell will do:
 ## 5. Schema
 
 ```bash
-pnpm db:push        # creates every table from prisma/schema.prisma
+pnpm db:push        # creates every table from packages/db/prisma/schema/ (throwaway databases only)
 pnpm db:generate    # regenerate the typed client
 ```
 
@@ -118,7 +118,7 @@ tells you so:
 Neither needs a drop. Run the data migrations first, then push:
 
 ```bash
-pnpm db:migrate:data
+pnpm enterprise db:migrate:data
 pnpm db:push
 ```
 
@@ -148,7 +148,7 @@ value that existing rows still hold. `lib/workflow/approvals.test.ts` enforces i
 ## 6. Seed a tenant and run
 
 ```bash
-npx tsx scripts/seed-payroll-demo.ts
+pnpm enterprise exec tsx scripts/seed-payroll-demo.ts
 pnpm dev
 ```
 
@@ -282,8 +282,8 @@ there redirect to `/admin`. Sign in at the tenant host instead:
 
 ```bash
 npx tsc --noEmit
-pnpm lint      # 250 problems / 48 errors is the current baseline, not a failure
-pnpm test      # 151 files / 2259 tests
+pnpm lint      # 148 problems / 28 errors is the current baseline, not a failure (CI reports, does not block)
+pnpm test      # every Vitest file in the workspace; 3 known failures, see docs/rollout/product-split-deployment.md §5a
 ```
 
 **`pnpm test` needs Postgres running.** A large share of the suite is DB-backed on
@@ -299,9 +299,14 @@ pg_isready || sudo pg_ctlcluster 16 main start      # Linux (16 = your cluster v
 
 `pnpm lint` exits non-zero at the baseline. Compare the count, not the exit code.
 
+**The repository is a pnpm workspace.** The app is `apps/enterprise`, the database is
+`packages/db`; run `pnpm` commands from the repository root (`pnpm dev`, `pnpm test`,
+`pnpm db:*`, and `pnpm enterprise <script>` for anything in `apps/enterprise/package.json`).
+The `.env` stays at the root. See `docs/rollout/product-split-deployment.md`.
+
 ## 9. Things that will bite you
 
-**A stale Prisma client after a schema change.** `pnpm db:push && pnpm db:generate`
+**A stale Prisma client after a schema change.** `pnpm db:migrate:dev && pnpm db:generate`
 does not reload a dev server that is already running. The app keeps using the old
 client and API routes 500 while `tsc` and `db push` both look perfectly happy.
 **Restart `pnpm dev` after any `db:generate`.**
@@ -327,7 +332,8 @@ That stopped being true in August 2026.)*
 The history was reconciled with the schema over commits `08aa5197` (recovered the orphan
 migration that blocked `migrate deploy`), `84444c2c` (history caught up with the scripts)
 and `eb0c8fd9` (pending migrations deployed). There are now 63 migrations and a
-`migration_lock.toml`, and `prisma/migrations` is what production applies.
+`migration_lock.toml`, and `packages/db/prisma/migrations` is what production applies —
+from the database release workflow once it is enabled (`docs/rollout/product-split-deployment.md`).
 
 Use `prisma migrate dev` for a schema change that is going to production — see
 `.claude/agents/gold-data-foundation.md`, which requires it and requires a migration

@@ -1,0 +1,41 @@
+import { redirect } from "next/navigation";
+import { headers } from "next/headers";
+import { AdminMagicLinkLogin } from "@/components/admin-portal/admin-magic-link-login";
+import { getCurrentAuthSession } from "@corelithzw/platform/auth-core/guards";
+import { normalizeCallbackUrl } from "@corelithzw/platform/auth-core/redirects";
+import { getAuthStrategiesForSurface } from "@corelithzw/platform/auth-core/strategy-registry";
+import { ADMIN_PORTAL_HOST, isAdminPortalHost } from "@corelithzw/platform/admin-portal";
+import { getHostHeaderFromRequestHeaders } from "@corelithzw/platform/tenant";
+
+export default async function AdminLoginPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ callbackUrl?: string }>;
+}) {
+  const headersList = await headers();
+  const host = getHostHeaderFromRequestHeaders(headersList);
+  const { callbackUrl } = await searchParams;
+  const resolvedCallbackUrl = normalizeCallbackUrl(callbackUrl, "/admin/dashboard");
+  const strategies = getAuthStrategiesForSurface("admin-login");
+  const adminStrategy = strategies.find((strategy) => strategy.id === "admin-email-link");
+
+  if (!isAdminPortalHost(host)) {
+    redirect("/access-blocked");
+  }
+
+  if (!adminStrategy) {
+    redirect("/access-blocked");
+  }
+
+  const session = await getCurrentAuthSession();
+  if (session?.user?.role === "SUPERADMIN") {
+    redirect(resolvedCallbackUrl);
+  }
+
+  return (
+    <>
+      <AdminMagicLinkLogin callbackUrl={resolvedCallbackUrl} />
+      <p className="sr-only">Restricted host: {ADMIN_PORTAL_HOST}</p>
+    </>
+  );
+}
