@@ -181,6 +181,23 @@ admin app for a single tenant.
 Two halves have to agree: hosts-file entries so the names resolve, and `.env` so
 the app enforces them.
 
+> **No admin rights? You do not need the hosts file at all.** *(Added 2026-09-01.)*
+> A non-production build can be *told* which host to behave as — `?__tenant=`,
+> `?__host=`, the `x-huchu-preview-host` header, or the `__huchu_preview_host`
+> cookie — so one origin reaches every tenant and every portal. Set
+> `PREVIEW_HOST_OVERRIDE=1` and `PREVIEW_BYPASS_HOST_ENFORCEMENT=1`, and see
+> `STAGING_PREVIEW.md`. It is not a bypass of tenant routing: sign-in is still
+> scoped to the tenant the nominated host resolves to, and enforcement still runs
+> against it. Do not nominate from a `localhost` origin, though —
+> `lib/platform/preview-host.ts` relaxes strict enforcement for loopback, so you
+> would stop testing the paths production takes. The e2e suite works this way;
+> `e2e/_support/tenants.ts` has the details.
+>
+> Note that a wildcard hosts entry is not an option on any OS, and the usual
+> escape — `*.localtest.me` — can be hijacked by a router's DNS-rebind
+> protection, which is what happens on at least one machine here (it resolves to
+> `192.168.1.1`).
+
 ### 7a. Windows hosts file
 
 `C:\Windows\System32\drivers\etc\hosts` — **editing it requires administrator
@@ -282,9 +299,23 @@ there redirect to `/admin`. Sign in at the tenant host instead:
 
 ```bash
 npx tsc --noEmit
-pnpm lint      # 250 problems / 48 errors is the current baseline, not a failure
-pnpm test      # 151 files / 2259 tests
+pnpm lint              # 250 problems / 48 errors is the current baseline, not a failure
+pnpm test              # 151 files / 2259 tests
+pnpm verify:migrations # prisma/migrations can rebuild the schema from nothing
 ```
+
+**`pnpm test` refuses to run without `DATABASE_URL_TEST`.** *(Changed 2026-09-01.)*
+It used to fall back to `DATABASE_URL` when that was unset, which is how ~390
+test tenants ended up on the shared Neon database. It now stops, and it also
+refuses a `DATABASE_URL_TEST` that is not on localhost. `ALLOW_REMOTE_TEST_DB=1`
+overrides that for a CI service container.
+
+**`pnpm verify:migrations` builds a throwaway database from `prisma/migrations`,**
+applies every migration in order, and diffs the result against `schema.prisma`.
+It takes about 15 seconds. It exists because `prisma migrate diff
+--from-migrations --to-schema` compares end states only and cannot see a
+migration that will not execute in order — which is exactly the fault that made
+a from-scratch build impossible between 2026-08-19 and 2026-09-01.
 
 **`pnpm test` needs Postgres running.** A large share of the suite is DB-backed on
 purpose — a mocked Prisma client cannot tell you what a column did with your
