@@ -182,6 +182,7 @@ export const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
       icon: RefreshCcw,
     },
     { id: "role-change", label: "Role Change", href: "/preferences/organization/users", icon: UserCheck },
+    { id: "api-keys", label: "API Keys", href: "/preferences/organization/api-keys", icon: ShieldCheck },
   ],
   "document-templates": [
     { id: "library", label: "Template Library", href: "/preferences/organization/templates", icon: MedusaBookOpenIcon },

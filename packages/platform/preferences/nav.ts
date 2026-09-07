@@ -56,6 +56,13 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     description: "Directory and user access controls.",
   },
   {
+    id: "api-keys",
+    group: "organization",
+    label: "API keys",
+    href: "/preferences/organization/api-keys",
+    description: "Keys for the public API, scoped to what this workspace holds.",
+  },
+  {
     id: "sites",
     group: "organization",
     label: "Sites",
@@ -113,6 +120,7 @@ export function canViewPreferenceItem(
   if (itemId === "users") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }
+  if (itemId === "api-keys") return role === "SUPERADMIN" || role === "MANAGER";
   if (itemId === "sites") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.sites-sections");
   }

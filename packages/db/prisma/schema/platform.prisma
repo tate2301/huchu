@@ -208,6 +208,7 @@ model Company {
   crmIntakeForms                CrmIntakeForm[]
   crmIntakeSubmissions          CrmIntakeSubmission[]
   crmApiKeys                    CrmApiKey[]
+  platformApiKeys               PlatformApiKey[]
   crmLeadSources                CrmLeadSource[]
   crmCommissionRules            CrmCommissionRule[]
   crmCommissionEntries          CrmCommissionEntry[]
@@ -1133,6 +1134,7 @@ model User {
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
+  platformApiKeysCreated            PlatformApiKey[]               @relation("PlatformApiKeyCreatedBy")
   crmCommissionRulesFor             CrmCommissionRule[]            @relation("CrmCommissionRuleUser")
   crmCommissionEntries              CrmCommissionEntry[]           @relation("CrmCommissionEntryRep")
   crmCommissionEntriesApproved      CrmCommissionEntry[]           @relation("CrmCommissionEntryApprovedBy")
@@ -1178,3 +1180,26 @@ model User {
   @@index([email])
 }
 
+/// A tenant's key for the public API, sent as `Authorization: Bearer cz_…`.
+/// The plaintext is shown once at creation; only its sha256 hash is stored.
+/// `scopes` are the feature keys the key may reach: a route that serves
+/// outside developers asks `authenticateApiKey(request, scope)`, which needs
+/// the key to carry the scope and the tenant to hold the feature. Generalised
+/// from the CRM's intake keys (`CrmApiKey`) to every module, per the plan.
+model PlatformApiKey {
+  id          String    @id @default(uuid())
+  companyId   String
+  name        String
+  keyPrefix   String
+  keyHash     String    @unique
+  scopes      String[]
+  lastUsedAt  DateTime?
+  revokedAt   DateTime?
+  createdById String?
+  createdAt   DateTime  @default(now())
+
+  company   Company @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy User?   @relation("PlatformApiKeyCreatedBy", fields: [createdById], references: [id])
+
+  @@index([companyId, revokedAt])
+}
