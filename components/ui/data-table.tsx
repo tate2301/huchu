@@ -185,6 +185,14 @@ export type DataTableProps<TData, TValue> = {
   tabletScrollable?: boolean;
   tabletStickyFirstColumn?: boolean;
   tabletMinTableWidth?: string;
+  /**
+   * Columns hidden on first render, by column id — `{ village: false }`.
+   *
+   * For detail a reader does not scan by. They stay in the "Columns" menu, so
+   * nothing is taken away; it is only folded up. See
+   * `docs/design-system/12-tables.md`.
+   */
+  initialColumnVisibility?: VisibilityState;
   maxBodyHeight?: string;
   searchPlaceholder?: string;
   searchBehavior?: DataTableSearchBehavior;
@@ -483,6 +491,7 @@ export function DataTable<TData, TValue>({
   tabletScrollable = true,
   tabletStickyFirstColumn = false,
   tabletMinTableWidth = "100%",
+  initialColumnVisibility,
   maxBodyHeight,
   searchPlaceholder = "Search records",
   searchBehavior = "submit",
@@ -525,8 +534,20 @@ export function DataTable<TData, TValue>({
   const [sorting, setSorting] = React.useState<SortingState>([]);
   const [rowSelectionState, setRowSelectionState] =
     React.useState<RowSelectionState>({});
+  /*
+    Seeded from `initialColumnVisibility`, so a list can ship with its
+    detail columns folded away and still offer them under "Columns".
+
+    Twelve columns is not a table anybody reads. `/people` came to 1,944px of
+    columns inside 923px of space — Next of Kin, Village and National ID are
+    employee-record detail, and putting them in the list only guaranteed that
+    everything after them was off-screen. The scroll worked; the screen was
+    still unusable.
+
+    State, not derived: the moment somebody opens the Columns menu it is theirs.
+  */
   const [columnVisibility, setColumnVisibility] =
-    React.useState<VisibilityState>({});
+    React.useState<VisibilityState>(initialColumnVisibility ?? {});
   const [internalPagination, setInternalPagination] =
     React.useState<PaginationState>({
       pageIndex: 0,

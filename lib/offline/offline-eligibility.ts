@@ -146,7 +146,9 @@ export const ROLE_PREFETCH_CONFIG: Record<string, PrefetchConfig> = {
       "retail-current-shift",
       "retail-catalog-default",
       "retail-promotions",
-      "retail-tender-policy",
+      // No tender-policy preload: the rules ride on `pos/context`, which the
+      // checkout and the offline bootstrap each fetch for themselves. See the
+      // note in `lib/offline/module-registry.ts`.
     ],
     immediateRoutes: ["/portal/pos", "/portal/pos/overview"],
     backgroundQueries: [

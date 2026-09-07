@@ -1052,6 +1052,29 @@
     max-width: none;
   }
 
+  /* A toolbar that bleeds must put the gutter back as padding.
+
+     `.table-edge-to-edge` widens by the gutter and pulls the same amount back
+     as negative margin. On a table that is right: the bled-out strip is empty,
+     the rows still start after the cell padding, and the hairline reaches the
+     full width.
+
+     On a *toolbar* it is not, because the first control sits hard against the
+     left edge of the widened box. Measured on /schools/students at 1440px, the
+     "Columns" button started at x=310 while its ancestor `section.card` clips
+     at x=325 with `overflow-x: clip` — so fifteen pixels were cut off, which
+     was exactly the "C". It read as a rendering fault and was a layout
+     assumption: the bleed expects an ancestor with gutter padding to bleed
+     into, and inside a card there is none.
+
+     `.band-shell` directly above already does this — widen, pull back, then
+     immediately restore the gutter as padding, so the background runs full
+     width while the content lines up with the page. Same trick, same reason. */
+  .dt-toolbar.table-edge-to-edge,
+  .data-toolbar.table-edge-to-edge {
+    padding-inline: var(--content-gutter-x);
+  }
+
   /* Layout shells */
   .content-shell {
     padding-inline: var(--content-gutter-x);

@@ -26,7 +26,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ui/use-toast";
 import { fetchInventoryItems, fetchSites, type InventoryItem } from "@/lib/api";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
-import { LocalShipping, Pencil, Plus, ReceiptLong, Trash2 } from "@/lib/icons";
+import { Pencil, Plus, ReceiptLong, Trash2 } from "@/lib/icons";
 import { useReservedId } from "@/hooks/use-reserved-id";
 
 type PurchaseOrderLine = {
@@ -236,7 +236,17 @@ export default function PurchaseOrdersPage() {
     <RetailShell title="Purchase orders" actions={
       <div className="flex flex-wrap gap-2">
         <Button size="sm" onClick={() => { setEditing(null); setForm(emptyForm()); setDialogOpen(true); }}><Plus className="h-4 w-4" />New</Button>
-        <Button asChild size="sm" variant="outline"><Link href="/retail/purchasing/suppliers"><LocalShipping className="h-4 w-4" />Suppliers</Link></Button>
+        {/*
+          A "Suppliers" button stood here and linked to
+          /retail/purchasing/suppliers, which has never existed —
+          app/retail/purchasing/ holds orders and receipts. Next prefetches a
+          link as soon as the page renders, so it 404'd on every visit.
+
+          There is no supplier record to link to: a purchase order carries a
+          free-text `supplierName`, and nothing in the schema models a supplier.
+          Building that page is a real piece of work; pretending it is one click
+          away was not.
+        */}
       </div>
     }>
       <ReportFilterBar onExport={() => {}} />

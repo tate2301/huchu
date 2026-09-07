@@ -384,39 +384,87 @@ function getBundleById(id: VerticalProductId): VerticalProductBundleDefinition {
   return VERTICAL_PRODUCT_BUNDLES.find((bundle) => bundle.id === id) ?? VERTICAL_PRODUCT_BUNDLES[0];
 }
 
+/**
+ * What each vertical's *own* features look like.
+ *
+ * `prefix` is the namespace the module owns outright; `signals` are individual
+ * keys that count as evidence even when the prefix is absent. Only features a
+ * vertical genuinely owns belong here — `hr.*` and `accounting.*` are
+ * foundational to every vertical and so are evidence for none of them.
+ */
+const PROFILE_FEATURE_EVIDENCE: Array<{
+  profile: Exclude<WorkspaceProfile, "GENERAL">;
+  prefix: string;
+  signals: string[];
+}> = [
+  { profile: "GOLD_MINE", prefix: "gold.", signals: ["gold.home"] },
+  { profile: "SCHOOLS", prefix: "schools.", signals: ["schools.core"] },
+  { profile: "RETAIL", prefix: "retail.", signals: ["retail.core", "portal.pos"] },
+];
+
+/**
+ * Which vertical is this tenant actually in?
+ *
+ * ## Why this counts rather than returning the first match
+ *
+ * It used to be an ordered chain: retail first, then schools, then gold. Any
+ * tenant with a single `retail.*` key was Retail — so St Mary's, with 120
+ * pupils and a tuck shop, was a shop; and so was a gold mine, and so was a
+ * creative agency. Every seeded demo tenant has the full feature set switched
+ * on, so **every screenshot of every vertical was branded "Retail"**, which is
+ * how this was found: not by a test, but by looking at the pictures.
+ *
+ * The chain was not wrong by accident. With one signal per vertical there is
+ * nothing to choose between them and *some* order has to win. The fix is to
+ * stop asking "does this tenant have any retail feature" and start asking
+ * "which vertical does this tenant have the *most* of" — a school running a
+ * tuck shop has twenty `schools.*` keys and two `retail.*` ones, and that is a
+ * school.
+ *
+ * Ties keep the historical order (gold, schools, retail), so a tenant with
+ * genuinely equal footing in two verticals resolves exactly as it did before
+ * and nothing silently moves.
+ *
+ * ## Payroll is still last, and still special
+ *
+ * HR is foundational to every vertical above, so `hr.payroll` alone means a
+ * payroll-only workspace while `hr.payroll` beside `schools.core` is a school
+ * that runs payroll. Requiring the statutory keys as well stops an ordinary
+ * tenant with payroll switched on being misread as a bureau. That reasoning is
+ * unchanged; only the three verticals above it now compete on weight.
+ *
+ * ## This is a fallback
+ *
+ * `Company.workspaceProfile` is authoritative and `resolveEffectiveWorkspaceProfile`
+ * honours it first. Inference exists for tenants that never had one set —
+ * which, before this change, was every seeded tenant except the payroll bureau.
+ */
 export function inferWorkspaceProfileFromEnabledFeatures(
   enabledFeatures: string[] | undefined,
 ): WorkspaceProfile | null {
-  const hasFeaturePrefix = (prefix: string) =>
-    (enabledFeatures ?? []).some((feature) =>
-      feature.trim().toLowerCase().startsWith(prefix),
-    );
+  const features = (enabledFeatures ?? []).map((feature) => feature.trim().toLowerCase());
 
-  // 1. Retail
-  if (
-    hasFeaturePrefix("retail.") ||
-    hasTokenFeature(enabledFeatures, "retail.core") ||
-    hasTokenFeature(enabledFeatures, "portal.pos")
-  ) {
-    return "RETAIL";
+  let best: { profile: Exclude<WorkspaceProfile, "GENERAL">; weight: number } | null = null;
+
+  for (const { profile, prefix, signals } of PROFILE_FEATURE_EVIDENCE) {
+    const owned = features.filter((feature) => feature.startsWith(prefix)).length;
+    const flagged = signals.filter((signal) => hasTokenFeature(enabledFeatures, signal)).length;
+
+    // A named signal is evidence in its own right, but a prefix match already
+    // counted it — so take whichever reading is larger rather than adding them
+    // and letting `retail.core` score twice.
+    const weight = Math.max(owned, flagged);
+    if (weight === 0) continue;
+
+    // Strictly greater, so the first vertical in PROFILE_FEATURE_EVIDENCE wins
+    // a tie and the previous precedence survives.
+    if (!best || weight > best.weight) {
+      best = { profile, weight };
+    }
   }
 
-  // 2. Schools
-  if (hasFeaturePrefix("schools.") || hasTokenFeature(enabledFeatures, "schools.core")) {
-    return "SCHOOLS";
-  }
+  if (best) return best.profile;
 
-  // 3. Gold Mine (Check last as it has generic positions often confused with General)
-  if (hasFeaturePrefix("gold.") || hasTokenFeature(enabledFeatures, "gold.home")) {
-    return "GOLD_MINE";
-  }
-
-  // 4. Payroll only. Checked last on purpose: HR is foundational to every
-  // vertical above, so `hr.payroll` alone is a payroll-only workspace but
-  // `hr.payroll` beside `schools.core` is a school that also runs payroll — and
-  // the ordering here is what tells them apart. Requires the statutory keys, so
-  // an ordinary tenant that merely has payroll switched on is not misread as a
-  // bureau.
   if (
     hasTokenFeature(enabledFeatures, "hr.payroll") &&
     hasTokenFeature(enabledFeatures, "hr.statutory-tables")
@@ -448,7 +496,28 @@ export function resolveWorkspaceVerticalProductBundle(
   args: ResolveWorkspaceProductArgs,
 ): VerticalProductBundleDefinition {
   const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
-  const inferredProfile = inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
+  /*
+    Infer only when nothing was stated.
+
+    `normalizeWorkspaceProfile` answers GENERAL both to `null` and to the string
+    "GENERAL", and this used to hand both to inference — so a service business
+    that had deliberately been set to GENERAL got a vertical's bundle, and with
+    it that vertical's name above the sidebar.
+
+    This was the *fourth* place the same collapse lived, after
+    `resolveEffectiveWorkspaceProfile`, `resolveWorkspaceProfileClaim` and the
+    seeds. Each one hid the next: with the first three fixed, Hurudza Creative's
+    JWT correctly said GENERAL and the sidebar still rendered "School
+    Operations", because the *label* comes from the bundle and the bundle was
+    still inferring on its own.
+
+    `normalizeWorkspaceProfileInput` returns null for absent or unrecognised
+    input, which is the only thing that separates the two cases.
+  */
+  const profileWasStated = normalizeWorkspaceProfileInput(args.workspaceProfile) !== null;
+  const inferredProfile = profileWasStated
+    ? null
+    : inferWorkspaceProfileFromEnabledFeatures(args.enabledFeatures);
   const effectiveProfile =
     requestedProfile === "GENERAL" && inferredProfile
       ? inferredProfile

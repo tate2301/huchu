@@ -49,6 +49,7 @@ import {
 } from "@/lib/offline/db-v2";
 import { startPeriodicHealthCheck, stopPeriodicHealthCheck } from "@/lib/offline/error-handler";
 import { emitOfflineSessionChanged } from "@/lib/offline/events";
+import { getCurrentConnectivityState } from "@/lib/offline/connectivity";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -121,9 +122,19 @@ function defaultConnectivityCheck(): { isOnline: boolean; quality: string } {
     return { isOnline: false, quality: "offline" };
   }
 
-  // Try to use the enhanced detector first
+  /*
+    A static import, not `require()`.
+
+    This was a lazy `require` inside a try, which reads as though it were
+    guarding a circular dependency — `lib/offline/connectivity.ts` imports
+    nothing from here, so there is no cycle to guard. What it actually did was
+    hide the dependency from the bundler and from anybody reading the imports,
+    and turn a missing module into a silent fall back to `navigator.onLine`.
+
+    The try stays: `getCurrentConnectivityState` reads browser state and the
+    fallback is the point of the function.
+  */
   try {
-    const { getCurrentConnectivityState } = require("@/lib/offline/connectivity");
     const state = getCurrentConnectivityState();
     return { isOnline: state.isOnline, quality: state.quality };
   } catch {
@@ -230,7 +241,13 @@ export async function initOffline(
         // Request background sync registration
         if ("sync" in registration) {
           try {
-            await (registration as any).sync.register("huchu-outbox-sync");
+            // Background Sync is not in `lib.dom`, so the shape is declared
+            // rather than cast away — `sync.register` is all this needs and
+            // all it should be able to reach.
+            const { sync } = registration as unknown as {
+              sync: { register(tag: string): Promise<void> };
+            };
+            await sync.register("huchu-outbox-sync");
           } catch {
             // Graceful degradation — will use online event fallback
           }

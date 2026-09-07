@@ -3,6 +3,13 @@
 import type { ReactNode } from "react";
 import { Button } from "@corelithzw/react";
 
+import { MoreHorizontal } from "@/lib/icons";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/access";
@@ -44,12 +51,92 @@ export function RecordActions({
   resource,
   verbs,
   size = "sm",
+  layout = "inline",
 }: {
   resource: SchoolResource;
   verbs: RecordVerb[];
   size?: "sm" | "md";
+  /**
+   * `inline` puts every verb on the row as a button. `menu` collapses them
+   * behind a single "..." trigger.
+   *
+   * **Use `menu` in a table.** Three text buttons in the last cell is what made
+   * the school tables unreadable: `/schools/students` came to 1,145px of
+   * columns in 1,129px of space, so "Delete" was cut off at the window edge,
+   * and `/people` came to 1,944px in 923px. The verbs are the widest thing in
+   * the row and the least often used — the CRM tables, which are the standard
+   * (see `docs/design-system/12-tables.md`), give the row a chevron and nothing
+   * else.
+   *
+   * `inline` stays the default so the detail-page headers, where the verbs are
+   * the point of the page, keep their buttons.
+   *
+   * Gating is identical in both: a verb somebody cannot use is DISABLED with
+   * the reason on it, never hidden. Hiding it in a menu would quietly undo the
+   * rule this component exists to enforce.
+   */
+  layout?: "inline" | "menu";
 }) {
   const access = useSchoolAccess();
+
+  const resolved = verbs.map((verb) => {
+    const permitted = access.can(resource, verb.action);
+    const who = permitted ? null : whoCan(resource, verb.action);
+    const reason = !permitted
+      ? who
+        ? `This is ${who} to do.`
+        : "Changing this is somebody else's job."
+      : verb.unavailable;
+
+    const run = async () => {
+      if (!verb.confirm) {
+        verb.onSelect();
+        return;
+      }
+      const confirmed = await dsConfirm({
+        title: verb.confirm.title,
+        description: verb.confirm.description,
+        confirmLabel: verb.confirm.confirmLabel,
+        variant: verb.tone ?? "default",
+      });
+      if (confirmed) verb.onSelect();
+    };
+
+    return { verb, reason, run };
+  });
+
+  if (layout === "menu") {
+    return (
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button
+            size={size}
+            variant="ghost"
+            className="size-7 p-0"
+            aria-label="Row actions"
+          >
+            <MoreHorizontal className="size-4" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end">
+          {resolved.map(({ verb, reason, run }) => (
+            <DropdownMenuItem
+              key={verb.label}
+              disabled={Boolean(reason) || verb.loading}
+              title={reason ?? undefined}
+              variant={verb.tone === "danger" ? "destructive" : "default"}
+              onSelect={(event) => {
+                event.preventDefault();
+                void run();
+              }}
+            >
+              {verb.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    );
+  }
 
   return (
     <div className="flex flex-wrap items-center gap-2">

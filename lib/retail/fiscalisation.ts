@@ -98,7 +98,7 @@ import { money, percent, toNumberOrZero, type MoneyLike } from "@/lib/money";
 import { prisma } from "@/lib/prisma";
 import {
   FiscalMappingError,
-  centsFromDecimalAmount,
+  centsFromMoneyLike,
   issueFiscalDocument,
   type FiscalIssueErrorCode,
   type FiscalSigningInput,
@@ -431,8 +431,8 @@ export function buildRetailSaleSigningInput(input: {
   }
 
   const receiptType = retailReceiptType(sale.saleType);
-  const receiptTotal = centsFromDecimalAmount(
-    money(sale.totalAmount),
+  const receiptTotal = centsFromMoneyLike(
+    sale.totalAmount,
     `total of sale ${sale.saleNo}`,
   );
 
@@ -464,12 +464,12 @@ export function buildRetailSaleSigningInput(input: {
       toNumberOrZero(percent(line.taxPercent)),
       `${line.itemName} on ${sale.saleNo}`,
     );
-    const taxCents = centsFromDecimalAmount(
-      money(line.taxAmount),
+    const taxCents = centsFromMoneyLike(
+      line.taxAmount,
       `tax on ${line.itemName} (${sale.saleNo})`,
     );
-    const lineCents = centsFromDecimalAmount(
-      money(line.lineTotal),
+    const lineCents = centsFromMoneyLike(
+      line.lineTotal,
       `line total for ${line.itemName} (${sale.saleNo})`,
     );
     linesTotalCents += lineCents;
@@ -510,8 +510,8 @@ export function buildRetailSaleSigningInput(input: {
     );
   }
 
-  const declaredTaxCents = centsFromDecimalAmount(
-    money(sale.taxAmount),
+  const declaredTaxCents = centsFromMoneyLike(
+    sale.taxAmount,
     `tax total of sale ${sale.saleNo}`,
   );
   const lineTaxCents = [...buckets.values()].reduce(

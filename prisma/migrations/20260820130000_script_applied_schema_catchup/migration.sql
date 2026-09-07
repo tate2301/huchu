@@ -29,6 +29,28 @@
 -- database was baselined this way on 2026-08-20; every database created from
 -- migrations afterwards executes it for real.
 --
+-- ── Correction, 2026-09-01 ────────────────────────────────────────────────
+--
+-- "Every database created from migrations afterwards executes it for real" was
+-- not true when it was written. No database could be created from migrations at
+-- all: `prisma migrate deploy` against an empty database failed at
+-- `20260819090000_scope_trim_drop_dropped_module_schema`, one step before this
+-- file, with `column "sourceType" does not exist`.
+--
+-- The cause is this file's own subject matter. `StockMovement."sourceType"` is
+-- one of the script-applied columns it exists to write down — so this file is
+-- the only one that creates it, and `…0819…` references it. Sorted by name,
+-- the reference comes first. Existing databases were unaffected, because the
+-- script had already added the column; only a from-scratch build could fail,
+-- and nothing built from scratch.
+--
+-- The verification quoted above is why it was missed. `prisma migrate diff
+-- --from-migrations --to-schema` compares end states and never executes
+-- anything, so an ordering fault is invisible to it. `…0819…` now guards its
+-- two references to the column behind an `information_schema` check, and
+-- `pnpm verify:migrations` builds a throwaway database from the migrations and
+-- diffs the result — which catches both the ordering and the drift.
+--
 -- The only edit to the generated SQL is `ADD VALUE IF NOT EXISTS` on the enum
 -- labels, several of which (`RETAIL_SHIFT`, the settlement targets) already
 -- exist wherever their scripts ran.

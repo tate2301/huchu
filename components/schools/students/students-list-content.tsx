@@ -418,6 +418,7 @@ export function StudentsListContent() {
             student._count.boardingAllocations;
           return (
             <RecordActions
+              layout="menu"
               resource="schools.students"
               verbs={[
                 {

@@ -338,6 +338,7 @@ export function GoalsOversightContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.students"
             verbs={[
               {

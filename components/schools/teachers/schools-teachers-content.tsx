@@ -389,6 +389,7 @@ export function SchoolsTeachersContent() {
         header: "Actions",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.teachers"
             verbs={[
               { label: "Edit", action: "edit", onSelect: () => editTeacher(row.original) },
@@ -467,6 +468,7 @@ export function SchoolsTeachersContent() {
         header: "Actions",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             // Amending a subject is `schools.academics`, which is what
             // `/api/v2/schools/subjects/[id]` checks. Creating one is
             // `schools.teachers`. See the note at the top of the file.
@@ -557,6 +559,7 @@ export function SchoolsTeachersContent() {
         header: "Actions",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.teachers"
             verbs={[
               {

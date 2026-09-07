@@ -403,10 +403,15 @@ export class SyncEngine {
           performance.now() - Date.parse(syncLogEntry.startedAt),
         ),
         requestPayload: payloadToSend,
-        responsePayload:
-          outcome.status === "synced" ? (outcome as any) : null,
-        errorMessage:
-          outcome.status !== "synced" ? (outcome as any).message : null,
+        /*
+          `OfflineSyncOutcome` is a discriminated union, so the `status` check
+          narrows it on its own. The two `as any` casts here were defeating
+          exactly the narrowing they sat next to — and taking the type of
+          `message` with them, so a renamed field would have compiled straight
+          through into a null error message on every failed sync.
+        */
+        responsePayload: outcome.status === "synced" ? outcome : null,
+        errorMessage: outcome.status !== "synced" ? outcome.message : null,
       });
 
       // Process outcome

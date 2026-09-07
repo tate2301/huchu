@@ -147,8 +147,12 @@ describe("referenceHref", () => {
     expect(referenceHref({ kind: "student", id: USER, label: "Tendai" })).toBe(
       `/schools/students/${USER}`,
     );
+    // Master Data, not /schools: the academic ladder moved there and the
+    // registry moved with it. `/schools/classes/[id]` still redirects, so an
+    // older link is not broken — but a new one should be written to where the
+    // page actually lives.
     expect(referenceHref({ kind: "class", id: USER, label: "Form 2 Blue" })).toBe(
-      `/schools/classes/${USER}`,
+      `/management/master-data/schools/classes/${USER}`,
     );
   });
 

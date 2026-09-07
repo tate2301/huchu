@@ -189,14 +189,35 @@ export function bucketSeries(
   const step = granularity === "week" ? 7 : 1;
   const buckets = new Map<string, { count: number; value: number }>();
 
+  /*
+    UTC throughout, because the bucket key is a UTC date.
+
+    This mixed the two: `setHours(0, 0, 0, 0)` moves a date to *local* midnight,
+    and `toISOString().slice(0, 10)` then reads back the *UTC* calendar day. The
+    two agree only at UTC+0.
+
+    In Harare, UTC+2, they do not. A deal closed at `2026-03-02T09:00:00Z` is
+    11am local; local midnight for that day is `2026-03-01T22:00:00Z`, whose
+    ISO date is **2026-03-01**. So every point landed in the bucket before the
+    one it belonged to, and every CRM chart in the product — deals won, deals
+    created, activity over time — was drawn one day early for the entire
+    country this is sold in.
+
+    Silent, because the shape of the curve is unchanged: it is the same series
+    slid left by one column. Nothing looks broken; the Monday number is
+    Sunday's.
+
+    `setUTCHours` and `getUTCDate` keep the arithmetic in the same frame the key
+    is written in. Everything is now UTC or nothing is.
+  */
   const cursor = new Date(range.from);
-  cursor.setHours(0, 0, 0, 0);
+  cursor.setUTCHours(0, 0, 0, 0);
   const end = new Date(range.to);
-  end.setHours(0, 0, 0, 0);
+  end.setUTCHours(0, 0, 0, 0);
 
   while (cursor <= end) {
     buckets.set(cursor.toISOString().slice(0, 10), { count: 0, value: 0 });
-    cursor.setDate(cursor.getDate() + step);
+    cursor.setUTCDate(cursor.getUTCDate() + step);
   }
 
   const keys = Array.from(buckets.keys());
@@ -204,7 +225,7 @@ export function bucketSeries(
     const date = toDate(point.at);
     if (Number.isNaN(date.getTime())) continue;
     const day = new Date(date);
-    day.setHours(0, 0, 0, 0);
+    day.setUTCHours(0, 0, 0, 0);
     const iso = day.toISOString().slice(0, 10);
 
     // Find the bucket this falls in — for weeks, the latest start on or

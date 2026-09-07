@@ -128,6 +128,20 @@ beforeAll(async () => {
   });
   companyId = company.id;
 
+  /*
+    `RetailSale.siteId` is a real foreign key now.
+
+    These fixtures were written when it was, in this file's own words, "a loose
+    string today (FD-7.2)" — so they invent `site-${suite}` and never create it.
+    A migration since gave the column a `Site` relation, and every test here
+    that makes a POS sale has been failing on
+    `RetailSale_siteId_fkey` ever since, in a suite noisy enough with timeouts
+    that nobody separated the two.
+  */
+  await prisma.site.create({
+    data: { id: `site-${suite}`, companyId, name: "Till Site", code: `TILL-${suite}` },
+  });
+
   const provider = await prisma.fiscalisationProviderConfig.create({
     data: {
       companyId,
@@ -163,6 +177,18 @@ beforeAll(async () => {
 
 afterAll(async () => {
   delete process.env[KEY_ENV];
+  /*
+    Innermost first, and the site is not innermost.
+
+    `Site.companyId` is one of the seventeen Company relations without
+    `onDelete: Cascade`, so the company cannot go while a site of its own
+    stands — but `RetailSale.siteId` points *at* the site, so the sales have to
+    go before it does. Deleting the site first only moves the foreign-key
+    complaint one table along.
+  */
+  await prisma.fiscalReceipt.deleteMany({ where: { companyId } });
+  await prisma.retailSale.deleteMany({ where: { companyId } });
+  await prisma.site.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
   await prisma.$disconnect();
 });

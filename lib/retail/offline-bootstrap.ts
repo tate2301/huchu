@@ -377,15 +377,29 @@ async function bootstrapPhase1(
 
   reportProgress("Fetching tender policy...", 0, 4);
 
-  // [1a] Fetch tender policy
-  const tenderPolicyResult = await fetchWithBootstrapRetry<{
-    data: { requiredReferenceTenders: string[]; minReferenceLength: number };
-  }>(() => fetchJson("/api/v2/retail/setup/tender-policy"), retryCfg);
+  /*
+    [1a] Tender rules, from `pos/context` rather than `setup/tender-policy`.
 
-  const tenderPolicy: PosTenderPolicy | null = tenderPolicyResult.data?.data
+    The dedicated endpoint is gated on `retail.setup` `view`, a permission no
+    cashier holds — so this bootstrap took a 403 on every till, cached nothing,
+    and left an offline till on the hard-coded defaults. Silently: a null
+    policy is indistinguishable from a shop that has not configured one.
+
+    `pos-portal-state.tsx` hit the same wall on the online path and was fixed
+    by carrying the two fields on `pos/context`, which the till is entitled to
+    and already calls. This is that fix applied to the offline path, which was
+    missed — and it is the half that matters more, because a till that has lost
+    the line is the one that cannot ask again.
+  */
+  const tenderPolicyResult = await fetchWithBootstrapRetry<{
+    data: { rules: { requiredReferenceTenders: string[]; minReferenceLength: number } };
+  }>(() => fetchJson("/api/v2/retail/pos/context"), retryCfg);
+
+  const rules = tenderPolicyResult.data?.data?.rules;
+  const tenderPolicy: PosTenderPolicy | null = rules
     ? {
-        requiredReferenceTenders: tenderPolicyResult.data.data.requiredReferenceTenders,
-        minReferenceLength: tenderPolicyResult.data.data.minReferenceLength,
+        requiredReferenceTenders: rules.requiredReferenceTenders,
+        minReferenceLength: rules.minReferenceLength,
         allowedTenders: ["CASH", "CARD", "MOBILE_MONEY", "TRANSFER", "VOUCHER"],
       }
     : null;

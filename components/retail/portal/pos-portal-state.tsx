@@ -14,6 +14,7 @@ import {
 } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useOfflineRuntime } from "@/components/providers/offline-provider";
+import { useHasFeature } from "@/hooks/use-entitlement";
 import { useToast } from "@/components/ui/use-toast";
 import { ApiError, fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
@@ -45,6 +46,7 @@ import type {
   Promotion,
 } from "./pos-types";
 import { getPaymentSummary, isManagerRole } from "./pos-utils";
+import { usePosSignedOut } from "./use-pos-signed-out";
 
 type CompletedSale = {
   id: string;
@@ -209,8 +211,17 @@ export function PosPortalProvider({
   const [syncOfflineSalesPending, setSyncOfflineSalesPending] = useState(false);
   const [offlineCustomerResults, setOfflineCustomerResults] = useState<CustomerLookupResult[]>([]);
 
+  /*
+    Not while the sign-in form is up. This provider wraps the login route too —
+    see `usePosSignedOut` — so without the gate every cashier's sign-in fired
+    these two unauthenticated, took a 401, and retried. See the hook for the
+    captured timeline.
+  */
+  const signedOut = usePosSignedOut();
+
   const posContextQuery = useQuery({
     queryKey: ["pos-context"],
+    enabled: !signedOut,
     queryFn: () =>
       fetchJson<{
         data: {
@@ -223,6 +234,7 @@ export function PosPortalProvider({
   });
   const currentShiftQuery = useQuery({
     queryKey: ["retail-current-shift"],
+    enabled: !signedOut,
     queryFn: () =>
       fetchJson<{ data: CurrentShift | null }>("/api/v2/retail/pos/current-shift"),
   });
@@ -275,11 +287,27 @@ export function PosPortalProvider({
     enabled: Boolean(siteId),
     staleTime: 60_000,
   });
+  /*
+    Ask for promotions only when the shop has them.
+
+    Two things were wrong here and they had opposite fixes. The endpoint is
+    gated on `retail.promotions`, which the `CASHIER` role template did not
+    grant — so every till took a 403 and no promotion ever came off a basket,
+    on shops that had bought the feature and configured one. That was a
+    genuine hole and the template now grants it.
+
+    But a shop that has *not* bought promotions is a different case, and asking
+    anyway is the `unentitled-accounting-api-403` shape: the right outcome —
+    no promotions — reached by making a request that should never have left.
+    `useHasFeature` is the signal, and gating on it means the console stays
+    clean for the shops where the answer is honestly "none".
+  */
+  const hasPromotions = useHasFeature("retail.promotions");
   const promotionsQuery = useQuery({
     queryKey: ["retail-pos-promotions"],
     queryFn: () =>
       fetchJson<{ data: Promotion[] }>("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
-    enabled: Boolean(siteId),
+    enabled: Boolean(siteId) && hasPromotions,
   });
   /*
     Tender rules now ride on `pos/context` above — see the comment on that

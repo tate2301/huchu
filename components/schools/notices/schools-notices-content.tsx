@@ -336,6 +336,7 @@ export function SchoolsNoticesContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.reports"
             verbs={[
               {

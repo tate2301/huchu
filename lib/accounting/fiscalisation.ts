@@ -1,4 +1,8 @@
-import type { FiscalDay, FiscalReceipt, FiscalisationProviderConfig, Prisma } from "@prisma/client";
+import type { FiscalDay, FiscalReceipt, FiscalisationProviderConfig } from "@prisma/client";
+// A value import, not `import type`: `centsFromMoneyLike` needs `Prisma.Decimal`
+// at runtime for `instanceof` and for the string/bigint path. Everything else
+// in this file uses it only as a type, which is why it was type-only.
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   issueWithFdmsConnector,
@@ -211,6 +215,40 @@ export function centsFromDecimalAmount(value: Prisma.Decimal, field: string): Ce
     );
   }
   return centsFromMinorUnits(minor.toNumber());
+}
+
+/**
+ * Minor units from whatever shape the amount arrived in.
+ *
+ * There are two converters because there are two kinds of number, and which
+ * one applies is a fact about the input rather than a preference:
+ *
+ *   - A `Decimal` came off a `Decimal(14,2)` column. It is exact, there is
+ *     nothing to forgive, and a third decimal place is a real error.
+ *   - A `number` is a double. It cannot tell 10.30 from 10.299999999999999, so
+ *     refusing everything that is not exactly a whole cent would refuse most
+ *     honest amounts; `CENT_EPSILON` is what lets 10.299999999999999 through
+ *     as 1030 and still stops 10.005.
+ *
+ * Callers used to choose for themselves, and the retail signer chose wrong: it
+ * ran every amount through `money()` first, which rounds to two places, so
+ * `centsFromDecimalAmount` was handed 10.01 and had nothing left to object to.
+ * A genuinely sub-cent amount was rounded into a ZIMRA signature — the exact
+ * thing invariant 5 exists to prevent — and the two tests asserting the refusal
+ * passed a value that had already been rounded.
+ *
+ * Dispatching here means a caller cannot pick the wrong door by accident.
+ */
+export function centsFromMoneyLike(
+  value: Prisma.Decimal | number | string | bigint | null | undefined,
+  field: string,
+): Cents {
+  if (value == null) return centsFromMinorUnits(0);
+  if (typeof value === "number") return centsFromAccountingAmount(value, field);
+  if (value instanceof Prisma.Decimal) return centsFromDecimalAmount(value, field);
+  // A string or a bigint is an exact literal — no float ever touched it, so it
+  // gets the strict door.
+  return centsFromDecimalAmount(new Prisma.Decimal(value.toString()), field);
 }
 
 export function centsFromAccountingAmount(value: number, field: string): Cents {

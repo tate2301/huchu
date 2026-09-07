@@ -46,8 +46,13 @@ describe("comment record mapping", () => {
     // /schools/... rather than a /crm/... page it does not have. The assertion is
     // that EVERY type resolves, which is what a notification deep link needs.
     for (const entity of COLLAB_ENTITIES) {
+      // `/management/...` is in the alternation because the academic ladder
+      // (classes, subjects, years, periods) moved into Management > Master
+      // Data. The registry moved with it and these links followed, which is
+      // the whole point of routing through it — the old `/schools/...` paths
+      // still redirect, so nothing that was written down has broken.
       expect(collabRecordPath({ entity, recordId: "r-1" })).toMatch(
-        /^\/(crm|schools)\/[a-z/-]+\/r-1$/,
+        /^\/(crm|schools|management)\/[a-z/-]+\/r-1$/,
       );
     }
   });

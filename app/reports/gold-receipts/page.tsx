@@ -20,6 +20,14 @@ import {
 import { fetchGoldReceipts, fetchSites } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 
+/**
+ * Three decimals and a unit, or an em-dash when there is nothing to report.
+ * A milligram is this column's real precision, so `0.000 g` is a claim.
+ */
+function grams(value: number | null): string {
+  return value == null ? "—" : `${value.toFixed(3)} g`;
+}
+
 type GoldReceiptReportRow = {
   id: string;
   receiptDate: string;
@@ -27,10 +35,16 @@ type GoldReceiptReportRow = {
   pourBarId: string;
   site: string;
   grossWeight: number;
-  expenseGold: number;
-  workerSplit: number;
-  companySplit: number;
-  companyTotal: number;
+  /*
+    Null, not zero, when the batch is not linked to a shift allocation — the
+    same reasoning as the chain-of-custody report next door. "0.000 g" in a
+    Worker Split column does not read as "unknown", it reads as "nothing", and
+    on a receipt that is a claim about who was paid.
+  */
+  expenseGold: number | null;
+  workerSplit: number | null;
+  companySplit: number | null;
+  companyTotal: number | null;
   shiftLeader: string;
   recordedBy: string;
   recordedAt?: string | null;
@@ -68,12 +82,14 @@ export default function GoldReceiptsReportPage() {
           pourBarId: batch.pourBarId,
           site: batch.site.name,
           grossWeight: batch.grossWeight,
-          expenseGold: batch.expenseWeightTotal ?? 0,
-          workerSplit: batch.workerSplitWeight ?? 0,
-          companySplit: batch.companySplitWeight ?? 0,
+          expenseGold: batch.expenseWeightTotal ?? null,
+          workerSplit: batch.workerSplitWeight ?? null,
+          companySplit: batch.companySplitWeight ?? null,
           companyTotal:
             batch.companyTotalWeight ??
-            (batch.companySplitWeight ?? 0) + (batch.expenseWeightTotal ?? 0),
+            (batch.companySplitWeight == null && batch.expenseWeightTotal == null
+              ? null
+              : (batch.companySplitWeight ?? 0) + (batch.expenseWeightTotal ?? 0)),
           shiftLeader: batch.shiftLeaderName ?? "-",
           recordedBy: batch.createdBy?.name ?? "-",
           recordedAt: batch.createdAt ?? null,
@@ -152,7 +168,7 @@ export default function GoldReceiptsReportPage() {
         id: "expenseGold",
         header: "Expense Gold",
         cell: ({ row }) => (
-          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.expenseGold)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -162,7 +178,7 @@ export default function GoldReceiptsReportPage() {
         id: "workerSplit",
         header: "Worker Split",
         cell: ({ row }) => (
-          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.workerSplit)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -172,7 +188,7 @@ export default function GoldReceiptsReportPage() {
         id: "companySplit",
         header: "Company Split",
         cell: ({ row }) => (
-          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.companySplit)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -182,7 +198,7 @@ export default function GoldReceiptsReportPage() {
         id: "companyTotal",
         header: "Company Total",
         cell: ({ row }) => (
-          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.companyTotal)}</NumericCell>
         ),
         size: 120,
         minSize: 120,

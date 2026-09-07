@@ -335,6 +335,7 @@ export function ClassStudentsContent({
           const offRoll = student.status === "WITHDRAWN" || student.status === "GRADUATED";
           return (
             <RecordActions
+              layout="menu"
               resource="schools.students"
               verbs={[
                 {

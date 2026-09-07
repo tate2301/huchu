@@ -472,6 +472,7 @@ export function RegisterOversightContent({
                 </span>
               ) : null}
               <RecordActions
+              layout="menu"
                 resource="schools.attendance"
                 verbs={[
                   ...(record.state === "SUBMITTED"

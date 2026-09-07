@@ -419,6 +419,7 @@ export function ReportsArrearsContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             // Writing to a family is the notices grant, which the route
             // enforces on `schools.reports` create. A bursar sees the button
             // disabled and learns whose job it is, rather than after composing

@@ -121,6 +121,18 @@ export type OfflinePreloadQuery = {
   maxAgeMs?: number;
   fetcher: (queryKey: unknown[]) => Promise<unknown>;
   enabled?: () => boolean;
+  /**
+   * The feature this preload needs, if its endpoint is gated.
+   *
+   * Skipped when the session does not hold it. Without this the preloader
+   * fetched everything it listed for everybody: a gold clerk took 403s on
+   * `/api/sites`, a cashier on `/api/v2/retail/promotions`, on pages that do
+   * not mention either. See `lib/offline/entitlement.ts`.
+   *
+   * Only needed where `lib/platform/gating/route-registry.ts` gates the route
+   * the fetcher calls. An ungated endpoint needs nothing here.
+   */
+  featureKey?: string;
 };
 
 export type OfflineRouteDefinition = {

@@ -228,6 +228,7 @@ export function ResultsOverviewContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.results"
             verbs={workflow.verbsFor(row.original, {
               onOpen: (sheet) => setOpenSheetId(sheet.id),
