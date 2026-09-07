@@ -7,7 +7,7 @@ plan says what and why; the runbook says what production needs; this document sa
 actually done, in what order, with what checks, at what cost in time — and how to run the same
 programme again on another codebase, or on this one for the next module.
 
-Primary sources, in order of authority: the commit log of pull request #159 (45 commits from
+Primary sources, in order of authority: the commit log of pull request #159 (45 commits of code and runbook from
 `0781287` to `18980a9`, one increment each), the plan's changelog (one row per increment, with the
 commit), the pull request body (the verification table), and the tooling and time ledger kept
 under [`tooling/`](./tooling/README.md). Where this document and those disagree, they win.
