@@ -2,6 +2,8 @@ packages:
   - apps/*
   - packages/*
   - packages/modules/*
+  # A client's own module, when a contract pays for one: composed only into that client's host.
+  - packages/modules/private/*
 allowBuilds:
   '@prisma/engines': true
   core-js: false

@@ -6,7 +6,9 @@
  *
  * `platform` names the kernel (`packages/platform`, its routes under `api/`),
  * `shell` the workspace chrome (`packages/shell`, its pages under `pages/`);
- * any other id is a module under `packages/modules`.
+ * `private/<id>` a client's own module (`packages/modules/private/<id>`,
+ * `@corelithzw/private-<id>`), composed only into that client's host; any
+ * other id is a module under `packages/modules`.
  *
  * A module keeps its route handlers under `packages/modules/<id>/api/**\/route.ts`
  * and its screens under `packages/modules/<id>/pages/**\/{page,layout,loading,
@@ -25,10 +27,11 @@ if (!hostDir || moduleIds.length === 0) {
   process.exit(1);
 }
 const ROOT = process.cwd();
-/** Where a package lives and what it is called: the kernel and the shell by name, a module under packages/modules. */
+/** Where a package lives and what it is called: the kernel and the shell by name, a private module under packages/modules/private, a module under packages/modules. */
 function packageOf(id) {
   if (id === "platform") return { dir: "packages/platform", name: "@corelithzw/platform" };
   if (id === "shell") return { dir: "packages/shell", name: "@corelithzw/shell" };
+  if (id.startsWith("private/")) return { dir: `packages/modules/${id}`, name: `@corelithzw/private-${id.slice("private/".length)}` };
   return { dir: `packages/modules/${id}`, name: `@corelithzw/module-${id}` };
 }
 const PAGE_FILES = new Set(["page.tsx", "layout.tsx", "loading.tsx", "error.tsx", "not-found.tsx", "template.tsx", "default.tsx"]);

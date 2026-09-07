@@ -2,7 +2,7 @@
  * The rule every module package stands on, checked mechanically.
  *
  * A module imports the kernel packages, npm, and the modules its manifest
- * declares in `requires`. Never a host (no `@/` alias, no `@corelithzw/enterprise` or a product host),
+ * declares in `requires` (a private module, `@corelithzw/private-<id>`, is one). Never a host (no `@/` alias, no `@corelithzw/enterprise` or a product host),
  * never a module it does not declare, never a file above its own root. This is
  * `lib/hr/module-boundary.test.ts` generalised: that test guarded a list of
  * directories against a list of verticals, and was evaded by moving a file one
@@ -17,6 +17,8 @@ import type { ModuleManifest } from "../manifest";
 export type BoundaryViolation = { file: string; specifier: string; reason: string };
 
 const MODULE_PREFIX = "@corelithzw/module-";
+/** A client's own module: `@corelithzw/private-<id>` carries the manifest id `private-<id>`, and is declared like any other. */
+const PRIVATE_PREFIX = "@corelithzw/private-";
 const HOST_PREFIXES = ["@corelithzw/enterprise", "@corelithzw/campus", "@corelithzw/sell", "@corelithzw/crm", "@corelithzw/people", "@corelithzw/admin"];
 const SPECIFIER = /(?:\bfrom\s*|\bimport\s*\(?\s*|\bexport\s+\*\s+from\s*)["']([^"']+)["']/g;
 
@@ -54,8 +56,10 @@ export function moduleBoundaryViolations(input: { dir: string; manifest: ModuleM
         }
       } else if (HOST_PREFIXES.some((prefix) => specifier === prefix || specifier.startsWith(`${prefix}/`))) {
         violations.push({ file: shown, specifier, reason: "imports a host" });
-      } else if (specifier.startsWith(MODULE_PREFIX)) {
-        const id = specifier.slice(MODULE_PREFIX.length).split("/")[0];
+      } else if (specifier.startsWith(MODULE_PREFIX) || specifier.startsWith(PRIVATE_PREFIX)) {
+        const id = specifier.startsWith(PRIVATE_PREFIX)
+          ? `private-${specifier.slice(PRIVATE_PREFIX.length).split("/")[0]}`
+          : specifier.slice(MODULE_PREFIX.length).split("/")[0];
         if (id !== input.manifest.id && !declared.has(id)) {
           violations.push({ file: shown, specifier, reason: `imports module "${id}", which the manifest does not require` });
         }

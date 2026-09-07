@@ -50,6 +50,7 @@ the monolith without changing what runs in production.
 | `packages/config/` | Shared TypeScript presets. |
 | `packages/shell/` | The workspace chrome that knows about roles and features: the navigation registry the host fills, and the module shell every module's screens sit in. Depends on `ui` and `platform`. Import by path: `@corelithzw/shell/module-shell`. |
 | `packages/modules/` | The modules, one package each (`@corelithzw/module-<id>`), each with a data-only manifest the host composes with. All fourteen: `workflow`, `notifications`, `records`, `documents`, `books`, `people`, `stock`, `maintenance`, `compliance`, `offline`, `gold`, `campus`, `sell`, `crm`. |
+| `packages/modules/private/` | A client's own module when a contract pays for one (`@corelithzw/private-<id>`, manifest id `private-<id>`), composed only into that client's host (`apps/enterprise-<client>`), never a public product. `example/` is the shape and the proof; its README is the mechanism. |
 | `scripts/` | Repository-level tooling: the host composer (`compose-host.mjs`) and the agent guardrail hooks. Operational scripts live in `apps/enterprise/scripts/`. |
 | `docs/`, `design/`, `docker/` | Documentation, design assets, container assets. |
 | `.github/workflows/` | CI on every pull request; the database release job for production migrations. |
