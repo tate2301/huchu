@@ -1,6 +1,7 @@
 import { test, expect } from "./_support/fixtures";
 import { PAYROLL } from "./_support/tenants";
 import { visitSettled } from "./_support/nav";
+import { companyIdFor, db } from "./_support/db";
 import { shooter, VIEWPORT } from "./_support/shots";
 
 /**
@@ -53,6 +54,7 @@ import { shooter, VIEWPORT } from "./_support/shots";
 test.use({ tenant: PAYROLL, as: "admin", viewport: VIEWPORT.desktop });
 
 test("marks a crew with no site, and the register shows it", async ({ page }) => {
+  const companyId = await companyIdFor(PAYROLL.slug, PAYROLL.seed);
   test.setTimeout(240_000);
 
   const shot = shooter(PAYROLL.vertical, "attendance-mark");
@@ -78,13 +80,29 @@ test("marks a crew with no site, and the register shows it", async ({ page }) =>
   const dialog = page.getByRole("dialog");
   await expect(dialog).toBeVisible();
 
-  // A date nothing has been marked for, so the run is repeatable against the
-  // `[date, shift, employeeId]` unique key.
-  const day = `2026-1${Math.floor(Math.random() * 2) + 1}-${String(
-    Math.floor(Math.random() * 27) + 1,
-  ).padStart(2, "0")}`;
+  /*
+    One fixed day, cleared before it is used.
+
+    This picked a random day in November or December and called that
+    "repeatable". It is not: fifty-four candidates and a
+    `[date, shift, employeeId]` unique key means the birthday paradox catches
+    up inside a dozen runs, and it did — `POST /api/people/attendance` came
+    back **409 Attendance already recorded** with three employee ids, because
+    an earlier run had drawn the same date.
+
+    Randomness was standing in for cleanup. A spec that writes should own what
+    it writes: this one now takes a single day far outside anything the seed
+    touches and deletes that day first, so the hundredth run starts exactly
+    where the first did.
+  */
+  const day = "2026-12-29";
+  const shift = "SHIFT-1";
+  await db.attendance.deleteMany({
+    where: { date: new Date(`${day}T00:00:00.000Z`), shift, employee: { companyId } },
+  });
+
   await dialog.getByLabel("Date").fill(day);
-  await dialog.getByLabel("Shift").fill("SHIFT-1");
+  await dialog.getByLabel("Shift").fill(shift);
 
   // Pick the crew. It is listed at all only because the crew query stopped being
   // gated on a site.

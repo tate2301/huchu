@@ -38,6 +38,34 @@ const AS = "admin";
 
 test.use({ tenant: PAYROLL, as: AS });
 
+/*
+  Skipped, and this is the reason rather than a shrug.
+
+  Turning this file on was right — it had been green for months without
+  executing a line — and turning it on is what surfaced the thing the docstring
+  above did not know: **offline is gated on role, not on entitlement.**
+  `OFFLINE_ELIGIBLE_ROLES` in `lib/offline/offline-eligibility.ts` is exactly
+  `["CASHIER"]`, and `shouldRegisterServiceWorker` asks `canEnableOffline`
+  before registering anything. A payroll-demo admin therefore has no service
+  worker, so `context.setOffline(true)` followed by `page.reload()` gets
+  `net::ERR_INTERNET_DISCONNECTED` — there is nothing to serve the document.
+
+  The reasoning above about `/accounting` and `/people` being entitled on this
+  tenant is sound and beside the point: entitlement decides what a warmed route
+  may fetch, the role decides whether anything is warmed at all.
+
+  A correct version of this file runs as `RETAIL`/`cashier` against the POS
+  routes, which is the only place the product actually offers offline. That is
+  a rewrite of which routes it warms and which mutation it queues, not a change
+  of `test.use`, so it is left for someone with the till in front of them
+  rather than guessed at from here.
+*/
+test.skip(
+  true,
+  "Offline is CASHIER-only (OFFLINE_ELIGIBLE_ROLES); this file is written for a payroll admin, " +
+    "who never gets a service worker. Rewrite against RETAIL/cashier and the POS routes.",
+);
+
 // Defaults follow the offline warmup scope in `lib/offline/workflow-catalog.ts`:
 // `/people` is warmed, `/accounting` is on the exclusion list. They moved off
 // the scrap routes when that vertical was dropped (ST-2.3).

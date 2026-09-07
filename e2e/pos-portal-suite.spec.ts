@@ -55,7 +55,22 @@ const TILL: readonly Route[] = [
     path: "/portal/pos",
     name: "Checkout",
     redirectsTo: "/",
-    expect: /Castle Lager|Recall \/ search/i,
+    /*
+      The search control, not the stock behind it.
+
+      Two things were wrong with `/Castle Lager|Recall \/ search/`. The product
+      name is only listed while a shift is open, and a run leaves the drawer
+      closed for the next one — the checkout correctly shows "Open a shift
+      first" instead. And the fallback never could have matched: the rendered
+      text is `Recall/search`, with no spaces around the slash, so the
+      alternation was carrying no weight at all and the assertion was really
+      "has this till been left mid-shift".
+
+      `Recall/search` is the checkout's own control and is there whether or not
+      the register is unlocked. Whitespace is tolerated rather than assumed,
+      which is the part that had been quietly wrong.
+    */
+    expect: /Recall\s*\/\s*search/i,
   },
   {
     path: "/portal/pos/overview",
@@ -99,7 +114,19 @@ const TILL: readonly Route[] = [
     path: "/portal/pos/reports",
     name: "Till reports",
     redirectsTo: "/reports",
-    expect: /Sales by hour/i,
+    /*
+      The page's own furniture, not the chart.
+
+      "Sales by hour" only renders once the shift has sales, so this assertion
+      was really asserting that some *other* spec had traded — and it broke the
+      moment `retail-workflows` ran in the same invocation and cashed the till
+      up. "No sales yet" on a freshly closed till is correct behaviour, and a
+      route sweep should not call it a failure.
+
+      Whether a sale can be rung is `retail-workflows`' job to prove. This one
+      proves the reports screen renders.
+    */
+    expect: /Your sales at a glance/i,
   },
   {
     path: "/portal/pos/settings",

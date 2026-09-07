@@ -1075,6 +1075,37 @@
     padding-inline: var(--content-gutter-x);
   }
 
+  /* Inside a card, do not bleed at all.
+
+     Restoring the gutter as padding (above) fixed where the *content* sits and
+     left the *box* two gutters wider than its parent. `.card` in the design
+     system is `overflow: clip`, so the widened toolbar, the pagination strip
+     and the page-nav buttons all still ran past the card edge and were cut —
+     `visual-pass` measured `div.data-toolbar.table-edge-to-edge reaches 389px,
+     clipped by section.card at 374px` on /schools/students, and the same on
+     seven other school screens at 390px, 768px AND 1440px.
+
+     The comment above already contains the reason and did not follow it
+     through: the bleed wants an ancestor with gutter padding to bleed into,
+     and a card has none. So inside a card it is simply switched off. The table
+     then insets by the gutter instead of reaching the card's edge, which is a
+     visible change and the right one — content that is inset reads as a
+     margin, content that is clipped reads as a bug.
+
+     Kept as a separate rule rather than folded into `.table-edge-to-edge`,
+     because on a page where the table IS a direct child of the gutter-padded
+     shell the bleed is correct and still applies. */
+  .card .table-edge-to-edge {
+    width: 100%;
+    margin-inline: 0;
+    max-width: 100%;
+  }
+
+  .card .dt-toolbar.table-edge-to-edge,
+  .card .data-toolbar.table-edge-to-edge {
+    padding-inline: 0;
+  }
+
   /* Layout shells */
   .content-shell {
     padding-inline: var(--content-gutter-x);

@@ -62,10 +62,20 @@ for (const viewport of [
 
       for (const target of PAGES) {
         await page.goto(target, { waitUntil: "load" });
-        // Hydration happens after load, so the assertion needs the frame after
-        // it. Anchored to the sidebar's own heading rather than a timer: it is
-        // rendered from the session, which is the thing that used to disagree.
-        await expect(page.getByText("School Operations").first()).toBeVisible({
+        /*
+          Hydration happens after load, so the assertion needs the frame after
+          it. Anchored to the sidebar's own heading rather than a timer: it is
+          rendered from the session, which is the thing that used to disagree.
+
+          `toBeAttached`, not `toBeVisible`. The heading lives in the sidebar,
+          which collapses below `md` — so at the 390px viewport this file also
+          runs at, the correct label is in the DOM and not on the screen, and
+          asserting visibility failed the phone case on a page that was working.
+          What this test is about is *which workspace the session resolved*, and
+          presence is exactly that claim; whether the sidebar happens to be open
+          is a different question and not this one.
+        */
+        await expect(page.getByText("School Operations").first()).toBeAttached({
           timeout: 30_000,
         });
       }

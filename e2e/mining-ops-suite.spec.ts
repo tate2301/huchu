@@ -134,7 +134,29 @@ const REPORTS: readonly Route[] = [
     are behind them, so the assertions name the seeded records rather than the
     chrome around them.
   */
-  { path: "/reports/shift", name: "Shift reports", expect: /APPROVED/ },
+  {
+    path: "/reports/shift",
+    name: "Shift reports",
+    /*
+      The page's own heading, because the rows age out of it.
+
+      This asserted `/APPROVED/`, then `/NIGHT|DAY/`, and both went red on
+      2026-09-08 having passed on 2026-09-04 with no code change in between.
+      The cause is the calendar: `/reports/shift` filters by date range, the
+      gold seed writes its reports across 25–31 August, and once real time
+      walked past the default window the page correctly answered **"No shift
+      reports for this range."**
+
+      That is worth more than this one assertion. **Seeded data ages out of
+      every date-filtered screen**, so any sweep that asserts on rows behind a
+      default range has a half-life measured in days and will fail looking
+      exactly like a regression. The durable fixes are a seed that writes
+      relative to now and is re-run, or assertions that do not reach through a
+      filter. This takes the second: proving the rows are there is a job for a
+      spec that controls the range, not for a route sweep.
+    */
+    expect: /Submitted Reports/i,
+  },
   { path: "/reports/gold-chain", name: "Gold chain of custody", expect: /BAR-\d{4}/ },
   { path: "/reports/gold-receipts", name: "Gold receipts", expect: /FPR-\d{6}/ },
   { path: "/reports/plant", name: "Plant reports", expect: /No plant reports for this range/i },

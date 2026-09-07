@@ -1349,3 +1349,92 @@ The config already existed: `tsconfig.scripts.json` includes `e2e/**/*.ts`. I
 was running the wrong one. For spec files the cheap guard is
 `npx playwright test --list`, which parses every file and fails loudly on
 exactly this.
+
+## The bleed that was clipped, 2026-09-08
+
+Eight school screens rendered with their toolbar, pagination strip and page-nav
+buttons **cut off** — `/schools/students`, `/teachers`, `/guardians`,
+`/attendance`, `/results`, `/timetable`, and the class-scoped finance, results
+and students pages. At 390px, at 768px, and at **1440px**. Not a phone problem.
+
+`visual-pass.spec.ts` found it, which is the part worth sitting with. That file
+was about to be retired as a superseded screenshot spec — it had been skipped
+behind `VISUAL_PASS=1` for months, it targets a school tenant that no longer
+exists, and `marketing-shots.spec.ts` photographs all five verticals already.
+Every one of those things is true and the conclusion was still wrong: it is the
+only spec in the repo that *measures laid-out geometry* rather than
+photographing it, and measurement is what found this. Screenshots of these eight
+pages had been taken, looked at, and shipped into `docs/screenshots/` with the
+content clipped.
+
+### The cause, and it was mine
+
+    div.data-toolbar.table-edge-to-edge reaches 389px,
+      clipped by section.card at 374px
+
+`.table-edge-to-edge` widens by two gutters and pulls the same amount back as
+negative margin. That is right for a table sitting directly in the page shell:
+the bled strip is empty and the hairline reaches the full width.
+
+The earlier table pass found the toolbar's first control being cut and fixed it
+by restoring the gutter as `padding-inline`. That put the *content* back in the
+right place and left the *box* two gutters wider than its parent — and `.card`
+in the design system is `overflow: clip`. So the toolbar still ran past the card
+edge and was still cut; only the evidence moved.
+
+The comment written at the time states the reason exactly — *"the bleed expects
+an ancestor with gutter padding to bleed into, and inside a card there is
+none"* — and then does not act on it. Diagnosing correctly and fixing one layer
+too shallow is its own failure mode, and it is the second time in this pass:
+the offline hydration bug was patched three times, each patch correct about the
+value it named and silent about its neighbours.
+
+Inside a card the bleed is now switched off entirely. The table insets by the
+gutter rather than reaching the card's edge — a visible change, and the right
+one. Content that is inset reads as a margin; content that is clipped reads as
+a bug.
+
+### What it says about the suite
+
+A route sweep asserts that a page arrived, did not throw, and shows its
+evidence. All eight of these pages passed that bar on every run. Nothing in
+`schools-suite` could have caught this, because the page *was* working — it was
+being cropped by an ancestor after the fact.
+
+Rendering needs a measurement, not an assertion. There is exactly one spec that
+does it, and it very nearly got deleted for looking like the others.
+
+## The suite has a half-life, 2026-09-08
+
+`mining-ops-suite` asserted `/APPROVED/` on `/reports/shift`. It passed on
+2026-09-04 and failed on 2026-09-08 with no code change of any kind in between.
+
+The page filters by date range. The gold seed writes its shift reports across
+25-31 August. Real time walked past the default window, and the page correctly
+answered **"No shift reports for this range."**
+
+I chased it twice before looking at it — first as a mutable-status problem
+(other suites approve and reject, so surely one had moved it), then as a
+spec-ordering problem (everything runs in one invocation now, so surely a
+mutator ran first). Both were plausible, both were wrong, and one probe of the
+page ended it. Third time this document records that sequence.
+
+**The general form is the thing to carry.** Any assertion that reaches through
+a default date filter has a half-life. It will go red on a morning when nothing
+was touched, it will look exactly like a regression, and whoever picks it up
+will start by diffing code that did not change. Screens with this shape include
+`/reports/*`, the school registers and fee ledgers, and every POS "today" view.
+
+Two durable fixes, and they are not equivalent:
+
+- **Seed relative to now, and re-seed.** Keeps the assertions strong — they can
+  name rows. Costs a re-seed in the run's setup, and makes the suite depend on
+  that having happened.
+- **Do not reach through the filter.** A route sweep asserts the page's own
+  furniture; a spec that controls the range asserts the rows. Weaker per
+  assertion, stable indefinitely, and it keeps the two kinds of test doing the
+  jobs they are actually good at.
+
+This pass took the second, because a route sweep asserting on data behind a
+filter was the wrong division of labour to begin with. The first is the better
+long-run answer for the suites that are *about* the data.

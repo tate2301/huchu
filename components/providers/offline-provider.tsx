@@ -261,6 +261,9 @@ async function prefetchModuleQueries(
  */
 const SERVER_STATUS: OfflineStatus = "ONLINE";
 
+/** Stable identity, so freezing the list pre-hydration does not churn the memo. */
+const EMPTY_OPERATIONS: OfflineOutboxSummaryItem[] = [];
+
 function getStatusLabel(
   status: OfflineStatus,
   pendingCount: number,
@@ -1644,6 +1647,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       pendingCount: hydrated ? pendingCount : 0,
       blockingCount: hydrated ? blockingCount : 0,
       status: hydrated ? status : SERVER_STATUS,
+      operations: hydrated ? operations : EMPTY_OPERATIONS,
       /*
         The label the *server* rendered until hydration finishes.
 
@@ -1672,11 +1676,29 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       sessionBootstrap,
       sessionBootstrapExpired,
       preparedModules,
-      bootstrapProgress,
-      lastSyncedAt,
+      bootstrapProgress: hydrated ? bootstrapProgress : null,
+      /*
+        `lastSyncedAt` is the third thing this bug hid behind, and the reason
+        the two fixes above were not enough.
+
+        The till's offline queue renders
+        `lastSyncedAt ? \`Last sync ${formatTime(lastSyncedAt)}\` : "Nothing stuck"`.
+        The server has no persisted sync time and renders "Nothing stuck"; a
+        browser that has synced before renders a formatted local timestamp. A
+        different string in the same node — React #418, `args[]=text`, the exact
+        error that came back on /portal/pos/offline after `statusLabel` alone
+        had been stabilised.
+
+        Which is the lesson worth keeping over the fix: this was patched three
+        times, each patch correct about the value it named and silent about its
+        neighbours. The rule that ends it is not "freeze this field" but
+        **nothing derived from persisted client state may reach a text node
+        before hydration**, and that is what the block above and this line now
+        implement together.
+      */
+      lastSyncedAt: hydrated ? lastSyncedAt : null,
       updateState,
       showUpdatePrompt: hydrated && updateState === "ready" && !updateDismissed,
-      operations,
       tenantConflict,
       routeMutationPolicy,
       routeAvailabilityReason: routeAvailability.reason,
