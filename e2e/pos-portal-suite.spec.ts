@@ -102,7 +102,15 @@ const TILL: readonly Route[] = [
     path: "/portal/pos/shift",
     name: "Shift and drawer",
     redirectsTo: "/shift",
-    expect: /RSH-\d{4}/,
+    /*
+      The drawer screen, not a shift number.
+
+      `RSH-\d{4}` is only on the page while a shift is open, and a run ends with
+      `retail-workflows` cashing up — so this asserted that some other spec had
+      left the till mid-shift. "No active shift" is the correct rendering of a
+      closed drawer and not a failure of this screen.
+    */
+    expect: /Drawer control/i,
   },
   {
     path: "/portal/pos/price-check",

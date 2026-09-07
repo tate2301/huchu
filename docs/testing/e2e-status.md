@@ -1438,3 +1438,37 @@ Two durable fixes, and they are not equivalent:
 This pass took the second, because a route sweep asserting on data behind a
 filter was the wrong division of labour to begin with. The first is the better
 long-run answer for the suites that are *about* the data.
+
+### Correction: the bleed fix cleared its own finding and not the screen
+
+I called the overflow "fixed" after seeing one remaining failure that happened
+to be a stale heading. More failures arrived after I looked, and they were
+real. Calling a verification done on partial output is the same premature
+conclusion this document already records twice; making it about my own fix did
+not improve it.
+
+Split properly, by grepping every failure context rather than reading one:
+
+**Resolved.** No remaining failure cites `table-edge-to-edge`, `data-toolbar`
+or `p-pagination`. The card-bleed fix did clear the thing it was aimed at — the
+toolbar, pagination strip and page-nav buttons across eight school screens at
+three widths.
+
+**Still clipping, and not the same bug.** Two sources, and they want different
+answers:
+
+- `button.btn` and `span.btn-label` clipped by `div.mobile-list` (5 hits). Real
+  content cut off: a button label inside the mobile list rendering. Worth
+  fixing, and not from here — it wants the list open at that width.
+- `button.sidebar-rail` clipped by `aside.sidebar` (4 hits). This is the
+  sidebar's 2px drag handle, positioned `right-[-2px]` on purpose and clipped
+  by 2px. Almost certainly a **false positive of the check** rather than a
+  defect: `visual-pass` asks whether any element extends past a non-scrolling
+  ancestor, and a decorative rail deliberately hung off the edge answers yes.
+  A check that flags intentional 2px overhang will be ignored, which is how
+  measurement tools die.
+
+Both are recorded rather than fixed. The first is a real bug I have not
+reproduced with the list in front of me; the second is a threshold question for
+the check itself, and lowering a signal's noise floor is a decision to make
+deliberately rather than at the end of a session.

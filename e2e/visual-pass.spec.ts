@@ -57,7 +57,14 @@ type Target = { name: string; path: string; heading: string };
 
 /** The pages whose path and heading are both known without asking the server. */
 const PAGES: readonly Target[] = [
-  { name: "academics", path: "/schools/academics", heading: "Academics Setup" },
+  /*
+    `/schools/academics` is a forward now: it lands on
+    `/management/master-data/schools/years`, and the "Academics Setup" heading
+    it used to render is gone with the page. Following the forward keeps the
+    width measurement — which is what this file is for — pointed at the screen
+    a person actually reaches.
+  */
+  { name: "academics", path: "/schools/academics", heading: "Years and Terms" },
   { name: "guardians", path: "/schools/guardians", heading: "Guardians" },
   { name: "students", path: "/schools/students", heading: "Students" },
   { name: "attendance", path: "/schools/attendance", heading: "Attendance" },
