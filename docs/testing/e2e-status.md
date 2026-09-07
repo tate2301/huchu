@@ -1245,3 +1245,107 @@ reported 56 unreachable. Seven of those were colocated `*.test.tsx` files, which
 are *supposed* to be unreachable from a route. Excluded now — 583 components,
 49 unreachable.
 
+
+# Where this stops, 2026-09-07
+
+Stated plainly, because the section above reads as finished and one part of it
+is not.
+
+## Verified and green
+
+- **Page coverage 338 of 363 (93%)**, every non-admin cluster complete. The 25
+  that remain are the platform admin portal, held back deliberately.
+- **313 tests green in 21.5 minutes** across the fifteen harness suites, plus
+  13 behavioural tests (a full trading day, a manager-approved void).
+- **The full unit suite green** - 3,378 tests.
+- **Seven product bugs fixed**, three of them on the till, all failing closed
+  and silently.
+- **Three coverage meters** that did not exist before: pages statically, API
+  routes dynamically from recorded requests, components by import reachability.
+
+## In flight and currently red
+
+The legacy-spec migration. Thirty-one specs that built their own browser
+contexts are now on the shared fixture - which was the point, because they were
+invisible to the API recorder and signed in per test. Four fully superseded
+screenshot specs were retired.
+
+The suite went from 314 collectable tests to **500**, and when the run was
+stopped **41 were failing**. They are not one thing:
+
+| | Roughly | What it is |
+|---|---|---|
+| migrated legacy specs | 32 | `visual-pass`, `schools-record-shots`, the portal shot specs, `offline-lifecycle`. These never ran in this environment - skipped behind `VISUAL_PASS=1`, or pointed at tenants that do not exist. The migration moved them from silently skipped to running and failing. |
+| harness suites that were green | ~6 | Shared-tenant interaction, plus a hydration fix that was committed but not rebuilt when the run started. |
+| environment | 1 | A Google Fonts request refused with `ERR_NETWORK_ACCESS_DENIED`. The host answers 200 from this machine; transient, not a defect. |
+
+### The finding worth keeping: the specs now interact
+
+`pos-portal-suite` Checkout and `mining-ops-suite` Shift reports both failed on
+`toContainText` for seeded data they had asserted successfully for three
+consecutive runs. Nothing about those pages changed.
+
+What changed is that `retail-workflows` now runs in the same invocation. It
+trades a day: opens a drawer, sells, reverses, cashes up. The sweeps assert on
+`/reports/shift` showing `APPROVED` rows, and on the till's checkout carrying
+stock. Both move underneath a spec that is closing shifts.
+
+`playwright.config.ts` already carries a long note about this hazard and sets
+`workers: 1` because of it. Serialising is necessary and was never sufficient:
+one worker still runs the mutating spec *before* the asserting one, in
+alphabetical order rather than a chosen one. The honest fixes are a tenant per
+behavioural spec, an explicit ordering that puts mutators last, or assertions
+grounded on rows the mutators do not touch. None is a line of config.
+
+**This hazard did not exist while the legacy specs were skipped.** Migrating
+them was right - it is what makes their coverage real and their API calls
+visible - and it bought a class of failure that has to be designed out.
+
+### What to do next, in this order
+
+1. **Rebuild.** The offline-provider hydration fix is committed but the build
+   the run used predates it. Several red lines are that bug and no more.
+2. **Retire rather than repair most of the shot specs.** `visual-pass`,
+   `schools-record-shots` and the portal shot specs assert against a
+   `chisipite-demo` school that no longer exists, and `marketing-shots.spec.ts`
+   already photographs all five verticals through the fixture. The migration
+   was told to bias toward MIGRATE over RETIRE - my instruction - and for this
+   family that bias was wrong.
+3. **Give the behavioural specs their own tenant**, so a trading day cannot move
+   the ground under a route sweep.
+
+## A note on the adversarial verifiers
+
+The migration ran as a workflow: triage, act, then an independent agent trying
+to refute each result. Three of twelve items passed verification. That number
+is misleading, and the reason matters more than the number.
+
+The flagship finding - that `test.use({ viewport })` is silently discarded by
+the shared fixture, breaking every phone-width test - was **false**. Measured
+with a ten-line throwaway spec: the context came up at exactly 390x844. Two
+further "this test cannot pass" findings were derived from that false premise.
+A third accused an agent of inventing a bug in a comment; it had diffed against
+`HEAD` while the file carried uncommitted changes, so the comment was accurate
+and the charge was not.
+
+The verifiers were told to default to `ok: false` when unsure. That is the right
+bias for catching real defects, and it produces confident, heavily-cited, wrong
+ones too. **A cited claim from a verifier is a hypothesis, not a finding.**
+Settling the viewport one cost ten lines and was worth more than the argument
+it replaced.
+
+## And a hole in my own verification
+
+`tsc --noEmit -p tsconfig.json` was reported clean throughout this work. That
+config **excludes `e2e`**. Every typecheck claim made about the spec files this
+pass touched was checking a tree that did not contain them.
+
+It surfaced the way these things do. An agent wrote a glob path inside a block
+comment - `app/management/users/**/page.tsx` - and the `**/` closed the comment
+early. `playwright test --list` reported **0 tests in 0 files**, the whole suite
+gone, and tsc had passed it minutes before.
+
+The config already existed: `tsconfig.scripts.json` includes `e2e/**/*.ts`. I
+was running the wrong one. For spec files the cheap guard is
+`npx playwright test --list`, which parses every file and fails loudly on
+exactly this.
