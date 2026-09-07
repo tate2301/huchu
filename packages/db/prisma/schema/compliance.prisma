@@ -1,0 +1,70 @@
+// Compliance add-on: permits, inspections, incidents.
+
+// ============================================
+// PHASE 5: COMPLIANCE
+// ============================================
+
+model Permit {
+  id                String   @id @default(uuid())
+  permitType        String
+  permitNumber      String
+  siteId            String
+  issueDate         DateTime
+  expiryDate        DateTime
+  responsiblePerson String
+  documentUrl       String?
+  status            String   @default("ACTIVE") // ACTIVE, EXPIRING_SOON, EXPIRED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site Site @relation(fields: [siteId], references: [id])
+
+  @@index([siteId])
+  @@index([expiryDate])
+}
+
+model Inspection {
+  id             String    @id @default(uuid())
+  siteId         String
+  inspectionDate DateTime
+  inspectorName  String
+  inspectorOrg   String
+  findings       String
+  actions        String?
+  actionsDue     DateTime?
+  completedById  String?
+  completedAt    DateTime?
+  documentUrl    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site        Site  @relation(fields: [siteId], references: [id], onDelete: Restrict)
+  completedBy User? @relation(fields: [completedById], references: [id])
+
+  @@index([siteId])
+}
+
+model Incident {
+  id           String   @id @default(uuid())
+  siteId       String
+  incidentDate DateTime
+  incidentType String // INJURY, NEAR_MISS, ENVIRONMENTAL, SECURITY
+  severity     String // LOW, MEDIUM, HIGH, CRITICAL
+  description  String
+  actionsTaken String?
+  reportedBy   String
+  photoUrls    String? // JSON array
+  status       String   @default("OPEN") // OPEN, INVESTIGATING, CLOSED
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site              Site         @relation(fields: [siteId], references: [id])
+  linkedHrIncidents HrIncident[] @relation("SourceOpsIncident")
+
+  @@index([siteId])
+  @@index([incidentDate])
+}
+

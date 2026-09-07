@@ -10,7 +10,7 @@ This repository is broad. In the current checkout:
 
 - `273` App Router page files live under `app/`.
 - `449` API route handlers live under `app/api/`.
-- `215` Prisma models live in `prisma/schema.prisma`.
+- `295` Prisma models live in `packages/db/prisma/schema/`, one file per module.
 - `31` Vitest files and `1` Playwright spec are present.
 - Core workspace families include gold, scrap metal, schools, retail/POS, auto sales, accounting, HR/payroll, stores, maintenance, compliance, CCTV, reports, admin, and platform management.
 
@@ -31,23 +31,48 @@ This repository is broad. In the current checkout:
 
 Use Node.js 20+; Node 24 is known to work in this workspace. Use pnpm through Corepack.
 
-## Repository Map
+## Workspace Layout
+
+This is a pnpm workspace with Turborepo. The platform is being split into products that
+share one kernel (`docs/rollout/product-split-plan.md`); Phase 1 put the monorepo around
+the monolith without changing what runs in production.
 
 | Path | Purpose |
 | --- | --- |
-| `app/` | Next.js App Router pages, layouts, and API routes. Feature modules are grouped by route family. |
+| `apps/enterprise/` | The Enterprise host: every module in one Next.js host, Gold included, on the hosts tenants use today. Renamed from `apps/legacy` in Phase 4; nothing a tenant sees changed. |
+| `apps/campus/` | The Campus host: the school product on its own Vercel project and host, composed from the school module and what it requires (books, compliance, people, documents, notifications, records, workflow, offline). A module list, its own navigation and catalogue, the kernel's proxy and auth; everything under its `app/` is composed. `pnpm campus <script>` runs its scripts. |
+| `apps/sell/` | The Sell host: the retail product on its own Vercel project and host, composed from the sell module and what it requires (stock, maintenance, compliance, books, people, documents, notifications, records, workflow, offline). The same shape as the Campus host. `pnpm sell <script>` runs its scripts. |
+| `apps/crm/` | The CRM host: the sales product on its own Vercel project and host, composed from the CRM module and what it requires (stock, books, people, documents, notifications, records, workflow, offline). The same shape as the Campus host. `pnpm crm <script>` runs its scripts. |
+| `apps/people/` | The People host: the HR and payroll product on its own Vercel project and host, composed from the people module and what it requires (compliance, books, documents, notifications, records, workflow, offline). The same shape as the Campus host. `pnpm people <script>` runs its scripts. |
+| `packages/db/` | The database: one Prisma schema split one file per module, one generated client, one migration history. Import `@corelithzw/db` for types and enums, `@corelithzw/db/client` for the connection. |
+| `packages/ui/` | The design-system layer: wrappers around `@corelithzw/react`, charts, icons, hooks, `cn`, the page chrome (`layout/`) and shared screen furniture (`shared/`). Domain-free. Import by path: `@corelithzw/ui/components/button`. |
+| `packages/platform/` | The kernel: tenancy and entitlements, feature gating, the auth core and guards, roles, API utilities, money, ids, uploads, preferences. Depends on `packages/db` only. Import by path: `@corelithzw/platform/api-utils`. The host fills its registries at boot in `apps/enterprise/modules.ts`. |
+| `packages/config/` | Shared TypeScript presets. |
+| `packages/shell/` | The workspace chrome that knows about roles and features: the navigation registry the host fills, and the module shell every module's screens sit in. Depends on `ui` and `platform`. Import by path: `@corelithzw/shell/module-shell`. |
+| `packages/modules/` | The modules, one package each (`@corelithzw/module-<id>`), each with a data-only manifest the host composes with. All fourteen: `workflow`, `notifications`, `records`, `documents`, `books`, `people`, `stock`, `maintenance`, `compliance`, `offline`, `gold`, `campus`, `sell`, `crm`. |
+| `packages/modules/private/` | A client's own module when a contract pays for one (`@corelithzw/private-<id>`, manifest id `private-<id>`), composed only into that client's host (`apps/enterprise-<client>`), never a public product. `example/` is the shape and the proof; its README is the mechanism. |
+| `scripts/` | Repository-level tooling: the host composer (`compose-host.mjs`) and the agent guardrail hooks. Operational scripts live in `apps/enterprise/scripts/`. |
+| `docs/`, `design/`, `docker/` | Documentation, design assets, container assets. |
+| `.github/workflows/` | CI on every pull request; the database release job for production migrations. |
+
+Run everything from the repository root: `pnpm dev`, `pnpm build`, `pnpm lint`,
+`pnpm typecheck`, `pnpm test` go through Turborepo; `pnpm db:*` delegates to the database
+package; `pnpm enterprise <script>` runs any script of the application package
+(for example `pnpm enterprise worker:pdf`, `pnpm enterprise create-company --name Acme`).
+
+## Application Map (`apps/enterprise/`)
+
+| Path | Purpose |
+| --- | --- |
+| `app/` | Next.js App Router pages, layouts, and API routes. Feature modules are grouped by route family. Every module's routes and pages live in its package (`packages/modules/<id>/{api,pages}`); the files here for them are one-line re-exports generated by `pnpm compose apps/enterprise <module>…`, so edit the module, not these. The kernel's routes (`packages/platform/api`) and the workspace pages (`packages/shell/pages`) are composed the same way (`pnpm compose apps/enterprise platform shell …`). What is written by hand here: the marketing site (`app/home`), the operator console (`app/admin`, `app/portal/admin`, `app/api/platform-admin`), the executive dashboard, the payment webhooks, the cross-module search, the report hub, and the root layout and page. |
 | `app/api/` | Route handlers. Newer industry and portal APIs often use `app/api/v2`. |
 | `components/` | Reusable UI and feature components. Base primitives live in `components/ui`. |
 | `lib/` | Domain services, shared utilities, auth, platform gating, offline runtime, accounting, and vertical business logic. |
 | `hooks/` | Shared React hooks. |
-| `prisma/` | Prisma schema and migrations. |
-| `scripts/` | Operational CLI scripts, platform TUI, backfills, worker scripts, and agent guardrails. |
-| `docs/` | Product specs, system reference, UX playbook, rollout plans, and implementation notes. |
+| `scripts/` | Operational CLI scripts, platform TUI, backfills, and worker scripts. |
 | `e2e/` | Playwright tests. |
 | `public/` | Static assets, PWA assets, service worker, fonts, and uploads used in local/dev flows. |
 | `types/` | Shared TypeScript declaration files. |
-| `docker/` | Container-related assets. |
-| `cctv-server/` | CCTV conversion/gateway notes and supporting server code. |
 
 ## Quick Start
 
@@ -156,41 +181,46 @@ Commit the resulting `pnpm-workspace.yaml` change so other developers do not hit
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm dev` | Start the Next.js dev server. |
-| `pnpm build` | Generate Prisma Client and build the production bundle. |
-| `pnpm start` | Start the built production app. |
+| `pnpm dev` | Generate the Prisma client, then start the Next.js dev server for `apps/enterprise`. |
+| `pnpm build` | Build every package: generate the client, then the production bundle. |
+| `pnpm enterprise start` | Start the built production app. |
 | `pnpm lint` | Run ESLint. |
-| `npx tsc --noEmit` | Run the TypeScript compiler check. |
-| `pnpm test` | Run Vitest once. |
-| `pnpm test:watch` | Run Vitest in watch mode. |
-| `pnpm test:e2e` | Run Playwright tests. Starts `pnpm dev` unless `E2E_BASE_URL` is set. |
-| `pnpm db:generate` | Generate Prisma Client. |
-| `pnpm db:push` | Push Prisma schema to the configured development database. |
-| `pnpm db:prepare:platform` | Backfill legacy company rows for platform tenancy fields. |
-| `pnpm templates:seed-defaults` | Seed or update default document templates. |
-| `pnpm worker:pdf` | Run the PDF render worker loop. |
+| `pnpm typecheck` | Run the TypeScript compiler check (the app needs a 7 GB heap; the script sets it). |
+| `pnpm test` | Run Vitest once. Needs Postgres — see `docs/_start-here/LOCAL_DEV.md`. |
+| `pnpm enterprise test:watch` | Run Vitest in watch mode. |
+| `pnpm test:e2e` | Run Playwright tests. Starts the dev server unless `E2E_BASE_URL` is set. |
+| `pnpm db:generate` | Generate the Prisma client. |
+| `pnpm db:migrate:dev` | Create a migration from a schema change. |
+| `pnpm db:migrate:status` | Applied and pending migrations for `DATABASE_URL`. |
+| `pnpm db:check:drift` | Prove the migrations produce the schema (scratch database). |
+| `pnpm db:push` | Push the schema to a throwaway local database. |
+| `pnpm enterprise db:prepare:platform` | Backfill legacy company rows for platform tenancy fields. |
+| `pnpm enterprise templates:seed-defaults` | Seed or update default document templates. |
+| `pnpm enterprise worker:pdf` | Run the PDF render worker loop. |
 
 ## Operational CLI Scripts
 
-Most scripts read `.env`, connect to `DATABASE_URL`, and use the Prisma PostgreSQL adapter.
+Scripts live in `apps/enterprise/scripts/` and run through `pnpm enterprise <script>`. They read the
+repository-root `.env` (or `apps/enterprise/.env`), connect to `DATABASE_URL`, and use the Prisma
+PostgreSQL adapter.
 
 | Command | Purpose |
 | --- | --- |
-| `pnpm create-company --name <name> [--slug <slug>]` | Create a tenant company. |
-| `pnpm create-site --name <name> --code <code> [--company-id <uuid>]` | Create a site. |
-| `pnpm create-user --email <email> --name <name> --password <password> --role <superadmin|manager|clerk> [--company-id <uuid>]` | Create an app user. |
-| `pnpm create-employee --name <name> --phone <phone> ...` | Create an employee record. |
-| `pnpm manage-employees ...` | List, show, update, activate, deactivate, or delete employees. |
-| `pnpm manage-inventory ...` | List, show, create, update, or delete inventory items. |
-| `pnpm manage-equipment ...` | List, show, create, update, activate, deactivate, or delete equipment. |
-| `pnpm platform --actor <email>` | Start the Ink platform operator TUI. |
-| `pnpm platform --actor <email> --read-only` | Start the platform TUI in read-only mode. |
-| `pnpm manage-platform ...` | Legacy/automation-friendly platform admin command mode. |
-| `pnpm platform:audit-feature-gates` | Audit platform feature-gate configuration. |
-| `pnpm platform:accounting-replay` | Replay accounting integration events. |
-| `pnpm platform:accounting-backfill-events` | Backfill accounting integration events. |
-| `pnpm backfill:gold-valuations` | Backfill gold valuation data. |
-| `pnpm backfill:gold-accounting-usd` | Backfill gold accounting USD values. |
+| `pnpm enterprise create-company --name <name> [--slug <slug>]` | Create a tenant company. |
+| `pnpm enterprise create-site --name <name> --code <code> [--company-id <uuid>]` | Create a site. |
+| `pnpm enterprise create-user --email <email> --name <name> --password <password> --role <superadmin|manager|clerk> [--company-id <uuid>]` | Create an app user. |
+| `pnpm enterprise create-employee --name <name> --phone <phone> ...` | Create an employee record. |
+| `pnpm enterprise manage-employees ...` | List, show, update, activate, deactivate, or delete employees. |
+| `pnpm enterprise manage-inventory ...` | List, show, create, update, or delete inventory items. |
+| `pnpm enterprise manage-equipment ...` | List, show, create, update, activate, deactivate, or delete equipment. |
+| `pnpm enterprise platform --actor <email>` | Start the Ink platform operator TUI. |
+| `pnpm enterprise platform --actor <email> --read-only` | Start the platform TUI in read-only mode. |
+| `pnpm enterprise manage-platform ...` | Legacy/automation-friendly platform admin command mode. |
+| `pnpm enterprise platform:audit-feature-gates` | Audit platform feature-gate configuration. |
+| `pnpm enterprise platform:accounting-replay` | Replay accounting integration events. |
+| `pnpm enterprise platform:accounting-backfill-events` | Backfill accounting integration events. |
+| `pnpm enterprise backfill:gold-valuations` | Backfill gold valuation data. |
+| `pnpm enterprise backfill:gold-accounting-usd` | Backfill gold accounting USD values. |
 
 Run any script with `--help` for exact flags when available.
 
@@ -211,12 +241,12 @@ When a new module, vertical, or major surface is added, update all relevant laye
    - Add targeted `.test.ts` or `.test.tsx` files beside the risky logic.
 
 3. API routes:
-   - Add route handlers under `app/api/<domain>/` or `app/api/v2/<domain>/`.
+   - Add route handlers under `app/api/<domain>/` or `app/api/v2/<domain>/` — or, for a module whose routes live in its package (`packages/modules/<id>/api/`), there, then `pnpm compose apps/enterprise <id>`.
    - Use existing shared API helpers and auth/session utilities.
    - Include tenant scoping through `companyId` unless the model is explicitly platform-global.
 
 4. UI routes and components:
-   - Add pages under `app/<module>/`.
+   - Add pages under `app/<module>/` — or, for a module whose pages live in its package (`packages/modules/<id>/pages/`), there, then `pnpm compose apps/enterprise <id>`.
    - Put reusable feature UI in `components/<module>/`.
    - Follow `docs/ux/platform-ux-playbook.md`.
 
@@ -227,7 +257,7 @@ When a new module, vertical, or major surface is added, update all relevant laye
    - Update client templates in `lib/platform/client-templates.ts` if the module should be enabled by tenant profile.
 
 6. Cross-cutting integration:
-   - Add notifications in `lib/notifications.ts` when users need workflow feedback.
+   - Add notifications from the owning module's `notifications.ts` through `@corelithzw/module-notifications/service` (recipients and severity scale: `escalation.ts`); approval notices through a resolver for `emitApprovalNotice` in `@corelithzw/module-people/approval-notifications`.
    - Add audit/event records for sensitive operations.
    - Add document templates/rendering support if the module produces official PDFs.
    - Add offline catalog/runtime support only when the workflow has explicit offline requirements.

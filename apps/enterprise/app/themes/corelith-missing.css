@@ -1,0 +1,649 @@
+/* ═══════════════════════════════════════════════════════════════════════════
+   COMPONENT CSS THE DESIGN-SYSTEM PACKAGE SHIPS WITHOUT
+
+   `@corelithzw/react@0.3.4` bundles `dist/styles.css` from a subset of the
+   docs-site stylesheets, and several components it exports were left out of
+   that bundle. Their JSX renders the right class names and nothing styles
+   them, so the component comes out as unstyled flow content:
+
+     PageHeader   `.dash-page-h` — its source says "Maps to .dash-page-h in
+                  dash.css", and dash.css is not in the bundle. Every page
+                  title in the app was a bare <h1>, which Tailwind's preflight
+                  resets to inherit — 14px at weight 400, the same as body
+                  text. This is the "headings are small text" bug.
+     Field        `.p-field*` — labels, help text and error text unstyled.
+     Drawer       `.p-drawer*` — no overlay, no panel, no positioning; a sheet
+                  rendered inline at the bottom of the page.
+     TextArea     `.p-textarea`
+     EmptyState   `.empty-state-illustration`, `.empty-state-action`
+     Button       `.btn-label`, `.btn-icon-lead`, `.btn-icon-trail`,
+                  `.is-loading`
+     Card         `.card-actions`, `.card-tone-*`
+     DataToolbar  `.data-toolbar-filters`, `.data-toolbar-actions`
+     Tabs         every class the component emits. `Tabs` renders
+                  `.utabs/.stabs/.ptabs/.vtabs` with `.utab/.stab/.ptab/.vtab`
+                  triggers, and *none* of those eight names exists in the
+                  bundle or in the docs site's own components.css — the
+                  component's class names outran its CSS. The stylesheet does
+                  carry `.under-tabs`, `.seg-tabs` and `.iconstrip`, which are
+                  what p-tabs.html says the three variants look like, so the
+                  rules below reproduce those against the names the component
+                  actually emits.
+     KpiGrid      every `.kpi-cell*` child — the executive KPI row rendered as
+                  a column of naked numbers
+     RowCard      `.b-row-card-title`, `.b-row-card-sub`
+
+   Written to the package's own conventions: tokens only — no colour, size,
+   radius, shadow or duration literal — and the same selector shapes the
+   bundled CSS uses, so this file can be deleted wholesale the day a release
+   ships the real thing. Imported into `layer(corelith)` from `globals.css`,
+   which is where the package's CSS would have put it, so app utilities still
+   win over everything here.
+
+   Verified against the package sources under
+   `node_modules/@corelithzw/react/src`, not guessed from the class names.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+/* ── PageHeader ─────────────────────────────────────────────────────────────
+   header.dash-page-h > div.meta > (nav.crumbs, h1, p.lede, div.h-pills)
+                      > div.actions                                          */
+
+.dash-page-h {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-5);
+  flex-wrap: wrap;
+  margin-bottom: var(--space-5);
+}
+
+.dash-page-h > .meta {
+  min-width: 0;
+  display: grid;
+  gap: var(--space-2);
+}
+
+.dash-page-h .crumbs {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font: var(--type-caption);
+  color: var(--text-muted);
+}
+
+.dash-page-h .crumbs a {
+  color: var(--text-muted);
+  text-decoration: none;
+}
+
+.dash-page-h .crumbs a:hover {
+  color: var(--text-strong);
+}
+
+.dash-page-h .crumbs .sep {
+  color: var(--text-subtle);
+}
+
+.dash-page-h .crumbs .current {
+  color: var(--text-body);
+}
+
+.dash-page-h h1 {
+  font: var(--type-page-title);
+  color: var(--text-strong);
+  margin: 0;
+  /* The title has to wrap rather than push the action row off a phone. */
+  overflow-wrap: anywhere;
+}
+
+.dash-page-h .lede {
+  font: var(--type-body);
+  color: var(--text-muted);
+  margin: 0;
+  max-width: 68ch;
+}
+
+.dash-page-h .h-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.dash-page-h .h-pills .p {
+  display: inline-flex;
+  align-items: center;
+  padding: 0 var(--space-3);
+  min-height: var(--space-7);
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--tone-neutral-bd);
+  background: var(--tone-neutral-bg);
+  color: var(--text-muted);
+  font: var(--type-label-sm);
+  white-space: nowrap;
+}
+
+.dash-page-h .h-pills .p.b {
+  border-color: var(--tone-info-bd);
+  background: var(--tone-info-bg);
+  color: var(--tone-info);
+}
+
+.dash-page-h .h-pills .p.s {
+  border-color: var(--tone-success-bd);
+  background: var(--tone-success-bg);
+  color: var(--tone-success);
+}
+
+.dash-page-h .h-pills .p.w {
+  border-color: var(--tone-warn-bd);
+  background: var(--tone-warn-bg);
+  color: var(--tone-warn);
+}
+
+.dash-page-h .h-pills .p.d {
+  border-color: var(--tone-danger-bd);
+  background: var(--tone-danger-bg);
+  color: var(--tone-danger);
+}
+
+.dash-page-h > .actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+  flex: none;
+}
+
+/* On a phone the action row goes full width under the title rather than
+   competing with it for a line. */
+@media (max-width: 640px) {
+  .dash-page-h > .actions {
+    width: 100%;
+  }
+}
+
+/* ── Field ──────────────────────────────────────────────────────────────────
+   div.p-field > (label.p-field-label, control, p.p-field-description,
+                  p.p-field-error)                                           */
+
+.p-field {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.p-field-label {
+  font: var(--type-label);
+  color: var(--text-body);
+}
+
+.p-field-description {
+  font: var(--type-body-sm);
+  color: var(--text-muted);
+  margin: 0;
+}
+
+.p-field-error {
+  font: var(--type-body-sm);
+  color: var(--tone-danger);
+  margin: 0;
+}
+
+/* An invalid field paints its own control rather than making every call site
+   remember to pass the state down. */
+.p-field[data-invalid="true"] .input,
+.p-field[data-invalid="true"] .select,
+.p-field[data-invalid="true"] .p-textarea {
+  border-color: var(--tone-danger);
+}
+
+/* ── Drawer ─────────────────────────────────────────────────────────────────
+   div.p-drawer-overlay + aside.p-drawer.p-drawer-{right|left|bottom}         */
+
+.p-drawer-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: color-mix(in oklab, var(--ink) 32%, transparent);
+}
+
+.p-drawer {
+  position: fixed;
+  z-index: 61;
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  box-shadow: var(--shadow-modal);
+  max-width: 100vw;
+  max-height: 100dvh;
+}
+
+.p-drawer-right,
+.p-drawer-left {
+  top: 0;
+  bottom: 0;
+  width: min(40rem, 100vw);
+}
+
+.p-drawer-right {
+  right: 0;
+  border-left: 1px solid var(--border);
+}
+
+.p-drawer-left {
+  left: 0;
+  border-right: 1px solid var(--border);
+}
+
+.p-drawer-bottom {
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: 90dvh;
+  border-top: 1px solid var(--border);
+  border-radius: var(--radius-xl) var(--radius-xl) 0 0;
+}
+
+.p-drawer-header {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding: var(--space-5);
+  border-bottom: 1px solid var(--border-subtle);
+  font: var(--type-section-title);
+  color: var(--text-strong);
+}
+
+.p-drawer-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.p-drawer-footer {
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5);
+  border-top: 1px solid var(--border-subtle);
+  /* Keeps the confirm button clear of a phone's home indicator. */
+  padding-bottom: max(var(--space-4), env(safe-area-inset-bottom));
+}
+
+/* ── TextArea ───────────────────────────────────────────────────────────── */
+
+.p-textarea {
+  display: block;
+  width: 100%;
+  min-height: calc(var(--space-9) * 2);
+  padding: var(--space-3);
+  resize: vertical;
+  line-height: 1.55;
+}
+
+/* ── EmptyState ─────────────────────────────────────────────────────────── */
+
+.empty-state-illustration {
+  margin-bottom: var(--space-2);
+  color: var(--text-subtle);
+}
+
+.empty-state-action {
+  margin-top: var(--space-3);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+/* ── Button internals ────────────────────────────────────────────────────── */
+
+.btn-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-icon-lead,
+.btn-icon-trail {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+}
+
+.btn.is-loading {
+  pointer-events: none;
+  opacity: 0.7;
+}
+
+/* ── Card extras ─────────────────────────────────────────────────────────── */
+
+.card-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.card-tone-brand {
+  border-color: var(--tone-info-bd);
+}
+
+.card-tone-success {
+  border-color: var(--tone-success-bd);
+}
+
+.card-tone-warn {
+  border-color: var(--tone-warn-bd);
+}
+
+.card-tone-danger {
+  border-color: var(--tone-danger-bd);
+}
+
+/* ── DataToolbar ─────────────────────────────────────────────────────────── */
+
+.data-toolbar-filters,
+.data-toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.data-toolbar-actions {
+  margin-left: auto;
+  flex-wrap: nowrap;
+}
+
+/* ── Tabs ───────────────────────────────────────────────────────────────────
+   div[role=tablist].{utabs|stabs|ptabs|vtabs} > button.{utab|stab|ptab|vtab}
+   The active trigger carries `.current`, `aria-selected="true"` and
+   `data-state="active"`; all three are matched so the styling holds however
+   the trigger is rendered, including through `asChild`.
+
+   Heights follow p-tabs.html: 40px underline, 36 segmented, 32 pill.        */
+
+/* Underline — the default, and the one that belongs above page content. */
+.utabs {
+  display: flex;
+  gap: var(--space-6);
+  border-bottom: 1px solid var(--border);
+  padding: 0 var(--space-1);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.utabs::-webkit-scrollbar {
+  display: none;
+}
+
+.utab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  padding: 0;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  background: transparent;
+  font: 500 14px/1 var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.utab:hover {
+  color: var(--text-strong);
+}
+
+.utab.current,
+.utab[aria-selected="true"],
+.utab[data-state="active"] {
+  color: var(--text-strong);
+  border-bottom-color: var(--brand);
+}
+
+/* Segmented — a control, not a header. Sits on the muted surface. */
+.stabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border-radius: var(--radius-lg);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.stabs::-webkit-scrollbar {
+  display: none;
+}
+
+.stab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 36px;
+  padding: 0 var(--space-4);
+  border: none;
+  border-radius: var(--radius-md);
+  background: transparent;
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.stab:hover {
+  color: var(--text-strong);
+}
+
+.stab.current,
+.stab[aria-selected="true"],
+.stab[data-state="active"] {
+  background: var(--surface);
+  color: var(--text-strong);
+  box-shadow: var(--shadow-inset-soft);
+}
+
+/* Pill — the compact one, for a filter row rather than page navigation. */
+.ptabs {
+  display: inline-flex;
+  gap: var(--space-2);
+  max-width: 100%;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ptabs::-webkit-scrollbar {
+  display: none;
+}
+
+.ptab {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-pill);
+  background: var(--surface);
+  font: 500 13px/1 var(--font-sans);
+  color: var(--text-muted);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.ptab:hover {
+  color: var(--text-strong);
+  border-color: var(--border-strong);
+}
+
+.ptab.current,
+.ptab[aria-selected="true"],
+.ptab[data-state="active"] {
+  background: var(--brand-soft);
+  border-color: var(--brand-100);
+  color: var(--brand-strong);
+}
+
+/* Vertical — a rail beside the content, same quiet-list rule as .nav-rail. */
+.vtabs {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.vtab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  width: 100%;
+  min-height: 36px;
+  padding: 0 var(--space-3);
+  border: none;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  font: 500 14px/1.2 var(--font-sans);
+  color: var(--text-body);
+  text-align: left;
+  cursor: pointer;
+}
+
+.vtab:hover {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+}
+
+.vtab.current,
+.vtab[aria-selected="true"],
+.vtab[data-state="active"] {
+  background: var(--surface-muted);
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+/* ── KpiGrid ────────────────────────────────────────────────────────────────
+   div.kpi-grid.kpi-grid-{n} > div.kpi-item > div.kpi-cell
+     > (div.kpi-cell-h > span.kpi-cell-lbl + span.kpi-cell-chev)
+     > div.kpi-cell-val
+     > div.kpi-cell-foot > (span.kpi-cell-delta[.tone-*] + span.kpi-cell-spark)
+
+   `.kpi-grid` itself is styled by the package; only the cell internals are
+   missing, which left the executive KPI row as a column of naked numbers.   */
+
+.kpi-item {
+  min-width: 0;
+}
+
+.kpi-cell {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  min-width: 0;
+}
+
+/* The whole cell is the target when it links somewhere. */
+a.kpi-cell:hover,
+button.kpi-cell:hover {
+  border-color: var(--border-strong);
+  background: var(--surface-muted);
+}
+
+.kpi-cell-h {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-width: 0;
+}
+
+.kpi-cell-lbl {
+  font: var(--type-eyebrow);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.kpi-cell-chev {
+  flex: none;
+  display: inline-flex;
+  color: var(--text-subtle);
+}
+
+.kpi-cell-val {
+  font: var(--type-display-sm);
+  color: var(--text-strong);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-cell-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: var(--space-5);
+}
+
+.kpi-cell-delta {
+  font: var(--type-body-sm);
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.kpi-cell-delta.tone-success {
+  color: var(--tone-success);
+}
+
+.kpi-cell-delta.tone-warn {
+  color: var(--tone-warn);
+}
+
+.kpi-cell-delta.tone-danger {
+  color: var(--tone-danger);
+}
+
+.kpi-cell-spark {
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-subtle);
+}
+
+/* ── RowCard title/subtitle ─────────────────────────────────────────────────
+   `.b-row-card` is styled by the package but these two children are not, so
+   the title and its subtitle rendered at the same weight and ran together.  */
+
+.b-row-card-title {
+  font: var(--type-label);
+  color: var(--text-strong);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.b-row-card-sub {
+  font: var(--type-body-sm);
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

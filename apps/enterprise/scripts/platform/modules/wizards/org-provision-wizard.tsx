@@ -1,0 +1,329 @@
+import React, { useMemo, useState } from "react";
+import { Text, useInput } from "ink";
+
+import type { PlatformServices } from "../../types";
+import { TIERS } from "@corelithzw/platform/feature-catalog";
+import { CLIENT_BUNDLE_TEMPLATES } from "@corelithzw/platform/client-templates";
+import { applyTextInput, useInputLock } from "../input-utils";
+import { SelectorList } from "./selector-list";
+import { WizardFrame } from "./wizard-frame";
+
+interface OrgProvisionWizardProps {
+  actor: string;
+  services: PlatformServices;
+  readOnly: boolean;
+  setInputLocked?: (locked: boolean) => void;
+  onBackToTree?: () => void;
+}
+
+type Step = 0 | 1 | 2 | 3 | 4 | 5;
+type OrgField = "name" | "slug";
+type AdminField = "adminEmail" | "adminName" | "adminPassword";
+
+function slugify(value: string) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .replace(/-{2,}/g, "-");
+}
+
+const STEPS = ["Organization", "Admin", "Select Tier", "Select Template", "Subdomain", "Review"];
+const ORG_FIELDS: OrgField[] = ["name", "slug"];
+const ADMIN_FIELDS: AdminField[] = ["adminEmail", "adminName", "adminPassword"];
+const TIER_OPTIONS = ["CUSTOM", ...TIERS.map((tier) => tier.code)];
+const TEMPLATE_OPTIONS = CLIENT_BUNDLE_TEMPLATES.map((template) => template.code);
+
+export function OrgProvisionWizard({
+  actor,
+  services,
+  readOnly,
+  setInputLocked,
+  onBackToTree,
+}: OrgProvisionWizardProps) {
+  const [step, setStep] = useState<Step>(0);
+  const [orgField, setOrgField] = useState(0);
+  const [adminField, setAdminField] = useState(0);
+  const [tierIndex, setTierIndex] = useState(0);
+  const [templateIndex, setTemplateIndex] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [confirmDraft, setConfirmDraft] = useState("");
+
+  const [draft, setDraft] = useState({
+    name: "",
+    slug: "",
+    adminEmail: "",
+    adminName: "",
+    adminPassword: "",
+    subdomain: "",
+  });
+
+  useInputLock(setInputLocked, true);
+
+  const selectedTier = TIER_OPTIONS[tierIndex] ?? TIER_OPTIONS[0];
+  const selectedTemplateCode = TEMPLATE_OPTIONS[templateIndex] ?? TEMPLATE_OPTIONS[0] ?? "TEMPLATE_CORE_STARTER";
+
+  const resolvedSlug = useMemo(() => slugify(draft.slug || draft.name), [draft.name, draft.slug]);
+  const resolvedSubdomain = useMemo(() => slugify(draft.subdomain || resolvedSlug), [draft.subdomain, resolvedSlug]);
+  const selectedTemplate = useMemo(
+    () => CLIENT_BUNDLE_TEMPLATES.find((template) => template.code === selectedTemplateCode),
+    [selectedTemplateCode],
+  );
+  const requiresTypedConfirmation = false;
+  const confirmationPhrase = `PROVISION ${resolvedSlug || "org"}`;
+
+  async function runProvision() {
+    if (readOnly) {
+      setErrorMessage("Read-only mode is enabled.");
+      return;
+    }
+    setLoading(true);
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    try {
+      const result = await services.org.provisionBundle({
+        organizationName: draft.name,
+        organizationSlug: draft.slug || undefined,
+        adminEmail: draft.adminEmail,
+        adminName: draft.adminName,
+        adminPassword: draft.adminPassword,
+        tierCode: selectedTier || undefined,
+        featureTemplate: selectedTemplateCode || undefined,
+        subdomain: draft.subdomain || undefined,
+        actor,
+        reason: "Provisioned from guided TUI wizard",
+      });
+      if (!result.ok) {
+        setErrorMessage(result.message);
+        return;
+      }
+      const warnings = result.warnings ?? result.resource.warnings ?? [];
+      setSuccessMessage(
+        `Provisioned ${result.resource.organization.slug} | Admin ${result.resource.admin.email} | Subdomain ${result.resource.subdomainReservation.subdomain}`,
+      );
+      setStatusMessage(
+        warnings.length > 0
+          ? `Provision flow completed with warnings: ${warnings.join(" | ")}`
+          : "Provision flow completed.",
+      );
+      setConfirmDraft("");
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Provision failed.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useInput((input, key) => {
+    if (loading) return;
+
+    if (key.escape) {
+      if (step === 0) {
+        onBackToTree?.();
+        return;
+      }
+      setStep((current) => (Math.max(0, current - 1) as Step));
+      return;
+    }
+
+    if (step === 0) {
+      if (key.upArrow) {
+        setOrgField((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setOrgField((current) => Math.min(ORG_FIELDS.length - 1, current + 1));
+        return;
+      }
+      if (key.return) {
+        if (!draft.name.trim()) {
+          setErrorMessage("Organization name is required.");
+          return;
+        }
+        setStep(1);
+        setErrorMessage(null);
+        return;
+      }
+      const field = ORG_FIELDS[orgField];
+      setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      return;
+    }
+
+    if (step === 1) {
+      if (key.upArrow) {
+        setAdminField((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setAdminField((current) => Math.min(ADMIN_FIELDS.length - 1, current + 1));
+        return;
+      }
+      if (key.return) {
+        if (!draft.adminEmail.includes("@")) {
+          setErrorMessage("Admin email is invalid.");
+          return;
+        }
+        if (!draft.adminName.trim()) {
+          setErrorMessage("Admin name is required.");
+          return;
+        }
+        if (draft.adminPassword.length < 8) {
+          setErrorMessage("Admin password must be at least 8 characters.");
+          return;
+        }
+        setStep(2);
+        setErrorMessage(null);
+        return;
+      }
+      const field = ADMIN_FIELDS[adminField];
+      setDraft((current) => ({ ...current, [field]: applyTextInput(current[field], input, key) }));
+      return;
+    }
+
+    if (step === 2) {
+      if (key.upArrow) {
+        setTierIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setTierIndex((current) => Math.min(Math.max(0, TIER_OPTIONS.length - 1), current + 1));
+        return;
+      }
+      if (key.return) {
+        setStep(3);
+      }
+      return;
+    }
+
+    if (step === 3) {
+      if (key.upArrow) {
+        setTemplateIndex((current) => Math.max(0, current - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setTemplateIndex((current) => Math.min(Math.max(0, TEMPLATE_OPTIONS.length - 1), current + 1));
+        return;
+      }
+      if (key.return) {
+        setStep(4);
+      }
+      return;
+    }
+
+    if (step === 4) {
+      if (key.return) {
+        setStep(5);
+        return;
+      }
+      setDraft((current) => ({ ...current, subdomain: applyTextInput(current.subdomain, input, key) }));
+      return;
+    }
+
+    if (step === 5) {
+      if (key.return) {
+        if (requiresTypedConfirmation && confirmDraft.trim() !== confirmationPhrase) {
+          setErrorMessage(`Type exact phrase: ${confirmationPhrase}`);
+          return;
+        }
+        void runProvision();
+        return;
+      }
+      if (requiresTypedConfirmation) {
+        setConfirmDraft((current) => applyTextInput(current, input, key));
+      }
+    }
+  });
+
+  return (
+    <WizardFrame
+      title="Provision Organization Wizard"
+      description="Linear guided flow for new client setup."
+      step={step}
+      steps={STEPS}
+      statusMessage={statusMessage}
+      errorMessage={errorMessage}
+      successMessage={successMessage}
+      hints={[
+        "Keys: Up/Down select field/item, Enter next/submit, Esc back.",
+        loading ? "Working..." : "Esc on first step returns to operation tree.",
+      ]}
+      body={
+        <>
+          {step === 0 ? (
+            <>
+              <Text color={orgField === 0 ? "cyan" : undefined}>name: {draft.name || "<required>"}</Text>
+              <Text color={orgField === 1 ? "cyan" : undefined}>slug: {draft.slug || "<auto>"}</Text>
+              <Text dimColor>Resolved slug: {resolvedSlug || "<none>"}</Text>
+            </>
+          ) : null}
+          {step === 1 ? (
+            <>
+              <Text color={adminField === 0 ? "cyan" : undefined}>adminEmail: {draft.adminEmail || "<required>"}</Text>
+              <Text color={adminField === 1 ? "cyan" : undefined}>adminName: {draft.adminName || "<required>"}</Text>
+              <Text color={adminField === 2 ? "cyan" : undefined}>
+                adminPassword: {draft.adminPassword ? "***" : "<required>"}
+              </Text>
+            </>
+          ) : null}
+          {step === 2 ? (
+            <>
+              <Text>Select tier code:</Text>
+              <SelectorList
+                items={TIER_OPTIONS}
+                selectedIndex={tierIndex}
+                emptyMessage="No tiers available."
+                render={(item) => item}
+              />
+            </>
+          ) : null}
+          {step === 3 ? (
+            <>
+              <Text>tierCode: {selectedTier}</Text>
+              <Text>Select feature template:</Text>
+              <SelectorList
+                items={TEMPLATE_OPTIONS}
+                selectedIndex={templateIndex}
+                emptyMessage="No templates available."
+                render={(item) => {
+                  const template = CLIENT_BUNDLE_TEMPLATES.find((entry) => entry.code === item);
+                  return `${item} | ${template?.label || "Unknown template"}`;
+                }}
+              />
+            </>
+          ) : null}
+          {step === 4 ? (
+            <>
+              <Text>tierCode: {selectedTier}</Text>
+              <Text>featureTemplate: {selectedTemplateCode} ({selectedTemplate?.label || "Unknown template"})</Text>
+              <Text>subdomain: {draft.subdomain || "<auto>"}</Text>
+              <Text dimColor>Resolved subdomain: {resolvedSubdomain || "<none>"}</Text>
+            </>
+          ) : null}
+          {step === 5 ? (
+            <>
+              <Text>org: {draft.name || "<none>"} ({resolvedSlug || "<none>"})</Text>
+              <Text>admin: {draft.adminEmail || "<none>"} ({draft.adminName || "<none>"})</Text>
+              <Text>
+                tier/template: {selectedTier} / {selectedTemplateCode} ({selectedTemplate?.label || "Unknown template"})
+              </Text>
+              <Text>subdomain: {resolvedSubdomain || "<none>"}</Text>
+              <Text>actor: {actor}</Text>
+              {requiresTypedConfirmation ? (
+                <>
+                  <Text color="yellow">Type: {confirmationPhrase}</Text>
+                  <Text>Input: {confirmDraft || "<waiting>"}</Text>
+                </>
+              ) : (
+                <Text color="yellow">Press Enter to confirm.</Text>
+              )}
+            </>
+          ) : null}
+        </>
+      }
+    />
+  );
+}

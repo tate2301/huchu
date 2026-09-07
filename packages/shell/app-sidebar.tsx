@@ -1,0 +1,264 @@
+"use client";
+
+import * as React from "react";
+import { usePathname, useSearchParams } from "next/navigation";
+import { useSession } from "next-auth/react";
+
+import { useGuidedMode } from "@corelithzw/ui/hooks/use-guided-mode";
+import { MedusaChevronDownIcon, MedusaChevronRightIcon, MedusaHouseIcon } from "@corelithzw/ui/lib/icons";
+import type { SidebarModelArgs, WorkspaceSidebarModel } from "./sidebar-model";
+import {
+  Sidebar,
+  SidebarContent,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarHeader,
+  SidebarRail,
+  useSidebar,
+} from "@corelithzw/ui/components/sidebar";
+import { SidebarAccountMenu } from "./app-sidebar/sidebar-account-menu";
+import { getActiveNavHref } from "./app-sidebar/sidebar-helpers";
+import { SidebarNavSections } from "./app-sidebar/sidebar-nav-sections";
+import { SidebarQuickActions } from "./app-sidebar/sidebar-quick-actions";
+import { SidebarSupport } from "./app-sidebar/sidebar-support";
+
+export function AppSidebar({
+  resolveModel,
+  collections,
+}: {
+  /** The host's answer to what this person's sidebar holds; see `sidebar-model.ts`. */
+  resolveModel: (args: SidebarModelArgs) => WorkspaceSidebarModel;
+  /** The person's own shelves, rendered below the product's structure. */
+  collections?: React.ReactNode;
+}) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const view = searchParams.get("view");
+  const { data: session } = useSession();
+  const role = (session?.user as { role?: string } | undefined)?.role;
+  const enabledFeatures = React.useMemo(
+    () =>
+      (session?.user as { enabledFeatures?: string[] } | undefined)
+        ?.enabledFeatures,
+    [session],
+  );
+  const workspaceProfile = (
+    session?.user as { workspaceProfile?: string } | undefined
+  )?.workspaceProfile;
+  const { state, isMobile, setOpen } = useSidebar();
+  const { enabled: guidedModeEnabled, setGuidedMode } = useGuidedMode();
+  const isCollapsed = state === "collapsed";
+
+  const sidebarModel = React.useMemo(
+    () => resolveModel({ role, enabledFeatures, workspaceProfile }),
+    [enabledFeatures, resolveModel, role, workspaceProfile],
+  );
+
+  const orderedSections = React.useMemo(
+    () => sidebarModel.sections,
+    [sidebarModel.sections],
+  );
+  const topQuickLinks = React.useMemo(() => {
+    return [
+      {
+        href: sidebarModel.homeHref,
+        label: sidebarModel.homeLabel,
+        icon: MedusaHouseIcon,
+      },
+    ];
+  }, [sidebarModel.homeHref, sidebarModel.homeLabel]);
+  const topQuickLinkHrefs = React.useMemo(
+    () => new Set(topQuickLinks.map((item) => item.href)),
+    [topQuickLinks],
+  );
+  const orderedSectionsWithoutTopQuickLinks = React.useMemo(
+    () =>
+      orderedSections
+        .map((section) => ({
+          ...section,
+          items: section.items.filter(
+            (item) => !topQuickLinkHrefs.has(item.href),
+          ),
+        }))
+        .filter((section) => section.items.length > 0),
+    [orderedSections, topQuickLinkHrefs],
+  );
+  const primarySections = React.useMemo(
+    () =>
+      orderedSectionsWithoutTopQuickLinks.filter(
+        (section) => section.workspaceGroup !== "additional",
+      ),
+    [orderedSectionsWithoutTopQuickLinks],
+  );
+  const additionalSections = React.useMemo(
+    () =>
+      orderedSectionsWithoutTopQuickLinks.filter(
+        (section) => section.workspaceGroup === "additional",
+      ),
+    [orderedSectionsWithoutTopQuickLinks],
+  );
+
+  const activeHref = React.useMemo(
+    () => getActiveNavHref(orderedSections, pathname, view),
+    [orderedSections, pathname, view],
+  );
+  const activeSectionId = React.useMemo(
+    () =>
+      orderedSectionsWithoutTopQuickLinks.find((section) =>
+        section.items.some((item) => item.href === activeHref),
+      )?.id ?? null,
+    [activeHref, orderedSectionsWithoutTopQuickLinks],
+  );
+  const [openSectionId, setOpenSectionId] = React.useState<string | null>(
+    activeSectionId,
+  );
+
+  const [moreExpanded, setMoreExpanded] = React.useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const stored = localStorage.getItem("sidebar-more-expanded");
+    return stored === null ? true : stored !== "false";
+  });
+
+  const toggleMore = React.useCallback(() => {
+    setMoreExpanded((prev) => {
+      const next = !prev;
+      localStorage.setItem("sidebar-more-expanded", String(next));
+      return next;
+    });
+  }, []);
+
+  React.useEffect(() => {
+    if (activeSectionId) {
+      setOpenSectionId(activeSectionId);
+    }
+  }, [activeSectionId]);
+
+  const toggleSection = React.useCallback(
+    (sectionId: string) => {
+      if (isCollapsed) {
+        setOpen(true);
+      }
+      setOpenSectionId((current) => (current === sectionId ? null : sectionId));
+    },
+    [isCollapsed, setOpen],
+  );
+
+  return (
+    <Sidebar
+      collapsible="icon"
+      variant="inset"
+      // Scrolls as one column. The design system puts the scroll on
+      // `.sidebar-content`, which left the account switcher and the quick
+      // actions pinned while a strip in the middle moved under them — two
+      // scrollbars on one surface, and neither where the pointer expects.
+      className="p-1 sticky top-0 h-[100dvh] m-0 border-none overflow-y-auto overscroll-contain rounded-none bg-[var(--sidebar)] shadow-none [--sidebar-width:clamp(17rem,22vw,19.25rem)] [--sidebar-width-icon:4rem]"
+    >
+      <SidebarHeader className="p-1">
+        <SidebarAccountMenu
+          isCollapsed={isCollapsed}
+          isMobile={isMobile}
+          workspaceLabel={sidebarModel.workspaceLabel}
+          workspaceIcon={sidebarModel.workspaceIcon}
+        />
+        <SidebarQuickActions
+          items={topQuickLinks}
+          quickActions={sidebarModel.quickActions}
+          isCollapsed={isCollapsed}
+          isMobile={isMobile}
+          pathname={pathname}
+          view={view}
+        />
+      </SidebarHeader>
+
+      <SidebarContent className="gap-2.5 px-1 pt-0 [flex:none] [overflow:visible]">
+        {!isCollapsed ? (
+          <SidebarSectionHeading label={sidebarModel.workspaceLabel} />
+        ) : null}
+
+        {primarySections.length > 0 ? (
+          <SidebarGroup className="mb-0.5 py-0">
+            <SidebarGroupContent className="mt-0 gap-0">
+              <SidebarNavSections
+                sections={primarySections}
+                activeHref={activeHref}
+                isCollapsed={isCollapsed}
+                openSectionId={openSectionId}
+                onToggleSection={toggleSection}
+              />
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : null}
+
+        {additionalSections.length > 0 ? (
+          <>
+            {!isCollapsed ? (
+              <SidebarSectionHeading
+                label="More"
+                expanded={moreExpanded}
+                onToggle={toggleMore}
+              />
+            ) : null}
+            {(moreExpanded || isCollapsed) ? (
+              <SidebarGroup className="mb-0.5 py-0">
+                <SidebarGroupContent className="mt-0 gap-0">
+                  <SidebarNavSections
+                    sections={additionalSections}
+                    activeHref={activeHref}
+                    isCollapsed={isCollapsed}
+                    openSectionId={openSectionId}
+                    onToggleSection={toggleSection}
+                  />
+                </SidebarGroupContent>
+              </SidebarGroup>
+            ) : null}
+          </>
+        ) : null}
+
+        {/* The user's own shelves, below the product's structure — these are
+            what this person keeps to hand, not part of the app's shape. */}
+        {collections}
+
+        <SidebarSupport
+          isCollapsed={isCollapsed}
+          guidedModeEnabled={guidedModeEnabled}
+          onToggleGuidedMode={() => setGuidedMode(!guidedModeEnabled)}
+        />
+      </SidebarContent>
+
+      <SidebarRail className="right-[-2px] h-10 w-[2px] rounded-full bg-[var(--action-primary-bg)]/35" />
+    </Sidebar>
+  );
+}
+
+function SidebarSectionHeading({
+  label,
+  expanded,
+  onToggle,
+}: {
+  label: string;
+  expanded?: boolean;
+  onToggle?: () => void;
+}) {
+  if (onToggle !== undefined) {
+    return (
+      <button
+        type="button"
+        onClick={onToggle}
+        className="flex w-full items-center gap-1 px-2 pb-1 pt-2 text-sm font-medium text-[var(--text-subtle)] transition-colors hover:text-foreground"
+      >
+        <span className="truncate">{label}</span>
+        {expanded ? (
+          <MedusaChevronDownIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
+        ) : (
+          <MedusaChevronRightIcon className="ml-auto h-3.5 w-3.5 text-[var(--text-subtle)]" />
+        )}
+      </button>
+    );
+  }
+  return (
+    <div className="flex items-center gap-1 px-2 pb-1 pt-2 text-sm font-medium text-[var(--text-subtle)]">
+      <span className="truncate">{label}</span>
+      <MedusaChevronDownIcon className="h-3.5 w-3.5 text-[var(--text-subtle)]" />
+    </div>
+  );
+}

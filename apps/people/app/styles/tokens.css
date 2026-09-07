@@ -1,0 +1,400 @@
+/* ============================================================
+   Corelith Design System — Foundation Tokens
+   Inspired by Claude Code's warm-paper interface.
+   ============================================================ */
+
+/* ── UI sans · Atkinson Hyperlegible (only) ─────────────
+   Plus its monospace variant for IDs, amounts, timestamps.
+   No serifs anywhere — the brief is hyperlegible-only.    */
+
+:root {
+  /* ════════════════════════════════════════════════════
+     COLOR · warm paper canvas + clay accent
+     ════════════════════════════════════════════════════ */
+
+  /* Canvas + surfaces — neutral, cool gray */
+  --canvas:         #F7F8FA;       /* page background */
+  --surface:        #FFFFFF;       /* raised panels, inputs */
+  --surface-muted:  #F1F3F6;       /* hover, grouped areas */
+  --surface-sunken: #E8EBF0;       /* deeper grouped */
+  --surface-deep:   #DDE1E7;       /* skeleton, divider blocks */
+
+  /* Neutral gray scale (50–950) — used directly when a swatch is needed */
+  --gray-50:        #F7F8FA;
+  --gray-100:       #F1F3F6;
+  --gray-200:       #E5E8EE;
+  --gray-300:       #D2D7E0;
+  --gray-400:       #A6AEBD;
+  --gray-500:       #767D8C;
+  --gray-600:       #565C69;
+  --gray-700:       #3D424D;
+  --gray-800:       #262A33;
+  --gray-900:       #16181D;
+  --gray-950:       #0C0D11;
+
+  /* Inverse (solid dark buttons, ink elements) */
+  --ink:            #16181D;
+  --ink-soft:       #262A33;
+
+  /* Borders */
+  --border:         #E5E8EE;
+  --border-strong:  #D2D7E0;
+  --border-subtle:  #EEF0F4;
+  --hairline:       rgba(22, 24, 29, 0.08);
+
+  /* Text */
+  --text-strong:    #16181D;
+  --text-body:      #262A33;
+  --text-muted:     #565C69;
+  --text-subtle:    #5E6573;
+  --text-inverse:   #FFFFFF;
+  --text-link:      #0944C2;
+
+  /* Corelith blue — the brand mark + primary action.
+     Sampled from the logo. The single saturated color in the system. */
+  --brand:          #0B5DF0;
+  --brand-strong:   #0944C2;
+  --brand-deeper:   #08379C;
+  --brand-soft:     #E8EFFE;
+  --brand-tint:     rgba(11, 93, 240, 0.08);
+  --brand-50:       #EEF3FE;
+  --brand-100:      #DCE5FD;
+  --brand-200:      #B8CBFB;
+  --brand-300:      #85A8F8;
+  --brand-500:      #0B5DF0;
+  --brand-700:      #0944C2;
+  --brand-900:      #0A2862;
+
+  /* Action — primary buttons are now Corelith blue (matches the live
+     ERP product). Ink remains available for subdued solid buttons. */
+  --action-primary-bg:      var(--brand);
+  --action-primary-hover:   var(--brand-strong);
+  --action-primary-pressed: var(--brand-deeper);
+  --action-primary-fg:      #FFFFFF;
+
+  --action-secondary-bg:    var(--surface);
+  --action-secondary-bg-hover:  var(--surface-muted);
+  --action-secondary-fg:    var(--text-strong);
+
+  --action-destructive-bg:    #B83A2A;
+  --action-destructive-hover: #A33324;
+  --action-destructive-fg:    #FFFFFF;
+
+  /* Soft destructive — Claude-style "Delete account" dark warm grey
+     for serious-but-reversible destructive actions. */
+  --action-destructive-soft-bg:    #6B655A;
+  --action-destructive-soft-hover: #57524A;
+
+  /* Strong on-canvas variants of the success/danger tones — used
+     where diff or tag text must read against a tinted background. */
+  --tone-success-strong: #2E5526;
+  --tone-danger-strong:  #7A2419;
+
+  /* Border that appears on input hover (and other interactive surfaces
+     before a focus ring engages). One step warmer/stronger than --border-strong. */
+  --border-hover: #BFB9A8;
+
+  /* Legacy clay aliases — point at brand now. Kept so older preview
+     pages and kits authored against the clay token continue to render
+     without edits. New code should reference --brand directly. */
+  --clay:           var(--brand);
+  --clay-strong:    var(--brand-strong);
+  --clay-soft:      var(--brand-soft);
+  --clay-tint:      var(--brand-tint);
+
+  /* Semantic tones — info now leans on the brand blue */
+  --tone-info:    var(--brand);
+  --tone-info-bg: var(--brand-soft);
+  --tone-info-bd: var(--brand-100);
+
+  --tone-success:    #5E8E54;
+  --tone-success-bg: #E7EFE0;
+  --tone-success-bd: #CFE0C3;
+
+  --tone-warn:    #B07626;
+  --tone-warn-bg: #F4E6C5;
+  --tone-warn-bd: #E8D08F;
+
+  --tone-danger:    #B83A2A;
+  --tone-danger-bg: #F6E2DD;
+  --tone-danger-bd: #ECCBC0;
+
+  --tone-neutral:    var(--text-muted);
+  --tone-neutral-bg: var(--surface-muted);
+  --tone-neutral-bd: var(--border);
+
+  /* Status dots — the small attention indicator next to list items.
+     Attention uses the brand blue (it's the eye-catcher). */
+  --dot-attention:  var(--brand);
+  --dot-progress:   var(--brand);
+  --dot-ok:         var(--tone-success);
+  --dot-idle:       var(--text-subtle);
+
+  /* Focus ring */
+  --focus-ring:        var(--brand);
+  --focus-ring-soft:   rgba(11, 93, 240, 0.22);
+
+  /* ════════════════════════════════════════════════════
+     TYPOGRAPHY
+     ════════════════════════════════════════════════════ */
+
+  --font-sans:    "Atkinson Hyperlegible Next", "Atkinson Hyperlegible",
+                  -apple-system, BlinkMacSystemFont, "Segoe UI",
+                  "Helvetica Neue", Arial, sans-serif;
+  --font-display: var(--font-sans);   /* one family — weight does the work */
+  --font-serif:   var(--font-sans);   /* legacy alias — still Hyperlegible */
+  --font-mono:    "Atkinson Hyperlegible Mono", ui-monospace, "SF Mono",
+                  "JetBrains Mono", "IBM Plex Mono", Menlo, Consolas, monospace;
+
+  /* Semantic roles — generous scale for an ERP UI. */
+  --type-display:        700 56px/1.04 var(--font-sans);
+  --type-display-sm:     600 32px/1.15 var(--font-sans);
+  --type-page-title:     600 22px/1.3  var(--font-sans);
+  --type-section-title:  600 16px/1.4  var(--font-sans);
+  --type-body-lg:        400 16px/1.55 var(--font-sans);
+  --type-body:           400 14px/1.55 var(--font-sans);
+  --type-body-sm:        400 13px/1.5  var(--font-sans);
+  --type-label:          500 14px/1.4  var(--font-sans);
+  --type-label-sm:       500 13px/1.4  var(--font-sans);
+  --type-caption:        400 12px/1.45 var(--font-sans);
+  --type-eyebrow:        500 12px/1.3  var(--font-sans);    /* not all-caps */
+  --type-table-head:     500 12px/1.3  var(--font-sans);
+  --type-mono:           500 12px/1.5  var(--font-mono);
+
+  /* ════════════════════════════════════════════════════
+     SPACING — 4px base, 8px rhythm
+     ════════════════════════════════════════════════════ */
+
+  --space-px:  1px;
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-5:   20px;
+  --space-6:   24px;
+  --space-7:   32px;
+  --space-8:   40px;
+  --space-9:   48px;
+  --space-10:  64px;
+  --space-11:  80px;
+  --space-12:  96px;
+  --space-13:  128px;
+
+  --gutter-x:  24px;
+  --row-y:     12px;
+
+  /* ════════════════════════════════════════════════════
+     RADII
+     ════════════════════════════════════════════════════ */
+
+  --radius-xs:   4px;
+  --radius-sm:   6px;
+  --radius-md:   8px;     /* default control */
+  --radius-lg:   10px;    /* cards, inputs */
+  --radius-xl:   14px;
+  --radius-2xl:  18px;
+  --radius-pill: 9999px;
+
+  --button-radius: 8px;
+  --card-radius:   12px;
+
+  /* ════════════════════════════════════════════════════
+     CONTROL SIZES — generous, finger-friendly
+     ════════════════════════════════════════════════════ */
+
+  --h-control-xs: 24px;
+  --h-control-sm: 30px;
+  --h-control-md: 36px;     /* default */
+  --h-control-lg: 44px;
+
+  --input-height: var(--h-control-md);
+  --button-height: var(--h-control-md);
+
+  /* ════════════════════════════════════════════════════
+     SHADOWS — minimal. Borders do the work.
+     ════════════════════════════════════════════════════ */
+
+  --shadow-none:     none;
+  --shadow-rest:     0 1px 0 rgba(42,38,34,0.04);
+  --shadow-hover:    0 2px 4px rgba(42,38,34,0.06);
+  --shadow-popover:  0 12px 32px -8px rgba(42,38,34,0.18),
+                     0 2px 6px rgba(42,38,34,0.06);
+  --shadow-modal:    0 24px 64px -12px rgba(42,38,34,0.24),
+                     0 4px 12px rgba(42,38,34,0.08);
+
+  /* Thin inset-style lift — for a small pressed/active tab or
+     segmented control where the active item appears slightly raised. */
+  --shadow-inset-rest: 0 1px 0 rgba(42,38,34,0.06);
+  --shadow-inset-soft: 0 1px 2px rgba(42,38,34,0.06);
+
+  /* Bars that sit ABOVE content with a shadow pointing UP — bottom
+     tab bar, sticky save bar. Replaces ad-hoc `0 -6px 18px -8px …`. */
+  --shadow-bar-bottom: 0 -6px 18px -8px rgba(22, 24, 29, 0.10);
+
+  /* Bottom sheet — deeper, longer-throw upward shadow than a bar.
+     Replaces ad-hoc `0 -20px 40px -10px …`. */
+  --shadow-sheet-bottom: 0 -20px 40px -10px rgba(22, 24, 29, 0.30);
+
+  /* Thumb on a switch — a physical knob, not a card. */
+  --shadow-thumb: 0 1px 2px rgba(0,0,0,0.18);
+
+  /* ════════════════════════════════════════════════════
+     MOTION
+     ════════════════════════════════════════════════════ */
+
+  --dur-instant:  80ms;
+  --dur-fast:     140ms;
+  --dur-base:     200ms;
+  --dur-slow:     320ms;
+  --dur-slower:   480ms;
+  --dur-page:     640ms;
+
+  --ease-out:      cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out:   cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring:   cubic-bezier(0.5, 1.8, 0.3, 1);
+  --ease-snap:     cubic-bezier(0.7, 0, 0.3, 1);
+
+  /* ════════════════════════════════════════════════════
+     LAYOUT — Claude Code uses fixed sidebar widths
+     ════════════════════════════════════════════════════ */
+
+  --sidebar-w:        264px;
+  --sidebar-w-narrow: 240px;
+  --rail-w:           220px;       /* settings rail */
+  --content-max:      900px;       /* settings content column */
+}
+
+/* ============================================================
+   DARK THEME — single-class cascade.
+   Any portal/page that wants dark visuals adds `is-dark` to <body>.
+   Tokens flip here; component CSS keeps referencing the same names.
+   Sourced from the POS dark mapping (the most-complete in-tree).
+   ============================================================ */
+body.is-dark {
+  /* Canvas + surfaces */
+  --canvas:         #0F1115;
+  --surface:        #161922;
+  --surface-muted:  #1D2230;
+  --surface-sunken: #252A39;
+  --surface-deep:   #2F3548;
+
+  /* Neutral gray scale — inverted so darker numbers stay "deeper" visually */
+  --gray-50:        #0F1115;
+  --gray-100:       #161922;
+  --gray-200:       #1D2230;
+  --gray-300:       #252A39;
+  --gray-400:       #3D4358;
+  --gray-500:       #6B7388;
+  --gray-600:       #8A91A8;
+  --gray-700:       #A8AEC2;
+  --gray-800:       #C6CBDA;
+  --gray-900:       #E5E8F0;
+  --gray-950:       #F5F7FB;
+
+  /* Ink (solid dark elements stay dark on dark) */
+  --ink:            #0B0D12;
+  --ink-soft:       #161922;
+
+  /* Borders — translucent whites read cleanly over any surface tint */
+  --border:         rgba(255,255,255,0.10);
+  --border-strong:  rgba(255,255,255,0.18);
+  --border-subtle:  rgba(255,255,255,0.06);
+  --hairline:       rgba(255,255,255,0.08);
+
+  /* Text */
+  --text-strong:    #F5F7FB;
+  --text-body:      #E1E4ED;
+  --text-muted:     #98A0B5;
+  --text-subtle:    #6B7388;
+  --text-inverse:   #16181D;
+  --text-link:      #85A8F8;
+
+  /* Brand tints — keep the brand hue, lift alpha for dark backdrop */
+  --brand-soft:     rgba(11, 93, 240, 0.18);
+  --brand-tint:     rgba(11, 93, 240, 0.14);
+  --brand-50:       rgba(11, 93, 240, 0.10);
+  --brand-100:      rgba(11, 93, 240, 0.20);
+
+  /* Tones */
+  --tone-success-bg: rgba(94, 142, 84, 0.18);
+  --tone-warn-bg:    rgba(176, 118, 38, 0.18);
+  --tone-danger-bg:  rgba(184, 58, 42, 0.18);
+  --tone-info-bg:    rgba(11, 93, 240, 0.18);
+  --tone-success:    #9CC290;
+  --tone-warn:       #DDB36A;
+  --tone-danger:     #E08374;
+  --tone-info:       #85A8F8;
+
+  /* Focus */
+  --focus-ring-soft: rgba(133, 168, 248, 0.30);
+
+  /* Shadows — heavier blacks so they read on dark canvas */
+  --shadow-rest:    0 1px 0 rgba(0,0,0,0.30);
+  --shadow-hover:   0 2px 8px rgba(0,0,0,0.40);
+  --shadow-popover: 0 12px 32px -8px rgba(0,0,0,0.50), 0 2px 6px rgba(0,0,0,0.30);
+  --shadow-modal:   0 24px 64px -12px rgba(0,0,0,0.60), 0 4px 12px rgba(0,0,0,0.40);
+  --shadow-inset-rest:   0 1px 0 rgba(0,0,0,0.40);
+  --shadow-inset-soft:   0 1px 2px rgba(0,0,0,0.40);
+  --shadow-bar-bottom:   0 -6px 18px -8px rgba(0,0,0,0.50);
+  --shadow-sheet-bottom: 0 -20px 40px -10px rgba(0,0,0,0.70);
+  --shadow-thumb:        0 1px 2px rgba(0,0,0,0.50);
+
+  color-scheme: dark;
+}
+
+/* Reduced-motion respect */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* ── Resets ─────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; }
+html { font-size: 16px; }
+button {
+  /* Strip user-agent button styling — every button must opt in to its own visuals
+     via .btn, .chip, .sb-item, .erp-item, .ri, .fchip, .iconstrip-tab, etc. */
+  border: none;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
+}
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.55;
+  color: var(--text-body);
+  background: var(--canvas);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+::selection { background: var(--brand-soft); color: var(--text-strong); }
+a { color: var(--text-link); text-decoration: none; }
+a:hover { text-decoration: underline; text-underline-offset: 3px; }
+
+/* ── Atomic type classes ────────────────────────────── */
+.t-display     { font: var(--type-display);    letter-spacing: -0.02em; color: var(--text-strong); }
+.t-display-sm  { font: var(--type-display-sm); letter-spacing: -0.01em; color: var(--text-strong); }
+.t-page-title  { font: var(--type-page-title); letter-spacing: -0.005em; color: var(--text-strong); }
+.t-section     { font: var(--type-section-title); color: var(--text-strong); }
+.t-body-lg     { font: var(--type-body-lg);   color: var(--text-body); }
+.t-body        { font: var(--type-body);      color: var(--text-body); }
+.t-body-sm     { font: var(--type-body-sm);   color: var(--text-body); }
+.t-label       { font: var(--type-label);     color: var(--text-strong); }
+.t-label-sm    { font: var(--type-label-sm);  color: var(--text-strong); }
+.t-caption     { font: var(--type-caption);   color: var(--text-muted); }
+.t-eyebrow     { font: var(--type-eyebrow);   color: var(--text-muted); }
+.t-mono        { font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
+.t-serif       { font-family: var(--font-serif); }
+.t-muted       { color: var(--text-muted); }
+.t-subtle      { color: var(--text-subtle); }
+.t-strong      { color: var(--text-strong); }
+.t-brand      { color: var(--brand); }

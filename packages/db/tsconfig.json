@@ -1,0 +1,4 @@
+{
+  "extends": "@corelithzw/config/tsconfig/node.json",
+  "include": ["src/**/*.ts", "prisma.config.ts"]
+}

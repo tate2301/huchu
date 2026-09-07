@@ -1,0 +1,67 @@
+"use client";
+
+import { Input } from "@corelithzw/react";
+
+import { useIsBelow } from "@corelithzw/ui/hooks/use-mobile";
+import { Search } from "@corelithzw/ui/lib/icons";
+import { cn } from "@corelithzw/ui/lib/utils";
+
+/**
+ * The search box every CRM list and board sits under.
+ *
+ * Two things it fixes over the bare `Input` each page used to build for
+ * itself. The placeholder was written for a desktop toolbar — "Search deals by
+ * title, number or customer" — and on a phone it renders as "Search deals by
+ * title, number or c…", which reads as a broken control rather than a hint.
+ * So the long form is the accessible name, always, and the placeholder shortens
+ * to the noun below `sm` where the width is the constraint.
+ *
+ * And the magnifier. A bare rounded rectangle beside a "View" button is two
+ * unlabelled boxes; the icon is what says which one is search, at the size a
+ * phone reads it.
+ */
+export function ListSearch({
+  value,
+  onChange,
+  placeholder,
+  /**
+   * What this list is a list of — "deals", "people". The phone placeholder,
+   * because "Search deals" is the whole hint at 390px. Left off, the phone
+   * shows "Search".
+   */
+  noun,
+  className,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  /** The full hint, used on wider screens and as the accessible name. */
+  placeholder: string;
+  noun?: string;
+  className?: string;
+}) {
+  const compact = useIsBelow(640);
+
+  return (
+    <div className={cn("relative flex min-w-0 items-center", className)}>
+      <Search
+        className="pointer-events-none absolute left-2.5 size-4 text-[var(--text-subtle)]"
+        aria-hidden="true"
+      />
+      {/* 30px and 250px from `sm` up, which is what the canvas draws — the
+          same height as the filter chips beside it, so the toolbar reads as
+          one row of controls rather than as a search box with buttons around
+          it. A phone keeps the taller control: there the row is a search box
+          and one button, and the height is a hit area rather than a saving.
+          The border steps down to `--border` from the input's own
+          `--border-strong`: a toolbar control sits on the page rather than in
+          a form, and the heavier rule made it the loudest thing in the band. */}
+      <Input
+        value={value}
+        onChange={(event) => onChange(event.target.value)}
+        placeholder={compact ? (noun ? `Search ${noun}` : "Search") : placeholder}
+        aria-label={placeholder}
+        className="h-9 w-full border-[var(--border)] pl-8 text-sm sm:h-[var(--h-control-sm)] sm:w-[250px]"
+      />
+    </div>
+  );
+}

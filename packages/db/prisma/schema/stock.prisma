@@ -1,0 +1,293 @@
+// Stock module: stock locations, inventory items and movements, products and price lists.
+
+// ============================================
+// PHASE 4: STORES & MAINTENANCE
+// ============================================
+
+model StockLocation {
+  id        String   @id @default(uuid())
+  code      String
+  name      String
+  siteId    String
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  site              Site            @relation(fields: [siteId], references: [id])
+  items             InventoryItem[]
+  equipment         Equipment[]
+  incomingMovements StockMovement[] @relation("StockMovementDestination")
+
+  @@unique([siteId, code])
+  @@index([siteId])
+}
+
+model InventoryItem {
+  id           String  @id @default(uuid())
+  itemCode     String
+  name         String
+  category     String // FUEL, SPARES, CONSUMABLES, PPE, REAGENTS
+  unit         String // litres, kg, pieces, etc.
+  siteId       String
+  locationId   String
+  /// S-1 — `Decimal`, not `Float`. These four were the last of the eleven
+  /// columns §1.4 named, deferred while the pricing six went first because 38
+  /// files read them. Quantities are `Decimal(12,4)`: this column holds whole
+  /// bottles in a bottle store, litres of diesel at a mine and grams of gold in
+  /// a pour, and four places is what the last two need.
+  currentStock Decimal @default(0) @db.Decimal(12, 4)
+  minStock     Decimal? @db.Decimal(12, 4)
+  maxStock     Decimal? @db.Decimal(12, 4)
+  /// The odd one out, and the reason this ticket mattered: `unitCost` **is
+  /// money**. A goods receipt writes it, `RetailSaleLine.costUnit` is copied
+  /// from it, and every margin figure retail reports is computed against it —
+  /// summed across thousands of lines before anybody looks, which is exactly
+  /// where a double's drift stops being invisible.
+  unitCost     Decimal? @db.Decimal(14, 2)
+  /// The catalogue item this stock is of. Optional: plenty of stock (fuel,
+  /// consumables) is never sold and needs no catalogue entry at all.
+  productId    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  site      Site            @relation(fields: [siteId], references: [id])
+  location  StockLocation   @relation(fields: [locationId], references: [id])
+  movements StockMovement[]
+  product   Product?        @relation(fields: [productId], references: [id], onDelete: SetNull)
+
+  retailPurchaseOrderLines RetailPurchaseOrderLine[]
+  retailGoodsReceiptLines  RetailGoodsReceiptLine[]
+  retailSaleLines          RetailSaleLine[]
+
+  @@unique([siteId, itemCode])
+  @@index([siteId])
+  @@index([productId])
+}
+
+enum MovementType {
+  RECEIPT
+  ISSUE
+  ADJUSTMENT
+  TRANSFER
+}
+
+model StockMovement {
+  id           String       @id @default(uuid())
+  referenceId  String       @unique
+  itemId       String
+  toLocationId String?
+  movementType MovementType
+  /// S-1 — `Decimal(12,4)`, the quantity scale. Applied by
+  /// `scripts/inventory-quantity-decimal.ts`; `prisma db push` cannot reach this
+  /// database.
+  quantity     Decimal @db.Decimal(12, 4)
+  unit         String
+  issuedTo     String? // section/equipment/cost code
+  requestedBy  String?
+  issuedById   String?
+  approvedBy   String?
+  notes        String?
+  photoUrl     String?
+
+  /// What caused this movement, and the document it came from.
+  ///
+  /// S-2. `recordStockMovement` has always taken these and passed them only to
+  /// accounting, so the ledger knew why a bottle moved and the stock row did
+  /// not: a `StockMovement` could say "ISSUE 6 EACH" and nothing else. Now the
+  /// row carries its own provenance and a receipt, a sale or a stock count can
+  /// be traced back from the movement without joining through the journal.
+  ///
+  /// The vocabulary is `AccountingSourceType` rather than a second enum,
+  /// because it is the same vocabulary — these values were already being handed
+  /// to `createJournalEntryFromSource`. Nullable because history has none.
+  sourceType AccountingSourceType?
+  /// The id of the causing document. Not an FK: it spans a dozen tables, and
+  /// some callers key a line within a document (`<receiptId>:<itemId>`).
+  sourceId   String?
+
+  createdAt DateTime @default(now())
+
+  item       InventoryItem  @relation(fields: [itemId], references: [id])
+  toLocation StockLocation? @relation("StockMovementDestination", fields: [toLocationId], references: [id])
+  issuedBy   User?          @relation(fields: [issuedById], references: [id])
+
+  @@index([itemId])
+  @@index([toLocationId])
+  @@index([createdAt])
+  @@index([sourceType, sourceId])
+}
+
+/// ============================================
+/// SHARED CATALOGUE — owned by Stock & Inventory
+/// ============================================
+///
+/// One catalogue for every module. Retail sells it over a counter, the CRM
+/// quotes it, a workshop puts it on a job card. Before this, each module was
+/// growing its own list of "things we sell", which meant the same pump had a
+/// different price depending on which screen you opened.
+///
+/// `Product` is the item master: what a thing *is*, company-wide.
+/// `InventoryItem` stays what it always was: how much of it is at one site.
+/// That separation is deliberate — a service has a Product and no stock at all,
+/// and a stocked product has one Product and one InventoryItem per site.
+model Product {
+  id                 String        @id @default(uuid())
+  companyId          String
+  /// Code or SKU. Unique per company so imports and scanners agree.
+  code               String
+  name               String
+  description        String?
+  kind               ProductKind   @default(GOODS)
+  category           String?
+  unit               UnitOfMeasure @default(EACH)
+  /// Free text when `unit` is OTHER, e.g. "per pallet".
+  unitLabel          String?
+  /// The fallback price, used when no price list has an entry for this item.
+  ///
+  /// S-1 — `Decimal`, not `Float`. Retail resolves its shelf price out of this
+  /// model from S-3 onward, and routing numbers R-1.1 made exact back through a
+  /// double would undo R-1.1 by the back door.
+  standardPrice      Decimal       @default(0) @db.Decimal(14, 2)
+  /// The "was" price, shown struck through beside the shelf price.
+  ///
+  /// S-4b — a merchandising attribute of the retail profile, alongside `barcode`
+  /// and `ageRestricted`. It lived on `RetailCatalogItem.compareAtPrice`, and the
+  /// pricing screen edits it in the same row as the sell price; when the item
+  /// master moved to `Product` it had to come with it or the column would have
+  /// been deleted rather than migrated. Not on `ProductPrice`: a tenant runs one
+  /// shelf list, and a per-list was-price is generality nothing has asked for.
+  compareAtPrice     Decimal?      @db.Decimal(14, 2)
+  costPrice          Decimal?      @db.Decimal(14, 2)
+  /// A percentage, not money — hence the narrower scale.
+  defaultTaxRate     Decimal       @default(0) @db.Decimal(5, 2)
+  currency           String        @default("USD")
+  /// The most a seller may discount without approval. Null means no ceiling.
+  maxDiscountPercent Decimal?      @db.Decimal(5, 2)
+  /// Scanned at the till.
+  ///
+  /// S-1 added it here so `Product` could become the one item master in S-4;
+  /// S-4 dropped the listing table it used to live on. Indexed and deliberately
+  /// *not* unique per company: the range it was backfilled from held distinct
+  /// SKUs sharing a barcode inside one company and one site, and a shop that
+  /// prices two sizes off one manufacturer's code is doing something ordinary.
+  barcode            String?
+  /// A liquor licence is not optional, and a bottle store's range is mostly
+  /// things it applies to. The counter has to be told to check.
+  ageRestricted      Boolean       @default(false)
+  /// A Chibuku scud comes back and the empty is worth money. Ordinary Zimbabwean
+  /// bottle-store trade, modelled nowhere in this repo before now.
+  returnable         Boolean       @default(false)
+  depositAmount      Decimal?      @db.Decimal(14, 2)
+  imageUrl           String?
+  notes              String?
+  isActive           Boolean       @default(true)
+  archivedAt         DateTime?
+  /// Free-form per-module extras, so a module can carry a field the others
+  /// don't need without a migration that touches everyone.
+  attributes         Json?
+  createdById        String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  company        Company             @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy      User?               @relation("ProductCreatedBy", fields: [createdById], references: [id])
+  prices         ProductPrice[]
+  inventoryItems InventoryItem[]
+  retailSaleLines RetailSaleLine[]
+
+  @@unique([companyId, code])
+  @@index([companyId, isActive, kind])
+  @@index([companyId, category])
+  /// The till scans on this and expects an answer before the next item.
+  @@index([companyId, barcode])
+}
+
+/// A named price list — Standard, Wholesale, Trade, VIP, or a region's own.
+/// Kept deliberately simple per the spec: a list holds a price per product,
+/// optionally from a minimum quantity. No formulas, no rule engine.
+model PriceList {
+  id        String        @id @default(uuid())
+  companyId String
+  name      String
+  kind      PriceListKind @default(STANDARD)
+  /// Used when a customer or module asks for no list in particular.
+  isDefault Boolean       @default(false)
+  /// Region-specific lists say which region they serve.
+  region    String?
+  currency  String        @default("USD")
+  /// S-1 — how `ProductPrice.unitPrice` on this list is meant to be read.
+  ///
+  /// A Zimbabwean shelf price is what the customer pays: VAT at 15% is already
+  /// inside it, and adding 15% again at the till prints a number nobody at the
+  /// counter recognises. The till derives the ex-VAT line and the VAT from the
+  /// shelf figure instead. False by default, so every list that existed this
+  /// morning still means exactly what it meant.
+  taxInclusive Boolean    @default(false)
+  isActive  Boolean       @default(true)
+  createdAt DateTime      @default(now())
+  updatedAt DateTime      @updatedAt
+
+  company Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  entries ProductPrice[]
+
+  @@unique([companyId, name])
+  @@index([companyId, isActive, kind])
+}
+
+/// One product's price on one list. `minQuantity` gives simple volume breaks;
+/// the row with the highest minimum at or below the quantity ordered wins.
+model ProductPrice {
+  id          String   @id @default(uuid())
+  companyId   String
+  priceListId String
+  productId   String
+  /// S-1 — `Decimal` at the quantity scale, so a volume break can start at a
+  /// fraction the cent scale would flatten.
+  minQuantity Decimal  @default(1) @db.Decimal(12, 4)
+  /// S-1 — what a price list actually says a thing costs. Money, so `Decimal`.
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company   Company   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  priceList PriceList @relation(fields: [priceListId], references: [id], onDelete: Cascade)
+  product   Product   @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([priceListId, productId, minQuantity])
+  @@index([companyId, productId])
+}
+
+enum ProductKind {
+  GOODS
+  SERVICE
+  LABOUR
+  MATERIAL
+  BUNDLE
+}
+
+/// The units the spec calls for, plus an escape hatch.
+enum UnitOfMeasure {
+  EACH
+  METRE
+  SQUARE_METRE
+  HOUR
+  DAY
+  PACKAGE
+  INSTALLATION
+  LITRE
+  KILOGRAM
+  OTHER
+}
+
+enum PriceListKind {
+  STANDARD
+  WHOLESALE
+  TRADE
+  VIP
+  REGIONAL
+  /// S-1 — the shelf price a customer at the counter is charged. Distinct from
+  /// the trade lists above so the till can ask for it by name rather than guess
+  /// which one was meant.
+  RETAIL
+}
+

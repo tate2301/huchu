@@ -1,0 +1,26 @@
+import { redirect } from "next/navigation";
+import {
+  MaintenanceContent,
+  type MaintenanceView,
+} from "../../components/maintenance-content";
+
+const maintenanceRoutes: Record<MaintenanceView, string> = {
+  dashboard: "/maintenance",
+  equipment: "/maintenance/equipment",
+  "work-orders": "/maintenance/work-orders",
+  breakdown: "/maintenance/breakdown",
+  schedule: "/maintenance/schedule",
+};
+
+export default async function MaintenanceDashboardPage({
+  searchParams,
+}: {
+  searchParams?: Promise<{ view?: string }>;
+}) {
+  const resolvedSearchParams = await searchParams;
+  const viewParam = resolvedSearchParams?.view as MaintenanceView | undefined;
+  if (viewParam && maintenanceRoutes[viewParam]) {
+    redirect(maintenanceRoutes[viewParam]);
+  }
+  return <MaintenanceContent activeView="dashboard" />;
+}
