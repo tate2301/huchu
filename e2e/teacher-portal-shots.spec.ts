@@ -1,29 +1,33 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
 /**
  * The teacher portal, screen by screen.
  *
- * Signs in as a *teacher* rather than reusing `visual-pass.spec.ts`'s head:
- * the portal resolves everything from the caller's own teacher profile, so a
- * privileged account sees the "you are not linked to a teacher profile" state
- * and every screenshot would be of that. The state file is separate for the
- * same reason.
+ * Signed in as a *teacher* rather than the head: the portal resolves everything
+ * from the caller's own teacher profile, so a privileged account sees the "you
+ * are not linked to a teacher profile" state and every screen would be that.
+ * The fixture's `as: "teacher"` is what the separate storage-state file used to
+ * be, and it is the same distinction.
+ *
+ * ## What the harness covers, and what it does not
+ *
+ * `smoke-school.spec.ts` covers the teacher's sign-in.
+ * `school-portal-gaps-suite.spec.ts` covers messages, the register's old URL and
+ * the syllabus — none of which is in the list below. These thirteen screens are
+ * covered nowhere else, and neither is the assertion that the class rail has
+ * stopped being a skeleton before anything is judged.
+ *
+ * Migrated off `chisipite-demo` and the `VISUAL_PASS=1` gate. Every readiness
+ * pattern below already accepted the empty state, so nothing had to be dropped
+ * or guarded to move tenant.
  */
 
-const EMAIL = process.env.TEACHER_EMAIL ?? "t001@chisipite-demo.test";
-const PASSWORD = process.env.TEACHER_PASSWORD ?? "VisualPass123!";
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "teacher-portal-auth.json");
-
+test.describe.configure({ timeout: 180_000 });
 test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
+  tenant: SCHOOL,
+  as: "teacher",
   // The app registers an offline service worker. Once it installs it sits in
   // front of `/api/v2`, and a run would pass or hang depending on whether the
   // install had finished — the same test green in one context and stuck on a
@@ -31,8 +35,6 @@ test.use({
   // about what the screens look like.
   serviceWorkers: "block",
 });
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
 
 /**
  * Each screen names something only the *loaded* screen renders.
@@ -57,46 +59,6 @@ const SCREENS = [
   { slug: "help", path: "/portal/teacher/help", ready: /register|mark|question/i },
 ];
 
-test.beforeAll(async ({ browser }) => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-
-  if (fs.existsSync(AUTH_STATE)) {
-    const probe = await browser.newContext({ storageState: AUTH_STATE });
-    const session = await probe.request.get("/api/auth/session");
-    const body = await session.json().catch(() => ({}));
-    await probe.close();
-    if (body?.user) return;
-  }
-
-  const context = await browser.newContext({ storageState: undefined });
-  const page = await context.newPage();
-  await page.goto("/login");
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/auth/callback/credentials"), {
-      timeout: 30_000,
-    }),
-    page.click('button[type="submit"]'),
-  ]);
-  expect(
-    response.status(),
-    `sign-in as ${EMAIL} was rejected (${response.status()})`,
-  ).toBeLessThan(400);
-  await expect
-    .poll(
-      async () => {
-        const session = await page.request.get("/api/auth/session");
-        const body = await session.json().catch(() => ({}));
-        return Boolean(body?.user);
-      },
-      { timeout: 30_000, intervals: [500] },
-    )
-    .toBe(true);
-  await context.storageState({ path: AUTH_STATE });
-  await context.close();
-});
-
 for (const viewport of [
   { name: "tablet", width: 1024, height: 768 },
   { name: "desktop", width: 1440, height: 900 },
@@ -106,6 +68,8 @@ for (const viewport of [
 
     for (const screen of SCREENS) {
       test(`${screen.slug}`, async ({ page }) => {
+        const shot = shooter("schools", `teacher-portal-${viewport.name}`);
+
         // Reload rather than wait harder, and let the first attempt pay for
         // `next dev` compiling the screen.
         //
@@ -126,10 +90,7 @@ for (const viewport of [
         await expect(page.getByText("Loading your classes…")).toHaveCount(0, {
           timeout: 30_000,
         });
-        await page.screenshot({
-          path: `${SHOTS}/teacher-${screen.slug}-${viewport.name}.png`,
-          fullPage: true,
-        });
+        await shot(page, screen.slug);
       });
     }
   });

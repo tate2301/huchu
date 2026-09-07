@@ -1,8 +1,43 @@
-import fs from "node:fs";
-import { expect, test } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { ORIGIN, PAYROLL } from "./_support/tenants";
+import { authFile } from "./_support/auth-state";
+import { visit, visitSettled } from "./_support/nav";
 
-const storageStatePath = process.env.E2E_STORAGE_STATE ?? "";
-const hasStorageState = storageStatePath.length > 0 && fs.existsSync(storageStatePath);
+/**
+ * The offline lifecycle: warm, disconnect, reload, reconnect.
+ *
+ * This is the only spec in the suite that ever disconnects the network —
+ * `context.setOffline` and `offline: true` appear here and nowhere else in
+ * `e2e/`. Everything the offline provider does when the connection drops is
+ * either checked here or not checked at all.
+ *
+ * ## Why it never ran, and what changed
+ *
+ * It used to take its identity from `E2E_STORAGE_STATE`, an environment
+ * variable set nowhere in the repo and absent from `.env.e2e`, and a
+ * `test.skip` in `beforeEach` turned every test in the file off when it was
+ * missing. So the file was green for months without executing a line. It now
+ * uses the harness fixture like every other spec: the tenant is named here, the
+ * session comes from `e2e/.auth/` via `auth.setup.ts`, and there is nothing
+ * left to configure. The one remaining gate is on the mutation test, and the
+ * comment there says why it has to stay.
+ *
+ * ## Why the payroll bureau
+ *
+ * The two routes this file turns on — a warmed one and an excluded one — have
+ * to belong to a tenant entitled to both, or the guard under test never gets a
+ * chance to render and the test measures a 403 instead. `payroll-demo` sweeps
+ * all of `/accounting` and all of `/people` in `finance-suite.spec.ts`, so both
+ * are known-good on this tenant. The offline warm-up needs the HR features for
+ * `/people` to resolve as `warmed` rather than `online-only`
+ * (`hasHrMinimalFeature` in `lib/offline/workflow-catalog.ts`), and it is the
+ * HR sweep passing that says it has them.
+ */
+
+const AS = "admin";
+
+test.use({ tenant: PAYROLL, as: AS });
+
 // Defaults follow the offline warmup scope in `lib/offline/workflow-catalog.ts`:
 // `/people` is warmed, `/accounting` is on the exclusion list. They moved off
 // the scrap routes when that vertical was dropped (ST-2.3).
@@ -10,19 +45,25 @@ const warmRoute = process.env.E2E_WARM_ROUTE ?? "/people";
 const excludedRoute = process.env.E2E_EXCLUDED_ROUTE ?? "/accounting";
 const mutationTriggerSelector = process.env.E2E_MUTATION_TRIGGER_SELECTOR ?? "";
 
-if (hasStorageState) {
-  test.use({ storageState: storageStatePath });
-}
+/**
+ * The same signed-in session the fixture hands this file, as a file path.
+ *
+ * One test here builds a *second* browser context by hand — a context that is
+ * offline from the moment it exists, which no fixture can give it — and that
+ * context still has to be the same person on the same tenant. `authFile` is the
+ * one place that mapping lives; the saved state carries the session cookie and
+ * the `__huchu_preview_host` nomination together, so a context built from it is
+ * signed in *and* pointed at the right tenant.
+ */
+const storageStatePath = authFile(PAYROLL, AS);
 
 test.describe("offline lifecycle", () => {
   test.beforeEach(async ({ context }) => {
-    test.skip(!hasStorageState, "Set E2E_STORAGE_STATE to run authenticated offline lifecycle tests.");
     await context.setOffline(false);
   });
 
   test("online bootstrap then offline continuation", async ({ page, context }) => {
-    await page.goto(warmRoute);
-    await page.waitForLoadState("networkidle");
+    await visitSettled(page, warmRoute);
 
     await context.setOffline(true);
     await page.reload();
@@ -31,19 +72,24 @@ test.describe("offline lifecycle", () => {
     await expect(page.getByText("This page is not ready offline")).toHaveCount(0);
   });
 
-  test("close and reopen while offline loads from persisted cache", async ({ browser, context }) => {
+  test("close and reopen while offline loads from persisted cache", async ({
+    browser,
+    context,
+  }) => {
     await context.setOffline(false);
     const warmupPage = await context.newPage();
-    await warmupPage.goto(warmRoute);
-    await warmupPage.waitForLoadState("networkidle");
+    await visitSettled(warmupPage, warmRoute);
     await warmupPage.close();
 
+    // `baseURL` is set by the fixture on the contexts it builds; a hand-built
+    // one has to say so itself or every relative path below resolves nowhere.
     const offlineContext = await browser.newContext({
+      baseURL: ORIGIN,
       storageState: storageStatePath,
       offline: true,
     });
     const offlinePage = await offlineContext.newPage();
-    await offlinePage.goto(warmRoute);
+    await visit(offlinePage, warmRoute);
 
     await expect(offlinePage.getByText("Offline guard", { exact: true })).toHaveCount(0);
     await expect(offlinePage.getByText("This page is not ready offline")).toHaveCount(0);
@@ -52,8 +98,7 @@ test.describe("offline lifecycle", () => {
   });
 
   test("reconnect after offline reopen resumes warmup and sync", async ({ page, context }) => {
-    await page.goto(warmRoute);
-    await page.waitForLoadState("networkidle");
+    await visitSettled(page, warmRoute);
 
     await context.setOffline(true);
     await page.reload();
@@ -72,13 +117,26 @@ test.describe("offline lifecycle", () => {
   });
 
   test("offline-safe mutation can queue and replay", async ({ page, context }) => {
+    /*
+      Still gated, and deliberately so — this is not the `E2E_STORAGE_STATE`
+      gate that hid the rest of the file.
+
+      There is nothing to click. `getRouteOfflineMutationPolicy` in
+      `lib/offline/workflow-catalog.ts` returns `online-only` for every route
+      that is not outright excluded: since scrap ticketing was dropped (ST-2.3),
+      no route in the warmed scope accepts a write while disconnected. So the
+      selector this test needs does not exist in the product yet, and hard-coding
+      one would be inventing a control to watch it not appear.
+
+      The test is kept, running, and pointed at the env var so that the day an
+      offline-safe write lands, proving the outbox replays is one variable away.
+    */
     test.skip(
       !mutationTriggerSelector,
       "Set E2E_MUTATION_TRIGGER_SELECTOR to an offline-safe mutation trigger selector.",
     );
 
-    await page.goto(warmRoute);
-    await page.waitForLoadState("networkidle");
+    await visitSettled(page, warmRoute);
     await context.setOffline(true);
 
     const postRequests: string[] = [];
@@ -98,19 +156,17 @@ test.describe("offline lifecycle", () => {
   });
 
   test("excluded workflow is not warmed and fails safely", async ({ page, context }) => {
-    await page.goto(warmRoute);
-    await page.waitForLoadState("networkidle");
+    await visitSettled(page, warmRoute);
 
     await context.setOffline(true);
-    await page.goto(excludedRoute);
+    await visit(page, excludedRoute);
 
     await expect(page.getByText("Offline guard", { exact: true })).toBeVisible();
     await expect(page.getByText("online only", { exact: false })).toBeVisible();
   });
 
   test("does not attempt warmup network calls while offline", async ({ page, context }) => {
-    await page.goto(warmRoute);
-    await page.waitForLoadState("networkidle");
+    await visitSettled(page, warmRoute);
 
     await context.setOffline(true);
     const apiRequests: string[] = [];

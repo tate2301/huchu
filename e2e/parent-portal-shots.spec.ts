@@ -1,41 +1,38 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
 /**
  * The parent portal, screen by screen.
  *
- * Signs in as a *guardian*. The household is resolved from the caller's own
+ * Signed in as a *guardian*. The household is resolved from the caller's own
  * `SchoolGuardian` link (`loadParentHousehold`), never from a parameter, so a
- * staff account would see the "no children" state and every screenshot would
- * be of that. The state file is separate for the same reason as the teacher
- * and student specs.
+ * staff account would see the "no children" state and every screen would be
+ * that. `as: "parent"` is what the separate storage-state file used to be.
  *
- * Phone first — this is a mobile shell with bottom tabs, drawn for the device
- * a parent actually carries.
+ * Phone first — this is a mobile shell with bottom tabs, drawn for the device a
+ * parent actually carries.
+ *
+ * ## What the harness covers, and what it does not
+ *
+ * `marketing-shots.spec.ts` shoots `/portal/parent` alone, at 390x844;
+ * `smoke-school.spec.ts` covers the sign-in; `school-portal-gaps-suite.spec.ts`
+ * covers messages. The other six screens are only here — and so is the only
+ * place the portal's empty-state copy is asserted at all: "What you still owe |
+ * not shown on your account", "School news | not sent you anything". Those
+ * patterns are why nothing had to be dropped to move tenant: each one already
+ * accepted the empty state as a pass, which is what St Mary's mostly has.
  */
 
-const EMAIL = process.env.PARENT_EMAIL ?? "grace.banda@chisipite-demo.test";
-const PASSWORD = process.env.PARENT_PASSWORD ?? "VisualPass123!";
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "parent-auth.json");
-
+test.describe.configure({ timeout: 180_000 });
 test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
+  tenant: SCHOOL,
+  as: "parent",
   // See the note in teacher-portal-shots.spec.ts: the offline service worker
   // sits in front of `/api/v2` once it installs, and whether it has finished
   // installing decides whether a run passes.
   serviceWorkers: "block",
 });
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
-
-test.describe.configure({ timeout: 180_000 });
 
 /** Each screen names something only the *loaded* screen renders. */
 const SCREENS = [
@@ -56,46 +53,6 @@ const SCREENS = [
   { slug: "help", path: "/portal/parent/help", ready: /child|question|switch/i },
 ];
 
-test.beforeAll(async ({ browser }) => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-
-  if (fs.existsSync(AUTH_STATE)) {
-    const probe = await browser.newContext({ storageState: AUTH_STATE });
-    const session = await probe.request.get("/api/auth/session");
-    const body = await session.json().catch(() => ({}));
-    await probe.close();
-    if (body?.user) return;
-  }
-
-  const context = await browser.newContext({ storageState: undefined });
-  const page = await context.newPage();
-  await page.goto("/login");
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/auth/callback/credentials"), {
-      timeout: 30_000,
-    }),
-    page.click('button[type="submit"]'),
-  ]);
-  expect(
-    response.status(),
-    `sign-in as ${EMAIL} was rejected (${response.status()})`,
-  ).toBeLessThan(400);
-  await expect
-    .poll(
-      async () => {
-        const session = await page.request.get("/api/auth/session");
-        const body = await session.json().catch(() => ({}));
-        return Boolean(body?.user);
-      },
-      { timeout: 30_000, intervals: [500] },
-    )
-    .toBe(true);
-  await context.storageState({ path: AUTH_STATE });
-  await context.close();
-});
-
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
   { name: "tablet", width: 768, height: 1024 },
@@ -105,16 +62,15 @@ for (const viewport of [
 
     for (const screen of SCREENS) {
       test(`${screen.slug}`, async ({ page }) => {
+        const shot = shooter("schools", `parent-portal-${viewport.name}`);
+
         await expect(async () => {
           await page.goto(screen.path, { waitUntil: "domcontentloaded" });
           await expect(page.getByText(screen.ready).first()).toBeVisible({
             timeout: 20_000,
           });
         }).toPass({ timeout: 150_000, intervals: [2_000] });
-        await page.screenshot({
-          path: `${SHOTS}/parent-${screen.slug}-${viewport.name}.png`,
-          fullPage: true,
-        });
+        await shot(page, screen.slug);
       });
     }
   });

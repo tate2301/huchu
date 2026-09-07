@@ -1,34 +1,39 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { request, test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
-/** Screenshots of the S-1.4 admissions board. See `visual-pass.spec.ts` for setup. */
+/**
+ * S-1.4 — the admissions board.
+ *
+ * `schools-suite.spec.ts`'s "Admissions renders" proves the route is healthy and
+ * carries no `expect` at all, so nothing in the harness asserts what the board
+ * says. Two things here do: that the pipeline is **grouped by stage with a
+ * count** rather than a flat list, and that an offer whose expiry has passed is
+ * shouted about rather than left as a row somebody has to notice.
+ *
+ * Migrated off `chisipite-demo` and the `VISUAL_PASS=1` gate.
+ *
+ * ## The count is now read, not typed
+ *
+ * The stage assertion used to be the literal "Assessment · 2", which was true of
+ * the old tenant's seed and of nothing else. It now asks
+ * `/api/v2/schools/applications` for the count in that stage and asserts the
+ * heading agrees — the same claim (the board groups and counts), made about
+ * whatever tenant it is run against, and one that fails if the heading and the
+ * data ever disagree.
+ *
+ * `seed-school-demo.ts` writes no applications, so on St Mary's the two board
+ * assertions skip with that as the reason. The New-application dialog does not
+ * depend on the pipeline holding anything, so it runs unconditionally.
+ */
 
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "visual-pass-auth.json");
+test.describe.configure({ timeout: 180_000 });
+test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
-test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
-});
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
-
-test.beforeAll(async () => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  const probe = await request.newContext({
-    baseURL: process.env.E2E_BASE_URL,
-    storageState: AUTH_STATE,
-  });
-  for (const target of ["/schools/admissions", "/api/v2/schools/applications"]) {
-    await probe.get(target).catch(() => undefined);
-  }
-  await probe.dispose();
-});
+type Pipeline = {
+  applications: { stage: string; offerExpiresAt: string | null }[];
+  counts: Record<string, number>;
+};
 
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
@@ -40,26 +45,50 @@ for (const viewport of [
     test("the pipeline is grouped by stage and calls out a lapsed offer", async ({
       page,
     }) => {
+      const response = await page.request.get("/api/v2/schools/applications");
+      const pipeline: Pipeline | null = response.status() < 400
+        ? await response.json().catch(() => null)
+        : null;
+      const assessment = pipeline?.counts?.ASSESSMENT ?? 0;
+      const lapsed = (pipeline?.applications ?? []).filter(
+        (application) =>
+          application.stage === "OFFERED" &&
+          application.offerExpiresAt !== null &&
+          new Date(application.offerExpiresAt).getTime() < Date.now(),
+      ).length;
+
+      test.skip(
+        assessment === 0,
+        "no application is at the assessment stage on this tenant — " +
+          "seed-school-demo.ts writes no admissions applications",
+      );
+
+      const shot = shooter("schools", `admissions-${viewport.name}`);
+
       await page.goto("/schools/admissions");
       await expect(
         page.getByRole("heading", { name: "Admissions", exact: true }).first(),
       ).toBeVisible({ timeout: 30_000 });
 
-      await expect(page.getByText("Assessment · 2").first()).toBeVisible({
+      await expect(page.getByText(`Assessment · ${assessment}`).first()).toBeVisible({
         timeout: 30_000,
       });
-      // The seeded offer with an expiry in the past. This is the thing an
-      // admissions office needs the page to shout about.
-      await expect(page.getByText(/offer has run out|offers have run out/).first())
-        .toBeVisible({ timeout: 30_000 });
 
-      await page.screenshot({
-        path: `${SHOTS}/${viewport.name}-admissions-board.png`,
-        fullPage: true,
-      });
+      // The offer with an expiry in the past. This is the thing an admissions
+      // office needs the page to shout about — and it is only assertable when
+      // there is one, which on a seed with no applications there is not.
+      if (lapsed > 0) {
+        await expect(
+          page.getByText(/offer has run out|offers have run out/).first(),
+        ).toBeVisible({ timeout: 30_000 });
+      }
+
+      await shot(page, "admissions-board");
     });
 
     test("taking an application asks for a name and nothing else", async ({ page }) => {
+      const shot = shooter("schools", `admissions-${viewport.name}`);
+
       await page.goto("/schools/admissions");
       await expect(
         page.getByRole("heading", { name: "Admissions", exact: true }).first(),
@@ -72,10 +101,7 @@ for (const viewport of [
         await expect(dialog.getByLabel("Surname")).toBeVisible({ timeout: 3_000 });
       }).toPass({ timeout: 40_000 });
 
-      await page.screenshot({
-        path: `${SHOTS}/${viewport.name}-admissions-form.png`,
-        fullPage: true,
-      });
+      await shot(page, "admissions-form");
     });
   });
 }

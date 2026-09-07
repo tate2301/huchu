@@ -1,7 +1,5 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
 
 /**
  * No page throws on hydration.
@@ -16,13 +14,26 @@ import { test, expect } from "@playwright/test";
  * where React's hydration failure lands; anything else thrown during a page load
  * is caught by the same net, which is the point.
  *
- * See `visual-pass.spec.ts` for the login setup this shares.
+ * ## What the harness already does, and what it does not
+ *
+ * `_support/assert.ts`'s `watchConsole` attaches `page.on("pageerror")` on every
+ * swept route, so the desktop half of the first test below is covered by
+ * `schools-suite.spec.ts` — that net is how the PDF template's React #418 was
+ * found (`docs/testing/e2e-status.md`). It runs at the config's default
+ * viewport and only there. The **phone** width is not covered anywhere else, and
+ * a mismatch in a mobile-only branch — the DataTable's mobile list, the folded
+ * `RecordPageShell` rail — is only reachable at 390px.
+ *
+ * The second test is not covered at all. It reads the raw SSR payload, before
+ * any script runs. `expectNoHydrationWarning` works on console text, so a server
+ * that renders the wrong module's workspace and is corrected by the client
+ * repaint is invisible to it. Grep for `.text()` across `e2e/` and this is the
+ * only spec that asks for the bytes.
+ *
+ * Migrated off `chisipite-demo` and the `VISUAL_PASS=1` gate: the tenant is now
+ * St Mary's, and the session comes from the fixture rather than a JSON file in
+ * `os.tmpdir()`.
  */
-
-const EMAIL = process.env.VISUAL_PASS_EMAIL ?? "head@chisipite-demo.test";
-const PASSWORD = process.env.VISUAL_PASS_PASSWORD ?? "VisualPass123!";
-const AUTH_STATE = path.join(os.tmpdir(), "visual-pass-auth.json");
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
 
 const PAGES = [
   "/schools",
@@ -35,42 +46,8 @@ const PAGES = [
   "/schools/boarding",
 ];
 
-test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
-  serviceWorkers: "block",
-});
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
 test.describe.configure({ timeout: 300_000 });
-
-test.beforeAll(async ({ browser }) => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  if (fs.existsSync(AUTH_STATE)) {
-    const probe = await browser.newContext({ storageState: AUTH_STATE });
-    const session = await probe.request.get("/api/auth/session");
-    const body = await session.json().catch(() => ({}));
-    await probe.close();
-    if (body?.user) return;
-  }
-  const context = await browser.newContext({ storageState: undefined });
-  const page = await context.newPage();
-  await page.goto("/login");
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/auth/callback/credentials"), {
-      timeout: 30_000,
-    }),
-    page.click('button[type="submit"]'),
-  ]);
-  expect(response.status()).toBeLessThan(400);
-  await context.storageState({ path: AUTH_STATE });
-  await context.close();
-});
+test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },

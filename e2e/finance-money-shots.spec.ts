@@ -1,58 +1,32 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
 /**
- * The bursar's money screens, after Iteration 2.
+ * S-2.5 — money that came in and did not belong to an invoice yet.
  *
- * Credits and refunds are new surfaces with no screenshot behind them —
- * the verification pass named that as the one Definition-of-Done item the
- * workflow could not meet on its own, because the agents had no tenant host.
- * See `visual-pass.spec.ts` for the setup this shares.
+ * The Credits view is the evidence for the story: an overpayment that became a
+ * balance rather than disappearing. `schools-back-office-suite.spec.ts` reaches
+ * the ledger's refunds and waivers views by query parameter and never Credits;
+ * `schools-suite.spec.ts` asserts `SFI-\d{5}` on the invoices view. This drives
+ * the tab the way a bursar does, from the invoice list across to the credits,
+ * which is the only thing that proves the two are the same screen.
+ *
+ * ## The path moved with the product, not with this migration
+ *
+ * S-4.6 made `/schools/finance` a year-group picker; the whole-school ledger —
+ * structures, invoices, receipts, credits, refunds, waivers — is
+ * `/schools/finance/ledger`, and `schools-fees-content.tsx` is rendered only
+ * there. The old path in this file predates that split, so it now names the
+ * ledger. Both assertions are unchanged.
+ *
+ * Migrated off `chisipite-demo` and the `VISUAL_PASS=1` gate. St Mary's is
+ * seeded with 120 fee invoices, so the invoice-number assertion runs on its own
+ * data.
  */
 
-const EMAIL = process.env.VISUAL_PASS_EMAIL ?? "head@chisipite-demo.test";
-const PASSWORD = process.env.VISUAL_PASS_PASSWORD ?? "VisualPass123!";
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "visual-pass-auth.json");
-
-test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
-  serviceWorkers: "block",
-});
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
 test.describe.configure({ timeout: 180_000 });
-
-test.beforeAll(async ({ browser }) => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  if (fs.existsSync(AUTH_STATE)) {
-    const probe = await browser.newContext({ storageState: AUTH_STATE });
-    const session = await probe.request.get("/api/auth/session");
-    const body = await session.json().catch(() => ({}));
-    await probe.close();
-    if (body?.user) return;
-  }
-  const context = await browser.newContext({ storageState: undefined });
-  const page = await context.newPage();
-  await page.goto("/login");
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/auth/callback/credentials"), {
-      timeout: 30_000,
-    }),
-    page.click('button[type="submit"]'),
-  ]);
-  expect(response.status()).toBeLessThan(400);
-  await context.storageState({ path: AUTH_STATE });
-  await context.close();
-});
+test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
@@ -62,8 +36,10 @@ for (const viewport of [
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
     test("fees and finance", async ({ page }) => {
+      const shot = shooter("schools", `finance-${viewport.name}`);
+
       await expect(async () => {
-        await page.goto("/schools/finance");
+        await page.goto("/schools/finance/ledger?view=invoices");
         // An invoice number, not a rail label. The rail says "Invoices"
         // before the table has any, so matching it photographs the spinner —
         // the same mistake this suite has now made twice.
@@ -71,10 +47,7 @@ for (const viewport of [
           timeout: 20_000,
         });
       }).toPass({ timeout: 150_000, intervals: [2_000] });
-      await page.screenshot({
-        path: `${SHOTS}/finance-${viewport.name}.png`,
-        fullPage: true,
-      });
+      await shot(page, "finance");
 
       // The credits view is the evidence for S-2.5: an overpayment that
       // became a balance rather than disappearing.
@@ -82,10 +55,7 @@ for (const viewport of [
       await expect(page.getByText(/Credit|unallocated/i).first()).toBeVisible({
         timeout: 20_000,
       });
-      await page.screenshot({
-        path: `${SHOTS}/finance-credits-${viewport.name}.png`,
-        fullPage: true,
-      });
+      await shot(page, "finance-credits");
     });
   });
 }

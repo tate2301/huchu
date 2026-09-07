@@ -1,11 +1,17 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { RETAIL, loginFor } from "./_support/tenants";
+import { visitSettled } from "./_support/nav";
+import { settle, shooter, VIEWPORT } from "./_support/shots";
+import type { Locator } from "@playwright/test";
 
 /**
  * A trading day at the till, photographed a step at a time.
  *
- * `retail-shots.spec.ts` proves every screen *renders*. This one proves the
- * till **sells**, which is the gate `docs/retail/pos-production-readiness-2026-08-17.md`
- * §4A names and the one thing 466 unit tests could not tell us:
+ * The harness suites prove every screen *renders* — `pos-portal-suite` walks the
+ * till's screens and `marketing-shots` photographs the retail back office. This
+ * one proves the till **sells**, which is the gate
+ * `docs/retail/pos-production-readiness-2026-08-17.md` §4A names and the one
+ * thing 466 unit tests could not tell us:
  *
  *   > A sale has never been rung end to end. Not by a test, not by a human.
  *   > The checkout path was rewritten twice this week — S-3 moved price
@@ -25,95 +31,46 @@ import { expect, test, type Locator, type Page } from "@playwright/test";
  * day runs start to finish in order — open the drawer, sell, cash up — which is
  * also the only order in which any of it is true.
  *
+ * ## Where the host and the credentials come from
+ *
+ * `_support/tenants.ts`, and nowhere else. This file used to carry its own
+ * copies of `E2E_BASE_URL`, `E2E_POS_BASE_URL` and four credential variables;
+ * four copies is four chances for a re-seed to leave one behind, and the
+ * failure then reads as "sign-in refused" rather than "you changed the seed".
+ *
+ * The cashier arrives already signed into the till, so the sign-in leg this
+ * file used to drive by hand is gone: `auth.setup.ts` signs
+ * `{ tenant: RETAIL, who: "cashier", portal: "pos" }` in through `portalSignIn`
+ * and fails the whole run — not just this spec — if the till login breaks. That
+ * also puts every request this spec makes into the API-coverage log, which a
+ * hand-built context was invisible to.
+ *
+ * The manager is never signed in at all — the POS portal would refuse them.
+ * They key their own login into the approval box inside the refund dialog,
+ * which authorises that one act and writes their name onto the reversal.
+ *
  * ## It writes to the database
  *
- * Unlike the shots spec, this one posts sales and opens and closes a real
+ * Unlike the screen sweeps, this one posts sales and opens and closes a real
  * shift, against the demo tenant. Re-seed to clear them:
  *
  *   npx tsx scripts/seed-retail-demo.ts --slug acme --days 180 --reset
- *   SHOT_DIR=docs/retail/screenshots/workflows \
- *     E2E_BASE_URL=http://acme.apps.pagka.local:3000 \
- *     E2E_BROWSER_CHANNEL=chrome \
- *     npx playwright test e2e/retail-workflows.spec.ts
+ *   npx playwright test e2e/retail-workflows.spec.ts
+ *
+ * Screenshots land in `docs/screenshots/retail/<journey>/` — see
+ * `_support/shots.ts` for why they all live under one root now.
  */
 
-const OUT = process.env.SHOT_DIR ?? "docs/retail/screenshots/workflows";
-const BASE = process.env.E2E_BASE_URL ?? "http://acme.apps.pagka.local:3000";
-const POS_BASE = process.env.E2E_POS_BASE_URL ?? BASE.replace("://", "://pos.");
-
-/** The till admits cashiers only. See `retail-shots.spec.ts` for the detail. */
-const CASHIER_EMAIL = process.env.E2E_POS_EMAIL ?? "chipo.till@bottlestore.test";
-const CASHIER_PASSWORD = process.env.E2E_POS_PASSWORD ?? "RetailDemo123!";
+test.use({ tenant: RETAIL, as: "cashier", portal: "pos", viewport: VIEWPORT.till });
 
 /**
- * The manager who approves a reversal at the counter.
+ * How long to let a till screen finish fetching before believing what it shows.
  *
- * Never signs in here — the POS portal would refuse them. They key their own
- * login into the approval box inside the refund dialog, which authorises that
- * one act and writes their name onto the reversal. Same seeded fixture as
- * everything else in this spec.
+ * Longer than the shared default in `_support/shots.ts`, deliberately: these
+ * screens post and re-fetch against a loaded pooler, and the figures they are
+ * photographed for arrive last.
  */
-const MANAGER_EMAIL = process.env.E2E_RETAIL_EMAIL ?? "tafara.manager@bottlestore.test";
-const MANAGER_PASSWORD = process.env.E2E_RETAIL_PASSWORD ?? CASHIER_PASSWORD;
-
-/** The till's own device. Everything here is shot at it. */
-const VIEWPORT = { width: 1024, height: 768 };
-
-const SETTLE_MS = Number(process.env.SHOT_SETTLE_MS ?? 9000);
-
-test.use({ baseURL: BASE, viewport: VIEWPORT });
-
-/**
- * Numbered, because the order of the steps is the point.
- *
- * Prefixed per test as well: Playwright gives each test its own module scope,
- * so a single shared counter restarts at 1 in the second test and overwrites
- * the first one's opening shots.
- */
-function shooter(prefix: string) {
-  let step = 0;
-  return async function shot(page: Page, name: string) {
-    step += 1;
-    await page.screenshot({
-      path: `${OUT}/${prefix}-${String(step).padStart(2, "0")}-${name}.png`,
-      fullPage: false,
-    });
-  };
-}
-
-async function settle(page: Page, ms = SETTLE_MS) {
-  await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
-  await page.waitForTimeout(ms);
-}
-
-async function signInAsCashier(page: Page) {
-  await page.goto(`${POS_BASE}/login`);
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(2500);
-
-  await page.fill("#login-email", CASHIER_EMAIL);
-  await page.fill("#login-password", CASHIER_PASSWORD);
-  await page.click('button[type="submit"]');
-
-  await expect
-    .poll(
-      async () => {
-        const refusal = await page
-          .getByRole("alert")
-          .first()
-          .textContent()
-          .catch(() => null);
-        if (refusal?.trim()) throw new Error(`sign-in refused: ${refusal.trim()}`);
-        const cookies = await page.context().cookies();
-        return cookies.some((cookie) => cookie.name.includes("session-token"));
-      },
-      { timeout: 45_000 },
-    )
-    .toBe(true);
-
-  await page.goto(`${POS_BASE}/`, { waitUntil: "commit" }).catch(() => {});
-  await settle(page);
-}
+const PAGE_SETTLE_MS = 9_000;
 
 /** Key a number into whichever POS field is active, using the on-screen pad. */
 async function keyIn(scope: Locator, digits: string) {
@@ -123,19 +80,36 @@ async function keyIn(scope: Locator, digits: string) {
 }
 
 test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
-  const shot = shooter("day");
+  /*
+    Numbered, because the order of the steps is the point — and per journey, so
+    that the second test in this file does not restart the counter at 1 and
+    overwrite this one's opening shots. That bug was live here until `shooter`
+    grew a per-test prefix; it now lives in `_support/shots.ts`.
+  */
+  const shot = shooter("retail", "trading-day");
+  const manager = loginFor(RETAIL, "manager");
+
   // 30 min. The day now opens a drawer, sells, refunds under approval, drops
   // cash and cashes up, and a single POST against the shared pooler has
   // measured 100s. The first version at 15 min died after the drawer closed,
   // one step short of the Z-report.
   test.setTimeout(1_800_000);
 
-  await signInAsCashier(page);
-
   /* ── 1. The drawer, before anything ──────────────────────────────────── */
 
-  await page.goto(`${POS_BASE}/shift`);
-  await settle(page);
+  /*
+    `/shift`, not `/` — the till's menu links the drawer controls there and the
+    sell screen carries no "Open shift" of its own. The bare path, not
+    `/portal/pos/shift`: on a cashier's session the portal prefix is the
+    internal form and `/shift` is what the till is actually served at.
+
+    Through `visitSettled`, which forgives the `net::ERR_ABORTED` a hand-rolled
+    `goto` collects when the app's own client-side navigation supersedes ours,
+    and which time-boxes the idle wait — this app holds an open SSE stream, so
+    an unbounded `networkidle` never resolves and eats the whole test budget.
+  */
+  await visitSettled(page, "/shift");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "shift-before-the-day-starts");
 
   /*
@@ -168,8 +142,8 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
 
   /* ── 2. Ring a sale ──────────────────────────────────────────────────── */
 
-  await page.goto(`${POS_BASE}/`);
-  await settle(page);
+  await visitSettled(page, "/");
+  await settle(page, PAGE_SETTLE_MS);
 
   const products = page.getByTestId("pos-product");
   await expect(
@@ -272,12 +246,12 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
 
   /* ── 3. The sale is on the system ────────────────────────────────────── */
 
-  await page.goto(`${POS_BASE}/history`);
-  await settle(page);
+  await visitSettled(page, "/history");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "history-the-sale-just-rung");
 
-  await page.goto(`${POS_BASE}/activity`);
-  await settle(page);
+  await visitSettled(page, "/activity");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "activity-what-this-till-has-done");
 
   /* ── 3b. The customer brings it back ─────────────────────────────────── */
@@ -292,9 +266,12 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     A cashier now sees the button and the manager approves the one act at the
     counter. This drives that whole path, which is the only way to know the
     approval is verified rather than merely collected.
+
+    `retail-void.spec.ts` drives the same approval box against Void, which is a
+    different service call with its own copy of the role guard.
   */
-  await page.goto(`${POS_BASE}/history`);
-  await settle(page);
+  await visitSettled(page, "/history");
+  await settle(page, PAGE_SETTLE_MS);
 
   await page.locator("tbody tr").first().click();
   await settle(page, 4000);
@@ -325,12 +302,12 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
   await shot(page, "refund-needs-a-manager");
 
   /*
-    The seeded manager. Credentials come from `scripts/seed-retail-demo.ts`,
-    the same fixture this spec already signs in with — the point of the
-    assertion is that the *server* checks them, not that they are secret.
+    The seeded manager, named rather than spelled out — `_support/tenants.ts`
+    holds the credential, and the point of the assertion is that the *server*
+    checks it, not that it is secret.
   */
-  await refundDialog.getByPlaceholder("Manager email").fill(MANAGER_EMAIL);
-  await refundDialog.getByPlaceholder("Manager password").fill(MANAGER_PASSWORD);
+  await refundDialog.getByPlaceholder("Manager email").fill(manager.email);
+  await refundDialog.getByPlaceholder("Manager password").fill(manager.password);
   await settle(page, 1500);
   await shot(page, "manager-approves-at-the-counter");
 
@@ -355,16 +332,16 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
 
   /* ── 4. Money out of the drawer, and the day's figures ───────────────── */
 
-  await page.goto(`${POS_BASE}/shift`);
-  await settle(page);
+  await visitSettled(page, "/shift");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "shift-mid-day");
 
-  await page.goto(`${POS_BASE}/reports`);
-  await settle(page);
+  await visitSettled(page, "/reports");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "reports-the-shift-so-far");
 
-  await page.goto(`${POS_BASE}/overview`);
-  await settle(page);
+  await visitSettled(page, "/overview");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "overview-today-at-a-glance");
 
   /* ── 4b. Money out of the drawer ─────────────────────────────────────── */
@@ -380,8 +357,8 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     `retail.sell` `create` covers a movement on their own shift, where `refund`
     and `void` are withheld. See `lib/retail/permissions.ts`.
   */
-  await page.goto(`${POS_BASE}/shift`);
-  await settle(page);
+  await visitSettled(page, "/shift");
+  await settle(page, PAGE_SETTLE_MS);
 
   const moveCash = page.getByRole("button", { name: /move cash/i }).first();
   await expect(moveCash, "no way to move cash out of the drawer").toBeVisible({
@@ -431,9 +408,12 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
     next run with a shift already open, so it skipped the opening steps and the
     screenshots of them silently stopped being produced. Open, sell, close: the
     till ends the run the way it started it.
+
+    It is also why `retail-void.spec.ts` opens its own drawer rather than
+    inheriting the seed's: this spec closes whatever it finds.
   */
-  await page.goto(`${POS_BASE}/shift`);
-  await settle(page);
+  await visitSettled(page, "/shift");
+  await settle(page, PAGE_SETTLE_MS);
 
   const closeButton = page.getByRole("button", { name: /close shift/i }).first();
   await expect(closeButton, "no way to close the shift this test opened").toBeVisible({
@@ -462,8 +442,8 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
   await shot(page, "drawer-closed-day-done");
 
   /* The Z-report is the figure the shop keeps. */
-  await page.goto(`${POS_BASE}/reports`);
-  await settle(page);
+  await visitSettled(page, "/reports");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "z-report-the-days-figures");
 });
 
@@ -472,35 +452,39 @@ test("a trading day: open the drawer, sell, cash up", async ({ page }) => {
  *
  * Separated because they need no shift and no write, so a failure here says
  * something different from a failure above.
+ *
+ * `pos-portal-suite.spec.ts` now asserts that each of these screens renders,
+ * and asserts more about them than this test does — a heading apiece and a
+ * clean console. What is kept here is the photograph of each one, taken in the
+ * same pass as the trading day so the two sets read as one journey.
  */
 test("the counter tools", async ({ page }) => {
-  const shot = shooter("tools");
+  const shot = shooter("retail", "counter-tools");
   test.setTimeout(420_000);
-  await signInAsCashier(page);
 
-  await page.goto(`${POS_BASE}/price-check`);
-  await settle(page);
+  await visitSettled(page, "/price-check");
+  await settle(page, PAGE_SETTLE_MS);
   await page.fill('input[placeholder*="Scan barcode"]', "castle").catch(() => {});
   await settle(page, 4000);
   await shot(page, "price-check-what-does-it-cost");
 
-  await page.goto(`${POS_BASE}/held`);
-  await settle(page);
+  await visitSettled(page, "/held");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "held-parked-baskets");
 
-  await page.goto(`${POS_BASE}/customers`);
-  await settle(page);
+  await visitSettled(page, "/customers");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "customers-at-the-counter");
 
-  await page.goto(`${POS_BASE}/settings`);
-  await settle(page);
+  await visitSettled(page, "/settings");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "settings-how-this-till-is-set-up");
 
-  await page.goto(`${POS_BASE}/help`);
-  await settle(page);
+  await visitSettled(page, "/help");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "help-working-this-till");
 
-  await page.goto(`${POS_BASE}/offline`);
-  await settle(page);
+  await visitSettled(page, "/offline");
+  await settle(page, PAGE_SETTLE_MS);
   await shot(page, "offline-nothing-waiting");
 });

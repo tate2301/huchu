@@ -1,61 +1,26 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { test, expect } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
 /**
  * S-4.5 — the search box in the app bar, on a school.
  *
  * Before this it was wired to `/api/v2/crm/search`, gated on `crm.core` by URL
  * prefix, so on a school tenant every keystroke returned 403 and the palette
- * showed "Nothing matches" for a pupil sitting in the database. Photographing it
- * is the only way to know that is fixed: a 200 with an empty `groups` array looks
+ * showed "Nothing matches" for a pupil sitting in the database. Driving it is
+ * the only way to know that is fixed: a 200 with an empty `groups` array looks
  * identical from the server side.
  *
- * See `visual-pass.spec.ts` for the login setup this shares.
+ * Nothing in the harness opens the command palette or calls
+ * `/api/v2/records/search`, on any tenant. Migrated off `chisipite-demo` and the
+ * `VISUAL_PASS=1` gate; the queries were already built from whatever the tenant
+ * holds, so every assertion survives the move unchanged.
  */
 
-const EMAIL = process.env.VISUAL_PASS_EMAIL ?? "head@chisipite-demo.test";
-const PASSWORD = process.env.VISUAL_PASS_PASSWORD ?? "VisualPass123!";
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "visual-pass-auth.json");
-
-test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
-  serviceWorkers: "block",
-});
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
 test.describe.configure({ timeout: 180_000 });
-
-test.beforeAll(async ({ browser }) => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  if (fs.existsSync(AUTH_STATE)) {
-    const probe = await browser.newContext({ storageState: AUTH_STATE });
-    const session = await probe.request.get("/api/auth/session");
-    const body = await session.json().catch(() => ({}));
-    await probe.close();
-    if (body?.user) return;
-  }
-  const context = await browser.newContext({ storageState: undefined });
-  const page = await context.newPage();
-  await page.goto("/login");
-  await page.fill('input[type="email"]', EMAIL);
-  await page.fill('input[type="password"]', PASSWORD);
-  const [response] = await Promise.all([
-    page.waitForResponse((r) => r.url().includes("/api/auth/callback/credentials"), {
-      timeout: 30_000,
-    }),
-    page.click('button[type="submit"]'),
-  ]);
-  expect(response.status()).toBeLessThan(400);
-  await context.storageState({ path: AUTH_STATE });
-  await context.close();
-});
+test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 /**
  * Open the palette from the app bar and hand back its input.
@@ -65,7 +30,7 @@ test.beforeAll(async ({ browser }) => {
  * group picker, and a loose placeholder pattern typed a pupil's surname into the
  * year group filter, which then reported the palette as broken.
  */
-async function openPalette(page: import("@playwright/test").Page) {
+async function openPalette(page: Page) {
   await page.goto("/schools/students");
   const button = page.getByRole("button", { name: "Search" }).first();
   await expect(button).toBeVisible({ timeout: 30_000 });
@@ -92,6 +57,8 @@ for (const viewport of [
     test.use({ viewport: { width: viewport.width, height: viewport.height } });
 
     test("search finds a pupil by name", async ({ page }) => {
+      const shot = shooter("schools", `search-${viewport.name}`);
+
       // A real pupil, so the query is one that must return something. Their
       // surname rather than their full name: it is what somebody at a counter
       // types, and it exercises the two-column name match.
@@ -100,7 +67,7 @@ for (const viewport of [
       const body = await list.json();
       const students: { id: string; studentNo: string; firstName: string; lastName: string }[] =
         body?.data ?? [];
-      expect(students.length, "the demo tenant has no students to find").toBeGreaterThan(0);
+      expect(students.length, "the school tenant has no students to find").toBeGreaterThan(0);
       const student = students[0];
 
       // The endpoint itself, first. If this 403s the palette is not the problem.
@@ -119,26 +86,25 @@ for (const viewport of [
 
       // Inside the palette rather than anywhere on the page: the register behind
       // it lists the same pupil, so a page-wide assertion would pass with the
-      // palette empty — which is exactly the bug being photographed.
+      // palette empty — which is exactly the bug being watched for.
       const dialog = page.getByRole("dialog");
       await expect(dialog.getByText("Students", { exact: true })).toBeVisible({ timeout: 20_000 });
       // `.first()`: the highlighted row's reference is also shown in the preview
       // pane beside it, so an unqualified match is two elements at desktop width
       // and one on a phone, where the pane is hidden.
       await expect(dialog.getByText(student.studentNo, { exact: true }).first()).toBeVisible();
-      await page.screenshot({
-        path: `${SHOTS}/search-student-${viewport.name}.png`,
-        fullPage: true,
-      });
+      await shot(page, "student");
     });
 
     test("search finds a class and a subject", async ({ page }) => {
+      const shot = shooter("schools", `search-${viewport.name}`);
+
       const classes = await page.request.get("/api/v2/schools/classes?limit=5");
       const subjects = await page.request.get("/api/v2/schools/subjects?limit=5");
       const klass = (await classes.json())?.data?.[0];
       const subject = (await subjects.json())?.data?.[0];
-      expect(klass, "the demo tenant has no classes to find").toBeTruthy();
-      expect(subject, "the demo tenant has no subjects to find").toBeTruthy();
+      expect(klass, "the school tenant has no classes to find").toBeTruthy();
+      expect(subject, "the school tenant has no subjects to find").toBeTruthy();
 
       const palette = await openPalette(page);
       const dialog = page.getByRole("dialog");
@@ -152,19 +118,13 @@ for (const viewport of [
       await expect(dialog.getByText(klass.code, { exact: true }).first()).toBeVisible({
         timeout: 20_000,
       });
-      await page.screenshot({
-        path: `${SHOTS}/search-classes-${viewport.name}.png`,
-        fullPage: true,
-      });
+      await shot(page, "classes");
 
       await palette.fill(subject.name.slice(0, 4));
       await expect(dialog.getByText(subject.code, { exact: true }).first()).toBeVisible({
         timeout: 20_000,
       });
-      await page.screenshot({
-        path: `${SHOTS}/search-subjects-${viewport.name}.png`,
-        fullPage: true,
-      });
+      await shot(page, "subjects");
     });
   });
 }

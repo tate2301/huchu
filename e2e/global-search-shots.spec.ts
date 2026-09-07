@@ -1,4 +1,7 @@
-import { expect, test } from "@playwright/test";
+import { expect, test } from "./_support/fixtures";
+import { PAYROLL } from "./_support/tenants";
+import { visitSettled } from "./_support/nav";
+import { VIEWPORT } from "./_support/shots";
 
 /**
  * The app-bar search box, end to end.
@@ -10,56 +13,64 @@ import { expect, test } from "@playwright/test";
  * grouped list rendered under the cursor. That whole path has no unit test and
  * every piece of it has been broken at least once.
  *
- * Run against the tenant host, as with the payroll shots:
+ *   npx playwright test e2e/global-search-shots.spec.ts
  *
- *   echo '127.0.0.1 payroll-demo.apps.pagka.local' >> /etc/hosts
- *   E2E_BASE_URL=http://payroll-demo.apps.pagka.local:3000 \
- *     npx playwright test e2e/global-search-shots.spec.ts
+ * ## Why it is on the payroll bureau
  *
- * The demo tenant is a payroll bureau, so People is the only arm entitled here —
+ * `PAYROLL` is a payroll bureau, so People is the only arm entitled here —
  * which makes it the right tenant for this check. Before the People arm existed
  * this box had nothing at all to find on a bureau.
+ *
+ * ## What the migration to the harness fixed
+ *
+ * This spec used to carry its own host and its own login, as
+ * `test.use({ baseURL: process.env.E2E_BASE_URL ?? "http://payroll-demo.…" })`
+ * plus a hand-rolled sign-in with the bureau's credentials written inline. That
+ * default never applied: `.env.e2e` sets `E2E_BASE_URL` for the whole suite, so
+ * the spec posted payroll credentials at the **acme** host with no
+ * `__huchu_preview_host` cookie, and was refused — surfacing 45 seconds later as
+ * a failed cookie poll, a sentence about a session rather than about a tenant.
+ *
+ * `test.use({ tenant: PAYROLL, as: "admin" })` replaces both: the fixture takes
+ * the one origin, nominates the bureau's host on it, and starts from the session
+ * `auth.setup.ts` already established. That sign-in is asserted there and in
+ * `smoke-tenants.spec.ts`, so the cookie poll this spec used to do is covered
+ * twice over and is the only check dropped in the move.
  */
 
-const OUT = process.env.SHOT_DIR ?? "/tmp/shots";
-const BASE = process.env.E2E_BASE_URL ?? "http://payroll-demo.apps.pagka.local:3000";
+/**
+ * Where the two images land.
+ *
+ * The names are unchanged — nothing else in the suite photographs the search
+ * box — but the root now follows `_support/shots.ts` rather than `/tmp/shots`,
+ * which does not survive a reboot and is not a path this workstation has.
+ */
+const SHOTS = `${process.env.SHOT_DIR ?? "docs/screenshots"}/payroll/global-search`;
 
 test.use({
-  baseURL: BASE,
-  launchOptions: { executablePath: "/opt/pw-browsers/chromium" },
-  viewport: { width: 1440, height: 900 },
+  tenant: PAYROLL,
+  as: "admin",
+  // Guarded, like `visual-pass.spec.ts` and the other shots specs. An
+  // unconditional Linux path meant this spec could only run in one
+  // container; everywhere else it died before the first navigation with
+  // "Failed to launch chromium", which reads as a broken install.
+  ...(process.env.PW_CHROMIUM
+    ? { launchOptions: { executablePath: process.env.PW_CHROMIUM } }
+    : {}),
+  viewport: VIEWPORT.desktop,
 });
 
 test("the app bar search finds staff and photographs its own results", async ({ page }) => {
-  // Sign-in plus a cold compile of `/people` is comfortably past the 60s default.
+  // The sign-in half of this budget is gone — the session arrives with the
+  // context — but a cold compile of `/people` under `next dev` plus the search
+  // round trip is still comfortably past the 120s default.
   test.setTimeout(240_000);
 
-  await page.goto("/login");
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(2500);
-  await page.fill("#login-email", "rudo.chirwa@payroll-demo.test");
-  await page.fill("#login-password", "Password123!");
-  await page.click('button[type="submit"]');
-  await expect
-    .poll(
-      async () => {
-        const cookies = await page.context().cookies();
-        return cookies.some((cookie) => cookie.name.includes("session-token"));
-      },
-      { timeout: 45000 },
-    )
-    .toBe(true);
-
-  await page.goto("/", { waitUntil: "commit" }).catch(() => {});
-  await page.waitForTimeout(1000);
-  try {
-    await page.goto("/people");
-  } catch {
-    await page.waitForTimeout(1000);
-    await page.goto("/people");
-  }
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(8000);
+  // `visit` retries the one navigation that Next's own post-login redirect used
+  // to abort, which is what the hand-rolled try/catch round `goto("/people")`
+  // was doing here. `visitSettled` time-boxes the idle wait: the app holds an
+  // open SSE stream, so an unbounded `networkidle` never resolves.
+  await visitSettled(page, "/people");
 
   // Read a real name off the directory rather than hard-coding one: the seed
   // names have changed under this spec once already.
@@ -69,7 +80,12 @@ test("the app bar search finds staff and photographs its own results", async ({ 
   // is not stable. Two earlier attempts here searched for "fficer" and then for
   // "Staff" — the second passed, by matching a *position label*, which is a green
   // test proving the wrong thing.
-  const cells = await page.locator("table tbody tr").first().locator("td").allInnerTexts();
+  //
+  // Waiting for the row replaces an eight-second sleep: the directory is what
+  // this read depends on, so it is the thing worth waiting for.
+  const firstRow = page.locator("table tbody tr").first();
+  await expect(firstRow).toBeVisible({ timeout: 60_000 });
+  const cells = await firstRow.locator("td").allInnerTexts();
   const name = cells
     .flatMap((cell) => cell.split("\n"))
     .map((line) => line.trim())
@@ -80,20 +96,37 @@ test("the app bar search finds staff and photographs its own results", async ({ 
     `no employee name among the first row's cells: ${JSON.stringify(cells)}`,
   ).toBeGreaterThan(2);
 
-  // The box is a real input now, not a button that opens a dialog — so typing
-  // into it is the whole interaction, and the first keystroke is what opens the
-  // results.
-  const box = page.getByRole("searchbox").first();
-  await box.click();
-  await box.type(surname, { delay: 60 });
+  /*
+    The response, not a timeout: a screenshot taken mid-request is a picture of
+    an empty list, which is indistinguishable from the bug this spec is for.
 
-  // The response, not a timeout: a screenshot taken mid-request is a picture of
-  // an empty list, which is indistinguishable from the bug this spec is for.
-  const response = await page.waitForResponse(
+    Armed *before* the typing, and matched on the query rather than on the path
+    alone. Both matter. Waiting only afterwards can miss a response that already
+    landed; and the route answers `{ groups: [], total: 0 }` with a 200 for any
+    query under two characters (`app/api/v2/records/search/route.ts`), so a
+    path-only match can settle on the first keystroke's empty answer — the exact
+    green-box-empty-answer confusion the log line below exists to tell apart.
+    `global-command-bar.tsx` debounces 200ms and sends `q=encodeURIComponent(
+    query.trim())`, so the full surname is what arrives.
+  */
+  const searched = page.waitForResponse(
     (response) =>
-      response.url().includes("/api/v2/records/search") && response.status() === 200,
+      response.url().includes("/api/v2/records/search") &&
+      new URL(response.url()).searchParams.get("q") === surname &&
+      response.status() === 200,
     { timeout: 30000 },
   );
+
+  // The box is a real input now, not a button that opens a dialog — so typing
+  // into it is the whole interaction, and the first keystroke is what opens the
+  // results. Typed key by key, with a delay: per-keystroke behaviour is the
+  // thing under test here, so a `fill` would skip the bug below.
+  // (`pressSequentially` is `type` under its current name.)
+  const box = page.getByRole("searchbox").first();
+  await box.click();
+  await box.pressSequentially(surname, { delay: 60 });
+
+  const response = await searched;
   // Logged, because a green box and an empty answer look the same in a
   // screenshot and this line is what told us which one we had.
   console.log("[search]", response.url(), JSON.stringify(await response.json()).slice(0, 800));
@@ -114,7 +147,10 @@ test("the app bar search finds staff and photographs its own results", async ({ 
     timeout: 15000,
   });
 
-  await page.screenshot({ path: `${OUT}/global-search-staff-desktop.png`, fullPage: false });
+  await page.screenshot({
+    path: `${SHOTS}/global-search-staff-desktop.png`,
+    fullPage: false,
+  });
 
   // A query nothing matches must say so rather than showing the last answer.
   //
@@ -124,5 +160,8 @@ test("the app bar search finds staff and photographs its own results", async ({ 
   const barField = page.getByRole("dialog").getByRole("textbox").first();
   await barField.fill("zzzzqqq");
   await expect(page.getByText(/Nothing matches/i).first()).toBeVisible({ timeout: 15000 });
-  await page.screenshot({ path: `${OUT}/global-search-empty-desktop.png`, fullPage: false });
+  await page.screenshot({
+    path: `${SHOTS}/global-search-empty-desktop.png`,
+    fullPage: false,
+  });
 });
