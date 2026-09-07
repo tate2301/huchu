@@ -3,7 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
   ANNUAL_DISCOUNT_RATE,
   FEATURE_BUNDLES,
+  LISTED_FEATURE_BUNDLES,
   LADDER_TIERS,
+  LISTED_TIERS,
   TIERS,
   VERTICAL_EDITION_TIERS,
   WEDGE_BUNDLES,
@@ -11,6 +13,7 @@ import {
 } from "@corelithzw/platform/feature-catalog";
 import {
   MARKETING_ADD_ONS,
+  getMarketingTier,
   MARKETING_TIERS,
   MONTHS_PER_TERM,
   PRODUCT_COMMERCIALS,
@@ -40,9 +43,20 @@ const PLATFORM_SHARED_BUNDLE_CODES = new Set<string>([
 ]);
 
 describe("tier ladder", () => {
-  it("exposes a marketing tier for every billable tier", () => {
-    expect(MARKETING_TIERS).toHaveLength(TIERS.length);
-    expect(MARKETING_TIERS.map((tier) => tier.code)).toEqual(TIERS.map((tier) => tier.code));
+  it("exposes a marketing tier for every listed tier, and none for a delisted one", () => {
+    expect(MARKETING_TIERS).toHaveLength(LISTED_TIERS.length);
+    expect(MARKETING_TIERS.map((tier) => tier.code)).toEqual(LISTED_TIERS.map((tier) => tier.code));
+    expect(TIERS.some((tier) => tier.delisted)).toBe(true);
+    expect(MARKETING_TIERS.map((tier) => tier.code)).not.toContain("GOLD_EDITION");
+    expect(getMarketingTier("GOLD_EDITION")).toBeNull();
+  });
+
+  it("sells no gold: the delisted add-ons are off the add-on list and the comparison table", () => {
+    const codes = MARKETING_ADD_ONS.map((addOn) => addOn.code);
+    for (const code of ["ADDON_GOLD_CORE", "ADDON_GOLD_ADVANCED", "ADDON_COMMODITY_SETTLEMENTS", "ADDON_MINE_DAILY_OPS"]) {
+      expect(codes, `${code} is still for sale`).not.toContain(code);
+    }
+    expect(TIER_COMPARISON_ROWS.map((row) => row.label.toLowerCase())).not.toContain("gold operations & controls");
   });
 
   it("prices ascend across the ladder", () => {
@@ -205,7 +219,8 @@ describe("quotes", () => {
 
   it("charges an add-on the tier does not bundle", () => {
     const entry = TIERS[0];
-    const unbundled = FEATURE_BUNDLES.find(
+    // Among what is for sale: a delisted bundle is not an add-on a quote can carry.
+    const unbundled = LISTED_FEATURE_BUNDLES.find(
       (bundle) =>
         bundle.monthlyPrice > 0 && !entry.includedBundles.includes(bundle.code),
     );

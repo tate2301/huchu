@@ -31,12 +31,14 @@ import { Textarea } from "@corelithzw/ui/components/textarea";
 import { WorkflowStep } from "@corelithzw/ui/components/workflow-step";
 import {
   FEATURE_BUNDLES,
+  LISTED_TIERS,
   TIERS,
   BUNDLE_DEPENDENCIES,
   getTierDefinition,
 } from "@corelithzw/platform/feature-catalog";
 import {
   CLIENT_BUNDLE_TEMPLATES,
+  LISTED_CLIENT_BUNDLE_TEMPLATES,
   getClientTemplateDefinition,
 } from "@corelithzw/platform/client-templates";
 import { computeMonthlyTotal } from "@/components/admin-portal/pages/client-data";
@@ -300,7 +302,7 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {CLIENT_BUNDLE_TEMPLATES.map((template) => (
+                        {LISTED_CLIENT_BUNDLE_TEMPLATES.map((template) => (
                           <SelectItem key={template.code} value={template.code}>
                             {template.label}
                           </SelectItem>
@@ -315,7 +317,7 @@ export function CreateClientWizard({ actorEmail }: WizardBaseProps) {
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
-                        {TIERS.map((item) => (
+                        {LISTED_TIERS.map((item) => (
                           <SelectItem key={item.code} value={item.code}>
                             {item.name}
                           </SelectItem>

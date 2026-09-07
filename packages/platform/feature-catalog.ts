@@ -34,6 +34,12 @@ export interface FeatureBundleDefinition {
   monthlyPrice: number;
   additionalSiteMonthlyPrice: number;
   features: string[];
+  /**
+   * Sold no longer. The bundle stays in the catalogue so the tenants that hold
+   * it keep their entitlements and their price; it is absent from every public
+   * surface (the marketing site's add-on list). Gold's bundles, since Phase 4.
+   */
+  delisted?: boolean;
 }
 
 export interface TierDefinition {
@@ -83,6 +89,15 @@ export interface TierDefinition {
    * the wedge — accounting plus fiscalisation — and its own vertical bundles.
    */
   isVerticalEdition?: boolean;
+  /**
+   * Sold no longer. The tier stays in `TIERS` so the tenants on it keep their
+   * entitlements and their price, and every lookup by code still answers; it
+   * is absent from every public surface — the marketing site, the ladder, the
+   * operator's picker for a new tenant. Gold Edition, since Phase 4: the mine
+   * is not a product the platform sells, and the enterprise host is the only
+   * one that composes its module.
+   */
+  delisted?: boolean;
 }
 
 /** Seats per add-on user pack. */
@@ -278,6 +293,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_MINE_DAILY_OPS",
+    delisted: true,
     name: "Mine Daily Operations",
     description: "Mining shift, crew attendance, and plant capture with matching reports.",
     monthlyPrice: 0,
@@ -318,6 +334,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_GOLD_CORE",
+    delisted: true,
     name: "Gold Operations",
     description: "Core gold intake, dispatch, receipt, and operational navigation.",
     monthlyPrice: 69,
@@ -389,6 +406,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
     // addon covering every source because the intake, the run and the payout are
     // the same machinery whether the quantity is grams or kilos.
     code: "ADDON_COMMODITY_SETTLEMENTS",
+    delisted: true,
     name: "Commodity Settlements",
     description:
       "Settling gold, scrap, commission and other quantity-based pay, with its own approval chain and payouts.",
@@ -398,6 +416,7 @@ export const FEATURE_BUNDLES: FeatureBundleDefinition[] = [
   },
   {
     code: "ADDON_GOLD_ADVANCED",
+    delisted: true,
     name: "Gold Advanced Controls",
     description: "Advanced gold controls and audit/reconciliation.",
     monthlyPrice: 79,
@@ -750,6 +769,7 @@ export const TIERS: TierDefinition[] = [
     // commodity settlements (how a mine pays for grams), the ledger with
     // fiscalisation, and payroll depth including the Zimbabwe statutory work.
     isVerticalEdition: true,
+    delisted: true,
     code: "GOLD_EDITION",
     name: "Gold Edition",
     description: "Small and medium gold operations: production, settlement, controls, books, and payroll.",
@@ -834,6 +854,17 @@ export const LADDER_TIERS: TierDefinition[] = TIERS.filter(
 /** Vertical editions, sold for what a business is rather than how big it is. */
 export const VERTICAL_EDITION_TIERS: TierDefinition[] = TIERS.filter(
   (tier) => tier.isVerticalEdition,
+);
+
+/**
+ * What is for sale. A delisted tier stays in `TIERS` for the tenants on it and
+ * is absent here, and here is what every public surface reads.
+ */
+export const LISTED_TIERS: TierDefinition[] = TIERS.filter((tier) => !tier.delisted);
+
+/** The add-ons for sale; a delisted bundle is still a bundle for the tenants that hold it. */
+export const LISTED_FEATURE_BUNDLES: FeatureBundleDefinition[] = FEATURE_BUNDLES.filter(
+  (bundle) => !bundle.delisted,
 );
 
 /**

@@ -16,6 +16,12 @@ export interface ClientBundleTemplateDefinition {
   verticalProductId: VerticalProductId;
   disabledFeatureKeys?: string[];
   includeAllFeatures?: boolean;
+  /**
+   * Offered no longer. The template stays so a tenant provisioned from it can
+   * be read, re-applied and audited; it is absent from the operator's picker
+   * for a new tenant. The mine's template, since Phase 4.
+   */
+  delisted?: boolean;
 }
 
 const allBundleCodes = FEATURE_BUNDLES.map((bundle) => bundle.code);
@@ -97,6 +103,7 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
   },
   {
     code: "TEMPLATE_GOLD_MINE",
+    delisted: true,
     label: "Gold Mine Operations",
     description: "Gold production, settlement, controls, and reporting for mining and mineral-buying operations.",
     targetClients: ["Gold mine", "Mineral processing operation"],
@@ -365,6 +372,11 @@ export const CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = [
     includeAllFeatures: true,
   },
 ];
+
+/** The templates offered for a new tenant; a delisted one is still resolvable by code. */
+export const LISTED_CLIENT_BUNDLE_TEMPLATES: ClientBundleTemplateDefinition[] = CLIENT_BUNDLE_TEMPLATES.filter(
+  (template) => !template.delisted,
+);
 
 const TEMPLATE_ALIASES: Record<string, string> = {
   BASE: "TEMPLATE_CORE_STARTER",

@@ -20,8 +20,8 @@
 import {
   ANNUAL_DISCOUNT_RATE,
   BUNDLE_DEPENDENCIES,
-  FEATURE_BUNDLES,
-  TIERS,
+  LISTED_FEATURE_BUNDLES,
+  LISTED_TIERS,
   USER_PACK_SIZE,
   getBundleDefinition,
   getTierDefinition,
@@ -106,10 +106,10 @@ type TierCopy = {
 };
 
 /**
- * Copy for the six tiers in `TIERS` (PR-1.2). Fiscal and Gold Edition are
- * vertical SKUs rather than rungs on the ladder, so neither of them claims
- * "everything in the plan below" — Start does not carry fiscalisation, and Gold
- * Edition does not carry retail, CRM, maintenance or portals.
+ * Copy for the listed tiers (`LISTED_TIERS`, PR-1.2). Fiscal is a vertical SKU
+ * rather than a rung on the ladder, so it does not claim "everything in the plan
+ * below" — Start does not carry fiscalisation. Gold Edition is delisted (Phase
+ * 4) and has no copy here: the tenants on it keep it, nobody new is offered it.
  */
 const TIER_COPY: Record<string, TierCopy> = {
   FISCAL: {
@@ -177,23 +177,6 @@ const TIER_COPY: Record<string, TierCopy> = {
     support: "Priority",
     ctaLabel: "Plan a rollout",
     ctaHref: "/home/book-demo?plan=scale",
-  },
-  GOLD_EDITION: {
-    tagline: "Account for every gram",
-    bestFor:
-      "Small and medium gold operations that have to reconcile production, settlement and payroll against what was actually recovered.",
-    costAnchor: "Priced against a fraction of one bad reconciliation",
-    highlights: [
-      "Daily mine capture, production and recovery",
-      "Gold controls, custody and reconciliation",
-      "Commodity settlement against delivered grams",
-      "Full books with ZIMRA fiscalisation",
-      "Payroll including Zimbabwe statutory returns",
-      "Priority support and a named contact",
-    ],
-    support: "Priority + named contact",
-    ctaLabel: "Talk to us about Gold Edition",
-    ctaHref: "/home/book-demo?plan=gold",
   },
   ENTERPRISE: {
     tagline: "Govern it properly",
@@ -275,7 +258,7 @@ function toMarketingTier(tier: TierDefinition): MarketingTier {
 }
 
 /** Cheapest first, so the fiscal wedge leads wherever the ladder is rendered. */
-export const MARKETING_TIERS: MarketingTier[] = TIERS.map(toMarketingTier);
+export const MARKETING_TIERS: MarketingTier[] = LISTED_TIERS.map(toMarketingTier);
 
 export const ENTRY_TIER = MARKETING_TIERS[0];
 export const POPULAR_TIER =
@@ -333,9 +316,6 @@ export type MarketingAddOn = {
 };
 
 const ADD_ON_CATEGORY_BY_CODE: Record<string, AddOnCategory> = {
-  ADDON_GOLD_CORE: "Industry",
-  ADDON_GOLD_ADVANCED: "Industry",
-  ADDON_COMMODITY_SETTLEMENTS: "Industry",
   ADDON_RETAIL_SUITE: "Industry",
   ADDON_CRM_SUITE: "Sales & CRM",
   ADDON_SCHOOLS_SUITE: "Industry",
@@ -362,7 +342,7 @@ export const ADD_ON_CATEGORY_ORDER: AddOnCategory[] = [
 ];
 
 function tiersIncluding(code: string): string[] {
-  return TIERS.filter((tier) => tier.includedBundles.includes(code)).map((tier) => tier.code);
+  return LISTED_TIERS.filter((tier) => tier.includedBundles.includes(code)).map((tier) => tier.code);
 }
 
 function toMarketingAddOn(bundle: FeatureBundleDefinition): MarketingAddOn {
@@ -379,7 +359,7 @@ function toMarketingAddOn(bundle: FeatureBundleDefinition): MarketingAddOn {
 }
 
 /** Paid add-ons only. Free "core" bundles ship with every plan and are not sold. */
-export const MARKETING_ADD_ONS: MarketingAddOn[] = FEATURE_BUNDLES.filter(
+export const MARKETING_ADD_ONS: MarketingAddOn[] = LISTED_FEATURE_BUNDLES.filter(
   (bundle) => bundle.monthlyPrice > 0 || bundle.additionalSiteMonthlyPrice > 0,
 ).map(toMarketingAddOn);
 
@@ -453,7 +433,7 @@ export type Quote = {
  * the platform can actually provision.
  */
 export function buildQuote(input: QuoteInput): Quote {
-  const tierDefinition = getTierDefinition(input.tierCode) ?? TIERS[0];
+  const tierDefinition = getTierDefinition(input.tierCode) ?? LISTED_TIERS[0];
   const tier = toMarketingTier(tierDefinition);
   const period = input.period ?? DEFAULT_BILLING_PERIOD;
   const sites = Math.max(1, Math.floor(input.sites));
@@ -544,7 +524,7 @@ export function startingPriceFor(addOnCodes: string[]): number {
   const required = withBundleDependencies(addOnCodes);
 
   return Math.min(
-    ...TIERS.map((tier) => {
+    ...LISTED_TIERS.map((tier) => {
       const billable = required
         .filter((code) => !tier.includedBundles.includes(code))
         .reduce((sum, code) => sum + (getBundleDefinition(code)?.monthlyPrice ?? 0), 0);
@@ -669,7 +649,7 @@ export function getProductPricing(slug: string): ProductPricing | null {
   if (!product) return null;
 
   const recommendedTier =
-    getTierDefinition(product.recommendedTierCode) ?? TIERS[Math.min(1, TIERS.length - 1)];
+    getTierDefinition(product.recommendedTierCode) ?? LISTED_TIERS[Math.min(1, LISTED_TIERS.length - 1)];
 
   const typicalAddOns = withBundleDependencies(product.recommendedAddOnCodes)
     .filter((code) => !recommendedTier.includedBundles.includes(code))
@@ -687,7 +667,7 @@ export function getProductPricing(slug: string): ProductPricing | null {
       ? null
       : Math.round(typicalMonthly * (1 - ANNUAL_DISCOUNT_RATE)),
     onboardingFee: recommendedTier.onboardingFee,
-    entryTierName: TIERS[0].name,
+    entryTierName: LISTED_TIERS[0].name,
     recommendedTierName: recommendedTier.name,
     requiredAddOns: product.requiredAddOnCodes.map(getAddOn).filter(Boolean) as MarketingAddOn[],
     recommendedAddOns: product.recommendedAddOnCodes.map(getAddOn).filter(Boolean) as MarketingAddOn[],
@@ -1076,7 +1056,6 @@ export const TIER_COMPARISON_ROWS: ComparisonRow[] = [
   bundleRow("Advanced payroll", "ADDON_ADVANCED_PAYROLL"),
   bundleRow("ZIMRA fiscalisation", "ADDON_ZIMRA_FISCAL"),
   bundleRow("Retail till & catalog", "ADDON_RETAIL_SUITE"),
-  bundleRow("Gold operations & controls", "ADDON_GOLD_CORE"),
   bundleRow("Custom branding & domain", "ADDON_CUSTOM_BRANDING"),
   // Derived from the tier copy so the column count can never drift from the
   // ladder again.

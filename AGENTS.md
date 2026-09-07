@@ -79,56 +79,15 @@ Run from the repository root.
 
 ---
 
-## Gold Agent Team
+## Working agreements
 
-### Agent roster
+The Gold multi-agent roster (`.claude/agents/gold-*`, its charter hook and its
+per-ticket workflow) retired in Phase 4 with the module's move to
+`packages/modules/gold`; the agreements it carried are everyone's:
 
-Paths below are relative to `apps/enterprise/` unless they start with `packages/`.
-
-| Agent | Charter (owns) | Forbidden from |
-|---|---|---|
-| `gold-tech-lead` | Plans, delegates, synthesises — no code | All source files |
-| `gold-data-foundation` | `packages/db/prisma/schema/gold.prisma`, `packages/db/prisma/migrations/`, `scripts/backfill-*.ts`, migration witness tests | `app/`, `components/`, `packages/modules/gold/gold/*.ts` source |
-| `gold-domain-backend` | `packages/modules/gold/gold/**`, `packages/modules/books/**`, `app/api/gold/**` | `packages/db/prisma/`, UI files |
-| `gold-import-workflow` | `app/api/gold/imports/**`, `packages/modules/gold/gold/import-*`, worker | UI, other Gold APIs |
-| `gold-frontend` | `app/gold/**`, `packages/modules/gold/components/gold/**` | `app/api/**`, `lib/**`, `packages/db/prisma/` |
-| `gold-integration` | HR/disbursement seams, notifications, audit, shared commodity helpers | Domain core files |
-| `gold-reviewer` | Reads diffs, runs gates, approves/blocks — no code | All source files |
-
-Since Phase 2.3i the Gold domain and screens live in `packages/modules/gold` (`gold/`, `settlements/`, `operations/`, `dashboard/`, `components/`), the ledger in `packages/modules/books`; the API routes under `apps/enterprise/app/api/gold` and the pages under `apps/enterprise/app/gold` stay in the host. The charters above name the new paths.
-
-### Workflow per ticket
-
-1. **Lead** verifies Definition-of-Ready (test prereqs named, schema deps clear, reviewer assigned).
-2. **Lead** spawns the specialist in a worktree (`isolation: "worktree"`) with a precise prompt: file paths, API contracts, DoD from the epic, reviewer name.
-3. **Specialist** works. Charter hook warns on out-of-zone edits. Paired-test hook warns on source-without-test.
-4. **Specialist** messages lead when done with a summary.
-5. **Lead** invokes `gold-reviewer` against the diff.
-6. **Reviewer** runs `tsc --noEmit`, lint, target tests, checks DoD checklist. Blocks or approves.
-7. **Human** merges.
-
-### Definition-of-Ready (DoR)
-
-A ticket cannot start until:
-- The relevant test in Epic 5a/5b is identified (if none exists, that test ticket goes first)
-- Schema prerequisites are on `main`
-- Cross-epic dependencies are noted as Jira "blocked by" links
-- A reviewer is named who is not the implementer
-
-### Definition-of-Done (DoD)
-
-A ticket is done when:
 - `pnpm typecheck` passes (plain `npx tsc --noEmit` dies at exit 134 — Node's
-  default 4GB heap is not enough for this project, even on an idle machine)
-- `npx eslint <changed files>` produces zero new errors
-- Target tests pass
-- If a P0 migration: migration witness test ships in the same commit
-- `gold-reviewer` has approved
-
-### Forbidden patterns
-
-- Source change without a paired test (for P0 migrations — no exceptions)
-- Schema change without a migration witness test
-- Merging on red CI
-- "I'll add the test in a follow-up"
-- Any agent editing files outside its charter without explicit lead approval
+  default 4GB heap is not enough for this project, even on an idle machine).
+- `npx eslint <changed files>` produces zero new errors.
+- Target tests pass; a source change ships with its paired test, and a schema
+  change with a migration witness test, in the same commit.
+- Nothing merges on red CI, and "I'll add the test in a follow-up" is not a plan.
