@@ -167,10 +167,67 @@ async function enableBundleFeatureFlags(input: {
   }
 }
 
+/**
+ * Write the code-defined catalogue into `PlatformFeature`.
+ *
+ * ## What this used to do, and what it claimed
+ *
+ * It ensured the subscription plans and then returned `FEATURE_CATALOG.length`
+ * — so `scripts/platform/sync-catalog.ts` printed `"features": 122` having
+ * written **no feature rows at all**. The number it reported was the size of
+ * the array it had just read. Its docstring said "Idempotent upserts; safe to
+ * re-run after any deploy that changes lib/platform/feature-catalog.ts", and
+ * none of that was happening.
+ *
+ * The consequence is not cosmetic. A `CompanyFeatureFlag` needs a `featureId`,
+ * so a catalogue key with no row **cannot be overridden for one tenant at
+ * all** — there is nothing to point at. On the e2e database the table held 62
+ * of 122 keys: every `crm.*` was missing and all but one `schools.*`, so the
+ * feature-flag console could not switch off half the product for anybody.
+ * Entitlement itself still worked, because `getCompanyFeatureMap` resolves
+ * against the in-code catalogue; only per-tenant override was impossible.
+ *
+ * Found while narrowing a demo tenant, by noticing that a script reporting 122
+ * had changed a table holding 62.
+ *
+ * ## Idempotent, and it now means it
+ *
+ * Upsert by `key`, which is unique. Nothing is deleted: a key that leaves the
+ * code catalogue keeps its row and its `CompanyFeatureFlag` children, because
+ * deleting it would cascade away a tenant's deliberate overrides on a deploy.
+ * Retiring a feature is a decision with data behind it, not a side effect of a
+ * sync — `isActive` is the lever, and turning it off is left to whoever makes
+ * that call.
+ */
 export async function syncCommercialCatalog(): Promise<CatalogSyncResult> {
   await Promise.all(TIERS.map((tier) => ensureSubscriptionPlan(tier.code)));
+
+  /*
+    Sequential rather than `Promise.all`. A hundred-odd upserts against one
+    unique key is exactly the shape that deadlocks a connection pool, and this
+    runs once per deploy — there is nothing to gain by racing it.
+  */
+  let written = 0;
+  for (const entry of FEATURE_CATALOG) {
+    const row = {
+      name: entry.name,
+      description: entry.description,
+      domain: entry.domain ?? null,
+      defaultEnabled: entry.defaultEnabled ?? false,
+      isBillable: entry.isBillable ?? false,
+      monthlyPrice: entry.monthlyPrice ?? null,
+      isActive: true,
+    };
+    await prisma.platformFeature.upsert({
+      where: { key: entry.key },
+      update: row,
+      create: { key: entry.key, ...row },
+    });
+    written += 1;
+  }
+
   return {
-    features: FEATURE_CATALOG.length,
+    features: written,
     bundles: FEATURE_BUNDLES.length,
     bundleItems: FEATURE_BUNDLES.reduce((sum, bundle) => sum + bundle.features.length, 0),
     tiers: TIERS.length,

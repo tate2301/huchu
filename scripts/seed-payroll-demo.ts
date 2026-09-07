@@ -263,7 +263,25 @@ async function main() {
         phone: "0770000000",
         nextOfKinName: "Next of kin",
         nextOfKinPhone: "0770000001",
-        passportPhotoUrl: "https://example.invalid/p.jpg",
+        /*
+          A blank, not a fake URL.
+
+          This was "https://example.invalid/p.jpg". `.invalid` is the reserved
+          TLD and never resolves, which is right for a placeholder and wrong for
+          a fixture a browser will render: every avatar on /people fires a DNS
+          lookup that fails, and the console fills with
+          `net::ERR_NAME_NOT_RESOLVED`. The e2e suite failed the page on it.
+
+          Not `null` — `passportPhotoUrl` is a required `String` on `Employee`,
+          and passing null takes Prisma off the unchecked-input path and makes
+          it complain that `company` is missing instead, which is a thoroughly
+          misleading error for what you actually did.
+
+          An empty string is the value the app already treats as "no photo", so
+          this exercises the initials fallback — what a real employee without a
+          photo gets, and the more useful thing to look at anyway.
+        */
+        passportPhotoUrl: "",
         villageOfOrigin: "Harare",
         defaultCurrency: currency,
         taxNumber,

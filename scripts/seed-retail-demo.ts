@@ -42,7 +42,7 @@
 import "dotenv/config"
 
 import { randomUUID } from "node:crypto"
-import { Prisma, type RetailTenderType } from "@prisma/client"
+import { Prisma, WorkspaceProfile, type RetailTenderType } from "@prisma/client"
 import { money, multiplyMoney, rate, sumMoney } from "@/lib/money"
 import { prisma } from "@/lib/prisma"
 import { saveRetailSetupProfile } from "@/lib/retail/setup-profile"
@@ -117,6 +117,20 @@ const STAFF = [
 const STAFF_PASSWORD = "RetailDemo123!"
 
 /** Regulars who run a tab or collect loyalty. */
+/**
+ * Why a sale gets voided at a bottle store.
+ *
+ * Short, and the sort of thing a cashier actually types. A void reason nobody
+ * would write makes the screen that shows it look like a fixture.
+ */
+const VOID_REASONS = [
+  "Mis-ring - wrong size",
+  "Customer changed their mind",
+  "Rang up twice",
+  "Wrong price keyed",
+  "Card declined, customer left",
+]
+
 const CUSTOMERS = [
   "Rudo Chirwa", "Blessing Ncube", "Tapiwa Marange", "Nyasha Gwenzi",
   "Simba Mutasa", "Kudzai Zhou", "Munashe Chari", "Rutendo Banda",
@@ -182,6 +196,21 @@ async function main() {
     throw new Error(`No company with slug "${slug}". Run scripts/seed-staging-tenant.ts first.`)
   }
   const companyId = company.id
+
+  /*
+    Say what this tenant *is*. `Company.workspaceProfile` defaults to GENERAL,
+    and a GENERAL tenant falls through to inference — which, on a demo tenant
+    with the whole product switched on, has nothing to go on. Before this, the
+    workspace switcher read "Retail" above every screen of every vertical.
+  */
+  await prisma.company.update({
+    where: { id: companyId },
+    // The enum member, not the string. `RETAIL` is `@map("THRIFT")` in the
+    // database — the profile predates the rename and the column still holds
+    // the old label — so Prisma's generated type does not accept the literal.
+    data: { workspaceProfile: WorkspaceProfile.RETAIL },
+  })
+
   console.log(`Seeding ${days} days of trade into ${company.name} (${slug})`)
 
   // ── Staff ────────────────────────────────────────────────────────────────
@@ -588,9 +617,32 @@ async function main() {
         }
       }
 
-      // A voided sale now and then — a mis-ring the cashier caught.
+      /*
+        A voided sale now and then — a mis-ring the cashier caught.
+
+        This used to increment `voids` and stop there, so the count in the
+        summary line said "3 void(s) flagged" while every one of the 5,158
+        seeded sales sat at POSTED. The docstring at the top of this file
+        promised a voided sale, the e2e suite asked for one
+        ("there should be a voided sale") and found none, and nothing in
+        between noticed — the same failure mode as the gold `companyId` bug,
+        where the seed reports success and the row is simply not there.
+
+        `RetailSale` has no `voidedAt`/`voidedById`; a void is `status` plus
+        `voidReason`, so that is what this writes. Refunds are skipped — a
+        refund is its own sale (`saleType: REFUND`) and voiding one would mean
+        something different and confusing on the Z-report.
+      */
       if (Math.random() < 0.06 && !isOpenShift) {
-        voids += 1
+        const candidate = [...saleRows]
+          .reverse()
+          .find((row) => row.shiftId === shiftId && row.saleType === "SALE" && row.status === "POSTED")
+
+        if (candidate) {
+          candidate.status = "VOIDED"
+          candidate.voidReason = pick(VOID_REASONS)
+          voids += 1
+        }
       }
 
       const expectedCash = openingFloat.plus(cashTaken)

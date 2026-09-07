@@ -295,6 +295,204 @@ async function main() {
     }
   }
 
+  /*
+    The four things a service business has that this seed had none of.
+
+    An intake form, a saved list, a document template and a job. They were
+    found missing by the e2e sweep rather than by reading the seed: four record
+    pages — `/crm/forms/[id]`, `/crm/lists/[id]`, `/crm/templates/[id]` and
+    `/crm/work-orders/[id]` — had nothing to open, and their four list pages
+    were rendering an empty state that looked like a working screen.
+
+    A work order is the one that matters most. It is what a service provider
+    actually sells: the quote becomes a job, the job gets a crew and a site,
+    and the customer signs it off on their own phone at `/s/<token>`. Without
+    one, the whole second half of the vertical was seeded as an empty state.
+  */
+  const intakeForm = await prisma.crmIntakeForm.upsert({
+    where: { companyId_name: { companyId: company.id, name: "Request a quote" } },
+    update: {},
+    create: {
+      companyId: company.id,
+      name: "Request a quote",
+      // Deterministic rather than random: a re-seed must not invalidate a link
+      // somebody pasted into a demo script. `demo-` prefixed so it is obvious
+      // in the database that nobody's customer issued it.
+      publicToken: "demo-crm-intake-request-a-quote",
+      headline: "Tell us what you need",
+      description: "We answer within one working day.",
+      fields: [
+        { key: "name", label: "Your name", fieldType: "text", required: true },
+        { key: "email", label: "Email", fieldType: "email", required: true },
+        { key: "phone", label: "Phone", fieldType: "phone", required: false },
+        { key: "brief", label: "What do you need done?", fieldType: "longText", required: true },
+      ],
+      services: ["Branding", "Print", "Signage", "Web"],
+      successMessage: "Thank you — we will come back to you within a day.",
+      defaultAssigneeId: assignedToId,
+      createdById: assignedToId,
+    },
+    select: { id: true },
+  });
+
+  /*
+    `createdById` is required on a list, unlike everywhere else in this seed —
+    a list belongs to whoever made it, and `isShared` only decides who else may
+    read it. So the list is skipped rather than faked when the tenant has no
+    active user, which is a state `seed-staging-tenant.ts` should have ruled
+    out and this refuses to paper over with an empty string the foreign key
+    would reject anyway.
+  */
+  const harareClients = clients.filter((_, index) => COMPANIES[index].city === "Harare");
+  const savedList = assignedToId
+    ? await prisma.crmList.upsert({
+        where: {
+          companyId_entity_name: {
+            companyId: company.id,
+            entity: "COMPANY",
+            name: "Harare accounts",
+          },
+        },
+        update: { description: "Everything we bill inside the city." },
+        create: {
+          companyId: company.id,
+          entity: "COMPANY",
+          name: "Harare accounts",
+          description: "Everything we bill inside the city.",
+          isShared: true,
+          createdById: assignedToId,
+        },
+        select: { id: true },
+      })
+    : null;
+
+  if (savedList) {
+    for (const client of harareClients) {
+      await prisma.crmListMember.upsert({
+        where: { listId_recordId: { listId: savedList.id, recordId: client.id } },
+        update: {},
+        create: {
+          companyId: company.id,
+          listId: savedList.id,
+          recordId: client.id,
+          addedById: assignedToId,
+        },
+      });
+    }
+  }
+
+  const existingTemplate = await prisma.crmTemplate.findFirst({
+    where: { companyId: company.id, name: "Standard quotation" },
+    select: { id: true },
+  });
+  const templateData = {
+    companyId: company.id,
+    name: "Standard quotation",
+    kind: "QUOTE",
+    // The shape `templateAttributesSchema` in lib/crm/blocks.ts parses: the
+    // free-form pairs live under `custom`, not at the top level.
+    attributes: {
+      description: "What a customer is offered, before they agree to it.",
+      custom: { "Valid for": "30 days", Currency: "USD" },
+    },
+    blocks: [
+      { id: "h1", type: "heading", text: "Quotation", level: 1 },
+      {
+        id: "t1",
+        type: "text",
+        text: "Thank you for the enquiry. The below holds for thirty days.",
+      },
+      { id: "li1", type: "lineItems" },
+      { id: "tot1", type: "totals" },
+      {
+        id: "terms1",
+        type: "terms",
+        text: "Half on acceptance, half on delivery. Prices exclude VAT.",
+      },
+      { id: "sig1", type: "signature", label: "Accepted by" },
+    ],
+    isShared: true,
+    linkedEntity: "DEAL",
+    createdById: assignedToId,
+  };
+  const template = existingTemplate
+    ? await prisma.crmTemplate.update({
+        where: { id: existingTemplate.id },
+        data: templateData,
+        select: { id: true },
+      })
+    : await prisma.crmTemplate.create({ data: templateData, select: { id: true } });
+
+  const workOrders = [
+    {
+      no: "CRMW-0001",
+      title: "Install shopfront signage — Borrowdale",
+      status: "SCHEDULED" as const,
+      site: 0,
+      client: 0,
+      start: 2,
+      items: ["Fabricate 2.4m fascia panel", "Mount and wire LED backlighting"],
+    },
+    {
+      no: "CRMW-0002",
+      title: "Depot yard re-branding",
+      status: "IN_PROGRESS" as const,
+      site: 3,
+      client: 2,
+      start: -1,
+      items: ["Strip old vinyl", "Apply new livery to 4 bays"],
+    },
+    {
+      no: "CRMW-0003",
+      title: "Block C wayfinding survey",
+      status: "COMPLETED" as const,
+      site: 4,
+      client: 3,
+      start: -9,
+      items: ["Measure and photograph all 3 floors"],
+    },
+  ];
+
+  for (const spec of workOrders) {
+    const order = await prisma.crmWorkOrder.upsert({
+      where: { companyId_workOrderNo: { companyId: company.id, workOrderNo: spec.no } },
+      update: { title: spec.title, status: spec.status },
+      create: {
+        companyId: company.id,
+        workOrderNo: spec.no,
+        title: spec.title,
+        status: spec.status,
+        priority: "NORMAL",
+        clientId: clients[spec.client].id,
+        siteId: sites[spec.site].id,
+        scheduledStart: days(spec.start),
+        scheduledEnd: days(spec.start + 1),
+        completedAt: spec.status === "COMPLETED" ? days(spec.start + 1) : null,
+        assignedToId,
+        addressLine: "12 Sam Nujoma Street",
+        contactName: `${PEOPLE[spec.client].first} ${PEOPLE[spec.client].last}`,
+        contactPhone: "+263 78 000 0000",
+        createdById: assignedToId,
+      },
+      select: { id: true },
+    });
+
+    // Replaced rather than upserted: the checklist is the job's definition, and
+    // a line removed from this list should disappear on a re-seed rather than
+    // survive as an orphan nobody meant to keep.
+    await prisma.crmWorkOrderItem.deleteMany({ where: { workOrderId: order.id } });
+    await prisma.crmWorkOrderItem.createMany({
+      data: spec.items.map((description, position) => ({
+        companyId: company.id,
+        workOrderId: order.id,
+        position,
+        description,
+        quantity: 1,
+        completedQuantity: spec.status === "COMPLETED" ? 1 : 0,
+      })),
+    });
+  }
+
   console.log(
     JSON.stringify(
       {
@@ -305,6 +503,16 @@ async function main() {
         leads: LEADS.length,
         deals: deals.length,
         tasks: taskSpecs.length,
+        intakeForms: 1,
+        lists: savedList ? 1 : 0,
+        listMembers: savedList ? harareClients.length : 0,
+        templates: 1,
+        workOrders: workOrders.length,
+        ids: {
+          intakeForm: intakeForm.id,
+          list: savedList?.id ?? null,
+          template: template.id,
+        },
       },
       null,
       2,
