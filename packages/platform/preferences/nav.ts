@@ -63,6 +63,13 @@ export const ORGANIZATION_PREFERENCES_ITEMS: PreferencesNavItem[] = [
     description: "Keys for the public API, scoped to what this workspace holds.",
   },
   {
+    id: "webhooks",
+    group: "organization",
+    label: "Webhooks",
+    href: "/preferences/organization/webhooks",
+    description: "Addresses told when something happens, signed.",
+  },
+  {
     id: "sites",
     group: "organization",
     label: "Sites",
@@ -120,7 +127,7 @@ export function canViewPreferenceItem(
   if (itemId === "users") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.user-management.directory");
   }
-  if (itemId === "api-keys") return role === "SUPERADMIN" || role === "MANAGER";
+  if (itemId === "api-keys" || itemId === "webhooks") return role === "SUPERADMIN" || role === "MANAGER";
   if (itemId === "sites") {
     return isOrgAdminRole(role) && hasTokenFeature(enabledFeatures, "admin.sites-sections");
   }

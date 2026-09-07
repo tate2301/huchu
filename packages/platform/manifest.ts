@@ -96,6 +96,12 @@ export type RoleRestrictedRoutes = {
   message: string;
 };
 
+/** An event a module announces through the outbox, for the endpoints page to offer and the docs to list. */
+export type OutboxEventEntry = {
+  type: string;
+  description: string;
+};
+
 export type ModuleManifest = {
   id: ModuleId;
   /** The modules this one imports from, by id. The boundary test holds it to this. */
@@ -124,6 +130,8 @@ export type ModuleManifest = {
   portals?: readonly PortalEntry[];
   /** Routes only some roles may reach. */
   roleRestrictedRoutes?: readonly RoleRestrictedRoutes[];
+  /** The events the module announces through the outbox. */
+  events?: readonly OutboxEventEntry[];
 };
 
 const modules = registry<Map<ModuleId, ModuleManifest>>("modules", () => new Map());
@@ -157,6 +165,11 @@ export function registeredPortal(key: PortalHostKey): PortalEntry | undefined {
 /** Every role-restricted route the registered modules declare. */
 export function registeredRoleRestrictedRoutes(): RoleRestrictedRoutes[] {
   return registeredModules().flatMap((manifest) => [...(manifest.roleRestrictedRoutes ?? [])]);
+}
+
+/** Every event the registered modules announce through the outbox. */
+export function registeredOutboxEvents(): OutboxEventEntry[] {
+  return registeredModules().flatMap((manifest) => [...(manifest.events ?? [])]);
 }
 
 /** Every route the registered modules gate; the route registry reads these beside its own. */

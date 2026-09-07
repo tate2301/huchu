@@ -197,6 +197,7 @@ Commit the resulting `pnpm-workspace.yaml` change so other developers do not hit
 | `pnpm enterprise db:prepare:platform` | Backfill legacy company rows for platform tenancy fields. |
 | `pnpm enterprise templates:seed-defaults` | Seed or update default document templates. |
 | `pnpm enterprise worker:pdf` | Run the PDF render worker loop. |
+| `pnpm enterprise worker:webhooks` | Run the outbox's webhook delivery loop (every host's events; one worker serves them all). |
 
 ## Operational CLI Scripts
 

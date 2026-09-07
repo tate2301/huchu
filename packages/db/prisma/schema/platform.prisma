@@ -209,6 +209,8 @@ model Company {
   crmIntakeSubmissions          CrmIntakeSubmission[]
   crmApiKeys                    CrmApiKey[]
   platformApiKeys               PlatformApiKey[]
+  platformWebhookEndpoints      PlatformWebhookEndpoint[]
+  platformOutboxEvents          PlatformOutboxEvent[]
   crmLeadSources                CrmLeadSource[]
   crmCommissionRules            CrmCommissionRule[]
   crmCommissionEntries          CrmCommissionEntry[]
@@ -1135,6 +1137,7 @@ model User {
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
   platformApiKeysCreated            PlatformApiKey[]               @relation("PlatformApiKeyCreatedBy")
+  platformWebhookEndpointsCreated   PlatformWebhookEndpoint[]      @relation("PlatformWebhookEndpointCreatedBy")
   crmCommissionRulesFor             CrmCommissionRule[]            @relation("CrmCommissionRuleUser")
   crmCommissionEntries              CrmCommissionEntry[]           @relation("CrmCommissionEntryRep")
   crmCommissionEntriesApproved      CrmCommissionEntry[]           @relation("CrmCommissionEntryApprovedBy")
@@ -1202,4 +1205,70 @@ model PlatformApiKey {
   createdBy User?   @relation("PlatformApiKeyCreatedBy", fields: [createdById], references: [id])
 
   @@index([companyId, revokedAt])
+}
+
+/// An address a workspace wants told when something happens. The outbox
+/// delivers the events it subscribes to (`events`, `*` for every one, or a
+/// prefix such as `books.*`), each request signed with `secret`, which is
+/// shown once at creation. Deactivating keeps the row and its deliveries.
+model PlatformWebhookEndpoint {
+  id          String   @id @default(uuid())
+  companyId   String
+  url         String
+  secret      String
+  events      String[]
+  active      Boolean  @default(true)
+  createdById String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy  User?                     @relation("PlatformWebhookEndpointCreatedBy", fields: [createdById], references: [id])
+  deliveries PlatformWebhookDelivery[]
+
+  @@index([companyId, active])
+}
+
+/// Something that happened, written in the transaction that made it happen:
+/// never announced for a change that rolled back, never lost for one that
+/// committed. Fanned out to the endpoints subscribed at the time.
+model PlatformOutboxEvent {
+  id        String   @id @default(uuid())
+  companyId String
+  type      String
+  payload   Json
+  createdAt DateTime @default(now())
+
+  company    Company                   @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  deliveries PlatformWebhookDelivery[]
+
+  @@index([companyId, createdAt])
+}
+
+enum PlatformWebhookDeliveryStatus {
+  PENDING
+  DELIVERED
+  FAILED
+}
+
+/// One event to one endpoint: claimed by a worker, attempted, backed off,
+/// delivered or given up. Never deleted, so the audit reads whole.
+model PlatformWebhookDelivery {
+  id             String                        @id @default(uuid())
+  eventId        String
+  endpointId     String
+  status         PlatformWebhookDeliveryStatus @default(PENDING)
+  attemptCount   Int                           @default(0)
+  nextAttemptAt  DateTime?
+  lastStatusCode Int?
+  lastError      String?
+  deliveredAt    DateTime?
+  createdAt      DateTime                      @default(now())
+  updatedAt      DateTime                      @updatedAt
+
+  event    PlatformOutboxEvent     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  endpoint PlatformWebhookEndpoint @relation(fields: [endpointId], references: [id], onDelete: Cascade)
+
+  @@index([status, nextAttemptAt])
+  @@index([endpointId, createdAt])
 }

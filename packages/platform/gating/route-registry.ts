@@ -243,6 +243,7 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/users", featureKey: "admin.user-management.directory" },
   // Minting keys is an admin act on a feature every tenant holds; the routes check the role.
   { scope: "api", prefix: "/api/v2/api-keys", featureKey: "core.auth.login" },
+  { scope: "api", prefix: "/api/v2/webhooks", featureKey: "core.auth.login" },
   { scope: "api", prefix: "/api/sites", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/sections", featureKey: "admin.sites-sections" },
   { scope: "api", prefix: "/api/payroll/config", featureKey: "admin.payroll-config" },

@@ -7,4 +7,5 @@ import type { ModuleManifest } from "@corelithzw/platform/manifest";
  */
 export const manifest: ModuleManifest = {
   id: "workflow",
+  events: [{ type: "workflow.approval.actioned", description: "An approval was submitted, approved or rejected." }],
 };

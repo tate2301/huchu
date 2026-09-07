@@ -8,6 +8,10 @@ import { recordTemplate } from "@corelithzw/module-documents/default-template-ca
 export const manifest: ModuleManifest = {
   id: "books",
   requires: ["documents", "notifications"],
+  events: [
+    { type: "books.sales-invoice.created", description: "A sales invoice was issued." },
+    { type: "books.sales-receipt.created", description: "A sales receipt was recorded." },
+  ],
   documents: {
     templates: [
       {

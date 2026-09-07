@@ -4,16 +4,32 @@
  * imported first. Server only; imported once at boot from
  * `instrumentation.ts`, and by any test that reads a registry filled here.
  */
+import { prisma } from "@corelithzw/db/client";
 import { registerAuthOptions } from "@corelithzw/platform/auth-core/auth-options";
+import { emitOutboxEvent } from "@corelithzw/platform/outbox";
 import "./manifests";
 import "./modules.client";
 import { onFiscalBacklog, registerFiscalDrainIssuer, registerFiscalDrainSweep } from "@corelithzw/module-books/fiscal-drain";
+import { onSalesInvoiceCreated, onSalesReceiptCreated } from "@corelithzw/module-books/sales-hooks";
 import { registerDocumentSource } from "@corelithzw/module-documents/source-registry";
 import { registerSearchArm } from "@corelithzw/module-records/search";
 import { registerRecordSubjectGuard } from "@corelithzw/module-records/subject-guard";
 import { onApprovalAction } from "@corelithzw/module-workflow/approvals";
 
 registerAuthOptions(async () => (await import("@/lib/auth")).authOptions);
+
+// What happened, told to the addresses the workspace registered: the outbox
+// fans an event out inside the transaction that made it, and the webhook
+// worker delivers it signed. The types are the ones the manifests declare.
+onApprovalAction(async (tx, event) => {
+  await emitOutboxEvent(tx, { companyId: event.companyId, type: "workflow.approval.actioned", payload: { ...event } });
+});
+onSalesInvoiceCreated(async (event) => {
+  await emitOutboxEvent(prisma, { companyId: event.companyId, type: "books.sales-invoice.created", payload: { ...event } });
+});
+onSalesReceiptCreated(async (event) => {
+  await emitOutboxEvent(prisma, { companyId: event.companyId, type: "books.sales-receipt.created", payload: { ...event } });
+});
 
 // After an approval action: the people the entity concerns are told. The
 // people module's entities are the only approvable ones this host runs.
