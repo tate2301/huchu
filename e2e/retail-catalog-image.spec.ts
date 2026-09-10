@@ -85,25 +85,23 @@ const ONE_PIXEL_PNG = Buffer.from(
 /* ── 1. The manager, in the back office ──────────────────────────────────── */
 
 test.describe("the back office", () => {
+  test.use({ tenant: RETAIL, as: "manager", viewport: VIEWPORT.desktop });
+
   /*
-  Skipped on the till assertion, with the cause named.
+    This test is skipped, and the cause is named on the skip below.
 
-  It waits for `pos-product` tiles on the checkout grid, and the checkout only
-  lists stock while a shift is open. Nothing in this file opens one, so it
-  depends on whichever spec last touched the till — and `retail-workflows`
-  ends its trading day by cashing up, so a run leaves the drawer closed for the
-  next one. State carries between invocations; the till is closed when this
-  arrives.
+    It waits for `pos-product` tiles on the checkout grid, and the checkout
+    only lists stock while a shift is open. Nothing in this file opens one, so
+    it inherits whichever spec last touched the till — and `retail-workflows`
+    ends its trading day by cashing up, so a run leaves the drawer closed for
+    the next one.
 
-  `retail-void.spec.ts` hit exactly this and solved it: it opens a shift itself
-  at `/shift`, counts a float in (the confirm button stays disabled until it
-  is), and verifies the drawer before asserting anything. Copying that guard
-  here is the fix. It is not done blind from here because the float keypad and
-  the confirm state were got wrong four separate ways the first time, and that
-  wants the page open in front of you.
-*/
-test.use({ tenant: RETAIL, as: "manager", viewport: VIEWPORT.desktop });
-
+    `retail-void.spec.ts` hit exactly this and solved it: it opens a shift
+    itself at `/shift` and counts a float in, because the confirm button stays
+    disabled until one is. Copying that guard here is the fix. It is not done
+    blind from here — the float keypad and the confirm state were got wrong
+    four separate ways the first time, and that wants the page in front of you.
+  */
   test("a manager photographs an item and the till shows it", async ({ page }) => {
     test.skip(
       true,

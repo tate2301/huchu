@@ -40,11 +40,7 @@ import { shooter, VIEWPORT } from "./_support/shots";
   (`E2E_BROWSER_CHANNEL`), so there is nothing left here to get wrong.
 
   It also planted the `__huchu_preview_host` cookie itself and signed in by
-  hand. (That cookie is not in `git show HEAD:` — it was added to this file in
-  an earlier uncommitted pass, so the version this replaced is the working tree
-  one, not the committed one. Said explicitly because an adversarial review of
-  this migration diffed against HEAD and read the sentence above as invented.)
-  It ran against a `BASE` that defaulted to `payroll-demo` but which
+  hand. It ran against a `BASE` that defaulted to `payroll-demo` but which
   `E2E_BASE_URL` — set for the whole suite — overrode to **acme**. So it signed
   in at the bottle store with the payroll bureau's credentials, was refused, and
   surfaced the refusal 45 seconds later as `expect(...).toBe(true)` on a cookie

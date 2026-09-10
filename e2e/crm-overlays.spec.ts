@@ -24,7 +24,8 @@ import type { Page } from "@playwright/test";
  * Nothing else in `e2e/` hit-tests with `document.elementFromPoint`, and
  * nothing else exercises the `ResponsivePopover` `compact = useIsBelow(640)`
  * branch — `marketing-shots` only goes to phone width for the school portals,
- * and `crm-suite` runs the CRM routes at the fixture's desktop viewport. So
+ * and `crm-suite` runs the CRM routes at the project's desktop viewport —
+ * `devices["Desktop Chrome"]` in `playwright.config.ts`, 1280x720. So
  * this file is the only thing in the suite that reasons about stacking at all.
  *
  * Migrated off the dead `crmdemo` tenant onto the harness. Three things the
