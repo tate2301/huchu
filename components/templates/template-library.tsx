@@ -183,7 +183,16 @@ export function TemplateLibrary() {
       return (intake.data?.data ?? []).map((form) => ({
         id: form.id,
         name: form.name,
-        href: `/crm/intake-forms/${form.id}`,
+        /*
+          `/crm/forms`, not `/crm/intake-forms`.
+
+          The API is `/api/v2/crm/intake-forms`; the page is `app/crm/forms/[id]`.
+          This link took the API's name and 404'd — and because Next prefetches
+          it, the 404 fired as soon as the library rendered, not when anyone
+          clicked. It stayed invisible because no seed wrote an intake form, so
+          this branch never produced a row; it surfaced the day one was seeded.
+        */
+        href: `/crm/forms/${form.id}`,
         emoji: "📥",
         description: form.description,
         badges: form.isActive ? [] : [{ label: "Retired", tone: "warn" as const }],

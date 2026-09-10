@@ -24,10 +24,22 @@ declare const self: ServiceWorkerGlobalScope;
 // ── Constants ──────────────────────────────────────────────────────────────
 
 const SW_VERSION = "2.0.0";
-const BUILD_ID =
-  typeof self !== "undefined" && "__BUILD_ID" in self
-    ? (self as any).__BUILD_ID
-    : "unknown";
+/**
+ * What the build injects into the worker's global scope.
+ *
+ * Neither key is in `lib.webworker`, because neither is a web standard — they
+ * are put there by the build. Declaring the shape once beats three `as any`
+ * casts that each say "trust me" about a different property and none of which
+ * say what the property holds.
+ */
+type BuildInjectedGlobals = {
+  __BUILD_ID?: string;
+  __SW_MANIFEST__?: string[];
+};
+
+const injected = (typeof self !== "undefined" ? self : {}) as Partial<BuildInjectedGlobals>;
+
+const BUILD_ID = injected.__BUILD_ID ?? "unknown";
 
 // ── Cache Names ────────────────────────────────────────────────────────────
 
@@ -41,10 +53,7 @@ const CACHE_NAMES = {
 } as const;
 
 // Precache manifest — injected at build time via workbox / webpack
-const PRECACHE_ASSETS: string[] =
-  typeof self !== "undefined" && "__SW_MANIFEST__" in self
-    ? (self as any).__SW_MANIFEST__
-    : [];
+const PRECACHE_ASSETS: string[] = injected.__SW_MANIFEST__ ?? [];
 
 // ── Install: Precache Shell ────────────────────────────────────────────────
 
@@ -114,7 +123,13 @@ self.addEventListener("activate", (event: ExtendableEvent) => {
       // Request periodic background sync if supported
       if ("periodicSync" in self.registration) {
         try {
-          await (self.registration as any).periodicSync.register(
+          // Periodic Background Sync is not in `lib.webworker` either. The
+          // shape is declared rather than cast away, so this can only reach
+          // the one method it needs.
+          const { periodicSync } = self.registration as unknown as {
+            periodicSync: { register(tag: string, options: { minInterval: number }): Promise<void> };
+          };
+          await periodicSync.register(
             "proactive-sync",
             {
               minInterval: 12 * 60 * 60 * 1000, // 12 hours minimum

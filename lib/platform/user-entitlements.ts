@@ -159,12 +159,31 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "accounting.banking",
     "accounting.tax",
   ],
+  /*
+    `crm.customers` on both till roles, because the till has a customer screen.
+
+    `/portal/pos/customers` is gated on `crm.customers` in
+    `lib/platform/gating/route-registry.ts` — the shop's customer book and the
+    CRM's are the same records, so the same key guards both, which is right.
+    Neither till template granted it, so the only two roles that ever open a
+    till were sent to /access-blocked by their own Customers tab. So was the
+    `/api/retail/customers` search behind the checkout picker, which fails
+    closed: the field returns nothing and looks like an empty address book
+    rather than a refusal.
+
+    Found by sweeping the POS portal, and it had been invisible for a reason
+    worth recording: every other POS screen is `retail.*` or `portal.pos`, and
+    a manager — an unrestricted template — can open `/retail/customers` from the
+    back office perfectly well. Only a cashier, on the one route that crosses
+    modules, hit it.
+  */
   SHOP_MANAGER: [
     "core.auth.",
     "core.help.",
     "core.notifications.",
     "core.multitenancy.",
     "retail.",
+    "crm.customers",
     "portal.pos",
   ],
   CASHIER: [
@@ -175,6 +194,19 @@ const ROLE_PREFIX_ALLOWLIST: Record<string, readonly string[] | null> = {
     "retail.core",
     "retail.pos",
     "retail.catalog",
+    /*
+      A promotion the till cannot read is a promotion the shop is not running.
+
+      The checkout asks `/api/v2/retail/promotions?status=ACTIVE&pos=1` on
+      every load to know what comes off the basket. Gated on
+      `retail.promotions`, which no cashier had, so the request 403'd and the
+      basket was priced at full shelf price — on a shop that had bought the
+      feature, configured the promotion, and would have seen it apply from the
+      back office. It fails the same way as the customer picker: closed, and
+      indistinguishable from "there are none".
+    */
+    "retail.promotions",
+    "crm.customers",
     "portal.core",
     "portal.pos",
   ],

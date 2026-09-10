@@ -918,8 +918,24 @@ function resolveEffectiveWorkspaceProfile(
   enabledFeatures: string[] | undefined,
   requestedProfile: WorkspaceProfile,
   visibleModules: Map<WorkspaceModuleId, NavItem[]>,
+  /**
+   * Did the tenant actually say GENERAL, or does it just not have a profile?
+   *
+   * `normalizeWorkspaceProfile` answers GENERAL to both — to `null`, because
+   * that is the documented default, and to the string "GENERAL", because that
+   * is what it means. Collapsing them cost the CRM tenant its identity: a
+   * service business that says it is general was overruled by inference and
+   * came back as a school, sidebar and all, while its own data (companies
+   * numbered CRMC-, every owner Tafadzwa Mukono) rendered correctly
+   * underneath.
+   *
+   * "I have no profile" is a question. "I am a general business" is an answer.
+   * Only the first one gets inferred at.
+   */
+  profileWasStated: boolean,
 ): WorkspaceProfile {
   if (requestedProfile === "GENERAL") {
+    if (profileWasStated) return "GENERAL";
     return inferWorkspaceProfileFromEnabledFeatures(enabledFeatures) ?? requestedProfile;
   }
 
@@ -1019,9 +1035,18 @@ export function getComputedWorkspaceHomeHref(args: WorkspaceModelArgs): string {
 
 export function getWorkspaceSidebarModel(args: WorkspaceModelArgs): WorkspaceSidebarModel {
   const requestedProfile = normalizeWorkspaceProfile(args.workspaceProfile);
+  // `normalizeWorkspaceProfileInput` returns null for absent or unrecognised
+  // input, which is the only way to tell "nothing set" from a deliberate
+  // "GENERAL". See the parameter note on `resolveEffectiveWorkspaceProfile`.
+  const profileWasStated = normalizeWorkspaceProfileInput(args.workspaceProfile) !== null;
   const context = buildContext(args);
   const visibleModules = getVisibleModules(context);
-  const profile = resolveEffectiveWorkspaceProfile(args.enabledFeatures, requestedProfile, visibleModules);
+  const profile = resolveEffectiveWorkspaceProfile(
+    args.enabledFeatures,
+    requestedProfile,
+    visibleModules,
+    profileWasStated,
+  );
   const recipe = getWorkspaceProfileRecipe(profile);
   const verticalProduct = resolveWorkspaceVerticalProductBundle({
     enabledFeatures: args.enabledFeatures,

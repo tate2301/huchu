@@ -81,6 +81,31 @@ export function money(value: MoneyLike): Prisma.Decimal {
   return decimalise(value).toDecimalPlaces(MONEY_SCALE, HALF_UP);
 }
 
+/**
+ * A money `Decimal` with **nothing rounded away**. Null and undefined are zero.
+ *
+ * For the one place rounding is not allowed to happen quietly: the boundary
+ * where an amount becomes a signed fiscal receipt. `centsFromDecimalAmount`
+ * refuses a value finer than a cent, and it can only refuse what it is shown —
+ * `money()` rounds to two places on the way in, so `money(10.005)` arrives as
+ * `10.01`, an exact number of cents, and the guard passes on a value that was
+ * never exact.
+ *
+ * That is the failure invariant 5 exists to prevent: a sub-cent amount rounded
+ * into a ZIMRA signature, where the receipt the customer holds and the figure
+ * the revenue authority has do not agree and nothing in between said so. Two
+ * tests in `lib/retail/fiscalisation.test.ts` asserted the refusal and had been
+ * passing a rounded value to a guard that therefore had nothing to catch.
+ *
+ * Everywhere else `money()` is right — a `Decimal(14,2)` column cannot hold
+ * more than two places, so rounding on the way in is what makes arithmetic
+ * agree with storage. This is the exception, and it is named so a reader can
+ * tell which one they are looking at.
+ */
+export function exactMoney(value: MoneyLike): Prisma.Decimal {
+  return decimalise(value);
+}
+
 /** As `money`, but a missing value stays missing rather than becoming zero. */
 export function moneyOrNull(value: MoneyLike): Prisma.Decimal | null {
   if (value == null) return null;

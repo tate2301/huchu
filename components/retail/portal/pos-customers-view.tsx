@@ -27,7 +27,11 @@ export function PosCustomersView() {
     queryKey: ["retail-pos-customers", search],
     queryFn: () =>
       fetchJson<{ data: CustomerLookupResult[] }>(
-        `/api/v2/retail/customers/search?q=${encodeURIComponent(search.trim())}&limit=40`,
+        // 30, not 40: `customerSearchQuery` in the route caps `limit` at 30 and
+        // zod rejects anything above it, so this asked for 40 and got a 400 —
+        // meaning the till's customer search returned nothing at all, for
+        // everyone, rather than returning fewer rows.
+        `/api/v2/retail/customers/search?q=${encodeURIComponent(search.trim())}&limit=30`,
       ),
     enabled: search.trim().length >= 2,
   });

@@ -219,6 +219,7 @@ export function ModerationQueueContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.results"
             verbs={workflow.verbsFor(row.original, {
               onOpen: (sheet) => setOpenSheetId(sheet.id),

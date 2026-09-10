@@ -209,6 +209,7 @@ export function TeacherAssignmentsContent() {
         cell: ({ row }) =>
           row.original.teacherProfile ? (
             <RecordActions
+              layout="menu"
               resource="schools.teachers"
               verbs={[
                 {

@@ -46,6 +46,7 @@ import { Lock, LogOut } from "@/lib/icons";
 import { PosNumericKeypad } from "./pos-numeric-keypad";
 import type { PosKeypadAction } from "./pos-numeric-input";
 import { usePosPortalState } from "./pos-portal-state";
+import { usePosSignedOut } from "./use-pos-signed-out";
 
 /** Survives a refresh, dies with the tab. A locked till reloaded is still locked. */
 const LOCK_STORAGE_KEY = "retail_pos_till_locked";
@@ -104,8 +105,13 @@ export function PosTillLockProvider({ children }: PropsWithChildren) {
     () => typeof window !== "undefined" && window.sessionStorage.getItem(LOCK_STORAGE_KEY) === "1",
   );
 
+  // Not while the sign-in form is up — this provider wraps the login route as
+  // well. See `usePosSignedOut` for the captured timeline of what that cost.
+  const signedOut = usePosSignedOut();
+
   const statusQuery = useQuery({
     queryKey: ["retail-till-pin"],
+    enabled: !signedOut,
     queryFn: () => fetchJson<{ data: PosTillPinStatus }>("/api/v2/retail/pos/pin"),
     staleTime: 30_000,
   });

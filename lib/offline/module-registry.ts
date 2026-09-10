@@ -113,15 +113,32 @@ async function syncRetailSale(
   }
 }
 
+/*
+  Every preload names the feature its endpoint is gated on.
+
+  The module being enabled is not the same as every endpoint in it being
+  reachable. A gold CLERK holds `hr.employees` and `hr.attendance`, so the HR
+  offline module preloads for them — and then asks for incidents, disciplinary
+  actions and the site list, none of which they are entitled to. Three 403s per
+  page, retried, on screens with nothing to do with HR.
+
+  Keys taken from `lib/platform/gating/route-registry.ts`, which is the one
+  place that says what gates a route. An endpoint with no entry there needs no
+  tag here.
+*/
 const hrWorkforceCorePreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "hr-employees-active",
     queryKey: ["employees", "", "active"],
+    featureKey: "hr.employees",
     fetcher: async () => fetchEmployees({ active: true, limit: 500 }),
   },
   {
     key: "hr-sites-default",
     queryKey: ["sites"],
+    // `/api/sites` is gated on `admin.sites-sections`; a clerk has no admin
+    // features at all and took a 403 on every page carrying this module.
+    featureKey: "admin.sites-sections",
     fetcher: async () => fetchSites(),
   },
   {
@@ -137,21 +154,25 @@ const hrWorkforceCorePreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "hr-incident-employees",
     queryKey: ["employees", "hr-incidents"],
+    featureKey: "hr.employees",
     fetcher: async () => fetchEmployees({ active: true, limit: 500 }),
   },
   {
     key: "hr-incident-sites",
     queryKey: ["sites", "hr-incidents"],
+    featureKey: "admin.sites-sections",
     fetcher: async () => fetchSites(),
   },
   {
     key: "hr-incidents-default",
     queryKey: ["hr-incidents", "", "ALL"],
+    featureKey: "hr.incidents",
     fetcher: async () => fetchHrIncidents({ limit: 300 }),
   },
   {
     key: "hr-disciplinary-actions-default",
     queryKey: ["disciplinary-actions", "", "ALL"],
+    featureKey: "hr.disciplinary-actions",
     fetcher: async () => fetchDisciplinaryActions({ limit: 300 }),
   },
 ];
@@ -160,23 +181,48 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "retail-sites",
     queryKey: ["pos-sites"],
+    featureKey: "admin.sites-sections",
     fetcher: async () => fetchSites(),
   },
   {
     key: "retail-current-shift",
     queryKey: ["retail-current-shift"],
+    featureKey: "retail.pos",
     fetcher: async () => fetchJson("/api/v2/retail/pos/current-shift"),
   },
   {
     key: "retail-promotions",
     queryKey: ["retail-pos-promotions"],
+    // `route-registry.ts:424` gates /api/v2/retail/promotions on
+    // `retail.promotions`. A cashier signing in took a 403 here.
+    featureKey: "retail.promotions",
     fetcher: async () => fetchJson("/api/v2/retail/promotions?status=ACTIVE&pos=1"),
   },
-  {
-    key: "retail-tender-policy",
-    queryKey: ["retail-pos-tender-policy"],
-    fetcher: async () => fetchJson("/api/v2/retail/setup/tender-policy"),
-  },
+  /*
+    There is no `retail-tender-policy` preload any more, and that is the fix
+    rather than an omission.
+
+    It fetched `/api/v2/retail/setup/tender-policy`, which is gated on
+    `retail.setup` `view` — a permission no cashier holds — so it 403'd on
+    every till warm-up. Pointing it at `pos/context` instead fixed the cashier
+    and broke everyone else: that route additionally enforces
+    `canAccessPosPortal(role)`, so a CRM owner warming this module took a 403
+    on every page. The e2e suite caught that within one run of the change.
+
+    The entry is gone because nothing needs it. Nothing reads the
+    `["retail-pos-tender-policy"]` cache key, and the two rules it carried now
+    reach the till by two correctly-scoped paths: live through
+    `pos-portal-state.tsx`, which reads them off `pos/context`, and offline
+    through `lib/retail/offline-bootstrap.ts`, which caches them under its own
+    key. A third copy warmed for every session in the product was buying
+    nothing.
+
+    The general lesson is worth keeping: a preload in a *module* runs for
+    anybody whose session warms that module, and feature keys cannot express
+    "only a cashier" — `retail.pos` is a tenant feature and a CRM superadmin
+    holds it. A route that also checks a role is therefore not safe to preload
+    from here at all.
+  */
   {
     key: "retail-catalog-default",
     queryKey: async () => {
@@ -224,14 +270,29 @@ const retailPreloadQueries: OfflinePreloadQuery[] = [
   {
     key: "retail-pos-sales-history",
     queryKey: ["retail-pos-sales", ""],
+    featureKey: "retail.pos",
     fetcher: async () =>
       fetchJson("/api/v2/retail/pos/sales?scope=mine&limit=120&search="),
   },
   {
     key: "retail-pos-customers-default",
     queryKey: ["retail-pos-customers", ""],
+    /*
+      30 is the route's ceiling — `customerSearchQuery` caps `limit` there and
+      zod refuses anything larger. At 40 this 400'd, and because the offline
+      warm-up runs on every page of every tenant, it did so everywhere: the
+      e2e suite saw it eighteen times across the school module alone, on pages
+      with nothing to do with retail.
+
+      Worth knowing the request is thin either way: the route short-circuits an
+      empty `q` to `{ data: [] }`, so this warms the cache with an empty list.
+      Whether the offline bundle should instead pre-cache the customer *list*
+      is a real question and a separate one; this change only stops it failing.
+    */
+    // `/api/v2/retail/customers` is gated on `crm.customers`.
+    featureKey: "crm.customers",
     fetcher: async () =>
-      fetchJson("/api/v2/retail/customers/search?q=&limit=40"),
+      fetchJson("/api/v2/retail/customers/search?q=&limit=30"),
   },
   {
     key: "retail-pos-price-check-default",

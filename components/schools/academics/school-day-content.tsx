@@ -228,6 +228,7 @@ export function SchoolDayContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               {
@@ -296,6 +297,7 @@ export function SchoolDayContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               {

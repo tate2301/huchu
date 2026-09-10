@@ -1,4 +1,9 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+import { test, expect } from "./_support/fixtures";
+import { CRM } from "./_support/tenants";
+import { visitSettled } from "./_support/nav";
+import { freeze, settle, VIEWPORT } from "./_support/shots";
 
 /**
  * Every record page, at the width it is hardest at.
@@ -13,13 +18,39 @@ import { expect, test, type Page } from "@playwright/test";
  *   npx playwright test e2e/record-shots.spec.ts
  *   SHOT_ONLY=lead SHOT_VIEWPORTS=phone npx playwright test e2e/record-shots.spec.ts
  *
- * Runs against the CRM demo tenant; see e2e/crm-shots.spec.ts for the seed.
+ * ## What this still owns after the harness migration
+ *
+ * `record-pages-suite` reaches each of these six records by a database-resolved
+ * id typed straight into the URL, and asserts their content. It never opens one
+ * the way a person does, and it takes no picture. This spec does both:
+ *
+ *  - it clicks a **row link** on each list, so a list whose rows stopped
+ *    linking fails here and nowhere else;
+ *  - it photographs the record at **390x844** — no other harness suite sets a
+ *    non-desktop viewport for CRM at all;
+ *  - it takes a **full-page** capture, which is the "how much scrolling does a
+ *    record cost" shot. `shooter()` in `_support/shots.ts` always passes
+ *    `fullPage: false`, so this is the only full-page image the suite makes.
+ *
+ * Ran against the dead `crmdemo` tenant with a hard-coded email and host until
+ * this migration; it now takes both from `_support/tenants.ts` and runs on
+ * `hurudza-creative`, the seeded CRM tenant every other CRM spec uses. Nothing
+ * here asserts on a specific record — the first row of each list is whatever the
+ * seed sorts first — so the change of tenant costs no assertion.
  */
 
-const OUT = process.env.SHOT_DIR ?? "/tmp/shots";
-const BASE = process.env.E2E_BASE_URL ?? "http://localhost:3000";
-const EMAIL = process.env.SHOT_EMAIL ?? "crm@demo.test";
-const PASSWORD = process.env.SHOT_PASSWORD ?? "Password123!";
+test.use({ tenant: CRM, as: "owner" });
+
+/**
+ * Where the images land.
+ *
+ * `_support/shots.ts` keeps the rule: everything under
+ * `docs/screenshots/<vertical>/<journey>`, because the previous four roots
+ * included two `/tmp` paths that do not survive a reboot. This spec cannot use
+ * `shooter()` — it needs `fullPage` — but it obeys the same root, and the same
+ * `SHOT_DIR` override.
+ */
+const OUT = `${process.env.SHOT_DIR ?? "docs/screenshots"}/crm/records`;
 
 type Record_ = {
   name: string;
@@ -41,43 +72,47 @@ const RECORDS: Record_[] = [
 ];
 
 async function openFirstRecord(page: Page, list: string, prefix: string) {
-  try {
-    await page.goto(list);
-  } catch {
-    await page.waitForTimeout(1000);
-    await page.goto(list);
-  }
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(6000);
+  // `visitSettled` rather than `goto` + a retry: it already survives the
+  // `net::ERR_ABORTED` a client-side navigation causes, and its idle wait is
+  // time-boxed. An unbounded `networkidle` never resolves here — the app holds
+  // an open SSE stream — which is what the old hand-rolled version was paying
+  // 20 seconds a call to discover.
+  await visitSettled(page, list);
 
-  const link = page.locator(`a[href^="${prefix}"]`).first();
-  if (!(await link.isVisible().catch(() => false))) {
-    console.error(`[shots] no record row under ${prefix}`);
-    return false;
-  }
-  const href = await link.getAttribute("href");
+  /*
+    `:visible` matters, and this spec was missing it. A CRM list renders its
+    Table, List and Board views at once and hides the two that are not
+    selected, so `/crm/leads` carries a hundred-odd anchors of which most are
+    hidden. Without the filter `.first()` picks one out of a hidden pane and
+    waits for it to appear — which reads as "the list is empty" and is the
+    opposite. `crm-suite` documents the same trap.
+
+    This used to `console.error` and skip. A screenshot spec that skips
+    silently produces neither an image nor a failure, so it now asserts: a list
+    whose rows stopped linking is exactly the regression this file is the only
+    one placed to catch.
+  */
+  const link = page.locator(`a[href^="${prefix}"]:visible`).first();
+  await expect(link, `no record row under ${prefix} on ${list}`).toBeVisible({
+    timeout: 25_000,
+  });
   await link.click();
+
   // Wait on the URL rather than the network: the record route compiles on
   // first hit, and `networkidle` settles on the list long before the record
   // has painted.
-  if (href) {
-    await page.waitForURL(`**${href}`, { timeout: 30000 }).catch(() => {
-      console.error(`[shots] never landed on ${href}`);
-    });
-  }
-  await page.waitForLoadState("networkidle", { timeout: 20000 }).catch(() => {});
-  await page.waitForTimeout(6000);
-  return true;
+  await expect(page).toHaveURL(new RegExp(`${prefix}[^/]+$`), { timeout: 30_000 });
+
+  // `settle` is the time-boxed idle wait plus a deliberate quiet period, and
+  // `freeze` stops animations, the caret and any focus ring — the three things
+  // that make two shots of one page differ.
+  await settle(page);
+  await freeze(page);
 }
 
-test.use({
-  baseURL: BASE,
-  launchOptions: { executablePath: "/opt/pw-browsers/chromium" },
-});
-
 const ALL_VIEWPORTS: Array<[label: string, width: number, height: number]> = [
-  ["phone", 390, 844],
-  ["desktop", 1440, 900],
+  ["phone", VIEWPORT.mobile.width, VIEWPORT.mobile.height],
+  ["desktop", VIEWPORT.desktop.width, VIEWPORT.desktop.height],
 ];
 
 function only(value: string | undefined) {
@@ -102,44 +137,45 @@ for (const [label, width, height] of VIEWPORTS) {
     test(`record pages at ${width}x${height}`, async ({ page }) => {
       test.setTimeout(90_000 + SELECTED.length * 40_000);
 
-      await page.goto("/login");
-      await page.waitForLoadState("networkidle");
-      await page.waitForTimeout(2500);
-      await page.fill("#login-email", EMAIL);
-      await page.fill("#login-password", PASSWORD);
-      await page.click('button[type="submit"]');
-      // Poll the session endpoint rather than the cookie jar or the URL. The
-      // cookie's name depends on how the deployment is configured, and
-      // NEXTAUTH_URL pins the post-login redirect to whichever host it names —
-      // which need not be the host the form posted to. Whether the session
-      // exists is the thing actually being waited on.
+      /*
+        The session is established by `auth.setup.ts` and arrives as saved
+        storage state, so there is no login form to fill here any more — which
+        is 15-25 seconds off each of these two tests.
+
+        The check the login used to end on is kept, because it is the one thing
+        this spec ever asserted hard. Ask the session endpoint rather than the
+        cookie jar or the URL: the cookie's name depends on how the deployment
+        is configured, and NEXTAUTH_URL pins the post-login redirect to whichever
+        host it names — which need not be the host the form posted to. Whether
+        the session exists is the thing actually being waited on. It is now a
+        short poll rather than a 45-second one: a saved session either restored
+        or it did not.
+      */
       await expect
         .poll(
           async () =>
             page.request
-              .get(BASE + "/api/auth/session")
+              .get("/api/auth/session")
               .then((response) => response.json())
               .then((body: { user?: unknown }) => Boolean(body?.user))
               .catch(() => false),
-          { timeout: 45000 },
+          { timeout: 15_000, message: "the saved session did not restore" },
         )
         .toBe(true);
-
-      await page.goto("/", { waitUntil: "commit" }).catch(() => {});
-      await page.waitForTimeout(1000);
 
       for (const { name, list, prefix } of SELECTED) {
         await page.keyboard.press("Escape").catch(() => {});
         await page.waitForTimeout(300);
 
-        const opened = await openFirstRecord(page, list, prefix);
-        if (!opened) continue;
+        await openFirstRecord(page, list, prefix);
 
         // The whole page, which is what shows how much scrolling a record
         // costs, and the first screen, which is what somebody actually gets.
         await page.screenshot({ path: `${OUT}/record-${name}-${label}.png`, fullPage: true });
         await page.screenshot({ path: `${OUT}/record-${name}-${label}-fold.png` });
       }
+
+      console.log(`[shots] record pages (${label}) -> ${OUT}`);
     });
   });
 }

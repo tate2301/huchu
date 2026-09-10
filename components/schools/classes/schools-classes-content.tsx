@@ -248,6 +248,7 @@ export function SchoolsClassesContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               {
@@ -318,6 +319,7 @@ export function SchoolsClassesContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               {

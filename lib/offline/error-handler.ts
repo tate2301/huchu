@@ -237,12 +237,23 @@ function isCryptoError(error: Error): boolean {
 }
 
 function extractStatusCode(error: unknown): number | null {
+  /*
+    Narrowed, not cast.
+
+    This read the same property twice through `as any` — once to test it and
+    once to return it — so the test and the return were unrelated as far as the
+    compiler was concerned, and nothing would have caught the two drifting
+    apart. `in` already narrows; naming the shape once is both shorter and
+    checked.
+  */
   if (error && typeof error === "object") {
-    if ("status" in error && typeof (error as any).status === "number") {
-      return (error as any).status;
+    if ("status" in error) {
+      const { status } = error as { status: unknown };
+      if (typeof status === "number") return status;
     }
-    if ("response" in error && (error as any).response?.status) {
-      return (error as any).response.status;
+    if ("response" in error) {
+      const { response } = error as { response?: { status?: unknown } };
+      if (typeof response?.status === "number") return response.status;
     }
   }
   const match = String(error).match(/(\d{3})/);

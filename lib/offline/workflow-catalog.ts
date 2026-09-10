@@ -88,7 +88,6 @@ export const OFFLINE_WORKFLOW_CATALOG: OfflineWorkflowCatalogEntry[] = [
       "retail-pos-catalog",
       "retail-pos-catalog-categories",
       "retail-pos-promotions",
-      "retail-pos-tender-policy",
       "retail-pos-held-carts",
       "retail-pos-sales",
       "retail-pos-customer-search",

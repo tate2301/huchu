@@ -822,7 +822,8 @@ export function SchoolsFeesContent() {
 
           return (
             <div className="flex items-center justify-end gap-2">
-              <RecordActions resource="schools.fees" verbs={verbs} />
+              <RecordActions
+              layout="menu" resource="schools.fees" verbs={verbs} />
               <PrintDocumentButton
                 sourceKey="schools.fee.receipt"
                 recordId={receipt.id}
@@ -921,7 +922,8 @@ export function SchoolsFeesContent() {
 
           return (
             <div className="flex justify-end">
-              <RecordActions resource="schools.fees" verbs={verbs} />
+              <RecordActions
+              layout="menu" resource="schools.fees" verbs={verbs} />
             </div>
           );
         },
@@ -990,6 +992,7 @@ export function SchoolsFeesContent() {
           return (
             <div className="flex justify-end">
               <RecordActions
+              layout="menu"
                 resource="schools.fees"
                 verbs={[
                   {

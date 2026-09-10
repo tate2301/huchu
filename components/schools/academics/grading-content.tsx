@@ -317,6 +317,7 @@ export function GradingContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               ...(row.original.isDefault
@@ -407,6 +408,7 @@ export function GradingContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.results"
             verbs={[
               ...(row.original.status === "OPEN"

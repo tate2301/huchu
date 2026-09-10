@@ -13,7 +13,6 @@ import {
   RefreshCcw,
   ShieldCheck,
   UserCheck,
-  UserRound,
   Users,
 } from "@/lib/icons";
 import {
@@ -102,20 +101,20 @@ const areaNavItems: Record<ManagementArea, ManagementNavItem[]> = {
       icon: Coins,
       description: "Settlement and variable payout category master data.",
     },
-    {
-      id: "scrap-materials",
-      label: "Scrap Materials",
-      href: "/management/master-data/operations/scrap-materials",
-      icon: RefreshCcw,
-      description: "Material catalog and recyclable definitions for scrap operations.",
-    },
-    {
-      id: "scrap-sellers",
-      label: "Scrap Sellers",
-      href: "/management/master-data/operations/scrap-sellers",
-      icon: UserRound,
-      description: "Seller identity records used by scrap purchases and compliance checks.",
-    },
+    /*
+      Scrap Materials and Scrap Sellers were here and are gone.
+
+      Both pointed at `/management/master-data/operations/scrap-*`, and that
+      directory holds downtime-codes, gold-expense-types, sections and sites —
+      the pages never existed. Next prefetches a link as soon as its parent
+      renders, so both 404'd on every visit to master data.
+
+      Not in-progress work: `SCRAP_METAL` is a workspace profile with no entry
+      in `PROFILE_OWNER_MODULES`, which `lib/workspaces.ts` documents as the
+      shape of a *retired* profile, and there are no `scrap.*` keys in the
+      feature catalog. Nothing else in the codebase mentions scrap except two
+      comments about gold-and-scrap settlement.
+    */
 
     // A school's academic ladder — years, terms, classes, streams, subjects, the
     // school day, grading and the publishing window — is reference data set up

@@ -188,8 +188,39 @@ BEGIN
   -- financial history in the way a journal line is, but it is the audit trail
   -- for a physical quantity, and nulling one silently would leave a movement
   -- nobody can explain. It gets the same refusal.
-  SELECT count(*) INTO movement_rows
-  FROM "StockMovement" WHERE "sourceType"::text = ANY (dead_types);
+  --
+  -- ── Why this is dynamic SQL, added 2026-09-01 ──────────────────────────
+  --
+  -- Because on a database built from migrations alone, the column does not
+  -- exist yet at this point in history. It is created by
+  -- `20260820130000_script_applied_schema_catchup`, which sorts *after* this
+  -- file — the catch-up is where every script-applied change was finally
+  -- written down, and this reference was written when the live database
+  -- already had the column from the script.
+  --
+  -- So the fix above, applied on 2026-08-20, fixed the database in front of it
+  -- and broke `migrate deploy` from scratch. That went unnoticed for eleven
+  -- days because the catch-up was verified with `prisma migrate diff
+  -- --from-migrations --to-schema`, which compares end states and cannot see a
+  -- step that will not execute in order. `pnpm verify:migrations` now does,
+  -- and is the reason this comment is not describing a live bug.
+  --
+  -- PL/pgSQL plans a static statement when the block runs, so a plain SELECT
+  -- against a missing column raises 42703 whether or not it is guarded by an
+  -- IF. The lookup has to be EXECUTE'd for the guard to mean anything.
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'StockMovement'
+      AND column_name = 'sourceType'
+  ) THEN
+    EXECUTE 'SELECT count(*) FROM "StockMovement" WHERE "sourceType"::text = ANY ($1)'
+      INTO movement_rows USING dead_types;
+  ELSE
+    -- No column, therefore no rows naming a dead type. The catch-up creates it
+    -- a step later, already typed against the enum this file is about to build.
+    movement_rows := 0;
+  END IF;
 
   IF journal_rows > 0 OR ledger_rows > 0 OR movement_rows > 0 THEN
     RAISE EXCEPTION
@@ -274,10 +305,25 @@ ALTER TABLE "PaymentLedgerEntry"
 ALTER TABLE "BankTransaction"
   ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
   USING ("sourceType"::text::"AccountingSourceType");
--- The sixth. See the note in the guard above for why it was missing.
-ALTER TABLE "StockMovement"
-  ALTER COLUMN "sourceType" TYPE "AccountingSourceType"
-  USING ("sourceType"::text::"AccountingSourceType");
+-- The sixth. See the note in the guard above for why it was missing, and for
+-- why it is conditional: on a from-scratch build the column does not exist yet.
+-- Nothing is lost by skipping it — `20260820130000_script_applied_schema_catchup`
+-- creates the column a step later, and by then `AccountingSourceType` is
+-- already the new enum this file defines, so it is created correct rather than
+-- created wrong and converted.
+DO $stockmovement$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = current_schema()
+      AND table_name = 'StockMovement'
+      AND column_name = 'sourceType'
+  ) THEN
+    EXECUTE 'ALTER TABLE "StockMovement"'
+      || ' ALTER COLUMN "sourceType" TYPE "AccountingSourceType"'
+      || ' USING ("sourceType"::text::"AccountingSourceType")';
+  END IF;
+END $stockmovement$;
 ALTER TABLE "JournalEntry" ALTER COLUMN "sourceType" SET DEFAULT 'MANUAL';
 
 DROP TYPE "AccountingSourceType_old";

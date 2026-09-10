@@ -19,6 +19,7 @@ import {
   getOfflineBootstrapProgress,
   saveOfflineBootstrapProgress,
 } from "@/lib/offline/bootstrap-state";
+import { useHydrated } from "@/hooks/use-hydrated";
 import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
 import {
   OFFLINE_BOOTSTRAP_CHANGED_EVENT,
@@ -61,6 +62,7 @@ import {
   getOfflineRouteAvailability,
   getRouteOfflineMutationPolicy,
 } from "@/lib/offline/workflow-catalog";
+import { hasOfflineFeature, setOfflineEntitlements } from "@/lib/offline/entitlement";
 import type {
   OfflineBootstrapProgress,
   OfflineLifecycleState,
@@ -210,6 +212,19 @@ async function prefetchModuleQueries(
       continue;
     }
 
+    /*
+      Not if the session cannot reach it.
+
+      Counted as prepared rather than skipped silently: the module is as ready
+      for offline use as this session can make it, and reporting it as
+      incomplete would put a permanent warning on a workspace that is working
+      exactly as sold.
+    */
+    if (preloadQuery.featureKey && !hasOfflineFeature(preloadQuery.featureKey)) {
+      preparedQueryKeys.push(preloadQuery.key);
+      continue;
+    }
+
     const queryKey =
       typeof preloadQuery.queryKey === "function"
         ? await preloadQuery.queryKey()
@@ -234,6 +249,20 @@ async function prefetchModuleQueries(
 
   return uniqueStrings(preparedQueryKeys);
 }
+
+/**
+ * The status the server resolves to, before anything has happened.
+ *
+ * The provider's state starts `lifecycleState: "booting"`, `bootstrapProgress:
+ * null`, `pendingCount: 0` and `isOffline: false`, and `status` derives ONLINE
+ * from that — which `getStatusLabel` renders as "Ready" — so this is what the server puts in the HTML, and what the
+ * hydrating render has to agree with. Derive the label from it rather than
+ * hard-coding a second copy of the string.
+ */
+const SERVER_STATUS: OfflineStatus = "ONLINE";
+
+/** Stable identity, so freezing the list pre-hydration does not churn the memo. */
+const EMPTY_OPERATIONS: OfflineOutboxSummaryItem[] = [];
 
 function getStatusLabel(
   status: OfflineStatus,
@@ -415,9 +444,31 @@ async function prewarmRoutes(
 ) {
   const preparedCanonicalRoutes: string[] = [];
   const preparedPathnames: string[] = [];
+  const preparedUrls: string[] = [];
 
   for (const route of routeDefinitions) {
     let didPrepare = false;
+
+    /*
+      Stop at the first URL that works.
+
+      A route lists more than one warm-up URL because the same page answers to
+      more than one path: the till is `/portal/pos/overview` on a tenant host
+      and `/overview` once the POS host rewrite has been applied. They are the
+      same page and warming either one is warming the route.
+
+      Fetching *all* of them therefore guaranteed a 404 on whichever form did
+      not apply to the current host — and because this warm-up runs on every
+      page of every tenant, a school and a gold mine each took six of them
+      (`/overview`, `/history`, `/held`, `/customers`, `/shift`,
+      `/price-check`) on every navigation. The e2e suite found them on eighteen
+      school pages before anyone noticed they were retail routes.
+
+      Breaking on success needs no knowledge of which host we are on, which is
+      the point: the alternative was teaching this function about POS host
+      rewrites, and getting that wrong breaks the till's offline cache — the
+      most safety-critical surface in retail.
+    */
     for (const warmupUrl of uniqueStrings(route.warmupUrls)) {
       try {
         const response = await fetch(warmupUrl, {
@@ -425,6 +476,8 @@ async function prewarmRoutes(
         });
         if (response.ok) {
           didPrepare = true;
+          preparedUrls.push(warmupUrl);
+          break;
         }
       } catch {
         // Ignore route warmup failures.
@@ -439,13 +492,13 @@ async function prewarmRoutes(
 
   const nextPreparedPathnames = uniqueStrings(preparedPathnames);
   if (nextPreparedPathnames.length > 0) {
-    const matchedRoutes = routeDefinitions.filter((route) =>
-      preparedCanonicalRoutes.includes(route.canonicalRoute),
-    );
     try {
       await postServiceWorkerMessage({
         type: messageType,
-        routes: uniqueStrings(matchedRoutes.flatMap((route) => route.warmupUrls)),
+        // The URLs that actually answered, not every URL that was listed. The
+        // service worker was previously handed both forms of each path and
+        // asked to cache a 404 alongside the page.
+        routes: uniqueStrings(preparedUrls),
         assets: [],
       });
     } catch {
@@ -464,6 +517,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
   const queryClient = useQueryClient();
   const { data: session, status: sessionStatus } = useSession();
   const { isOffline, lastOnlineAt } = useOfflineConnectivity();
+  const hydrated = useHydrated();
   const [lifecycleState, setLifecycleState] =
     useState<OfflineLifecycleState>("booting");
   const [hydrationCompleted, setHydrationCompleted] = useState(false);
@@ -507,6 +561,18 @@ export function OfflineProvider({ children }: PropsWithChildren) {
     () => getEnabledOfflineModules(enabledFeatures),
     [enabledFeatures],
   );
+
+  /*
+    Publish the session's entitlements where the preload registry can read them.
+
+    `lib/offline/module-registry.ts` is a plain module and cannot see a session,
+    so it used to prefetch everything it listed for everybody — see
+    `lib/offline/entitlement.ts` for what that cost. Written during render
+    rather than in an effect on purpose: the first prefetch can start before an
+    effect has run, and a preload gated on a value that is still empty is a
+    preload silently skipped.
+  */
+  setOfflineEntitlements(enabledFeatures);
   const currentSessionTenantKey =
     (session?.user as { companyId?: string } | undefined)?.companyId ?? null;
   const sessionBootstrapExpired = isOfflineSessionBootstrapExpired(sessionBootstrap);
@@ -732,7 +798,18 @@ export function OfflineProvider({ children }: PropsWithChildren) {
           await commitBootstrapProgress(nextProgress);
 
           for (const preloadQuery of moduleDefinition.preloadQueries) {
-            if (preloadQuery.enabled && !preloadQuery.enabled()) {
+            /*
+              The same entitlement gate as `prefetchModuleQueries`.
+
+              There are two loops over `preloadQueries` in this file — this one
+              for the bootstrap and that one for a warm prefetch — and gating
+              only the first left the 403s exactly where they were. Both doors,
+              or neither.
+            */
+            if (
+              (preloadQuery.enabled && !preloadQuery.enabled()) ||
+              (preloadQuery.featureKey && !hasOfflineFeature(preloadQuery.featureKey))
+            ) {
               nextProgress = recalculateBootstrapProgress({
                 ...nextProgress,
                 modules: nextProgress.modules.map((modulePreparation) =>
@@ -1551,18 +1628,77 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       isSyncing,
       canApplyUpdate,
       canInstallApp,
-      pendingCount,
-      blockingCount,
-      status,
-      statusLabel: getStatusLabel(status, pendingCount, bootstrapProgress),
+      /*
+        Everything the shared header derives from, held at the server's answer
+        until hydration — not just the label.
+
+        The first version of this fix stabilised `statusLabel` alone, and that
+        was not enough. `OfflineStatusButton` also reads `status` (to pick its
+        tone and its icon) and `pendingCount` / `blockingCount` / the update
+        prompt (to decide what to render at all). So the text reconciled and
+        the *markup* did not: React #418 again, this time reported as
+        `args[]=HTML` rather than `args[]=text`, on /people — a page that had
+        been green the run before.
+
+        A partial fix here is worse than none, because it moves the failure to
+        a different error code and a different page and looks like a new bug.
+        The whole set the header consumes is stabilised together.
+      */
+      pendingCount: hydrated ? pendingCount : 0,
+      blockingCount: hydrated ? blockingCount : 0,
+      status: hydrated ? status : SERVER_STATUS,
+      operations: hydrated ? operations : EMPTY_OPERATIONS,
+      /*
+        The label the *server* rendered until hydration finishes.
+
+        Measured, not guessed: fetching /portal/pos/offline as a cashier and
+        diffing the SSR HTML against the hydrated DOM gives "Ready" on the
+        server and "Preparing 50%" in the browser. React cannot reconcile that
+        text and throws #418, which in a production build is an **uncaught
+        error**, not a warning — on every page, because this label is in the
+        shared header as well as on the till's offline queue.
+
+        The provider's own state all starts static ("booting", null, []), so
+        the first render genuinely does agree; what does not agree is the
+        bootstrap landing partway through hydration and pulling the label
+        forward. `useHydrated` is `useSyncExternalStore` with a server snapshot
+        of `false`, which is the one thing React will not let an effect race:
+        the hydrating render is guaranteed the server's answer, and the real
+        one arrives in the re-render immediately after.
+
+        This is the `offline-status-hydration` entry that sat in
+        `e2e/_support/assert.ts` for four days. It stopped being invisible the
+        moment the entry was removed, which is the argument for removing it.
+      */
+      statusLabel: hydrated
+        ? getStatusLabel(status, pendingCount, bootstrapProgress)
+        : getStatusLabel(SERVER_STATUS, 0, null),
       sessionBootstrap,
       sessionBootstrapExpired,
       preparedModules,
-      bootstrapProgress,
-      lastSyncedAt,
+      bootstrapProgress: hydrated ? bootstrapProgress : null,
+      /*
+        `lastSyncedAt` is the third thing this bug hid behind, and the reason
+        the two fixes above were not enough.
+
+        The till's offline queue renders
+        `lastSyncedAt ? \`Last sync ${formatTime(lastSyncedAt)}\` : "Nothing stuck"`.
+        The server has no persisted sync time and renders "Nothing stuck"; a
+        browser that has synced before renders a formatted local timestamp. A
+        different string in the same node — React #418, `args[]=text`, the exact
+        error that came back on /portal/pos/offline after `statusLabel` alone
+        had been stabilised.
+
+        Which is the lesson worth keeping over the fix: this was patched three
+        times, each patch correct about the value it named and silent about its
+        neighbours. The rule that ends it is not "freeze this field" but
+        **nothing derived from persisted client state may reach a text node
+        before hydration**, and that is what the block above and this line now
+        implement together.
+      */
+      lastSyncedAt: hydrated ? lastSyncedAt : null,
       updateState,
-      showUpdatePrompt: updateState === "ready" && !updateDismissed,
-      operations,
+      showUpdatePrompt: hydrated && updateState === "ready" && !updateDismissed,
       tenantConflict,
       routeMutationPolicy,
       routeAvailabilityReason: routeAvailability.reason,
@@ -1583,6 +1719,7 @@ export function OfflineProvider({ children }: PropsWithChildren) {
       clearTenantConflict,
       dismissUpdate,
       effectiveTenantKey,
+      hydrated,
       isOffline,
       isSyncing,
       lifecycleState,

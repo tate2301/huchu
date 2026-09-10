@@ -228,6 +228,7 @@ export function PublishingContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.results"
             verbs={workflow.verbsFor(row.original, {
               onOpen: (sheet) => setOpenSheetId(sheet.id),
@@ -290,6 +291,7 @@ export function PublishingContent() {
             // window endpoints themselves check — including the delete, so the
             // button and the route cannot disagree.
             <RecordActions
+              layout="menu"
               resource="schools.results"
               verbs={[
                 {

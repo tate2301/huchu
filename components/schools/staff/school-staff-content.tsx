@@ -215,6 +215,7 @@ export function SchoolStaffContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.teachers"
             verbs={[
               {

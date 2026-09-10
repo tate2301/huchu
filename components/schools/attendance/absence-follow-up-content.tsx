@@ -238,6 +238,7 @@ export function AbsenceFollowUpContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.attendance"
             verbs={[
               {

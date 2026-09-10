@@ -43,8 +43,28 @@ function resolveWorkspaceProfileClaim(args: {
     return inferredProfile;
   }
 
-  if (!claimedProfile || claimedProfile === "GENERAL") {
-    return inferredProfile ?? claimedProfile;
+  /*
+    Infer only when the tenant has not said.
+
+    This used to treat an explicit "GENERAL" the same as no claim at all and
+    hand both to inference. `Company.workspaceProfile` defaults to GENERAL, so
+    the two really are indistinguishable most of the time — but a service
+    business that has deliberately been set to GENERAL is making a statement,
+    and this overruled it.
+
+    What that looked like: Hurudza Creative, a creative agency on the CRM
+    product, signed in and got a **school** — "School Operations" above the
+    sidebar and a school's navigation beneath it — while its own screen
+    correctly showed companies numbered CRMC- with Tafadzwa Mukono as owner.
+    Fixing `resolveEffectiveWorkspaceProfile` in lib/workspaces.ts was not
+    enough, because the claim was already wrong by the time the sidebar read
+    it: the JWT carries the *resolved* profile, and this is where it resolves.
+
+    `normalizeWorkspaceProfileInput` returns undefined for absent or
+    unrecognised input, which is what makes the two cases separable at all.
+  */
+  if (!claimedProfile) {
+    return inferredProfile;
   }
 
   return claimedProfile;

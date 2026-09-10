@@ -1,4 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { CRM } from "./_support/tenants";
+import { visitSettled } from "./_support/nav";
+import type { Page } from "@playwright/test";
 
 /**
  * Overlay behaviour at phone width — the part screenshots cannot see.
@@ -8,61 +11,86 @@ import { expect, test, type Page } from "@playwright/test";
  *
  *   1. A menu opened inside the expanded sidebar painted *behind* it, because
  *      the design system's drawer carries an inline `z-index: 1100` and every
- *      overlay in this repo carried `z-50`.
+ *      overlay in this repo carried `z-50`. The guard now is
+ *      `menu z-[var(--z-overlay)]` in `components/ui/dropdown-menu.tsx`.
  *   2. A picker opened from inside a form dialog opened behind the dialog, for
  *      the same reason in the other direction.
  *   3. Escape in that picker closed the form under it and lost everything
  *      typed — the sheet is a Radix dialog, the form is a Base UI one, and
- *      both answered the same key.
+ *      both answered the same key. The fix is the capture-phase `keydown`
+ *      listener in `components/ui/responsive-popover.tsx`, whose own docstring
+ *      describes this bug; these tests are its regression guard.
  *
- * Run against the CRM demo tenant; see `crm-shots.spec.ts` for the seed.
+ * Nothing else in `e2e/` hit-tests with `document.elementFromPoint`, and
+ * nothing else exercises the `ResponsivePopover` `compact = useIsBelow(640)`
+ * branch — `marketing-shots` only goes to phone width for the school portals,
+ * and `crm-suite` runs the CRM routes at the project's desktop viewport —
+ * `devices["Desktop Chrome"]` in `playwright.config.ts`, 1280x720. So
+ * this file is the only thing in the suite that reasons about stacking at all.
+ *
+ * Migrated off the dead `crmdemo` tenant onto the harness. Three things the
+ * rewrite changed, and why:
+ *
+ *   - The tenant is `CRM` (`hurudza-creative`) with the saved `owner` session,
+ *     so there is no hand-rolled sign-in and no hard-coded host or password —
+ *     see the rule at the top of `_support/tenants.ts`.
+ *   - The sidebar's workspace button was addressed by the label
+ *     "Scrap & Recycling", which was `crmdemo`'s workspace label and is not
+ *     this tenant's. It is addressed structurally now — the first menu button
+ *     in the sidebar header is the account/workspace switcher — so the test
+ *     does not break again the next time a seed changes a profile.
+ *   - The `PW_CHROMIUM` / `launchOptions` guard is gone: `playwright.config.ts`
+ *     picks the browser centrally from `E2E_BROWSER_CHANNEL`, which is what
+ *     this workstation actually uses, and a per-file `launchOptions` would only
+ *     force a second browser.
+ *
+ * "Zambezi Mining Supplies" survives the move: it is `CRMC-0002` in
+ * `scripts/seed-crm-demo.ts`, and `seed-crm-year.ts` upserts the same name over
+ * the same client number.
  */
 
-const BASE = process.env.E2E_BASE_URL ?? "http://crmdemo.apps.pagka.local:3000";
-const EMAIL = process.env.SHOT_EMAIL ?? "crm@demo.test";
-const PASSWORD = process.env.SHOT_PASSWORD ?? "Password123!";
-
 test.use({
-  baseURL: BASE,
+  tenant: CRM,
+  as: "owner",
   viewport: { width: 390, height: 844 },
-  launchOptions: { executablePath: "/opt/pw-browsers/chromium" },
 });
 
-async function signIn(page: Page) {
-  await page.goto("/login");
-  await page.waitForLoadState("networkidle");
-  await page.waitForTimeout(2000);
-  await page.fill("#login-email", EMAIL);
-  await page.fill("#login-password", PASSWORD);
-  await page.click('button[type="submit"]');
-  await expect
-    .poll(
-      async () =>
-        (await page.context().cookies()).some((cookie) =>
-          cookie.name.includes("session-token"),
-        ),
-      { timeout: 45000 },
-    )
-    .toBe(true);
-  await page.goto("/", { waitUntil: "commit" }).catch(() => {});
-  await page.waitForTimeout(800);
-}
-
 async function openLeads(page: Page) {
-  await page.goto("/crm/leads");
-  await page.waitForLoadState("networkidle", { timeout: 15000 }).catch(() => {});
-  await page.waitForTimeout(5000);
+  await visitSettled(page, "/crm/leads");
+  // The readiness gate that the old blind `waitForTimeout(5000)` was standing
+  // in for. `next dev` compiles this route cold on the first run, hence the
+  // generous ceiling — the assertion retries, it does not sleep.
+  await expect(page.getByRole("button", { name: /New lead/i }).first()).toBeVisible({
+    timeout: 90_000,
+  });
 }
 
 test("a menu opened inside the sidebar paints above it", async ({ page }) => {
   test.setTimeout(180_000);
-  await signIn(page);
   await openLeads(page);
 
-  await page.locator('[data-slot="sidebar-trigger"], [data-sidebar="trigger"]').first().click();
-  await page.waitForTimeout(1200);
-  await page.getByRole("button", { name: /Scrap & Recycling/i }).first().click();
-  await page.waitForTimeout(1500);
+  await page
+    .locator('[data-slot="sidebar-trigger"], [data-sidebar="trigger"]')
+    .first()
+    .click();
+
+  // The workspace switcher: the first menu button in the sidebar header, which
+  // is `SidebarAccountMenu`'s `DropdownMenuTrigger`. Its label is the workspace
+  // label and therefore tenant-dependent, so it is not what we match on.
+  const switcher = page
+    .locator('[data-sidebar="header"] [data-sidebar="menu-button"]')
+    .first();
+  await expect(switcher).toBeVisible({ timeout: 30_000 });
+  await switcher.click();
+
+  // Bounded, and swallowed on purpose: if the menu never renders we want the
+  // evaluate below to say "no menu rendered" rather than fail here with a
+  // locator timeout that does not name the thing being tested.
+  await page
+    .locator(".menu")
+    .first()
+    .waitFor({ state: "visible", timeout: 15_000 })
+    .catch(() => {});
 
   // Hit-testing rather than z-index arithmetic: what is actually on top at the
   // menu's own coordinates?
@@ -80,20 +108,32 @@ test("a picker opened from a form dialog stays in front of it, and Escape closes
   page,
 }) => {
   test.setTimeout(180_000);
-  await signIn(page);
   await openLeads(page);
 
   await page.getByRole("button", { name: /New lead/i }).first().click();
-  await page.waitForTimeout(2000);
   const dialog = page.locator('[data-slot="dialog-content"]').first();
-  await expect(dialog).toBeVisible();
+  await expect(dialog).toBeVisible({ timeout: 30_000 });
 
-  await page.getByRole("button", { name: /Search clients/i }).first().click();
-  await page.waitForTimeout(1500);
+  /*
+    Scoped to the dialog, which the original did not have to be.
+
+    This tenant's leads are titled after their client — `seed-crm-year.ts` builds
+    them as "<trading name> <work>" — so "Zambezi" appears in the list *behind*
+    the dialog too, and a page-wide `.first()` would find the row rather than the
+    picker. The dialog is portaled after the list, so `.first()` would have
+    picked the wrong one.
+
+    The name is `/Search clients/i` only once the client query resolves; until
+    then the trigger reads "Loading clients…". The retrying assertion is the
+    wait — there is no sleep here.
+  */
+  const clientPicker = dialog.getByRole("button", { name: /Search clients/i }).first();
+  await expect(clientPicker).toBeVisible({ timeout: 30_000 });
+  await clientPicker.click();
 
   // On a phone the picker is a sheet, not a popover floating over the form.
   const picker = page.locator(".drawer.drawer-bottom").first();
-  await expect(picker).toBeVisible();
+  await expect(picker).toBeVisible({ timeout: 30_000 });
   const onTop = await page.evaluate(() => {
     const sheet = document.querySelector<HTMLElement>(".drawer.drawer-bottom");
     if (!sheet) return "no sheet";
@@ -104,20 +144,25 @@ test("a picker opened from a form dialog stays in front of it, and Escape closes
   expect(onTop).toBe("on top");
 
   // Choosing keeps the form.
-  const option = page
+  //
+  // The list is narrowed first: this tenant carries 35 clients where the old
+  // `crmdemo` seed carried a handful, so the option is well below the fold of a
+  // 390px sheet. `SearchableSelect` runs `shouldFilter={false}` and filters on
+  // its own `query` state, so typing here is the same filter the user gets.
+  await picker.getByPlaceholder("Search by name").fill("Zambezi");
+  const option = picker
     .locator('[cmdk-item], [role="option"]')
     .filter({ hasText: "Zambezi Mining Supplies" })
     .first();
   await option.click();
-  await page.waitForTimeout(1200);
   await expect(dialog).toBeVisible();
+  await expect(picker).toBeHidden();
 
   // And so does dismissing without choosing. This is the regression: both
   // libraries used to answer the same Escape and the form went with it.
-  await page.getByRole("button", { name: /Zambezi|Search clients/i }).first().click();
-  await page.waitForTimeout(1200);
+  await dialog.getByRole("button", { name: /Zambezi|Search clients/i }).first().click();
+  await expect(picker).toBeVisible({ timeout: 30_000 });
   await page.keyboard.press("Escape");
-  await page.waitForTimeout(1200);
   await expect(picker).toBeHidden();
   await expect(dialog).toBeVisible();
 });

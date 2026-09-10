@@ -26,6 +26,16 @@ import {
 } from "@/lib/api";
 import { getApiErrorMessage } from "@/lib/api-client";
 
+/**
+ * Three decimals and a unit, or an em-dash when there is nothing to report.
+ *
+ * A milligram is this column's real precision, so `0.000 g` is a claim rather
+ * than a placeholder. Never print it for a value nobody recorded.
+ */
+function grams(value: number | null): string {
+  return value == null ? "—" : `${value.toFixed(3)} g`;
+}
+
 type GoldChainReportRow = {
   id: string;
   pourDate: string;
@@ -33,10 +43,24 @@ type GoldChainReportRow = {
   site: string;
   sourceType: string;
   grossWeight: number;
-  expenseGold: number;
-  workerSplit: number;
-  companySplit: number;
-  companyTotal: number;
+  /*
+    Null, not zero, when the bar is not linked to a shift allocation.
+
+    These four are read off `pour.goldShiftAllocation`, and a pour with no
+    allocation behind it has no split to report. Coercing that to `0` printed
+    "0.000 g" in the Worker Split column of a chain-of-custody report — which
+    does not say "unknown", it says the workers got nothing, on the one
+    document whose entire purpose is to show what each side took out of a bar.
+
+    An em-dash is the honest cell. The reason a pour can be unlinked at all is
+    a separate, larger finding: `GoldPour.goldShiftAllocationId` is a single
+    foreign key on a record that in practice gathers a fortnight of shifts, so
+    a batched bar cannot name them all. See docs/testing/e2e-status.md.
+  */
+  expenseGold: number | null;
+  workerSplit: number | null;
+  companySplit: number | null;
+  companyTotal: number | null;
   expenseBreakdown: string;
   shiftLeader: string;
   recordedBy: string;
@@ -142,12 +166,14 @@ export default function GoldChainReportPage() {
             sourceType:
               pour.sourceType === "PURCHASE_PUBLIC" ? "Purchase" : "Production",
             grossWeight: pour.grossWeight,
-            expenseGold: pour.expenseWeightTotal ?? 0,
-            workerSplit: pour.workerSplitWeight ?? 0,
-            companySplit: pour.companySplitWeight ?? 0,
+            expenseGold: pour.expenseWeightTotal ?? null,
+            workerSplit: pour.workerSplitWeight ?? null,
+            companySplit: pour.companySplitWeight ?? null,
             companyTotal:
               pour.companyTotalWeight ??
-              (pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0),
+              (pour.companySplitWeight == null && pour.expenseWeightTotal == null
+                ? null
+                : (pour.companySplitWeight ?? 0) + (pour.expenseWeightTotal ?? 0)),
             expenseBreakdown: pour.expenseBreakdown?.trim() || "-",
             shiftLeader: pour.shiftLeaderName ?? "-",
             recordedBy: pour.createdBy?.name ?? "-",
@@ -223,7 +249,7 @@ export default function GoldChainReportPage() {
         id: "expenseGold",
         header: "Expense Gold",
         cell: ({ row }) => (
-          <NumericCell>{row.original.expenseGold.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.expenseGold)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -233,7 +259,7 @@ export default function GoldChainReportPage() {
         id: "workerSplit",
         header: "Worker Split",
         cell: ({ row }) => (
-          <NumericCell>{row.original.workerSplit.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.workerSplit)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -243,7 +269,7 @@ export default function GoldChainReportPage() {
         id: "companySplit",
         header: "Company Split",
         cell: ({ row }) => (
-          <NumericCell>{row.original.companySplit.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.companySplit)}</NumericCell>
         ),
         size: 120,
         minSize: 120,
@@ -253,7 +279,7 @@ export default function GoldChainReportPage() {
         id: "companyTotal",
         header: "Company Total",
         cell: ({ row }) => (
-          <NumericCell>{row.original.companyTotal.toFixed(3)} g</NumericCell>
+          <NumericCell>{grams(row.original.companyTotal)}</NumericCell>
         ),
         size: 120,
         minSize: 120,

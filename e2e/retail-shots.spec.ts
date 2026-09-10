@@ -1,11 +1,18 @@
-import { expect, test, type Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
+
+import { test, expect } from "./_support/fixtures";
+import { RETAIL } from "./_support/tenants";
+import { visitSettled } from "./_support/nav";
+import { settle, shooter } from "./_support/shots";
 
 /**
  * Screenshots of the Retail module and the POS till. Ticket R-6.1.
  *
- * Modelled on `hr-payroll-shots.spec.ts`, which is where the hard-won bits come
+ * Modelled on `hr-payroll-shots.spec.ts`, which is where the hard-won bits came
  * from — waiting on the cookie rather than the URL, parking on our own host
- * before the first real navigation, and a timeout sized to the work.
+ * before the first real navigation, and a timeout sized to the work. All three
+ * now live in `_support/auth.ts` and `_support/nav.ts` and are done once, before
+ * this spec starts, by `auth.setup.ts`.
  *
  * ## Why this spec matters more than the payroll one
  *
@@ -18,56 +25,59 @@ import { expect, test, type Page } from "@playwright/test";
  *
  * So this spec does two things the payroll one does not:
  *
- *  - it photographs **two hosts**, because the till lives on its own
- *    (`pos.<tenant>`) and signing into one does not sign you into the other;
+ *  - it photographs **two personas**, because the till is a portal with its own
+ *    front door and its own session: the back office is the manager, the till is
+ *    the cashier, and neither session opens the other's screens;
  *  - it **fails** on an error banner rather than merely logging one. A
  *    screenshot of "Unable to load" is evidence of a broken screen, and a run
  *    that leaves a directory of those alongside a green tick is worse than no
  *    run at all.
  *
+ * ## What is left here after the harness took the rest
+ *
+ * The route sweeps this spec used to be the only cover for now belong to
+ * `retail-suite.spec.ts` and `pos-portal-suite.spec.ts`, which assert evidence
+ * strings, console cleanliness and NaN poison that an error-banner regex cannot
+ * see. What is unique to this file is the pictures — nothing else photographs a
+ * till at all, or the back office at anything but desktop width — and the
+ * keypad geometry test below, which is the only layout assertion in `e2e/`.
+ *
+ * ## Hosts
+ *
+ * There is no second base URL any more. The suite talks to one origin and
+ * nominates the host per context (`_support/tenants.ts` explains why, and why it
+ * is not a bypass), so `pos.acme.apps.pagka.local` needs no hosts-file line and
+ * no second sign-in. The till's paths still change shape, though — see
+ * `POS_SCREENS`.
+ *
  * ## Running it
  *
- *   npx tsx scripts/seed-retail-demo.ts --slug acme --days 180 --reset
- *   SHOT_DIR=docs/retail/screenshots \
- *     E2E_BASE_URL=http://acme.apps.pagka.local:3000 \
- *     npx playwright test e2e/retail-shots.spec.ts
- *
- * Both hosts need a line in the hosts file — wildcards do not work there, see
- * `docs/_start-here/LOCAL_DEV.md` §7a:
- *
- *   127.0.0.1 acme.apps.pagka.local
- *   127.0.0.1 pos.acme.apps.pagka.local
+ *   pnpm start:e2e                                  # production build, once
+ *   npx playwright test e2e/retail-shots.spec.ts
  *
  * `SHOT_ONLY=retail-overview,pos-checkout` and `SHOT_VIEWPORTS=desktop` narrow a
  * re-shoot; a full pass across three viewports is slow against a dev server.
+ * `SHOT_DIR` moves the output root, which is `docs/screenshots` — see
+ * `_support/shots.ts` for why everything landing in one place matters.
  */
-
-const OUT = process.env.SHOT_DIR ?? "docs/retail/screenshots";
-const BASE = process.env.E2E_BASE_URL ?? "http://acme.apps.pagka.local:3000";
-
-/** The till is a separate host, so it needs a separate sign-in. */
-const POS_BASE = process.env.E2E_POS_BASE_URL ?? BASE.replace("://", "://pos.");
-
-const MANAGER_EMAIL = process.env.E2E_RETAIL_EMAIL ?? "tafara.manager@bottlestore.test";
-const MANAGER_PASSWORD = process.env.E2E_RETAIL_PASSWORD ?? "RetailDemo123!";
 
 /**
- * The till takes a cashier, and only a cashier.
+ * What one screen costs, before the deliberate settle below is added to it.
  *
- * `canAccessPosPortal` in `lib/retail/pos-host.ts` admits `CASHIER` and
- * `POS_CASHIER`; everyone else is refused at sign-in with
- * `POS_PORTAL_ACCESS_REQUIRED` — not redirected after, *refused*, so no session
- * cookie is ever issued. Pointing both halves of this spec at the manager
- * account failed here for exactly that reason, which is the gate working.
- *
- * Both accounts come from `scripts/seed-retail-demo.ts`.
+ * Measured against this dev server rather than guessed: a screen is ~35s
+ * wall-clock end to end, and the previous 25s-per-screen budget timed the retail
+ * leg out at screen 15 of 17 with nothing actually wrong.
  */
-const CASHIER_EMAIL = process.env.E2E_POS_EMAIL ?? "chipo.till@bottlestore.test";
-const CASHIER_PASSWORD = process.env.E2E_POS_PASSWORD ?? MANAGER_PASSWORD;
+const PER_SCREEN_MS = 32_000;
 
 type Screen = {
   name: string;
   path: string;
+  /**
+   * Where the path lands, when that is somewhere else. `visit()` treats an
+   * unexpected destination as a failure, so an alias has to name its target.
+   */
+  landsOn?: string;
   prepare?: (page: Page) => Promise<void>;
 };
 
@@ -95,24 +105,28 @@ const RETAIL_SCREENS: Screen[] = [
 /**
  * The till, in rail order.
  *
- * Paths are the portal-host forms (`/held`, not `/portal/pos/held`) — see
- * `POS_PORTAL_LINKS` in `pos-portal-layout-frame.tsx`, which swaps between the
- * two depending on whether it is being served from the POS host.
+ * Two paths, one screen. `/portal/pos/held` is the *internal* path and `/held`
+ * is the public form the till is actually served at — see `POS_PORTAL_LINKS` in
+ * `pos-portal-layout-frame.tsx`, which swaps between them depending on whether
+ * it is being served from the POS host. This spec asks for the internal path and
+ * names the bare one it lands on, which is the same shape `pos-portal-suite`
+ * uses: the rewrite is what makes the till a separate front door, so it is worth
+ * asserting rather than working around.
  */
 const POS_SCREENS: Screen[] = [
-  { name: "pos-checkout", path: "/" },
-  { name: "pos-price-check", path: "/price-check" },
-  { name: "pos-held", path: "/held" },
-  { name: "pos-customers", path: "/customers" },
-  { name: "pos-history", path: "/history" },
-  { name: "pos-shift", path: "/shift" },
-  { name: "pos-reports", path: "/reports" },
-  { name: "pos-overview", path: "/overview" },
-  { name: "pos-offline-queue", path: "/offline" },
+  { name: "pos-checkout", path: "/portal/pos", landsOn: "/" },
+  { name: "pos-price-check", path: "/portal/pos/price-check", landsOn: "/price-check" },
+  { name: "pos-held", path: "/portal/pos/held", landsOn: "/held" },
+  { name: "pos-customers", path: "/portal/pos/customers", landsOn: "/customers" },
+  { name: "pos-history", path: "/portal/pos/history", landsOn: "/history" },
+  { name: "pos-shift", path: "/portal/pos/shift", landsOn: "/shift" },
+  { name: "pos-reports", path: "/portal/pos/reports", landsOn: "/reports" },
+  { name: "pos-overview", path: "/portal/pos/overview", landsOn: "/overview" },
+  { name: "pos-offline-queue", path: "/portal/pos/offline", landsOn: "/offline" },
   // S-7.6. The three the contract named and the till never had.
-  { name: "pos-activity", path: "/activity" },
-  { name: "pos-settings", path: "/settings" },
-  { name: "pos-help", path: "/help" },
+  { name: "pos-activity", path: "/portal/pos/activity", landsOn: "/activity" },
+  { name: "pos-settings", path: "/portal/pos/settings", landsOn: "/settings" },
+  { name: "pos-help", path: "/portal/pos/help", landsOn: "/help" },
 ];
 
 const ALL_VIEWPORTS: Array<[label: string, width: number, height: number]> = [
@@ -137,20 +151,24 @@ const viewportFilter = only(process.env.SHOT_VIEWPORTS);
 /**
  * How long to let a screen settle before photographing it.
  *
- * The defaults suit a warm dev server. They are not always enough: against a
+ * The default suits a warm dev server. It is not always enough: against a
  * saturated Neon pooler `GET /api/v2/retail` — the back-office dashboard — has
- * been measured at 32s, which is longer than the whole budget below, and the
- * result is a perfectly green run that photographs a page of skeletons. That is
- * the failure mode this spec exists to avoid, so the wait is tunable rather
- * than a constant somebody has to come back and edit:
+ * been measured at 32s, and the result is a perfectly green run that
+ * photographs a page of skeletons. That is the failure mode this spec exists to
+ * avoid, so the wait is tunable rather than a constant somebody has to come
+ * back and edit:
  *
- *   SHOT_SETTLE_MS=20000 SHOT_IDLE_MS=40000 npx playwright test …
+ *   SHOT_SETTLE_MS=20000 npx playwright test …
  *
  * Raise the per-test timeouts to match, or the run will simply time out later
  * instead of screenshotting early.
+ *
+ * There is no `SHOT_IDLE_MS` any more, and there must not be one: the app holds
+ * an open server-sent-event stream, so `networkidle` never resolves and the
+ * idle wait is time-boxed to two seconds inside `visitSettled` and `settle`.
+ * Waiting on it was always a way of spending the budget, never of arriving.
  */
 const SETTLE_MS = Number(process.env.SHOT_SETTLE_MS ?? 8000);
-const IDLE_MS = Number(process.env.SHOT_IDLE_MS ?? 15_000);
 
 function select(screens: Screen[]) {
   return screenFilter ? screens.filter((screen) => screenFilter.has(screen.name)) : screens;
@@ -159,55 +177,6 @@ function select(screens: Screen[]) {
 const VIEWPORTS = viewportFilter
   ? ALL_VIEWPORTS.filter(([label]) => viewportFilter.has(label))
   : ALL_VIEWPORTS;
-
-/**
- * Sign in and wait on the **cookie**, not the URL.
- *
- * `NEXTAUTH_URL` pins the post-login redirect to whichever host it names, which
- * in a multi-tenant dev setup is a different host entirely. The session is
- * still issued for the host the form posted to, so the cookie is the only
- * signal that means anything here — `LOCAL_DEV.md` §9 says the same thing.
- */
-async function signIn(
-  page: Page,
-  baseUrl: string,
-  loginPath: string,
-  who: { email: string; password: string },
-) {
-  await page.goto(`${baseUrl}${loginPath}`);
-  await page.waitForLoadState("networkidle");
-  // Clicking before React hydrates submits the form as a GET, which produces a
-  // page of query parameters instead of a session.
-  await page.waitForTimeout(2500);
-
-  await page.fill("#login-email", who.email);
-  await page.fill("#login-password", who.password);
-  await page.click('button[type="submit"]');
-
-  await expect
-    .poll(
-      async () => {
-        // A refusal renders an alert and never mints a cookie, so surface the
-        // reason rather than letting the poll time out on a silent `false`.
-        const refusal = await page
-          .getByRole("alert")
-          .first()
-          .textContent()
-          .catch(() => null);
-        if (refusal?.trim()) throw new Error(`sign-in refused: ${refusal.trim()}`);
-
-        const cookies = await page.context().cookies();
-        return cookies.some((cookie) => cookie.name.includes("session-token"));
-      },
-      { timeout: 45_000 },
-    )
-    .toBe(true);
-
-  // The post-login redirect is still in flight and will abort the first real
-  // `goto`. Park on a page of our own host first.
-  await page.goto(`${baseUrl}/`, { waitUntil: "commit" }).catch(() => {});
-  await page.waitForTimeout(1000);
-}
 
 /**
  * Anything a screen renders when it could not load its data — or compile.
@@ -219,45 +188,39 @@ async function signIn(
  * sailed past it because the overlay says none of the application phrases.
  *
  * A dev overlay is the most complete failure a screen can have. It belongs at
- * the top of this list, not outside it.
+ * the top of this list, not outside it — and nothing in `_support/assert.ts`
+ * matches overlay text, so this regex is still the only guard against it.
  */
 const ERROR_BANNER =
   /Unable to load|Failed to (fetch|load)|Something went wrong|An error occurred|Build Error|Module not found|Unhandled Runtime Error|Application error/i;
 
-async function shoot(page: Page, baseUrl: string, screen: Screen, label: string) {
-  const url = `${baseUrl}${screen.path}`;
-  try {
-    await page.goto(url);
-  } catch {
-    // An aborted navigation is a race, not a broken route. One retry.
-    await page.waitForTimeout(1000);
-    await page.goto(url);
-  }
+async function shoot(
+  page: Page,
+  shot: (page: Page, name: string) => Promise<string>,
+  screen: Screen,
+) {
+  await visitSettled(page, screen.path, { landsOn: screen.landsOn });
 
-  // Bounded. Some screens never reach `networkidle` against a dev server, and
-  // an unbounded wait there eats the whole budget for a page that renders fine.
-  await page.waitForLoadState("networkidle", { timeout: IDLE_MS }).catch(() => {});
   // Compile-on-first-hit takes seconds; a screenshot taken during it is a
-  // picture of a skeleton.
-  await page.waitForTimeout(SETTLE_MS);
+  // picture of a skeleton. `shot()` settles again on its own, but with the
+  // shorter default that suits an already-warm page.
+  await settle(page, SETTLE_MS);
 
   if (screen.prepare) {
     await screen.prepare(page);
     await page.waitForTimeout(1500);
   }
 
-  await page.screenshot({ path: `${OUT}/${screen.name}-${label}.png`, fullPage: true });
+  await shot(page, screen.name);
 
   // Photograph it, then fail. The picture is the evidence; the failure is what
   // stops a directory of error banners being mistaken for a passing run.
   const banner = page.getByText(ERROR_BANNER).first();
   if (await banner.isVisible().catch(() => false)) {
     const text = await banner.textContent().catch(() => null);
-    throw new Error(`${screen.name} at ${label} rendered an error banner: ${text?.trim()}`);
+    throw new Error(`${screen.name} rendered an error banner: ${text?.trim()}`);
   }
 }
-
-test.use({ baseURL: BASE });
 
 for (const [label, width, height] of VIEWPORTS) {
   test.describe(label, () => {
@@ -269,80 +232,103 @@ for (const [label, width, height] of VIEWPORTS) {
     test.skip(retail.length === 0 && pos.length === 0, "no screens selected");
 
     if (retail.length > 0) {
-      test(`retail back office at ${width}x${height}`, async ({ page }) => {
-        // `playwright.config.ts` sets 60s globally, which this cannot fit:
-        // sign-in alone is ~30s against a dev server and each screen waits 8s
-        // for compile-on-first-hit.
-        // Measured, not guessed: against this dev server a screen costs ~35s
-        // wall-clock end to end, and the previous 25s-per-screen budget timed
-        // the retail leg out at screen 15 of 17 with nothing wrong.
-        test.setTimeout(120_000 + retail.length * (32_000 + SETTLE_MS));
-        await signIn(page, BASE, "/login", { email: MANAGER_EMAIL, password: MANAGER_PASSWORD });
-        for (const screen of retail) {
-          await shoot(page, BASE, screen, label);
+      test.describe("back office", () => {
+        test.use({ tenant: RETAIL, as: "manager" });
+
+        test(`retail back office at ${width}x${height}`, async ({ page }) => {
+          // `playwright.config.ts` sets 60s globally, which this cannot fit:
+          // each screen waits SETTLE_MS for compile-on-first-hit on top of the
+          // fetch. Sign-in is no longer inside that budget — `as: "manager"`
+          // starts from the session `auth.setup.ts` saved, which is worth the
+          // 15-25s signing in used to cost here on every viewport.
+          test.setTimeout(120_000 + retail.length * (PER_SCREEN_MS + SETTLE_MS));
+          const shot = shooter("retail", `back-office-${label}`);
+          for (const screen of retail) {
+            await shoot(page, shot, screen);
+          }
+        });
+      });
+    }
+
+    // Declared only when it will hold something: the keypad test is desktop and
+    // tablet only, and `SHOT_ONLY` can select every screen out of the till list.
+    const tillHasWork = pos.length > 0 || (width >= 768 && !screenFilter);
+
+    if (tillHasWork) {
+      test.describe("the till", () => {
+        /*
+          The till takes a cashier, and only a cashier.
+
+          `canAccessPosPortal` in `lib/retail/pos-host.ts` admits `CASHIER` and
+          `POS_CASHIER`; everyone else is refused at sign-in with
+          `POS_PORTAL_ACCESS_REQUIRED` — not redirected after, *refused*, so no
+          session cookie is ever issued. Pointing both halves of this spec at the
+          manager account failed here for exactly that reason, which is the gate
+          working.
+
+          `as: "cashier"` is that account, signed in through the POS portal by
+          `auth.setup.ts`. The refusal itself is asserted in
+          `cross-cutting.spec.ts` ("the till refuses a manager"), which is a
+          better home for it than a spec whose job is pictures.
+        */
+        test.use({ tenant: RETAIL, as: "cashier" });
+
+        /**
+         * The keypad has to be on screen without scrolling.
+         *
+         * This is the requirement the checkout layout was restructured for: the
+         * columns were declared only at `xl`, so on the till's actual 1024×768
+         * tablet the payment rail stacked under the catalog and the keypad sat a
+         * full screen below the fold. A screenshot proves that once. This proves
+         * it on every run, and fails loudly the next time somebody moves the
+         * keypad back inside a scroll container.
+         *
+         * Only from `md` up. Below that the layout is the phone one, where the
+         * keypad is deliberately in a drawer.
+         */
+        if (width >= 768 && !screenFilter) {
+          test(`the keypad needs no scrolling at ${width}x${height}`, async ({ page }) => {
+            test.setTimeout(180_000 + SETTLE_MS * 2);
+            await visitSettled(page, "/portal/pos", { landsOn: "/" });
+            await settle(page, SETTLE_MS);
+
+            const keypad = page.getByTestId("pos-keypad-pinned");
+            // Generous, because the failure this guards against is a *layout*
+            // one. The default 5s expires during a cold compile of the checkout
+            // route, which reads as "the keypad is missing" when it simply is
+            // not painted yet — a false red on the one assertion that has to
+            // stay trustworthy.
+            await expect(keypad).toBeVisible({ timeout: 30_000 });
+
+            const box = await keypad.boundingBox();
+            expect(box, "the keypad has no box, so it is not laid out").not.toBeNull();
+            // Its bottom edge inside the viewport is the whole claim.
+            expect(box!.y + box!.height).toBeLessThanOrEqual(height);
+
+            // And the Charge button below it, or the cashier scrolls for that
+            // instead.
+            const charge = page.getByRole("button", { name: /Charge/i }).first();
+            const chargeBox = await charge.boundingBox();
+            expect(chargeBox).not.toBeNull();
+            expect(chargeBox!.y + chargeBox!.height).toBeLessThanOrEqual(height);
+
+            // Keys stay at or above the 44px touch minimum however short the
+            // screen.
+            const seven = keypad.getByRole("button", { name: "7", exact: true });
+            const sevenBox = await seven.boundingBox();
+            expect(sevenBox).not.toBeNull();
+            expect(sevenBox!.height).toBeGreaterThanOrEqual(44);
+          });
         }
-      });
-    }
 
-    /**
-     * The keypad has to be on screen without scrolling.
-     *
-     * This is the requirement the checkout layout was restructured for: the
-     * columns were declared only at `xl`, so on the till's actual 1024×768
-     * tablet the payment rail stacked under the catalog and the keypad sat a
-     * full screen below the fold. A screenshot proves that once. This proves it
-     * on every run, and fails loudly the next time somebody moves the keypad
-     * back inside a scroll container.
-     *
-     * Only from `md` up. Below that the layout is the phone one, where the
-     * keypad is deliberately in a drawer.
-     */
-    if (width >= 768 && !screenFilter) {
-      test(`the keypad needs no scrolling at ${width}x${height}`, async ({ page }) => {
-        test.setTimeout(180_000 + SETTLE_MS * 2);
-        await signIn(page, POS_BASE, "/login", { email: CASHIER_EMAIL, password: CASHIER_PASSWORD });
-        await page.goto(`${POS_BASE}/`);
-        await page.waitForLoadState("networkidle", { timeout: 15_000 }).catch(() => {});
-        await page.waitForTimeout(8000);
-
-        const keypad = page.getByTestId("pos-keypad-pinned");
-        // Generous, because the failure this guards against is a *layout* one.
-        // The default 5s expires during a cold compile of the checkout route,
-        // which reads as "the keypad is missing" when it simply is not painted
-        // yet — a false red on the one assertion that has to stay trustworthy.
-        await expect(keypad).toBeVisible({ timeout: 30_000 });
-
-        const box = await keypad.boundingBox();
-        expect(box, "the keypad has no box, so it is not laid out").not.toBeNull();
-        // Its bottom edge inside the viewport is the whole claim.
-        expect(box!.y + box!.height).toBeLessThanOrEqual(height);
-
-        // And the Charge button below it, or the cashier scrolls for that instead.
-        const charge = page.getByRole("button", { name: /Charge/i }).first();
-        const chargeBox = await charge.boundingBox();
-        expect(chargeBox).not.toBeNull();
-        expect(chargeBox!.y + chargeBox!.height).toBeLessThanOrEqual(height);
-
-        // Keys stay at or above the 44px touch minimum however short the screen.
-        const seven = keypad.getByRole("button", { name: "7", exact: true });
-        const sevenBox = await seven.boundingBox();
-        expect(sevenBox).not.toBeNull();
-        expect(sevenBox!.height).toBeGreaterThanOrEqual(44);
-      });
-    }
-
-    if (pos.length > 0) {
-      test(`pos till at ${width}x${height}`, async ({ page }) => {
-        test.setTimeout(120_000 + pos.length * (32_000 + SETTLE_MS));
-        // A separate host and therefore a separate session.
-        //
-        // Sign in at `/login`, not `/portal/pos/login`. On the POS host the
-        // portal is served from the root — `/portal/pos/login` 307s to `/login`
-        // — and starting on the redirect wastes a navigation the sign-in race
-        // is already tight enough without.
-        await signIn(page, POS_BASE, "/login", { email: CASHIER_EMAIL, password: CASHIER_PASSWORD });
-        for (const screen of pos) {
-          await shoot(page, POS_BASE, screen, label);
+        if (pos.length > 0) {
+          test(`pos till at ${width}x${height}`, async ({ page }) => {
+            test.setTimeout(120_000 + pos.length * (PER_SCREEN_MS + SETTLE_MS));
+            const shot = shooter("retail", `till-${label}`);
+            for (const screen of pos) {
+              await shoot(page, shot, screen);
+            }
+          });
         }
       });
     }

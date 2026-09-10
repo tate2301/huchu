@@ -1,41 +1,23 @@
-import fs from "node:fs";
-import os from "node:os";
-import path from "node:path";
-import { request, test, expect } from "@playwright/test";
+import { test, expect } from "./_support/fixtures";
+import { SCHOOL } from "./_support/tenants";
+import { shooter } from "./_support/shots";
 
-/** Screenshot of the S-1.5 year roll-up. See `visual-pass.spec.ts` for setup. */
+/**
+ * S-1.5 — the year roll-up.
+ *
+ * `/schools/students/roll-up` appears in no harness suite; grep across `e2e/`
+ * returns this file alone. Kept and migrated for that reason: the assertion
+ * below is not that the page loads but that it is *reviewable* — a per-child
+ * outcome row, rather than a summary that says 119 pupils will move up and
+ * shows you none of them.
+ *
+ * Migrated off `chisipite-demo` and the `VISUAL_PASS=1` gate. Both assertions
+ * survive the move: pupils and classes are what `seed-school-demo.ts` writes
+ * most of.
+ */
 
-const SHOTS = process.env.SHOT_DIR ?? "/tmp/shots";
-const AUTH_STATE = path.join(os.tmpdir(), "visual-pass-auth.json");
-
-test.use({
-  launchOptions: {
-    ...(process.env.PW_CHROMIUM ? { executablePath: process.env.PW_CHROMIUM } : {}),
-    args: ["--no-proxy-server"],
-  },
-  storageState: AUTH_STATE,
-});
-
-test.skip(process.env.VISUAL_PASS !== "1", "See visual-pass.spec.ts for setup.");
-
-test.beforeAll(async () => {
-  fs.mkdirSync(SHOTS, { recursive: true });
-  const probe = await request.newContext({
-    baseURL: process.env.E2E_BASE_URL,
-    storageState: AUTH_STATE,
-  });
-  // The API too, not only the page: it compiles on the client's first fetch,
-  // and the phone run reaches it cold. A 400 for missing params is fine — the
-  // point is that the route is built before anything is measured.
-  for (const target of [
-    "/schools/students/roll-up",
-    "/api/v2/schools/year-rollup",
-    "/api/v2/schools/terms?limit=50",
-  ]) {
-    await probe.get(target).catch(() => undefined);
-  }
-  await probe.dispose();
-});
+test.describe.configure({ timeout: 180_000 });
+test.use({ tenant: SCHOOL, as: "head", serviceWorkers: "block" });
 
 for (const viewport of [
   { name: "phone", width: 390, height: 844 },
@@ -47,6 +29,25 @@ for (const viewport of [
     test("the roll-up shows every child and what would happen to them", async ({
       page,
     }) => {
+      const shot = shooter("schools", `year-rollup-${viewport.name}`);
+
+      /*
+        Warm the page and the two routes it fetches before measuring anything.
+
+        `next dev` compiles on first request and the API compiles on the
+        client's first fetch, so the phone run reached both cold. A 400 for
+        missing parameters is fine — the point is that the route is built.
+        `page.request` shares this context's cookies, which is what the old
+        standalone `request.newContext({ storageState })` was for.
+      */
+      for (const target of [
+        "/schools/students/roll-up",
+        "/api/v2/schools/year-rollup",
+        "/api/v2/schools/terms?limit=50",
+      ]) {
+        await page.request.get(target).catch(() => undefined);
+      }
+
       await page.goto("/schools/students/roll-up");
       await expect(
         page.getByRole("heading", { name: "Roll up the year", exact: true }).first(),
@@ -54,13 +55,11 @@ for (const viewport of [
 
       // A per-child row, not just the summary — the point of the screen is that
       // it is reviewable.
-      await expect(page.getByText(/Move up|Repeat the year|Leaving/).first())
-        .toBeVisible({ timeout: 30_000 });
-
-      await page.screenshot({
-        path: `${SHOTS}/${viewport.name}-year-rollup.png`,
-        fullPage: true,
+      await expect(page.getByText(/Move up|Repeat the year|Leaving/).first()).toBeVisible({
+        timeout: 30_000,
       });
+
+      await shot(page, "year-rollup");
     });
   });
 }

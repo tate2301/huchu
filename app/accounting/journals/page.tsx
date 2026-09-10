@@ -49,6 +49,7 @@ import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { FileCheck } from "@/lib/icons";
 import { cn } from "@/lib/utils";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { useHasFeature } from "@/hooks/use-entitlement";
 
 /**
  * The two states a journal can be written in.
@@ -136,8 +137,17 @@ export default function JournalsPage() {
     queryFn: () => fetchChartOfAccounts({ limit: 500, active: true }),
   });
 
+  const canUseCostCenters = useHasFeature("accounting.cost-centers");
+
   const { data: costCenterData } = useQuery({
     queryKey: ["accounting", "cost-centers"],
+    /*
+      Only if the tenant bought it. A tenant entitled to this page is not
+      entitled to everything it would like to show: without this gate the
+      request 403s on every load and the console fills up, while the picker
+      ends up empty either way. See `hooks/use-entitlement.ts`.
+    */
+    enabled: canUseCostCenters,
     queryFn: () => fetchCostCenters({ limit: 200, active: true }),
   });
 

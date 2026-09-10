@@ -54,6 +54,7 @@ import {
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Download, NoteAdd, ReceiptLong, Trash2, UserPlus, XCircle } from "@/lib/icons";
 import { AccountingNewButton } from "@/components/accounting/accounting-new-button";
+import { useHasFeature } from "@/hooks/use-entitlement";
 
 const today = format(new Date(), "yyyy-MM-dd");
 
@@ -259,8 +260,17 @@ export default function AccountingSalesPage() {
     queryFn: fetchTaxCodes,
   });
 
+  const canUseBanking = useHasFeature("accounting.banking");
+
   const { data: bankAccountsData } = useQuery({
     queryKey: ["accounting", "banking", "accounts"],
+    /*
+      Only if the tenant bought it. A tenant entitled to this page is not
+      entitled to everything it would like to show: without this gate the
+      request 403s on every load and the console fills up, while the picker
+      ends up empty either way. See `hooks/use-entitlement.ts`.
+    */
+    enabled: canUseBanking,
     queryFn: () => fetchBankAccounts({ limit: 200, active: true }),
   });
 

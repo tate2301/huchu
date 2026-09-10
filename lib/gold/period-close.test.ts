@@ -1,7 +1,8 @@
 /**
  * Period-close witness tests — Epic 9b.
  *
- * Requires a real Postgres test DB (DATABASE_URL_TEST or DATABASE_URL).
+ * Requires a real Postgres test DB (DATABASE_URL_TEST). There is no longer a
+ * fallback to DATABASE_URL — see the note in `vitest.setup.ts`.
  * Run: npx vitest run lib/gold/period-close
  */
 

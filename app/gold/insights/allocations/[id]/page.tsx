@@ -74,7 +74,23 @@ type AllocationDetail = {
       dispatchBatches: number;
     };
   }>;
-  employeePayments: Array<{
+  /*
+    Optional, because the API does not send it.
+
+    `/api/gold/shift-allocations/[id]` returns the allocation plus `attendance`
+    and `accountingEvents`, and never `employeePayments` — so
+    `data.employeePayments.length` threw "Cannot read properties of undefined"
+    and **every** allocation detail page white-screened with a client-side
+    exception. Found by the first spec ever to open one.
+
+    Marked optional rather than filled in from the server, because there is
+    nothing to fill it from: `EmployeePayment` has no link to an allocation at
+    all — no `goldShiftAllocationId`, and no `goldWeightGrams` column for the
+    shape this page expects. The section was written ahead of a backend that
+    was never built. Left in place and made honest below, rather than deleted:
+    removing a half-built feature is not a call to make from a test run.
+  */
+  employeePayments?: Array<{
     id: string;
     amountUsd: number | null;
     goldWeightGrams: number | null;
@@ -466,8 +482,23 @@ export default function AllocationDetailPage() {
             </ul>
           </DetailSection>
 
-          <DetailSection title="Payouts queue" icon={Wallet} count={data.employeePayments.length}>
-            {data.employeePayments.length === 0 ? (
+          <DetailSection
+            title="Payouts queue"
+            icon={Wallet}
+            count={data.employeePayments?.length ?? 0}
+          >
+            {/*
+              Three states, not two. "No payments scheduled" is true only when
+              the server sent a list and it was empty; when it sends nothing at
+              all — which is every request today — saying that would claim the
+              workers have no payments due, on the screen that decides what
+              they are owed.
+            */}
+            {!data.employeePayments ? (
+              <p className="text-sm text-muted-foreground">
+                Payouts are not yet linked to a shift allocation.
+              </p>
+            ) : data.employeePayments.length === 0 ? (
               <p className="text-sm text-muted-foreground">No payments scheduled.</p>
             ) : (
               <ul className="space-y-2 text-sm">

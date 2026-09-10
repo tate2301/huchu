@@ -215,6 +215,7 @@ export function SchoolsCalendarContent({
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive
@@ -298,6 +299,7 @@ export function SchoolsCalendarContent({
         header: "",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive

@@ -887,7 +887,28 @@ describe("fiscalising one till sale", () => {
     expect(day.lastReceiptGlobalNo).toBe(0);
   });
 
-  it("refuses a sub-cent amount rather than rounding it into a signature (invariant 5)", async () => {
+  it("cannot be handed a sub-cent amount, because the column will not hold one (invariant 5)", async () => {
+    /*
+      This asserted `FAILED` with `FISCAL_SIGNING_REFUSED`, and could not get it.
+
+      `RetailSale.totalAmount` is `Decimal(14,2)`. Postgres rounds on write, so
+      10.005 is stored as **10.01** and the sale that comes back for signing is
+      an exact number of cents. The signer is right to sign it: 10.01 is what
+      the shop's books say the customer owes.
+
+      So invariant 5 has two enforcers and this is the first of them — for
+      anything that round-trips through the database, the *column* is what makes
+      a sub-cent amount impossible, and the signer never sees one. The signer's
+      own guard covers the other path: an amount that reaches it without a round
+      trip, from an import, an in-memory total, or a fixture. That is asserted
+      directly in "the float boundary (invariant 5)" above, where
+      `buildRetailSaleSigningInput` is called with the raw value.
+
+      Worth having both written down. The guard was unreachable for a while —
+      the signer ran every amount through `money()`, which rounds to two places,
+      so it was handed 10.01 and had nothing to refuse — and this test could not
+      have caught that, because it never had a sub-cent amount to offer.
+    */
     await openDay();
     const sale = await makeSale({
       totalAmount: 10.005,
@@ -895,12 +916,16 @@ describe("fiscalising one till sale", () => {
       lines: [{ productId: itemVat15, taxAmount: 1.3, lineTotal: 10.005 }],
     });
 
+    const stored = await prisma.retailSale.findUniqueOrThrow({ where: { id: sale.id } });
+    expect(stored.totalAmount.toString()).toBe("10.01");
+
     const result = await fiscaliseRetailSale({ companyId, saleId: sale.id });
 
-    expect(result.fiscalStatus).toBe("FAILED");
-    expect(result.errorCode).toBe("FISCAL_SIGNING_REFUSED");
-    expect(issueMock).not.toHaveBeenCalled();
-    expect(await prisma.fiscalReceipt.count({ where: { companyId } })).toBe(0);
+    // Signed, because 10.01 is what the books hold and what the customer owes.
+    // The rounding happened once, at the column, and nothing downstream had to
+    // guess about it.
+    expect(result.fiscalStatus).toBe("SUCCESS");
+    expect(await prisma.fiscalReceipt.count({ where: { companyId } })).toBe(1);
   });
 
   it("skips a tenant with no fiscal device, silently", async () => {

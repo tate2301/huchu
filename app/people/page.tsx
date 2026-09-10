@@ -7,7 +7,7 @@ import type { ColumnDef } from "@tanstack/react-table"
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query"
 import { useSearchParams } from "next/navigation"
 import { useSession } from "next-auth/react"
-import { Pencil, Plus, Trash2 } from "@/lib/icons"
+import { MoreHorizontal, Plus } from "@/lib/icons"
 
 import { EmployeeWizard } from "@/components/people/employee-wizard"
 import { PeopleShell } from "@/components/people/people-shell";
@@ -793,30 +793,47 @@ export default function HumanResourcesPage() {
       {
         id: "actions",
         header: "",
+        /*
+          One menu, not two buttons.
+
+          Two 32px icon buttons plus their gap and the cell padding came to
+          108px of the widest thing in the row, for the two things a reader does
+          least often — and at 1440px with the sidebar and the directory rail
+          both taking their share, that 108px was the part hanging off the
+          right-hand edge. The CRM tables, which are the standard, give a row a
+          single trailing control. See docs/design-system/12-tables.md.
+        */
         cell: ({ row }) => (
-          <div className="flex justify-end gap-2">
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="outline"
-              onClick={() => handleEdit(row.original)}
-            >
-              <Pencil className="h-4 w-4" />
-            </Button>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="destructive"
-              onClick={() => handleDelete(row.original.id)}
-              disabled={deleteEmployeeMutation.isPending}
-            >
-              <Trash2 className="h-4 w-4" />
-            </Button>
+          <div className="flex justify-end">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={`Actions for ${row.original.name}`}
+                >
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem onSelect={() => handleEdit(row.original)}>
+                  Edit
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  variant="destructive"
+                  disabled={deleteEmployeeMutation.isPending}
+                  onSelect={() => handleDelete(row.original.id)}
+                >
+                  Delete
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         ),
-        size: 108,
-        minSize: 108,
-        maxSize: 108},
+        size: 56,
+        minSize: 56,
+        maxSize: 56},
     ],
     [allowedAccessModules, deleteEmployeeMutation.isPending, getPositionLabel, handleDelete, handleEdit],
   )
@@ -1199,6 +1216,27 @@ export default function HumanResourcesPage() {
         <DataTable
           data={employees}
           columns={employeeColumns}
+          /*
+            Twelve columns came to 1,944px of fixed widths inside 923px of
+            space — this page carries a filter rail as well as the sidebar — so
+            everything past Employment sat off the right-hand edge. The scroll
+            worked; the screen was still unreadable.
+
+            An HR roll is scanned by who someone is, what they do, how they are
+            employed, what they are owed and whether they are still here. The
+            six folded away here are employee-record detail: they are one click
+            away under "Columns" and they are on the employee's own page.
+
+            See docs/design-system/12-tables.md.
+          */
+          initialColumnVisibility={{
+            nationalIdNumber: false,
+            nextOfKin: false,
+            villageOfOrigin: false,
+            phone: false,
+            org: false,
+            access: false,
+          }}
           queryState={queryState}
           onQueryStateChange={(next) => setQueryState((prev) => ({ ...prev, ...next }))}
           features={{ sorting: false, globalFilter: true, pagination: true }}

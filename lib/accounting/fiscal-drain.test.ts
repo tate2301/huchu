@@ -103,6 +103,20 @@ beforeAll(async () => {
   });
   companyId = company.id;
 
+  /*
+    `RetailSale.siteId` is a real foreign key now.
+
+    These fixtures were written when it was, in this file's own words, "a loose
+    string today (FD-7.2)" — so they invent `site-${suite}` and never create it.
+    A migration since gave the column a `Site` relation, and every test here
+    that makes a POS sale has been failing on
+    `RetailSale_siteId_fkey` ever since, in a suite noisy enough with timeouts
+    that nobody separated the two.
+  */
+  await prisma.site.create({
+    data: { id: `site-${suite}`, companyId, name: "Till Site", code: `TILL-${suite}` },
+  });
+
   const customer = await prisma.customer.create({
     data: { companyId, name: "Drain Test Customer" },
   });
@@ -128,6 +142,10 @@ afterAll(async () => {
   await prisma.salesInvoice.deleteMany({ where: { companyId } });
   await prisma.customer.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
+  // `Site.companyId` is one of the seventeen Company relations without
+  // `onDelete: Cascade`, so the company below cannot go while a site of its
+  // own is still standing.
+  await prisma.site.deleteMany({ where: { companyId } });
   await prisma.company.delete({ where: { id: companyId } });
   await prisma.$disconnect();
 });

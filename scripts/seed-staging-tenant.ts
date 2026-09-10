@@ -19,8 +19,9 @@
  * will be no features to grant.
  */
 import bcrypt from "bcryptjs";
-import { type UserRole } from "@prisma/client";
+import { Prisma, type UserRole } from "@prisma/client";
 import { FEATURE_BUNDLES, TIERS } from "../lib/platform/feature-catalog";
+import { WORKSPACE_PROFILES } from "../lib/workspace-products";
 import { disconnectPrisma, prisma } from "./platform/prisma";
 
 function readArg(name: string): string | undefined {
@@ -45,6 +46,32 @@ async function main() {
   const userName = readArg("user-name") ?? process.env.SEED_TENANT_USER_NAME ?? "Staging Admin";
   const role = ((readArg("role") ?? "SUPERADMIN").trim().toUpperCase() as UserRole);
 
+  /*
+    Which vertical this tenant *is*, as opposed to what it is entitled to.
+
+    This script switches the whole product on — top tier plus every addon, see
+    the note on the subscription below — which is right for a staging tenant and
+    leaves nothing to tell the verticals apart. `Company.workspaceProfile`
+    defaults to GENERAL, so every tenant seeded here fell through to
+    `inferWorkspaceProfileFromEnabledFeatures`, and that used to answer RETAIL
+    for anything holding a single `retail.*` key.
+
+    The visible result: the workspace switcher read "Retail" above a school's
+    student roll and above a gold mine's dispatch ledger. Found by looking at
+    the Phase 4 screenshots, not by a test — every page rendered, nothing threw,
+    the data was right, and the first thing on the page named the wrong
+    business.
+
+    So: say it explicitly. `resolveEffectiveWorkspaceProfile` honours a set
+    profile before it infers anything.
+  */
+  const profile = (readArg("profile") ?? "GENERAL").trim().toUpperCase();
+  if (!WORKSPACE_PROFILES.includes(profile as (typeof WORKSPACE_PROFILES)[number])) {
+    throw new Error(
+      `--profile ${profile} is not a workspace profile. One of: ${WORKSPACE_PROFILES.join(", ")}`,
+    );
+  }
+
   if (!slug || !email || !password) {
     throw new Error("--slug, --email and --password are all required.");
   }
@@ -61,9 +88,20 @@ async function main() {
   // request, and a PROVISIONING tenant signs in and is then turned away.
   const company = await prisma.company.upsert({
     where: { slug },
-    update: { name: companyName, tenantStatus: "ACTIVE", isProvisioned: true },
-    create: { name: companyName, slug, tenantStatus: "ACTIVE", isProvisioned: true },
-    select: { id: true, name: true, slug: true },
+    update: {
+      name: companyName,
+      tenantStatus: "ACTIVE",
+      isProvisioned: true,
+      workspaceProfile: profile as Prisma.CompanyCreateInput["workspaceProfile"],
+    },
+    create: {
+      name: companyName,
+      slug,
+      tenantStatus: "ACTIVE",
+      isProvisioned: true,
+      workspaceProfile: profile as Prisma.CompanyCreateInput["workspaceProfile"],
+    },
+    select: { id: true, name: true, slug: true, workspaceProfile: true },
   });
 
   const passwordHash = await bcrypt.hash(password, 12);

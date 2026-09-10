@@ -290,6 +290,7 @@ export function GuardiansContent() {
         header: "Actions",
         cell: ({ row }) => (
           <RecordActions
+              layout="menu"
             resource="schools.students"
             verbs={[
               {
