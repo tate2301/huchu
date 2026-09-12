@@ -5,12 +5,13 @@ import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 
 import { fetchJson } from "@/lib/api-client";
-import { Coins, Dataset, Funnel, Lock, Megaphone, Package, type LucideIcon } from "@/lib/icons";
+import { Coins, Dataset, Funnel, Lock, Megaphone, Package, Plug, type LucideIcon } from "@/lib/icons";
 import { NavRail, NavRailItem } from "@/components/ui/nav-rail";
 import { CataloguePanel } from "@/components/inventory/catalogue-panel";
 import { ApiKeysPanel } from "@/components/crm/settings/api-keys-panel";
 import { CommissionsPanel } from "@/components/crm/settings/commissions-panel";
 import { CustomFieldsPanel } from "@/components/crm/settings/custom-fields-panel";
+import { FacebookPanel } from "@/components/crm/settings/facebook-panel";
 import { LeadSourcesPanel } from "@/components/crm/settings/lead-sources-panel";
 import { PipelinesPanel } from "@/components/crm/settings/pipelines-panel";
 
@@ -40,6 +41,7 @@ export type SetupCounts = {
   catalogue: number;
   commissions: number;
   keys: number;
+  integrations: number;
 };
 
 type SettingsSection = {
@@ -55,7 +57,7 @@ type SettingsSection = {
 };
 
 /**
- * The six setup sections.
+ * The seven setup sections.
  *
  * Exported because the page band names the active one and carries its action —
  * see `CrmSettingsShell`. The descriptions are the band ledes, which is why
@@ -118,6 +120,15 @@ export const CRM_SETTINGS_SECTIONS: SettingsSection[] = [
     description: "credentials for webhook and intake-form integrations",
     render: (props) => <ApiKeysPanel {...props} />,
   },
+  {
+    id: "facebook",
+    label: "Facebook ads",
+    icon: Plug,
+    countKey: "integrations",
+    addLabel: "Connect Page",
+    description: "Lead Ads forms delivered straight into the pipeline",
+    render: (props) => <FacebookPanel {...props} />,
+  },
 ];
 
 /** Which section the query string is asking for, falling back to the first. */
@@ -140,7 +151,7 @@ export function CrmSettingsContent({ createOpen, onCreateOpenChange }: SettingsP
     The artboard's rail is not only navigation — every entry carries a tally, so
     a workspace that has never configured custom fields can see that from the
     rail rather than by opening the section and finding it empty. One request
-    for all six; see app/api/v2/crm/settings/counts/route.ts.
+    for all seven; see app/api/v2/crm/settings/counts/route.ts.
   */
   const counts = useQuery({
     queryKey: ["crm-setup-counts"],

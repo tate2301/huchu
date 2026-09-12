@@ -214,6 +214,8 @@ model Company {
   crmIntakeForms                CrmIntakeForm[]
   crmIntakeSubmissions          CrmIntakeSubmission[]
   crmApiKeys                    CrmApiKey[]
+  crmFacebookConnections        CrmFacebookConnection[]
+  crmFacebookLeadEvents         CrmFacebookLeadEvent[]
   crmLeadSources                CrmLeadSource[]
   crmCommissionRules            CrmCommissionRule[]
   crmCommissionEntries          CrmCommissionEntry[]
@@ -1139,6 +1141,8 @@ model User {
   crmIntakeFormsCreated             CrmIntakeForm[]                @relation("CrmIntakeFormCreatedBy")
   crmIntakeFormsDefaultAssignee     CrmIntakeForm[]                @relation("CrmIntakeFormDefaultAssignee")
   crmApiKeysCreated                 CrmApiKey[]                    @relation("CrmApiKeyCreatedBy")
+  crmFacebookConnectionsCreated     CrmFacebookConnection[]        @relation("CrmFacebookConnectionCreatedBy")
+  crmFacebookConnectionsAssignee    CrmFacebookConnection[]        @relation("CrmFacebookConnectionDefaultAssignee")
   crmCommissionRulesFor             CrmCommissionRule[]            @relation("CrmCommissionRuleUser")
   crmCommissionEntries              CrmCommissionEntry[]           @relation("CrmCommissionEntryRep")
   crmCommissionEntriesApproved      CrmCommissionEntry[]           @relation("CrmCommissionEntryApprovedBy")
@@ -9655,6 +9659,113 @@ model CrmApiKey {
   submissions CrmIntakeSubmission[]
 
   @@index([companyId, revokedAt])
+}
+
+/// A Facebook Page whose Lead Ads forms feed this CRM.
+///
+/// Meta's Lead Ads webhook cannot carry a CRM API key: it sends its own
+/// envelope to one callback URL per app, signs it with the app secret, and
+/// puts nothing in it but a `leadgen_id`. The answers the customer typed are
+/// fetched back out of the Graph API with a Page access token. So a Facebook
+/// connection is not an API key with a different label — it is three secrets,
+/// a Page, and a URL Meta has to be able to verify, which is what this row is.
+///
+/// Scoped to a Page rather than to an app, because that is the unit a
+/// customer actually owns and the only id present in a delivery: `entry[].id`
+/// is the Page, and it is what routes a delivery to a tenant.
+model CrmFacebookConnection {
+  id                 String         @id @default(uuid())
+  companyId          String
+  /// The unguessable segment in the callback URL Meta is pointed at. Not a
+  /// credential — authenticity comes from the signature — but it keeps the
+  /// callback from being a tenant directory somebody can walk.
+  callbackToken      String         @unique
+  /// Facebook Page id. Unique per company: one connection per Page, so a
+  /// delivery routes to exactly one place.
+  pageId             String
+  pageName           String?
+  /// The Meta app whose webhook subscription delivers this Page's leads. Each
+  /// tenant may run its own app, so the secret is per-connection, not an env.
+  appId              String
+  /// AES-256-GCM, keyed by CRM_INTEGRATION_ENCRYPTION_KEY. Signs and verifies
+  /// every delivery; never leaves the server.
+  appSecretEnc       String
+  /// Echoed back to Meta during the GET handshake. Stored in clear because it
+  /// is displayed for the operator to paste into the Meta dashboard.
+  verifyToken        String
+  /// Long-lived Page access token, encrypted. Used to read each leadgen.
+  pageAccessTokenEnc String
+  /// When set, only these lead form ids are ingested; everything else is
+  /// recorded as IGNORED. Empty means every form on the Page.
+  formIds            String[]       @default([])
+  /// Attribution stamped on leads from this Page, same idea as CrmApiKey's.
+  defaultChannel     CrmLeadChannel @default(ADS)
+  defaultSourceLabel String?
+  defaultAssigneeId  String?
+  isActive           Boolean        @default(true)
+  /// Set once Meta's GET handshake has actually succeeded against this row.
+  /// Until then the connection is configured but unproven, and the panel says
+  /// so rather than implying leads are on their way.
+  verifiedAt         DateTime?
+  lastEventAt        DateTime?
+  lastError          String?
+  lastErrorAt        DateTime?
+  createdById        String?
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+
+  company         Company                @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  createdBy       User?                  @relation("CrmFacebookConnectionCreatedBy", fields: [createdById], references: [id])
+  defaultAssignee User?                  @relation("CrmFacebookConnectionDefaultAssignee", fields: [defaultAssigneeId], references: [id], onDelete: SetNull)
+  events          CrmFacebookLeadEvent[]
+
+  @@unique([companyId, pageId])
+  @@index([companyId, isActive])
+}
+
+/// One `leadgen` delivery, recorded before it is acted on.
+///
+/// Same order of operations as the payment webhook, for the same reason:
+/// verify, record, deduplicate, only then apply. Meta retries a delivery it
+/// did not get a 200 for, and it retries the ones it did when it feels like
+/// it, so the unique key is what makes a replay an observable no-op instead of
+/// a second lead. Recording first is also what makes a Graph fetch that fails
+/// halfway visible — the row exists with its error, and can be retried —
+/// rather than a lead the customer filled in and nobody ever saw.
+model CrmFacebookLeadEvent {
+  id                String    @id @default(uuid())
+  /// Null when a delivery arrived for a Page no connection claims. Kept
+  /// anyway: it is the evidence for "we subscribed the wrong Page".
+  connectionId      String?
+  companyId         String?
+  /// Meta's id for the submission. The dedupe key, with the Page.
+  leadgenId         String
+  pageId            String
+  formId            String?
+  adId              String?
+  adgroupId         String?
+  campaignId        String?
+  /// RECEIVED | INGESTED | DUPLICATE | IGNORED | FAILED
+  status            String    @default("RECEIVED")
+  /// False only for a delivery whose signature did not check out, which is
+  /// refused — stored so a rotated app secret reads as a run of false rows
+  /// rather than as leads that silently stopped arriving.
+  signatureVerified Boolean   @default(false)
+  payloadJson       String
+  /// The Graph API's field_data, as fetched. What a mapping argument is
+  /// settled against when a form asks something the CRM has no column for.
+  fieldsJson        String?
+  leadId            String?
+  error             String?
+  processedAt       DateTime?
+  createdAt         DateTime  @default(now())
+
+  connection CrmFacebookConnection? @relation(fields: [connectionId], references: [id], onDelete: SetNull)
+  company    Company?               @relation(fields: [companyId], references: [id], onDelete: Cascade)
+
+  @@unique([pageId, leadgenId])
+  @@index([companyId, createdAt])
+  @@index([connectionId, status])
 }
 
 model CrmLeadSource {

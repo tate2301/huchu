@@ -100,6 +100,7 @@ function createPhosphorIcon(iconName: string, displayName: string): LucideIcon {
 }
 
 export const Share = createPhosphorIcon("ShareNetwork", "Share");
+export const Plug = createPhosphorIcon("PlugsConnected", "Plug");
 export const Smiley = createPhosphorIcon("Smiley", "Smiley");
 
 export const MedusaAcademicCapIcon = createPhosphorIcon(
