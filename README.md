@@ -12,7 +12,7 @@ This repository is broad. In the current checkout:
 - `449` API route handlers live under `app/api/`.
 - `215` Prisma models live in `prisma/schema.prisma`.
 - `31` Vitest files and `1` Playwright spec are present.
-- Core workspace families include gold, scrap metal, schools, retail/POS, auto sales, accounting, HR/payroll, stores, maintenance, compliance, CCTV, reports, admin, and platform management.
+- Core workspace families include gold, schools, retail/POS, CRM, accounting, HR/payroll, stores, maintenance, compliance, reports, admin, and platform management.
 
 ## Stack
 
@@ -47,7 +47,6 @@ Use Node.js 20+; Node 24 is known to work in this workspace. Use pnpm through Co
 | `public/` | Static assets, PWA assets, service worker, fonts, and uploads used in local/dev flows. |
 | `types/` | Shared TypeScript declaration files. |
 | `docker/` | Container-related assets. |
-| `cctv-server/` | CCTV conversion/gateway notes and supporting server code. |
 
 ## Quick Start
 
@@ -255,7 +254,6 @@ When a new module, vertical, or major surface is added, update all relevant laye
 - Prisma 7 is configured with `@prisma/adapter-pg`; use `lib/prisma.ts` instead of creating ad hoc Prisma clients in app code.
 - Document rendering uses Chromium and Vercel Blob-aware artifact storage. See `lib/documents/*`, `app/api/documents/*`, and `pnpm worker:pdf`.
 - Offline support exists in `lib/offline/*` and some vertical runtimes; do not claim a new workflow is offline-ready unless it is wired into the offline catalog/runtime and tested.
-- CCTV has app APIs plus separate conversion/gateway context in `cctv-server/`.
 - Accounting/fiscalisation flows are event and posting oriented. Preserve source traceability for finance-impacting writes.
 
 ## Domain Surface Map
@@ -263,14 +261,11 @@ When a new module, vertical, or major surface is added, update all relevant laye
 - Platform core: tenancy, feature gating, subscriptions, bundles, branding, admin portal, support access, runbooks, audit, health, and commercial controls.
 - Operations: shift reports, attendance, plant reports, dashboards, and operational reporting.
 - Gold: pours, purchases, dispatches, receipts, payouts, shift allocations, imports, corrections, reconciliation, period close, valuation, and audit.
-- Scrap metal: materials, sellers, pricing, purchases, batches, sales, settlements, offline ticketing, scale integration, and compliance.
 - HR/payroll: employees, departments, job grades, shift groups, incidents, disciplinary actions, compensation, payroll, disbursements, and approvals.
 - Stores/maintenance/compliance: inventory, stock movements, fuel ledger, equipment, work orders, downtime, permits, inspections, incidents, and training records.
-- Accounting: chart of accounts, journals, posting rules, periods, AR/AP, banking, tax, VAT, fiscalisation, assets, budgets, cost centers, currency, and reports.
+- Accounting: chart of accounts, journals, posting rules, periods, AR/AP, banking, tax, VAT, fiscalisation, cost centers, currency, and reports.
 - Schools: students, guardians, teachers, classes, subjects, attendance, results, fees, boarding, notices, reports, and parent/student/teacher portals.
 - Retail/POS/thrift-facing surfaces: catalog, purchasing, goods receipts, promotions, POS, shifts, sales, refunds, voids, held carts, and POS portal.
-- Auto sales: leads, vehicle inventory, deals, reservation/contract transitions, financing, and payments.
-- CCTV: cameras, NVRs, live streams, playback, events, access logs, stream tokens, and gateway integration.
 
 ## UX Rules
 
@@ -347,8 +342,6 @@ See `.env.example` for a copyable template. Important variables include:
 | `PG_POOL_MAX`, `PG_POOL_IDLE_MS`, `PG_POOL_CONN_MS` | PostgreSQL pool tuning. |
 | `PRISMA_TX_MAX_WAIT_MS`, `PRISMA_TX_TIMEOUT_MS` | Prisma transaction tuning. |
 | `PRISMA_PROVISION_TX_*` | Platform provisioning transaction tuning. |
-| `CCTV_GATEWAY_URL`, `CCTV_WEBRTC_URL`, `CCTV_HLS_BASE_URL`, `GATEWAY_KEY` | CCTV gateway and stream integration. |
-| `SCRAP_SCALE_HELPER_URL` | Optional scrap metal scale helper integration. |
 | `NEXT_PUBLIC_MARKETING_SITE_URL` | Canonical marketing site origin. |
 | `MARKETING_DEMO_WEBHOOK_URL` | Optional demo request webhook. |
 | `FEATURE_GATE_POLICY`, `NEXT_PUBLIC_FEATURE_GATE_POLICY` | Feature-gate policy selection. |
@@ -404,7 +397,6 @@ If `.local` clashes with mDNS on a machine, switch to a `.test` or `.localhost` 
 - `docs/_start-here/DATABASE_SETUP.md` - detailed PostgreSQL setup notes.
 - `docs/_start-here/PRODUCTION_DEPLOYMENT.md` - deployment setup notes.
 - `docs/accounting/zimra-fiscalisation.md` - accounting fiscalisation notes.
-- `cctv-server/*.md` - CCTV gateway/conversion setup notes.
 
 ## Deployment Notes
 
@@ -416,7 +408,7 @@ Before production deployment:
 2. Set `NEXTAUTH_SECRET` and production `NEXTAUTH_URL`.
 3. Configure tenant root and wildcard domains.
 4. Configure admin root/wildcard domains.
-5. Configure Blob, PDF, CCTV, fiscalisation, email-link, and webhook integrations as needed.
+5. Configure Blob, PDF, fiscalisation, email-link, and webhook integrations as needed.
 6. Run migrations/backfills required for the release.
 7. Verify tenant login, cross-tenant blocking, admin login, portal routing, feature gating, and key reports.
 
