@@ -10,6 +10,10 @@ import {
   resolveBaseCurrency,
   toNumberOrZero,
 } from "@/lib/schools/money";
+import {
+  recordSchoolFeePosting,
+  type SchoolFeePostingOutcome,
+} from "@/lib/schools/fee-posting-status";
 import { emitSchoolFeeAccountingEvent, refreshFeeInvoiceBalance } from "../../../_helpers";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -64,13 +68,24 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         throw new Error("Cannot issue an invoice with zero amount");
       }
 
+      const nextStatus = isZeroOrLess(refreshed.balanceAmount) ? "PAID" : "ISSUED";
+
       const issued = await tx.schoolFeeInvoice.update({
         where: { id: existing.id },
         data: {
           issueDate,
-          status: isZeroOrLess(refreshed.balanceAmount) ? "PAID" : "ISSUED",
+          status: nextStatus,
           issuedById: session.user.id,
           issuedAt: new Date(),
+          // Claim the posting in the same transaction as the issue, before
+          // the posting engine is called at all. If the process dies between
+          // the commit and the emit below, the row says PENDING and
+          // `listUnpostedSchoolFeeDocuments` finds it; the alternative was a
+          // row that claimed nothing was owed to the ledger. Only when the
+          // invoice actually reaches ISSUED, because that is the only status
+          // this route posts for — a bill already settled in full never raises
+          // a receivable.
+          ...(nextStatus === "ISSUED" ? { accountingStatus: "PENDING" as const } : {}),
         },
         include: {
           feeStructure: { select: { currency: true } },
@@ -105,6 +120,8 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
 
     if (!updated) return errorResponse("Fee invoice not found", 404);
 
+    let accounting: SchoolFeePostingOutcome | null = null;
+
     if (updated.status === "ISSUED") {
       const baseCurrency = await resolveBaseCurrency(companyId);
       const issuedInBase = apportionBase({
@@ -112,7 +129,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         part: updated.taxTotal,
         exchangeRate: updated.exchangeRate,
       });
-      await emitSchoolFeeAccountingEvent({
+      accounting = await emitSchoolFeeAccountingEvent({
         companyId,
         actorId: session.user.id,
         eventType: "SCHOOL_FEE_INVOICE_ISSUED",
@@ -141,10 +158,27 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
         },
       }).catch((error) => {
         console.error("[Accounting] School fee invoice issue event capture failed:", error);
+        return {
+          accountingStatus: "FAILED" as const,
+          journalEntryId: null,
+          accountingError:
+            error instanceof Error ? error.message : "Accounting posting failed",
+        };
+      });
+
+      // The outcome lands on the invoice rather than only in the response.
+      // A FAILED posting used to be a line in a log nobody reads, so an invoice
+      // could raise a receivable the ledger had never heard of and nothing
+      // anywhere could list it.
+      await recordSchoolFeePosting({
+        companyId,
+        document: "INVOICE",
+        documentId: updated.id,
+        outcome: accounting,
       });
     }
 
-    return successResponse(updated);
+    return successResponse({ ...updated, accounting });
   } catch (error) {
     if (error instanceof z.ZodError) {
       return errorResponse("Validation failed", 400, error.issues);
