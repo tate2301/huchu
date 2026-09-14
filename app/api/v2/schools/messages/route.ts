@@ -24,6 +24,10 @@ const querySchema = z.object({ threadId: z.string().uuid().optional() });
  * Two writes the office owns. Closing ends a conversation; assigning decides
  * who answers it — and `teacherProfileId: null` hands it back to the office
  * queue, which is why the field is nullable rather than absent.
+ *
+ * Answering is not one of them. This route reads and routes; a reply is written
+ * from the thread its holder owns, in the staff portal, so the `reply` grant
+ * has no action to gate here.
  */
 const postSchema = z.discriminatedUnion("action", [
   z.object({
@@ -80,6 +84,9 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
+    // Both writes here are office triage — deciding who answers a thread, and
+    // ending it — so they stay on `schools.reports` create, which the office
+    // holds and the staff who merely read the inbox do not.
     const denied = schoolPermissionDenial(session, "schools.reports", "create");
     if (denied) return errorResponse(denied, 403);
 

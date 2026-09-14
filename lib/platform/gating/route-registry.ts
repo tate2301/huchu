@@ -99,6 +99,10 @@ export const PAGE_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "page", prefix: "/schools/subjects", featureKey: "schools.core" },
   { scope: "page", prefix: "/schools/attendance", featureKey: "schools.attendance" },
   { scope: "page", prefix: "/schools/fees", featureKey: "schools.fees" },
+  // Longest prefix wins, so welfare is read off this entry rather than the
+  // boarding one below it: the welfare screen is gated with the pupil record it
+  // describes, and a day school reaches it without buying boarding.
+  { scope: "page", prefix: "/schools/boarding/welfare", featureKey: "schools.students" },
   { scope: "page", prefix: "/schools/boarding", featureKey: "schools.boarding" },
   { scope: "page", prefix: "/schools/teachers", featureKey: "schools.teachers" },
   { scope: "page", prefix: "/schools/results/moderation", featureKey: "schools.results" },
@@ -384,7 +388,10 @@ export const API_FEATURE_ROUTES: FeatureRouteEntry[] = [
   { scope: "api", prefix: "/api/v2/schools/transport", featureKey: "schools.core" },
   { scope: "api", prefix: "/api/v2/schools/meetings", featureKey: "schools.core" },
   { scope: "api", prefix: "/api/v2/schools/goals", featureKey: "schools.core" },
-  { scope: "api", prefix: "/api/v2/schools/health", featureKey: "schools.boarding" },
+  // Health records, consents and sanatorium events belong to every school, not
+  // only to one with boarders. Gated as boarding, a day school could not open
+  // the welfare screen at all, because it does not buy the boarding module.
+  { scope: "api", prefix: "/api/v2/schools/health", featureKey: "schools.students" },
   { scope: "api", prefix: "/api/v2/schools/applications", featureKey: "schools.admissions" },
   { scope: "api", prefix: "/api/v2/schools/year-rollup", featureKey: "schools.students" },
   { scope: "api", prefix: "/api/v2/schools/grading-schemes", featureKey: "schools.results" },

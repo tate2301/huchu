@@ -108,9 +108,13 @@ export async function GET(request: NextRequest) {
 /**
  * Send a notice.
  *
- * Gated on `schools.reports` create, which of the school personas only the head
- * holds: a notice goes to every family at once and cannot be recalled, so it is
- * not a thing a clerk does by accident.
+ * Gated on `schools.reports` notify-families. A notice cannot be recalled — the
+ * only correction is a second letter to the same people — so it is held behind
+ * a grant of its own rather than behind whoever happens to be signed in. The
+ * grant is not the head's alone: the bursar who chases arrears and the class
+ * teacher who tells a family about an absence both write to families as part of
+ * the job, and gating this on `create` left them with a button that answered
+ * 403.
  */
 export async function POST(request: NextRequest) {
   try {
@@ -118,7 +122,7 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.reports", "create");
+    const denied = schoolPermissionDenial(session, "schools.reports", "notify-families");
     if (denied) return errorResponse(denied, 403);
     const companyId = session.user.companyId;
 

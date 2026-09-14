@@ -16,9 +16,12 @@ const querySchema = z.object({
 /**
  * The welfare list.
  *
- * `schools.boarding` rather than `schools.students`: this is medical
- * information about children, and the persona that should read it is the one
- * responsible for their welfare, not everybody who can see a class list.
+ * `schools.welfare` rather than `schools.students`: this is medical information
+ * about children, and the people who may read it are the ones responsible for
+ * their welfare, not everybody who can see a class list. It is not
+ * `schools.boarding` either — a day school has no boarding, and reading it as
+ * boarding left such a school with no welfare list at all and the warden's
+ * grant standing in for the nurse's.
  */
 export async function GET(request: NextRequest) {
   try {
@@ -26,7 +29,7 @@ export async function GET(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    const denied = schoolPermissionDenial(session, "schools.boarding", "view");
+    const denied = schoolPermissionDenial(session, "schools.welfare", "view");
     if (denied) return errorResponse(denied, 403);
 
     const { searchParams } = new URL(request.url);
