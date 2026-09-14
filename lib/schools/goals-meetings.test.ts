@@ -5,11 +5,13 @@
  */
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
+import type { SchoolResultSheetStatus } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   bookMeeting,
   goalsForStudent,
   GoalError,
+  goalsOversight,
   meetingSchedule,
   MeetingError,
   openMeetingSlots,
@@ -47,6 +49,19 @@ async function makeStudent() {
     select: { id: true },
   });
   return student.id;
+}
+
+async function markStudent(
+  studentId: string,
+  score: number,
+  status: SchoolResultSheetStatus,
+) {
+  const sheet = await prisma.schoolResultSheet.create({
+    data: { companyId, termId, classId, title: `${status} sheet`, status },
+  });
+  await prisma.schoolResultLine.create({
+    data: { companyId, sheetId: sheet.id, studentId, subjectCode: "MAT", score },
+  });
 }
 
 beforeAll(async () => {
@@ -194,24 +209,48 @@ describe("goalsForStudent", () => {
     expect(goals[0].onTrack).toBeNull();
   });
 
-  it("compares the goal against the term mark", async () => {
+  it("compares the goal against the published term mark", async () => {
     await saveGoal({ companyId, studentId: studentAId, termId, subjectId, targetMark: 70 });
-    const sheet = await prisma.schoolResultSheet.create({
-      data: { companyId, termId, classId, title: "T1" },
-    });
-    await prisma.schoolResultLine.create({
-      data: {
-        companyId,
-        sheetId: sheet.id,
-        studentId: studentAId,
-        subjectCode: "MAT",
-        score: 74,
-      },
-    });
+    await markStudent(studentAId, 74, "PUBLISHED");
 
     const goals = await goalsForStudent({ companyId, studentId: studentAId, termId });
     expect(goals[0].currentMark).toBe(74);
     expect(goals[0].onTrack).toBe(true);
+  });
+
+  it.each<SchoolResultSheetStatus>(["DRAFT", "SUBMITTED", "HOD_APPROVED", "HOD_REJECTED"])(
+    "does not show a mark from a %s sheet",
+    async (status) => {
+      // The office rolls term marks into a draft sheet long before anyone has
+      // checked them. A child reading that mark on their goals card is reading a
+      // grade the school has not agreed to, and may never agree to.
+      await saveGoal({ companyId, studentId: studentAId, termId, subjectId, targetMark: 70 });
+      await markStudent(studentAId, 74, status);
+
+      const goals = await goalsForStudent({ companyId, studentId: studentAId, termId });
+      expect(goals[0].currentMark).toBeNull();
+      expect(goals[0].onTrack).toBeNull();
+    },
+  );
+});
+
+describe("goalsOversight", () => {
+  it("shows the head the published mark and nothing else", async () => {
+    // The head's screen is built to find pupils nobody has set a target for, so
+    // it reads marks for the whole roll at once. That is a third copy of the
+    // same query and it had the same hole in it.
+    await saveGoal({ companyId, studentId: studentAId, termId, subjectId, targetMark: 70 });
+    await saveGoal({ companyId, studentId: studentBId, termId, subjectId, targetMark: 70 });
+    await markStudent(studentAId, 74, "PUBLISHED");
+    await markStudent(studentBId, 74, "DRAFT");
+
+    const { rows } = await goalsOversight({ companyId, termId });
+    const forA = rows.find((row) => row.studentId === studentAId);
+    const forB = rows.find((row) => row.studentId === studentBId);
+    expect(forA?.currentMark).toBe(74);
+    expect(forA?.onTrack).toBe(true);
+    expect(forB?.currentMark).toBeNull();
+    expect(forB?.onTrack).toBeNull();
   });
 });
 

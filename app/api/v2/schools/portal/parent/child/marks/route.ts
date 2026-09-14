@@ -2,17 +2,22 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { keepMarksInOpenWindows } from "@/lib/schools/mark-visibility";
 
 import { scopeToChild } from "../_guard";
 
 /**
  * S-6.5 — the marks a school has released.
  *
- * Two gates, the same pair the report card uses (S-5.2): the sheet must be
- * PUBLISHED and the guardian must have `canReceiveAcademicResults`. A parent
- * reading a mark before the school has checked it is the failure the publish
- * window exists to prevent, and it is worse here than anywhere — a mark seen and
- * then corrected is a conversation with a child about a grade that never was.
+ * Three gates, the same set the report card uses (S-5.2): the guardian must have
+ * `canReceiveAcademicResults`, the sheet must be PUBLISHED, and the school's
+ * publish window for that sheet must be open. A parent reading a mark before the
+ * school has released it is worse here than anywhere — a mark seen and then
+ * corrected is a conversation with a child about a grade that never was.
+ *
+ * The window matters on its own because a sheet is routinely published before
+ * the day the school means to hand results out. Leaving it to the PDF alone gave
+ * families a mark on screen that the report card then refused to print.
  *
  * The pass mark travels with each subject rather than being applied here, because
  * whether 45 is a pass is a fact about the subject (S-1.3) and the screen should
@@ -37,7 +42,7 @@ export async function GET(request: NextRequest) {
     const companyId = session.user.companyId;
     const termId = searchParams.get("termId");
 
-    const lines = await prisma.schoolResultLine.findMany({
+    const published = await prisma.schoolResultLine.findMany({
       where: {
         companyId,
         studentId: scope.studentId,
@@ -55,11 +60,15 @@ export async function GET(request: NextRequest) {
             id: true,
             title: true,
             publishedAt: true,
+            termId: true,
+            classId: true,
+            streamId: true,
             term: { select: { id: true, name: true } },
           },
         },
       },
     });
+    const lines = await keepMarksInOpenWindows(companyId, published);
 
     const subjects = await prisma.schoolSubject.findMany({
       where: { companyId, code: { in: lines.map((line) => line.subjectCode) } },
@@ -76,8 +85,8 @@ export async function GET(request: NextRequest) {
         score: line.score,
         grade: line.grade,
         remarks: line.remarks,
-        term: line.sheet?.term ?? null,
-        publishedAt: line.sheet?.publishedAt?.toISOString() ?? null,
+        term: line.sheet.term,
+        publishedAt: line.sheet.publishedAt?.toISOString() ?? null,
       })),
     });
   } catch (error) {
