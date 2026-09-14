@@ -23,6 +23,7 @@
 import { describe, it, expect } from "vitest";
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
+import { resolveFeatureKeyForPath } from "@/lib/platform/gating/route-registry";
 
 const SCHOOLS_API = join(process.cwd(), "app/api/v2/schools");
 
@@ -239,7 +240,36 @@ describe("school and shared-record API route guards", () => {
     // open; either way the assertion below should not quietly pass.
     expect(body, `could not read the body of ${label}`).not.toBeNull();
 
+    // A body that ran past its closing brace would swallow the next handler and
+    // lend this one whatever guard that handler has, which is the failure this
+    // whole test exists to stop.
+    expect(body!, `the body of ${label} ran on`).not.toMatch(
+      /export\s+async\s+function/,
+    );
+
     const guarded = WRITE_GUARD_MARKERS.some((marker) => body!.includes(marker));
     expect(guarded, `${label} does not check who is calling it`).toBe(true);
+  });
+});
+
+describe("the welfare surfaces are not sold as boarding", () => {
+  /**
+   * A day school buys no boarding module, and gating health records on
+   * `schools.boarding` took the allergy list, the consents and the sanatorium
+   * log away from every school that has no hostel. Welfare belongs to the pupil
+   * record, so it is gated with it.
+   */
+  it("gates the health API and the welfare page on the pupil record", () => {
+    expect(resolveFeatureKeyForPath("/api/v2/schools/health")).toBe("schools.students");
+    expect(
+      resolveFeatureKeyForPath("/api/v2/schools/health/2f9f6a0e-0000-4000-8000-000000000000"),
+    ).toBe("schools.students");
+    expect(resolveFeatureKeyForPath("/schools/boarding/welfare")).toBe("schools.students");
+  });
+
+  it("leaves the rest of boarding where it was", () => {
+    expect(resolveFeatureKeyForPath("/schools/boarding")).toBe("schools.boarding");
+    expect(resolveFeatureKeyForPath("/schools/boarding/hostels")).toBe("schools.boarding");
+    expect(resolveFeatureKeyForPath("/api/v2/schools/boarding")).toBe("schools.boarding");
   });
 });

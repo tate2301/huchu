@@ -9,8 +9,9 @@ import {
   validateSession,
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
+import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { money, sumMoney } from "@/lib/schools/money";
+import { money, sumMoney, toNumberOrZero } from "@/lib/schools/money";
 
 const querySchema = z.object({
   search: z.string().trim().min(1).optional(),
@@ -155,32 +156,60 @@ export async function POST(request: NextRequest) {
       return errorResponse("Duplicate fee codes in structure lines are not allowed", 400);
     }
 
-    const structure = await prisma.schoolFeeStructure.create({
-      data: {
-        companyId,
-        name: validated.name,
-        termId: validated.termId,
-        classId: validated.classId,
-        currency: validated.currency.toUpperCase(),
-        status: validated.status ?? "DRAFT",
-        notes: validated.notes ?? null,
-        lines: {
-          create: validated.lines.map((line, index) => ({
-            companyId,
-            feeCode: line.feeCode.toUpperCase(),
-            description: line.description,
-            amount: money(line.amount),
-            isMandatory: line.isMandatory ?? true,
-            sortOrder: line.sortOrder ?? index,
-          })),
+    // B9. Editing, activating and archiving a structure each left a record and
+    // creating one did not, so the sheet of amounts every family in a class
+    // will be billed from could appear with nobody named against it. Written
+    // on `tx` with the create, so no row describes a structure that rolled
+    // back and none is lost to a failed commit.
+    const structure = await prisma.$transaction(async (tx) => {
+      const created = await tx.schoolFeeStructure.create({
+        data: {
+          companyId,
+          name: validated.name,
+          termId: validated.termId,
+          classId: validated.classId,
+          currency: validated.currency.toUpperCase(),
+          status: validated.status ?? "DRAFT",
+          notes: validated.notes ?? null,
+          lines: {
+            create: validated.lines.map((line, index) => ({
+              companyId,
+              feeCode: line.feeCode.toUpperCase(),
+              description: line.description,
+              amount: money(line.amount),
+              isMandatory: line.isMandatory ?? true,
+              sortOrder: line.sortOrder ?? index,
+            })),
+          },
         },
-      },
-      include: {
-        term: { select: { id: true, code: true, name: true } },
-        class: { select: { id: true, code: true, name: true } },
-        lines: { orderBy: [{ sortOrder: "asc" }, { feeCode: "asc" }] },
-        _count: { select: { lines: true, invoices: true } },
-      },
+        include: {
+          term: { select: { id: true, code: true, name: true } },
+          class: { select: { id: true, code: true, name: true } },
+          lines: { orderBy: [{ sortOrder: "asc" }, { feeCode: "asc" }] },
+          _count: { select: { lines: true, invoices: true } },
+        },
+      });
+
+      await writeSchoolAuditEvent(tx, {
+        companyId,
+        actorId: session.user.id,
+        eventType: "schools.fee.structure.created",
+        entityType: "SchoolFeeStructure",
+        entityId: created.id,
+        payload: {
+          name: created.name,
+          termId: created.termId,
+          classId: created.classId,
+          currency: created.currency,
+          status: created.status,
+          lineCount: created.lines.length,
+          // `line.amount` is a `Decimal`; a number is what belongs in a payload
+          // that gets stringified into `payloadJson`.
+          totalAmount: toNumberOrZero(sumMoney(created.lines.map((line) => line.amount))),
+        },
+      });
+
+      return created;
     });
 
     return successResponse(structure, 201);

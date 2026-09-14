@@ -37,6 +37,15 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       include: { feeStructure: { select: { currency: true } } },
     });
     if (!invoice) return errorResponse("Fee invoice not found", 404);
+    // Writing off is giving up on money the school has asked for. A draft
+    // has never been asked for, so there is nothing to give up on and no issue
+    // journal for the write-off to reverse — that bill is discarded instead.
+    if (invoice.status === "DRAFT") {
+      return errorResponse(
+        "This invoice is still a draft and has never been issued; discard it instead, or issue it first if the family really owes it",
+        400,
+      );
+    }
     if (invoice.status === "VOIDED") return errorResponse("Cannot write off a voided invoice", 400);
     if (invoice.status === "WRITEOFF") return errorResponse("Invoice is already written off", 400);
     // Post S-2.1 Float→Decimal: `<= 0` on a Decimal compares strings.

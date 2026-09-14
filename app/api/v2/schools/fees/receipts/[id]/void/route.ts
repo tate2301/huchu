@@ -41,12 +41,28 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
           allocations: {
             select: { invoiceId: true, allocatedAmount: true },
           },
+          fiscalReceipt: { select: { status: true } },
         },
       });
       if (!receipt) return null;
       if (receipt.status === "VOIDED") return receipt;
       if (receipt.status !== "POSTED") {
         throw new Error("Only posted receipts can be voided");
+      }
+      // A receipt that has reached ZIMRA has taken a slot in the fiscal
+      // day and a place in the signing chain, and neither can be given back by
+      // changing a row in this database. Voiding it here would leave the
+      // fiscal day and the ledger describing different money. SUCCESS means
+      // FDMS accepted it; PENDING means the signed row is holding its counter
+      // and its global number while replay resends it, which is the same
+      // problem. A FAILED attempt never landed, and a receipt with no fiscal
+      // row was never sent, so both stay voidable.
+      if (
+        receipt.fiscalReceipt &&
+        (receipt.fiscalReceipt.status === "SUCCESS" ||
+          receipt.fiscalReceipt.status === "PENDING")
+      ) {
+        throw new Error("FISCALISED_RECEIPT");
       }
       // S-2.6. Voiding reverses the whole receipt in the ledger. If part of it
       // has already gone back to the parent as a refund, that reversal would
@@ -162,6 +178,12 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     const message = error instanceof Error ? error.message : "Failed to void fee receipt";
     if (message === "Only posted receipts can be voided") {
       return errorResponse(message, 400);
+    }
+    if (message === "FISCALISED_RECEIPT") {
+      return errorResponse(
+        "This receipt has been submitted to ZIMRA and cannot be voided here; the correct instrument is a fiscal credit note, which the product does not yet issue — raise it with ZIMRA directly and leave this receipt standing",
+        409,
+      );
     }
     if (message === "REFUND_ON_RECEIPT") {
       return errorResponse(

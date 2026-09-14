@@ -75,6 +75,7 @@ export type SchoolAuditEventType =
    * amounts becomes what the school will bill, and archiving one takes it out
    * of use, so both are named separately from an ordinary edit.
    */
+  | "schools.fee.structure.created"
   | "schools.fee.structure.edited"
   | "schools.fee.structure.active"
   | "schools.fee.structure.archived"

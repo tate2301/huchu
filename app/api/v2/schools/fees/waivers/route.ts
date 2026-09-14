@@ -45,9 +45,6 @@ const createSchema = z.object({
   /** S-2.2. Ignored when the waiver names an invoice — that invoice decides. */
   currency: z.string().trim().min(3).max(10).optional(),
   reason: z.string().trim().max(500).nullable().optional(),
-  status: z
-    .enum(["DRAFT", "APPROVED", "APPLIED", "REJECTED", "REVERSED"])
-    .optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -193,14 +190,17 @@ export async function POST(request: NextRequest) {
     }
 
     const amount = money(validated.amount);
-    const status = validated.status ?? "DRAFT";
-    const approvedHere = status === "APPROVED" || status === "APPLIED";
 
-    // S-2.8. The create and the rows that describe it commit together. This
-    // route can hand out an approval in the same call that writes the waiver
-    // down — `status: "APPROVED"` stamps `approvedById` — and that approval is
-    // what reduces a family's bill, so it cannot be the one thing with no
-    // record behind it.
+    // A waiver is born a draft and nothing here can change that. The route
+    // used to accept `status: "APPROVED"` or `"APPLIED"` and stamp the caller
+    // as the approver in the same breath, so one bursar could grant, authorise
+    // and spend a scholarship without a second person ever seeing it — which
+    // is the whole of what segregation of duties is for. Approving is now
+    // `PATCH /fees/waivers/[id]` and applying is `[id]/apply`, and each checks
+    // who is asking.
+    //
+    // S-2.8. The create and the row that describes it commit together, so no
+    // audit row can survive a rolled-back waiver or be lost to a failed commit.
     const created = await prisma.$transaction(async (tx) => {
       const waiver = await tx.schoolFeeWaiver.create({
         data: {
@@ -214,11 +214,7 @@ export async function POST(request: NextRequest) {
           exchangeRate: documentCurrency.exchangeRate,
           baseAmount: toBaseAmount(amount, documentCurrency.exchangeRate),
           reason: validated.reason ?? null,
-          status,
-          approvedById: approvedHere ? session.user.id : null,
-          approvedAt: approvedHere ? new Date() : null,
-          appliedById: status === "APPLIED" ? session.user.id : null,
-          appliedAt: status === "APPLIED" ? new Date() : null,
+          status: "DRAFT",
           createdById: session.user.id,
         },
         include: {
@@ -266,17 +262,6 @@ export async function POST(request: NextRequest) {
         eventType: "schools.fee.waiver.created",
         payload: shape,
       });
-
-      // Two things happened when a waiver arrives already approved, and only
-      // one of them costs the school money. "Who authorised this discount" is
-      // the question an auditor asks, and it wants its own verb.
-      if (approvedHere) {
-        await writeSchoolAuditEvent(tx, {
-          ...shared,
-          eventType: "schools.fee.waiver.approved",
-          payload: { ...shape, approvedAt: waiver.approvedAt?.toISOString() ?? null },
-        });
-      }
 
       return waiver;
     });
