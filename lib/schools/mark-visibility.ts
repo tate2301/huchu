@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
 
-import { findOpenPublishWindow } from "./governance-v2";
 
 /**
  * Which marks a child and their family are allowed to see.
@@ -48,52 +47,5 @@ export async function publishedMarksForTerm(input: {
 
   return new Map(
     lines.map((line) => [markKey(line.studentId, line.subjectCode), line.score]),
-  );
-}
-
-/** The part of a mark's sheet that decides whether a publish window covers it. */
-export type WindowedMark = {
-  sheet: { termId: string; classId: string; streamId: string | null };
-};
-
-/**
- * Drop marks whose publish window is shut.
- *
- * PUBLISHED and "released to families" are not the same thing. S-1.3 lets a
- * school schedule when results may be seen, so a sheet can be published days
- * before its window opens, and a window closes while the sheet stays published
- * for the office's own use. The report card has always honoured both; the marks
- * JSON honoured only the status, which meant a family could read in the app a
- * mark the PDF refused to print.
- *
- * Windows are looked up per distinct sheet scope rather than per mark: a child
- * has one sheet per term per class, so this is a handful of queries even across
- * a whole school career, and it keeps the matching rule in
- * `findOpenPublishWindow` where the publishing screens already read it.
- */
-export async function keepMarksInOpenWindows<T extends WindowedMark>(
-  companyId: string,
-  marks: T[],
-  at = new Date(),
-): Promise<T[]> {
-  const scopes = new Map<string, T["sheet"]>();
-  for (const mark of marks) {
-    scopes.set(
-      `${mark.sheet.termId}:${mark.sheet.classId}:${mark.sheet.streamId ?? ""}`,
-      mark.sheet,
-    );
-  }
-  if (scopes.size === 0) return [];
-
-  const open = new Set<string>();
-  await Promise.all(
-    Array.from(scopes, async ([key, sheet]) => {
-      const window = await findOpenPublishWindow(companyId, sheet, at);
-      if (window) open.add(key);
-    }),
-  );
-
-  return marks.filter((mark) =>
-    open.has(`${mark.sheet.termId}:${mark.sheet.classId}:${mark.sheet.streamId ?? ""}`),
   );
 }

@@ -7,7 +7,10 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import {
+  classSubjectCaller,
+  classSubjectDenial,
+} from "@/lib/schools/class-subject-access";
 import {
   AssessmentLockedError,
   saveAssessmentScores,
@@ -74,6 +77,18 @@ export async function GET(
       },
     });
     if (!assessment) return errorResponse("Assessment not found", 404);
+
+    // The same rule the PUT below has always had. Reading a mark sheet names
+    // every child in the class and what they scored, so knowing an assessment
+    // id was enough to read a colleague's class until this check existed.
+    const caller = await classSubjectCaller({
+      companyId,
+      userId: session.user.id,
+      role: session.user.role,
+      moderates: schoolPermissionDenial(session, "schools.results", "moderate") === null,
+    });
+    const refusal = classSubjectDenial(assessment.classSubject, caller);
+    if (refusal) return errorResponse(refusal, 403);
 
     const [students, scores] = await Promise.all([
       prisma.schoolStudent.findMany({
@@ -148,12 +163,14 @@ export async function PUT(
 
     // Their own class, or the wider grant. A teacher must not be able to mark
     // another teacher's class by knowing an assessment id.
-    if (schoolPermissionDenial(session, "schools.results", "moderate")) {
-      const profile = await getTeacherProfile(companyId, session.user.id);
-      if (!profile || profile.id !== assessment.classSubject.teacherProfileId) {
-        return errorResponse("That mark sheet is not yours", 403);
-      }
-    }
+    const caller = await classSubjectCaller({
+      companyId,
+      userId: session.user.id,
+      role: session.user.role,
+      moderates: schoolPermissionDenial(session, "schools.results", "moderate") === null,
+    });
+    const refusal = classSubjectDenial(assessment.classSubject, caller);
+    if (refusal) return errorResponse(refusal, 403);
 
     const validated = putSchema.parse(await request.json());
 

@@ -50,9 +50,9 @@ const GUARD_MARKERS = [
   "guardRecordSubject",
   /**
    * S-3.3. An import is not one permission: loading the roll is registrar work
-   * and loading what every family owes is the bursar's, so the import routes
-   * compose two `schoolPermissionDenial` calls behind one helper rather than
-   * repeating the pair in six files.
+   * and loading what every family owes is the bursar's. The helper picks the
+   * one grant the entity being imported actually needs, so the bursar is not
+   * asked to be a registrar before they may load opening balances.
    */
   "importPermissionDenial",
   /**

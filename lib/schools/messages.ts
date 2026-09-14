@@ -1,3 +1,4 @@
+import type { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /**
@@ -110,6 +111,94 @@ const THREAD_SELECT = {
   _count: { select: { messages: true } },
 } as const;
 
+/**
+ * The classes one teacher takes, shaped as a filter on a pupil.
+ *
+ * `SchoolStudent` carries the class it is in and `SchoolClassSubject` carries
+ * the class a teacher was given, and there is no relation between the two to
+ * traverse, so the pairs are read first and matched against the pupil's current
+ * class. A subject with no stream is taught to the whole class, which is why
+ * those entries do not constrain the stream.
+ */
+async function taughtBy(
+  companyId: string,
+  teacherProfileId: string,
+): Promise<Prisma.SchoolStudentWhereInput[]> {
+  const assignments = await prisma.schoolClassSubject.findMany({
+    where: { companyId, teacherProfileId, isActive: true },
+    select: { classId: true, streamId: true },
+  });
+
+  const seen = new Set<string>();
+  const scopes: Prisma.SchoolStudentWhereInput[] = [];
+  for (const assignment of assignments) {
+    const key = `${assignment.classId}|${assignment.streamId ?? ""}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    scopes.push({
+      currentClassId: assignment.classId,
+      ...(assignment.streamId ? { currentStreamId: assignment.streamId } : {}),
+    });
+  }
+  return scopes;
+}
+
+/**
+ * Refuses a teacher profile from another tenant.
+ *
+ * Both callers take the id from a client — a parent picking a teacher to write
+ * to, the office handing a thread over — and an unscoped id would attach a
+ * stranger to a family's conversation.
+ */
+async function requireStaff(companyId: string, teacherProfileId: string): Promise<void> {
+  const staff = await prisma.schoolTeacherProfile.findFirst({
+    where: { id: teacherProfileId, companyId },
+    select: { id: true },
+  });
+  if (!staff) throw new MessageError("That member of staff was not found");
+}
+
+/** Whether a teacher takes the child a thread is about. */
+async function teachesStudent(
+  companyId: string,
+  teacherProfileId: string,
+  studentId: string,
+): Promise<boolean> {
+  const scopes = await taughtBy(companyId, teacherProfileId);
+  if (scopes.length === 0) return false;
+  const student = await prisma.schoolStudent.findFirst({
+    where: { id: studentId, companyId, OR: scopes },
+    select: { id: true },
+  });
+  return student != null;
+}
+
+/**
+ * Whether a member of staff may read and answer one thread.
+ *
+ * A thread that names a teacher is theirs and nobody else's. A thread with no
+ * teacher on it is addressed to the school, and "the school" is the office —
+ * not everybody on the payroll. The subject line carries a child's name and the
+ * body carries the family's business, so the office reads the queue, and a
+ * teacher reads only the entries about children they actually take. A thread
+ * naming no child at all is office work by definition.
+ */
+async function staffMayRead(
+  companyId: string,
+  thread: { teacherProfileId: string | null; studentId: string | null },
+  caller: { teacherProfileId: string | null; officeRole: boolean },
+): Promise<boolean> {
+  if (thread.teacherProfileId != null) {
+    return (
+      caller.teacherProfileId != null &&
+      thread.teacherProfileId === caller.teacherProfileId
+    );
+  }
+  if (caller.officeRole) return true;
+  if (caller.teacherProfileId == null || thread.studentId == null) return false;
+  return teachesStudent(companyId, caller.teacherProfileId, thread.studentId);
+}
+
 /** A guardian's own threads. Scoped by their guardian record, never by a parameter. */
 export async function threadsForGuardian(input: {
   companyId: string;
@@ -124,20 +213,31 @@ export async function threadsForGuardian(input: {
 }
 
 /**
- * A teacher's own threads, plus anything addressed to the office.
+ * A teacher's own threads, plus the office queue they have standing in.
  *
  * A thread with no teacher on it is the school's to answer, and if it appeared
- * in nobody's inbox it would be a message a parent sent into silence. Whoever
- * in the office opens the portal sees it.
+ * in nobody's inbox it would be a message a parent sent into silence. The
+ * office sees all of them. A teacher sees the ones about children they take,
+ * which is both the safeguarding answer and the useful one: those are the
+ * threads they can actually reply to.
  */
 export async function threadsForStaff(input: {
   companyId: string;
   teacherProfileId: string | null;
-  includeOffice?: boolean;
+  /** True for the office roles, who hold the unassigned queue. */
+  officeRole?: boolean;
 }): Promise<ThreadSummary[]> {
-  const scopes: Array<Record<string, unknown>> = [];
+  const scopes: Prisma.SchoolMessageThreadWhereInput[] = [];
   if (input.teacherProfileId) scopes.push({ teacherProfileId: input.teacherProfileId });
-  if (input.includeOffice ?? !input.teacherProfileId) scopes.push({ teacherProfileId: null });
+
+  if (input.officeRole) {
+    scopes.push({ teacherProfileId: null });
+  } else if (input.teacherProfileId) {
+    const taught = await taughtBy(input.companyId, input.teacherProfileId);
+    if (taught.length > 0) {
+      scopes.push({ teacherProfileId: null, student: { is: { OR: taught } } });
+    }
+  }
   if (scopes.length === 0) return [];
 
   const threads = await prisma.schoolMessageThread.findMany({
@@ -185,6 +285,8 @@ export async function openThread(input: {
   /** Pass to prove the caller owns this side of the thread. */
   guardianId?: string | null;
   teacherProfileId?: string | null;
+  /** True for the office roles, who hold the unassigned queue. */
+  officeRole?: boolean;
   /** Office and heads read without claiming a side. */
   readOnly?: boolean;
 }): Promise<ThreadDetail> {
@@ -193,6 +295,7 @@ export async function openThread(input: {
     select: {
       ...THREAD_SELECT,
       guardianId: true,
+      studentId: true,
       teacherProfileId: true,
     },
   });
@@ -202,8 +305,10 @@ export async function openThread(input: {
     const ownsIt =
       input.side === "GUARDIAN"
         ? input.guardianId != null && thread.guardianId === input.guardianId
-        : thread.teacherProfileId == null ||
-          (input.teacherProfileId != null && thread.teacherProfileId === input.teacherProfileId);
+        : await staffMayRead(input.companyId, thread, {
+            teacherProfileId: input.teacherProfileId ?? null,
+            officeRole: input.officeRole ?? false,
+          });
     // Same message as "not found", so probing ids teaches nothing about who is
     // talking to whom.
     if (!ownsIt) throw new MessageError("That conversation was not found");
@@ -256,12 +361,18 @@ export async function startThread(input: {
   body: string;
   studentId?: string | null;
   teacherProfileId?: string | null;
+  /** True for the office roles, who write to any family in the school. */
+  officeRole?: boolean;
 }): Promise<{ id: string }> {
   const guardian = await prisma.schoolGuardian.findFirst({
     where: { id: input.guardianId, companyId: input.companyId },
     select: { id: true },
   });
   if (!guardian) throw new MessageError("Guardian not found");
+
+  if (input.teacherProfileId) {
+    await requireStaff(input.companyId, input.teacherProfileId);
+  }
 
   if (input.studentId) {
     // A thread is about a child of *this* family, or it is a way to ask the
@@ -275,6 +386,31 @@ export async function startThread(input: {
       select: { id: true },
     });
     if (!link) throw new MessageError("That pupil is not linked to this family");
+  }
+
+  // The office writes to any family. A teacher writes to the families whose
+  // children they take: without this, picking a guardian id out of the tenant
+  // was enough to open a conversation with a household they have never taught,
+  // which is the same reach a cold-call would have.
+  if (input.senderSide === "STAFF" && !input.officeRole) {
+    if (!input.teacherProfileId) {
+      throw new MessageError("You are not linked to a teacher profile");
+    }
+    const scopes = await taughtBy(input.companyId, input.teacherProfileId);
+    const taughtChild =
+      scopes.length > 0 &&
+      (await prisma.schoolStudentGuardian.findFirst({
+        where: {
+          companyId: input.companyId,
+          guardianId: input.guardianId,
+          ...(input.studentId ? { studentId: input.studentId } : {}),
+          student: { is: { OR: scopes } },
+        },
+        select: { id: true },
+      })) != null;
+    if (!taughtChild) {
+      throw new MessageError("That family is not one of yours");
+    }
   }
 
   const now = new Date();
@@ -318,19 +454,31 @@ export async function replyToThread(input: {
   body: string;
   guardianId?: string | null;
   teacherProfileId?: string | null;
+  /** True for the office roles, who hold the unassigned queue. */
+  officeRole?: boolean;
 }): Promise<{ id: string }> {
   const thread = await prisma.schoolMessageThread.findFirst({
     where: { id: input.threadId, companyId: input.companyId },
-    select: { id: true, guardianId: true, teacherProfileId: true, closedAt: true },
+    select: {
+      id: true,
+      guardianId: true,
+      studentId: true,
+      teacherProfileId: true,
+      closedAt: true,
+    },
   });
   if (!thread) throw new MessageError("That conversation was not found");
   if (thread.closedAt) throw new MessageError("That conversation has been closed");
 
+  // Writing into a thread is governed by the same rule as reading it: a teacher
+  // who cannot see an office-queue thread must not be able to answer one either.
   const ownsIt =
     input.senderSide === "GUARDIAN"
       ? input.guardianId != null && thread.guardianId === input.guardianId
-      : thread.teacherProfileId == null ||
-        (input.teacherProfileId != null && thread.teacherProfileId === input.teacherProfileId);
+      : await staffMayRead(input.companyId, thread, {
+          teacherProfileId: input.teacherProfileId ?? null,
+          officeRole: input.officeRole ?? false,
+        });
   if (!ownsIt) throw new MessageError("That conversation was not found");
 
   const now = new Date();
@@ -411,13 +559,7 @@ export async function assignThread(input: {
   }
 
   if (input.teacherProfileId) {
-    // Scoped to the company on purpose: an id from another tenant would
-    // otherwise attach a stranger to a family's conversation.
-    const staff = await prisma.schoolTeacherProfile.findFirst({
-      where: { id: input.teacherProfileId, companyId: input.companyId },
-      select: { id: true },
-    });
-    if (!staff) throw new MessageError("That member of staff was not found");
+    await requireStaff(input.companyId, input.teacherProfileId);
   }
 
   await prisma.schoolMessageThread.update({

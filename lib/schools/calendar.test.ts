@@ -15,6 +15,8 @@ import {
   NoActiveTermError,
   activateAcademicYear,
   activateTerm,
+  calendarEventPatchSchema,
+  checkCalendarEventWindow,
   findOverlappingAcademicYear,
   findOverlappingTerm,
   getCurrentTerm,
@@ -525,5 +527,144 @@ describe("school days — S-1.2", () => {
         },
       }),
     ).rejects.toThrow();
+  });
+});
+
+describe("editing a calendar event", () => {
+  async function openTerm() {
+    const year = await makeYear({
+      code: "2026",
+      start: "2026-01-01",
+      end: "2026-12-31",
+      isActive: true,
+    });
+    return makeTerm({
+      academicYearId: year.id,
+      code: "T2",
+      start: "2026-05-04",
+      end: "2026-08-07",
+      isActive: true,
+    });
+  }
+
+  it("takes a patch that changes one field and refuses one that changes none", () => {
+    expect(calendarEventPatchSchema.parse({ title: "Speech day" })).toEqual({
+      title: "Speech day",
+    });
+    expect(() => calendarEventPatchSchema.parse({})).toThrow();
+  });
+
+  it("refuses a date it cannot read, and a title that is only spaces", () => {
+    expect(() => calendarEventPatchSchema.parse({ startDate: "next Tuesday" })).toThrow();
+    expect(() => calendarEventPatchSchema.parse({ title: "   " })).toThrow();
+  });
+
+  it("allows a one-day event, where start and end are the same day", async () => {
+    await openTerm();
+    expect(
+      await checkCalendarEventWindow({
+        companyId,
+        termId: null,
+        startDate: date("2026-05-05"),
+        endDate: date("2026-05-05"),
+      }),
+    ).toBeNull();
+  });
+
+  it("refuses an edit that drags the end date behind the start", async () => {
+    const problem = await checkCalendarEventWindow({
+      companyId,
+      termId: null,
+      startDate: date("2026-06-10"),
+      endDate: date("2026-06-01"),
+    });
+    expect(problem?.status).toBe(400);
+    expect(problem?.message).toBe("The event must end on or after it starts");
+  });
+
+  it("refuses an edit that moves an event outside the term it names", async () => {
+    const term = await openTerm();
+
+    const problem = await checkCalendarEventWindow({
+      companyId,
+      termId: term.id,
+      startDate: date("2026-09-01"),
+      endDate: date("2026-09-02"),
+    });
+    expect(problem?.status).toBe(400);
+    expect(problem?.message).toContain("Term T2 runs 2026-05-04 to 2026-08-07");
+
+    expect(
+      await checkCalendarEventWindow({
+        companyId,
+        termId: term.id,
+        startDate: date("2026-06-01"),
+        endDate: date("2026-06-05"),
+      }),
+    ).toBeNull();
+  });
+
+  it("does not resolve another company's term", async () => {
+    const stamp = Date.now();
+    const otherCompany = await prisma.company.create({
+      data: { name: `Other Calendar School ${stamp}`, slug: `other-calendar-${stamp}` },
+    });
+    const otherYear = await prisma.schoolAcademicYear.create({
+      data: {
+        companyId: otherCompany.id,
+        code: "2026",
+        name: "Year 2026",
+        startDate: date("2026-01-01"),
+        endDate: date("2026-12-31"),
+      },
+    });
+    const otherTerm = await prisma.schoolTerm.create({
+      data: {
+        companyId: otherCompany.id,
+        academicYearId: otherYear.id,
+        code: "T1",
+        name: "Term T1",
+        startDate: date("2026-01-10"),
+        endDate: date("2026-04-10"),
+      },
+    });
+
+    const problem = await checkCalendarEventWindow({
+      companyId,
+      termId: otherTerm.id,
+      startDate: date("2026-02-01"),
+      endDate: date("2026-02-02"),
+    });
+    expect(problem?.status).toBe(404);
+
+    await prisma.company.delete({ where: { id: otherCompany.id } });
+  });
+
+  // The point of being able to edit at all: the calendar decides "not a school
+  // day" on every register, so moving a holiday has to move which day the
+  // registers treat as closed.
+  it("moving a holiday moves the day the school is shut", async () => {
+    const term = await openTerm();
+    const event = await prisma.schoolCalendarEvent.create({
+      data: {
+        companyId,
+        termId: term.id,
+        title: "Workers Day",
+        kind: "PUBLIC_HOLIDAY",
+        startDate: date("2026-05-05"),
+        endDate: date("2026-05-05"),
+        isTeachingDay: false,
+      },
+    });
+
+    await prisma.schoolCalendarEvent.update({
+      where: { id: event.id },
+      data: { startDate: date("2026-05-06"), endDate: date("2026-05-06") },
+    });
+
+    expect((await getSchoolDay(companyId, date("2026-05-05"))).isSchoolDay).toBe(true);
+    const moved = await getSchoolDay(companyId, date("2026-05-06"));
+    expect(moved.isSchoolDay).toBe(false);
+    expect(moved.reason).toBe("Workers Day");
   });
 });

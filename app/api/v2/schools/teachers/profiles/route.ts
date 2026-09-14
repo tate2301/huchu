@@ -46,7 +46,9 @@ export async function GET(request: NextRequest) {
 
     const where = {
       companyId: session.user.companyId,
-      ...(query.isActive !== undefined ? { isActive: query.isActive } : {}),
+      // Archived staff drop off the list unless asked for, the same way a
+      // withdrawn pupil drops off the roll.
+      isActive: query.isActive ?? true,
       ...(query.search
         ? {
             OR: [

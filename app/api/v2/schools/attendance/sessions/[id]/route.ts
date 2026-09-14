@@ -3,6 +3,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
+import { writeSchoolAuditEvent } from "@/lib/schools/audit";
 import { isPrivilegedRole } from "@/lib/schools/governance-v2";
 
 type RouteParams = { params: Promise<{ id: string }> };
@@ -91,6 +92,7 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
         classId: true,
         streamId: true,
         attendanceDate: true,
+        notes: true,
       },
     });
     if (!existing) return errorResponse("Attendance session not found", 404);
@@ -124,14 +126,59 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
       }
     }
 
-    const updated = await prisma.schoolAttendanceSession.update({
-      where: { id },
-      data: {
-        ...(validated.attendanceDate
-          ? { attendanceDate: new Date(validated.attendanceDate) }
-          : {}),
-        ...(validated.notes !== undefined ? { notes: validated.notes ?? null } : {}),
-      },
+    /**
+     * A correction to a day the teacher has already sent in is recorded; a
+     * correction to a draft is not. Until a register is submitted nobody
+     * outside the classroom has seen it, so tidying one is part of taking it.
+     * Once it is submitted the office board and the parent app have both
+     * reported it, and "who moved Form 2B's Tuesday register, and when" is a
+     * question the head will be asked.
+     *
+     * The row is written on the transaction client, so a correction that fails
+     * to commit leaves no audit event describing a change that never happened.
+     */
+    const recordCorrection = existing.status === "SUBMITTED";
+
+    const updated = await prisma.$transaction(async (tx) => {
+      const row = await tx.schoolAttendanceSession.update({
+        where: { id },
+        data: {
+          ...(validated.attendanceDate
+            ? { attendanceDate: new Date(validated.attendanceDate) }
+            : {}),
+          ...(validated.notes !== undefined ? { notes: validated.notes ?? null } : {}),
+        },
+      });
+
+      if (recordCorrection) {
+        // The class by name as well as by id: an audit row read a term later is
+        // read by a person, and "2B" is the answer they are looking for.
+        const schoolClass = await tx.schoolClass.findFirst({
+          where: { id: existing.classId, companyId },
+          select: { code: true, name: true },
+        });
+        await writeSchoolAuditEvent(tx, {
+          companyId,
+          actorId: session.user.id,
+          eventType: "schools.attendance.session.edited",
+          entityType: "SchoolAttendanceSession",
+          entityId: existing.id,
+          payload: {
+            termId: existing.termId,
+            classId: existing.classId,
+            classCode: schoolClass?.code ?? null,
+            className: schoolClass?.name ?? null,
+            streamId: existing.streamId,
+            status: existing.status,
+            dayBefore: existing.attendanceDate.toISOString(),
+            dayAfter: row.attendanceDate.toISOString(),
+            notesBefore: existing.notes,
+            notesAfter: row.notes,
+          },
+        });
+      }
+
+      return row;
     });
 
     return successResponse(updated);

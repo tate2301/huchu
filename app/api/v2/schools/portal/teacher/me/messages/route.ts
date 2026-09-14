@@ -14,9 +14,11 @@ import {
  * A teacher's conversations with families.
  *
  * Scoped to the caller's own teacher profile, the same rule as the register and
- * the planner: a teacher reads the threads they are on and the ones addressed
- * to the office, and no colleague's. A privileged caller is let through as the
- * office, because the head already has that reach from the admin side.
+ * the planner: a teacher reads the threads they are on and no colleague's. The
+ * office queue is narrower than it looks — a thread addressed to the school
+ * names a child and carries the family's business, so a teacher sees only the
+ * entries about children they take. A privileged caller is the office, and gets
+ * the queue whole, because the head already has that reach from the admin side.
  */
 
 const querySchema = z.object({ threadId: z.string().uuid().optional() });
@@ -60,6 +62,7 @@ export async function GET(request: NextRequest) {
         threadId: query.threadId,
         side: "STAFF",
         teacherProfileId: profile?.id ?? null,
+        officeRole: privileged,
       });
       return successResponse(thread);
     }
@@ -67,7 +70,7 @@ export async function GET(request: NextRequest) {
     const threads = await threadsForStaff({
       companyId,
       teacherProfileId: profile?.id ?? null,
-      includeOffice: true,
+      officeRole: privileged,
     });
     return successResponse({ threads });
   } catch (error) {
@@ -105,6 +108,7 @@ export async function POST(request: NextRequest) {
         body: validated.body,
         studentId: validated.studentId ?? null,
         teacherProfileId: profile?.id ?? null,
+        officeRole: privileged,
       });
       return successResponse(thread, 201);
     }
@@ -116,6 +120,7 @@ export async function POST(request: NextRequest) {
       senderSide: "STAFF",
       body: validated.body,
       teacherProfileId: profile?.id ?? null,
+      officeRole: privileged,
     });
     return successResponse(message, 201);
   } catch (error) {

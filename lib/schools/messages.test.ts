@@ -129,6 +129,55 @@ beforeAll(async () => {
       { companyId, studentId: strangersPupilId, guardianId: strangerId, relationship: "MOTHER", isPrimary: true },
     ],
   });
+
+  // Both children sit in the same form, and only the first teacher is given a
+  // subject in it. That is the whole shape the office-queue rule turns on.
+  const yearId = (
+    await prisma.schoolAcademicYear.create({
+      data: {
+        companyId,
+        code: `Y-${stamp}`,
+        name: "2026",
+        startDate: new Date("2026-01-01"),
+        endDate: new Date("2026-12-31"),
+      },
+      select: { id: true },
+    })
+  ).id;
+  const termId = (
+    await prisma.schoolTerm.create({
+      data: {
+        companyId,
+        academicYearId: yearId,
+        code: `T1-${stamp}`,
+        name: "Term 1",
+        startDate: new Date("2026-01-10"),
+        endDate: new Date("2026-04-10"),
+        isActive: true,
+      },
+      select: { id: true },
+    })
+  ).id;
+  const classId = (
+    await prisma.schoolClass.create({
+      data: { companyId, code: `C-${stamp}`, name: "Form 2A", termId, academicYearId: yearId },
+      select: { id: true },
+    })
+  ).id;
+  const subjectId = (
+    await prisma.schoolSubject.create({
+      data: { companyId, code: `MAT-${stamp}`, name: "Mathematics" },
+      select: { id: true },
+    })
+  ).id;
+
+  await prisma.schoolClassSubject.create({
+    data: { companyId, termId, classId, subjectId, teacherProfileId },
+  });
+  await prisma.schoolStudent.updateMany({
+    where: { companyId, id: { in: [pupilId, strangersPupilId] } },
+    data: { currentClassId: classId },
+  });
 });
 
 afterAll(async () => {
@@ -215,7 +264,7 @@ describe("who can read a conversation", () => {
     ).rejects.toThrow(MessageError);
   });
 
-  it("puts a thread addressed to the office in front of whoever is in it", async () => {
+  it("puts a thread addressed to the office in front of the office", async () => {
     await startThread({
       companyId,
       guardianId: motherId,
@@ -228,15 +277,73 @@ describe("who can read a conversation", () => {
 
     // A message to the school with no teacher on it must not sit in nobody's
     // inbox — that is a parent writing into silence.
-    const officeInbox = await threadsForStaff({ companyId, teacherProfileId: null });
-    expect(officeInbox).toHaveLength(1);
-
-    const teacherInbox = await threadsForStaff({
+    const officeInbox = await threadsForStaff({
       companyId,
-      teacherProfileId,
-      includeOffice: true,
+      teacherProfileId: null,
+      officeRole: true,
     });
-    expect(teacherInbox.map((row) => row.subject)).toContain("Change of address");
+    expect(officeInbox).toHaveLength(1);
+  });
+
+  it("shows an office thread to the teacher who takes the child named on it", async () => {
+    await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: motherUserId,
+      senderSide: "GUARDIAN",
+      subject: "Anesu is being collected early",
+      body: "At eleven.",
+      studentId: pupilId,
+      teacherProfileId: null,
+    });
+
+    const inbox = await threadsForStaff({ companyId, teacherProfileId });
+    expect(inbox.map((row) => row.subject)).toContain("Anesu is being collected early");
+  });
+
+  it("keeps the office queue away from a teacher who takes nobody in it", async () => {
+    const officeThread = await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: motherUserId,
+      senderSide: "GUARDIAN",
+      subject: "A family matter",
+      body: "In confidence.",
+      studentId: pupilId,
+      teacherProfileId: null,
+    });
+
+    // The second teacher has no class subject at all, so no child in the school
+    // is theirs — a supply teacher with a portal login.
+    const inbox = await threadsForStaff({
+      companyId,
+      teacherProfileId: otherTeacherProfileId,
+    });
+    expect(inbox).toHaveLength(0);
+
+    await expect(
+      openThread({
+        companyId,
+        threadId: officeThread.id,
+        side: "STAFF",
+        teacherProfileId: otherTeacherProfileId,
+      }),
+    ).rejects.toThrow(MessageError);
+  });
+
+  it("keeps a general enquiry naming no child out of every teacher's inbox", async () => {
+    await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: motherUserId,
+      senderSide: "GUARDIAN",
+      subject: "Term dates",
+      body: "When does term start?",
+      teacherProfileId: null,
+    });
+
+    const inbox = await threadsForStaff({ companyId, teacherProfileId });
+    expect(inbox).toHaveLength(0);
   });
 
   it("lets a head see every thread without being in any of them", async () => {
@@ -281,6 +388,67 @@ describe("who can read a conversation", () => {
         studentId: strangersPupilId,
       }),
     ).rejects.toThrow(/not linked/i);
+  });
+});
+
+describe("who can start a conversation", () => {
+  it("refuses a teacher profile that belongs to another school", async () => {
+    // The id comes from the client on both sides — a parent picking a teacher
+    // to write to — so an id from another tenant would put a stranger on this
+    // family's conversation.
+    await expect(
+      startThread({
+        companyId,
+        guardianId: motherId,
+        senderUserId: motherUserId,
+        senderSide: "GUARDIAN",
+        subject: "For the wrong school",
+        body: "…",
+        teacherProfileId: "22222222-2222-4222-8222-222222222222",
+      }),
+    ).rejects.toThrow(/member of staff/i);
+  });
+
+  it("lets a teacher write to a family whose child they take", async () => {
+    const thread = await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: teacherUserId,
+      senderSide: "STAFF",
+      subject: "Anesu's progress",
+      body: "He is doing well.",
+      studentId: pupilId,
+      teacherProfileId,
+    });
+    expect(thread.id).toBeTruthy();
+  });
+
+  it("stops a teacher writing to a family they teach nobody in", async () => {
+    await expect(
+      startThread({
+        companyId,
+        guardianId: motherId,
+        senderUserId: teacherUserId,
+        senderSide: "STAFF",
+        subject: "Out of the blue",
+        body: "…",
+        teacherProfileId: otherTeacherProfileId,
+      }),
+    ).rejects.toThrow(/not one of yours/i);
+  });
+
+  it("lets the office write to any family in the school", async () => {
+    const thread = await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: teacherUserId,
+      senderSide: "STAFF",
+      subject: "Fees reminder",
+      body: "…",
+      teacherProfileId: null,
+      officeRole: true,
+    });
+    expect(thread.id).toBeTruthy();
   });
 });
 

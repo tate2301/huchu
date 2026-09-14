@@ -7,7 +7,10 @@ import {
 } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
-import { getTeacherProfile } from "@/lib/schools/governance-v2";
+import {
+  classSubjectCaller,
+  classSubjectDenial,
+} from "@/lib/schools/class-subject-access";
 import {
   assignmentBoard,
   AssignmentError,
@@ -54,12 +57,29 @@ export async function GET(
 
     const denied = schoolPermissionDenial(session, "schools.academics", "view");
     if (denied) return errorResponse(denied, 403);
+    const companyId = session.user.companyId;
 
     const { id } = await context.params;
-    const board = await assignmentBoard({
-      companyId: session.user.companyId,
-      assignmentId: id,
+
+    // The board names every child in the class, what they handed in and what
+    // they scored for it, so it is scoped the same way the PATCH below is
+    // rather than on the academics grant alone, which every teacher holds.
+    const existing = await prisma.schoolAssignment.findFirst({
+      where: { id, companyId },
+      select: { id: true, classSubject: { select: { teacherProfileId: true } } },
     });
+    if (!existing) return errorResponse("Assignment not found", 404);
+
+    const caller = await classSubjectCaller({
+      companyId,
+      userId: session.user.id,
+      role: session.user.role,
+      moderates: schoolPermissionDenial(session, "schools.results", "moderate") === null,
+    });
+    const refusal = classSubjectDenial(existing.classSubject, caller);
+    if (refusal) return errorResponse(refusal, 403);
+
+    const board = await assignmentBoard({ companyId, assignmentId: id });
     return successResponse(board);
   } catch (error) {
     if (error instanceof AssignmentError) return errorResponse(error.message, 404);
@@ -88,12 +108,14 @@ export async function PATCH(
     });
     if (!existing) return errorResponse("Assignment not found", 404);
 
-    if (schoolPermissionDenial(session, "schools.results", "moderate")) {
-      const profile = await getTeacherProfile(companyId, session.user.id);
-      if (!profile || profile.id !== existing.classSubject.teacherProfileId) {
-        return errorResponse("That homework is not yours to change", 403);
-      }
-    }
+    const caller = await classSubjectCaller({
+      companyId,
+      userId: session.user.id,
+      role: session.user.role,
+      moderates: schoolPermissionDenial(session, "schools.results", "moderate") === null,
+    });
+    const refusal = classSubjectDenial(existing.classSubject, caller);
+    if (refusal) return errorResponse(refusal, 403);
 
     const validated = patchSchema.parse(await request.json());
 
