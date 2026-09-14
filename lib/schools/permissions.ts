@@ -25,6 +25,7 @@ export const SCHOOL_RESOURCES = [
   "schools.attendance",
   "schools.fees",
   "schools.boarding",
+  "schools.welfare",
   "schools.results",
   "schools.reports",
 ] as const;
