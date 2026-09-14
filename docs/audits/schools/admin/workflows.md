@@ -8,6 +8,10 @@ Audit date: 2026-09-14. Static read of `main`, cross-checked against the roadmap
 
 Setup is the most complete layer of the schools vertical and the least visible. A school can be provisioned with a year, terms, a class ladder, subjects, a grading scheme, a fee structure and roles in one operation; the office can then set periods and rooms, build a clash-checked timetable by hand or with the greedy filler, keep a calendar that drives "not a school day", link teachers to HR, add custom fields, search every record, import a previous system's data with a dry run and a rollback, and print eight document types. What lets it down is reachability and finish. The master-data ladder lives under Management with its own rail and is missing from the school sidebar; calendar events cannot be edited; four of the eight documents have no page; teacher and guardian accounts have no self-service path (invites are copied by hand, teachers get no invite at all); notices reach only families with a claimed portal account; and the platform pieces a school administrator expects, tenant branding, communication channels, a setup checklist, multi-campus, are not there.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant (see `../reference/runtime-verification.md`). Confirmed at runtime: provisioning and the demo seed build a working school (year, terms, ladder, subjects, structures, invoices); the sidebar drops the master-data pages (B1); the opening-balance import guard refuses a bursar (B8); the guardian-link PATCH has no persona check (B5). New observation: the portal host prefixes did not serve the portal login on this setup (see open decisions).
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |
@@ -181,3 +185,4 @@ Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
 - Is branding an add-on or included? The pricing file says both.
 - Multi-campus: build it or stop selling it.
 - Who owns "teaching qualification" and other teacher attributes: school custom fields or HR?
+- Portal host routing: on the local runtime pass the `staff.`, `parents.` and `students.` hosts served the tenant workspace sign-in at `/login` rather than the portal form, and the repository's own e2e fixtures record the same under host nomination and drive portals by internal path. Confirm the prefix rewrite works in production and add a test for it.

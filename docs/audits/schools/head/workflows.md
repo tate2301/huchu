@@ -8,6 +8,10 @@ Audit date: 2026-09-14. Static read of `main`, cross-checked against the roadmap
 
 The head's office has more working machinery than the roadmap's `todo` list suggests: an admissions pipeline with a real stage machine, a reviewable year roll-up, register oversight that knows which days are school days, a four-state results chain with HOD moderation and window-gated publishing, report cards, homework and lesson oversight, boarding with gender and capacity rules, welfare records, an office inbox, and reports with real exports. It fails the head in four ways. The dashboard is the row-count page the roadmap promised to replace, and on a first morning shows zeros. Governance actions that matter (publishing marks, editing a submitted register) are not transactional and not audited, and publishing tells no family. The role model locks the wrong people out: an HOD gets 403s across the dashboard and nav, cannot send an absence reminder, and cannot moderate at all without a linked teacher profile; welfare is gated as boarding so a day school has no health records. And the whole layer above the workflows that a head runs a school on, the board pack, behaviour, exam management, staff cover, is not there.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as the head (see `../reference/runtime-verification.md`). Confirmed at runtime: the head can send an in-app notice (201, with 117 of 118 families counted as `withoutAccount` and not reached) and can roll up term marks into a DRAFT sheet (247 lines written); the "Scheme of work" redirect lands the head in the teacher shell; results, attendance and overview screens behave as described. The results transition routes, the HOD experience and welfare gating were checked from source only.
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |
@@ -24,7 +28,7 @@ The head's office has more working machinery than the roadmap's `todo` list sugg
 | Marketing: "Term-end reporting is a page the head opens" | site | Reports page with four tabs and exports; no term-end pack. | Overclaim. |
 | Production readiness: "Transport, library, health, canteen are absent" | Aug 4 audit | First three built. | Stale. |
 | Design canvas: `HeadDashboard`, `HodModeration`, `HodPublishWindows`, `WardenDashboard` | `design/campus/leadership/*` | No stories; moderation and windows exist as admin screens. | Design without stories. |
-| S-6.61: classroom work removed from admin nav; the office keeps oversight | roadmap | Mostly true; the "Scheme of work" nav item redirects office users into the teacher portal and dead-ends for anyone without a teacher profile (`app/schools/academics/syllabus/page.tsx:11`; asserted in `e2e/schools-back-office-suite.spec.ts:218`). | One leftover. |
+| S-6.61: classroom work removed from admin nav; the office keeps oversight | roadmap | Mostly true; the "Scheme of work" nav item redirects office users into the teacher portal, where the head lands as "Teacher · No classes this term" with empty pickers (`app/schools/academics/syllabus/page.tsx:11`; confirmed at runtime). | One leftover. |
 
 ## 3. Workflow inventory
 

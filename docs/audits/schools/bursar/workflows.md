@@ -8,6 +8,10 @@ Audit date: 2026-09-14. Static read of `main`, cross-checked against the roadmap
 
 The money core is the strongest part of the schools vertical. Every money verb is wired end to end, transactional, row-locked, `Decimal(14,2)`, dual-currency, DB-constrained, audited, posted to the general ledger with an idempotency key, and fiscalisable through ZIMRA. The tests are real (fee money, credit and refund, audit, posting, fiscalisation, clone). What is wrong is around the edges and in the role model. A bursar cannot send a fee reminder or answer a parent's fee question, because both go through a route that only the head may call. A draft receipt can never be posted. One bursar can create, approve and apply a scholarship alone. GL posting runs after the transaction commits and a failure is only logged. A fiscalised receipt can be voided locally with no reversal. Draft invoices take allocations. Beyond that, the functions a bursar's office runs a term on are absent: payment plans, sibling and scholarship schemes as entities, bank reconciliation of receipts, a cash-up, a statement run, dunning, and any online payment.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as `bursar@stmarys.test` (see `../reference/runtime-verification.md`). Confirmed at runtime: B1 (both `POST /notices` and `POST /messages` return 403 "Your role cannot create reports" while the "Send reminders" button is enabled), B2 (a receipt saved with `postNow:false` is stored as DRAFT, there is no post route, and allocate and void both refuse it), B3 (one bursar created a waiver that landed as APPLIED with the approver equal to the creator), B7 (guardian-link PATCH returns 200 for BURSAR), B8 (opening-balance import refused with "Your role cannot create students"), and the phone ledger with no invoice on the first screen. Corrected: B10, the ageing surfaces agree on this data.
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |
@@ -122,7 +126,7 @@ Graded against `../reference/k12-benchmark.md` §9.
 | B7 | `PATCH /guardian-links/[id]` (consent flags, primary) has no persona check; BURSAR, via `canViewAnyPortalSubject`, can change which parent receives results. | `guardian-links/[id]/route.ts:46-110` | Medium |
 | B8 | Opening-balance import requires a role no bursar has. | `imports/_guard.ts:19-24` | Medium |
 | B9 | Fee structure creation is not audited while edit, activate and archive are. | `fees/structures/route.ts` | Low |
-| B10 | Three ageing computations with different buckets give different answers on the finance overview, the reports page and the dashboard. | `fees-grade-picker.tsx:188-192`; `schools-reports-enhanced-content.tsx:1164-1168`; `schools-dashboard-content.tsx:96-104, 1212-1216` | High (trust) |
+| B10 | Three separately coded ageing computations with different bucket sets and labels on the finance overview, the reports page and the dashboard. On the seeded tenant all three agree; the older screenshot set showed them disagreeing. A maintenance risk rather than a live defect. | `fees-grade-picker.tsx:188-192`; `schools-reports-enhanced-content.tsx:1164-1168`; `schools-dashboard-content.tsx:96-104, 1212-1216` | Medium |
 | B11 | Parent-facing invoice, receipt and statement downloads always fail for the PARENT role, so the "phone call the bursar does not have to take" still happens. | `app/api/documents/render/route.ts:101-108` | High (see parent audit) |
 | B12 | No browser test records a receipt, issues an invoice, applies a waiver or voids; e2e is a page-render sweep. | `e2e/schools-back-office-suite.spec.ts` | Medium |
 

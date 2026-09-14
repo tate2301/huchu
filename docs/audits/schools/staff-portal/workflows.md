@@ -10,6 +10,10 @@ Note on naming: the docs call this the teacher portal; the user's brief calls it
 
 The staff portal is the most complete of the three portals and the roadmap's own priority. Today, register capture, assessment marks, marks book with roll-up, homework authoring and marking, lesson planning with copy-forward, timetable with cover shown, link-only resources, reports, meetings, and message replies all work and are scoped to the teacher's own assignments. It fails its user in four places that matter daily. A register saved here never leaves DRAFT because there is no submit, so the office board and the parent app both show every class as unsubmitted. Two prototype actions (open a parents' evening, "tell the family" from reports) always 403 because the TEACHER persona lacks the grant the shared route checks. The result-sheet chain after roll-up (submit, HOD moderation, publish, edits after rejection) lives only in the admin workspace, so a teacher cannot see where their marks are or why they came back. And the term-marks roll-up route is permission-checked but not ownership-checked, so a teacher can roll up any class. Eight stories are open; three of them (messaging, custom columns, publish to parents) are the ones teachers ask for first.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as `wellington.mabika@stmarys.test` (role TEACHER, Business Studies and Physics, see `../reference/runtime-verification.md`). Confirmed at runtime: B1 (saving a 20-pupil register returns a session with status DRAFT and the screen has no submit control), B2 (`POST /meetings` returns 403 "Your role cannot edit students"), B3 (`POST /notices` returns 403 "Your role cannot create reports"), B4 (term marks and assessments for a class this teacher does not teach return 200), and the absence of any start-thread or broadcast control on Messages. Inconclusive: the bell badge (this teacher had no papers to mark).
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |

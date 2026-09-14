@@ -8,6 +8,10 @@ Rules applied: the portal build contract and `teacher.html` (SHL·07 rail), the 
 
 The staff portal is the most usable of the three and the one whose shell is closest to the contract: class rail above the navigation, Daily work / More / Account groups, an honest online chip, and screens that use the design system's skeletons, empties and saving overlays. Its problems are in the two screens teachers live in. The register spends 110px per pupil on a phone and has no "save and next class", no period context and no confirmation, and its "Everyone absent" sits beside "Undo" with no guard. Mark entry has no keyboard flow, no live grade, no class stats and no way to send marks on. The bell carries the papers-to-mark count, which also appears on the Marks tab, the rail and a Today tile, so "20" shows four times while unread parent messages show nowhere. Messages cannot be started. Several screens carry a lede sentence explaining a limitation to the user, and the Settings screen renders inert rows stamped "Not yet available".
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as a TEACHER (see `../reference/runtime-verification.md`). Confirmed at runtime: the register with a four-way control, a "Not marked" badge on every row, a US-format date input and no submit; four "Not yet available" rows on Settings; no way to start a conversation on Messages. Note: the stale "Parent messaging is not built" sentence sits on the Mark publishing panel, not the default Notifications panel.
+
 ## 2. Contract parity by screen
 
 | Screen | Prototype promises | Code renders | Gap |

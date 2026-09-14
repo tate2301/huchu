@@ -2,7 +2,7 @@
 
 An audit of the Huchu schools vertical against three yardsticks: its own documentation, a capability list drawn from established K-12 school management systems, and the platform's stated future plans. It covers the three back-office dashboards (admin, head, bursar) and the three external portals (student, staff, parent). Each surface has two documents: one on workflows and functionality, one on UI and UX for those workflows. Every document ends with suggested edits, proposed restructuring, and proposed new workflows or features.
 
-Audit date: 2026-09-14, on `main` at `01de8a3`. Method: static reading of the code and documentation (no runtime), plus the existing screenshot sets under `docs/screenshots/schools/`. No product code was changed.
+Audit date: 2026-09-14, on `main` at `01de8a3`. Method: a static reading of the code and documentation plus the existing screenshot sets, followed by a runtime pass against a locally seeded database (St Marys High School demo tenant) that re-checked the main findings as each persona and ran the schools test suites. The runtime results, with corrections to the static pass, are in [reference/runtime-verification.md](reference/runtime-verification.md); 34 of 42 browser checks confirmed the static finding, 2 refuted it. No product code was changed. PDF renderings of every document are under `pdf/`.
 
 ## Documents
 
@@ -19,6 +19,7 @@ Reference material:
 
 - [reference/docs-baseline.md](reference/docs-baseline.md): what the documentation claims, plans and sells, and thirty-four places where the documents contradict each other. Produced before any code was read.
 - [reference/k12-benchmark.md](reference/k12-benchmark.md): the capability list of mature K-12 systems (PowerSchool, Arbor, iSAMS, Veracross, Fedena and others) with Zimbabwe-specific additions, used to grade each surface.
+- [reference/runtime-verification.md](reference/runtime-verification.md): environment, test results, the 42 browser checks with verdicts, corrections made after the runtime pass, and the runtime screenshot set.
 - [reference/backoffice-workflows-evidence.md](reference/backoffice-workflows-evidence.md), [reference/portal-workflows-evidence.md](reference/portal-workflows-evidence.md), [reference/backoffice-ui-ux-evidence.md](reference/backoffice-ui-ux-evidence.md), [reference/portal-ui-ux-evidence.md](reference/portal-ui-ux-evidence.md): the raw page, API, model, rule and screenshot findings with file and line references.
 
 ## How to read the verdicts
@@ -40,13 +41,13 @@ These recur in most of the twelve documents and are best fixed once.
 5. **The shipped sidebar is the wrong one.** `lib/workspaces.ts` overrides the eleven-band definition in `lib/navigation.ts`, drops sixteen working routes including all master data, shows a meaningless top-level "Whole school" item, and its only academic-setup entry redirects into the teacher portal. Generate the sidebar from one source and filter bands by persona.
 6. **Screens name themselves two or three times and repeat their counts.** Twenty-five pages draw an in-page heading under an app bar that already says the name; fourteen repeat band chips in tabs or stat cards; ten have two search boxes. On a phone, the ledger, results and attendance pages show no record on the first screen.
 7. **Rationale prose ships as product copy.** Seven back-office screens carry cards such as "Every row is a dead end" and "That was the fault this board was built to fix"; the student settings screen tells a child "Three things from the design are not here yet". Move it all to comments or docs.
-8. **Row verbs are clipped off the right edge** on every fee screen and on admissions, welfare, teachers and guardians, at every width. `layout="menu"` on `RecordActions` fixes it.
-9. **Three ageing computations, two answers.** The finance overview, the reports page and the dashboard bucket arrears differently and show the same $3,920 in different buckets. One service, one component.
+8. **Row verbs are clipped off the right edge** on every fee screen (28 of 49 buttons past the viewport on the class fees page at runtime) and on admissions and welfare, at every width; teachers and guardians showed the same in an earlier screenshot set. `layout="menu"` on `RecordActions` fixes it.
+9. **Three ageing computations.** The finance overview, the reports page and the dashboard each bucket arrears in their own code with their own labels. On the seeded tenant they agree; in an earlier screenshot set they showed the same $3,920 in different buckets. One service, one component, so they cannot drift.
 10. **No channel.** Notices, reminders, invites and results publication are in-app only, and families without a claimed account are counted and dropped. Guardians without an email cannot be invited at all. Nothing school-side sends an email, SMS or WhatsApp. Every self-service promise on the marketing site depends on this.
 11. **No account self-service.** No password reset for any portal or staff user except a SUPERADMIN route; no teacher invite; the student settings "change your password" link is bounced by the proxy; the claim flow can reset an existing account chosen by the inviter.
 12. **The marketing site sells five things the roadmap has not built**: offline registers and receipting, a head's term dashboard, a board pack, multi-campus consolidation, and fiscalised tuck-shop and uniform sales. Branding is both included in Premier and a $79 add-on. The commercial doc itself says not to claim offline.
 13. **Documentation drift.** The roadmap is six weeks stale with `_pending_` hashes; `live-capabilities.md`, `schools.md` §10, the pack spec, the phase 2 to 5 specs and several open-questions entries describe states that no longer exist. Two design rules conflict (class as navigation vs class as a filter; hidden vs disabled actions) and the UX playbook and the campus canvas law each claim precedence.
-14. **Test shape.** About 450 unit tests cover the domain well. No browser test records a receipt, publishes results, enrols an applicant, submits a register, or claims an invite; e2e is a page-render sweep, the portal-host rewrite is untested, and the route-guard test checks file-level markers only.
+14. **Test shape.** The schools suites (34 files, 743 tests) pass and cover the domain well. No browser test records a receipt, publishes results, enrols an applicant, submits a register, or claims an invite; e2e is a page-render sweep, the portal-host rewrite is untested, and the route-guard test checks file-level markers only.
 
 ## A programme, in order
 

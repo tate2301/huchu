@@ -8,6 +8,10 @@ Audit date: 2026-09-14. Method: static read of the code on `main`, cross-checked
 
 The student portal does what its twelve `done` stories claim: a pupil sees today's periods, the week's timetable, published marks with movement against last term, homework with a hand-in flow, per-subject goals, a self-service library, and a notification inbox. Identity is scoped to the signed-in pupil with hard 403s. Two things undercut it. First, unpublished marks leak through the subjects and goals routes, which contradicts the whole moderation and publishing chain. Second, the sign-in and account story the prototype promises (student ID plus PIN, forgotten PIN, biometrics, theme, notification cadence) does not exist, and the settings screen links to a password page the proxy bounces back. Homework hand-in is text or a pasted link, not a file. The portal is honest about what is not built, which is to its credit, but five roadmap stories remain open and several prototype screens have no story at all.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as `student@stmarys.test` (see `../reference/runtime-verification.md`). B1 confirmed at runtime: after the head rolled term marks into a DRAFT sheet, `/me/subjects` returned a `currentMark` for 13 of 13 subjects while `/me/results` returned zero published lines. B2 confirmed: the password link lands back on the portal home. The library, homework and goals screens rendered as described.
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |

@@ -6,7 +6,11 @@ Rules applied: the portal build contract (`docs/design-system/portals/README.md`
 
 ## 1. Verdict in one paragraph
 
-The parent portal has the right bones: a four-tab mobile shell, a child chip in the app bar, server-loaded household, honest empty states and a saving overlay on every write. It fails the contract at the screen level. Nine of the prototype's twenty-four screens exist. The two screens a parent opens most, Fees and News, both dead-end: Fees offers no way to pay or even see how to pay, and tapping a notice only marks it read because the API never sends the body. Above 900px the bottom tabs disappear and nothing replaces them, so a parent on a laptop has no navigation. Sub-screens have no back button. The hero shows "$ 0.00" in a slashed-zero monospace face as the first thing a paid-up family sees. Most of this is fixable in the shell and in two or three screens without new backend work.
+The parent portal has the right bones: a four-tab mobile shell, a child chip in the app bar, server-loaded household, honest empty states and a saving overlay on every write. It fails the contract at the screen level. Nine of the prototype's twenty-four screens exist. The two screens a parent opens most, Fees and News, both stop short: Fees offers no way to pay or even see how to pay, and a notice has no detail screen, so tapping one only marks it read (the body itself does render in the list row). Above 900px the bottom tabs disappear and nothing replaces them, so a parent on a laptop has no navigation. Sub-screens have no back button. The hero shows "$ 0.00" in a slashed-zero monospace face as the first thing a paid-up family sees. Most of this is fixable in the shell and in two or three screens without new backend work.
+
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as `parent@stmarys.test` (see `../reference/runtime-verification.md`). Confirmed: both document downloads return 403 "Your role cannot view fees" from the render route; "not yet submitted" appears seventeen times on the attendance screen; no navigation at all renders at 1280px; the home hero leads with "$ 0.00" for a paid-up family and the Marks tile says "Not yet". Corrected: a notice's body does render in the list row; what is missing is a detail screen, attachments, RSVP and replies.
 
 ## 2. Contract parity by screen
 
@@ -20,7 +24,7 @@ Prototype screen count: 24 plus sign-in and the child switcher. Built: Home, Fee
 | Fees | Statement with tap-to-pick lines, money off, saved ways to pay, past payments, three-step pay flow, receipt screen | Statement lines, receipts, pinned bar repurposed as a statement download | P0 no way to pay or see how to pay |
 | Payment history | Filters by child and method, grouped by month | Absent | P1 |
 | News list | Tone icon, unread, RSVP meta, mark all read | Present | OK |
-| Notice detail | Body, attachments, RSVP, threaded replies | Absent; tapping marks read and shows `summary` only (`parent-notices-screen.tsx:157-167`; API selects `title, summary` at `notices/route.ts:45`) | P0 dead end |
+| Notice detail | Body, attachments, RSVP, threaded replies | No detail screen; the list row renders the full body (verified at runtime with a 400-character notice); tapping only marks read (`parent-notices-screen.tsx:157-167`); attachments, RSVP and replies absent | P1 |
 | Messages | List with avatar and time; thread with pill input; Message a teacher from mark detail | List without time; thread with textarea; office only | P1 |
 | Attendance | Term chips; six-week P/L/A grid; legend; day drill-in; Ask for time off; Term report PDF | Percent card plus flat day list; "not yet submitted" on every row | P1 |
 | Attendance day | Status, lessons that day, tell the school why | Absent | P1 |
@@ -50,14 +54,14 @@ Prototype screen count: 24 plus sign-in and the child switcher. Built: Home, Fee
 | Money carries currency, figures are tabular | Mono with slashed zeros on money and counters (`parent-portal.css:215, 357`) | everywhere |
 | Pickers are sheets, sub-screens have a back target | No back table; thread state is component state so browser Back exits the portal (`parent-messages-screen.tsx:142`) | shell, messages |
 | A record has one primary action | Fees bar's only action is a PDF download that fails for the role | fees |
-| No dead affordances | Notice rows, profile chevrons | notices, profile |
+| No dead affordances | Notice-row chevrons (no detail behind them), profile chevrons | notices, profile |
 
 ## 5. Suggested edits
 
 Ordered by parent value per unit of work.
 
 1. **Shell.** Add a `BACK` route table (mirroring `parent.html` lines 1878 to 1897) and a 36px back button in the app bar on sub-routes. Render a `.ps-side` rail at 901px+ with Home, Fees, News, You, Attendance, Marks, Messages, Help. Count messages into the bell pip. Mount `useOfflineConnectivity` and the offline banner (the teacher shell already does).
-2. **Notice detail.** Extend the notices API select to include `body` and attachments; add a `notice/[id]` route or a bottom sheet; mark read on open; add reply and RSVP when S-7.1 and S-6.15 land.
+2. **Notice detail.** Add a `notice/[id]` route or a bottom sheet for long notices and attachments; keep the row body for short ones; mark read on open; add reply and RSVP when S-7.1 and S-6.15 land.
 3. **Home hero.** When owing: amount in a sans tabular face, "pay by 10 Oct · 12 days to go", progress bar, "How to pay" and "Statement". When paid: "Paid for Term 3", the paid amount, "See receipt". Never a zero lead. Replace "From the school" with the Shortcuts pill row.
 4. **Fees.** Move "Nothing owing" below the statement or into the hero sub-line. Hide the pinned bar at zero. "How to pay" opens a payment-instructions sheet (bank details, mobile-money merchant code, the invoice reference to quote) sourced from tenant settings, until the gateway flow exists. Show method and reference on "Already paid". Add Past payments grouped by month with child and method chips.
 5. **Attendance.** Weekday-first dates, the six-week grid with legend, one "not final" note per section, tappable days opening a day sheet with "Tell the school why".

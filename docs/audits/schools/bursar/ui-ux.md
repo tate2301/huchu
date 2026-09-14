@@ -6,7 +6,11 @@ Rules applied: `docs/ux/platform-ux-playbook.md`, `docs/design-system/{05-rules,
 
 ## 1. Verdict in one paragraph
 
-The bursar's screens have the best confirmation and reason-capture copy in the module ("$ 510.00 is unwound: every invoice this receipt settled goes back to owing. This cannot be undone.") and the receipt dialog's allocation logic is right. They fail on the surface in ways a bursar meets every hour. Row verbs on every fee screen are clipped off the right edge at desktop, tablet and phone widths because `RecordActions` is rendered inline, so "Take payment" reads "Tak". The landing page has no primary action; "Record receipt" is two screens away. The ledger on a phone spends the entire first screen on chrome and shows no invoice. Three surfaces compute ageing three ways and show two different answers for the same $3,920. The bill's status vocabulary differs between the ledger and the students list. And the arrears and reports pages ship the designer's rationale as product copy.
+The bursar's screens have the best confirmation and reason-capture copy in the module ("$ 510.00 is unwound: every invoice this receipt settled goes back to owing. This cannot be undone.") and the receipt dialog's allocation logic is right. They fail on the surface in ways a bursar meets every hour. Row verbs on every fee screen are clipped off the right edge at desktop, tablet and phone widths because `RecordActions` is rendered inline, so "Take payment" reads "Tak". The landing page has no primary action; "Record receipt" is two screens away. The ledger on a phone spends the entire first screen on chrome and shows no invoice. Three surfaces compute ageing in three code paths with different bucket labels (they agreed on the seeded data, and disagreed in an earlier screenshot set). The bill's status vocabulary differs between the ledger and the students list. And the arrears and reports pages ship the designer's rationale as product copy.
+
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant (see `../reference/runtime-verification.md`). Confirmed at runtime: 28 of 49 buttons on the class fees page sit past the right edge of a 1440px viewport ("Take payment", "Write off" clipped); the first invoice on the phone ledger sits at 973px, below an 844px screen; the rationale cards on arrears and reports render; the "Outstanding 29,910" chip has no currency; the bursar's sidebar shows Result sheets, Homework and Scheme of work. Corrected: the ageing surfaces agree on this data.
 
 ## 2. Screen-by-screen
 
@@ -21,7 +25,7 @@ The bursar's screens have the best confirmation and reason-capture copy in the m
 | `…?view=waivers` | same | Up to six inline buttons per row | Approve-now toggle in the form is good | gated | none | P1 |
 | `…?view=structures` | same | Inline verbs; "New fee sheet" vs tab "Fee structures" vs nav "Ledger and structures" | No preview before bulk generate | gated | none | P2 |
 | `/schools/finance/arrears` | `reports-arrears-content.tsx` | `PageChrome` with "Remind the N" primary (good); `toFixed` and `toLocaleString` for money; rationale cards "The missing verb" and "Why these buckets" rendered as UI (`:797-812`) | No per-family "Take payment" from the row; family phone not on the row | `useSchoolAccess` used; button correctly disabled for BURSAR, which means the bursar cannot chase from here at all | none | P0 (copy leak) |
-| `/schools/reports` (arrears tab) | `schools-reports-enhanced-content.tsx` | Chip "Outstanding 29,910" with no currency (`:715`); chart bucket in 61 to 90 while the finance page says over 90 and the chip says 90+ is 0; "What the screen cannot do" card (`:1090`) | Export in the band is good | | none | P0 |
+| `/schools/reports` (arrears tab) | `schools-reports-enhanced-content.tsx` | Chip "Outstanding 29,910" with no currency (`:715`, confirmed at runtime); the chart and chip agreed with the finance page on the seeded data but are computed separately; "The missing verb" and "What the screen cannot do" cards (`:1090`) confirmed at runtime | Export in the band is good | | none | P0 (copy leak) |
 | `/schools/documents` (fee invoice tab) | `school-documents-content.tsx` | Title Case throughout; raw enum status printed | Receipt and statement have no tab; no batch print | | none | P1 |
 
 ## 3. Screenshot findings
@@ -29,7 +33,7 @@ The bursar's screens have the best confirmation and reason-capture copy in the m
 - **Finance overview (desktop).** Good: per-form billed, collected and outstanding with a bar and percentage; ageing list; longest-overdue list with "90d" in mono red; currency caption. Wrong: page named twice; seven chips; no primary; collected bars in red; rows not clickable; the search alone on a row.
 - **Invoices.** Good: mono invoice numbers, `$ 510.00`, `20 September 2026`, status badges. Wrong: header, caption and bar all name the page; six filters with two `mm/dd/yyyy` inputs; "first 100 of 120" banner; a second search row; "Edit / Write off (red) / Print" inline per row with Print clipped; rows around 90px.
 - **Arrears.** Good: "Remind the 75" in the bar; CSV and PDF export. Wrong: "Outstanding 29,910"; Title Case tabs; filters over two rows; the chart contradicting the chip; rationale cards; a second search below the chart.
-- **Receipts.** Good: the empty-state sentence. Wrong: two "Record receipt" primaries; table header, empty state and pagination all rendered; four filters including two native dates.
+- **Receipts.** Good: the empty-state sentence. Wrong: two "Record receipt" primaries while the view is empty (one once a receipt exists); table header, empty state and pagination all rendered; four filters including two native dates.
 - **Finance phone (390×844).** No record visible on the first screen: five chips over three rows, a tab strip clipped mid-word, six stacked filters, the banner, the search at the bottom edge.
 - **Class fees (desktop, tablet, phone).** Good: rows are the right shape (avatar, "Surname, First", mono invoice number, term, billed, outstanding, status). Wrong: three stacked verbs clipped at every width; red "Write off" per row; caption repeating the chip; bar title "Year group".
 
@@ -52,7 +56,7 @@ The bursar's screens have the best confirmation and reason-capture copy in the m
 ## 5. Suggested edits
 
 1. **Row verbs (P0).** `layout="menu"` on `class-fees-content.tsx:326`, `schools-fees-content.tsx:723, 994, 1137, 1270`, with one inline primary per row where the row has an obvious verb: "Take payment" on an unpaid invoice, "Approve" on a submitted waiver, "Pay" on a requested refund. The receipts view already does this.
-2. **One ageing (P0).** One endpoint, one bucket definition, one `AgeingStrip` component consumed by the overview, the reports page and the dashboard.
+2. **One ageing (P1).** One endpoint, one bucket definition, one `AgeingStrip` component consumed by the overview, the reports page and the dashboard, so the three cannot drift again.
 3. **Phone ledger (P0).** Drop `PageHeading`, drop the caption, keep two chips per view, put the six filters behind one "Filter" sheet with a count badge, use the DataTable pager instead of the banner, add a `mobileListRenderer` (two lines, balance on the right, chevron). That lands the first invoice near y=300.
 4. **Currency and dates (P1).** `schools-reports-enhanced-content.tsx:715` through `formatSchoolMoney`; every `toLocaleString` and `toFixed` in the fee and report components through `lib/schools/format.ts`; native date inputs to the design-system picker (sheet on phone).
 5. **Remove rationale cards (P0).** `reports-arrears-content.tsx:797-812`, `schools-reports-enhanced-content.tsx:1090-1100` to comments or docs.

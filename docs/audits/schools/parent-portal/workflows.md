@@ -8,6 +8,10 @@ Audit date: 2026-09-14. Method: static read of the code on `main` (no runtime), 
 
 The parent portal is a real, correctly scoped read-only window onto one family's records: attendance, published marks, fee lines, receipts, notices, and a two-way message channel to the office. Identity is sound (one resolver, hard 403 on any foreign id, consent flags enforced server side with an integration test). It is not yet the self-service surface the marketing site sells. The two document downloads always fail for the PARENT role, there is no way to pay, no way to update contact details, no notification of anything, and the attendance screen tells most parents their child's register is "not yet submitted" because the teacher portal never submits one. Ten of the twenty parent stories in the roadmap are still `todo`, and the prototype contains screens (leave request, calendar, timetable, child medical profile, payment history) that no story covers.
 
+## Runtime check (14 September 2026)
+
+Verified on the seeded St Marys tenant as `parent@stmarys.test` (see `../reference/runtime-verification.md`). Confirmed at runtime: B1 (receipt and report-card downloads return 403 from the render route), B2 (every attendance day reads "not yet submitted" because the staff portal never submits), the absence of any way to pay, and the missing navigation above 900px. The notice list shows each notice's full body, so P15 is stronger than the static read suggested; there is still no detail view, reply or RSVP.
+
 ## 2. Docs versus code
 
 | Claim | Source | Code reality | Verdict |
@@ -43,7 +47,7 @@ Status key: Implemented = end to end with real writes; Partial = works with name
 | P12 | Pay online (EcoCash, OneMoney, bank, card) | Missing | `lib/payments/*` serves subscription billing only; nothing in the portal references it. S-7.3 `todo`. |
 | P13 | Part payment / payment plan | Missing | S-6.10 `todo`; no instalment model anywhere. |
 | P14 | Payment history filtered by child and method | Missing | S-6.11 `todo`. Receipts are listed per invoice only. |
-| P15 | Read school notices, mark read, mark all read | Implemented | In-app only. |
+| P15 | Read school notices, mark read, mark all read | Implemented | In-app only; the body renders in the list row; no detail screen or attachments. |
 | P16 | Reply to a notice | Missing | S-6.13 depends on S-7.1. |
 | P17 | Message the school office (start thread, reply) | Implemented | `parent-messages-screen.tsx`; reached via the You tab, not a bottom tab. |
 | P18 | Message a named teacher, attach a file | Partial | API accepts `teacherProfileId`; UI always sends null; no attachments. |
