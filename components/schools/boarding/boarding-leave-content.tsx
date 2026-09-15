@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useIsMutating, useQuery } from "@tanstack/react-query";
-import { Card, StatCard } from "@corelithzw/react";
+import { Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -14,7 +14,6 @@ import {
   NothingMatched,
   NothingYet,
   SavingOverlay,
-  StatsSkeleton,
 } from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 
@@ -161,25 +160,6 @@ export function BoardingLeaveContent() {
         />
       ) : null}
 
-      {allQuery.isLoading ? (
-        <StatsSkeleton count={4} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <StatCard
-            label="Waiting on you"
-            value={waiting}
-            tone={waiting > 0 ? "warn" : "neutral"}
-          />
-          <StatCard label="Approved" value={approved} />
-          <StatCard
-            label="Out of the gate"
-            value={out}
-            tone={out > 0 ? "danger" : "neutral"}
-          />
-          <StatCard label="Back" value={back} tone="success" />
-        </div>
-      )}
-
       <TableControls
         tabs={<BoardingViews hostels={hostels.length} leave={all.length} />}
         search={
@@ -211,8 +191,8 @@ export function BoardingLeaveContent() {
               allLabel="Leave and outings"
               value={requestType}
               options={[
-                { value: "LEAVE", label: "LEAVE" },
-                { value: "OUTING", label: "OUTING" },
+                { value: "LEAVE", label: "Leave" },
+                { value: "OUTING", label: "Outing" },
               ]}
               onChange={setRequestType}
             />
@@ -220,7 +200,7 @@ export function BoardingLeaveContent() {
         }
       />
 
-      <Card flush title="Leave and Outing Requests" subtitle="the gate book">
+      <Card flush>
         {/* The four gate moves live in the panel, and each one rewrites a
             request's status. While one is in flight the whole book dims: the
             same row still shows Approve and Sign out, and a second tap while

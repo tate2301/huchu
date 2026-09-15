@@ -6,7 +6,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -365,20 +365,17 @@ export function SchoolsNoticesContent() {
 
   return (
     <div className="space-y-3">
-      <PageHeading
-        title="School Notices"
-        primaryAction={
-          <CreateButton
-            resource="schools.reports"
-            label="Send a notice"
-            onSelect={() => {
-              setSent(null);
-              setCorrecting(null);
-              setComposing(true);
-            }}
-          />
-        }
-      />
+      <PageChrome title="Notices">
+        <CreateButton
+          resource="schools.reports"
+          label="Send a notice"
+          onSelect={() => {
+            setSent(null);
+            setCorrecting(null);
+            setComposing(true);
+          }}
+        />
+      </PageChrome>
 
       <PageBand
         chips={[
@@ -509,17 +506,13 @@ export function SchoolsNoticesContent() {
         <div className="flex flex-col gap-3">
           <Card
             title="Who never gets them"
-            subtitle={
-              unreachable
-                ? `${(unreachable.guardians + unreachable.students).toLocaleString()} people`
-                : undefined
-            }
             actions={
               /*
-                The count above is a to-do list, and until now the only way to
-                act on it was the banner that appears for a moment after a send.
-                An office reading this card at any other time could see the
-                number and had nowhere to press. Inviting is what changes it.
+                The two rows below are a to-do list, and until now the only way
+                to act on it was the banner that appears for a moment after a
+                send. An office reading this card at any other time could see
+                the numbers and had nowhere to press. Inviting is what changes
+                them.
               */
               unreachable && unreachable.guardians + unreachable.students > 0 ? (
                 <Button asChild variant="quiet" size="sm">
@@ -542,44 +535,10 @@ export function SchoolsNoticesContent() {
                 href="/schools/students"
               />
             </div>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              A notice cannot reach somebody the school has never invited. Inviting them is
-              what changes these numbers.
-            </p>
           </Card>
 
           <Card title={reachWindowLabel}>
-            <div className="divide-y divide-[color:var(--border-subtle)]">
-              <ReachRow label="Notices sent" value={reach.sent} />
-              <ReachRow label="Average read" value={`${reach.averageRead}%`} />
-              {/*
-                The canvas's own wording, and the same figure the band's Unread
-                chip carries — a delivery that has been sitting in somebody's
-                portal unopened for the whole window. "Still unread" said the
-                same thing more weakly.
-              */}
-              <ReachRow label="Never opened one" value={reach.unread} />
-            </div>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              A guardian who has opened nothing in a term is usually a guardian whose invite
-              was never accepted.
-            </p>
-          </Card>
-
-          {/*
-            The canvas draws this as a note rather than a control, and it is the
-            one thing a reader of the sent list has to be told: the rows above
-            are final. It sits under Reach because that is where somebody
-            finishes reading and starts wondering what they can do about a
-            notice that went out wrong.
-          */}
-          <Card title="A notice cannot be recalled">
-            <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              The send dialog says so, and the sent list proves it: no draft, no schedule,
-              and no way to correct one that went out wrong. The smallest honest fix is a{" "}
-              <strong>Send a correction</strong> action on the row, which posts a linked
-              follow-up to exactly the same audience.
-            </p>
+            <ReachRow label="Average read" value={`${reach.averageRead}%`} />
           </Card>
         </div>
       </div>

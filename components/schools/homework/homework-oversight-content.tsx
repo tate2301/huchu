@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Card } from "@corelithzw/react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -434,30 +434,6 @@ export function HomeworkOversightContent() {
         <Alert tone="success" title={nudged} onDismiss={() => setNudged(null)} />
       ) : null}
 
-      {query.isPending ? (
-        <StatsSkeleton count={3} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            label="Set and running"
-            value={summary?.open ?? 0}
-            footer="Published, deadline not yet passed"
-          />
-          <StatCard
-            label="Due this week"
-            value={summary?.dueThisWeek ?? 0}
-            tone="warn"
-            footer="Monday to Sunday"
-          />
-          <StatCard
-            label="Overdue"
-            value={summary?.overdue ?? 0}
-            tone="danger"
-            footer="Past the deadline with work still missing"
-          />
-        </div>
-      )}
-
       <FilterBar>
         <FilterSelect
           label="Term"
@@ -556,10 +532,9 @@ export function HomeworkOversightContent() {
         </div>
 
         {/*
-          The side column: which class is drowning, the roll figure the board
-          turns on, and the two notes explaining why the rows go somewhere and
-          why the tiles do not move. One flex column so they stack under each
-          other rather than each claiming a grid cell of their own.
+          The side column: which class is drowning, and the roll figure the
+          board turns on. One flex column so they stack under each other rather
+          than each claiming a grid cell of their own.
         */}
         <div className="flex flex-col gap-4">
         <Card
@@ -616,43 +591,11 @@ export function HomeworkOversightContent() {
           {query.isPending ? (
             <StatsSkeleton count={1} />
           ) : (
-            <>
-              <p className="font-[family-name:var(--font-mono)] text-[length:var(--type-heading-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
-                {(summary?.handedIn ?? 0).toLocaleString()} of{" "}
-                {(summary?.onRoll ?? 0).toLocaleString()}
-              </p>
-              <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                Across every piece of work in view. A bare tally of what arrived
-                cannot tell a full class from an empty one, so the roll travels with
-                every row rather than the count alone.
-              </p>
-            </>
+            <p className="font-[family-name:var(--font-mono)] text-[length:var(--type-heading-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
+              {(summary?.handedIn ?? 0).toLocaleString()} of{" "}
+              {(summary?.onRoll ?? 0).toLocaleString()}
+            </p>
           )}
-        </Card>
-
-        {/*
-          Two notes the canvas draws as cards. They are the reasoning a reader
-          needs to trust the numbers above them — why the rows now go
-          somewhere, and why the tiles do not move when the State filter does.
-        */}
-        <Card title="Every row is a dead end" className="h-fit">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            That was the fault this board was built to fix. Nothing on this table
-            linked anywhere, so a deputy who spots{" "}
-            <strong>4 of 31 handed in</strong> cannot open the homework, see who is
-            missing, or chase them. <strong>Who has not handed in</strong> on the row
-            opens the class list, and <strong>Message the class</strong> writes to the
-            families of exactly the children who are missing.
-          </p>
-        </Card>
-
-        <Card title="Why the tiles ignore the filter" className="h-fit">
-          <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-            The three tiles count the term and the class filters, never the{" "}
-            <strong>State</strong> filter below them: a head reads &ldquo;7
-            overdue&rdquo;, then narrows the table to see which seven. Narrowing the
-            tiles too would leave every tile reading its own filter back at itself.
-          </p>
         </Card>
         </div>
       </div>

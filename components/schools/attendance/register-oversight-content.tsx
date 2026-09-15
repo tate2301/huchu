@@ -14,6 +14,7 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,
@@ -152,6 +153,7 @@ export function RegisterOversightContent({
   initialDate?: string;
 }) {
   const queryClient = useQueryClient();
+  const access = useSchoolAccess();
   const [date, setDate] = useState(initialDate ?? today());
   const [yearGroup, setYearGroup] = useState<ClassFilterValue>({
     classId: "",
@@ -309,6 +311,25 @@ export function RegisterOversightContent({
     },
   });
 
+  /**
+   * Closing a day off, which is oversight rather than register-taking: the
+   * grant is `lock`, not `submit`, so the teacher who took the register cannot
+   * sign off their own work and a bursar — who holds neither — is not offered
+   * it at all. `/attendance/sessions/[id]/lock` asks the same question.
+   */
+  const lockDay = useMutation({
+    mutationFn: ({ session }: { session: StoredSession; className: string }) =>
+      fetchJson(`/api/v2/schools/attendance/sessions/${session.id}/lock`, {
+        method: "POST",
+      }),
+    onSuccess: (_result, { className }) => {
+      setSaved(
+        `The ${className} register is locked for ${date}. Its marks are the school's record now.`,
+      );
+      invalidate();
+    },
+  });
+
   const takeBack = useMutation({
     mutationFn: (session: StoredSession) =>
       fetchJson(`/api/v2/schools/attendance/sessions/${session.id}`, {
@@ -371,6 +392,7 @@ export function RegisterOversightContent({
     [missing],
   );
   const expectRegisters = board?.schoolDay?.isSchoolDay !== false;
+  const canLock = access.can("schools.attendance", "lock");
   const anyFilter = Boolean(classId || streamId || state || search);
 
   const copyMissing = async () => {
@@ -454,6 +476,12 @@ export function RegisterOversightContent({
             );
           }
           if (record.state === "DRAFT") return <Badge tone="warn">Draft</Badge>;
+          // A locked day is a fourth state to a reader even though the board
+          // counts it as submitted: it is the one the office can no longer
+          // reopen, and the row verbs refuse on it.
+          if (sessionByClass.get(record.classId)?.status === "LOCKED") {
+            return <Badge tone="brand">Locked</Badge>;
+          }
           return <Badge tone="success">Submitted</Badge>;
         },
       },
@@ -538,6 +566,28 @@ export function RegisterOversightContent({
                             });
                           },
                         },
+                        ...(canLock && session?.status === "SUBMITTED"
+                          ? [
+                              {
+                                label: "Lock the day",
+                                action: "lock" as const,
+                                loading:
+                                  lockDay.isPending &&
+                                  lockDay.variables?.session.id === session.id,
+                                confirm: {
+                                  title: `Lock the ${record.className} register for ${date}`,
+                                  description:
+                                    "It becomes the school's record for the day. Nobody can change a mark on it afterwards, the class teacher included, and the office cannot take it back.",
+                                  confirmLabel: "Lock the day",
+                                },
+                                onSelect: () =>
+                                  lockDay.mutate({
+                                    session,
+                                    className: record.className,
+                                  }),
+                              },
+                            ]
+                          : []),
                         {
                           label: "Take it back",
                           action: "archive" as const,
@@ -567,7 +617,7 @@ export function RegisterOversightContent({
         },
       },
     ],
-    [expectRegisters, remind, takeBack, startRegister, sessionByClass, date],
+    [expectRegisters, remind, takeBack, lockDay, canLock, startRegister, sessionByClass, date],
   );
 
   if (boardQuery.error) {
@@ -650,6 +700,7 @@ export function RegisterOversightContent({
       ) : null}
       {remind.error ? <SaveError what="The reminder" error={remind.error} /> : null}
       {remindAll.error ? <SaveError what="The reminders" error={remindAll.error} /> : null}
+      {lockDay.error ? <SaveError what="The lock" error={lockDay.error} /> : null}
       {takeBack.error ? <SaveError what="The register" error={takeBack.error} /> : null}
 
       {board && !expectRegisters ? (
@@ -687,13 +738,6 @@ export function RegisterOversightContent({
         >
           {missing.map((row) => row.className).join(", ")}
         </Alert>
-      ) : null}
-
-      {board && expectRegisters ? (
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {board.summary.withRegister} of {board.summary.yearGroups} year groups have a
-          register for {date}.
-        </p>
       ) : null}
 
       {/*
@@ -755,11 +799,7 @@ export function RegisterOversightContent({
       />
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <Card
-          flush
-          title="Year groups"
-          subtitle={`${rows.length} on the ladder`}
-        >
+        <Card flush title="Year groups">
           {boardQuery.isPending ? (
             <TableRowsSkeleton
               rows={8}
@@ -835,32 +875,6 @@ export function RegisterOversightContent({
             </div>
           </Card>
 
-          {/*
-            The calendar is checked before the classes are counted. Without it a
-            public holiday reads as every class failing to send a register,
-            which is the wrong thing to chase — so the board says so when the
-            day was closed, and says why here when it was not.
-          */}
-          <Card title="When the school was closed">
-            {board && !expectRegisters ? (
-              <Alert
-                tone="info"
-                title={`Not a school day — ${board.schoolDay?.reason ?? "the school was closed"}`}
-              >
-                No registers are expected. Anything above was taken anyway.
-              </Alert>
-            ) : (
-              <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                {date} is a school day, so every year group is expected to send a
-                register.
-              </p>
-            )}
-            <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              The school calendar is read before the classes are counted, so a public
-              holiday does not read as every class failing to send one in.
-            </p>
-          </Card>
-
           {unchaseable.length > 0 ? (
             <Card title="Nobody to chase">
               <p className="text-[length:var(--type-body-sm)]">
@@ -871,10 +885,6 @@ export function RegisterOversightContent({
                 */}
                 {unchaseable.map((row) => row.className).join(", ")}{" "}
                 {unchaseable.length === 1 ? "has" : "have"} no form teacher
-              </p>
-              <p className="mt-2 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                A missing register with nobody attached to it cannot be chased. Assign a
-                form teacher under Classes.
               </p>
               <div className="mt-3">
                 <Button asChild variant="secondary" size="sm">

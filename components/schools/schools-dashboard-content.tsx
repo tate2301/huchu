@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
 
+import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
@@ -1059,7 +1060,7 @@ export function SchoolsDashboardContent() {
                     tone="var(--tone-danger)"
                   />
                 </div>
-                <AgingBars aging={arrears?.aging ?? null} />
+                <AgeingStrip amounts={arrears?.aging} caption="How old the debt is" />
                 <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
                   {arrears
                     ? `${arrears.studentsWithArrears.toLocaleString()} families owe something.`
@@ -1196,52 +1197,3 @@ function severityBadge(severity: string) {
   return <Badge tone="outline">Notice</Badge>;
 }
 
-/**
- * How old the debt is, as five bars.
- *
- * Heights are relative to the tallest bucket rather than to the total, because
- * the question is which bucket is the problem, and a bucket holding a tenth of
- * the debt is invisible when every bar is drawn against the whole.
- */
-function AgingBars({
-  aging,
-}: {
-  aging: ArrearsSummary["summary"]["aging"] | null;
-}) {
-  const buckets = [
-    { label: "Now", value: aging?.current ?? 0 },
-    { label: "1–30", value: aging?.days30 ?? 0 },
-    { label: "31–60", value: aging?.days60 ?? 0 },
-    { label: "61–90", value: aging?.days90 ?? 0 },
-    { label: "90+", value: aging?.days120Plus ?? 0, worst: true },
-  ];
-  const tallest = Math.max(...buckets.map((bucket) => bucket.value), 1);
-
-  return (
-    <div>
-      <div className="mb-1.5 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-        How old the debt is
-      </div>
-      <div className="flex items-end gap-2">
-        {buckets.map((bucket) => (
-          <div key={bucket.label} className="flex min-w-0 flex-1 flex-col items-center gap-1.5">
-            <div className="flex h-[62px] items-end" title={formatSchoolMoney(bucket.value)}>
-              <span
-                className="w-[15px] rounded-t-[3px]"
-                style={{
-                  height: `${Math.max(Math.round((bucket.value / tallest) * 58), bucket.value > 0 ? 4 : 2)}px`,
-                  background: bucket.worst
-                    ? "var(--tone-danger)"
-                    : "var(--tone-warn)",
-                }}
-              />
-            </div>
-            <span className="whitespace-nowrap text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              {bucket.label}
-            </span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}

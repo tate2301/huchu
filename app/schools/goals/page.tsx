@@ -1,6 +1,5 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
-import { PageHeading } from "@/components/layout/page-heading";
 import { GoalsOversightContent } from "@/components/schools/goals/goals-oversight-content";
 import { authOptions } from "@/lib/auth";
 
@@ -11,11 +10,7 @@ export default async function SchoolsGoalsPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-7xl space-y-6">
-      <PageHeading
-        title="Subject targets"
-        description="What each pupil is aiming for this term, and which pupils nobody has set a target for."
-      />
+    <div className="mx-auto w-full max-w-7xl">
       <GoalsOversightContent />
     </div>
   );

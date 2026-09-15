@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -17,7 +17,6 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
@@ -41,7 +40,7 @@ import { BoardingViews } from "@/components/schools/boarding/boarding-views";
 import { LeaveRequestsPanel } from "@/components/schools/boarding/leave-requests-panel";
 
 /**
- * Boarding Management — who is in which bed, this term.
+ * Who is in which bed, this term.
  *
  * Two cards, in the order the canvas draws them. The allocations table is the
  * screen; the leave and outing table under it is there because a warden reading
@@ -255,7 +254,7 @@ export function BoardingAllocationsContent() {
 
   return (
     <>
-      <PageChrome title="Boarding Management">
+      <PageChrome title="Allocations">
         <CreateButton
           resource="schools.boarding"
           action="allocate-bed"
@@ -286,18 +285,6 @@ export function BoardingAllocationsContent() {
       {allocationAction.error ? (
         <SaveError what="That allocation" error={allocationAction.error} />
       ) : null}
-
-      {boardQuery.isLoading ? (
-        <StatsSkeleton count={5} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label="Active Allocations" value={summary?.activeAllocations ?? 0} />
-          <StatCard label="Total Allocations" value={summary?.totalAllocations ?? 0} />
-          <StatCard label="Hostels" value={summary?.hostels ?? 0} />
-          <StatCard label="Rooms" value={summary?.rooms ?? 0} />
-          <StatCard label="Beds" value={summary?.beds ?? 0} />
-        </div>
-      )}
 
       <TableControls
         tabs={
@@ -335,7 +322,7 @@ export function BoardingAllocationsContent() {
         }
       />
 
-      <Card flush title="Boarding Allocations" subtitle={`${allocations.length} on the board`}>
+      <Card flush>
         {boardQuery.isLoading ? (
           <TableRowsSkeleton
             columns={[
@@ -385,8 +372,7 @@ export function BoardingAllocationsContent() {
 
       <Card
         flush
-        title="Leave and Outing Workflow"
-        subtitle="the other view"
+        title="Leave and outings"
         actions={
           <Button asChild variant="secondary" size="sm">
             <Link href="/schools/boarding/leave">Open leave and outings</Link>

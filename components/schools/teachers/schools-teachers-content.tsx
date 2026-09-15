@@ -5,14 +5,16 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import {
   CreateButton,
   RecordActions,
+  type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -45,7 +47,6 @@ import {
   type BulkAllocationValues,
 } from "@/components/schools/teachers/bulk-allocation-sheet";
 import { DEPARTMENT_SUGGESTIONS } from "@/components/schools/teachers/departments";
-import { EmployeeLinkCell } from "@/components/schools/teachers/employee-link-cell";
 import {
   EMPTY_SUBJECT,
   SubjectFormDialog,
@@ -85,10 +86,13 @@ type TeachersView = "profiles" | "subjects" | "assignments";
  */
 type ActiveFilter = "" | "active" | "inactive";
 
-const ACTIVE_OPTIONS = [
-  { value: "active", label: "Active" },
-  { value: "inactive", label: "Inactive" },
-];
+/**
+ * The staff list is the active staff unless somebody asks otherwise: the
+ * endpoint defaults `isActive` to true, so there is no "everyone" to offer and
+ * the unfiltered choice is named for what it actually returns. Archived is how
+ * a teacher who has left is found again, and brought back.
+ */
+const STAFF_OPTIONS = [{ value: "inactive", label: "Archived" }];
 
 const TAUGHT_OPTIONS = [
   { value: "active", label: "Still taught" },
@@ -101,6 +105,7 @@ function activeParam(filter: ActiveFilter) {
 
 export function SchoolsTeachersContent() {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [activeView, setActiveView] = useState<TeachersView>("profiles");
 
   const [profileActive, setProfileActive] = useState<ActiveFilter>("");
@@ -127,9 +132,9 @@ export function SchoolsTeachersContent() {
   });
 
   /**
-   * Every profile, whatever the filter, for the band's two numbers and the
-   * department list. The filtered query cannot supply either: a page narrowed
-   * to "Inactive" would report seven staff and offer one department.
+   * The staff as a whole, for the band's two numbers and the department list.
+   * The filtered query cannot supply either: a page narrowed to the archived
+   * would report seven staff and offer one department.
    */
   const staffTallyQuery = useQuery({
     queryKey: ["schools", "teachers", "profiles", "tally"],
@@ -223,7 +228,6 @@ export function SchoolsTeachersContent() {
   const tally = useMemo(
     () => ({
       total: allProfiles.length,
-      active: allProfiles.filter((profile) => profile.isActive).length,
       withoutHr: allProfiles.filter((profile) => !profile.employee).length,
     }),
     [allProfiles],
@@ -231,9 +235,26 @@ export function SchoolsTeachersContent() {
 
   /* ── the verbs ─────────────────────────────────────────────────────── */
 
-  const deleteTeacher = useMutation({
+  /**
+   * Taking somebody off the staff list turns the profile off rather than
+   * destroying it: their timetable, their marks and their registers are the
+   * school's record of terms already taught, and a teacher who has left is not
+   * a teacher who was never there. `DELETE` is the route's name for it.
+   */
+  const archiveTeacher = useMutation({
     mutationFn: (profile: TeacherProfileRecord) =>
       fetchJson(`/api/v2/schools/teachers/profiles/${profile.id}`, { method: "DELETE" }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
+    },
+  });
+
+  const reinstateTeacher = useMutation({
+    mutationFn: (profile: TeacherProfileRecord) =>
+      fetchJson(`/api/v2/schools/teachers/profiles/${profile.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ isActive: true }),
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["schools", "teachers"] });
     },
@@ -350,11 +371,14 @@ export function SchoolsTeachersContent() {
         cell: ({ row }) => row.original.department || "—",
       },
       {
+        // Off by default: two flags out of a possible two, on a table that
+        // already carries a department, a count and an HR state. Whoever wants
+        // them turns the column on from Columns.
         id: "roles",
-        header: "Profile Flags",
+        header: "Profile flags",
         cell: ({ row }) => (
           <div className="flex flex-wrap gap-1.5">
-            {row.original.isClassTeacher ? <Badge tone="brand">Class Teacher</Badge> : null}
+            {row.original.isClassTeacher ? <Badge tone="brand">Class teacher</Badge> : null}
             {row.original.isHod ? <Badge tone="info">HOD</Badge> : null}
             {!row.original.isClassTeacher && !row.original.isHod ? (
               <Badge tone="neutral">General</Badge>
@@ -370,53 +394,80 @@ export function SchoolsTeachersContent() {
       {
         // In the list rather than on a detail page: the useful question is
         // "which of my staff are not joined up", and that is only answerable
-        // from here.
+        // from here. The badge is the whole cell and it is the link — the
+        // button beside it repeated "Find the employee" down every row, and
+        // the joining itself wants the room the record page has.
         id: "hr",
         header: "HR record",
-        cell: ({ row }) => <EmployeeLinkCell profile={row.original} />,
+        cell: ({ row }) => (
+          <Link href={`/schools/teachers/${row.original.id}`}>
+            <Badge tone={row.original.employee ? "success" : "warn"}>
+              {row.original.employee?.employeeId ?? "No HR record"}
+            </Badge>
+          </Link>
+        ),
       },
       {
         id: "active",
-        header: "Active",
+        header: "Status",
+        // One word for one state across the screen: the filter offers Archived,
+        // so the row cannot answer "Inactive".
         cell: ({ row }) => (
           <Badge tone={row.original.isActive ? "success" : "neutral"}>
-            {row.original.isActive ? "Active" : "Inactive"}
+            {row.original.isActive ? "Active" : "Archived"}
           </Badge>
         ),
       },
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <RecordActions
-              layout="menu"
-            resource="schools.teachers"
-            verbs={[
-              { label: "Edit", action: "edit", onSelect: () => editTeacher(row.original) },
-              {
-                label: "Delete",
-                action: "archive",
-                tone: "danger",
-                loading:
-                  deleteTeacher.isPending && deleteTeacher.variables?.id === row.original.id,
-                unavailable:
-                  row.original._count.assignments > 0
-                    ? "Remove their assignments first — a teacher with lessons against them cannot be deleted."
-                    : undefined,
-                confirm: {
-                  title: `Delete ${row.original.user.name}'s profile?`,
-                  description:
-                    "The school stops seeing them as a teacher. Their staff account and their HR record are untouched — turn the profile off instead if they have simply left.",
-                  confirmLabel: "Delete the profile",
+        cell: ({ row }) => {
+          const profile = row.original;
+          const verbs: RecordVerb[] = [
+            { label: "Edit", action: "edit", onSelect: () => editTeacher(profile) },
+          ];
+          if (!profile.employee) {
+            verbs.push({
+              label: "Find the employee",
+              action: "edit",
+              onSelect: () => router.push(`/schools/teachers/${profile.id}`),
+            });
+          }
+          verbs.push(
+            profile.isActive
+              ? {
+                  label: "Archive",
+                  action: "archive",
+                  tone: "warning",
+                  loading:
+                    archiveTeacher.isPending &&
+                    archiveTeacher.variables?.id === profile.id,
+                  confirm: {
+                    title: `Archive ${profile.user.name}?`,
+                    description:
+                      "They come off the staff list and out of every picker, and their staff account and HR record are untouched. Everything they have already taught, marked and registered stays where it is, and Archived in the status filter brings them back.",
+                    confirmLabel: "Archive the profile",
+                  },
+                  onSelect: () => archiveTeacher.mutate(profile),
+                }
+              : {
+                  // Reinstating is a PATCH of one field, and the route checks
+                  // `edit` for it — so the button asks the same question.
+                  label: "Bring them back",
+                  action: "edit",
+                  loading:
+                    reinstateTeacher.isPending &&
+                    reinstateTeacher.variables?.id === profile.id,
+                  onSelect: () => reinstateTeacher.mutate(profile),
                 },
-                onSelect: () => deleteTeacher.mutate(row.original),
-              },
-            ]}
-          />
-        ),
+          );
+          return (
+            <RecordActions layout="menu" resource="schools.teachers" verbs={verbs} />
+          );
+        },
       },
     ],
-    [editTeacher, deleteTeacher],
+    [editTeacher, archiveTeacher, reinstateTeacher, router],
   );
 
   const subjectColumns = useMemo<ColumnDef<TeacherSubjectRecord>[]>(
@@ -446,7 +497,7 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "passMark",
-        header: "Pass Mark",
+        header: "Pass mark",
         cell: ({ row }) => <NumericCell>{row.original.passMark.toFixed(2)}</NumericCell>,
       },
       {
@@ -542,7 +593,7 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "passMark",
-        header: "Pass Mark",
+        header: "Pass mark",
         cell: ({ row }) => <NumericCell>{row.original.subject.passMark.toFixed(2)}</NumericCell>,
       },
       {
@@ -601,7 +652,7 @@ export function SchoolsTeachersContent() {
   }));
 
   const profileFilters = [
-    profileActive === "active" ? "Active" : profileActive === "inactive" ? "Inactive" : null,
+    profileActive === "inactive" ? "Archived" : null,
     department || null,
   ].filter((value): value is string => Boolean(value));
 
@@ -631,25 +682,17 @@ export function SchoolsTeachersContent() {
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Teachers"
-        description={
-          staffTallyQuery.isPending
-            ? undefined
-            : `${tally.total.toLocaleString()} on the staff list`
-        }
-        primaryAction={
-          <CreateButton
-            resource="schools.teachers"
-            label="Add a teacher"
-            onSelect={() => setTeacherDialog(EMPTY_TEACHER)}
-          />
-        }
-      />
+      <PageChrome title="Teaching staff">
+        <CreateButton
+          resource="schools.teachers"
+          label="Add a teacher"
+          onSelect={() => setTeacherDialog(EMPTY_TEACHER)}
+        />
+      </PageChrome>
 
       <PageBand
         chips={[
-          { label: "Active", value: tally.active.toLocaleString(), tone: "success" },
+          { label: "On the staff", value: tally.total.toLocaleString(), tone: "success" },
           { label: "No HR record", value: tally.withoutHr.toLocaleString(), tone: "warn" },
         ]}
         actions={
@@ -657,7 +700,7 @@ export function SchoolsTeachersContent() {
             resource="schools.teachers"
             verbs={[
               {
-                label: "Add Subject",
+                label: "Add a subject",
                 action: "create",
                 onSelect: () => setSubjectDialog(EMPTY_SUBJECT),
               },
@@ -700,8 +743,11 @@ export function SchoolsTeachersContent() {
         rather than as one "that did not save", because a page with three
         tables needs to say which one.
       */}
-      {deleteTeacher.error ? (
-        <SaveError what="That teacher's profile" error={deleteTeacher.error} />
+      {archiveTeacher.error ? (
+        <SaveError what="That teacher's profile" error={archiveTeacher.error} />
+      ) : null}
+      {reinstateTeacher.error ? (
+        <SaveError what="That teacher's profile" error={reinstateTeacher.error} />
       ) : null}
       {deleteSubject.error ? (
         <SaveError what="That subject" error={deleteSubject.error} />
@@ -712,21 +758,22 @@ export function SchoolsTeachersContent() {
 
       <VerticalDataViews
         items={[
-          { id: "profiles", label: "Teacher Profiles", count: tally.total },
+          // No count: the band above already says how many are on the staff.
+          { id: "profiles", label: "Teacher profiles" },
           { id: "subjects", label: "Subjects", count: subjects.length },
           { id: "assignments", label: "Assignments", count: assignments.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as TeachersView)}
-        railLabel="Teacher Views"
+        railLabel="Teacher views"
       >
         <div className={activeView === "profiles" ? "space-y-3" : "hidden"}>
           <FilterBar>
             <FilterSelect
               label="Status"
-              allLabel="Everyone"
+              allLabel="On the staff"
               value={profileActive}
-              options={ACTIVE_OPTIONS}
+              options={STAFF_OPTIONS}
               onChange={(value) => setProfileActive(value as ActiveFilter)}
             />
             <FilterSelect
@@ -740,6 +787,7 @@ export function SchoolsTeachersContent() {
           <DataTable
             data={profiles}
             columns={profileColumns}
+            initialColumnVisibility={{ roles: false }}
             searchPlaceholder="Search teacher profiles"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
@@ -760,7 +808,7 @@ export function SchoolsTeachersContent() {
                         row.employee ? `HR ${row.employee.employeeId}` : "No HR record",
                         row.isHod ? "HOD" : null,
                         row.isClassTeacher ? "Class teacher" : null,
-                        row.isActive ? null : "Inactive",
+                        row.isActive ? null : "Archived",
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -869,7 +917,7 @@ export function SchoolsTeachersContent() {
                   action={
                     <CreateButton
                       resource="schools.teachers"
-                      label="Add Subject"
+                      label="Add a subject"
                       onSelect={() => setSubjectDialog(EMPTY_SUBJECT)}
                     />
                   }

@@ -6,14 +6,16 @@ import type { ColumnDef } from "@tanstack/react-table";
 import Link from "next/link";
 import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import {
   CreateButton,
   RecordActions,
+  type RecordVerb,
 } from "@/components/schools/common/record-actions";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {
   LoadError,
   NothingMatched,
@@ -25,6 +27,7 @@ import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-di
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
+import { isSchoolAdmin } from "@/lib/schools/permissions";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
   EMPTY_GUARDIAN,
@@ -102,6 +105,15 @@ function guardiansUrl(params: Record<string, string | number | undefined>) {
 
 export function GuardiansContent() {
   const queryClient = useQueryClient();
+  const access = useSchoolAccess();
+  /**
+   * Deleting a guardian is the administrator's alone, and the endpoint says so
+   * on top of the `archive` grant every registrar holds. A verb the API will
+   * refuse for a reason the grant cannot express is not disabled here, it is
+   * absent: the row would otherwise offer the registrar a button whose only
+   * outcome is a 403.
+   */
+  const canDelete = isSchoolAdmin(access.role);
 
   const [classId, setClassId] = useState("");
   const [relationship, setRelationship] = useState("");
@@ -226,7 +238,7 @@ export function GuardiansContent() {
     () => [
       {
         id: "guardianNo",
-        header: "Guardian No",
+        header: "Guardian no",
         cell: ({ row }) => (
           <Link
             href={`/schools/guardians/${row.original.id}`}
@@ -282,68 +294,75 @@ export function GuardiansContent() {
       },
       {
         id: "students",
-        header: "Linked Students",
+        header: "Linked students",
         cell: ({ row }) => <NumericCell>{row.original._count?.studentLinks ?? 0}</NumericCell>,
       },
       {
         id: "actions",
         header: "Actions",
-        cell: ({ row }) => (
-          <RecordActions
-              layout="menu"
-            resource="schools.students"
-            verbs={[
-              {
-                label: "Edit",
-                action: "edit",
-                onSelect: () => openEdit(row.original),
+        cell: ({ row }) => {
+          const verbs: RecordVerb[] = [
+            {
+              label: "Edit",
+              action: "edit",
+              onSelect: () => openEdit(row.original),
+            },
+          ];
+          if (canDelete) {
+            verbs.push({
+              label: "Delete for good",
+              action: "archive",
+              tone: "danger",
+              loading: remove.isPending && remove.variables?.id === row.original.id,
+              // The API refuses while children are attached, so saying so
+              // here turns a 409 nobody expected into a decision taken
+              // before the click.
+              unavailable:
+                (row.original._count?.studentLinks ?? 0) > 0
+                  ? "Detach their children first — a guardian with a child on the roll cannot be removed."
+                  : undefined,
+              confirm: {
+                title: `Delete ${row.original.firstName} ${row.original.lastName} for good?`,
+                description:
+                  "The record is destroyed — contact details, portal invitation and all. It cannot be brought back, and nothing about their children changes.",
+                confirmLabel: "Delete for good",
               },
-              {
-                label: "Delete",
-                action: "archive",
-                tone: "danger",
-                loading: remove.isPending && remove.variables?.id === row.original.id,
-                // The API refuses while children are attached, so saying so
-                // here turns a 409 nobody expected into a decision taken
-                // before the click.
-                unavailable:
-                  (row.original._count?.studentLinks ?? 0) > 0
-                    ? "Detach their children first — a guardian with a child on the roll cannot be removed."
-                    : undefined,
-                confirm: {
-                  title: `Delete ${row.original.firstName} ${row.original.lastName}?`,
-                  description:
-                    "Their contact details and any portal invitation go with them. Nothing about their children changes.",
-                  confirmLabel: "Delete the guardian",
-                },
-                onSelect: () => remove.mutate(row.original),
-              },
-            ]}
-          />
-        ),
+              onSelect: () => remove.mutate(row.original),
+            });
+          }
+          return <RecordActions layout="menu" resource="schools.students" verbs={verbs} />;
+        },
       },
     ],
-    [remove, openEdit],
+    [remove, openEdit, canDelete],
   );
 
   const tally = tallyQuery.data;
-  const caption = tally
-    ? `${tally.total.toLocaleString()} on file · ${tally.withoutAccount.toLocaleString()} not invited`
-    : undefined;
 
   return (
     <div className="space-y-4">
-      <PageHeading
-        title="Guardians"
-        description={caption}
-        primaryAction={
-          <CreateButton
-            resource="schools.students"
-            label="Add a guardian"
-            onSelect={openCreate}
-          />
-        }
-        secondaryActions={
+      <PageChrome title="Guardians">
+        <CreateButton
+          resource="schools.students"
+          label="Add a guardian"
+          onSelect={openCreate}
+        />
+      </PageChrome>
+
+      <PageBand
+        chips={[
+          {
+            label: "On the portal",
+            value: (tally?.withAccount ?? 0).toLocaleString(),
+            tone: "success",
+          },
+          {
+            label: "Not invited",
+            value: (tally?.withoutAccount ?? 0).toLocaleString(),
+            tone: "warn",
+          },
+        ]}
+        actions={
           <RecordActions
             resource="schools.students"
             verbs={[
@@ -364,21 +383,6 @@ export function GuardiansContent() {
         }
       />
 
-      <PageBand
-        chips={[
-          {
-            label: "On the portal",
-            value: (tally?.withAccount ?? 0).toLocaleString(),
-            tone: "success",
-          },
-          {
-            label: "Not invited",
-            value: (tally?.withoutAccount ?? 0).toLocaleString(),
-            tone: "warn",
-          },
-        ]}
-      />
-
       {guardiansQuery.isError ? (
         <LoadError
           what="the guardian list"
@@ -390,7 +394,7 @@ export function GuardiansContent() {
       {/* Deleting is refused while a child is still attached, and the row verb
           says so before the click — but a guardian who was detached in another
           tab still gets a 409, and that answer belongs on the page rather than
-          in a console. */}
+          in a console. The same alert carries the administrator-only refusal. */}
       {remove.isError ? <SaveError what="That guardian" error={remove.error} /> : null}
 
       <FilterBar>

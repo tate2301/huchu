@@ -75,7 +75,7 @@ export function SchoolsYearsContent() {
         items={[
           { id: "years", label: "Academic years", count: years.length },
           { id: "terms", label: "Terms", count: terms.length },
-          { id: "calendar", label: "Holidays & Events", count: events.length },
+          { id: "calendar", label: "Holidays and events", count: events.length },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as YearsView)}
@@ -85,12 +85,7 @@ export function SchoolsYearsContent() {
           <SchoolsCalendarContent view={activeView} />
         ) : null}
 
-        {activeView === "calendar" ? (
-          <div className="space-y-2">
-            <h2 className="text-section-title">Holidays and Events</h2>
-            <SchoolDaysContent />
-          </div>
-        ) : null}
+        {activeView === "calendar" ? <SchoolDaysContent /> : null}
       </VerticalDataViews>
     </div>
   );

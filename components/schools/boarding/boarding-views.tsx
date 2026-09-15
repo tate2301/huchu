@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
 /**
- * Allocations, Hostels and Leave / Outing Requests, as three segments of one
+ * Allocations, Hostels and Leave and outings, as three segments of one
  * boarding office.
  *
  * The canvas draws them as a segmented strip in the control row of the
- * allocations board — `Allocations 344 · Hostels 4 · Leave / Outing Requests
+ * allocations board — `Allocations 344 · Hostels 4 · Leave and outings
  * 11` — and it is right to: a warden holding the bed list is one question away
  * from "and which house has space" and one more from "and who is out of the
  * gate". Before this the three lived only in the rail, so moving between them
@@ -29,7 +29,7 @@ import { cn } from "@/lib/utils";
 const SEGMENTS = [
   { href: "/schools/boarding/allocations", label: "Allocations" },
   { href: "/schools/boarding/hostels", label: "Hostels" },
-  { href: "/schools/boarding/leave", label: "Leave / Outing Requests" },
+  { href: "/schools/boarding/leave", label: "Leave and outings" },
 ] as const;
 
 export function BoardingViews({

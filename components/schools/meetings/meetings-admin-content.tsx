@@ -3,13 +3,7 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  Alert,
-  Badge,
-  Button,
-  Card,
-  StatCard,
-} from "@corelithzw/react";
+import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
@@ -523,11 +517,6 @@ export function MeetingsAdminContent() {
         ]}
       />
 
-      <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-        The term&rsquo;s parents&rsquo; evenings across the whole staff room — who is
-        open, who is booked, and which ten minutes are still free.
-      </p>
-
       {termsQuery.error ? (
         <LoadError
           what="the terms"
@@ -657,36 +646,6 @@ export function MeetingsAdminContent() {
           </>
         }
       />
-
-      <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard
-          label="Slots open"
-          value={<span className="tabular-nums">{slots.length}</span>}
-          footer={term ? `${term.name} · ${term.academicYear.name}` : "No term"}
-        />
-        <StatCard
-          label="Booked"
-          tone={booked > 0 ? "success" : "neutral"}
-          value={<span className="tabular-nums">{booked}</span>}
-          footer={
-            slots.length > 0
-              ? `${Math.round((booked / slots.length) * 100)}% of the slots taken`
-              : "Nothing open to book yet"
-          }
-        />
-        <StatCard
-          label="Free"
-          tone={free > 0 ? "brand" : "neutral"}
-          value={<span className="tabular-nums">{free}</span>}
-          footer={
-            slots.length === 0
-              ? "Nothing open to book yet"
-              : free > 0
-                ? "still available to families"
-                : "Every slot is taken"
-          }
-        />
-      </div>
 
       {/*
         The teacher list and the calendar are the same evening asked two
@@ -961,24 +920,6 @@ export function MeetingsAdminContent() {
               setReleased(null);
             }}
           />
-
-          {/*
-            Said once, on the screen, rather than only inside the dialog that
-            is already asking a yes-or-no question. An office that knows what
-            releasing does before it presses the row verb rings the family
-            first, which is the whole point.
-          */}
-          <Card title="Releasing a slot" className="h-fit">
-            <Alert tone="warn" title="Nobody is told automatically — ring them.">
-              The meeting is cancelled and the slot goes back on the list as free, so
-              another family can take it.
-            </Alert>
-            <p className="mt-3 text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-              Or let the school do it: after a release, <strong>Tell the family</strong>{" "}
-              writes to that pupil&rsquo;s guardians through their portal, addressed to
-              exactly the people who thought they were coming.
-            </p>
-          </Card>
         </div>
       </div>
 

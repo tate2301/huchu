@@ -216,7 +216,7 @@ export function LibraryLoansContent() {
 
   return (
     <div className="space-y-4">
-      <PageChrome title="Library">
+      <PageChrome title="Library loans">
         <CreateButton
           resource="schools.academics"
           action="edit"

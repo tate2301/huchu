@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
@@ -16,7 +16,6 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-  StatsSkeleton,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
@@ -419,30 +418,6 @@ export function GoalsOversightContent() {
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
 
-      {query.isPending ? (
-        <StatsSkeleton count={3} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3">
-          <StatCard
-            label="Pupils with a target"
-            value={summary?.withGoal ?? 0}
-            footer={`of ${summary?.onRoll ?? 0} on the roll`}
-          />
-          <StatCard
-            label="Pupils with none"
-            value={summary?.withoutGoal ?? 0}
-            tone="danger"
-            footer="Nobody has set these children anything"
-          />
-          <StatCard
-            label="At or above target"
-            value={summary?.onTrack ?? 0}
-            tone="success"
-            footer="Counted only where there is a mark to compare"
-          />
-        </div>
-      )}
-
       <FilterBar>
         <FilterSelect
           label="Term"
@@ -510,34 +485,6 @@ export function GoalsOversightContent() {
           }
         />
       )}
-
-      <div className="grid items-start gap-3 lg:grid-cols-3">
-        <Card title="The rows start from the roll">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            A targets list built from the targets table can only show the children
-            somebody has already thought about. The head&rsquo;s question is the other
-            one — <strong>which pupils have no target at all</strong>{" "}
-            {"— so a pupil with nothing set is a row saying so."}
-          </p>
-        </Card>
-
-        <Card title="No mark is not behind">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            A missing mark says nothing about how the target is going, so it is neutral
-            rather than a warning. Reading it as &ldquo;behind&rdquo; would put a child on
-            a chase list over a test nobody has marked.
-          </p>
-        </Card>
-
-        <Card title="The missing half">
-          <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-            The screen&rsquo;s whole purpose is naming the{" "}
-            {(summary?.withoutGoal ?? 0).toLocaleString()} pupils nobody has set a target
-            for. <strong>Set a target</strong> on the row, and one over the filtered set,
-            is what turns the list into work.
-          </p>
-        </Card>
-      </div>
 
       {editing ? (
         <GoalTargetDialog
