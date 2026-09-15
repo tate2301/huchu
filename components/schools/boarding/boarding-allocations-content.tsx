@@ -10,7 +10,8 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -120,38 +121,28 @@ export function BoardingAllocationsContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.student.firstName}
-              lastName={row.original.student.lastName}
-            />
-            <Link
-              href={`/schools/students/${row.original.student.id}`}
-              className="min-w-0 hover:underline"
-            >
-              <div className="truncate font-medium">
-                {row.original.student.lastName}, {row.original.student.firstName}
-              </div>
-              <div className="truncate font-mono text-xs text-muted-foreground">
-                {row.original.student.studentNo}
-                {row.original.student.currentClass
-                  ? ` · ${row.original.student.currentClass.name}`
-                  : ""}
-              </div>
-            </Link>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.student.id}`}
+            firstName={row.original.student.firstName}
+            lastName={row.original.student.lastName}
+            reference={row.original.student.studentNo}
+            context={row.original.student.currentClass?.name}
+          />
         ),
       },
       {
         id: "location",
-        header: "Hostel / Room / Bed",
+        header: "Hostel / room / bed",
+        // The house is a record, so the address is a link to it rather than to
+        // a filtered list of houses — a plain click opens it beside the board
+        // and the warden keeps the row they were reading.
         cell: ({ row }) => (
-          <Link
-            href={`/schools/boarding/hostels?hostel=${row.original.hostel.id}`}
-            className="hover:underline"
-          >
-            {bedLocation(row.original)}
-          </Link>
+          <span className="block truncate">
+            <EntityLink href={`/schools/boarding/${row.original.hostel.id}`}>
+              {bedLocation(row.original)}
+            </EntityLink>
+          </span>
         ),
       },
       {
@@ -225,7 +216,16 @@ export function BoardingAllocationsContent() {
               allocationAction.mutate({ id: allocation.id, remove: true });
             },
           });
-          return <RecordActions resource="schools.boarding" verbs={verbs} />;
+          return (
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.boarding"
+                label={`Actions for ${allocation.student.firstName} ${allocation.student.lastName}`}
+                verbs={verbs}
+              />
+            </div>
+          );
         },
       },
     ],
@@ -242,7 +242,6 @@ export function BoardingAllocationsContent() {
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? allocationStatusLabel(status as AllocationStatus) : null,
-    search.trim() || null,
   ].filter((name): name is string => Boolean(name));
 
   const clearFilters = () => {
@@ -298,7 +297,7 @@ export function BoardingAllocationsContent() {
           <TableSearch
             value={search}
             onChange={setSearch}
-            placeholder="Search allocations"
+            placeholder="Search name or admission number"
           />
         }
         filters={
@@ -325,22 +324,21 @@ export function BoardingAllocationsContent() {
       <Card flush>
         {boardQuery.isLoading ? (
           <TableRowsSkeleton
+            headers={["Student", "Hostel / room / bed", "Term", "Status", "Start", "End", ""]}
             columns={[
               { avatar: true, twoLine: true },
               {},
               { width: 70 },
-              { width: 100 },
-              { width: 70 },
-              { width: 70 },
-              { width: 220 },
+              { width: 100, badge: true },
+              { width: 80 },
+              { width: 80 },
+              { width: 40 },
             ]}
           />
         ) : (
           <DataTable
             data={allocations}
             columns={columns}
-            searchPlaceholder="Search allocations"
-            searchSubmitLabel="Search"
             pagination={{ enabled: true }}
             emptyState={
               hostels.length === 0 ? (
@@ -353,10 +351,11 @@ export function BoardingAllocationsContent() {
                     </Button>
                   }
                 />
-              ) : filterNames.length > 0 || classValue.classId ? (
+              ) : filterNames.length > 0 || classValue.classId || search.trim() ? (
                 <NothingMatched
                   what="allocations"
                   filters={filterNames}
+                  search={search}
                   onClear={clearFilters}
                 />
               ) : (

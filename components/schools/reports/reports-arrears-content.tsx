@@ -1,7 +1,6 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useIsMutating } from "@tanstack/react-query";
@@ -12,7 +11,7 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { FilterSelect } from "@/components/schools/common/filter-select";
@@ -103,7 +102,7 @@ type OccupancyResponse = {
 const REPORT_VIEWS = [
   { id: "collections", label: "Collections", href: "/schools/reports" },
   { id: "arrears", label: "Arrears ageing", href: "/schools/finance/arrears" },
-  { id: "enrollment", label: "Enrollment", href: "/schools/reports" },
+  { id: "enrollment", label: "Enrolment", href: "/schools/reports" },
   { id: "occupancy", label: "Hostel occupancy", href: "/schools/reports" },
 ];
 
@@ -155,11 +154,13 @@ function rateTone(rate: number, outOf: number) {
  * columns line up digit for digit down the table.
  */
 function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
+  // An em dash, not "$ 0.00". This is a table of figures, where "we have
+  // nothing in this band" is the whole meaning — and five columns of nought
+  // across forty rows is two hundred amounts the eye has to read past to find
+  // the ones that are not.
   if (amount <= 0) {
     return (
-      <NumericCell className="text-[color:var(--text-subtle)]">
-        {formatSchoolMoney(0)}
-      </NumericCell>
+      <NumericCell className="text-[color:var(--text-faint)]">—</NumericCell>
     );
   }
   const ink =
@@ -358,20 +359,13 @@ export function ReportsArrearsContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.studentName} />
-            <div className="min-w-0">
-              <Link
-                href={`/schools/students/${row.original.studentId}`}
-                className="font-medium hover:underline"
-              >
-                {row.original.studentName}
-              </Link>
-              <div className="font-[family-name:var(--font-mono)] text-xs tabular-nums text-muted-foreground">
-                {row.original.studentNo} · {row.original.className}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.studentId}`}
+            name={row.original.studentName}
+            reference={row.original.studentNo}
+            context={row.original.className}
+          />
         ),
       },
       {
@@ -399,25 +393,28 @@ export function ReportsArrearsContent() {
         id: "verbs",
         header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            {/* Writing to a family is `notify-families`, which the route
+                enforces and which the bursar and the class teacher hold. This
+                screen asked for `create` instead, so the one person whose job
+                arrears are watched the button stay dark on the page built for
+                her, while the same send worked from the finance overview. */}
+            <RecordActions
               layout="menu"
-            // Writing to a family is `notify-families`, which the route
-            // enforces and which the bursar and the class teacher hold. This
-            // screen asked for `create` instead, so the one person whose job
-            // arrears are watched the button stay dark on the page built for
-            // her, while the same send worked from the finance overview.
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Remind",
-                action: "notify-families",
-                onSelect: () => {
-                  setSent(null);
-                  setReminding([row.original]);
+              resource="schools.reports"
+              label={`Actions for ${row.original.studentName}`}
+              verbs={[
+                {
+                  label: "Remind",
+                  action: "notify-families",
+                  onSelect: () => {
+                    setSent(null);
+                    setReminding([row.original]);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -513,17 +510,26 @@ export function ReportsArrearsContent() {
         {sent ? <Alert tone="success" title={sent} onDismiss={() => setSent(null)} /> : null}
 
         {/*
-          The four report tiles, in the canvas's order and with its footers:
-          "Term 2 to date", "of 842 on the roll", "across 3 terms" and
-          "318 of 370 beds". Every one of them is read off a live endpoint —
-          the term is whichever one is running, the roll is this term's
-          enrolment, the beds are the hostels as they stand — so the tiles are
-          the school's own numbers rather than a caption about the report.
+          One tile per sibling report, each carrying that report's headline
+          number and the footer that gives it a denominator. They are the
+          reason the segments above the table are worth pressing.
+
+          There were four. The fourth was "Students with arrears", which is the
+          Families chip in the band eighty pixels higher, in a different
+          typeface — and a figure stated twice on one screen is a figure the
+          reader has to check against itself. The band keeps it, because the
+          band is the half that stays in view.
+
+          Each is read off a live endpoint and none of them is filtered: the
+          tiles say what the school looks like, not what the filters left
+          behind, and a collection rate that moved when somebody picked a year
+          group would be answering a different question from the one its label
+          asks.
         */}
         {arrearsQuery.isPending || collectionsQuery.isPending ? (
-          <StatsSkeleton count={4} />
+          <StatsSkeleton count={3} />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="grid gap-3 sm:grid-cols-3">
             <StatCard
               label="Collection rate"
               tone={rateTone(
@@ -537,15 +543,13 @@ export function ReportsArrearsContent() {
               footer={termInView ? `${termInView.termName} to date` : "No term in view"}
             />
             <StatCard
-              label="Students with arrears"
-              tone={arrears.length > 0 ? "danger" : "success"}
-              value={arrears.length}
-              footer={rollNow === null ? "of the roll" : `of ${rollNow} on the roll`}
-            />
-            <StatCard
-              label="Avg enrollment"
+              label="Average enrolment"
               value={enrollmentQuery.data?.summary.averageEnrollment ?? 0}
-              footer={`across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`}
+              footer={
+                rollNow === null
+                  ? `across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`
+                  : `${rollNow} on the roll now`
+              }
             />
             <StatCard
               label="Hostel occupancy"
@@ -591,8 +595,6 @@ export function ReportsArrearsContent() {
           />
         ) : null}
 
-        <h2 className="text-section-title">Arrears ageing</h2>
-
         {arrearsQuery.error ? (
           <LoadError
             what="the arrears report"
@@ -605,7 +607,7 @@ export function ReportsArrearsContent() {
           Segments, search and filters in one row, directly above the table
           they govern. The other three report views are a click away rather
           than a segment here: they are different questions with different
-          filters, and switching to Enrollment used to throw away everything
+          filters, and switching to Enrolment used to throw away everything
           set on this one.
         */}
         <TableControls

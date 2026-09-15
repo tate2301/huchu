@@ -3,12 +3,11 @@
 import { useMemo, useState } from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Button, Card, StatCard } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton } from "@/components/schools/common/record-actions";
-import { StatsSkeleton } from "@/components/schools/common/states";
 
 import { BedBoardContent } from "@/components/schools/boarding/bed-board-content";
 import { AllocateBedDialog } from "@/components/schools/boarding/boarding-dialogs";
@@ -27,9 +26,12 @@ import { fetchBoardingDashboard } from "@/components/schools/boarding/boarding-d
  * list of allocations, because the beds nobody is in are exactly the rows such
  * a list does not have.
  *
- * The stats stay because they are the numbers somebody quotes on the phone, and
- * they are the same five the allocations board carries — one set of figures for
- * the module, not two that can disagree.
+ * The numbers somebody quotes on the phone are in the band, and only there.
+ * They were also five tiles under it — Active allocations, Total allocations,
+ * Hostels, Rooms, Beds — of which two said what the band already said in a
+ * different typeface, and all five pushed the board they describe below the
+ * fold on a laptop. The band is the half that survives, because it is the half
+ * that stays in view while a warden scrolls the houses.
  */
 export function SchoolsBoardingContent() {
   const [allocating, setAllocating] = useState(false);
@@ -64,6 +66,8 @@ export function SchoolsBoardingContent() {
       <PageBand
         chips={[
           { label: "Term", value: activeTerm?.code ?? "—" },
+          { label: "Houses", value: summary?.hostels ?? "—" },
+          { label: "Rooms", value: summary?.rooms ?? "—" },
           { label: "Beds", value: `${taken} of ${beds}`, tone: "brand" },
           { label: "Free", value: free, tone: free > 0 ? "success" : "warn" },
         ]}
@@ -74,23 +78,10 @@ export function SchoolsBoardingContent() {
         }
       />
 
-      {boardQuery.isLoading ? (
-        <StatsSkeleton count={5} />
-      ) : (
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
-          <StatCard label="Active Allocations" value={summary?.activeAllocations ?? 0} />
-          <StatCard label="Total Allocations" value={summary?.totalAllocations ?? 0} />
-          <StatCard label="Hostels" value={summary?.hostels ?? 0} />
-          <StatCard label="Rooms" value={summary?.rooms ?? 0} />
-          <StatCard label="Beds" value={summary?.beds ?? 0} />
-        </div>
-      )}
-
-      <Card flush title="Beds" subtitle="every bed in the school, free ones included">
-        <div className="px-3 py-3">
-          <BedBoardContent />
-        </div>
-      </Card>
+      {/* No card around it. The bar says "Bed board" and a card headed "Beds"
+          under it is the page naming itself twice, with a frame around the one
+          thing on the screen. */}
+      <BedBoardContent />
 
       <AllocateBedDialog
         open={allocating}

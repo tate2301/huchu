@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { ClassFilter, ALL_CLASSES, classFilterParams, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
@@ -137,26 +137,38 @@ export function TeacherAssignmentsContent() {
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => (
-          <div className="min-w-0">
-            <span className="block truncate font-medium">
-              {row.original.class?.name ?? "—"}
-              {row.original.stream ? ` ${row.original.stream.name}` : ""}
-            </span>
-            <span className="block truncate text-sm text-muted-foreground">
-              {row.original.term?.name ?? "No term"}
-            </span>
-          </div>
-        ),
+        cell: ({ row }) =>
+          row.original.class ? (
+            <RecordNameCell
+              kind="class"
+              href={`/management/master-data/schools/classes/${row.original.class.id}`}
+              name={`${row.original.class.name}${
+                row.original.stream ? ` ${row.original.stream.name}` : ""
+              }`}
+              reference={row.original.term?.name ?? "No term"}
+            />
+          ) : (
+            <span className="text-[color:var(--text-muted)]">No year group</span>
+          ),
       },
       {
         id: "subject",
         header: "Subject",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <span className="truncate">{row.original.subject?.name ?? "—"}</span>
+          <span className="flex min-w-0 items-center gap-2">
+            <span className="min-w-0 truncate">
+              {row.original.subject ? (
+                <EntityLink
+                  href={`/management/master-data/schools/subjects/${row.original.subject.id}`}
+                >
+                  {row.original.subject.name}
+                </EntityLink>
+              ) : (
+                <span className="text-[color:var(--text-muted)]">No subject</span>
+              )}
+            </span>
             {row.original.subject?.isCore ? <Badge tone="brand">Core</Badge> : null}
-          </div>
+          </span>
         ),
       },
       {
@@ -169,20 +181,12 @@ export function TeacherAssignmentsContent() {
             return <Badge tone="warn">Nobody teaches it</Badge>;
           }
           return (
-            <div className="flex min-w-0 items-center gap-2">
-              <PersonAvatar name={profile.user?.name ?? "?"} />
-              <div className="min-w-0">
-                <Link
-                  href={`/schools/teachers/${profile.id}`}
-                  className="block truncate hover:underline"
-                >
-                  {profile.user?.name ?? "Unnamed"}
-                </Link>
-                <span className="block truncate text-sm text-muted-foreground">
-                  {profile.employeeCode ?? profile.user?.email ?? ""}
-                </span>
-              </div>
-            </div>
+            <PersonCell
+              kind="teacher"
+              href={`/schools/teachers/${profile.id}`}
+              name={profile.user?.name ?? "Unnamed"}
+              reference={profile.employeeCode ?? profile.user?.email ?? undefined}
+            />
           );
         },
       },
@@ -211,6 +215,7 @@ export function TeacherAssignmentsContent() {
             <RecordActions
               layout="menu"
               resource="schools.teachers"
+              label={`Actions for ${row.original.subject?.name ?? "this lesson"}`}
               verbs={[
                 {
                   label: "Take it off them",

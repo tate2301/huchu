@@ -8,11 +8,11 @@ import { FilterBar, FilterSelect } from "@/components/schools/common/filter-sele
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import {
@@ -165,15 +165,7 @@ export function TeacherAssignmentsPanel({
 
         {query.isPending ? (
           <div className="p-3">
-            <TableRowsSkeleton
-              headers={["Subject", "Class and term", "", ""]}
-              columns={[
-                { twoLine: true },
-                { width: 96, badge: true },
-                { width: 150 },
-              ]}
-              rows={4}
-            />
+            <ListRowsSkeleton rows={4} avatar={false} label="Loading the timetable" />
           </div>
         ) : query.error ? (
           <div className="p-3">
@@ -263,7 +255,9 @@ export function TeacherAssignmentsPanel({
                     </span>
 
                     <RecordActions
+                      layout="menu"
                       resource="schools.teachers"
+                      label={`Actions for ${assignment.subject?.name ?? "this lesson"}`}
                       verbs={[
                         {
                           label: "Edit",

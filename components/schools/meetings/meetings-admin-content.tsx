@@ -9,6 +9,8 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
@@ -737,7 +739,11 @@ export function MeetingsAdminContent() {
                   title={
                     <span className="flex items-center gap-2">
                       <PersonAvatar name={group.name} src={group.image} size="sm" />
-                      {group.name}
+                      <EntityLink
+                        href={`/schools/teachers/${group.slots[0]!.teacherProfile.id}`}
+                      >
+                        {group.name}
+                      </EntityLink>
                     </span>
                   }
                   subtitle={`${group.slots.length} slot${group.slots.length === 1 ? "" : "s"} · ${teacherBooked} booked · ${group.slots.length - teacherBooked} free`}
@@ -755,7 +761,7 @@ export function MeetingsAdminContent() {
                             when: `${formatTime(slot.startsAt)} – ${formatTime(slot.endsAt)}`,
                             day: formatDay(dayKey(new Date(slot.startsAt))),
                             who: slot.student
-                              ? `${slot.student.lastName}, ${slot.student.firstName}`
+                              ? `${slot.student.firstName} ${slot.student.lastName}`
                               : "Free — nobody has taken this slot",
                             detail: [
                               slot.student?.studentNo,
@@ -797,34 +803,42 @@ export function MeetingsAdminContent() {
                               {formatTime(slot.startsAt)} – {formatTime(slot.endsAt)}
                             </span>
 
-                            {slot.student ? (
-                              <PersonAvatar
-                                firstName={slot.student.firstName}
-                                lastName={slot.student.lastName}
-                                size="xs"
-                              />
-                            ) : null}
-
                             <div className="min-w-0 flex-1">
-                              <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
-                                {slot.student
-                                  ? `${slot.student.lastName}, ${slot.student.firstName}`
-                                  : slot.bookedAt
-                                    ? "Booked, but the pupil record has gone"
-                                    : "Free — nobody has taken this slot"}
-                              </p>
-                              <p className="truncate font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                                {[
-                                  slot.student?.studentNo,
-                                  slot.student?.currentClass?.name,
-                                  slot.location ?? "No room set",
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
+                              {slot.student ? (
+                                <PersonCell
+                                  kind="student"
+                                  href={`/schools/students/${slot.student.id}`}
+                                  firstName={slot.student.firstName}
+                                  lastName={slot.student.lastName}
+                                  reference={slot.student.studentNo}
+                                  context={[
+                                    slot.student.currentClass?.name,
+                                    slot.location ?? "No room set",
+                                  ]
+                                    .filter(Boolean)
+                                    .join(" · ")}
+                                />
+                              ) : (
+                                <>
+                                  <p className="truncate text-[length:var(--type-body-sm)] font-medium text-[color:var(--text-strong)]">
+                                    {slot.bookedAt
+                                      ? "Booked, but the pupil record has gone"
+                                      : "Free — nobody has taken this slot"}
+                                  </p>
+                                  <p className="acct-caption truncate font-mono">
+                                    {slot.location ?? "No room set"}
+                                  </p>
+                                </>
+                              )}
                               {slot.guardian ? (
                                 <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-body)]">
-                                  {slot.guardian.firstName} {slot.guardian.lastName} ·{" "}
+                                  <EntityLink
+                                    href={`/schools/guardians/${slot.guardian.id}`}
+                                    muted
+                                  >
+                                    {slot.guardian.firstName} {slot.guardian.lastName}
+                                  </EntityLink>{" "}
+                                  ·{" "}
                                   <span className="font-[family-name:var(--font-mono)] tabular-nums">
                                     {slot.guardian.phone}
                                   </span>
@@ -847,7 +861,9 @@ export function MeetingsAdminContent() {
                                   Booked
                                 </Badge>
                                 <RecordActions
+                                  layout="menu"
                                   resource="schools.students"
+                                  label={`Actions for the ${formatTime(slot.startsAt)} slot`}
                                   verbs={[
                                     {
                                       label: "Change the booking",

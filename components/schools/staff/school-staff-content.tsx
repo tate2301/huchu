@@ -1,13 +1,15 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button, MobileList } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell } from "@/components/records/record-table";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { FilterSelect } from "@/components/schools/common/filter-select";
@@ -148,76 +150,71 @@ export function SchoolStaffContent() {
       {
         accessorKey: "name",
         header: "Staff member",
+        /*
+          The staff number leads the supporting line and the job title follows
+          it. The number was a column of its own and the job title was the
+          whole subtitle, which left a blank line under every caretaker with no
+          title recorded — and a row with a hole in it reads as a row that
+          failed to load. The reference always exists, so the line never
+          empties.
+        */
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.name} />
-            <div className="min-w-0">
-              <Link
-                href={`/people/${row.original.id}`}
-                className="block truncate font-medium hover:underline"
-              >
-                {row.original.name}
-              </Link>
-              <span className="block truncate text-sm text-muted-foreground">
-                {row.original.jobTitle ?? positionLabel(row.original.position)}
-              </span>
-            </div>
-          </div>
-        ),
-      },
-      {
-        accessorKey: "employeeId",
-        header: "Staff number",
-        cell: ({ row }) => (
-          <span className="font-[family-name:var(--font-mono)] text-sm tabular-nums">
-            {row.original.employeeId}
-          </span>
+          <PersonCell
+            kind="person"
+            href={`/people/${row.original.id}`}
+            name={row.original.name}
+            reference={row.original.employeeId}
+            context={row.original.jobTitle ?? positionLabel(row.original.position)}
+          />
         ),
       },
       {
         accessorKey: "department",
         header: "Department",
-        cell: ({ row }) => row.original.department?.name ?? "—",
+        cell: ({ row }) => row.original.department?.name ?? "Unassigned",
       },
       {
         accessorKey: "phone",
         header: "Phone",
-        cell: ({ row }) => (
-          <span className="font-[family-name:var(--font-mono)] text-sm">
-            {row.original.phone}
-          </span>
-        ),
+        // Through the shared resolver, so a phone number here is the same ink
+        // and the same face as a phone number anywhere else in the product —
+        // and it is a `tel:` only where tapping it could place a call.
+        cell: ({ row }) => <RecordCell kind="phone" value={row.original.phone} />,
       },
       {
         id: "account",
         header: "Account",
+        // An address is somewhere you can write to, so it is a real `mailto:`
+        // in the relation blue rather than a green chip: the green was saying
+        // "this one is fine", which is a judgement about a category.
         cell: ({ row }) =>
           row.original.user ? (
-            <Badge tone="success">{row.original.user.email}</Badge>
+            <RecordCell kind="email" value={row.original.user.email} />
           ) : (
-            <span className="text-sm text-muted-foreground">No sign-in</span>
+            <span className="text-sm text-[color:var(--text-muted)]">No sign-in</span>
           ),
       },
       {
         id: "payroll",
         header: "Payroll record",
         cell: ({ row }) => (
-          <Link
-            href={`/payroll?employee=${row.original.id}`}
-            className="text-sm hover:underline"
-          >
-            Open in payroll
-          </Link>
+          <span className="block truncate">
+            <EntityLink href={`/payroll?employee=${row.original.id}`}>
+              {row.original.employeeId}
+            </EntityLink>
+          </span>
         ),
       },
       {
         id: "actions",
         header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            <RecordActions
               layout="menu"
-            resource="schools.teachers"
-            verbs={[
+              resource="schools.teachers"
+              label={`Actions for ${row.original.name}`}
+              verbs={[
               {
                 label: "Edit",
                 action: "edit",
@@ -248,8 +245,9 @@ export function SchoolStaffContent() {
                     },
                   ]
                 : []),
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -331,21 +329,13 @@ export function SchoolStaffContent() {
 
       {staffQuery.isPending ? (
         <TableRowsSkeleton
-          headers={[
-            "Staff member",
-            "Staff number",
-            "Department",
-            "Phone",
-            "Account",
-            "Payroll record",
-          ]}
+          headers={["Staff member", "Department", "Phone", "Account", "Payroll record"]}
           columns={[
             { avatar: true, twoLine: true },
-            { width: 90 },
             { width: 120 },
+            { width: 130 },
+            { width: 180 },
             { width: 110 },
-            { width: 140, badge: true },
-            { width: 100, badge: true },
           ]}
         />
       ) : staffQuery.isError ? (
@@ -374,7 +364,36 @@ export function SchoolStaffContent() {
           />
         )
       ) : (
-        <DataTable columns={columns} data={staff} />
+        <DataTable
+          columns={columns}
+          data={staff}
+          // Six columns at 390px is a sideways scroll showing one and a half
+          // of them. The phone gets the name, the number and the one fact
+          // somebody rings about.
+          mobileListRenderer={({ rows }) => (
+            <MobileList>
+              {rows.map(({ row }) => (
+                <MobileList.Row
+                  key={row.id}
+                  static
+                  leading={<PersonAvatar name={row.name} />}
+                  title={row.name}
+                  subtitle={[
+                    row.employeeId,
+                    row.jobTitle ?? positionLabel(row.position),
+                    row.department?.name,
+                    row.user ? null : "No sign-in",
+                  ]
+                    .filter(Boolean)
+                    .join(" · ")}
+                  trailing={
+                    <span className="font-mono text-xs">{row.phone}</span>
+                  }
+                />
+              ))}
+            </MobileList>
+          )}
+        />
       )}
 
       {endEmploymentMutation.isError ? (

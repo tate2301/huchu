@@ -11,8 +11,8 @@ import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
-import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PageBand, type BandChip } from "@/components/schools/common/page-band";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import {
@@ -219,18 +219,29 @@ function rateTone(rate: number, outOf: number) {
 }
 
 /**
- * Money in an ageing column, warming as it ages. The tone is the band's own,
- * so the shape of a family's debt is legible before the figures are read.
+ * Money in an ageing column, warming as it ages.
+ *
+ * The tone is the band's own, so the shape of a family's debt is legible
+ * before the figures are read. Drawn identically on the arrears route, so that
+ * moving between the two screens does not change what a red figure means.
+ *
+ * A band with nothing in it is an em dash rather than "$ 0.00": this is a
+ * table of figures, where "nothing in this band" is the whole meaning, and
+ * five columns of nought across forty rows is two hundred amounts to read past
+ * to find the ones that are not.
  */
 function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
+  if (amount <= 0) {
+    return <NumericCell className="text-[color:var(--text-faint)]">—</NumericCell>;
+  }
   const ink =
-    amount <= 0
-      ? "text-[color:var(--text-subtle)]"
-      : tone === "danger"
-        ? "font-semibold text-[color:var(--tone-danger)]"
+    tone === "good"
+      ? "text-[color:var(--text-muted)]"
+      : tone === "neutral"
+        ? "text-[color:var(--text-body)]"
         : tone === "warn"
-          ? "text-[color:var(--tone-warn)]"
-          : undefined;
+          ? "font-semibold text-[color:var(--tone-warn)]"
+          : "font-bold text-[color:var(--tone-danger)]";
   return <NumericCell className={ink}>{formatSchoolMoney(amount)}</NumericCell>;
 }
 
@@ -536,15 +547,13 @@ export function SchoolsReportsEnhancedContent() {
         id: "student",
         header: "Student",
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.studentName} />
-            <div className="min-w-0">
-              <div className="font-medium">{row.original.studentName}</div>
-              <div className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-                {row.original.studentNo} · {row.original.className}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            href={`/schools/students/${row.original.studentId}`}
+            name={row.original.studentName}
+            reference={row.original.studentNo}
+            context={row.original.className}
+          />
         ),
       },
       {
@@ -572,23 +581,27 @@ export function SchoolsReportsEnhancedContent() {
         id: "verbs",
         header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            {/* Writing to a family is the notices grant, which the route
+                enforces on `schools.reports` create. A bursar sees the verb
+                disabled and learns whose job it is, rather than after
+                composing the letter. */}
+            <RecordActions
               layout="menu"
-            // Writing to a family is the notices grant, which the route enforces
-            // on `schools.reports` create. A bursar sees the button disabled and
-            // learns whose job it is, rather than after composing the letter.
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Remind",
-                action: "create",
-                onSelect: () => {
-                  setSent(null);
-                  setReminding([row.original]);
+              resource="schools.reports"
+              label={`Actions for ${row.original.studentName}`}
+              verbs={[
+                {
+                  label: "Remind",
+                  action: "create",
+                  onSelect: () => {
+                    setSent(null);
+                    setReminding([row.original]);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -647,13 +660,16 @@ export function SchoolsReportsEnhancedContent() {
       {
         id: "hostel",
         header: "Hostel",
+        // The house is a record, and the question after "which house is full"
+        // is almost always about that house.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.hostelName}</div>
-            <div className="font-[family-name:var(--font-mono)] text-xs text-muted-foreground">
-              {row.original.hostelCode} · {row.original.genderPolicy}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="hostel"
+            href={`/schools/boarding/${row.original.hostelId}`}
+            name={row.original.hostelName}
+            reference={row.original.hostelCode}
+            context={row.original.genderPolicy}
+          />
         ),
       },
       {
@@ -715,56 +731,80 @@ export function SchoolsReportsEnhancedContent() {
    */
   const sending = useIsMutating() > 0 && reminding !== null;
 
-  const bandChips =
-    activeView === "arrears"
-      ? [
-          {
-            label: "Outstanding",
-            value: arrearsQuery.isPending
-              ? "—"
-              : formatSchoolMoney(arrearsSummary?.totalOutstanding ?? 0),
-            tone: "danger" as const,
-          },
-          {
-            label: "90+ days",
-            value: arrearsQuery.isPending
-              ? "—"
-              : formatSchoolMoney(arrearsSummary?.aging.days120Plus ?? 0),
-            tone: "warn" as const,
-          },
-          {
-            label: "Families",
-            value: arrearsQuery.isPending ? "—" : arrears.length,
-          },
-        ]
-      : [
-          {
-            label: "Invoiced",
-            value: collectionsQuery.isPending
-              ? "—"
-              : formatSchoolMoney(collectionsSummary?.totalInvoiced ?? 0),
-          },
-          {
-            label: "Collected",
-            value: collectionsQuery.isPending
-              ? "—"
-              : formatSchoolMoney(collectionsSummary?.totalCollected ?? 0),
-            tone: "success" as const,
-          },
-          {
-            label: "Collection rate",
-            value: collectionsQuery.isPending
-              ? "—"
-              : percent(
-                  collectionsSummary?.overallCollectionRate ?? 0,
-                  collectionsSummary?.totalInvoiced ?? 0,
-                ),
-            tone: rateTone(
-              collectionsSummary?.overallCollectionRate ?? 0,
-              collectionsSummary?.totalInvoiced ?? 0,
-            ),
-          },
-        ];
+  /*
+    The band carries the state of the view on screen, and nothing the tiles
+    above it already say.
+
+    It used to carry the fee figures on all four views, so somebody reading
+    the enrolment trend was shown a collection rate that had nothing to do
+    with it. And it repeated whichever tile matched — "Collection rate" twice
+    on one screen, in two typefaces, eighty pixels apart — which is a figure
+    the reader has to check against itself.
+  */
+  const bandChips: BandChip[] = (() => {
+    if (activeView === "arrears") {
+      return [
+        {
+          label: "Outstanding",
+          value: arrearsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(arrearsSummary?.totalOutstanding ?? 0),
+          tone: "danger",
+        },
+        {
+          label: "90+ days",
+          value: arrearsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(arrearsSummary?.aging.days120Plus ?? 0),
+          tone: "warn",
+        },
+      ];
+    }
+    if (activeView === "enrollment") {
+      const summary = enrollmentQuery.data?.summary;
+      return [
+        {
+          label: "Boarders",
+          value: enrollmentQuery.isPending
+            ? "—"
+            : whole(summary?.totalBoardingStudents ?? 0),
+        },
+        {
+          label: "Terms counted",
+          value: enrollmentQuery.isPending ? "—" : whole(summary?.totalTerms ?? 0),
+        },
+      ];
+    }
+    if (activeView === "occupancy") {
+      const summary = occupancyQuery.data?.summary;
+      return [
+        {
+          label: "Beds",
+          value: occupancyQuery.isPending ? "—" : whole(summary?.totalBeds ?? 0),
+        },
+        {
+          label: "Free tonight",
+          value: occupancyQuery.isPending ? "—" : whole(summary?.totalAvailable ?? 0),
+          tone: "success",
+        },
+      ];
+    }
+    return [
+      {
+        label: "Invoiced",
+        value: collectionsQuery.isPending
+          ? "—"
+          : formatSchoolMoney(collectionsSummary?.totalInvoiced ?? 0),
+      },
+      {
+        label: "Collected",
+        value: collectionsQuery.isPending
+          ? "—"
+          : formatSchoolMoney(collectionsSummary?.totalCollected ?? 0),
+        tone: "success",
+      },
+    ];
+  })();
 
   return (
     <div className="space-y-4">
@@ -844,7 +884,7 @@ export function SchoolsReportsEnhancedContent() {
             footer={rollNow === null ? "of the roll" : `of ${rollNow} on the roll`}
           />
           <StatCard
-            label="Avg enrollment"
+            label="Average enrolment"
             value={enrollmentQuery.data?.summary?.averageEnrollment ?? 0}
             footer={`across ${enrollment.length} term${enrollment.length === 1 ? "" : "s"}`}
           />
@@ -868,7 +908,7 @@ export function SchoolsReportsEnhancedContent() {
         items={[
           { id: "collections", label: "Collections", count: collections.length },
           { id: "arrears", label: "Arrears ageing", count: arrears.length },
-          { id: "enrollment", label: "Enrollment", count: enrollment.length },
+          { id: "enrollment", label: "Enrolment", count: enrollment.length },
           { id: "occupancy", label: "Hostel occupancy", count: occupancy.length },
         ]}
         value={activeView}
@@ -880,8 +920,6 @@ export function SchoolsReportsEnhancedContent() {
       >
         {/* Collections */}
         <div className={activeView === "collections" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Fee collections report</h2>
-
           <FilterBar>
             <FilterSelect
               label="Academic year"
@@ -1113,8 +1151,6 @@ export function SchoolsReportsEnhancedContent() {
 
         {/* Arrears */}
         <div className={activeView === "arrears" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Arrears aging report</h2>
-
           <FilterBar>
             <FilterSelect
               label="Year group"
@@ -1256,10 +1292,8 @@ export function SchoolsReportsEnhancedContent() {
           </div>
         </div>
 
-        {/* Enrollment */}
+        {/* Enrolment */}
         <div className={activeView === "enrollment" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Enrollment statistics</h2>
-
           {enrollmentQuery.error ? (
             <LoadError
               what="the enrolment report"
@@ -1270,7 +1304,7 @@ export function SchoolsReportsEnhancedContent() {
 
           {enrollment.length > 0 ? (
             <TradingViewChartCard
-              title="Enrollment trends"
+              title="Enrolment over the year"
               data={enrollment.map((row) => ({
                 label: row.termName,
                 boardingCount: row.boardingCount,
@@ -1321,8 +1355,6 @@ export function SchoolsReportsEnhancedContent() {
 
         {/* Occupancy */}
         <div className={activeView === "occupancy" ? "space-y-4" : "hidden"}>
-          <h2 className="text-section-title">Hostel occupancy report</h2>
-
           {occupancyQuery.error ? (
             <LoadError
               what="the occupancy report"

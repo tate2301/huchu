@@ -32,8 +32,9 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand, type BandChip } from "@/components/schools/common/page-band";
-import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
@@ -44,6 +45,7 @@ import {
 } from "@/components/schools/common/record-actions";
 import {
   LoadError,
+  NothingLeftToDo,
   NothingMatched,
   NothingYet,
   SaveError,
@@ -210,24 +212,37 @@ const PAYMENT_METHODS = [
 
 const initialRefundForm = { amount: "", method: "CASH", reason: "", reference: "" };
 
-/** A person, with a face, wherever this screen lists one. */
+/**
+ * The pupil a row of money is about, and the way to them.
+ *
+ * Every bill, receipt, credit, refund and waiver on this screen belongs to a
+ * child, and the question a bursar asks next is almost always about the child
+ * rather than about the paper: what else is owing, who the guardians are,
+ * whether they board. So the name is the link, and a plain click opens the
+ * pupil beside the ledger rather than losing the filtered list behind it.
+ *
+ * The admission number is the supporting line because it is the half that is
+ * unique — two families called Moyo in Form 2 are told apart by it and by
+ * nothing else on the row.
+ *
+ * Natural order, not "Moyo, Tendai". `RecordMark` hashes the name to pick the
+ * disc's colour, so a child written one way here and the other way on the
+ * arrears report is a child who is two colours — and recognising somebody by
+ * their mark is the only thing the colour is for.
+ */
 function StudentCell({
   student,
 }: {
-  student: { firstName: string; lastName: string; studentNo: string };
+  student: { id: string; firstName: string; lastName: string; studentNo: string };
 }) {
   return (
-    <div className="flex items-center gap-2">
-      <PersonAvatar firstName={student.firstName} lastName={student.lastName} />
-      <div className="min-w-0">
-        <div className="truncate font-medium">
-          {student.lastName}, {student.firstName}
-        </div>
-        <div className="truncate font-mono text-xs text-muted-foreground">
-          {student.studentNo}
-        </div>
-      </div>
-    </div>
+    <PersonCell
+      kind="student"
+      href={`/schools/students/${student.id}`}
+      firstName={student.firstName}
+      lastName={student.lastName}
+      reference={student.studentNo}
+    />
   );
 }
 
@@ -249,15 +264,6 @@ function todayIso() {
 }
 
 /**
- * Every filter for a view, behind one control.
- *
- * Six of them in a row was the whole first screen of a phone: the ledger
- * opened on its own chrome and not one invoice. The count is what makes the
- * fold safe — a filter you cannot see is a filter you forget is set, and a
- * bursar ringing a family about a bill that is not in the list because Term 1
- * is still selected is the failure this replaces.
- */
-/**
  * The filters, inline where there is room and behind one control where there
  * is not.
  *
@@ -265,6 +271,11 @@ function todayIso() {
  * which is the fault this fixes. On a desktop there is room for them and
  * hiding them behind a sheet would cost a press for nothing, so the sheet is a
  * phone affordance rather than the layout.
+ *
+ * The count on the trigger is what makes the fold safe: a filter you cannot
+ * see is a filter you forget is set, and a bursar ringing a family about a
+ * bill that is not in the list because Term 1 is still selected is the failure
+ * this replaces.
  */
 function FilterSheet({ count, children }: { count: number; children: ReactNode }) {
   const [open, setOpen] = useState(false);
@@ -298,6 +309,26 @@ function FilterSheet({ count, children }: { count: number; children: ReactNode }
         </div>
       </SheetContent>
     </Sheet>
+  );
+}
+
+/**
+ * How many rows the narrowing left, out of how many there are.
+ *
+ * It sits beside the filters rather than in the page band, and that is the
+ * band's own law read the other way round: the band carries state — what the
+ * school owes, how many bills are unpaid — and those do not move when you
+ * type. This number is the answer to whatever the filters just asked, so it
+ * belongs next to the question.
+ *
+ * Hidden below `sm`, where the filters themselves are behind a button and the
+ * screen is wanted for rows.
+ */
+function RowCount({ showing, total }: { showing: number; total?: number }) {
+  return (
+    <span className="hidden shrink-0 self-center font-mono text-xs tabular-nums text-[color:var(--text-subtle)] sm:inline">
+      {total !== undefined && total > showing ? `${showing} of ${total}` : showing}
+    </span>
   );
 }
 
@@ -365,6 +396,15 @@ export function SchoolsFeesContent() {
   const [structureTerm, setStructureTerm] = useState("");
   const [structureStatus, setStructureStatus] = useState("");
 
+  /*
+    One pair per segment: what is narrowing, and how to undo it.
+
+    Counted through the shared `activeFilterCount` rather than six local
+    `.filter(Boolean)` expressions, because the number is read in two places —
+    the phone trigger that hides the filters, and the sentence an empty table
+    gives for why it is empty — and two places with two ideas of what counts as
+    set is how a list ends up looking empty for no visible reason.
+  */
   const clearInvoiceFilters = () => {
     setInvoiceClass("");
     setInvoiceTerm("");
@@ -375,14 +415,68 @@ export function SchoolsFeesContent() {
     setInvoiceOverdue(false);
   };
 
-  const invoiceFilterCount = [
+  const invoiceFilterCount = activeFilterCount(
     invoiceClass,
     invoiceTerm,
     invoiceStatus,
     invoiceDueFrom,
     invoiceDueTo,
     invoiceMinOutstanding,
-  ].filter(Boolean).length;
+  );
+
+  const clearReceiptFilters = () => {
+    setReceiptClass("");
+    setReceiptStatus("");
+    setReceiptFrom("");
+    setReceiptTo("");
+  };
+
+  const receiptFilterCount = activeFilterCount(
+    receiptClass,
+    receiptStatus,
+    receiptFrom,
+    receiptTo,
+  );
+
+  const clearCreditFilters = () => {
+    setCreditClass("");
+    setCreditKind("");
+  };
+
+  const creditFilterCount = activeFilterCount(creditClass, creditKind);
+
+  const clearRefundFilters = () => {
+    setRefundClass("");
+    setRefundStatus("");
+  };
+
+  const refundFilterCount = activeFilterCount(refundClass, refundStatus);
+
+  const clearWaiverFilters = () => {
+    setWaiverClass("");
+    setWaiverTerm("");
+    setWaiverStatus("");
+    setWaiverType("");
+  };
+
+  const waiverFilterCount = activeFilterCount(
+    waiverClass,
+    waiverTerm,
+    waiverStatus,
+    waiverType,
+  );
+
+  const clearStructureFilters = () => {
+    setStructureClass("");
+    setStructureTerm("");
+    setStructureStatus("");
+  };
+
+  const structureFilterCount = activeFilterCount(
+    structureClass,
+    structureTerm,
+    structureStatus,
+  );
 
   /* ── the lists that fill the filters ──────────────────────────────────── */
 
@@ -712,7 +806,7 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "invoiceNo",
-        header: "Invoice No",
+        header: "Invoice no",
         cell: ({ row }) => <NumericCell align="left">{row.original.invoiceNo}</NumericCell>,
       },
       {
@@ -755,7 +849,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "dueDate",
-        header: "Due Date",
+        header: "Due date",
         cell: ({ row }) => <NumericCell>{formatSchoolDate(row.original.dueDate)}</NumericCell>,
       },
       {
@@ -768,15 +862,19 @@ export function SchoolsFeesContent() {
             invoice.status === "VOIDED" ||
             invoice.status === "WRITEOFF";
           /*
-            The verb the row is about stays on the row; the rest fold into the
-            menu. Rendering all four inline put "Print" — and on a narrower
-            window "Write off" too — past the right edge of the table.
+            Every verb behind one trigger, with the one the row is waiting for
+            at the top of it.
+
+            They were inline buttons, and four words of verb is the widest
+            thing in a row that also has to hold a name, a term, four figures
+            and a date: "Print" — and on a narrower window "Write off" too —
+            came out past the right edge of the table. A menu costs a press and
+            buys the column back.
           */
-          let primary: RecordVerb | null = null;
           const verbs: RecordVerb[] = [];
 
           if (invoice.status === "DRAFT") {
-            primary = {
+            verbs.push({
               label: "Issue",
               action: "issue",
               loading: issueInvoice.isPending,
@@ -786,14 +884,14 @@ export function SchoolsFeesContent() {
                 confirmLabel: "Issue it",
               },
               onSelect: () => issueInvoice.mutate(invoice.id),
-            };
+            });
           }
           if (invoice.status === "ISSUED" || invoice.status === "PART_PAID") {
-            primary = {
+            verbs.push({
               label: "Take payment",
               action: "receive-payment",
               onSelect: () => setReceiptDialog({ open: true, invoiceId: invoice.id }),
-            };
+            });
           }
           verbs.push({
             label: "Edit",
@@ -827,10 +925,12 @@ export function SchoolsFeesContent() {
 
           return (
             <div className="flex items-center justify-end gap-2">
-              {primary ? (
-                <RecordActions resource="schools.fees" verbs={[primary]} />
-              ) : null}
-              <RecordActions layout="menu" resource="schools.fees" verbs={verbs} />
+              <RecordActions
+                layout="menu"
+                resource="schools.fees"
+                label={`Actions for ${invoice.invoiceNo}`}
+                verbs={verbs}
+              />
               <PrintDocumentButton
                 sourceKey="schools.fee.invoice"
                 recordId={invoice.id}
@@ -848,7 +948,7 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "receiptNo",
-        header: "Receipt No",
+        header: "Receipt no",
         cell: ({ row }) => <NumericCell align="left">{row.original.receiptNo}</NumericCell>,
       },
       {
@@ -858,7 +958,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "paymentMethod",
-        header: "Payment Method",
+        header: "Method",
         cell: ({ row }) =>
           PAYMENT_METHODS.find((method) => method.value === row.original.paymentMethod)
             ?.label ?? row.original.paymentMethod,
@@ -897,7 +997,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "receiptDate",
-        header: "Receipt Date",
+        header: "Receipt date",
         cell: ({ row }) => (
           <NumericCell>{formatSchoolDate(row.original.receiptDate)}</NumericCell>
         ),
@@ -934,7 +1034,12 @@ export function SchoolsFeesContent() {
 
           return (
             <div className="flex items-center justify-end gap-2">
-              <RecordActions layout="menu" resource="schools.fees" verbs={verbs} />
+              <RecordActions
+                layout="menu"
+                resource="schools.fees"
+                label={`Actions for ${receipt.receiptNo}`}
+                verbs={verbs}
+              />
               <PrintDocumentButton
                 sourceKey="schools.fee.receipt"
                 recordId={receipt.id}
@@ -1001,7 +1106,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => {
           const credit = row.original;
           const spent = credit.available <= 0;
@@ -1033,7 +1138,12 @@ export function SchoolsFeesContent() {
 
           return (
             <div className="flex justify-end">
-              <RecordActions layout="menu" resource="schools.fees" verbs={verbs} />
+              <RecordActions
+                layout="menu"
+                resource="schools.fees"
+                label={`Actions for ${credit.reference}`}
+                verbs={verbs}
+              />
             </div>
           );
         },
@@ -1046,7 +1156,7 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "refundNo",
-        header: "Refund No",
+        header: "Refund no",
         cell: ({ row }) => <NumericCell align="left">{row.original.refundNo}</NumericCell>,
       },
       {
@@ -1093,17 +1203,27 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => {
           const refund = row.original;
+          // A paid or cancelled refund is finished. An em dash rather than a
+          // disabled trigger: there is nothing behind it, and a control that
+          // opens onto an empty menu is worse than no control.
           if (refund.status !== "REQUESTED") {
-            return <span className="text-xs text-muted-foreground">No action left</span>;
+            return (
+              <span className="flex justify-end text-[var(--text-faint)]" title="Nothing left to do">
+                —
+              </span>
+            );
           }
           return (
-            <div className="flex items-center justify-end gap-2">
-              {/* Paying it is why a requested refund is on the screen. */}
+            <div className="flex justify-end">
+              {/* Paying it is why a requested refund is on the screen, so it
+                  leads the menu. */}
               <RecordActions
+                layout="menu"
                 resource="schools.fees"
+                label={`Actions for ${refund.refundNo}`}
                 verbs={[
                   {
                     label: "Pay",
@@ -1116,12 +1236,6 @@ export function SchoolsFeesContent() {
                     },
                     onSelect: () => payRefund.mutate(refund.id),
                   },
-                ]}
-              />
-              <RecordActions
-                layout="menu"
-                resource="schools.fees"
-                verbs={[
                   {
                     label: "Cancel",
                     action: "refund",
@@ -1147,7 +1261,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "waiverType",
-        header: "Waiver Type",
+        header: "Waiver type",
         cell: ({ row }) =>
           WAIVER_TYPES.find((type) => type.value === row.original.waiverType)?.label ??
           row.original.waiverType,
@@ -1183,24 +1297,23 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => {
           const waiver = row.original;
           /*
-            A waiver arrives asking for a decision, so the decision stays on the
-            row and the other five verbs fold into the menu — six inline buttons
-            was the widest cell on the ledger.
+            A waiver arrives asking for a decision, so the decision leads the
+            menu and the other five follow it. Six inline buttons was the
+            widest cell on the ledger by some way.
           */
-          let primary: RecordVerb | null = null;
           const verbs: RecordVerb[] = [];
 
           if (waiver.status === "DRAFT") {
-            primary = {
+            verbs.push({
               label: "Approve",
               action: "waive",
               loading: approveWaiver.isPending,
               onSelect: () => approveWaiver.mutate(waiver.id),
-            };
+            });
           }
           if (waiver.status === "DRAFT" || waiver.status === "APPROVED") {
             const apply: RecordVerb = {
@@ -1214,11 +1327,7 @@ export function SchoolsFeesContent() {
               },
               onSelect: () => applyWaiver.mutate(waiver.id),
             };
-            if (primary) {
-              verbs.push(apply);
-            } else {
-              primary = apply;
-            }
+            verbs.push(apply);
             verbs.push({
               label: "Reject",
               action: "waive",
@@ -1260,11 +1369,13 @@ export function SchoolsFeesContent() {
           }
 
           return (
-            <div className="flex items-center justify-end gap-2">
-              {primary ? (
-                <RecordActions resource="schools.fees" verbs={[primary]} />
-              ) : null}
-              <RecordActions layout="menu" resource="schools.fees" verbs={verbs} />
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.fees"
+                label={`Actions for ${waiver.student.lastName}'s waiver`}
+                verbs={verbs}
+              />
             </div>
           );
         },
@@ -1277,14 +1388,21 @@ export function SchoolsFeesContent() {
     () => [
       {
         id: "name",
-        header: "Fee Structure",
+        header: "Fee sheet",
+        // A sheet has no record page of its own, so the name does not link —
+        // but the year group it prices does, and that is the reference a
+        // bursar follows when a sheet looks wrong for its form.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.class.name} / {row.original.term.name}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="class"
+            name={row.original.name}
+            reference={row.original.term.code}
+            context={
+              <EntityLink href={`/management/master-data/schools/classes/${row.original.class.id}`}>
+                {row.original.class.name}
+              </EntityLink>
+            }
+          />
         ),
       },
       {
@@ -1299,7 +1417,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "amount",
-        header: "Total Amount",
+        header: "Total",
         cell: ({ row }) => (
           <NumericCell>
             {formatSchoolMoney(row.original.totals?.amount ?? 0, row.original.currency)}
@@ -1308,7 +1426,7 @@ export function SchoolsFeesContent() {
       },
       {
         id: "mandatoryAmount",
-        header: "Mandatory Amount",
+        header: "Mandatory",
         cell: ({ row }) => (
           <NumericCell>
             {formatSchoolMoney(
@@ -1329,13 +1447,12 @@ export function SchoolsFeesContent() {
         cell: ({ row }) => {
           const structure = row.original;
           const billed = structure._count.invoices > 0;
-          // A draft sheet exists to be made active; everything else a sheet can
-          // have done to it is occasional, so it lives in the menu.
-          let primary: RecordVerb | null = null;
+          // A draft sheet exists to be made active, so that leads; everything
+          // else a sheet can have done to it is occasional.
           const verbs: RecordVerb[] = [];
 
           if (structure.status === "DRAFT") {
-            primary = {
+            verbs.push({
               label: "Activate",
               action: "edit",
               loading: setStructureStatusMutation.isPending,
@@ -1350,7 +1467,7 @@ export function SchoolsFeesContent() {
                   structureId: structure.id,
                   status: "ACTIVE",
                 }),
-            };
+            });
           }
           verbs.push({
             label: "Copy to…",
@@ -1399,11 +1516,13 @@ export function SchoolsFeesContent() {
           });
 
           return (
-            <div className="flex items-center justify-end gap-2">
-              {primary ? (
-                <RecordActions resource="schools.fees" verbs={[primary]} />
-              ) : null}
-              <RecordActions layout="menu" resource="schools.fees" verbs={verbs} />
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.fees"
+                label={`Actions for ${structure.name}`}
+                verbs={verbs}
+              />
             </div>
           );
         },
@@ -1622,73 +1741,86 @@ export function SchoolsFeesContent() {
       >
         {/* ── invoices ─────────────────────────────────────────────────── */}
         <div className={activeView === "invoices" ? "space-y-3" : "hidden"}>
-          <div className="flex flex-wrap items-center gap-2">
-            <FilterSheet count={invoiceFilterCount}>
-              <FilterSelect
-                className="min-w-0"
-                label="Year group"
-                allLabel="Every year group"
-                value={invoiceClass}
-                options={classOptions}
-                onChange={setInvoiceClass}
-              />
-              <FilterSelect
-                className="min-w-0"
-                label="Term"
-                allLabel="Every term"
-                value={invoiceTerm}
-                options={termOptions}
-                onChange={setInvoiceTerm}
-              />
-              <FilterSelect
-                className="min-w-0"
-                label="Status"
-                allLabel="Any status"
-                value={invoiceStatus}
-                options={INVOICE_STATUSES}
-                onChange={setInvoiceStatus}
-              />
-              <DatePicker
-                label="Due from"
-                placeholder="Any date"
-                value={isoToDate(invoiceDueFrom)}
-                onChange={(date) => setInvoiceDueFrom(dateToIso(date))}
-              />
-              <DatePicker
-                label="Due to"
-                placeholder="Any date"
-                value={isoToDate(invoiceDueTo)}
-                onChange={(date) => setInvoiceDueTo(dateToIso(date))}
-              />
-              <div className="field">
-                <Label htmlFor="invoice-min">Owing at least</Label>
-                <Input
-                  id="invoice-min"
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  placeholder="Any amount"
-                  value={invoiceMinOutstanding}
-                  onChange={(event) => setInvoiceMinOutstanding(event.target.value)}
-                />
-              </div>
-            </FilterSheet>
-            <Chip
-              type="button"
-              aria-pressed={invoiceOverdue}
-              selected={invoiceOverdue}
-              onClick={() => setInvoiceOverdue((current) => !current)}
-            >
-              Overdue
-            </Chip>
-          </div>
-
           <DataTable
             data={invoices}
             columns={invoiceColumns}
             searchPlaceholder="Search invoices"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            /* One row answers narrowing, read left to right: search, then the
+               filters, then how many are left. They used to sit on a row of
+               their own above the search box, so "narrow it down" was asked in
+               two places a band apart. */
+            toolbar={
+              <>
+                <FilterSheet count={invoiceFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={invoiceClass}
+                    options={classOptions}
+                    onChange={setInvoiceClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Term"
+                    allLabel="Every term"
+                    value={invoiceTerm}
+                    options={termOptions}
+                    onChange={setInvoiceTerm}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Status"
+                    allLabel="Any status"
+                    value={invoiceStatus}
+                    options={INVOICE_STATUSES}
+                    onChange={setInvoiceStatus}
+                  />
+                  <DatePicker
+                    label="Due from"
+                    placeholder="Any date"
+                    value={isoToDate(invoiceDueFrom)}
+                    onChange={(date) => setInvoiceDueFrom(dateToIso(date))}
+                  />
+                  <DatePicker
+                    label="Due to"
+                    placeholder="Any date"
+                    value={isoToDate(invoiceDueTo)}
+                    onChange={(date) => setInvoiceDueTo(dateToIso(date))}
+                  />
+                  <div className="field">
+                    <Label htmlFor="invoice-min">Owing at least</Label>
+                    <Input
+                      id="invoice-min"
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      placeholder="Any amount"
+                      value={invoiceMinOutstanding}
+                      onChange={(event) => setInvoiceMinOutstanding(event.target.value)}
+                    />
+                  </div>
+                </FilterSheet>
+                {/* Overdue is not one of the six statuses the ledger stores —
+                    it is a bill past its due date with something still on it —
+                    so it is a switch of its own rather than a seventh option
+                    inside the status filter. */}
+                <Chip
+                  type="button"
+                  aria-pressed={invoiceOverdue}
+                  selected={invoiceOverdue}
+                  onClick={() => setInvoiceOverdue((current) => !current)}
+                >
+                  Overdue
+                </Chip>
+                <RowCount
+                  showing={invoices.length}
+                  total={invoicesQuery.data?.pagination.total}
+                />
+              </>
+            }
             rowSelection={{
               // The one bulk verb the API behind this screen can actually do:
               // `/api/v2/schools/notices` takes a list of pupils. Issuing and
@@ -1724,10 +1856,13 @@ export function SchoolsFeesContent() {
                     <MobileList.Row
                       key={row.id}
                       static={!takePayment}
-                      title={`${row.student.lastName}, ${row.student.firstName}`}
+                      title={`${row.student.firstName} ${row.student.lastName}`}
                       subtitle={`${row.invoiceNo} · ${row.term.name} · due ${formatSchoolDate(row.dueDate)}`}
                       trailing={
                         <span className="flex items-center gap-2">
+                          {/* The balance, unlabelled: it is the one fact worth
+                              keeping when the column heads go, because it is
+                              what the row is about. */}
                           <span className="font-medium tabular-nums">
                             {formatSchoolMoney(row.balanceAmount, row.currency)}
                           </span>
@@ -1748,7 +1883,14 @@ export function SchoolsFeesContent() {
             emptyState={
               invoicesQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, {}, { width: 90 }]}
+                  headers={["Invoice no", "Student", "Term", "Status", "Outstanding"]}
+                  columns={[
+                    { width: 120 },
+                    { avatar: true, twoLine: true },
+                    {},
+                    { badge: true },
+                    { width: 110, align: "right" },
+                  ]}
                 />
               ) : invoiceFilterCount > 0 || invoiceOverdue ? (
                 <NothingMatched
@@ -1781,59 +1923,73 @@ export function SchoolsFeesContent() {
 
         {/* ── receipts ─────────────────────────────────────────────────── */}
         <div className={activeView === "receipts" ? "space-y-3" : "hidden"}>
-          <FilterSheet
-            count={[receiptClass, receiptStatus, receiptFrom, receiptTo].filter(Boolean).length}
-          >
-            <FilterSelect
-              className="min-w-0"
-              label="Year group"
-              allLabel="Every year group"
-              value={receiptClass}
-              options={classOptions}
-              onChange={setReceiptClass}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Status"
-              allLabel="Any status"
-              value={receiptStatus}
-              options={RECEIPT_STATUSES}
-              onChange={setReceiptStatus}
-            />
-            <DatePicker
-              label="Received from"
-              placeholder="Any date"
-              value={isoToDate(receiptFrom)}
-              onChange={(date) => setReceiptFrom(dateToIso(date))}
-            />
-            <DatePicker
-              label="Received to"
-              placeholder="Any date"
-              value={isoToDate(receiptTo)}
-              onChange={(date) => setReceiptTo(dateToIso(date))}
-            />
-          </FilterSheet>
-
           <DataTable
             data={receipts}
             columns={receiptColumns}
             searchPlaceholder="Search receipts"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSheet count={receiptFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={receiptClass}
+                    options={classOptions}
+                    onChange={setReceiptClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Status"
+                    allLabel="Any status"
+                    value={receiptStatus}
+                    options={RECEIPT_STATUSES}
+                    onChange={setReceiptStatus}
+                  />
+                  <DatePicker
+                    label="Received from"
+                    placeholder="Any date"
+                    value={isoToDate(receiptFrom)}
+                    onChange={(date) => setReceiptFrom(dateToIso(date))}
+                  />
+                  <DatePicker
+                    label="Received to"
+                    placeholder="Any date"
+                    value={isoToDate(receiptTo)}
+                    onChange={(date) => setReceiptTo(dateToIso(date))}
+                  />
+                </FilterSheet>
+                <RowCount
+                  showing={receipts.length}
+                  total={receiptsQuery.data?.pagination.total}
+                />
+              </>
+            }
             emptyState={
               receiptsQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, {}, { width: 90 }]}
+                  headers={["Receipt no", "Student", "Method", "Status", "Received"]}
+                  columns={[
+                    { width: 120 },
+                    { avatar: true, twoLine: true },
+                    {},
+                    { badge: true },
+                    { width: 110, align: "right" },
+                  ]}
                 />
-              ) : receiptClass || receiptStatus || receiptFrom || receiptTo ? (
+              ) : receiptFilterCount > 0 ? (
                 <NothingMatched
                   what="receipts"
-                  onClear={() => {
-                    setReceiptClass("");
-                    setReceiptStatus("");
-                    setReceiptFrom("");
-                    setReceiptTo("");
-                  }}
+                  filters={[
+                    classOptions.find((option) => option.value === receiptClass)?.label ?? "",
+                    RECEIPT_STATUSES.find((option) => option.value === receiptStatus)?.label ??
+                      "",
+                    receiptFrom ? `on or after ${formatSchoolDate(receiptFrom)}` : "",
+                    receiptTo ? `on or before ${formatSchoolDate(receiptTo)}` : "",
+                  ]}
+                  onClear={clearReceiptFilters}
                 />
               ) : (
                 <NothingYet
@@ -1859,24 +2015,6 @@ export function SchoolsFeesContent() {
             Money the school is holding that belongs to families — an overpayment, or a bill
             settled beyond its total. Spend it on another invoice, or hand it back.
           </p>
-          <FilterSheet count={[creditClass, creditKind].filter(Boolean).length}>
-            <FilterSelect
-              className="min-w-0"
-              label="Year group"
-              allLabel="Every year group"
-              value={creditClass}
-              options={classOptions}
-              onChange={setCreditClass}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Source"
-              allLabel="Either source"
-              value={creditKind}
-              options={CREDIT_KINDS}
-              onChange={setCreditKind}
-            />
-          </FilterSheet>
 
           {allocateCredit.error ? (
             <SaveError what="The credit" error={allocateCredit.error} />
@@ -1888,18 +2026,52 @@ export function SchoolsFeesContent() {
             searchPlaceholder="Search credits"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSheet count={creditFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={creditClass}
+                    options={classOptions}
+                    onChange={setCreditClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Source"
+                    allLabel="Either source"
+                    value={creditKind}
+                    options={CREDIT_KINDS}
+                    onChange={setCreditKind}
+                  />
+                </FilterSheet>
+                <RowCount
+                  showing={credits.length}
+                  total={creditsQuery.data?.pagination.total}
+                />
+              </>
+            }
             emptyState={
               creditsQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ avatar: true, twoLine: true }, {}, { width: 90 }]}
+                  headers={["Student", "From", "Credit", "Held for refund", "Available"]}
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    { twoLine: true },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right" },
+                  ]}
                 />
-              ) : creditClass || creditKind ? (
+              ) : creditFilterCount > 0 ? (
                 <NothingMatched
                   what="credits"
-                  onClear={() => {
-                    setCreditClass("");
-                    setCreditKind("");
-                  }}
+                  filters={[
+                    classOptions.find((option) => option.value === creditClass)?.label ?? "",
+                    CREDIT_KINDS.find((option) => option.value === creditKind)?.label ?? "",
+                  ]}
+                  onClear={clearCreditFilters}
                 />
               ) : (
                 <NothingYet
@@ -1913,25 +2085,6 @@ export function SchoolsFeesContent() {
 
         {/* ── refunds ──────────────────────────────────────────────────── */}
         <div className={activeView === "refunds" ? "space-y-3" : "hidden"}>
-          <FilterSheet count={[refundClass, refundStatus].filter(Boolean).length}>
-            <FilterSelect
-              className="min-w-0"
-              label="Year group"
-              allLabel="Every year group"
-              value={refundClass}
-              options={classOptions}
-              onChange={setRefundClass}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Status"
-              allLabel="Any status"
-              value={refundStatus}
-              options={REFUND_STATUSES}
-              onChange={setRefundStatus}
-            />
-          </FilterSheet>
-
           {payRefund.error ? <SaveError what="The refund" error={payRefund.error} /> : null}
 
           <DataTable
@@ -1940,23 +2093,61 @@ export function SchoolsFeesContent() {
             searchPlaceholder="Search refunds"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSheet count={refundFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={refundClass}
+                    options={classOptions}
+                    onChange={setRefundClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Status"
+                    allLabel="Any status"
+                    value={refundStatus}
+                    options={REFUND_STATUSES}
+                    onChange={setRefundStatus}
+                  />
+                </FilterSheet>
+                <RowCount
+                  showing={refunds.length}
+                  total={refundsQuery.data?.pagination.total}
+                />
+              </>
+            }
             emptyState={
               refundsQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ width: 120 }, { avatar: true, twoLine: true }, { width: 90 }]}
+                  headers={["Refund no", "Student", "From", "Status", "Amount"]}
+                  columns={[
+                    { width: 120 },
+                    { avatar: true, twoLine: true },
+                    { width: 110 },
+                    { badge: true },
+                    { width: 110, align: "right" },
+                  ]}
                 />
-              ) : refundClass || refundStatus ? (
+              ) : refundFilterCount > 0 ? (
                 <NothingMatched
                   what="refunds"
-                  onClear={() => {
-                    setRefundClass("");
-                    setRefundStatus("");
-                  }}
+                  filters={[
+                    classOptions.find((option) => option.value === refundClass)?.label ?? "",
+                    REFUND_STATUSES.find((option) => option.value === refundStatus)?.label ??
+                      "",
+                  ]}
+                  onClear={clearRefundFilters}
                 />
               ) : (
-                <NothingYet
+                // Nothing to hand back is the good outcome, not a gap waiting
+                // to be filled — so there is no verb on it. A refund is always
+                // drawn against a named credit, from the Credits segment.
+                <NothingLeftToDo
                   title="No refunds"
-                  body="A refund is always drawn against a named credit — start one from the Credits tab."
+                  body="Nothing is waiting to be paid back. A refund starts from a credit on account."
                 />
               )
             }
@@ -1969,42 +2160,6 @@ export function SchoolsFeesContent() {
             A waiver is decided, then applied. Nothing comes off a bill until it is applied,
             and an applied one can be reversed if it landed on the wrong invoice.
           </p>
-          <FilterSheet
-            count={[waiverClass, waiverTerm, waiverStatus, waiverType].filter(Boolean).length}
-          >
-            <FilterSelect
-              className="min-w-0"
-              label="Year group"
-              allLabel="Every year group"
-              value={waiverClass}
-              options={classOptions}
-              onChange={setWaiverClass}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Term"
-              allLabel="Every term"
-              value={waiverTerm}
-              options={termOptions}
-              onChange={setWaiverTerm}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Status"
-              allLabel="Any status"
-              value={waiverStatus}
-              options={WAIVER_STATUSES}
-              onChange={setWaiverStatus}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Type"
-              allLabel="Any type"
-              value={waiverType}
-              options={WAIVER_TYPES}
-              onChange={setWaiverType}
-            />
-          </FilterSheet>
 
           <DataTable
             data={waivers}
@@ -2012,20 +2167,71 @@ export function SchoolsFeesContent() {
             searchPlaceholder="Search waivers"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSheet count={waiverFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={waiverClass}
+                    options={classOptions}
+                    onChange={setWaiverClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Term"
+                    allLabel="Every term"
+                    value={waiverTerm}
+                    options={termOptions}
+                    onChange={setWaiverTerm}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Status"
+                    allLabel="Any status"
+                    value={waiverStatus}
+                    options={WAIVER_STATUSES}
+                    onChange={setWaiverStatus}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Type"
+                    allLabel="Any type"
+                    value={waiverType}
+                    options={WAIVER_TYPES}
+                    onChange={setWaiverType}
+                  />
+                </FilterSheet>
+                <RowCount
+                  showing={waivers.length}
+                  total={waiversQuery.data?.pagination.total}
+                />
+              </>
+            }
             emptyState={
               waiversQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ avatar: true, twoLine: true }, {}, { width: 90 }]}
+                  headers={["Student", "Waiver type", "Status", "Amount", "Invoice"]}
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    {},
+                    { badge: true },
+                    { width: 110, align: "right" },
+                    { width: 120 },
+                  ]}
                 />
-              ) : waiverClass || waiverTerm || waiverStatus || waiverType ? (
+              ) : waiverFilterCount > 0 ? (
                 <NothingMatched
                   what="waivers"
-                  onClear={() => {
-                    setWaiverClass("");
-                    setWaiverTerm("");
-                    setWaiverStatus("");
-                    setWaiverType("");
-                  }}
+                  filters={[
+                    classOptions.find((option) => option.value === waiverClass)?.label ?? "",
+                    termOptions.find((option) => option.value === waiverTerm)?.label ?? "",
+                    WAIVER_STATUSES.find((option) => option.value === waiverStatus)?.label ??
+                      "",
+                    WAIVER_TYPES.find((option) => option.value === waiverType)?.label ?? "",
+                  ]}
+                  onClear={clearWaiverFilters}
                 />
               ) : (
                 <NothingYet
@@ -2051,34 +2257,6 @@ export function SchoolsFeesContent() {
             A school opens with one fee sheet on the first year group. Copy it up the ladder
             rather than re-typing it — the copies arrive as drafts.
           </p>
-          <FilterSheet
-            count={[structureClass, structureTerm, structureStatus].filter(Boolean).length}
-          >
-            <FilterSelect
-              className="min-w-0"
-              label="Year group"
-              allLabel="Every year group"
-              value={structureClass}
-              options={classOptions}
-              onChange={setStructureClass}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Term"
-              allLabel="Every term"
-              value={structureTerm}
-              options={termOptions}
-              onChange={setStructureTerm}
-            />
-            <FilterSelect
-              className="min-w-0"
-              label="Status"
-              allLabel="Any status"
-              value={structureStatus}
-              options={STRUCTURE_STATUSES}
-              onChange={setStructureStatus}
-            />
-          </FilterSheet>
 
           {setStructureStatusMutation.error ? (
             <SaveError what="The fee sheet" error={setStructureStatusMutation.error} />
@@ -2090,20 +2268,65 @@ export function SchoolsFeesContent() {
           <DataTable
             data={structures}
             columns={structureColumns}
-            searchPlaceholder="Search fee structures"
+            searchPlaceholder="Search fee sheets"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSheet count={structureFilterCount}>
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Year group"
+                    allLabel="Every year group"
+                    value={structureClass}
+                    options={classOptions}
+                    onChange={setStructureClass}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Term"
+                    allLabel="Every term"
+                    value={structureTerm}
+                    options={termOptions}
+                    onChange={setStructureTerm}
+                  />
+                  <FilterSelect
+                    className="min-w-0"
+                    label="Status"
+                    allLabel="Any status"
+                    value={structureStatus}
+                    options={STRUCTURE_STATUSES}
+                    onChange={setStructureStatus}
+                  />
+                </FilterSheet>
+                <RowCount
+                  showing={structures.length}
+                  total={structuresQuery.data?.pagination.total}
+                />
+              </>
+            }
             emptyState={
               structuresQuery.isPending ? (
-                <TableRowsSkeleton columns={[{ twoLine: true }, {}, { width: 90 }]} />
-              ) : structureClass || structureTerm || structureStatus ? (
+                <TableRowsSkeleton
+                  headers={["Fee sheet", "Status", "Lines", "Total", "Mandatory"]}
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    { badge: true },
+                    { width: 70, align: "right" },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right" },
+                  ]}
+                />
+              ) : structureFilterCount > 0 ? (
                 <NothingMatched
                   what="fee sheets"
-                  onClear={() => {
-                    setStructureClass("");
-                    setStructureTerm("");
-                    setStructureStatus("");
-                  }}
+                  filters={[
+                    classOptions.find((option) => option.value === structureClass)?.label ?? "",
+                    termOptions.find((option) => option.value === structureTerm)?.label ?? "",
+                    STRUCTURE_STATUSES.find((option) => option.value === structureStatus)
+                      ?.label ?? "",
+                  ]}
+                  onClear={clearStructureFilters}
                 />
               ) : (
                 <NothingYet

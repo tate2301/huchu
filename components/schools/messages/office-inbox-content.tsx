@@ -4,7 +4,15 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button, Card } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { EntityLink } from "@/components/records/entity-link";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import {
+  TableControls,
+  TableSearch,
+} from "@/components/schools/common/table-controls";
 import { PageBand } from "@/components/schools/common/page-band";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import {
@@ -107,10 +115,17 @@ const SEGMENTS = [
 type SegmentId = (typeof SEGMENTS)[number]["id"];
 
 /** "3 days", "4 hours", "just now" — how long the other side has been waiting. */
-function waitedFor(iso: string): string {
+/**
+ * How long a family has been waiting, against one `now` for the whole render.
+ *
+ * `now` is a parameter rather than a `Date.now()` inside: a queue drawn a row
+ * at a time across a minute boundary labels half its rows "59 minutes" and
+ * half "1 hour", which reads as a list that disagrees with itself.
+ */
+function waitedFor(iso: string, now: number): string {
   const then = new Date(iso).getTime();
   if (Number.isNaN(then)) return "—";
-  const minutes = Math.max(0, Math.round((Date.now() - then) / 60000));
+  const minutes = Math.max(0, Math.round((now - then) / 60000));
   if (minutes < 60) return minutes <= 1 ? "just now" : `${minutes} minutes`;
   const hours = Math.round(minutes / 60);
   if (hours < 48) return hours === 1 ? "1 hour" : `${hours} hours`;
@@ -234,6 +249,12 @@ export function OfficeInboxContent() {
     enabled: Boolean(reading),
   });
 
+  /**
+   * One `now` for the whole render, so the waiting times on a queue of forty
+   * conversations are all measured from the same instant.
+   */
+  const now = new Date().getTime();
+
   const filtersInForce = [
     staffFilter === "__office__"
       ? "the office"
@@ -270,57 +291,86 @@ export function OfficeInboxContent() {
       {close.error ? <SaveError what="The conversation" error={close.error} /> : null}
       {reply.error ? <SaveError what="Your answer" error={reply.error} /> : null}
 
-      <div className="flex flex-wrap items-center gap-2">
-        {SEGMENTS.map((entry) => (
-          <Button
-            key={entry.id}
-            size="sm"
-            variant={segment === entry.id ? "primary" : "secondary"}
-            onClick={() => setSegment(entry.id)}
-          >
-            {entry.label}
-            <span className="ml-1.5 tabular-nums opacity-70">{counts[entry.id]}</span>
-          </Button>
-        ))}
-      </div>
+      {/*
+        Which queue, then how it is narrowed, then how many are left — one row
+        directly above the conversations, the same order every other register
+        in the module reads in. The five queues were a row of primary buttons
+        and the narrowing a band below them, so "which conversations am I
+        looking at" was answered twice, in two vocabularies.
 
-      <FilterBar>
-        <FilterSelect
-          label="With whom"
-          allLabel="Anyone"
-          value={staffFilter}
-          options={[
-            { value: "__office__", label: "The office — nobody yet" },
-            ...staff.map((row) => ({ value: row.id, label: row.user.name })),
-          ]}
-          onChange={setStaffFilter}
-        />
-        <div className="min-w-0 flex-1 basis-[220px] sm:max-w-[280px]">
-          <label
-            htmlFor="messages-search"
-            className="text-sm text-[color:var(--text-muted)]"
+        A segment REPLACES the population and a filter narrows it, so exactly
+        one segment is ever lit and choosing one never leaves a second control
+        silently in force.
+      */}
+      <TableControls
+        tabs={
+          <div
+            role="tablist"
+            aria-label="Conversation queues"
+            className="flex min-w-0 items-center gap-0.5 self-end overflow-x-auto rounded-[7px] bg-[color:var(--surface-sunken)] p-0.5"
           >
-            Search
-          </label>
-          <input
-            id="messages-search"
+            {SEGMENTS.map((entry) => (
+              <button
+                key={entry.id}
+                type="button"
+                role="tab"
+                aria-selected={segment === entry.id}
+                onClick={() => setSegment(entry.id)}
+                className={
+                  segment === entry.id
+                    ? "flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] bg-[color:var(--surface)] px-2.5 text-sm font-bold text-[color:var(--text-strong)] shadow-[var(--shadow-xs)]"
+                    : "flex h-[26px] shrink-0 items-center gap-1.5 whitespace-nowrap rounded-[5px] px-2.5 text-sm font-medium text-[color:var(--text-muted)] hover:text-[color:var(--text-strong)]"
+                }
+              >
+                <span>{entry.label}</span>
+                {/* A nought is not a count anywhere else in the product and is
+                    not one here — an empty queue says so by being empty. */}
+                {counts[entry.id] > 0 ? (
+                  <span className="font-mono text-sm tabular-nums text-[color:var(--text-subtle)]">
+                    {counts[entry.id]}
+                  </span>
+                ) : null}
+              </button>
+            ))}
+          </div>
+        }
+        search={
+          <TableSearch
             value={search}
+            onChange={setSearch}
             placeholder="A family, a pupil, or what it is about"
-            onChange={(event) => setSearch(event.target.value)}
-            className="h-9 w-full rounded-[var(--radius-md)] border border-[color:var(--border)] bg-[color:var(--surface)] px-3 text-[length:var(--type-body-sm)]"
           />
-        </div>
-      </FilterBar>
+        }
+        filters={
+          <FilterSelect
+            label="With whom"
+            allLabel="Anyone"
+            value={staffFilter}
+            options={[
+              // "Nobody yet" is its own entry rather than being folded into
+              // Anyone: a conversation nobody owns is the one this queue is
+              // most often opened to find.
+              { value: "__office__", label: "The office — nobody yet" },
+              ...staff.map((row) => ({ value: row.id, label: row.user.name })),
+            ]}
+            onChange={setStaffFilter}
+          />
+        }
+        filterCount={activeFilterCount(staffFilter)}
+        count={
+          threads.length > rows.length ? `${rows.length} of ${threads.length}` : rows.length
+        }
+      />
 
       <Card flush>
         {threadsQuery.isPending ? (
           <TableRowsSkeleton
             columns={[
-              { width: 120 },
+              { width: 120, badge: true },
               { avatar: true, twoLine: true },
-              {},
-              { width: 140 },
-              { width: 90 },
+              { width: 160 },
+              { width: 88, align: "right" },
+              { width: 40 },
             ]}
           />
         ) : rows.length === 0 ? (
@@ -378,10 +428,19 @@ export function OfficeInboxContent() {
                       {thread.subject}
                     </p>
                     <p className="truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {fullName(thread.guardian)}
-                      {thread.student
-                        ? ` · about ${fullName(thread.student)}`
-                        : " · a general enquiry"}
+                      <EntityLink href={`/schools/guardians/${thread.guardian.id}`} muted>
+                        {fullName(thread.guardian)}
+                      </EntityLink>
+                      {thread.student ? (
+                        <>
+                          {" · about "}
+                          <EntityLink href={`/schools/students/${thread.student.id}`} muted>
+                            {fullName(thread.student)}
+                          </EntityLink>
+                        </>
+                      ) : (
+                        " · a general enquiry"
+                      )}
                     </p>
                   </div>
 
@@ -390,11 +449,13 @@ export function OfficeInboxContent() {
                   </span>
 
                   <span className="w-[5.5rem] shrink-0 text-right font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
-                    {waitedFor(thread.lastMessageAt)}
+                    {waitedFor(thread.lastMessageAt, now)}
                   </span>
 
                   <RecordActions
+                    layout="menu"
                     resource="schools.reports"
+                    label={`Actions for “${thread.subject}”`}
                     verbs={[
                       {
                         label: "Read",

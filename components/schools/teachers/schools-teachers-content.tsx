@@ -3,14 +3,16 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { PageChrome } from "@/components/layout/page-chrome";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell } from "@/components/records/record-table";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import {
   CreateButton,
   RecordActions,
@@ -347,23 +349,25 @@ export function SchoolsTeachersContent() {
         id: "teacher",
         header: "Teacher",
         // Staff get a face for the same reason pupils do: a directory is
-        // scanned, not read.
+        // scanned, not read. The employee code is the supporting line because
+        // it is the half that is unique; the email moved to a column of its
+        // own, because an address is somewhere you can write TO and a code is
+        // something you compare — setting the two in one mono grey run said
+        // they were the same kind of fact.
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar name={row.original.user.name} />
-            <div className="min-w-0">
-              <Link
-                href={`/schools/teachers/${row.original.id}`}
-                className="block truncate font-medium text-[var(--text-link)] hover:underline"
-              >
-                {row.original.user.name}
-              </Link>
-              <div className="truncate font-mono text-sm text-[var(--text-muted)]">
-                {row.original.employeeCode} / {row.original.user.email}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="teacher"
+            href={`/schools/teachers/${row.original.id}`}
+            name={row.original.user.name}
+            reference={row.original.employeeCode}
+            context={row.original.department || undefined}
+          />
         ),
+      },
+      {
+        id: "email",
+        header: "Email",
+        cell: ({ row }) => <RecordCell kind="email" value={row.original.user.email} />,
       },
       {
         id: "department",
@@ -420,7 +424,7 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => {
           const profile = row.original;
           const verbs: RecordVerb[] = [
@@ -462,7 +466,14 @@ export function SchoolsTeachersContent() {
                 },
           );
           return (
-            <RecordActions layout="menu" resource="schools.teachers" verbs={verbs} />
+            <div className="flex justify-end">
+              <RecordActions
+                layout="menu"
+                resource="schools.teachers"
+                label={`Actions for ${profile.user.name}`}
+                verbs={verbs}
+              />
+            </div>
           );
         },
       },
@@ -478,12 +489,12 @@ export function SchoolsTeachersContent() {
         // Name first: the list is sorted by name, and leading with the code
         // made an alphabetical list look arbitrary.
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium">{row.original.name}</div>
-            <div className="font-mono text-sm text-[var(--text-muted)]">
-              {row.original.code}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="subject"
+            href={`/management/master-data/schools/subjects/${row.original.id}`}
+            name={row.original.name}
+            reference={row.original.code}
+          />
         ),
       },
       {
@@ -516,36 +527,44 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            {/* Amending a subject is `schools.academics`, which is what
+                `/api/v2/schools/subjects/[id]` checks. Creating one is
+                `schools.teachers`. See the note at the top of the file. */}
+            <RecordActions
               layout="menu"
-            // Amending a subject is `schools.academics`, which is what
-            // `/api/v2/schools/subjects/[id]` checks. Creating one is
-            // `schools.teachers`. See the note at the top of the file.
-            resource="schools.academics"
-            verbs={[
-              { label: "Edit", action: "edit", onSelect: () => editSubject(row.original) },
-              {
-                label: "Delete",
-                action: "archive",
-                tone: "danger",
-                loading:
-                  deleteSubject.isPending && deleteSubject.variables?.id === row.original.id,
-                unavailable:
-                  row.original._count.classSubjects > 0
-                    ? "It is on a timetable. Turn it off with Edit instead — the marks recorded in it stay readable."
-                    : undefined,
-                confirm: {
-                  title: `Delete ${row.original.name}?`,
-                  description:
-                    "The subject leaves the syllabus entirely. A subject the school has simply stopped offering should be turned off instead, so its results stay readable.",
-                  confirmLabel: "Delete the subject",
+              resource="schools.academics"
+              label={`Actions for ${row.original.name}`}
+              verbs={[
+                {
+                  label: "Edit",
+                  action: "edit",
+                  onSelect: () => editSubject(row.original),
                 },
-                onSelect: () => deleteSubject.mutate(row.original),
-              },
-            ]}
-          />
+                {
+                  label: "Delete",
+                  action: "archive",
+                  tone: "danger",
+                  loading:
+                    deleteSubject.isPending &&
+                    deleteSubject.variables?.id === row.original.id,
+                  unavailable:
+                    row.original._count.classSubjects > 0
+                      ? "It is on a timetable. Turn it off with Edit instead — the marks recorded in it stay readable."
+                      : undefined,
+                  confirm: {
+                    title: `Delete ${row.original.name}?`,
+                    description:
+                      "The subject leaves the syllabus entirely. A subject the school has simply stopped offering should be turned off instead, so its results stay readable.",
+                    confirmLabel: "Delete the subject",
+                  },
+                  onSelect: () => deleteSubject.mutate(row.original),
+                },
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -558,32 +577,39 @@ export function SchoolsTeachersContent() {
         id: "teacher",
         header: "Teacher",
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <Link
-              href={`/schools/teachers/${row.original.teacherProfile.id}`}
-              className="block truncate font-medium text-[var(--text-link)] hover:underline"
-            >
-              {row.original.teacherProfile.user.name}
-            </Link>
-            <div className="font-mono text-sm text-[var(--text-muted)]">
-              {row.original.teacherProfile.employeeCode}
-            </div>
-          </div>
+          <PersonCell
+            kind="teacher"
+            href={`/schools/teachers/${row.original.teacherProfile.id}`}
+            name={row.original.teacherProfile.user.name}
+            reference={row.original.teacherProfile.employeeCode}
+          />
         ),
       },
       {
         id: "classSubject",
-        header: "Class / Subject",
+        header: "Class / subject",
+        // Both halves are records, so both are links: an assignment is the
+        // edge between them, and the question after "who teaches this" is
+        // almost always about one end of it.
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="truncate font-medium">
-              {row.original.class.name}
-              {row.original.stream ? ` / ${row.original.stream.name}` : ""}
-            </div>
-            <div className="truncate text-sm text-[var(--text-muted)]">
-              {row.original.subject.code} — {row.original.subject.name}
-            </div>
-          </div>
+          <span className="block min-w-0">
+            <span className="block truncate font-medium">
+              <EntityLink
+                href={`/management/master-data/schools/classes/${row.original.class.id}`}
+              >
+                {row.original.class.name}
+                {row.original.stream ? ` / ${row.original.stream.name}` : ""}
+              </EntityLink>
+            </span>
+            <span className="acct-caption block truncate font-mono">
+              <EntityLink
+                href={`/management/master-data/schools/subjects/${row.original.subject.id}`}
+                muted
+              >
+                {row.original.subject.code} — {row.original.subject.name}
+              </EntityLink>
+            </span>
+          </span>
         ),
       },
       {
@@ -607,33 +633,36 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "Actions",
+        header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            <RecordActions
               layout="menu"
-            resource="schools.teachers"
-            verbs={[
-              {
-                label: "Edit",
-                action: "edit",
-                onSelect: () => editAssignment(row.original),
-              },
-              {
-                label: "Remove",
-                action: "archive",
-                tone: "danger",
-                loading:
-                  deleteAssignment.isPending &&
-                  deleteAssignment.variables?.id === row.original.id,
-                confirm: {
-                  title: "Remove this assignment?",
-                  description: `${row.original.teacherProfile.user.name} stops teaching ${row.original.subject.name} to ${row.original.class.name}. Marks recorded against the lesson go with it — turn it off instead if the term simply ended.`,
-                  confirmLabel: "Remove the assignment",
+              resource="schools.teachers"
+              label={`Actions for ${row.original.teacherProfile.user.name}, ${row.original.subject.name}`}
+              verbs={[
+                {
+                  label: "Edit",
+                  action: "edit",
+                  onSelect: () => editAssignment(row.original),
                 },
-                onSelect: () => deleteAssignment.mutate(row.original),
-              },
-            ]}
-          />
+                {
+                  label: "Remove",
+                  action: "archive",
+                  tone: "danger",
+                  loading:
+                    deleteAssignment.isPending &&
+                    deleteAssignment.variables?.id === row.original.id,
+                  confirm: {
+                    title: "Remove this assignment?",
+                    description: `${row.original.teacherProfile.user.name} stops teaching ${row.original.subject.name} to ${row.original.class.name}. Marks recorded against the lesson go with it — turn it off instead if the term simply ended.`,
+                    confirmLabel: "Remove the assignment",
+                  },
+                  onSelect: () => deleteAssignment.mutate(row.original),
+                },
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -768,22 +797,6 @@ export function SchoolsTeachersContent() {
         railLabel="Teacher views"
       >
         <div className={activeView === "profiles" ? "space-y-3" : "hidden"}>
-          <FilterBar>
-            <FilterSelect
-              label="Status"
-              allLabel="On the staff"
-              value={profileActive}
-              options={STAFF_OPTIONS}
-              onChange={(value) => setProfileActive(value as ActiveFilter)}
-            />
-            <FilterSelect
-              label="Department"
-              allLabel="Every department"
-              value={department}
-              options={departmentOptions}
-              onChange={setDepartment}
-            />
-          </FilterBar>
           <DataTable
             data={profiles}
             columns={profileColumns}
@@ -791,6 +804,27 @@ export function SchoolsTeachersContent() {
             searchPlaceholder="Search teacher profiles"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            /* Narrowing is answered in one row. The filters sat on a row of
+               their own above the search box, so the same question was asked
+               in two places a band apart. */
+            toolbar={
+              <>
+                <FilterSelect
+                  label="Status"
+                  allLabel="On the staff"
+                  value={profileActive}
+                  options={STAFF_OPTIONS}
+                  onChange={(value) => setProfileActive(value as ActiveFilter)}
+                />
+                <FilterSelect
+                  label="Department"
+                  allLabel="Every department"
+                  value={department}
+                  options={departmentOptions}
+                  onChange={setDepartment}
+                />
+              </>
+            }
             mobileListRenderer={({ rows }) => (
               <MobileList>
                 {rows.length === 0 ? (
@@ -812,6 +846,11 @@ export function SchoolsTeachersContent() {
                       ]
                         .filter(Boolean)
                         .join(" · ")}
+                      trailing={
+                        <span className="font-mono text-xs tabular-nums">
+                          {row._count.assignments}
+                        </span>
+                      }
                       onClick={() => {
                         window.location.href = `/schools/teachers/${row.id}`;
                       }}
@@ -823,13 +862,21 @@ export function SchoolsTeachersContent() {
             emptyState={
               profilesQuery.isPending ? (
                 <TableRowsSkeleton
+                  headers={[
+                    "Teacher",
+                    "Email",
+                    "Department",
+                    "Assignments",
+                    "HR record",
+                    "Status",
+                  ]}
                   columns={[
                     { avatar: true, twoLine: true },
-                    { width: 140 },
                     { width: 185 },
-                    { width: 95 },
-                    { width: 195 },
-                    { width: 85 },
+                    { width: 140 },
+                    { width: 95, align: "right" },
+                    { width: 140, badge: true },
+                    { width: 85, badge: true },
                   ]}
                 />
               ) : profileFilters.length > 0 ? (
@@ -859,21 +906,21 @@ export function SchoolsTeachersContent() {
         </div>
 
         <div className={activeView === "subjects" ? "space-y-3" : "hidden"}>
-          <FilterBar>
-            <FilterSelect
-              label="Status"
-              allLabel="All subjects"
-              value={subjectActive}
-              options={TAUGHT_OPTIONS}
-              onChange={(value) => setSubjectActive(value as ActiveFilter)}
-            />
-          </FilterBar>
           <DataTable
             data={subjects}
             columns={subjectColumns}
             searchPlaceholder="Search subjects"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <FilterSelect
+                label="Status"
+                allLabel="All subjects"
+                value={subjectActive}
+                options={TAUGHT_OPTIONS}
+                onChange={(value) => setSubjectActive(value as ActiveFilter)}
+              />
+            }
             mobileListRenderer={({ rows }) => (
               <MobileList>
                 {rows.length === 0 ? (
@@ -889,7 +936,7 @@ export function SchoolsTeachersContent() {
                       subtitle={[
                         row.code,
                         row.isCore ? "Core" : "Optional",
-                        `Pass ${row.passMark}%`,
+                        `Pass mark ${row.passMark}%`,
                         row.isActive ? null : "Retired",
                       ]
                         .filter(Boolean)
@@ -902,7 +949,14 @@ export function SchoolsTeachersContent() {
             emptyState={
               subjectsQuery.isPending ? (
                 <TableRowsSkeleton
-                  columns={[{ twoLine: true }, { width: 90 }, { width: 110 }, { width: 110 }, { width: 90 }]}
+                  headers={["Subject", "Core", "Pass mark", "Assignments", "Active"]}
+                  columns={[
+                    { avatar: true, twoLine: true },
+                    { width: 90, badge: true },
+                    { width: 110, align: "right" },
+                    { width: 110, align: "right" },
+                    { width: 90, badge: true },
+                  ]}
                 />
               ) : subjectActive !== "" ? (
                 <NothingMatched
@@ -928,35 +982,46 @@ export function SchoolsTeachersContent() {
         </div>
 
         <div className={activeView === "assignments" ? "space-y-3" : "hidden"}>
-          <FilterBar>
-            <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
-              value={assignmentClassId}
-              options={yearGroupOptions}
-              onChange={setAssignmentClassId}
-            />
-            <FilterSelect
-              label="Subject"
-              allLabel="Every subject"
-              value={assignmentSubjectId}
-              options={subjectFilterOptions}
-              onChange={setAssignmentSubjectId}
-            />
-            <FilterSelect
-              label="Status"
-              allLabel="Everyone"
-              value={assignmentActive}
-              options={TAUGHT_OPTIONS}
-              onChange={(value) => setAssignmentActive(value as ActiveFilter)}
-            />
-          </FilterBar>
           <DataTable
             data={assignments}
             columns={assignmentColumns}
             searchPlaceholder="Search assignments"
             searchSubmitLabel="Search"
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSelect
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={assignmentClassId}
+                  options={yearGroupOptions}
+                  onChange={setAssignmentClassId}
+                />
+                <FilterSelect
+                  label="Subject"
+                  allLabel="Every subject"
+                  value={assignmentSubjectId}
+                  options={subjectFilterOptions}
+                  onChange={setAssignmentSubjectId}
+                />
+                <FilterSelect
+                  label="Status"
+                  allLabel="Everyone"
+                  value={assignmentActive}
+                  options={TAUGHT_OPTIONS}
+                  onChange={(value) => setAssignmentActive(value as ActiveFilter)}
+                />
+                {/* This list is every lesson that HAS a teacher. The question
+                    it cannot answer is the one an office asks in the first
+                    week — which lesson has nobody against it — and the only
+                    screen that answers it had nothing but the sidebar pointing
+                    at it. Labelled for what it is for rather than for what it
+                    contains. */}
+                <Button asChild variant="secondary" size="sm">
+                  <Link href="/schools/teachers/assignments">Find the gaps</Link>
+                </Button>
+              </>
+            }
             rowGroup={(row) => ({
               key: `${row.class.id}:${row.stream?.id ?? ""}`,
               label: row.stream
@@ -993,12 +1058,13 @@ export function SchoolsTeachersContent() {
             emptyState={
               assignmentsQuery.isPending ? (
                 <TableRowsSkeleton
+                  headers={["Teacher", "Class / subject", "Term", "Pass mark", "Active"]}
                   columns={[
-                    { twoLine: true },
+                    { avatar: true, twoLine: true },
                     { twoLine: true },
                     { width: 120 },
-                    { width: 110 },
-                    { width: 90 },
+                    { width: 110, align: "right" },
+                    { width: 90, badge: true },
                   ]}
                 />
               ) : assignmentFilters.length > 0 ? (

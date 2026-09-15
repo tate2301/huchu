@@ -102,7 +102,14 @@ export function PersonCell({
   );
 
   if (!href) {
-    return <span className={cn("block min-w-0", className)}>{cell}</span>;
+    // `RecordTableName` underlines its title unconditionally, which is right
+    // where the cell is a link and a lie where it is not: a picker row that
+    // selects rather than opens was advertising a destination it does not have.
+    // Unset on the wrapper rather than forked in the name, so there is still
+    // one identity grammar and only its cue changes.
+    return (
+      <span className={cn("block min-w-0 [&_.underline]:no-underline", className)}>{cell}</span>
+    );
   }
 
   return (
@@ -153,7 +160,14 @@ export function RecordNameCell({
   );
 
   if (!href) {
-    return <span className={cn("block min-w-0", className)}>{cell}</span>;
+    // `RecordTableName` underlines its title unconditionally, which is right
+    // where the cell is a link and a lie where it is not: a picker row that
+    // selects rather than opens was advertising a destination it does not have.
+    // Unset on the wrapper rather than forked in the name, so there is still
+    // one identity grammar and only its cue changes.
+    return (
+      <span className={cn("block min-w-0 [&_.underline]:no-underline", className)}>{cell}</span>
+    );
   }
 
   return (

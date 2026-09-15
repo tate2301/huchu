@@ -2,7 +2,7 @@
 
 import { useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { Input } from "@/components/ui/input";
@@ -10,9 +10,11 @@ import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { PageBand } from "@/components/schools/common/page-band";
+import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   CardsSkeleton,
+  ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
@@ -784,10 +786,10 @@ export function SchoolDocumentsContent() {
             >
               <div className="space-y-3">
                 <div>
-                  <Label htmlFor="doc-student-search">Search students</Label>
+                  <Label htmlFor="doc-student-search">Search the roll</Label>
                   <Input
                     id="doc-student-search"
-                    placeholder="Search by name or student number..."
+                    placeholder="Search name or admission number"
                     value={search}
                     onChange={(event) => setSearch(event.target.value)}
                   />
@@ -798,10 +800,7 @@ export function SchoolDocumentsContent() {
                     // is a scroll of name-shaped rows. The sentence that used to
                     // sit here collapsed the box to one line and then shoved
                     // twenty rows in underneath it.
-                    <TableRowsSkeleton
-                      rows={5}
-                      columns={[{ width: 84 }, { twoLine: true }, { width: 70, badge: true }]}
-                    />
+                    <ListRowsSkeleton rows={5} fact={false} label="Loading the roll" />
                   ) : studentsQuery.isError ? null : searched.length === 0 ? (
                     rollNotStarted ? (
                       // No active pupil, with nothing narrowing it. That is a
@@ -830,15 +829,27 @@ export function SchoolDocumentsContent() {
                         }`}
                         onClick={() => setSelectedStudentId(student.id)}
                       >
-                        <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                          {student.studentNo}
-                        </span>{" "}
-                        {student.firstName} {student.lastName}
-                        {student.currentClass ? (
-                          <Badge tone="outline" className="ml-2">
-                            {student.currentClass.name}
-                          </Badge>
-                        ) : null}
+                        {/* The module's identity grammar — a mark, the name,
+                            then the admission number and the year group under
+                            it — without the standing underline the linked
+                            version carries, because this row picks a pupil
+                            rather than opening one. */}
+                        <span className="flex min-w-0 items-center gap-2.5">
+                          <PersonAvatar
+                            firstName={student.firstName}
+                            lastName={student.lastName}
+                          />
+                          <span className="min-w-0">
+                            <span className="block truncate font-semibold text-[color:var(--text-strong)]">
+                              {student.firstName} {student.lastName}
+                            </span>
+                            <span className="acct-caption block truncate font-mono">
+                              {[student.studentNo, student.currentClass?.name]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </span>
+                          </span>
+                        </span>
                       </button>
                     ))
                   )}

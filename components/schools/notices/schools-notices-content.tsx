@@ -10,7 +10,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -286,7 +286,7 @@ export function SchoolsNoticesContent() {
         id: "audience",
         header: "Audience",
         cell: ({ row }) => (
-          <span>
+          <span className="block truncate">
             {row.original.audience}
             {row.original.className ? ` · ${row.original.className}` : ""}
           </span>
@@ -335,28 +335,31 @@ export function SchoolsNoticesContent() {
         id: "verbs",
         header: "",
         cell: ({ row }) => (
-          <RecordActions
+          <div className="flex justify-end">
+            <RecordActions
               layout="menu"
-            resource="schools.reports"
-            verbs={[
-              {
-                label: "Send a correction",
-                action: "create",
-                onSelect: () => {
-                  setSent(null);
-                  setCorrecting({
-                    id: row.original.id,
-                    title: row.original.title,
-                    audience: row.original.audienceCode,
-                    classId: row.original.classId,
-                    severity: severityCode(row.original.severity),
-                    sentOn: formatSchoolDate(row.original.createdAt),
-                  });
-                  setComposing(true);
+              resource="schools.reports"
+              label={`Actions for “${row.original.title}”`}
+              verbs={[
+                {
+                  label: "Send a correction",
+                  action: "create",
+                  onSelect: () => {
+                    setSent(null);
+                    setCorrecting({
+                      id: row.original.id,
+                      title: row.original.title,
+                      audience: row.original.audienceCode,
+                      classId: row.original.classId,
+                      severity: severityCode(row.original.severity),
+                      sentOn: formatSchoolDate(row.original.createdAt),
+                    });
+                    setComposing(true);
+                  },
                 },
-              },
-            ]}
-          />
+              ]}
+            />
+          </div>
         ),
       },
     ],
@@ -426,43 +429,18 @@ export function SchoolsNoticesContent() {
 
       <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card flush title="Notices the school has sent">
-          <div className="px-3 pt-3">
-            <FilterBar>
-              <FilterSelect
-                label="Who it was for"
-                allLabel="Every audience"
-                value={audience}
-                options={AUDIENCES}
-                onChange={setAudience}
-              />
-              <FilterSelect
-                label="Year group"
-                allLabel="The whole school"
-                value={classId}
-                options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                onChange={setClassId}
-              />
-              <FilterSelect
-                label="Importance"
-                allLabel="Any importance"
-                value={importance}
-                options={IMPORTANCE}
-                onChange={setImportance}
-              />
-              <FilterSelect
-                label="When"
-                allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
-                value={when}
-                options={WHEN}
-                onChange={setWhen}
-              />
-            </FilterBar>
-          </div>
-
           {query.isPending ? (
             <TableRowsSkeleton
               rows={6}
-              columns={[{ width: 60 }, { twoLine: true }, { width: 140 }, { width: 90 }, { width: 110 }]}
+              headers={["Sent", "Notice", "Audience", "Importance", "Read", "Expires"]}
+              columns={[
+                { width: 70 },
+                { twoLine: true },
+                { width: 140 },
+                { width: 100, badge: true },
+                { width: 120 },
+                { width: 80 },
+              ]}
             />
           ) : (
             <DataTable
@@ -471,6 +449,41 @@ export function SchoolsNoticesContent() {
               searchPlaceholder="Search sent notices"
               searchSubmitLabel="Search"
               pagination={{ enabled: true }}
+              /* One row answers narrowing. The filters sat on a row of their
+                 own above the search box, so the same question was asked in
+                 two places a band apart. */
+              toolbar={
+                <>
+                  <FilterSelect
+                    label="Who it was for"
+                    allLabel="Every audience"
+                    value={audience}
+                    options={AUDIENCES}
+                    onChange={setAudience}
+                  />
+                  <FilterSelect
+                    label="Year group"
+                    allLabel="The whole school"
+                    value={classId}
+                    options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                    onChange={setClassId}
+                  />
+                  <FilterSelect
+                    label="Importance"
+                    allLabel="Any importance"
+                    value={importance}
+                    options={IMPORTANCE}
+                    onChange={setImportance}
+                  />
+                  <FilterSelect
+                    label="When"
+                    allLabel={activeTerm ? `${activeTerm.name}` : "This term"}
+                    value={when}
+                    options={WHEN}
+                    onChange={setWhen}
+                  />
+                </>
+              }
               emptyState={
                 rows.length === 0 ? (
                   <NothingYet

@@ -2,9 +2,10 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
+import { EntityLink } from "@/components/records/entity-link";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
@@ -191,6 +192,7 @@ export function BoardingHostelsContent({
         chips={[
           { label: "Hostels", value: hostels.length },
           { label: "Boarders", value: boarders, tone: "brand" },
+          { label: "Rooms", value: rooms.length },
           { label: "Beds free", value: bedsFree, tone: bedsFree > 0 ? "success" : "warn" },
           {
             label: "No bed",
@@ -243,23 +245,20 @@ export function BoardingHostelsContent({
               siblings, so the page's own vertical rhythm has to be restated
               inside it or the cards close up against each other. */}
           <div className="space-y-3">
-            <div className="grid gap-3 sm:grid-cols-3">
-              <StatCard label="Boarders" value={boarders} />
-              <StatCard
-                label="Beds free"
-                value={bedsFree}
-                tone={bedsFree > 0 ? "success" : "warn"}
-              />
-              <StatCard label="Rooms" value={rooms.length} />
-            </div>
-
             {unbedded.length > 0 ? (
               <Alert
                 tone="warn"
                 title={`${unbedded.length} boarder${unbedded.length === 1 ? " has" : "s have"} no bed`}
               >
-                {unbedded.map((row) => `${row.lastName}, ${row.firstName}`).join(" · ")} —
-                allocated to the house but not to a bed.
+                {unbedded.map((row, index) => (
+                  <span key={row.id}>
+                    {index > 0 ? " · " : ""}
+                    <EntityLink href={`/schools/students/${row.id}`}>
+                      {row.firstName} {row.lastName}
+                    </EntityLink>
+                  </span>
+                ))}{" "}
+                — allocated to the house but not to a bed.
               </Alert>
             ) : null}
 
@@ -316,7 +315,14 @@ export function BoardingHostelsContent({
                   onChange={setChosen}
                 />
               }
-              actions={<RecordActions resource="schools.boarding" verbs={hostelVerbs} />}
+              actions={
+                <RecordActions
+                  layout="menu"
+                  resource="schools.boarding"
+                  label={`Actions for ${hostel?.name ?? "this house"}`}
+                  verbs={hostelVerbs}
+                />
+              }
             />
 
             <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1fr)_320px]">

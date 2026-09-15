@@ -6,6 +6,7 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { EntityLink } from "@/components/records/entity-link";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
@@ -19,11 +20,11 @@ import {
   type RecordVerb,
 } from "@/components/schools/common/record-actions";
 import {
+  CardsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-  TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -298,15 +299,18 @@ export function LibraryContent() {
             />
           </>
         }
+        // How many titles the narrowing left, out of the catalogue. It moves
+        // when the filters move, so it belongs beside them rather than in the
+        // band above — the band's numbers are about the library.
+        count={
+          allBooks.length > books.length
+            ? `${books.length.toLocaleString()} of ${allBooks.length.toLocaleString()}`
+            : books.length.toLocaleString()
+        }
       />
 
-      <p className="text-sm text-muted-foreground">
-        {books.length.toLocaleString()} title{books.length === 1 ? "" : "s"} ·{" "}
-        {onShelf.toLocaleString()} cop{onShelf === 1 ? "y" : "ies"} on the shelf
-      </p>
-
       {libraryQuery.isLoading ? (
-        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 120 }]} rows={6} />
+        <CardsSkeleton count={12} columns={4} lines={1} label="Loading the shelves" />
       ) : books.length === 0 ? (
         allBooks.length === 0 ? (
           <NothingYet
@@ -384,7 +388,9 @@ export function LibraryContent() {
                       </span>
                       <span className="ml-auto">
                         <RecordActions
+                          layout="menu"
                           resource="schools.academics"
+                          label={`Actions for ${book.title}`}
                           verbs={[
                             {
                               label: "Edit",
@@ -445,15 +451,30 @@ export function LibraryContent() {
                                 {copy.copyCode}
                               </span>
                               <span className="min-w-0 flex-1 truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                                {loan
-                                  ? `${loan.student.lastName}, ${loan.student.firstName} · back by ${loan.dueAt.slice(0, 10)}`
-                                  : (book.shelfMark ?? "On the shelf")}
+                                {loan ? (
+                                  <>
+                                    <EntityLink href={`/schools/students/${loan.student.id}`}>
+                                      {loan.student.firstName} {loan.student.lastName}
+                                    </EntityLink>
+                                    {" · back by "}
+                                    {/* The raw ISO slice, not a formatted date:
+                                        the due date decides whether the badge
+                                        beside it is late, and a locale-derived
+                                        string would differ between the server
+                                        render and the browser's. */}
+                                    {loan.dueAt.slice(0, 10)}
+                                  </>
+                                ) : (
+                                  (book.shelfMark ?? "On the shelf")
+                                )}
                               </span>
                               <Badge tone={loan ? "brand" : "success"}>
                                 {loan ? "Out" : "In"}
                               </Badge>
                               <RecordActions
+                                layout="menu"
                                 resource="schools.academics"
+                                label={`Actions for copy ${copy.copyCode}`}
                                 verbs={verbs}
                               />
                             </div>
@@ -467,7 +488,7 @@ export function LibraryContent() {
                                   options={(readersQuery.data?.data ?? []).map(
                                     (student) => ({
                                       value: student.id,
-                                      label: `${student.lastName}, ${student.firstName} · ${student.studentNo}`,
+                                      label: `${student.firstName} ${student.lastName} · ${student.studentNo}`,
                                     }),
                                   )}
                                   onChange={setReader}

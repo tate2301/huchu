@@ -105,8 +105,7 @@ export function BoardingLeaveContent() {
   const filterNames = [
     hostels.find((hostel) => hostel.id === hostelFilter)?.name,
     status ? leaveStatusLabel(status as LeaveStatus) : null,
-    requestType === "LEAVE" ? "LEAVE" : requestType === "OUTING" ? "OUTING" : null,
-    search.trim() || null,
+    requestType === "LEAVE" ? "Leave" : requestType === "OUTING" ? "Outing" : null,
   ].filter((name): name is string => Boolean(name));
 
   const clearFilters = () => {
@@ -233,6 +232,7 @@ export function BoardingLeaveContent() {
               <NothingMatched
                 what="requests"
                 filters={filterNames}
+                search={search}
                 onClear={clearFilters}
               />
             </div>

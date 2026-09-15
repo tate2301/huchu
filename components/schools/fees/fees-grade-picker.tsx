@@ -10,10 +10,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { LoadError, NothingMatched, NothingYet, StatsSkeleton } from "@/components/schools/common/states";
+import {
+  ListRowsSkeleton,
+  LoadError,
+  NothingLeftToDo,
+  NothingMatched,
+  NothingYet,
+  StatsSkeleton,
+} from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { formatSchoolMoney } from "@/lib/schools/format";
@@ -435,9 +442,11 @@ export function FeesGradePicker() {
           }
         >
           {feesQuery.isPending ? (
-            <StatsSkeleton count={3} />
+            <ListRowsSkeleton rows={5} label="Working out who is behind" />
           ) : overdue.length === 0 ? (
-            <NothingYet
+            // Good news, so no verb on it: there is nothing to create here,
+            // and offering one would answer a question nobody asked.
+            <NothingLeftToDo
               title="Nothing is late"
               body="Every bill that has fallen due has been settled."
             />
@@ -445,15 +454,15 @@ export function FeesGradePicker() {
             <ul className="divide-y divide-[color:var(--border-subtle)]">
               {overdue.map((person) => (
                 <li key={person.id} className="flex items-center gap-3 py-2">
-                  <PersonAvatar firstName={person.firstName} lastName={person.lastName} />
-                  <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-medium">
-                      {person.firstName} {person.lastName}
-                    </div>
-                    <div className="truncate text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                      {person.streamName ?? person.className ?? "No year group"}
-                    </div>
-                  </div>
+                  <span className="min-w-0 flex-1">
+                    <PersonCell
+                      kind="student"
+                      href={`/schools/students/${person.id}`}
+                      firstName={person.firstName}
+                      lastName={person.lastName}
+                      reference={person.streamName ?? person.className ?? "No year group"}
+                    />
+                  </span>
                   <span className="font-[family-name:var(--font-mono)] text-sm font-semibold tabular-nums">
                     {formatSchoolMoney(person.amount, currency)}
                   </span>
