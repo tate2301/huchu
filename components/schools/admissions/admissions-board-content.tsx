@@ -12,7 +12,11 @@ import {
 
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import {
+  CreateButton,
+  RecordActions,
+  type RecordVerb,
+} from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
   LoadError,
@@ -457,7 +461,82 @@ export function AdmissionsBoardContent() {
                 />
               ) : null}
               {rows.map((application) => {
-                const next = ALLOWED_TRANSITIONS[application.stage];
+                /*
+                  One press moves a child along the ladder, so the step the
+                  stage expects next sits on the row and every other transition
+                  folds into the menu. Nine stages times six transitions was a
+                  board whose verbs ran off the right edge of the card.
+                */
+                const moveVerb = (target: ApplicationStage): RecordVerb => ({
+                  label: STAGE_LABELS[target],
+                  action: "approve",
+                  tone: CLOSED_STAGES.includes(target) ? "danger" : "default",
+                  loading: moveMutation.isPending,
+                  ...(CLOSED_STAGES.includes(target)
+                    ? {
+                        confirm: {
+                          title:
+                            target === "DECLINED"
+                              ? `Turn ${application.firstName} ${application.lastName} down`
+                              : `Mark ${application.firstName} ${application.lastName} withdrawn`,
+                          description:
+                            target === "DECLINED"
+                              ? "The school has said no. The application leaves the board and the place is freed for the waiting list."
+                              : "The family has gone elsewhere. The application leaves the board and the place is freed for the waiting list.",
+                          confirmLabel: STAGE_LABELS[target],
+                        },
+                      }
+                    : {}),
+                  onSelect: () =>
+                    moveMutation.mutate({ id: application.id, stage: target }),
+                });
+
+                const enrolVerb: RecordVerb = {
+                  label: "Enrol",
+                  action: "approve",
+                  loading: enrolMutation.isPending,
+                  confirm: {
+                    title: `Enrol ${application.firstName} ${application.lastName}`,
+                    description:
+                      "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
+                    confirmLabel: "Enrol",
+                  },
+                  onSelect: () => enrolMutation.mutate(application.id),
+                };
+
+                const allowed = ALLOWED_TRANSITIONS[application.stage];
+                // Reopening a turned-down or withdrawn application is a
+                // decision somebody takes deliberately, never the obvious next
+                // press, so a closed stage offers nothing inline.
+                const forward = CLOSED_STAGES.includes(application.stage)
+                  ? null
+                  : (allowed.find((target) => !CLOSED_STAGES.includes(target)) ?? null);
+                const primary = forward
+                  ? forward === "ENROLLED"
+                    ? enrolVerb
+                    : moveVerb(forward)
+                  : null;
+
+                const verbs: RecordVerb[] = [
+                  // Correcting the file and deciding on the child are
+                  // different acts with different grants — `edit` and
+                  // `approve` — so they are different verbs, each disabled
+                  // with the reason rather than hidden.
+                  {
+                    label: "Edit",
+                    action: "edit",
+                    onSelect: () => {
+                      setEditing(application);
+                      setFormOpen(true);
+                    },
+                  },
+                  ...allowed
+                    .filter((target) => target !== forward)
+                    .map((target) =>
+                      target === "ENROLLED" ? enrolVerb : moveVerb(target),
+                    ),
+                ];
+
                 return (
                   <MobileList.Row
                     key={application.id}
@@ -481,69 +560,20 @@ export function AdmissionsBoardContent() {
                         {offerHasLapsed(application, now) ? (
                           <Badge tone="danger">Offer lapsed</Badge>
                         ) : null}
-                        {/* Correcting the file and deciding on the child are
-                            different acts with different grants — `edit` and
-                            `approve` — so they are different verbs, each
-                            disabled with the reason rather than hidden. */}
+                      </span>
+                    }
+                    trailing={
+                      <span className="flex items-center gap-2">
+                        {primary ? (
+                          <RecordActions
+                            resource="schools.admissions"
+                            verbs={[primary]}
+                          />
+                        ) : null}
                         <RecordActions
+                          layout="menu"
                           resource="schools.admissions"
-                          verbs={[
-                            {
-                              label: "Edit",
-                              action: "edit",
-                              onSelect: () => {
-                                setEditing(application);
-                                setFormOpen(true);
-                              },
-                            },
-                            ...(application.stage === "ACCEPTED"
-                              ? [
-                                  {
-                                    label: "Enrol",
-                                    action: "approve" as const,
-                                    loading: enrolMutation.isPending,
-                                    confirm: {
-                                      title: `Enrol ${application.firstName} ${application.lastName}`,
-                                      description:
-                                        "A student record is created and a student number allocated. The application closes as enrolled and cannot be walked back through admissions.",
-                                      confirmLabel: "Enrol",
-                                    },
-                                    onSelect: () => enrolMutation.mutate(application.id),
-                                  },
-                                ]
-                              : []),
-                            ...next
-                              .filter((target) => target !== "ENROLLED")
-                              .map((target) => ({
-                                label: STAGE_LABELS[target],
-                                action: "approve" as const,
-                                tone:
-                                  target === "DECLINED" || target === "WITHDRAWN"
-                                    ? ("danger" as const)
-                                    : ("default" as const),
-                                loading: moveMutation.isPending,
-                                ...(target === "DECLINED" || target === "WITHDRAWN"
-                                  ? {
-                                      confirm: {
-                                        title:
-                                          target === "DECLINED"
-                                            ? `Turn ${application.firstName} ${application.lastName} down`
-                                            : `Mark ${application.firstName} ${application.lastName} withdrawn`,
-                                        description:
-                                          target === "DECLINED"
-                                            ? "The school has said no. The application leaves the board and the place is freed for the waiting list."
-                                            : "The family has gone elsewhere. The application leaves the board and the place is freed for the waiting list.",
-                                        confirmLabel: STAGE_LABELS[target],
-                                      },
-                                    }
-                                  : {}),
-                                onSelect: () =>
-                                  moveMutation.mutate({
-                                    id: application.id,
-                                    stage: target,
-                                  }),
-                              })),
-                          ]}
+                          verbs={verbs}
                         />
                       </span>
                     }

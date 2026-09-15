@@ -258,10 +258,14 @@ export function ClassFeesContent({
                 invoice.status === "PAID" ||
                 invoice.status === "VOIDED" ||
                 invoice.status === "WRITEOFF";
+              // The one verb the row is about stays on the row; the rest fold
+              // into the menu. Three buttons in a trailing slot is what pushed
+              // "Take payment" off the right edge at every width.
+              let primary: RecordVerb | null = null;
               const verbs: RecordVerb[] = [];
 
               if (invoice.status === "DRAFT") {
-                verbs.push({
+                primary = {
                   label: "Issue",
                   action: "issue",
                   loading: issue.isPending,
@@ -271,7 +275,7 @@ export function ClassFeesContent({
                     confirmLabel: "Issue it",
                   },
                   onSelect: () => issue.mutate(invoice.id),
-                });
+                };
                 verbs.push({
                   label: "Discard",
                   action: "void",
@@ -287,11 +291,11 @@ export function ClassFeesContent({
                 });
               }
               if (invoice.balanceAmount > 0 && invoice.status !== "DRAFT") {
-                verbs.push({
+                primary = {
                   label: "Take payment",
                   action: "receive-payment",
                   onSelect: () => setReceiptFor(invoice),
-                });
+                };
                 verbs.push({
                   label: "Write off",
                   action: "write-off",
@@ -332,7 +336,18 @@ export function ClassFeesContent({
                       <InvoiceStatusBadge status={invoice.status} />
                     </span>
                   }
-                  trailing={<RecordActions resource="schools.fees" verbs={verbs} />}
+                  trailing={
+                    <span className="flex items-center gap-2">
+                      {primary ? (
+                        <RecordActions resource="schools.fees" verbs={[primary]} />
+                      ) : null}
+                      <RecordActions
+                        layout="menu"
+                        resource="schools.fees"
+                        verbs={verbs}
+                      />
+                    </span>
+                  }
                 />
               );
             })

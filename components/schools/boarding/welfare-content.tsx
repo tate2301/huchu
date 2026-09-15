@@ -448,48 +448,59 @@ export function WelfareContent() {
                         ))
                       )}
                     </span>
-                    <RecordActions
-                      resource="schools.boarding"
-                      verbs={[
-                        {
-                          label: row.record ? "Update" : "Record",
-                          action: "edit",
-                          onSelect: () => {
-                            setEditing(row);
-                            setDraft(draftFrom(row));
-                            setActionError(null);
+                    {/* Filling the record in is what the row is for, so that
+                        verb stays on it; the rest fold into the menu rather
+                        than running off the right edge of the card. */}
+                    <span className="flex items-center gap-2">
+                      <RecordActions
+                        resource="schools.boarding"
+                        verbs={[
+                          {
+                            label: row.record ? "Update" : "Record",
+                            action: "edit",
+                            onSelect: () => {
+                              setEditing(row);
+                              setDraft(draftFrom(row));
+                              setActionError(null);
+                            },
                           },
-                        },
-                        {
-                          label: "Log a visit",
-                          action: "create",
-                          onSelect: () => {
-                            setLogAnybody(false);
-                            setLoggingFor(row);
+                        ]}
+                      />
+                      <RecordActions
+                        layout="menu"
+                        resource="schools.boarding"
+                        verbs={[
+                          {
+                            label: "Log a visit",
+                            action: "create",
+                            onSelect: () => {
+                              setLogAnybody(false);
+                              setLoggingFor(row);
+                            },
                           },
-                        },
-                        {
-                          label: "Clear",
-                          action: "archive",
-                          tone: "danger",
-                          loading: clearingId === row.student.id,
-                          unavailable: row.record
-                            ? undefined
-                            : "There is nothing recorded to clear.",
-                          confirm: {
-                            title: `Clear ${row.student.lastName}, ${row.student.firstName}`,
-                            description:
-                              "Every allergy, condition and consent on this child goes for good, and the row goes back to saying nothing is recorded. Use it for a record entered against the wrong child — a record that is merely out of date is corrected, not cleared.",
-                            confirmLabel: "Clear it",
+                          {
+                            label: "Clear",
+                            action: "archive",
+                            tone: "danger",
+                            loading: clearingId === row.student.id,
+                            unavailable: row.record
+                              ? undefined
+                              : "There is nothing recorded to clear.",
+                            confirm: {
+                              title: `Clear ${row.student.lastName}, ${row.student.firstName}`,
+                              description:
+                                "Every allergy, condition and consent on this child goes for good, and the row goes back to saying nothing is recorded. Use it for a record entered against the wrong child — a record that is merely out of date is corrected, not cleared.",
+                              confirmLabel: "Clear it",
+                            },
+                            onSelect: () => {
+                              setActionError(null);
+                              setClearingId(row.student.id);
+                              clearMutation.mutate(row);
+                            },
                           },
-                          onSelect: () => {
-                            setActionError(null);
-                            setClearingId(row.student.id);
-                            clearMutation.mutate(row);
-                          },
-                        },
-                      ]}
-                    />
+                        ]}
+                      />
+                    </span>
                   </li>
                 ))}
               </ul>
