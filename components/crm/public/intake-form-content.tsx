@@ -12,6 +12,8 @@ type FormConfig = {
   allowPhotos: boolean;
   maxPhotos: number;
   companyName: string;
+  privacyPolicyUrl: string | null;
+  termsUrl: string | null;
   fields: CrmIntakeFieldDef[];
   services: CrmIntakeService[];
 };
@@ -247,6 +249,8 @@ export function IntakeFormContent({ token }: { token: string }) {
           >
             {submitting ? "Submitting…" : "Submit"}
           </button>
+
+          <PolicyLinks config={config} />
         </form>
       </div>
     </div>
@@ -387,4 +391,45 @@ function CustomField({
         />
       );
   }
+}
+
+/**
+ * What happens to what the form just collected.
+ *
+ * This form takes a name, a phone number, an email address and photographs of
+ * somebody's property, so it has to say where the policies are. The wording is
+ * not repeated here -- these point at the pages the company publishes, which
+ * are the versions that count.
+ *
+ * Renders nothing until a tenant has said where its policies live, because a
+ * dead link is worse than no link.
+ */
+function PolicyLinks({ config }: { config: FormConfig }) {
+  const links = [
+    config.privacyPolicyUrl ? { href: config.privacyPolicyUrl, label: "Privacy Policy" } : null,
+    config.termsUrl ? { href: config.termsUrl, label: "Terms and Conditions" } : null,
+  ].filter((link): link is { href: string; label: string } => link !== null);
+
+  if (links.length === 0) return null;
+
+  return (
+    <p className="text-center text-sm leading-relaxed text-neutral-500">
+      By submitting this form you agree to how {config.companyName} handles your
+      information. See our{" "}
+      {links.map((link, index) => (
+        <React.Fragment key={link.href}>
+          {index > 0 ? " and " : null}
+          <a
+            href={link.href}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline underline-offset-2 hover:text-neutral-900"
+          >
+            {link.label}
+          </a>
+        </React.Fragment>
+      ))}
+      .
+    </p>
+  );
 }

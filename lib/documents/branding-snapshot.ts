@@ -3,7 +3,7 @@ import { getEffectiveBrandingForCompany } from "@/lib/platform/branding";
 import type { CompanyBrandingSnapshot } from "@/lib/documents/types";
 
 export async function getDocumentBranding(companyId: string): Promise<CompanyBrandingSnapshot> {
-  const [effective, raw] = await Promise.all([
+  const [effective, raw, bankAccounts] = await Promise.all([
     getEffectiveBrandingForCompany(companyId),
     prisma.companyBranding.findUnique({
       where: { companyId },
@@ -19,6 +19,9 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
         physicalAddress: true,
         postalAddress: true,
         bankName: true,
+        bankBranch: true,
+        bankBranchCode: true,
+        bankAddress: true,
         bankAccountName: true,
         bankAccountNumber: true,
         bankSwiftCode: true,
@@ -36,6 +39,13 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
         numberFormat: true,
         currencyDisplayMode: true,
       },
+    }),
+    // Only the accounts somebody has opted in to appearing on paper. An account
+    // the ledger reconciles is not automatically an account to be paid into.
+    prisma.bankAccount.findMany({
+      where: { companyId, showOnDocuments: true, isActive: true },
+      orderBy: [{ documentPosition: "asc" }, { currency: "asc" }],
+      select: { currency: true, accountName: true, accountNumber: true },
     }),
   ]);
 
@@ -56,9 +66,13 @@ export async function getDocumentBranding(companyId: string): Promise<CompanyBra
     physicalAddress: raw?.physicalAddress ?? null,
     postalAddress: raw?.postalAddress ?? null,
     bankName: raw?.bankName ?? null,
+    bankBranch: raw?.bankBranch ?? null,
+    bankBranchCode: raw?.bankBranchCode ?? null,
+    bankAddress: raw?.bankAddress ?? null,
     bankAccountName: raw?.bankAccountName ?? null,
     bankAccountNumber: raw?.bankAccountNumber ?? null,
     bankSwiftCode: raw?.bankSwiftCode ?? null,
+    bankAccounts,
     bankIban: raw?.bankIban ?? null,
     defaultFooterText: raw?.defaultFooterText ?? null,
     legalDisclaimer: raw?.legalDisclaimer ?? null,

@@ -162,10 +162,17 @@ function buildDashboard(payload: UniversalDocumentPayload): string {
 }
 
 function buildIdentityBlock(branding: CompanyBrandingSnapshot, schema: DocumentTemplateSchema): string {
+  // The registered name leads, falling back to the display name when a tenant
+  // has not stated one.
+  const registeredName = branding.legalName || branding.displayName;
   const identityLines = schema.header.showCompanyIdentity
     ? [
-        branding.legalName || branding.displayName,
-        branding.tradingName && branding.tradingName !== branding.displayName
+        registeredName,
+        // Compared against the line actually printed above, not against
+        // `displayName`. A tenant whose display name is its trading name --
+        // which is the usual case -- still has to show "t/a" under its
+        // registered name, and only the tautology "Foo t/a Foo" is suppressed.
+        branding.tradingName && branding.tradingName !== registeredName
           ? `t/a ${branding.tradingName}`
           : null,
         branding.registrationNumber ? `Reg No. ${branding.registrationNumber}` : null,
@@ -187,17 +194,42 @@ function buildFooter(branding: CompanyBrandingSnapshot, schema: DocumentTemplate
   const columns: string[] = [];
 
   if (schema.footer.showPaymentDetails) {
-    const rows = [
+    // The bank-level facts first: they are the same whichever account the
+    // customer pays into, so stating them once per account would be noise.
+    const rows: Array<[string, string] | null> = [
       branding.bankName ? ["Bank", branding.bankName] : null,
-      branding.bankAccountName ? ["Account Name", branding.bankAccountName] : null,
-      branding.bankAccountNumber ? ["Account No.", branding.bankAccountNumber] : null,
-      branding.bankSwiftCode ? ["SWIFT", branding.bankSwiftCode] : null,
-      branding.bankIban ? ["IBAN", branding.bankIban] : null,
-    ].filter((row): row is [string, string] => Boolean(row));
-    if (rows.length > 0) {
+      branding.bankBranch ? ["Branch", branding.bankBranch] : null,
+      branding.bankBranchCode ? ["Branch Code", branding.bankBranchCode] : null,
+      branding.bankAddress ? ["Bank Address", branding.bankAddress] : null,
+      branding.bankSwiftCode ? ["SWIFT/BIC", branding.bankSwiftCode] : null,
+    ];
+
+    // Then the accounts. A tenant banking in two currencies has a row per
+    // account, labelled by currency so nobody pays USD into the ZWG account;
+    // one that has only ever filled in the single legacy account still gets
+    // the block it had before.
+    const accounts = branding.bankAccounts ?? [];
+    if (accounts.length > 0) {
+      for (const account of accounts) {
+        if (account.accountName) {
+          rows.push([`${account.currency} Account Name`, account.accountName]);
+        }
+        if (account.accountNumber) {
+          rows.push([`${account.currency} Account No.`, account.accountNumber]);
+        }
+      }
+    } else {
+      rows.push(branding.bankAccountName ? ["Account Name", branding.bankAccountName] : null);
+      rows.push(branding.bankAccountNumber ? ["Account No.", branding.bankAccountNumber] : null);
+    }
+
+    rows.push(branding.bankIban ? ["IBAN", branding.bankIban] : null);
+
+    const presentRows = rows.filter((row): row is [string, string] => Boolean(row));
+    if (presentRows.length > 0) {
       columns.push(`<div class="footer-col">
         <div class="footer-title">Payment details</div>
-        ${rows.map(([label, value]) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
+        ${presentRows.map(([label, value]) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
       </div>`);
     }
   }

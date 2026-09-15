@@ -68,6 +68,12 @@ export type UniversalDocumentPayload = {
   dashboard?: DashboardPayload;
 };
 
+export type DocumentBankAccount = {
+  currency: string;
+  accountName?: string | null;
+  accountNumber?: string | null;
+};
+
 export type CompanyBrandingSnapshot = {
   displayName: string;
   legalName?: string | null;
@@ -81,10 +87,19 @@ export type CompanyBrandingSnapshot = {
   physicalAddress?: string | null;
   postalAddress?: string | null;
   bankName?: string | null;
+  bankBranch?: string | null;
+  bankBranchCode?: string | null;
+  bankAddress?: string | null;
   bankAccountName?: string | null;
   bankAccountNumber?: string | null;
   bankSwiftCode?: string | null;
   bankIban?: string | null;
+  /**
+   * Accounts the tenant asks to be paid into, in the order they should print.
+   * Empty for a tenant that still describes its one account with the
+   * `bankAccountName` / `bankAccountNumber` fields above.
+   */
+  bankAccounts?: DocumentBankAccount[];
   defaultFooterText?: string | null;
   legalDisclaimer?: string | null;
   paymentTerms?: string | null;
