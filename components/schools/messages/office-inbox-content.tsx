@@ -17,6 +17,8 @@ import {
 } from "@/components/schools/common/states";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import { Textarea } from "@/components/ui/textarea";
 import { fetchJson } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 
@@ -126,6 +128,8 @@ export function OfficeInboxContent() {
   const [staffFilter, setStaffFilter] = useState("");
   const [search, setSearch] = useState("");
   const [reading, setReading] = useState<ThreadSummary | null>(null);
+  const [replyBody, setReplyBody] = useState("");
+  const canReply = useSchoolAccess().can("schools.reports", "reply");
   const [assigning, setAssigning] = useState<ThreadSummary | null>(null);
   const [assignTo, setAssignTo] = useState("");
 
@@ -197,6 +201,20 @@ export function OfficeInboxContent() {
     },
   });
 
+  // Answering, which the office could not do at all: a family's fee question
+  // reached a bursar who could read it, route it and end it, but not reply.
+  const reply = useMutation({
+    mutationFn: (input: { threadId: string; body: string }) =>
+      fetchJson("/api/v2/schools/messages", {
+        method: "POST",
+        body: JSON.stringify({ action: "reply", ...input }),
+      }),
+    onSuccess: () => {
+      setReplyBody("");
+      void queryClient.invalidateQueries({ queryKey: ["schools", "messages"] });
+    },
+  });
+
   const close = useMutation({
     mutationFn: (threadId: string) =>
       fetchJson("/api/v2/schools/messages", {
@@ -250,6 +268,7 @@ export function OfficeInboxContent() {
       ) : null}
       {assign.error ? <SaveError what="The conversation" error={assign.error} /> : null}
       {close.error ? <SaveError what="The conversation" error={close.error} /> : null}
+      {reply.error ? <SaveError what="Your answer" error={reply.error} /> : null}
 
       <div className="flex flex-wrap items-center gap-2">
         {SEGMENTS.map((entry) => (
@@ -407,7 +426,10 @@ export function OfficeInboxContent() {
       <RecordDialog
         open={Boolean(reading)}
         onOpenChange={(next) => {
-          if (!next) setReading(null);
+          if (!next) {
+            setReading(null);
+            setReplyBody("");
+          }
         }}
         title={reading?.subject ?? ""}
         description={
@@ -472,6 +494,41 @@ export function OfficeInboxContent() {
                 </p>
               </div>
             ))}
+
+            {/* Hidden rather than disabled for anybody without the grant, and
+                for a conversation that has been ended — there is nothing to
+                say about a box that would refuse. */}
+            {canReply && !reading?.closed ? (
+              <div className="space-y-2 border-t border-[color:var(--border)] pt-3">
+                <label
+                  className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]"
+                  htmlFor="office-reply"
+                >
+                  Answer the family
+                </label>
+                <Textarea
+                  id="office-reply"
+                  rows={3}
+                  value={replyBody}
+                  onChange={(event) => setReplyBody(event.target.value)}
+                  placeholder="They see this in their portal."
+                />
+                <div className="flex justify-end">
+                  <Button
+                    variant="primary"
+                    loading={reply.isPending}
+                    disabled={!replyBody.trim()}
+                    onClick={() => {
+                      if (reading && replyBody.trim()) {
+                        reply.mutate({ threadId: reading.id, body: replyBody.trim() });
+                      }
+                    }}
+                  >
+                    Send
+                  </Button>
+                </div>
+              </div>
+            ) : null}
           </div>
         )}
       </RecordDialog>

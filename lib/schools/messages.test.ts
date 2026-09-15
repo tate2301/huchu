@@ -562,3 +562,65 @@ describe("the record", () => {
     expect(inbox[1].id).toBe(second.id);
   });
 });
+
+describe("who can answer a conversation the office holds", () => {
+  it("lets the office answer an unassigned thread, which is what a fee query is", async () => {
+    const thread = await startThread({
+      companyId,
+      guardianId: motherId,
+      senderUserId: motherUserId,
+      senderSide: "GUARDIAN",
+      subject: "About the term's fees",
+      body: "Which invoice is the outstanding one?",
+      studentId: pupilId,
+      teacherProfileId: null,
+    });
+
+    // No teacher profile, because the bursar answering this has none. Before
+    // the office reply path existed there was no action here for them at all.
+    await replyToThread({
+      companyId,
+      threadId: thread.id,
+      senderUserId: motherUserId,
+      senderSide: "STAFF",
+      body: "It is SFI-00120, due at half term.",
+      officeRole: true,
+    });
+
+    const opened = await openThread({
+      companyId,
+      threadId: thread.id,
+      side: "STAFF",
+      readOnly: true,
+    });
+    expect(opened.messages.at(-1)?.body).toBe("It is SFI-00120, due at half term.");
+    expect(opened.messages.at(-1)?.senderSide).toBe("STAFF");
+  });
+
+  it("still keeps a teacher who takes nobody out of the office queue", async () => {
+    const thread = await startThread({
+      companyId,
+      guardianId: strangerId,
+      senderUserId: strangerUserId,
+      senderSide: "GUARDIAN",
+      subject: "A question for the office",
+      body: "Anyone there?",
+      studentId: strangersPupilId,
+      teacherProfileId: null,
+    });
+
+    // The second teacher holds no class subject, so no child in the school is
+    // theirs. Answering is governed by the same rule as reading: opening the
+    // office's reply path must not open the queue to somebody it was shut to.
+    await expect(
+      replyToThread({
+        companyId,
+        threadId: thread.id,
+        senderUserId: teacherUserId,
+        senderSide: "STAFF",
+        body: "Answering a thread that is not mine.",
+        teacherProfileId: otherTeacherProfileId,
+      }),
+    ).rejects.toBeInstanceOf(MessageError);
+  });
+});

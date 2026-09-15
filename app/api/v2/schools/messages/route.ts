@@ -7,6 +7,7 @@ import {
   closeThread,
   MessageError,
   openThread,
+  replyToThread,
 } from "@/lib/schools/messages";
 import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
@@ -21,13 +22,15 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
 
 const querySchema = z.object({ threadId: z.string().uuid().optional() });
 /**
- * Two writes the office owns. Closing ends a conversation; assigning decides
+ * Three writes the office owns. Closing ends a conversation; assigning decides
  * who answers it — and `teacherProfileId: null` hands it back to the office
  * queue, which is why the field is nullable rather than absent.
  *
- * Answering is not one of them. This route reads and routes; a reply is written
- * from the thread its holder owns, in the staff portal, so the `reply` grant
- * has no action to gate here.
+ * Answering is the third. It used not to be: a reply could only be written from
+ * the staff portal, so a family asking the office about a bill reached a bursar
+ * who could read the question, route it and close it, but not answer it. The
+ * question a fee query needs answering by is the bursar's, and routing it to a
+ * teacher who cannot see the ledger was the only thing this route allowed.
  */
 const postSchema = z.discriminatedUnion("action", [
   z.object({
@@ -38,6 +41,11 @@ const postSchema = z.discriminatedUnion("action", [
     action: z.literal("assign"),
     threadId: z.string().uuid(),
     teacherProfileId: z.string().uuid().nullable(),
+  }),
+  z.object({
+    action: z.literal("reply"),
+    threadId: z.string().uuid(),
+    body: z.string().trim().min(1).max(4000),
   }),
 ]);
 
@@ -84,14 +92,33 @@ export async function POST(request: NextRequest) {
     if (sessionResult instanceof NextResponse) return sessionResult;
     const { session } = sessionResult;
 
-    // Both writes here are office triage — deciding who answers a thread, and
-    // ending it — so they stay on `schools.reports` create, which the office
-    // holds and the staff who merely read the inbox do not.
-    const denied = schoolPermissionDenial(session, "schools.reports", "create");
-    if (denied) return errorResponse(denied, 403);
-
     const validated = postSchema.parse(await request.json());
     const companyId = session.user.companyId;
+
+    // Triage and answering are different acts, so they are different grants.
+    // Deciding who answers a thread, and ending it, stay on `schools.reports`
+    // create, which only the office holds. Writing to a family is `reply`,
+    // which the bursar and the head of department hold as well — answering a
+    // fee question is the bursar's job, and they had no way to do it.
+    const denied =
+      validated.action === "reply"
+        ? schoolPermissionDenial(session, "schools.reports", "reply")
+        : schoolPermissionDenial(session, "schools.reports", "create");
+    if (denied) return errorResponse(denied, 403);
+
+    if (validated.action === "reply") {
+      // `officeRole` is what lets the office answer a thread nobody has been
+      // assigned yet — the same flag that lets it read one.
+      const message = await replyToThread({
+        companyId,
+        threadId: validated.threadId,
+        senderUserId: session.user.id,
+        senderSide: "STAFF",
+        body: validated.body,
+        officeRole: true,
+      });
+      return successResponse({ id: message.id }, 201);
+    }
 
     if (validated.action === "assign") {
       await assignThread({
