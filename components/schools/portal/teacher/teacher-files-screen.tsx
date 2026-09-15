@@ -221,13 +221,7 @@ export function TeacherFilesScreen() {
       {add.error ? <SaveError what="That link" error={add.error} /> : null}
       {saved ? <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} /> : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <p className="max-w-[42rem] text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          Worksheets, slides and past papers shared across the department, plus your
-          own drafts, which nobody else can see. Files themselves land with the
-          documents work in a later release — for now a resource is a link to wherever
-          the file already lives.
-        </p>
+      <div className="flex flex-wrap items-end justify-end gap-3">
         <Button
           variant="primary"
           onClick={() => {

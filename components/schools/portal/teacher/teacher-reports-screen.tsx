@@ -136,6 +136,87 @@ function className(row: { className: string; streamName: string | null }) {
   return `${row.className}${row.streamName ? ` ${row.streamName}` : ""}`;
 }
 
+/**
+ * Attendance week by week, on the design system's chart parts.
+ *
+ * `Chart.Line` draws the series and nothing else, and `Chart.Grid` and
+ * `Chart.Axis` are the containers it leaves for the frame — so the grid lines
+ * and the week labels are composed around a nested `Chart.Line` viewport here.
+ * The week labels used to be a list under the chart, which read as a run-on
+ * sentence of percentages rather than as an axis.
+ */
+function AttendanceTrend({
+  weeks,
+  lowest,
+  highest,
+}: {
+  weeks: Array<{ weekStart: string; rate: number | null }>;
+  lowest: number | null;
+  highest: number | null;
+}) {
+  const width = 480;
+  const height = 168;
+  const padLeft = 34;
+  const padBottom = 26;
+  const plotWidth = width - padLeft;
+  const plotHeight = height - padBottom;
+  const points = weeks.map((week) => Math.round((week.rate ?? 0) * 100));
+  const floor = Math.min(...points);
+  const ceiling = Math.max(...points);
+  // Four gridlines across whatever range the term actually moved through:
+  // pinning them to 0–100 flattens a two-point slide into a straight line.
+  const ticks = [0, 1, 2, 3].map((step) => floor + ((ceiling - floor) * step) / 3);
+  const rowY = (index: number) => plotHeight - 10 - (index / 3) * (plotHeight - 20);
+
+  return (
+    <svg
+      className="te-chart"
+      viewBox={`0 0 ${width} ${height}`}
+      role="img"
+      aria-label={`Weekly attendance, ${percent(lowest)} to ${percent(highest)} across ${weeks.length} weeks`}
+    >
+      <Chart.Grid>
+        {ticks.map((_, index) => (
+          <line
+            key={index}
+            x1={padLeft}
+            x2={width}
+            y1={rowY(index)}
+            y2={rowY(index)}
+          />
+        ))}
+      </Chart.Grid>
+      <Chart.Line
+        x={padLeft}
+        y={0}
+        width={plotWidth}
+        height={plotHeight}
+        data={weeks.map((week) => ({
+          x: week.weekStart,
+          y: Math.round((week.rate ?? 0) * 100),
+        }))}
+      />
+      <Chart.Axis>
+        {ticks.map((value, index) => (
+          <text key={index} x={0} y={rowY(index) + 4}>
+            {Math.round(value)}%
+          </text>
+        ))}
+        {weeks.map((week, index) => (
+          <text
+            key={week.weekStart}
+            x={padLeft + (index / Math.max(1, weeks.length - 1)) * (plotWidth - 20) + 10}
+            y={height - 8}
+            textAnchor="middle"
+          >
+            {formatDay(week.weekStart).split(" ").slice(0, 2).join(" ")}
+          </text>
+        ))}
+      </Chart.Axis>
+    </svg>
+  );
+}
+
 /** A number that can be opened into the list it was counted from. */
 function Figure({
   href,
@@ -321,43 +402,50 @@ export function TeacherReportsScreen() {
         />
       ) : (
         <>
+          {/* A tile whose denominator is zero has nothing to be a proportion
+              of, so it is left out rather than printed as an em dash over a
+              slashed zero. */}
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <StatCard
-              label="Attendance"
-              value={<span className="tabular-nums">{percent(totals?.attendance.rate ?? null)}</span>}
-              tone={
-                (totals?.attendance.rate ?? 1) < 0.9 ? "warn" : "neutral"
-              }
-              footer={`${totals?.attendance.sessions ?? 0} registers taken`}
-            />
-            <StatCard
-              label="At or above the pass mark"
-              value={
-                <span className="tabular-nums">
-                  {totals && totals.marked > 0
-                    ? percent(totals.passed / totals.marked)
-                    : "—"}
-                </span>
-              }
-              footer={`${totals?.passed ?? 0} of ${totals?.marked ?? 0} marked`}
-            />
-            <StatCard
-              label="Average term mark"
-              value={
-                <span className="tabular-nums">
-                  {totals?.average === null || totals?.average === undefined
-                    ? "—"
-                    : `${Math.round(totals.average)}%`}
-                </span>
-              }
-              footer={`${totals?.marked ?? 0} of ${totals?.roll ?? 0} on the rolls`}
-            />
-            <StatCard
-              label="Homework handed in"
-              value={<span className="tabular-nums">{percent(totals?.homework.rate ?? null)}</span>}
-              tone={(totals?.homework.rate ?? 1) < 0.8 ? "warn" : "neutral"}
-              footer={`${totals?.homework.assignments ?? 0} set this term`}
-            />
+            {(totals?.attendance.sessions ?? 0) > 0 ? (
+              <StatCard
+                label="Attendance"
+                value={
+                  <span className="tabular-nums">{percent(totals?.attendance.rate ?? null)}</span>
+                }
+                tone={(totals?.attendance.rate ?? 1) < 0.9 ? "warn" : "neutral"}
+                footer={`${totals?.attendance.sessions ?? 0} registers taken`}
+              />
+            ) : null}
+            {totals && totals.marked > 0 ? (
+              <StatCard
+                label="At or above the pass mark"
+                value={
+                  <span className="tabular-nums">
+                    {percent(totals.passed / totals.marked)}
+                  </span>
+                }
+                footer={`${totals.passed} of ${totals.marked} marked`}
+              />
+            ) : null}
+            {totals && totals.roll > 0 && totals.average !== null ? (
+              <StatCard
+                label="Average term mark"
+                value={
+                  <span className="tabular-nums">{Math.round(totals.average)}%</span>
+                }
+                footer={`${totals.marked} of ${totals.roll} on the rolls`}
+              />
+            ) : null}
+            {(totals?.homework.assignments ?? 0) > 0 ? (
+              <StatCard
+                label="Homework handed in"
+                value={
+                  <span className="tabular-nums">{percent(totals?.homework.rate ?? null)}</span>
+                }
+                tone={(totals?.homework.rate ?? 1) < 0.8 ? "warn" : "neutral"}
+                footer={`${totals?.homework.assignments ?? 0} set this term`}
+              />
+            ) : null}
           </div>
 
           <div className="grid gap-4 lg:grid-cols-2">
@@ -375,33 +463,7 @@ export function TeacherReportsScreen() {
                   body="A week appears here as soon as one of your classes has a register taken in it."
                 />
               ) : (
-                <div className="flex flex-col gap-3">
-                  <div className="overflow-x-auto">
-                    <Chart.Line
-                      className="w-full"
-                      height={140}
-                      role="img"
-                      aria-label={`Weekly attendance, ${percent(lowest)} to ${percent(highest)} across ${weeks.length} weeks`}
-                      data={weeks.map((week) => ({
-                        x: week.weekStart,
-                        y: Math.round((week.rate ?? 0) * 100),
-                      }))}
-                    />
-                  </div>
-                  <ul className="flex flex-wrap gap-x-4 gap-y-1">
-                    {weeks.map((week) => (
-                      <li
-                        key={week.weekStart}
-                        className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]"
-                      >
-                        <span className="font-[family-name:var(--font-mono)] tabular-nums text-[color:var(--text-body)]">
-                          {percent(week.rate)}
-                        </span>{" "}
-                        w/c {formatDay(week.weekStart)}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                <AttendanceTrend weeks={weeks} lowest={lowest} highest={highest} />
               )}
             </Card>
 

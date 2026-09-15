@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, EmptyState } from "@corelithzw/react";
+import { Alert, Button, Card, EmptyState } from "@corelithzw/react";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { TableSearch } from "@/components/schools/common/table-controls";
 import {
@@ -14,7 +14,6 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { whoCan } from "@/lib/schools/access";
 import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 
@@ -33,13 +32,12 @@ type Mark = {
 
 type TermMarks = { termId: string; scheme: { name: string }; marks: Mark[] };
 
-/** A grade's tone: the top band reads well, the bottom reads as needing work. */
-function bandTone(band: Band | null): "success" | "warn" | "danger" | "neutral" {
-  if (!band) return "neutral";
-  if (band.minScore >= 70) return "success";
-  if (band.minScore >= 50) return "warn";
-  return "danger";
-}
+type ClassDetail = {
+  classSubjects: Array<{
+    isActive: boolean;
+    teacherProfile: { id: string } | null;
+  }>;
+};
 
 /** The narrowing, in the words a teacher would use about their own class. */
 const SHOWING = [
@@ -66,14 +64,16 @@ type Showing = (typeof SHOWING)[number]["value"];
  *
  * Rolling up is the one write here, and it is the same endpoint this screen
  * already reads: what is previewed above is exactly what would be written onto
- * the class's result sheet. Submitting a sheet is a head of department's job,
- * so the button says so rather than letting the API refuse afterwards.
+ * the class's result sheet. It is not a per-subject act, though — it clears the
+ * sheet and rewrites every subject's line from scratch — so it belongs to a
+ * moderator or to the one teacher who takes the whole class, and the control
+ * only appears for them.
  */
 export function TeacherMarksBookScreen() {
   const queryClient = useQueryClient();
-  const { selectedClass } = useTeacherPortal();
+  const { day, selectedClass } = useTeacherPortal();
   const access = useSchoolAccess();
-  const maySubmit = access.can("schools.results", "submit");
+  const moderates = access.can("schools.results", "moderate");
   const [search, setSearch] = useState("");
   const [showing, setShowing] = useState<Showing>("ALL");
   const [rolledUp, setRolledUp] = useState<string | null>(null);
@@ -93,6 +93,25 @@ export function TeacherMarksBookScreen() {
       ),
     enabled: Boolean(selectedClass),
   });
+
+  /**
+   * Who else teaches this class. A teacher holding one subject in a class of
+   * ten cannot roll it up, and the endpoint refuses them — so the question is
+   * asked here rather than answered by a 403 after the press.
+   */
+  const classDetail = useQuery({
+    queryKey: ["schools", "classes", selectedClass?.classId],
+    queryFn: () => fetchJson<ClassDetail>(`/api/v2/schools/classes/${selectedClass?.classId}`),
+    enabled: Boolean(selectedClass?.classId) && !moderates,
+  });
+
+  const teacherProfileId = day.teacher?.id ?? null;
+  const taughtByMe = (classDetail.data?.classSubjects ?? []).filter((row) => row.isActive);
+  const solelyMine =
+    teacherProfileId !== null &&
+    taughtByMe.length > 0 &&
+    taughtByMe.every((row) => row.teacherProfile?.id === teacherProfileId);
+  const mayRollUp = moderates || solelyMine;
 
   const marks = useMemo(() => query.data?.marks ?? [], [query.data]);
 
@@ -174,24 +193,24 @@ export function TeacherMarksBookScreen() {
             : undefined
         }
         actions={
-          <Button
-            variant="secondary"
-            loading={rollUp.isPending}
-            disabled={!maySubmit || marked.length === 0}
-            title={
-              maySubmit
-                ? marked.length === 0
+          mayRollUp ? (
+            <Button
+              variant="secondary"
+              loading={rollUp.isPending}
+              disabled={marked.length === 0}
+              title={
+                marked.length === 0
                   ? "Nothing has a mark yet, so there is nothing to send."
                   : undefined
-                : `Sending marks to a result sheet is ${whoCan("schools.results", "submit") ?? "somebody else"} to do.`
-            }
-            onClick={() => {
-              setRolledUp(null);
-              rollUp.mutate();
-            }}
-          >
-            Send to the result sheet
-          </Button>
+              }
+              onClick={() => {
+                setRolledUp(null);
+                rollUp.mutate();
+              }}
+            >
+              Send to the result sheet
+            </Button>
+          ) : null
         }
       >
         <div className="mb-3 flex flex-wrap items-end gap-3">
@@ -310,11 +329,15 @@ export function TeacherMarksBookScreen() {
                       <td className="py-2 text-right font-[family-name:var(--font-mono)] font-semibold tabular-nums text-[color:var(--text-strong)]">
                         {row.mark === null ? "Not marked" : `${Math.round(row.mark)}%`}
                       </td>
-                      <td className="py-2 text-right">
+                      {/* The grade code in the school's own letters. A tinted
+                          square says the same thing only to somebody who has
+                          learned the tints, and the thresholds behind them were
+                          this file's invention rather than the scheme's. */}
+                      <td className="py-2 text-right font-[family-name:var(--font-mono)] font-semibold text-[color:var(--text-strong)]">
                         {row.grade ? (
-                          <Badge tone={bandTone(row.grade)}>{row.grade.code}</Badge>
+                          <span title={row.grade.label ?? undefined}>{row.grade.code}</span>
                         ) : (
-                          <span className="text-[color:var(--text-subtle)]">—</span>
+                          <span className="font-normal text-[color:var(--text-subtle)]">—</span>
                         )}
                       </td>
                     </tr>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, EmptyState, Progress } from "@corelithzw/react";
 import { Input } from "@/components/ui/input";
@@ -158,9 +159,19 @@ export function TeacherHomeworkScreen() {
   const queryClient = useQueryClient();
   const { day: portalDay, classSubjectId, error: portalError } = useTeacherPortal();
 
+  const router = useRouter();
+  const pathname = usePathname();
+  const params = useSearchParams();
+  /**
+   * The composer is a URL state, so Today can send a teacher straight into it
+   * rather than landing them on this list to press the button themselves.
+   */
+  const formOpen = params.get("new") === "1";
+  const setFormOpen = (open: boolean) =>
+    router.replace(open ? `${pathname}?new=1` : pathname);
+
   const [classFilter, setClassFilter] = useState("");
   const [filter, setFilter] = useState<Filter>("all");
-  const [formOpen, setFormOpen] = useState(false);
   const [openBoard, setOpenBoard] = useState<Homework | null>(null);
   const [scores, setScores] = useState<Record<string, string>>({});
   const [saved, setSaved] = useState<string | null>(null);
@@ -173,6 +184,8 @@ export function TeacherHomeworkScreen() {
   });
 
   const classes = portalDay.classes;
+  /** The rail's class unless the composer has been pointed somewhere else. */
+  const chosenClass = draft.classSubjectId || classSubjectId || "";
 
   const list = useQuery({
     queryKey: ["schools", "portal", "teacher", "homework"],
@@ -199,7 +212,7 @@ export function TeacherHomeworkScreen() {
       fetchJson("/api/v2/schools/assignments", {
         method: "POST",
         body: JSON.stringify({
-          classSubjectId: draft.classSubjectId,
+          classSubjectId: chosenClass,
           title: draft.title.trim(),
           instructions: draft.instructions.trim() || null,
           // The deadline is the end of the day chosen. A teacher types a date;
@@ -294,18 +307,10 @@ export function TeacherHomeworkScreen() {
       {publish.error ? <SaveError what="That change" error={publish.error} /> : null}
       {saved ? <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} /> : null}
 
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <p className="max-w-[42rem] text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          Everything you have set this term. Open one to see who has handed in and
-          what is still to mark.
-        </p>
+      <div className="flex flex-wrap items-end justify-end gap-3">
         <Button
           variant="primary"
           onClick={() => {
-            setDraft((current) => ({
-              ...current,
-              classSubjectId: current.classSubjectId || classSubjectId || "",
-            }));
             create.reset();
             setFormOpen(true);
           }}
@@ -348,10 +353,6 @@ export function TeacherHomeworkScreen() {
             <Button
               variant="secondary"
               onClick={() => {
-                setDraft((current) => ({
-                  ...current,
-                  classSubjectId: current.classSubjectId || classSubjectId || "",
-                }));
                 create.reset();
                 setFormOpen(true);
               }}
@@ -492,7 +493,7 @@ export function TeacherHomeworkScreen() {
             <Button
               variant="secondary"
               loading={create.isPending && create.variables === false}
-              disabled={!draft.classSubjectId || !draft.title.trim()}
+              disabled={!chosenClass || !draft.title.trim()}
               onClick={() => create.mutate(false)}
             >
               Save as a draft
@@ -500,7 +501,7 @@ export function TeacherHomeworkScreen() {
             <Button
               variant="primary"
               loading={create.isPending && create.variables === true}
-              disabled={!draft.classSubjectId || !draft.title.trim()}
+              disabled={!chosenClass || !draft.title.trim()}
               onClick={() => create.mutate(true)}
             >
               Set it now
@@ -516,7 +517,7 @@ export function TeacherHomeworkScreen() {
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="homework-class">Class</Label>
             <Select
-              value={draft.classSubjectId}
+              value={chosenClass}
               onValueChange={(value) =>
                 setDraft((current) => ({ ...current, classSubjectId: value }))
               }
