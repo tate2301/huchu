@@ -102,17 +102,24 @@ describe("records outside the CRM module", () => {
 
 describe("isPeekable", () => {
   it("separates knowing what a link points at from being able to describe it", () => {
-    // Both are records and both leave a trail. Only one can be summarised
-    // without travelling to it, because only one has an endpoint that does so.
+    // Every registered type can be described without travelling to it now that
+    // both modules answer, but the question is still a separate one: a type
+    // added to the registry without a summary endpoint parses and navigates.
     expect(isPeekable(parseRecordHref("/crm/deals/a"))).toBe(true);
-    expect(isPeekable(parseRecordHref("/schools/students/abc"))).toBe(false);
+    expect(isPeekable(parseRecordHref("/schools/students/abc"))).toBe(true);
+    expect(isPeekable(parseRecordHref("/schools/students"))).toBe(false);
     expect(isPeekable(null)).toBe(false);
   });
 
-  it("gives a peekable record a summary path and the rest none", () => {
+  it("sends each record to its own module's summary endpoint", () => {
     expect(recordSummaryPath(parseRecordHref("/crm/deals/a")!)).toBe(
       "/api/v2/crm/records/deal/a/summary",
     );
-    expect(recordSummaryPath(parseRecordHref("/schools/students/abc")!)).toBeNull();
+    expect(recordSummaryPath(parseRecordHref("/schools/students/abc")!)).toBe(
+      "/api/v2/schools/records/student/abc/summary",
+    );
+    expect(
+      recordSummaryPath(parseRecordHref("/management/master-data/schools/classes/f4")!),
+    ).toBe("/api/v2/schools/records/class/f4/summary");
   });
 });

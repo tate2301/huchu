@@ -22,7 +22,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";

@@ -9,11 +9,12 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { PersonCell } from "@/components/schools/common/identity-cell";
+import { RowCount } from "@/components/schools/fees/row-count";
 import {
   activeFilterCount,
   FilterSelect,
 } from "@/components/schools/common/filter-select";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
@@ -23,7 +24,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import {
@@ -278,7 +279,9 @@ export function ClassFeesContent({
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <RecordActions
@@ -367,9 +370,11 @@ export function ClassFeesContent({
               options={STATUS_OPTIONS}
               onChange={setStatusFilter}
             />
-            <span className="hidden shrink-0 self-center font-mono text-xs tabular-nums text-[color:var(--text-subtle)] sm:inline">
-              {invoices.length}
-            </span>
+            <RowCount
+              showing={invoices.length}
+              total={invoicesQuery.data?.pagination.total}
+              pending={invoicesQuery.isPending}
+            />
           </>
         }
         mobileListRenderer={({ rows }) => (

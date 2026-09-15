@@ -19,7 +19,7 @@ import {
 } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -27,7 +27,7 @@ import {
   NothingYet,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { RecordCell } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { fetchJson } from "@/lib/api-client";

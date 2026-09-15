@@ -19,7 +19,7 @@ import {
   ALL_CLASSES,
   type ClassFilterValue,
 } from "@/components/schools/common/class-filter";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -27,7 +27,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
   StudentFormSheet,

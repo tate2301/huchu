@@ -11,7 +11,7 @@ import { activeFilterCount, FilterSelect } from "@/components/schools/common/fil
 import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingLeftToDo,
@@ -19,11 +19,12 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { RecordCell } from "@/components/records/record-table";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import { recordType } from "@/lib/records/registry";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import {
   deletePublishWindow,
@@ -53,6 +54,7 @@ import {
   WINDOW_STATE_OPTIONS,
   WindowStateBadge,
   formatDayTime,
+  windowScope,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
@@ -71,13 +73,6 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
  */
 
 type PublishView = "windows" | "published" | "all";
-
-/** What a window covers, as one phrase. */
-function windowScope(record: PublishWindowRecord) {
-  return record.class
-    ? [record.class.name, record.stream?.name].filter(Boolean).join(" ")
-    : "The whole school";
-}
 
 export function PublishingContent() {
   const queryClient = useQueryClient();
@@ -168,6 +163,12 @@ export function PublishingContent() {
     [filteredSheets],
   );
 
+  /** How many are published at all — what the tab counts, before any filter. */
+  const publishedCount = useMemo(
+    () => sheets.filter((sheet) => sheet.status === "PUBLISHED").length,
+    [sheets],
+  );
+
   // The dashboard endpoint returns every window for the tenant, so the same
   // year-group and term filters the sheets use are applied here by hand.
   const filteredWindows = useMemo(() => {
@@ -241,10 +242,17 @@ export function PublishingContent() {
         // term it covers it for on the line underneath. A window scoped to the
         // whole school says so in words rather than leaving the class blank —
         // an empty cell there reads as a window nobody finished setting up.
+        //
+        // Where it is scoped to one year group, that year group is the way to
+        // the year group; the school-wide window has no record to point at, so
+        // it is a phrase and not a link.
         cell: ({ row }) => (
           <RecordNameCell
             kind="class"
             name={windowScope(row.original)}
+            href={
+              row.original.class ? recordType("CLASS").href(row.original.class.id) : null
+            }
             reference={row.original.term.name}
           />
         ),
@@ -416,11 +424,29 @@ export function PublishingContent() {
         />
       ) : null}
 
+      {/* Counted off the whole response, not off the filtered rows.
+          A tab count says how much is behind that tab; the toolbar count
+          beneath says how much the filters left. Read off the same filtered
+          array, the tabs move with the search box and narrowing to one year
+          group looks like the other year groups ceasing to exist — the reader
+          cannot then use the tabs to find what they narrowed away from. */}
       <VerticalDataViews
         items={[
-          { id: "windows", label: "Publish windows", count: filteredWindows.length },
-          { id: "published", label: "Published", count: publishedRows.length },
-          { id: "all", label: "All sheets", count: filteredSheets.length },
+          {
+            id: "windows",
+            label: "Publish windows",
+            count: resultsQuery.isPending ? undefined : windows.length,
+          },
+          {
+            id: "published",
+            label: "Published",
+            count: resultsQuery.isPending ? undefined : publishedCount,
+          },
+          {
+            id: "all",
+            label: "All sheets",
+            count: resultsQuery.isPending ? undefined : sheets.length,
+          },
         ]}
         value={view}
         onValueChange={(next) => setView(next as PublishView)}

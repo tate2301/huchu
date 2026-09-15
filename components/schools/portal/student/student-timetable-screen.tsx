@@ -9,7 +9,7 @@ import {
   NothingMatched,
   NothingYet,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { MedusaBookOpenIcon } from "@/lib/icons";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";

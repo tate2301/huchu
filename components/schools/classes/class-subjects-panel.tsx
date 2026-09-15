@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { EntityLink } from "@/components/records/entity-link";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -13,7 +13,8 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import { TableControls } from "@/components/records/table-controls";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchTeacherAssignments,
@@ -148,48 +149,65 @@ export function ClassSubjectsPanel({
         <SaveError what="The class-subject" error={remove.error} />
       ) : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {assignmentsQuery.isPending
-            ? "Reading the timetable…"
-            : assignments.length === 0
-              ? "Nothing is timetabled to this class."
-              : `${assignments.length} timetabled${
-                  unstaffed > 0 ? ` · ${unstaffed} with no teacher assigned` : ""
-                }.`}
-        </p>
-        <CreateButton
-          resource="schools.academics"
-          label="Timetable a subject"
-          onSelect={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        />
-      </div>
+      {/* The count, the narrowing and the verb in one row, in the words the
+          module uses everywhere else. "6 timetabled · 2 with no teacher
+          assigned." was a third phrasing of a figure written "6 of 9" on every
+          other campus register, and it doubled as the loading line and the
+          empty line over a skeleton and an empty state that already say both.
 
-      {/* Only once there is enough to hunt through. Four subjects do not need
-          narrowing, and a filter row above four rows is furniture. */}
-      {assignments.length > 4 ? (
-        <FilterBar>
-          <FilterSelect
-            label="Term"
-            allLabel="Every term"
-            value={termId}
-            options={termOptions}
-            onChange={setTermId}
+          The filters appear only once there is enough to hunt through: four
+          subjects do not need narrowing, and a filter row above four rows is
+          furniture. */}
+      <TableControls
+        filters={
+          assignments.length > 4 ? (
+            <>
+              <FilterSelect
+                label="Term"
+                allLabel="Every term"
+                value={termId}
+                options={termOptions}
+                onChange={setTermId}
+              />
+              <FilterSelect
+                label="Teacher"
+                allLabel="Staffed or not"
+                value={staffing}
+                options={[
+                  { value: "unstaffed", label: "Without a teacher" },
+                  { value: "staffed", label: "With a teacher" },
+                ]}
+                onChange={setStaffing}
+              />
+            </>
+          ) : undefined
+        }
+        filterCount={activeFilterCount(termId, staffing)}
+        count={
+          assignmentsQuery.isPending
+            ? null
+            : `${visible.length} of ${assignments.length}`
+        }
+        actions={
+          <CreateButton
+            resource="schools.academics"
+            label="Timetable a subject"
+            onSelect={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
           />
-          <FilterSelect
-            label="Teacher"
-            allLabel="Staffed or not"
-            value={staffing}
-            options={[
-              { value: "unstaffed", label: "Without a teacher" },
-              { value: "staffed", label: "With a teacher" },
-            ]}
-            onChange={setStaffing}
-          />
-        </FilterBar>
+        }
+      />
+
+      {/* The gap the office acts on, said once and only when there is one. A
+          subject with nobody against it has no mark sheet and no report line,
+          and the rows below say so one at a time; this is the same fact as a
+          total, so it is worth crossing the panel for. */}
+      {unstaffed > 0 ? (
+        <p className="text-sm text-[color:var(--text-danger)]">
+          {unstaffed} of these have no teacher against them.
+        </p>
       ) : null}
 
       {assignmentsQuery.isPending ? (

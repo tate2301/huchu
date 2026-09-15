@@ -17,7 +17,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { CheckCircle, Clock, TrendingUp } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";

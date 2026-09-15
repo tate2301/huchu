@@ -16,7 +16,7 @@ import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { ClassFilter } from "@/components/schools/common/class-filter";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -24,7 +24,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
@@ -169,6 +169,7 @@ export function ClassStudentsContent({
   });
 
   const students = useMemo(() => studentsQuery.data?.data ?? [], [studentsQuery.data]);
+  const total = studentsQuery.data?.pagination.total ?? students.length;
   const schoolClass = useMemo(
     () => (classesQuery.data?.data ?? []).find((row) => row.id === classId) ?? null,
     [classesQuery.data, classId],
@@ -492,7 +493,7 @@ export function ClassStudentsContent({
           />
         }
         filterCount={activeFilterCount(streamFilter, statusFilter, boardingFilter)}
-        count={studentsQuery.isPending ? null : `${students.length} in view`}
+        count={studentsQuery.isPending ? null : `${students.length} of ${total}`}
         filters={
           <>
             {/* Every class in the school, not just this one's streams: the

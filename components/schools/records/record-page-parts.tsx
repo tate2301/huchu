@@ -7,7 +7,7 @@ import {
   LoadError,
   RecordNotFound,
   StatsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { ApiError } from "@/lib/api-client";
 
 /**

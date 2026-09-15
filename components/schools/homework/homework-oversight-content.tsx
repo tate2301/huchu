@@ -23,7 +23,7 @@ import {
   SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import {

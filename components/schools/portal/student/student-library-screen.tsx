@@ -11,7 +11,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { BookCover } from "@/components/schools/library/book-cover";
 import { Clock, Info, MedusaBookOpenIcon, Search } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";

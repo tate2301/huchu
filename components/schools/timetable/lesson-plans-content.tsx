@@ -21,7 +21,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchTeacherProfiles } from "@/lib/schools/admin-v2";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";

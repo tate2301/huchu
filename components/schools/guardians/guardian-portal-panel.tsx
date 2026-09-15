@@ -5,7 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Card } from "@corelithzw/react";
 
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { LoadError, SaveError } from "@/components/schools/common/states";
+import { LoadError, SaveError } from "@/components/records/states";
 import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-dialog";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";

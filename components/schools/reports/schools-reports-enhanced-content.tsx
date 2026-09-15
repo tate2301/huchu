@@ -24,7 +24,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { AGEING_BUCKETS, ageingAmount, type AgeingTone } from "@/lib/schools/ageing";
@@ -607,7 +607,9 @@ export function SchoolsReportsEnhancedContent() {
       ),
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             {/* Writing to a family is the notices grant, which the route

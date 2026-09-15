@@ -19,7 +19,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -262,7 +262,11 @@ export function ClassAssessmentsContent({
 
       <VerticalDataViews
         items={[
-          { id: "work", label: "Work set", count: assessments.length },
+          {
+            id: "work",
+            label: "Work set",
+            count: assessmentsQuery.isPending ? undefined : assessments.length,
+          },
           { id: "homework", label: "Homework" },
           { id: "marks", label: "Term marks" },
         ]}

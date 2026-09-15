@@ -44,6 +44,7 @@ export function SchoolsBoardingContent() {
   const hostels = useMemo(() => boardQuery.data?.hostels ?? [], [boardQuery.data]);
   const summary = boardQuery.data?.summary;
 
+  const pending = boardQuery.isPending;
   const beds = summary?.beds ?? 0;
   const taken = summary?.activeAllocations ?? 0;
   const free = Math.max(0, beds - taken);
@@ -63,13 +64,20 @@ export function SchoolsBoardingContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until the board answers. "0 free" for the frame
+          before the beds land is the one thing a warden with a new boarder in
+          front of them would act on, and it is wrong. */}
       <PageBand
         chips={[
           { label: "Term", value: activeTerm?.code ?? "—" },
-          { label: "Houses", value: summary?.hostels ?? "—" },
-          { label: "Rooms", value: summary?.rooms ?? "—" },
-          { label: "Beds", value: `${taken} of ${beds}`, tone: "brand" },
-          { label: "Free", value: free, tone: free > 0 ? "success" : "warn" },
+          { label: "Houses", value: pending ? "—" : (summary?.hostels ?? "—") },
+          { label: "Rooms", value: pending ? "—" : (summary?.rooms ?? "—") },
+          { label: "Beds", value: pending ? "—" : `${taken} of ${beds}`, tone: "brand" },
+          {
+            label: "Free",
+            value: pending ? "—" : free,
+            tone: free > 0 ? "success" : "warn",
+          },
         ]}
         actions={
           <Button asChild variant="secondary" size="sm">

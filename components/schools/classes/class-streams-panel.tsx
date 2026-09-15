@@ -10,8 +10,8 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { StreamFormDialog, type StreamFormValues } from "@/components/schools/classes/stream-form-dialog";
 
@@ -127,37 +127,37 @@ export function ClassStreamsPanel({
           refusal names the stream — so it reads as itself, not as the panel. */}
       {remove.error ? <SaveError what="The stream" error={remove.error} /> : null}
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-          {streamsQuery.isPending
-            ? "Reading the streams…"
-            : streams.length === 0
-              ? "This class is not streamed."
-              : `${streams.length} stream${streams.length === 1 ? "" : "s"} in ${className}.`}
-        </p>
-        <CreateButton
-          resource="schools.academics"
-          label="Add a stream"
-          onSelect={() => {
-            setEditing(null);
-            setDialogOpen(true);
-          }}
-        />
-      </div>
+      {/* One row for the count, the search and the verb, the way every campus
+          register states them — rather than a sentence over here and a search
+          box over there. The sentence said "4 streams in Form 2", which is a
+          third phrasing of a figure the module writes as "4 of 7" everywhere
+          else, and it said "This class is not streamed" directly above an
+          empty state that says the same thing in a heading.
 
-      {/* The box appears only once there is enough to hunt through. Three
-          streams do not need finding. */}
-      {streams.length > 4 ? (
-        <TableControls
-          search={
+          The search box still appears only once there is enough to hunt
+          through: three streams do not need finding. */}
+      <TableControls
+        search={
+          streams.length > 4 ? (
             <TableSearch
               value={search}
               onChange={setSearch}
               placeholder="Find a stream"
             />
-          }
-        />
-      ) : null}
+          ) : undefined
+        }
+        count={streamsQuery.isPending ? null : `${visible.length} of ${streams.length}`}
+        actions={
+          <CreateButton
+            resource="schools.academics"
+            label="Add a stream"
+            onSelect={() => {
+              setEditing(null);
+              setDialogOpen(true);
+            }}
+          />
+        }
+      />
 
       {streamsQuery.isPending ? (
         <TableRowsSkeleton

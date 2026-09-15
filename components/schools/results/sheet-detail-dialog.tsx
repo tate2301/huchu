@@ -5,8 +5,9 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge, Button } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordCell } from "@/components/records/record-table";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { LoadError, NothingYet, TableRowsSkeleton } from "@/components/schools/common/states";
+import { LoadError, NothingYet, TableRowsSkeleton } from "@/components/records/states";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchResultSheet, type ResultModerationAction } from "@/lib/schools/results-v2";
 import { SheetStateBadge, formatDay } from "@/components/schools/results/sheet-state";
@@ -142,20 +143,28 @@ export function SheetDetailDialog({
                   <tbody>
                     {sheet.lines.map((line) => (
                       <tr key={line.id} className="border-b border-[color:var(--border-subtle)]">
-                        {/* The same cell the roll draws, minus the link: the
-                            reader is already inside a dialog, and a peek panel
-                            over it is two overlays deep for a glance at a name
-                            that is right there. */}
+                        {/* The same cell the roll draws, minus the link. A
+                            pupil's name is a record reference everywhere else
+                            and peeks on a plain click — but the peek opens as
+                            a sheet, and a sheet over a dialog is two overlays
+                            deep before anybody has read a mark. Whoever has
+                            this open came for the marks, not the children. */}
                         <td className="py-2 pr-3">
                           <PersonCell
                             kind="student"
                             firstName={line.student.firstName}
-            lastName={line.student.lastName}
-            displayName={`${line.student.lastName}, ${line.student.firstName}`}
+                            lastName={line.student.lastName}
+                            displayName={`${line.student.lastName}, ${line.student.firstName}`}
                             reference={line.student.studentNo}
                           />
                         </td>
-                        <td className="py-2 pr-3">{line.subjectCode}</td>
+                        {/* A code is compared rather than read, so it gets
+                            the face every other code in the product has —
+                            mono and tabular, which is what lets the eye run
+                            down the column and catch the one that differs. */}
+                        <td className="py-2 pr-3">
+                          <RecordCell kind="code" value={line.subjectCode} />
+                        </td>
                         <td className="py-2 pr-3">
                           <NumericCell>{line.score.toFixed(1)}</NumericCell>
                         </td>

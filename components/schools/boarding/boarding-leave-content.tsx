@@ -14,8 +14,8 @@ import {
   NothingMatched,
   NothingYet,
   SavingOverlay,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 
 import {
   LEAVE_STATUSES,
@@ -135,12 +135,23 @@ export function BoardingLeaveContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until the requests are in. "0 waiting on you" is
+          the answer a warden would act on by closing the screen, and for the
+          frame before the list lands it is wrong. */}
       <PageBand
         chips={[
-          { label: "Waiting on you", value: waiting, tone: waiting > 0 ? "warn" : "success" },
-          { label: "Out of the gate", value: out, tone: out > 0 ? "danger" : "neutral" },
-          { label: "Approved", value: approved },
-          { label: "Back", value: back },
+          {
+            label: "Waiting on you",
+            value: allQuery.isPending ? "—" : waiting,
+            tone: waiting > 0 ? "warn" : "success",
+          },
+          {
+            label: "Out of the gate",
+            value: allQuery.isPending ? "—" : out,
+            tone: out > 0 ? "danger" : "neutral",
+          },
+          { label: "Approved", value: allQuery.isPending ? "—" : approved },
+          { label: "Back", value: allQuery.isPending ? "—" : back },
         ]}
       />
 
@@ -160,7 +171,12 @@ export function BoardingLeaveContent() {
       ) : null}
 
       <TableControls
-        tabs={<BoardingViews hostels={hostels.length} leave={all.length} />}
+        tabs={
+          <BoardingViews
+            hostels={hostelsQuery.isPending ? undefined : hostels.length}
+            leave={allQuery.isPending ? undefined : all.length}
+          />
+        }
         search={
           <TableSearch
             value={search}
@@ -197,6 +213,7 @@ export function BoardingLeaveContent() {
             />
           </>
         }
+        count={allQuery.isPending ? null : `${inView.length} of ${all.length}`}
       />
 
       <Card flush>

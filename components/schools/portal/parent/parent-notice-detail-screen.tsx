@@ -7,7 +7,7 @@ import {
   CardsSkeleton,
   LoadError,
   RecordNotFound,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 

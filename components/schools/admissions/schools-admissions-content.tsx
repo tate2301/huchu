@@ -6,15 +6,20 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
 import { RecordCell } from "@/components/records/record-table";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
+import { useDebounced } from "@/hooks/use-debounced";
 import { DataTable } from "@/components/ui/data-table";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";
@@ -41,11 +46,15 @@ const STATUS_OPTIONS = [
 
 export function SchoolsAdmissionsContent() {
   /**
-   * What was typed into the table's own search box, echoed out so an empty
-   * list can say which of the search and the filters emptied it. It does not
-   * drive the table — the box and the matching are one control in there.
+   * Searched at the endpoint rather than over the rows already fetched. The
+   * box used to belong to the table, which matched only the page in hand and
+   * left the screen unable to say which of the search and the filters had
+   * emptied the list.
    */
-  const [searched, setSearched] = useState("");
+  const [search, setSearch] = useState("");
+  /** Fetched rather than filtered, so the box is a request; see the guardians
+   *  register for why it is held for a moment before it becomes one. */
+  const debouncedSearch = useDebounced(search, 300);
   const [classFilter, setClassFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -60,11 +69,20 @@ export function SchoolsAdmissionsContent() {
   });
 
   const enrollmentsQuery = useQuery({
-    queryKey: ["schools", "admissions", "enrollments", classFilter, termFilter, statusFilter],
+    queryKey: [
+      "schools",
+      "admissions",
+      "enrollments",
+      debouncedSearch,
+      classFilter,
+      termFilter,
+      statusFilter,
+    ],
     queryFn: () =>
       fetchSchoolsEnrollments({
         page: 1,
         limit: 250,
+        search: debouncedSearch.trim() || undefined,
         classId: classFilter || undefined,
         termId: termFilter || undefined,
         status: statusFilter || undefined,
@@ -77,6 +95,7 @@ export function SchoolsAdmissionsContent() {
     () => enrollmentsQuery.data?.data ?? [],
     [enrollmentsQuery.data],
   );
+  const total = enrollmentsQuery.data?.pagination.total ?? enrollments.length;
 
   const namedFilters = [
     classes.find((row) => row.id === classFilter)?.name,
@@ -85,6 +104,7 @@ export function SchoolsAdmissionsContent() {
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
+    setSearch("");
     setClassFilter("");
     setTermFilter("");
     setStatusFilter("");
@@ -186,7 +206,50 @@ export function SchoolsAdmissionsContent() {
           same answer the Status filter gives, counted over the rows the filters
           had already narrowed — so choosing Withdrawn made three of the four
           read nought. What is left is the count, beside the question it
-          answers. */}
+          answers.
+
+          The controls rode in the table's own toolbar until now, which cost
+          this screen the two things every other campus list has: the filters
+          fold behind one button on a phone, and that button carries how many
+          of them are in force — a filter you cannot see is how a list ends up
+          looking empty for no visible reason. */}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search name or admission number"
+          />
+        }
+        filterCount={activeFilterCount(classFilter, termFilter, statusFilter)}
+        filters={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={termFilter}
+              options={terms.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setTermFilter}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={setStatusFilter}
+            />
+          </>
+        }
+        count={enrollmentsQuery.isPending ? null : `${enrollments.length} of ${total}`}
+      />
+
       {enrollmentsQuery.isPending ? (
         /*
           The skeleton is the table, not a message inside an empty one.
@@ -220,37 +283,10 @@ export function SchoolsAdmissionsContent() {
           <DataTable
             data={enrollments}
             columns={columns}
-            searchPlaceholder="Search enrolments"
-            searchSubmitLabel="Search"
-            onQueryStateChange={(next) => {
-              if (next.search !== undefined) setSearched(next.search);
-            }}
+            // The narrowing is answered once, in the row above. Left on, the
+            // table draws a second search box under the first.
+            features={{ globalFilter: false, pagination: true }}
             pagination={{ enabled: true }}
-            toolbar={
-              <>
-                <FilterSelect
-                  label="Year group"
-                  allLabel="Every year group"
-                  value={classFilter}
-                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={setClassFilter}
-                />
-                <FilterSelect
-                  label="Term"
-                  allLabel="Every term"
-                  value={termFilter}
-                  options={terms.map((row) => ({ value: row.id, label: row.name }))}
-                  onChange={setTermFilter}
-                />
-                <FilterSelect
-                  label="Status"
-                  allLabel="Any status"
-                  value={statusFilter}
-                  options={STATUS_OPTIONS}
-                  onChange={setStatusFilter}
-                />
-              </>
-            }
             mobileCardRenderer={({ row }) => (
               // Five columns at 390px is a sideways scroll showing one and a
               // half of them. The same facts, stacked, in the order the table
@@ -276,12 +312,12 @@ export function SchoolsAdmissionsContent() {
               </div>
             )}
             emptyState={
-              namedFilters.length > 0 || searched.trim() ? (
+              namedFilters.length > 0 || search.trim() ? (
                 <NothingMatched
                   what="enrolments"
                   filters={namedFilters}
-                  search={searched}
-                  onClear={namedFilters.length > 0 ? clearFilters : undefined}
+                  search={search}
+                  onClear={clearFilters}
                 />
               ) : (
                 <NothingYet

@@ -11,11 +11,12 @@ import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
+import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   ALL_CLASSES,
   ClassFilter,
@@ -31,7 +32,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { AGEING_BUCKETS, ageingAmount, type AgeingTone } from "@/lib/schools/ageing";
@@ -279,19 +280,32 @@ export function ReportsArrearsContent() {
 
   /** Where the 90+ sits: the oldest column, by year group. */
   const oldest = useMemo(() => {
-    const byClass = new Map<string, number>();
+    // Keyed by the class's id rather than its name, so each line keeps the
+    // record it is about and can link to it. Two year groups with the same
+    // name would otherwise be added together and neither could be opened.
+    const byClass = new Map<string, { name: string; classId: string; amount: number }>();
     for (const row of arrears) {
       if (row.days120Plus <= 0) continue;
-      const name = row.className || "No year group";
-      byClass.set(name, (byClass.get(name) ?? 0) + row.days120Plus);
+      const key = row.classId || "none";
+      const seen = byClass.get(key);
+      if (seen) seen.amount += row.days120Plus;
+      else
+        byClass.set(key, {
+          name: row.className || "No year group",
+          classId: row.classId,
+          amount: row.days120Plus,
+        });
     }
-    const ordered = [...byClass.entries()].sort(([, a], [, b]) => b - a);
+    const ordered = [...byClass.values()].sort((a, b) => b.amount - a.amount);
     const top = ordered.slice(0, 4);
-    const rest = ordered.slice(4).reduce((total, [, amount]) => total + amount, 0);
+    const rest = ordered.slice(4).reduce((total, row) => total + row.amount, 0);
     return {
       // Four year groups and a remainder: past that the panel is a second copy
       // of the table with worse columns.
-      rows: rest > 0 ? [...top, ["Everything else", rest] as const] : top,
+      rows:
+        rest > 0
+          ? [...top, { name: "Everything else", classId: "", amount: rest }]
+          : top,
       families: arrears.filter((row) => row.days120Plus > 0).length,
     };
   }, [arrears]);
@@ -396,7 +410,9 @@ export function ReportsArrearsContent() {
       ),
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             {/* Writing to a family is `notify-families`, which the route
@@ -674,6 +690,9 @@ export function ReportsArrearsContent() {
               />
             </>
           }
+          count={
+            arrearsQuery.isPending ? null : `${visible.length} of ${arrears.length}`
+          }
         />
 
         <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -750,16 +769,32 @@ export function ReportsArrearsContent() {
               ) : (
                 <>
                   <dl className="space-y-1.5">
-                    {oldest.rows.map(([name, amount]) => (
+                    {oldest.rows.map((row) => (
                       <div
-                        key={name}
+                        key={row.classId || row.name}
                         className="flex items-baseline justify-between gap-2"
                       >
-                        <dt className="truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
-                          {name}
+                        {/* The year group is a record, and "which form is
+                            carrying the 90+" is a question whose next step is
+                            opening that form. The remainder line and a pupil
+                            with no class have no record behind them, so they
+                            stay plain rather than advertising a destination
+                            they do not have. The truncation is on the cell
+                            because the link is an inline child and will not
+                            clamp itself. */}
+                        <dt className="block truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                          {row.classId ? (
+                            <EntityLink
+                              href={`/management/master-data/schools/classes/${row.classId}`}
+                            >
+                              {row.name}
+                            </EntityLink>
+                          ) : (
+                            row.name
+                          )}
                         </dt>
                         <dd className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)] font-bold tabular-nums text-[color:var(--text-strong)]">
-                          {formatSchoolMoney(amount)}
+                          {formatSchoolMoney(row.amount)}
                         </dd>
                       </div>
                     ))}

@@ -11,7 +11,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";

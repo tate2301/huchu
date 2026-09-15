@@ -13,7 +13,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchEmployeeSuggestions,

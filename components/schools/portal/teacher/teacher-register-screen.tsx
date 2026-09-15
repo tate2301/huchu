@@ -19,7 +19,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import {
   LoadError,
@@ -28,7 +28,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useOfflineConnectivity } from "@/hooks/use-offline-connectivity";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";

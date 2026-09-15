@@ -15,7 +15,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Label } from "@/components/ui/label";
 import {
   Select,

@@ -10,8 +10,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { ClassFilter, ALL_CLASSES, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { EntityLink } from "@/components/records/entity-link";
-import { PersonCell } from "@/components/schools/common/identity-cell";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -19,8 +18,8 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
@@ -29,7 +28,6 @@ import {
   ALLOCATION_STATUSES,
   allocationStatusLabel,
   allocationTone,
-  bedLocation,
   fetchBoardingDashboard,
   fetchLeaveRequests,
   shortDate,
@@ -134,15 +132,26 @@ export function BoardingAllocationsContent() {
       {
         id: "location",
         header: "Hostel / room / bed",
-        // The house is a record, so the address is a link to it rather than to
-        // a filtered list of houses — a plain click opens it beside the board
-        // and the warden keeps the row they were reading.
+        // One cell rather than three: where a child sleeps is an address, the
+        // thing a warden reads out over the phone at nine on a Sunday night,
+        // and split across columns the reader reassembles it on every row.
+        //
+        // The house is a record, so it takes the same cell a house takes
+        // everywhere else — its tile, its name, and the room and bed as the
+        // line underneath, which is the half that tells two boarders in the
+        // same house apart. A plain click opens the house beside the board and
+        // the warden keeps the row they were reading.
+        //
+        // A dash stands in for a part that is missing: an allocation to a
+        // house with no bed yet is a real state, and hiding the gap makes it
+        // invisible.
         cell: ({ row }) => (
-          <span className="block truncate">
-            <EntityLink href={`/schools/boarding/${row.original.hostel.id}`}>
-              {bedLocation(row.original)}
-            </EntityLink>
-          </span>
+          <RecordNameCell
+            kind="hostel"
+            href={`/schools/boarding/${row.original.hostel.id}`}
+            name={row.original.hostel.name}
+            reference={`${row.original.room?.code ?? "—"} / ${row.original.bed?.code ?? "—"}`}
+          />
         ),
       },
       {
@@ -173,7 +182,9 @@ export function BoardingAllocationsContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const allocation = row.original;
           const verbs: RecordVerb[] = [
@@ -265,12 +276,27 @@ export function BoardingAllocationsContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until each query answers. "0 waiting on you" for
+          the frame before the leave requests land is the chip a warden opens
+          this screen to read, and it is wrong. */}
       <PageBand
         chips={[
           { label: "Term", value: activeTerm?.code ?? "—" },
-          { label: "Beds", value: `${taken} of ${beds}`, tone: "brand" },
-          { label: "Waiting on you", value: waiting, tone: waiting > 0 ? "warn" : "neutral" },
-          { label: "Out of the gate", value: out, tone: out > 0 ? "warn" : "neutral" },
+          {
+            label: "Beds",
+            value: boardQuery.isPending ? "—" : `${taken} of ${beds}`,
+            tone: "brand",
+          },
+          {
+            label: "Waiting on you",
+            value: leaveQuery.isPending ? "—" : waiting,
+            tone: waiting > 0 ? "warn" : "neutral",
+          },
+          {
+            label: "Out of the gate",
+            value: leaveQuery.isPending ? "—" : out,
+            tone: out > 0 ? "warn" : "neutral",
+          },
         ]}
       />
 
@@ -290,7 +316,7 @@ export function BoardingAllocationsContent() {
           <BoardingViews
             allocations={summary?.totalAllocations}
             hostels={summary?.hostels}
-            leave={leaveRequests.length}
+            leave={leaveQuery.isPending ? undefined : leaveRequests.length}
           />
         }
         search={
@@ -318,6 +344,18 @@ export function BoardingAllocationsContent() {
               onChange={setStatus}
             />
           </>
+        }
+        count={
+          // Against the whole register, not against the response. The house and
+          // status filters are applied by the server, so reading the
+          // denominator off `boardQuery` makes it agree with the numerator the
+          // moment either is used — "12 of 12" on a school with three hundred
+          // allocations, which is the control saying nothing precisely when it
+          // is being asked something. `totalAllocations` is the unnarrowed
+          // figure and is already what the tab beside it counts.
+          boardQuery.isPending
+            ? null
+            : `${allocations.length} of ${summary?.totalAllocations ?? allocations.length}`
         }
       />
 

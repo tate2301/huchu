@@ -8,7 +8,7 @@ import {
   LoadError,
   NothingYet,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchJson } from "@/lib/api-client";

@@ -12,7 +12,11 @@ import { RecordCell, recordCellTone } from "@/components/records/record-table";
 import { RecordMark } from "@/components/records/record-mark";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { RecordActions } from "@/components/schools/common/record-actions";
@@ -22,7 +26,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
@@ -118,7 +122,7 @@ type BulkWrite = { studentId: string; label: string };
  * row, and once over the filtered set — narrow to Form 2A with no target, set
  * them all a Mathematics target in one pass, move on to Form 2B.
  *
- * ── The filter row ─────────────────────────────────────────────────────────
+ * ── The narrowing row ──────────────────────────────────────────────────────
  *
  * Four filters, and the canvas names each with its unnarrowed choice:
  *
@@ -129,7 +133,15 @@ type BulkWrite = { studentId: string; label: string };
  *
  * Term, year group and subject are asked of the endpoint, because the roll the
  * rows are built from is the server's; standing is worked out per row from what
- * came back, so it is filtered here.
+ * came back, so it is filtered here. The search box matches here too, for the
+ * same reason: what it looks through is the roll already in hand.
+ *
+ * All five sit in one row above the table with the count, where every other
+ * campus list puts them. The filters used to sit in a bar of their own and the
+ * search box inside the table's own toolbar, so "narrow it down" was answered
+ * in two places — and on a phone neither of them folded away or said how many
+ * filters were in force, which is how a list ends up looking empty for no
+ * visible reason.
  */
 export function GoalsOversightContent() {
   const queryClient = useQueryClient();
@@ -139,6 +151,7 @@ export function GoalsOversightContent() {
   const [classId, setClassId] = useState("");
   const [subjectId, setSubjectId] = useState("");
   const [standing, setStanding] = useState("");
+  const [search, setSearch] = useState("");
 
   /** The row being written, or `"bulk"` for the whole filtered set. */
   const [editing, setEditing] = useState<GoalRow | "bulk" | null>(null);
@@ -195,9 +208,22 @@ export function GoalsOversightContent() {
   const summary = query.data?.summary;
   const rows = useMemo(() => {
     const all = query.data?.rows ?? [];
-    if (!standing) return all;
-    return all.filter((row) => standingOf(row) === standing);
-  }, [query.data, standing]);
+    const typed = search.trim().toLowerCase();
+    return all.filter((row) => {
+      if (standing && standingOf(row) !== standing) return false;
+      if (!typed) return true;
+      // The pupil, the class and the subject — the three the box names, plus
+      // the admission number, which is what the office has in front of it when
+      // it is not sure how a name is spelled.
+      return [
+        `${row.firstName} ${row.lastName}`,
+        row.studentNo,
+        row.className,
+        row.streamName,
+        row.subject?.name,
+      ].some((field) => field?.toLowerCase().includes(typed));
+    });
+  }, [query.data, search, standing]);
 
   /**
    * The set a bulk run writes to: the rows on screen that still have nothing.
@@ -218,6 +244,7 @@ export function GoalsOversightContent() {
     setClassId("");
     setSubjectId("");
     setStanding("");
+    setSearch("");
   };
 
   const setTargets = useMutation({
@@ -445,36 +472,51 @@ export function GoalsOversightContent() {
         <Alert tone="success" title={saved} onDismiss={() => setSaved(null)} />
       ) : null}
 
-      <FilterBar>
-        <FilterSelect
-          label="Term"
-          allLabel="This term"
-          value={termId}
-          options={termOptions}
-          onChange={setTermId}
-        />
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year"
-          value={classId}
-          options={classOptions}
-          onChange={setClassId}
-        />
-        <FilterSelect
-          label="Subject"
-          allLabel="Every subject"
-          value={subjectId}
-          options={subjectOptions}
-          onChange={setSubjectId}
-        />
-        <FilterSelect
-          label="Standing"
-          allLabel="Everyone"
-          value={standing}
-          options={STANDING_OPTIONS}
-          onChange={setStanding}
-        />
-      </FilterBar>
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search pupil, class or subject"
+          />
+        }
+        filterCount={activeFilterCount(termId, classId, subjectId, standing)}
+        filters={
+          <>
+            <FilterSelect
+              label="Term"
+              allLabel="This term"
+              value={termId}
+              options={termOptions}
+              onChange={setTermId}
+            />
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year"
+              value={classId}
+              options={classOptions}
+              onChange={setClassId}
+            />
+            <FilterSelect
+              label="Subject"
+              allLabel="Every subject"
+              value={subjectId}
+              options={subjectOptions}
+              onChange={setSubjectId}
+            />
+            <FilterSelect
+              label="Standing"
+              allLabel="Everyone"
+              value={standing}
+              options={STANDING_OPTIONS}
+              onChange={setStanding}
+            />
+          </>
+        }
+        // The answer to whatever the row above just asked, beside the question.
+        // The band's three numbers are the term's and must not move with it.
+        count={query.isPending ? null : `${rows.length} of ${query.data?.rows.length ?? 0}`}
+      />
 
       {query.isPending ? (
         <TableRowsSkeleton
@@ -484,8 +526,9 @@ export function GoalsOversightContent() {
         <DataTable
           data={rows}
           columns={columns}
-          searchPlaceholder="Search pupil, class or subject"
-          searchSubmitLabel="Search"
+          // The narrowing is answered once, in the row above. Left on, the
+          // table draws a second search box under the first.
+          features={{ globalFilter: false, pagination: true }}
           pagination={{ enabled: true }}
           exportConfig={{ enabled: true, title: "Subject targets", fileName: "subject-targets" }}
           rowGroup={(row) =>
@@ -534,8 +577,13 @@ export function GoalsOversightContent() {
           emptyState={
             query.error ? (
               "Nothing to show while the targets cannot be loaded."
-            ) : narrowing.length > 0 ? (
-              <NothingMatched what="pupils" filters={narrowing} onClear={clearFilters} />
+            ) : narrowing.length > 0 || search.trim() ? (
+              <NothingMatched
+                what="pupils"
+                filters={narrowing}
+                search={search}
+                onClear={clearFilters}
+              />
             ) : subjectId ? (
               <NothingYet
                 title="No class takes that subject this term"

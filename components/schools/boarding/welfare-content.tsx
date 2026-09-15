@@ -14,7 +14,7 @@ import {
   ALL_CLASSES,
   type ClassFilterValue,
 } from "@/components/schools/common/class-filter";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -23,7 +23,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -269,18 +269,25 @@ export function WelfareContent() {
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until the list is in. "0 allergy, no consent" is
+          the chip a nurse reads to decide she has nothing to chase, and for the
+          frame before the roll lands it is wrong. */}
       <PageBand
         chips={[
-          { label: "Children", value: allRows.length },
-          { label: "Complete", value: complete, tone: "success" },
+          { label: "Children", value: listQuery.isPending ? "—" : allRows.length },
+          {
+            label: "Complete",
+            value: listQuery.isPending ? "—" : complete,
+            tone: "success",
+          },
           {
             label: "Still to record",
-            value: missing,
+            value: listQuery.isPending ? "—" : missing,
             tone: missing > 0 ? "warn" : "success",
           },
           {
             label: "Allergy, no consent",
-            value: urgent,
+            value: listQuery.isPending ? "—" : urgent,
             tone: urgent > 0 ? "danger" : "neutral",
           },
         ]}
@@ -338,6 +345,7 @@ export function WelfareContent() {
             />
           </>
         }
+        count={listQuery.isPending ? null : `${rows.length} of ${allRows.length}`}
         actions={
           // A toggle rather than a third dropdown: it has two states, one of
           // them is the whole school, and the button says which one you get by

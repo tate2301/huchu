@@ -11,7 +11,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

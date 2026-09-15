@@ -14,7 +14,7 @@ import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   CardsSkeleton,
   LoadError,
@@ -22,7 +22,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";

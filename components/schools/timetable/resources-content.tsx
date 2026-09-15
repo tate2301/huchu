@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { RecordMark } from "@/components/records/record-mark";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
@@ -21,7 +21,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
 

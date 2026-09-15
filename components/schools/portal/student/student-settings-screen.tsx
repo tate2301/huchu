@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Switch } from "@corelithzw/react";
-import { SaveError } from "@/components/schools/common/states";
+import { SaveError } from "@/components/records/states";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,

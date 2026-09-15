@@ -18,7 +18,7 @@ import {
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -30,7 +30,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { SegmentedControl } from "@/components/ui/segmented-control";
@@ -338,6 +338,7 @@ export function TransportContent() {
     onSuccess: invalidate,
   });
 
+  const routesLoading = routesQuery.isPending;
   const totalDue = billing.reduce((sum, row) => sum + row.due, 0);
   const totalRiders = billing.reduce((sum, row) => sum + row.riders, 0);
   const failure =
@@ -393,12 +394,16 @@ export function TransportContent() {
 
       {view === "routes" ? (
         <PageBand
+          // A dash until the routes answer, the same way the register's band
+          // waits for its own numbers. "0 riding" and "nothing to bill" are
+          // both things a transport office would act on, and neither is true
+          // while the read is still in flight.
           chips={[
-            { label: "Routes", value: allRoutes.length },
-            { label: "Riding", value: totalRiders, tone: "brand" },
+            { label: "Routes", value: routesLoading ? "—" : allRoutes.length },
+            { label: "Riding", value: routesLoading ? "—" : totalRiders, tone: "brand" },
             {
               label: "Still to bill",
-              value: formatSchoolMoney(totalDue),
+              value: routesLoading ? "—" : formatSchoolMoney(totalDue),
               tone: totalDue > 0 ? "warn" : "success",
             },
           ]}
@@ -484,11 +489,7 @@ export function TransportContent() {
             }
             // How many routes the narrowing left. The band above says how many
             // there are and what they are worth; this says what is on screen.
-            count={
-              allRoutes.length > routes.length
-                ? `${routes.length} of ${allRoutes.length}`
-                : routes.length
-            }
+            count={routesLoading ? null : `${routes.length} of ${allRoutes.length}`}
           />
 
           {routesQuery.isLoading ? (
@@ -761,9 +762,7 @@ export function TransportContent() {
             }
             // The band says how the morning went; this says how much of the
             // register the filters left in front of you.
-            count={
-              allRows.length > rows.length ? `${rows.length} of ${allRows.length}` : rows.length
-            }
+            count={registerQuery.isPending ? null : `${rows.length} of ${allRows.length}`}
             actions={
               <CreateButton
                 resource="schools.students"

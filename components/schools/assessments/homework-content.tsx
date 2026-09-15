@@ -22,7 +22,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import {
   Select,
   SelectContent,

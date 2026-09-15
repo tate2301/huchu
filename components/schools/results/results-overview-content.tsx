@@ -8,14 +8,14 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";

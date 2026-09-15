@@ -32,6 +32,7 @@ import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand, type BandChip } from "@/components/schools/common/page-band";
+import { RowCount } from "@/components/schools/fees/row-count";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
@@ -50,7 +51,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { SlidersHorizontal } from "@/lib/icons";
 import { fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
@@ -309,26 +310,6 @@ function FilterSheet({ count, children }: { count: number; children: ReactNode }
         </div>
       </SheetContent>
     </Sheet>
-  );
-}
-
-/**
- * How many rows the narrowing left, out of how many there are.
- *
- * It sits beside the filters rather than in the page band, and that is the
- * band's own law read the other way round: the band carries state — what the
- * school owes, how many bills are unpaid — and those do not move when you
- * type. This number is the answer to whatever the filters just asked, so it
- * belongs next to the question.
- *
- * Hidden below `sm`, where the filters themselves are behind a button and the
- * screen is wanted for rows.
- */
-function RowCount({ showing, total }: { showing: number; total?: number }) {
-  return (
-    <span className="hidden shrink-0 self-center font-mono text-xs tabular-nums text-[color:var(--text-subtle)] sm:inline">
-      {total !== undefined && total > showing ? `${showing} of ${total}` : showing}
-    </span>
   );
 }
 
@@ -854,7 +835,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const invoice = row.original;
           const settled =
@@ -1009,7 +992,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const receipt = row.original;
           const verbs: RecordVerb[] = [];
@@ -1023,7 +1008,7 @@ export function SchoolsFeesContent() {
             });
             // S-2.7. The fiscal number is what a parent quotes back; a receipt
             // that never reached ZIMRA is re-sent from here rather than from
-            // the accounting replay endpoint no bursar can reach.
+            // accounting replay endpoint no bursar can reach.
             verbs.push({
               label: receipt.fiscalReceipt?.fiscalNumber ? "Re-send to ZIMRA" : "Fiscalise",
               action: "issue",
@@ -1106,7 +1091,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const credit = row.original;
           const spent = credit.available <= 0;
@@ -1203,7 +1190,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const refund = row.original;
           // A paid or cancelled refund is finished. An em dash rather than a
@@ -1297,7 +1286,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const waiver = row.original;
           /*
@@ -1443,7 +1434,9 @@ export function SchoolsFeesContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const structure = row.original;
           const billed = structure._count.invoices > 0;
@@ -1553,14 +1546,25 @@ export function SchoolsFeesContent() {
     Two figures, and the two that belong to the segment on screen. Five chips
     over three rows is what the ledger used to open with on a phone, and none
     of them was about the view underneath.
+
+    Nothing but a dash until the figures are in. A chip that reads `$ 0.00` or
+    `0` for the frame before its query answers is a number a bursar can act on,
+    and it is wrong; a figure that is not known yet is an em dash. `isPending`
+    rather than `isLoading`, because a refetch of a total already on screen is
+    not a reason to blank it.
   */
   const bandChips = useMemo<BandChip[]>(() => {
+    const summaryPending = summaryQuery.isPending;
     if (activeView === "receipts") {
       return [
-        { label: "Posted receipts", value: summary?.receiptsPosted ?? 0, tone: "success" },
+        {
+          label: "Posted receipts",
+          value: summaryPending ? "—" : (summary?.receiptsPosted ?? 0),
+          tone: "success",
+        },
         {
           label: "Credit on account",
-          value: formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
+          value: summaryPending ? "—" : formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
           tone: "warn",
         },
       ];
@@ -1569,28 +1573,36 @@ export function SchoolsFeesContent() {
       return [
         {
           label: "Credit on account",
-          value: formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
+          value: summaryPending ? "—" : formatSchoolMoney(summary?.creditOnAccount ?? 0, currency),
           tone: "warn",
         },
         {
           label: "Held for refund",
-          value: formatSchoolMoney(
-            credits.reduce((sum, credit) => sum + credit.heldForRefund, 0),
-            currency,
-          ),
+          value: creditsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(
+                credits.reduce((sum, credit) => sum + credit.heldForRefund, 0),
+                currency,
+              ),
         },
       ];
     }
     if (activeView === "refunds") {
       const awaiting = refunds.filter((refund) => refund.status === "REQUESTED");
       return [
-        { label: "Awaiting payment", value: awaiting.length, tone: "warn" },
+        {
+          label: "Awaiting payment",
+          value: refundsQuery.isPending ? "—" : awaiting.length,
+          tone: "warn",
+        },
         {
           label: "Owed back",
-          value: formatSchoolMoney(
-            awaiting.reduce((sum, refund) => sum + refund.amount, 0),
-            currency,
-          ),
+          value: refundsQuery.isPending
+            ? "—"
+            : formatSchoolMoney(
+                awaiting.reduce((sum, refund) => sum + refund.amount, 0),
+                currency,
+              ),
         },
       ];
     }
@@ -1598,37 +1610,58 @@ export function SchoolsFeesContent() {
       return [
         {
           label: "Applied waivers",
-          value: formatSchoolMoney(summary?.waivedAmount ?? 0, currency),
+          value: summaryPending ? "—" : formatSchoolMoney(summary?.waivedAmount ?? 0, currency),
           tone: "success",
         },
         {
           label: "Awaiting a decision",
-          value: waivers.filter((waiver) => waiver.status === "DRAFT").length,
+          value: waiversQuery.isPending
+            ? "—"
+            : waivers.filter((waiver) => waiver.status === "DRAFT").length,
           tone: "warn",
         },
       ];
     }
     if (activeView === "structures") {
       return [
-        { label: "Active", value: summary?.activeStructures ?? 0, tone: "success" },
+        {
+          label: "Active",
+          value: summaryPending ? "—" : (summary?.activeStructures ?? 0),
+          tone: "success",
+        },
         {
           label: "Drafts",
-          value: structures.filter((structure) => structure.status === "DRAFT").length,
+          value: structuresQuery.isPending
+            ? "—"
+            : structures.filter((structure) => structure.status === "DRAFT").length,
         },
       ];
     }
     return [
       {
         label: "Outstanding",
-        value: formatSchoolMoney(summary?.outstandingBalance ?? 0, currency),
+        value: summaryPending ? "—" : formatSchoolMoney(summary?.outstandingBalance ?? 0, currency),
         tone: "danger",
       },
       // The figure behind this counts ISSUED and PART_PAID — invoices still
       // owing something. It was labelled "Issued Invoices", which read as
       // nought beside three invoices that had been issued and paid.
-      { label: "Unpaid invoices", value: summary?.issuedInvoices ?? 0 },
+      { label: "Unpaid invoices", value: summaryPending ? "—" : (summary?.issuedInvoices ?? 0) },
     ];
-  }, [activeView, credits, currency, refunds, structures, summary, waivers]);
+  }, [
+    activeView,
+    credits,
+    creditsQuery.isPending,
+    currency,
+    refunds,
+    refundsQuery.isPending,
+    structures,
+    structuresQuery.isPending,
+    summary,
+    summaryQuery.isPending,
+    waivers,
+    waiversQuery.isPending,
+  ]);
 
   /** The primary action belongs to the segment on screen, not to the page. */
   const primaryAction = (() => {
@@ -1671,7 +1704,8 @@ export function SchoolsFeesContent() {
       );
     }
     // Credits and refunds are both raised from a credit row rather than from a
-    // blank form: a refund with no named source is the thing S-2.6 refuses.
+    // blank form: a refund with no named source is the thing S-2.6 refuses. The API
+    // refuses anyway.
     return undefined;
   })();
 
@@ -1818,6 +1852,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={invoices.length}
                   total={invoicesQuery.data?.pagination.total}
+                  pending={invoicesQuery.isPending}
                 />
               </>
             }
@@ -1964,6 +1999,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={receipts.length}
                   total={receiptsQuery.data?.pagination.total}
+                  pending={receiptsQuery.isPending}
                 />
               </>
             }
@@ -2049,6 +2085,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={credits.length}
                   total={creditsQuery.data?.pagination.total}
+                  pending={creditsQuery.isPending}
                 />
               </>
             }
@@ -2116,6 +2153,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={refunds.length}
                   total={refundsQuery.data?.pagination.total}
+                  pending={refundsQuery.isPending}
                 />
               </>
             }
@@ -2206,6 +2244,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={waivers.length}
                   total={waiversQuery.data?.pagination.total}
+                  pending={waiversQuery.isPending}
                 />
               </>
             }
@@ -2302,6 +2341,7 @@ export function SchoolsFeesContent() {
                 <RowCount
                   showing={structures.length}
                   total={structuresQuery.data?.pagination.total}
+                  pending={structuresQuery.isPending}
                 />
               </>
             }

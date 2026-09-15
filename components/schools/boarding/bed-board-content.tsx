@@ -13,8 +13,8 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { fetchJson } from "@/lib/api-client";
 import { normaliseGender } from "@/lib/schools/boarding-rules";
@@ -292,6 +292,7 @@ export function BedBoardContent({
             />
           </>
         }
+        count={loading ? null : `${visible.length} of ${beds.length}`}
       />
 
       {loading ? (

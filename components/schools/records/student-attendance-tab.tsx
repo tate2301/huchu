@@ -5,7 +5,7 @@ import { useMutation, useQuery } from "@tanstack/react-query";
 import { Badge, StatCard } from "@corelithzw/react";
 
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls } from "@/components/schools/common/table-controls";
+import { TableControls } from "@/components/records/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -15,7 +15,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 

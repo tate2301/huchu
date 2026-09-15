@@ -22,7 +22,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { ExternalLink } from "@/lib/icons";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";

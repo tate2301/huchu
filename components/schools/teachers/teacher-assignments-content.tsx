@@ -12,14 +12,14 @@ import { PersonCell, RecordNameCell } from "@/components/schools/common/identity
 import { ClassFilter, ALL_CLASSES, classFilterParams, type ClassFilterValue } from "@/components/schools/common/class-filter";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { fetchJson } from "@/lib/api-client";
 import { fetchSchoolsSubjects } from "@/lib/schools/admin-v2";
@@ -124,13 +124,19 @@ export function TeacherAssignmentsContent() {
   );
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
 
+  /**
+   * Null until the grid is in hand. Counted off the rows, so before they land
+   * all three read nought — and "Nobody teaching 0" is the one reassurance
+   * this screen must never give while it does not yet know.
+   */
   const counts = useMemo(() => {
+    if (!assignmentsQuery.data) return null;
     const unassigned = assignments.filter((row) => !row.teacherProfile).length;
     const teachers = new Set(
       assignments.map((row) => row.teacherProfile?.id).filter(Boolean),
     ).size;
     return { total: assignments.length, unassigned, teachers };
-  }, [assignments]);
+  }, [assignments, assignmentsQuery.data]);
 
   const columns = useMemo<ColumnDef<Assignment>[]>(
     () => [
@@ -209,7 +215,9 @@ export function TeacherAssignmentsContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) =>
           row.original.teacherProfile ? (
             <RecordActions
@@ -250,13 +258,13 @@ export function TeacherAssignmentsContent() {
 
       <PageBand
         chips={[
-          { label: "Allocations", value: counts.total },
+          { label: "Allocations", value: counts ? counts.total : "—" },
           {
             label: "Nobody teaching",
-            value: counts.unassigned,
-            tone: counts.unassigned > 0 ? "warn" : "neutral",
+            value: counts ? counts.unassigned : "—",
+            tone: counts && counts.unassigned > 0 ? "warn" : "neutral",
           },
-          { label: "Teachers", value: counts.teachers },
+          { label: "Teachers", value: counts ? counts.teachers : "—" },
         ]}
       />
 

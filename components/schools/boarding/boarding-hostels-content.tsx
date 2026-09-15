@@ -17,8 +17,8 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { fetchJson } from "@/lib/api-client";
 
 import {
@@ -188,15 +188,26 @@ export function BoardingHostelsContent({
         />
       </PageChrome>
 
+      {/* Dashes, not noughts, until each read answers. "0 beds free" is what a
+          warden with a new boarder in front of them would turn away on, and for
+          the frame before the board lands it is wrong. */}
       <PageBand
         chips={[
-          { label: "Hostels", value: hostels.length },
-          { label: "Boarders", value: boarders, tone: "brand" },
-          { label: "Rooms", value: rooms.length },
-          { label: "Beds free", value: bedsFree, tone: bedsFree > 0 ? "success" : "warn" },
+          { label: "Hostels", value: hostelsQuery.isPending ? "—" : hostels.length },
+          {
+            label: "Boarders",
+            value: occupancyQuery.isPending ? "—" : boarders,
+            tone: "brand",
+          },
+          { label: "Rooms", value: roomsQuery.isPending ? "—" : rooms.length },
+          {
+            label: "Beds free",
+            value: occupancyQuery.isPending ? "—" : bedsFree,
+            tone: bedsFree > 0 ? "success" : "warn",
+          },
           {
             label: "No bed",
-            value: unbedded.length,
+            value: occupancyQuery.isPending ? "—" : unbedded.length,
             tone: unbedded.length > 0 ? "danger" : "neutral",
           },
         ]}
@@ -272,12 +283,22 @@ export function BoardingHostelsContent({
                     walked into the houses can walk back out. The second is this
                     screen's own: which face of THIS house is showing.
                   */}
-                  <BoardingViews hostels={hostels.length} />
+                  <BoardingViews
+                    hostels={hostelsQuery.isPending ? undefined : hostels.length}
+                  />
                   <div className="flex items-center gap-1 rounded-[var(--radius-md)] bg-[color:var(--surface-muted)] p-1">
                     {(
                       [
-                        { id: "rooms" as const, label: "Rooms", count: rooms.length },
-                        { id: "beds" as const, label: "Beds", count: beds.length },
+                        {
+                          id: "rooms" as const,
+                          label: "Rooms",
+                          count: roomsQuery.isPending ? null : rooms.length,
+                        },
+                        {
+                          id: "beds" as const,
+                          label: "Beds",
+                          count: occupancyQuery.isPending ? null : beds.length,
+                        },
                       ]
                     ).map((entry) => (
                       <button
@@ -290,7 +311,12 @@ export function BoardingHostelsContent({
                             : "rounded-[var(--radius-sm)] px-3 py-1 text-sm text-muted-foreground"
                         }
                       >
-                        {entry.label} {entry.count}
+                        {/* No count until there is one: a tab that reads
+                            "Beds 0" and turns into "Beds 48" reads as data
+                            arriving late and wrong. */}
+                        {entry.count === null
+                          ? entry.label
+                          : `${entry.label} ${entry.count}`}
                       </button>
                     ))}
                   </div>
@@ -314,6 +340,11 @@ export function BoardingHostelsContent({
                   }))}
                   onChange={setChosen}
                 />
+              }
+              count={
+                roomsQuery.isPending
+                  ? null
+                  : `${visibleRooms.length} of ${rooms.length}`
               }
               actions={
                 <RecordActions

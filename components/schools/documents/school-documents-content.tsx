@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { PdfTemplate } from "@/components/pdf/pdf-template";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   CardsSkeleton,
@@ -20,7 +20,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import {
   fetchSchoolsClasses,
@@ -696,7 +696,12 @@ export function SchoolDocumentsContent() {
               ? (classes.find((row) => row.id === classId)?.name ?? "—")
               : "Every year group",
           },
-          { label: "Pupils", value: total.toLocaleString() },
+          {
+            label: "Pupils",
+            // A dash until the roll answers. A nought here reads as a school
+            // with no children in it rather than as a number still arriving.
+            value: studentsQuery.isPending ? "—" : total.toLocaleString(),
+          },
           { label: "Term", value: term ? term.name : "—" },
         ]}
       />
@@ -782,7 +787,11 @@ export function SchoolDocumentsContent() {
           <div className="space-y-4">
             <Card
               title="Select a student"
-              subtitle={`${searched.length} of ${total.toLocaleString()} on the roll`}
+              subtitle={
+                studentsQuery.isPending
+                  ? undefined
+                  : `${searched.length} of ${total.toLocaleString()} on the roll`
+              }
             >
               <div className="space-y-3">
                 <div>
@@ -829,27 +838,17 @@ export function SchoolDocumentsContent() {
                         }`}
                         onClick={() => setSelectedStudentId(student.id)}
                       >
-                        {/* The module's identity grammar — a mark, the name,
-                            then the admission number and the year group under
-                            it — without the standing underline the linked
-                            version carries, because this row picks a pupil
-                            rather than opening one. */}
-                        <span className="flex min-w-0 items-center gap-2.5">
-                          <PersonAvatar
-                            firstName={student.firstName}
-                            lastName={student.lastName}
-                          />
-                          <span className="min-w-0">
-                            <span className="block truncate font-semibold text-[color:var(--text-strong)]">
-                              {student.firstName} {student.lastName}
-                            </span>
-                            <span className="acct-caption block truncate font-mono">
-                              {[student.studentNo, student.currentClass?.name]
-                                .filter(Boolean)
-                                .join(" · ")}
-                            </span>
-                          </span>
-                        </span>
+                        {/* No `href`: this row picks a pupil to print for, it
+                            does not open one, and the cell drops its underline
+                            rather than advertising a destination it has not
+                            got. */}
+                        <PersonCell
+                          kind="student"
+                          firstName={student.firstName}
+                          lastName={student.lastName}
+                          reference={student.studentNo}
+                          context={student.currentClass?.name}
+                        />
                       </button>
                     ))
                   )}

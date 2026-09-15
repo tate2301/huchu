@@ -4,7 +4,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Card, EmptyState } from "@corelithzw/react";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -12,7 +12,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";

@@ -18,7 +18,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";

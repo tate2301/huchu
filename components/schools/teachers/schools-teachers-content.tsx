@@ -12,6 +12,7 @@ import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordCell } from "@/components/records/record-table";
+import { RecordMark } from "@/components/records/record-mark";
 import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
 import {
   CreateButton,
@@ -24,7 +25,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -228,11 +229,14 @@ export function SchoolsTeachersContent() {
   }, [allProfiles]);
 
   const tally = useMemo(
-    () => ({
-      total: allProfiles.length,
-      withoutHr: allProfiles.filter((profile) => !profile.employee).length,
-    }),
-    [allProfiles],
+    () =>
+      staffTallyQuery.data
+        ? {
+            total: allProfiles.length,
+            withoutHr: allProfiles.filter((profile) => !profile.employee).length,
+          }
+        : null,
+    [allProfiles, staffTallyQuery.data],
   );
 
   /* ── the verbs ─────────────────────────────────────────────────────── */
@@ -424,7 +428,10 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one. The three registers on this
+        // page each carry one, and they say it the same way.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const profile = row.original;
           const verbs: RecordVerb[] = [
@@ -527,7 +534,7 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             {/* Amending a subject is `schools.academics`, which is what
@@ -633,7 +640,7 @@ export function SchoolsTeachersContent() {
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <RecordActions
@@ -721,8 +728,20 @@ export function SchoolsTeachersContent() {
 
       <PageBand
         chips={[
-          { label: "On the staff", value: tally.total.toLocaleString(), tone: "success" },
-          { label: "No HR record", value: tally.withoutHr.toLocaleString(), tone: "warn" },
+          // An em dash until the tally is in. These are counted over the whole
+          // staff list, so before it lands they would both read nought — and a
+          // nought that turns into 48 reads as a school with no teachers for
+          // exactly as long as somebody might glance at it.
+          {
+            label: "On the staff",
+            value: tally ? tally.total.toLocaleString() : "—",
+            tone: "success",
+          },
+          {
+            label: "No HR record",
+            value: tally ? tally.withoutHr.toLocaleString() : "—",
+            tone: "warn",
+          },
         ]}
         actions={
           <RecordActions
@@ -835,6 +854,17 @@ export function SchoolsTeachersContent() {
                   rows.map(({ row }) => (
                     <MobileList.Row
                       key={row.id}
+                      // The table's first column gives every teacher a face and
+                      // the phone gave them none, so one register was scannable
+                      // and the other was a column of surnames. Same mark,
+                      // hashed from the same name, at either width.
+                      leading={
+                        <RecordMark
+                          kind="teacher"
+                          name={row.user.name ?? row.employeeCode}
+                          size="sm"
+                        />
+                      }
                       title={row.user.name ?? row.employeeCode}
                       subtitle={[
                         row.employeeCode,

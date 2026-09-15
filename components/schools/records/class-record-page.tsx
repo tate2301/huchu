@@ -21,7 +21,7 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { ClassStreamsPanel } from "@/components/schools/classes/class-streams-panel";
 import { ClassSubjectsPanel } from "@/components/schools/classes/class-subjects-panel";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
-import { ListRowsSkeleton } from "@/components/schools/common/states";
+import { ListRowsSkeleton } from "@/components/records/states";
 import {
   Glance,
   GlanceList,

@@ -7,6 +7,7 @@ import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
 import { RecordCell } from "@/components/records/record-table";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -15,7 +16,7 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -24,8 +25,10 @@ import {
   WINDOW_STATE_OPTIONS,
   WindowStateBadge,
   formatDayTime,
+  windowScope,
 } from "@/components/schools/results/sheet-state";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import type { PublishWindowStatus } from "@/lib/schools/results-v2";
 import {
   fetchSchoolsClasses,
@@ -261,11 +264,15 @@ export function GradingContent() {
       {
         id: "scheme",
         header: "Scheme",
+        // The module's own identity cell rather than a name over a code: this
+        // was a local re-creation of it, a half-step off in weight and in the
+        // gap under the name from every other register in the module.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.name}</div>
-            <div className="text-muted-foreground font-mono">{row.original.code}</div>
-          </div>
+          <RecordNameCell
+            kind="document"
+            name={row.original.name}
+            reference={row.original.code}
+          />
         ),
       },
       {
@@ -305,10 +312,15 @@ export function GradingContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
             layout="menu"
+            // Named for its row: a table of schemes otherwise announces a
+            // dozen controls all called the same thing.
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               ...(row.original.isDefault
@@ -358,15 +370,19 @@ export function GradingContent() {
       {
         id: "scope",
         header: "Covers",
+        // The same cell the publishing screen draws for the same window, and
+        // the year group in it is the way to the year group — an office asking
+        // "who is this window holding marks back from" is one click away from
+        // the answer instead of one search.
         cell: ({ row }) => (
-          <div>
-            <div className="font-medium">
-              {row.original.class
-                ? `${row.original.class.name}${row.original.stream ? ` · ${row.original.stream.name}` : ""}`
-                : "The whole school"}
-            </div>
-            <div className="text-muted-foreground">{row.original.term.name}</div>
-          </div>
+          <RecordNameCell
+            kind="class"
+            name={windowScope(row.original)}
+            href={
+              row.original.class ? recordType("CLASS").href(row.original.class.id) : null
+            }
+            reference={row.original.term.name}
+          />
         ),
       },
       {
@@ -392,10 +408,11 @@ export function GradingContent() {
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
             layout="menu"
+            label={`Row actions for the ${windowScope(row.original)} window`}
             resource="schools.results"
             verbs={[
               ...(row.original.status === "OPEN"
@@ -458,19 +475,26 @@ export function GradingContent() {
 
   return (
     <div className="space-y-4">
+      {/* "None" in amber says the school has no default scheme, which is a
+          fault somebody has to go and fix; off a query that has not answered
+          yet it is an accusation about nothing. Same for the window counts:
+          a zero here is only a zero once the windows are in. */}
       <PageBand
         chips={[
           {
             label: "Default scheme",
-            value: defaultScheme?.name ?? "None",
-            tone: defaultScheme ? "brand" : "warn",
+            value: schemesQuery.isPending ? "—" : (defaultScheme?.name ?? "None"),
+            tone: schemesQuery.isPending ? "neutral" : defaultScheme ? "brand" : "warn",
           },
           {
             label: "Windows open now",
-            value: openWindows,
-            tone: openWindows > 0 ? "success" : "neutral",
+            value: windowsQuery.isPending ? "—" : openWindows,
+            tone: !windowsQuery.isPending && openWindows > 0 ? "success" : "neutral",
           },
-          { label: "Windows in all", value: windows.length },
+          {
+            label: "Windows in all",
+            value: windowsQuery.isPending ? "—" : windows.length,
+          },
         ]}
       />
 
@@ -510,8 +534,16 @@ export function GradingContent() {
 
       <VerticalDataViews
         items={[
-          { id: "schemes", label: "Grading schemes", count: schemes.length },
-          { id: "windows", label: "Publishing windows", count: windows.length },
+          {
+            id: "schemes",
+            label: "Grading schemes",
+            count: schemesQuery.isPending ? undefined : schemes.length,
+          },
+          {
+            id: "windows",
+            label: "Publishing windows",
+            count: windowsQuery.isPending ? undefined : windows.length,
+          },
         ]}
         value={activeView}
         onValueChange={(value) => setActiveView(value as GradingView)}

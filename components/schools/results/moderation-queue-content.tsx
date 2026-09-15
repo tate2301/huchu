@@ -7,7 +7,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingLeftToDo,
@@ -16,7 +16,7 @@ import {
   NotYourJob,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
@@ -163,6 +163,22 @@ export function ModerationQueueContent() {
     [filtered],
   );
 
+  /**
+   * What the two tabs count: the whole response, not the rows the filters left.
+   *
+   * A tab count says how much is behind that tab, and the toolbar count
+   * underneath says how much the filters left — two questions, and reading both
+   * off the same narrowed array answers the second one twice. It also takes
+   * away the only thing that would tell a reader who has narrowed to one year
+   * group that there is anything else to go back to.
+   */
+  const queueTotal = useMemo(
+    () =>
+      sheets.filter((sheet) => sheet.status === "SUBMITTED" || sheet.status === "HOD_REJECTED")
+        .length,
+    [sheets],
+  );
+
   const narrowing = [
     classes.find((row) => row.id === classFilter)?.name ?? null,
     streams.find((row) => row.id === streamFilter)?.name ?? null,
@@ -298,8 +314,16 @@ export function ModerationQueueContent() {
 
       <VerticalDataViews
         items={[
-          { id: "queue", label: "Waiting on you", count: queueRows.length },
-          { id: "all", label: "All sheets", count: allRows.length },
+          {
+            id: "queue",
+            label: "Waiting on you",
+            count: resultsQuery.isPending ? undefined : queueTotal,
+          },
+          {
+            id: "all",
+            label: "All sheets",
+            count: resultsQuery.isPending ? undefined : sheets.length,
+          },
         ]}
         value={view}
         onValueChange={(next) => setView(next as QueueView)}

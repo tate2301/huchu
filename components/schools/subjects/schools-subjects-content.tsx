@@ -4,19 +4,19 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { RecordList, type RecordListRow } from "@/components/crm/records/record-list";
+import { RecordList, type RecordListRow } from "@/components/records/record-list";
 import { RecordMark } from "@/components/records/record-mark";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   ListRowsSkeleton,
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import {
@@ -245,17 +245,28 @@ export function SchoolsSubjectsContent() {
 
   return (
     <div className="space-y-4">
+      {/* Counted off a list that is empty until the catalogue arrives, so
+          nothing here is a zero before it has been counted: "On the catalogue
+          0" for the half-second in between reads as a school that teaches
+          nothing. */}
       <PageBand
         chips={[
-          { label: "On the catalogue", value: subjects.length },
+          {
+            label: "On the catalogue",
+            value: subjectsQuery.isPending ? "—" : subjects.length,
+          },
           {
             label: "Currently taught",
-            value: subjects.filter((row) => row.isActive).length,
+            value: subjectsQuery.isPending
+              ? "—"
+              : subjects.filter((row) => row.isActive).length,
             tone: "success",
           },
           {
             label: "Core",
-            value: subjects.filter((row) => row.isCore).length,
+            value: subjectsQuery.isPending
+              ? "—"
+              : subjects.filter((row) => row.isCore).length,
             tone: "brand",
           },
         ]}

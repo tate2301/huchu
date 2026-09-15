@@ -24,7 +24,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 

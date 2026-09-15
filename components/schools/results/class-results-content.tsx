@@ -8,14 +8,14 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
@@ -120,7 +120,16 @@ export function ClassResultsContent({
   const terms = useMemo(() => termsQuery.data?.data ?? [], [termsQuery.data]);
   const subjects = useMemo(() => subjectsQuery.data?.data ?? [], [subjectsQuery.data]);
 
+  /**
+   * Null until the sheets are in, rather than five zeros.
+   *
+   * The tally is built from a list that is empty while the query is in flight,
+   * so a band drawn from it opens reading "Draft 0 · Submitted 0 · … " — which
+   * is the school having no sheets at all, and is the one thing this strip
+   * exists to say. It says nothing until it knows.
+   */
   const counts = useMemo(() => {
+    if (resultsQuery.isPending) return null;
     const tally: Record<ResultSheetStatus, number> = {
       DRAFT: 0,
       SUBMITTED: 0,
@@ -130,7 +139,7 @@ export function ClassResultsContent({
     };
     for (const sheet of sheets) tally[sheet.status] += 1;
     return tally;
-  }, [sheets]);
+  }, [sheets, resultsQuery.isPending]);
 
   const subjectName = useMemo(
     () => subjects.find((subject) => subject.id === subjectFilter)?.name ?? "",
@@ -213,11 +222,11 @@ export function ClassResultsContent({
       band={
         <PageBand
           chips={[
-            { label: "Draft", value: counts.DRAFT },
-            { label: "Submitted", value: counts.SUBMITTED, tone: "warn" },
-            { label: "Sent back", value: counts.HOD_REJECTED, tone: "danger" },
-            { label: "Approved", value: counts.HOD_APPROVED, tone: "success" },
-            { label: "Published", value: counts.PUBLISHED, tone: "brand" },
+            { label: "Draft", value: counts?.DRAFT ?? "—" },
+            { label: "Submitted", value: counts?.SUBMITTED ?? "—", tone: "warn" },
+            { label: "Sent back", value: counts?.HOD_REJECTED ?? "—", tone: "danger" },
+            { label: "Approved", value: counts?.HOD_APPROVED ?? "—", tone: "success" },
+            { label: "Published", value: counts?.PUBLISHED ?? "—", tone: "brand" },
           ]}
         />
       }

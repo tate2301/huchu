@@ -248,26 +248,6 @@ export function dateWindow(start: string, end: string): string {
   return from === to ? from : `${from} – ${to}`;
 }
 
-/**
- * Where a child sleeps, as one string: `Chishawasha House / R12 / B3`.
- *
- * One column rather than three. It is an address — the thing a warden reads out
- * over the phone at nine on a Sunday night — and splitting `Nyanga House / R04
- * / B1` across three cells makes the reader reassemble it on every row.
- *
- * A dash stands in for a part that is missing, because an allocation to a house
- * with no bed yet is a real state and hiding the gap makes it invisible.
- */
-export function bedLocation(allocation: {
-  hostel: { name: string };
-  room: { code: string } | null;
-  bed: { code: string } | null;
-}): string {
-  return [allocation.hostel.name, allocation.room?.code ?? "—", allocation.bed?.code ?? "—"].join(
-    " / ",
-  );
-}
-
 /** Surname first, then the admission number: `Mutasa, Tanaka · CHS-1219`. */
 export function personLabel(student: {
   firstName: string;

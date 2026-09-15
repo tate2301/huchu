@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { SaveError } from "@/components/schools/common/states";
+import { SaveError } from "@/components/records/states";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import {

@@ -17,14 +17,14 @@ import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { recordType } from "@/lib/records/registry";
 import { formatSchoolDate } from "@/lib/schools/format";

@@ -93,6 +93,28 @@ export const WINDOW_STATE_OPTIONS = (
   ["OPEN", "SCHEDULED", "CLOSED"] as PublishWindowStatus[]
 ).map((value) => ({ value, label: WINDOW_STATE_LABELS[value] }));
 
+/**
+ * What a publish window covers, as one phrase.
+ *
+ * Two screens draw the same window as a row — the publishing register and the
+ * grading settings — and they had drifted to "Form 2 Alpha" on one and
+ * "Form 2 · Alpha" on the other. The space form wins because it is how a
+ * school says it out loud, and because it is what `sheetClassName` already
+ * puts under every mark sheet.
+ *
+ * A window with no class covers the school, and says so in words rather than
+ * leaving the cell blank: a window nobody has narrowed is the one that
+ * releases everybody's marks at once.
+ */
+export function windowScope(window: {
+  class: { name: string } | null;
+  stream: { name: string } | null;
+}) {
+  return window.class
+    ? [window.class.name, window.stream?.name].filter(Boolean).join(" ")
+    : "The whole school";
+}
+
 export function WindowStateBadge({ status }: { status: PublishWindowStatus }) {
   return (
     <Badge tone={status === "OPEN" ? "success" : status === "SCHEDULED" ? "info" : "neutral"}>

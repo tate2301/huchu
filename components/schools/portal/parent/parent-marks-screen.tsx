@@ -9,7 +9,7 @@ import {
   CardsSkeleton,
   LoadError,
   NothingYet,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";

@@ -7,7 +7,7 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { SendNoticeDialog } from "@/components/schools/common/send-notice-dialog";
-import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/schools/common/states";
+import { LoadError, NothingLeftToDo, TableRowsSkeleton } from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson } from "@/lib/api-client";
 
@@ -183,7 +183,12 @@ export function AssignmentBoardDialog({
                 />
               ) : (
                 /* Separated by space rather than by rules: a divider is a line
-                   the reader has to cross for every child on a chase list. */
+                   the reader has to cross for every child on a chase list.
+
+                   The names are the roll's own cell without its link. A pupil
+                   peeks on a plain click everywhere else, but the peek opens
+                   as a sheet and a sheet over a dialog is two overlays deep —
+                   and this list is read to chase the work, not the children. */
                 <ul className="space-y-1">
                   {missing.map((row) => (
                     <li
@@ -194,8 +199,8 @@ export function AssignmentBoardDialog({
                         <PersonCell
                           kind="student"
                           firstName={row.student.firstName}
-            lastName={row.student.lastName}
-            displayName={`${row.student.lastName}, ${row.student.firstName}`}
+                          lastName={row.student.lastName}
+                          displayName={`${row.student.lastName}, ${row.student.firstName}`}
                           reference={row.student.studentNo}
                         />
                       </span>
@@ -225,8 +230,8 @@ export function AssignmentBoardDialog({
                         <PersonCell
                           kind="student"
                           firstName={row.student.firstName}
-            lastName={row.student.lastName}
-            displayName={`${row.student.lastName}, ${row.student.firstName}`}
+                          lastName={row.student.lastName}
+                          displayName={`${row.student.lastName}, ${row.student.firstName}`}
                           reference={row.student.studentNo}
                           context={
                             row.submission?.score !== null &&

@@ -8,7 +8,7 @@ import { Alert, Badge, Button, Card } from "@corelithzw/react";
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -18,7 +18,7 @@ import {
   SaveError,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 
 import { fetchJson } from "@/lib/api-client";
 import {

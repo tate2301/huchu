@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -25,7 +25,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { useTeacherPortal } from "./teacher-portal-context";
 

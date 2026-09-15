@@ -8,7 +8,7 @@ import {
   CardsSkeleton,
   LoadError,
   NothingYet,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import {

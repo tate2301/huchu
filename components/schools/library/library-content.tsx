@@ -6,14 +6,14 @@ import { Alert, Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { EntityLink } from "@/components/records/entity-link";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
 import { useOpenTransition } from "@/components/schools/common/use-open-transition";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -25,7 +25,7 @@ import {
   NothingMatched,
   NothingYet,
   SaveError,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
@@ -215,6 +215,7 @@ export function LibraryContent() {
   const copies = allBooks.reduce((sum, book) => sum + book.copies.length, 0);
 
   const desk = deskMutation.isPending;
+  const shelvesLoading = libraryQuery.isPending;
   const anyFilter = Boolean(shelfFilter || genreFilter || copyFilter || search.trim());
 
   return (
@@ -231,12 +232,15 @@ export function LibraryContent() {
           of it is somewhere else, and how much of that is late. */}
       <PageBand
         chips={[
-          { label: "Copies", value: copies.toLocaleString() },
-          { label: "On the shelf", value: onShelf.toLocaleString() },
-          { label: "Out", value: allLoans.length, tone: "brand" },
+          // A dash until the shelves answer. Every one of these is a count
+          // taken over the catalogue, and a nought before it arrives reads as a
+          // library that owns nothing rather than as a number on its way.
+          { label: "Copies", value: shelvesLoading ? "—" : copies.toLocaleString() },
+          { label: "On the shelf", value: shelvesLoading ? "—" : onShelf.toLocaleString() },
+          { label: "Out", value: shelvesLoading ? "—" : allLoans.length, tone: "brand" },
           {
             label: "Late",
-            value: overdue.length,
+            value: shelvesLoading ? "—" : overdue.length,
             tone: overdue.length > 0 ? "danger" : "success",
           },
         ]}
@@ -303,9 +307,9 @@ export function LibraryContent() {
         // when the filters move, so it belongs beside them rather than in the
         // band above — the band's numbers are about the library.
         count={
-          allBooks.length > books.length
-            ? `${books.length.toLocaleString()} of ${allBooks.length.toLocaleString()}`
-            : books.length.toLocaleString()
+          shelvesLoading
+            ? null
+            : `${books.length.toLocaleString()} of ${allBooks.length.toLocaleString()}`
         }
       />
 
@@ -450,22 +454,31 @@ export function LibraryContent() {
                               <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-body-sm)]">
                                 {copy.copyCode}
                               </span>
-                              <span className="min-w-0 flex-1 truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                              <span className="min-w-0 flex-1">
                                 {loan ? (
-                                  <>
-                                    <EntityLink href={`/schools/students/${loan.student.id}`}>
-                                      {loan.student.firstName} {loan.student.lastName}
-                                    </EntityLink>
-                                    {" · back by "}
-                                    {/* The raw ISO slice, not a formatted date:
-                                        the due date decides whether the badge
-                                        beside it is late, and a locale-derived
-                                        string would differ between the server
-                                        render and the browser's. */}
-                                    {loan.dueAt.slice(0, 10)}
-                                  </>
+                                  // Whoever has it reads exactly as they do on
+                                  // the loans register — the same mark, the
+                                  // same name, the same line underneath — so a
+                                  // borrower met at the shelf and a borrower
+                                  // met on the register are recognisably one
+                                  // child.
+                                  //
+                                  // The date is the raw ISO slice, not a
+                                  // formatted one: it decides whether the badge
+                                  // beside it is late, and a locale-derived
+                                  // string would differ between the server
+                                  // render and the browser's.
+                                  <PersonCell
+                                    kind="student"
+                                    href={`/schools/students/${loan.student.id}`}
+                                    firstName={loan.student.firstName}
+                                    lastName={loan.student.lastName}
+                                    reference={`back by ${loan.dueAt.slice(0, 10)}`}
+                                  />
                                 ) : (
-                                  (book.shelfMark ?? "On the shelf")
+                                  <span className="block truncate text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
+                                    {book.shelfMark ?? "On the shelf"}
+                                  </span>
                                 )}
                               </span>
                               <Badge tone={loan ? "brand" : "success"}>

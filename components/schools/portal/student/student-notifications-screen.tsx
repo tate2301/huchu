@@ -9,7 +9,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import { isFeatureDisabledError } from "@/lib/api-client";
 import {

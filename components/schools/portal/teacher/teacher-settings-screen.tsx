@@ -12,7 +12,7 @@ import {
 } from "@corelithzw/react";
 import { NavRailGroup, NavRailItem } from "@/components/ui/nav-rail";
 import { dsConfirm } from "@/components/ui/ds-confirm";
-import { TableSearch } from "@/components/schools/common/table-controls";
+import { TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -20,7 +20,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import {
   fetchNotificationPreferences,
   updateNotificationPreferences,

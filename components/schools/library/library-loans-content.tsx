@@ -19,7 +19,7 @@ import {
 import {
   TableControls,
   TableSearch,
-} from "@/components/schools/common/table-controls";
+} from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -33,7 +33,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsStudents } from "@/lib/schools/admin-v2";
@@ -280,9 +280,7 @@ export function LibraryLoansContent() {
         // moves when the filters move, so it sits with them; the band above
         // keeps the numbers that are about the library itself.
         count={
-          summary && summary.out > loans.length
-            ? `${loans.length} of ${summary.out}`
-            : loans.length
+          loansQuery.isPending ? null : `${loans.length} of ${summary?.out ?? loans.length}`
         }
         actions={
           <Button variant="secondary" onClick={() => setOverdueOnly((on) => !on)}>

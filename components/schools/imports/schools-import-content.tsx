@@ -16,7 +16,7 @@ import {
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
-import { TableControls } from "@/components/schools/common/table-controls";
+import { TableControls } from "@/components/records/table-controls";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {
   LoadError,
@@ -26,7 +26,7 @@ import {
   SavingOverlay,
   StatsSkeleton,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { Label } from "@/components/ui/label";
 import {
   Select,

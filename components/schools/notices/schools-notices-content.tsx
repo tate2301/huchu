@@ -7,6 +7,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
+import { EntityLink } from "@/components/records/entity-link";
+import { recordCellTone } from "@/components/records/record-table";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { PageBand } from "@/components/schools/common/page-band";
@@ -18,8 +20,9 @@ import {
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsGuardians,
@@ -71,6 +74,21 @@ import { SendNoticeDialog, type Correcting, type NoticeDraft } from "./send-noti
  * All four narrow the sent list in the browser rather than at the endpoint: a
  * term's notices are tens of rows, not thousands, and the reach panel beside
  * the table has to count the same set the table is drawn from.
+ *
+ * ── Why this is a table and not a record list ──────────────────────────────
+ *
+ * Classes, subjects and the rest of the campus registers are lists: rows you
+ * open, where the whole row is a link and the underline on the title promises
+ * a page. A notice has no page. It is written, sent, and read in the portals;
+ * there is nowhere in the office for a row to go, and a list row that opens
+ * nothing is an underline making a promise it cannot keep.
+ *
+ * What the reader is doing here is a column question besides: four of the six
+ * columns — when it went, how far it reached, how urgent it was, when it stops
+ * showing — are compared down the column rather than read across one row. That
+ * is what the reach bar is for; "894 of 1,106" and "44 of 48" are the same
+ * story and only one of them looks like it. So the shape is a register, and
+ * the verb sits behind one trigger at the end of the row like every other.
  */
 
 type SentNotice = {
@@ -273,6 +291,12 @@ export function SchoolsNoticesContent() {
       {
         id: "title",
         header: "Notice",
+        // Not `RecordNameCell`, and this is the one place in the module that
+        // is not. That cell sets its supporting line in mono, which is right
+        // where the line is an identifier read character by character — an
+        // admission number, a subject code — and wrong here, where it is the
+        // first sentence of a letter. A notice has no reference to put there
+        // instead; what tells two of them apart is what they say.
         cell: ({ row }) => (
           <div className="min-w-0">
             <div className="font-medium">{row.original.title}</div>
@@ -286,9 +310,24 @@ export function SchoolsNoticesContent() {
         id: "audience",
         header: "Audience",
         cell: ({ row }) => (
+          // `block truncate` on the cell rather than on the link: the link is
+          // an inline child and will not clamp itself, and a long year-group
+          // name wrapping makes its row twice as tall as its neighbours.
           <span className="block truncate">
             {row.original.audience}
-            {row.original.className ? ` · ${row.original.className}` : ""}
+            {row.original.classId && row.original.className ? (
+              <>
+                {" · "}
+                {/* "What else has Form 2 been told" is the question this cell
+                    gets asked, so the year group is the way there. */}
+                <EntityLink
+                  href={recordType("CLASS").href(row.original.classId)}
+                  className={recordCellTone("relation")}
+                >
+                  {row.original.className}
+                </EntityLink>
+              </>
+            ) : null}
           </span>
         ),
       },
@@ -333,7 +372,9 @@ export function SchoolsNoticesContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <RecordActions
@@ -380,18 +421,27 @@ export function SchoolsNoticesContent() {
         />
       </PageChrome>
 
+      {/* Nothing here is a zero until it has been counted. A band that reads
+          "Sent this term 0 · Unread 0" for the half-second the query is in
+          flight tells an office the term has been silent, and the green on the
+          second chip says so approvingly. An em dash and the neutral tone say
+          the only true thing, which is that we do not know yet. */}
       <PageBand
         chips={[
-          { label: "Sent this term", value: reach.sent },
+          { label: "Sent this term", value: query.isPending ? "—" : reach.sent },
           {
             label: "Unread",
-            value: reach.unread.toLocaleString(),
-            tone: reach.unread > 0 ? "warn" : "success",
+            value: query.isPending ? "—" : reach.unread.toLocaleString(),
+            tone: query.isPending ? "neutral" : reach.unread > 0 ? "warn" : "success",
           },
           {
             label: "No portal account",
             value: unreachable ? unreachable.guardians + unreachable.students : "—",
-            tone: unreachable && unreachable.guardians + unreachable.students > 0 ? "danger" : "success",
+            tone: !unreachable
+              ? "neutral"
+              : unreachable.guardians + unreachable.students > 0
+                ? "danger"
+                : "success",
             href: "/schools/guardians",
           },
         ]}

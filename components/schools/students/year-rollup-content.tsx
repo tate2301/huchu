@@ -15,7 +15,7 @@ import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls } from "@/components/schools/common/table-controls";
+import { TableControls } from "@/components/records/table-controls";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
@@ -26,7 +26,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { dsConfirm } from "@/components/ui/ds-confirm";
 import {
   Select,
@@ -276,9 +276,13 @@ export function YearRollUpContent() {
             { label: "Leaving", value: plan?.summary.GRADUATE ?? "—" },
             { label: "No ladder", value: plan?.summary.REPEAT ?? "—", tone: "warn" },
             {
+              // The other three read an em dash until the plan is in, and this
+              // one is counted off the same rows — a nought here while they
+              // are loading says nobody is below the pass mark, which is the
+              // one thing this screen must not say before it knows.
               label: `Below ${plan?.passMark ?? 50}%`,
-              value: flagged,
-              tone: flagged > 0 ? "danger" : "neutral",
+              value: plan ? flagged : "—",
+              tone: plan && flagged > 0 ? "danger" : "neutral",
             },
           ]}
         />

@@ -4,7 +4,7 @@ import Link from "next/link";
 import {
   NothingLeftToDo,
   NothingYet,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import {
   AlertTriangle,
   Bell,

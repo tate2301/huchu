@@ -20,7 +20,7 @@ import {
   SaveError,
   SavingOverlay,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Plus } from "@/lib/icons";
@@ -38,7 +38,7 @@ import {
   type SchoolsTimetableSlotRecord,
 } from "@/lib/schools/admin-v2";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LessonFormSheet,
   type LessonBeingMoved,

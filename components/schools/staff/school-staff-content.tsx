@@ -10,17 +10,20 @@ import { PageBand } from "@/components/schools/common/page-band";
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordCell } from "@/components/records/record-table";
 import { PersonCell } from "@/components/schools/common/identity-cell";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { RecordMark } from "@/components/records/record-mark";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import {
+  activeFilterCount,
+  FilterSelect,
+} from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   LoadError,
   NothingMatched,
   NothingYet,
   SaveError,
   TableRowsSkeleton,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { DataTable } from "@/components/ui/data-table";
 import { Plus } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";
@@ -103,7 +106,7 @@ export function SchoolStaffContent() {
       if (search) params.set("search", search);
       if (departmentId) params.set("departmentId", departmentId);
       if (position) params.set("position", position);
-      return fetchJson<{ data: EmployeeSummary[] }>(
+      return fetchJson<{ data: EmployeeSummary[]; pagination: { total: number } }>(
         `/api/v2/schools/staff?${params.toString()}`,
       );
     },
@@ -139,11 +142,19 @@ export function SchoolStaffContent() {
     [departmentsQuery.data],
   );
 
+  const total = staffQuery.data?.pagination.total ?? staff.length;
+
+  /**
+   * Null until the list is in hand. Both are counted off the rows, so before
+   * they land the band would read "0 on the staff" — a school that appears to
+   * employ nobody, for as long as it takes the query to answer.
+   */
   const counts = useMemo(() => {
+    if (!staffQuery.data) return null;
     const active = staff.filter((employee) => employee.isActive).length;
     const withoutAccount = staff.filter((employee) => !employee.user).length;
-    return { total: staff.length, active, withoutAccount };
-  }, [staff]);
+    return { active, withoutAccount };
+  }, [staff, staffQuery.data]);
 
   const columns = useMemo<ColumnDef<EmployeeSummary>[]>(
     () => [
@@ -207,7 +218,9 @@ export function SchoolStaffContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <div className="flex justify-end">
             <RecordActions
@@ -270,8 +283,8 @@ export function SchoolStaffContent() {
 
       <PageBand
         chips={[
-          { label: "On the staff", value: counts.active },
-          { label: "No sign-in", value: counts.withoutAccount, tone: "warn" },
+          { label: "On the staff", value: counts ? counts.active : "—" },
+          { label: "No sign-in", value: counts ? counts.withoutAccount : "—", tone: "warn" },
         ]}
       />
 
@@ -301,6 +314,8 @@ export function SchoolStaffContent() {
             placeholder="Search name or staff number"
           />
         }
+        filterCount={activeFilterCount(position, departmentId)}
+        count={staffQuery.isPending ? null : `${staff.length} of ${total}`}
         filters={
           <>
             <FilterSelect
@@ -376,7 +391,10 @@ export function SchoolStaffContent() {
                 <MobileList.Row
                   key={row.id}
                   static
-                  leading={<PersonAvatar name={row.name} />}
+                  // The same mark the table draws, hashed from the same name,
+                  // so a caretaker is the same colour and the same two letters
+                  // at either width.
+                  leading={<RecordMark kind="person" name={row.name} size="sm" />}
                   title={row.name}
                   subtitle={[
                     row.employeeId,

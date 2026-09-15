@@ -14,7 +14,7 @@ import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
+import { TableControls, TableSearch } from "@/components/records/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -28,7 +28,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -138,6 +138,21 @@ export function AdmissionsBoardContent() {
     [applicationsQuery.data],
   );
   const counts = applicationsQuery.data?.counts ?? {};
+  /**
+   * Every application the board could show for the year group in view. It comes
+   * back beside the rows from its own grouped query rather than being counted
+   * off them, so the figure the count is read against does not move when a
+   * stage filter or the search box does.
+   *
+   * "Could show" is doing the work. Declined and withdrawn applications are in
+   * `counts` but are not in the rows unless the reader asks for them, so
+   * summing every stage sets a denominator the numerator can never reach: a
+   * September board reads "42 of 137" with no filter in force, which says
+   * ninety-five were narrowed away by a toolbar that is doing nothing.
+   */
+  const onFile = Object.entries(counts)
+    .filter(([stage]) => includeClosed || !(CLOSED_STAGES as readonly string[]).includes(stage))
+    .reduce((sum, [, value]) => sum + value, 0);
 
   const now = useMemo(() => new Date(), []);
 
@@ -300,15 +315,22 @@ export function AdmissionsBoardContent() {
           what an admissions office is watching in September. */}
       <PageBand
         chips={[
-          { label: "Pipeline", value: applications.length, tone: "brand" },
+          // An em dash until the board is in. All three are noughts before it
+          // lands, and "Lapsed 0" is a reassurance the screen has not earned
+          // yet — it is the number an admissions office comes here to check.
+          {
+            label: "Pipeline",
+            value: applicationsQuery.data ? applications.length : "—",
+            tone: "brand",
+          },
           {
             label: "Offers out",
-            value: counts.OFFERED ?? 0,
+            value: applicationsQuery.data ? (counts.OFFERED ?? 0) : "—",
             tone: lapsed.length > 0 ? "warn" : "neutral",
           },
           {
             label: "Lapsed",
-            value: lapsed.length,
+            value: applicationsQuery.data ? lapsed.length : "—",
             tone: lapsed.length > 0 ? "danger" : "neutral",
           },
         ]}
@@ -382,7 +404,7 @@ export function AdmissionsBoardContent() {
           </>
         }
         count={
-          applicationsQuery.isPending ? null : `${applications.length} on the board`
+          applicationsQuery.isPending ? null : `${applications.length} of ${onFile}`
         }
       />
 
@@ -594,6 +616,7 @@ export function AdmissionsBoardContent() {
                         ) : null}
                         <RecordActions
                           layout="menu"
+                          label={`Row actions for ${application.firstName} ${application.lastName}`}
                           resource="schools.admissions"
                           verbs={verbs}
                         />

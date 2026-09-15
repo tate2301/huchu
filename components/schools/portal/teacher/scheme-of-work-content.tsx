@@ -14,7 +14,7 @@ import {
   NotYourJob,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson } from "@/lib/api-client";
 import {

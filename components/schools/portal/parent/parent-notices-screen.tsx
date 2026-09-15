@@ -9,7 +9,7 @@ import {
   NothingYet,
   SaveError,
   SavingOverlay,
-} from "@/components/schools/common/states";
+} from "@/components/records/states";
 import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate } from "@/lib/schools/format";
 import { Bell, CalendarCheck, ChevronRight, Info, Receipt } from "@/lib/icons";
