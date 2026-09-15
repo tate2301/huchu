@@ -6,11 +6,13 @@ Audit date: 2026-09-14. Static read of `main`, cross-checked against the roadmap
 
 ## 1. Verdict in one paragraph
 
-Setup is the most complete layer of the schools vertical and the least visible. A school can be provisioned with a year, terms, a class ladder, subjects, a grading scheme, a fee structure and roles in one operation; the office can then set periods and rooms, build a clash-checked timetable by hand or with the greedy filler, keep a calendar that drives "not a school day", link teachers to HR, add custom fields, search every record, import a previous system's data with a dry run and a rollback, and print eight document types. What lets it down is reachability and finish. The master-data ladder lives under Management with its own rail and is missing from the school sidebar; calendar events cannot be edited; four of the eight documents have no page; teacher and guardian accounts have no self-service path (invites are copied by hand, teachers get no invite at all); notices reach only families with a claimed portal account; and the platform pieces a school administrator expects, tenant branding, communication channels, a setup checklist, multi-campus, are not there.
+Setup is the most complete layer of the schools vertical and the least visible. A school can be provisioned with a year, terms, a class ladder, subjects, a grading scheme, a fee structure and roles in one operation; the office can then set periods and rooms, build a clash-checked timetable by hand or with the greedy filler, keep a calendar that drives "not a school day", link teachers to HR, add custom fields, search every record, import a previous system's data with a dry run and a rollback, and print eight document types. What lets it down is reachability and finish. The master-data ladder lives under Management with its own rail and is missing from the school sidebar; calendar events cannot be edited; four of the eight documents have no page; teacher and guardian accounts have no self-service path (invites are copied by hand, teachers get no invite at all); notices reach only families with a claimed portal account; and the platform pieces a school administrator expects, communication channels, a setup checklist, multi-campus, are not there. Since this was written the rail has been generated from one source with the master-data ladder in a Setup band, the calendar has gained an edit route, pupils and teachers archive instead of being destroyed, the import guard asks for one grant per entity, and a claimed invite can no longer take over somebody else's account. The accounts, the channels, the checklist and the campus question stand where they were. Tenant branding was in that list and should not have been: it is stored on the tenant and already prints on every document the module renders; what it does not reach is the portals.
 
 ## Runtime check (14 September 2026)
 
 Verified on the seeded St Marys tenant (see `../reference/runtime-verification.md`). Confirmed at runtime: provisioning and the demo seed build a working school (year, terms, ladder, subjects, structures, invoices); the sidebar drops the master-data pages (B1); the opening-balance import guard refuses a bursar (B8); the guardian-link PATCH has no persona check (B5). New observation: the portal host prefixes did not serve the portal login on this setup (see open decisions).
+
+Revised on 15 September 2026, after the eighteen commits that implemented against this audit. A finding that is now closed keeps its description and gains a sentence saying what closed it; a finding this audit got wrong says so and gives the true position; everything else stands as written.
 
 ## 2. Docs versus code
 
@@ -18,16 +20,16 @@ Verified on the seeded St Marys tenant (see `../reference/runtime-verification.m
 |---|---|---|---|
 | S-0.1 academic year and terms, one current: `done` | roadmap | Partial unique indexes and transactional activation (`lib/schools/calendar.ts:179-204`). | True. |
 | S-1.1 timetable with clash rejection and copy-forward; S-1.16 auto-fill; S-1.17 bulk allocation: `done` | roadmap | All present (`lib/schools/timetable.ts`). The timetable page cannot place a lesson by clicking the grid (UI audit). | True. |
-| S-1.2 calendar and holidays: `done` | roadmap | Create and delete only; no `PATCH /calendar/[id]`; editing is delete and recreate (`school-days-content.tsx:133, 169, 192`). | Partial. |
-| S-1.7 teacher linked to `Employee` deliberately: `done` | roadmap | `teacher-identity.ts` suggests and links on click; "Find the employee" on every row. | True. |
+| S-1.2 calendar and holidays: `done` | roadmap | Create and delete only; no `PATCH /calendar/[id]`; editing is delete and recreate (`school-days-content.tsx:133, 169, 192`). Half fixed: `PATCH /api/v2/schools/calendar/[id]` now exists on the `schools.academics` edit grant, so a holiday can be moved without the day in between that the attendance reports read as a missing register. The screen still only creates and deletes. | Partial: the route is fixed, the screen is not. |
+| S-1.7 teacher linked to `Employee` deliberately: `done` | roadmap | `teacher-identity.ts` suggests and links on click; "Find the employee" on every row — that button has since moved into the row menu and shows only where there is no employee to find, with the linking itself done on the record page. | True. |
 | S-3.1 provisioning seeds the ladder: `done` | roadmap | `provisionSchool` plus `ensureCurrentTermEnrolments`. Open-questions #8 and #17 still say provisioning writes no enrolments. | True; open-questions stale. |
-| S-3.3 import with dry run, idempotent re-run, rollback: `done` | roadmap; $199 add-on | Present with audit rows. Opening balances require `students:create` and `fees:create` together, so only SCHOOL_ADMIN can import them; cross-currency balances import at rate 1 and are flagged; no partial-commit undo. | True with gaps. |
+| S-3.3 import with dry run, idempotent re-run, rollback: `done` | roadmap; $199 add-on | Present with audit rows. Opening balances require `students:create` and `fees:create` together, so only SCHOOL_ADMIN can import them; cross-currency balances import at rate 1 and are flagged; no partial-commit undo. The role composition is fixed: each entity is checked against the one grant it is about, money against `schools.fees` and the roll against `schools.students`, so the bursar can load opening balances. The rate and the undo stand. | True with gaps. |
 | S-4.4 custom fields on school record types: `done` | roadmap | Present for student and guardian; `configure` is SCHOOL_ADMIN only; no fields tab on teacher. | True. |
 | S-4.5 unified search: `done` | roadmap | ⌘K over students, guardians, staff, classes, subjects, hostels. | True. |
 | S-5.1 to S-5.3 eight document sources: `done` | roadmap | Sources exist; `/schools/documents` surfaces report card, invoice, class list and register only (`school-documents-content.tsx:770-773`). Receipt, statement, admission letter and transfer letter print from record rows if at all. | Engine done, surface half done. |
-| S-0.3 invites from detail pages or in bulk: `done` | roadmap | Present. Links shown once and copied by hand; guardians without an email are skipped (`portal-invite-dialog.tsx:64-66`); no email, SMS or WhatsApp send; no teacher invite. | True and operationally weak. |
-| S-9.6 notice entity with audience targeting: `todo` | roadmap | `POST /notices` with audience, class or pupil shortlist and severity exists; in-app only; no draft, schedule or recall. | Built more than the row says. |
-| Marketing: "Custom branding and school domain" (Premier and a $79 add-on) | pricing | `lib/platform/tenant.ts` carries no theme fields; portals show `companyLabelFromHost` only; no logo or colour anywhere. Domain provisioning exists at platform level. | Domain yes, branding no; the band and the add-on contradict each other. |
+| S-0.3 invites from detail pages or in bulk: `done` | roadmap | Present. Links shown once and copied by hand; guardians without an email are skipped (`portal-invite-dialog.tsx:64-66`); no email, SMS or WhatsApp send; no teacher invite. The claim flow's ability to take over an existing account is fixed (B4); everything else in this row stands. | True and operationally weak. |
+| S-9.6 notice entity with audience targeting: `todo` | roadmap | `POST /notices` with audience, class or pupil shortlist and severity exists; in-app only; no draft, schedule or recall. Sending has since moved from `reports:create` to a narrower `notify-families`, so a bursar can tell a family about a bill and a class teacher can tell one about a trip; it is still in-app only. | Built more than the row says. |
+| Marketing: "Custom branding and school domain" (Premier and a $79 add-on) | pricing | `lib/platform/tenant.ts` carries no theme fields and the portals show `companyLabelFromHost` only. **This audit was wrong to say there is no logo or colour anywhere.** `CompanyBranding` carries `logoUrl`, a secondary logo, `primaryColor`, a signature and a stamp; `/api/settings/branding` writes them; and every rendered document draws them through `lib/documents/branding-snapshot.ts` and `lib/documents/html-renderer.ts:240, 381-384`, the school's own report card and invoice included. What is true is narrower: none of it reaches the three portals or their login pages. Domain provisioning exists at platform level. | Domain yes, documents branded, portals not; the band and the add-on still contradict each other. |
 | Marketing: "Unlimited staff and teacher accounts" | pricing | No user-count enforcement found in the school code; the platform has a `USER_PACK_SIZE` concept. | Unverified; check entitlement. |
 | Marketing: multi-campus consolidation (Group band) | pricing, site FAQ | One `companyId` is one school; no campus entity. | Overclaim. |
 | Production readiness: "34 pages" | Aug 4 audit | 69 page files (14 redirects). | Stale. |
@@ -43,7 +45,7 @@ Verified on the seeded St Marys tenant (see `../reference/runtime-verification.m
 | A1 | Provision a school tenant with year, terms, ladder, subjects, grading, fee structure, roles | Implemented | `lib/schools/provision.ts`; operator wizard on `TEMPLATE_SCHOOLS`. Schools remain operator-provisioned by policy. |
 | A2 | Feature entitlement for the pack and portals | Implemented | `ADDON_SCHOOLS_SUITE` bundle; band-to-feature mapping (Community without portals, Standard without teacher portal) is not expressed anywhere. |
 | A3 | School identity: student-number format, ID-card design, presentation | Implemented | Only page that gates its own controls by role. No card print or issue run. |
-| A4 | Branding: crest, colours, portal theming | Missing | Sold. |
+| A4 | Branding: crest, colours, portal theming | Partial | Sold. Stored on `CompanyBranding` and already printed on every document the module renders; nothing reaches the portals or their login pages, which still derive a name from the host. This audit recorded it as wholly missing, which was wrong (see §2). |
 | A5 | Multi-campus | Missing | Sold in the Group band. |
 | A6 | Setup checklist and readiness | Missing | A new tenant lands on an overview of zeros. |
 
@@ -52,7 +54,7 @@ Verified on the seeded St Marys tenant (see `../reference/runtime-verification.m
 | # | Workflow | Status | Evidence and gap |
 |---|---|---|---|
 | A7 | Academic years and terms, make current | Implemented | Terms created one at a time; "Make current" has no confirm although it flips every screen. |
-| A8 | Calendar: holidays, events, teaching-day override, Zimbabwe public holidays | Partial | No edit route; weekends closed by default with no per-school teaching-days setting (open-questions #2). |
+| A8 | Calendar: holidays, events, teaching-day override, Zimbabwe public holidays | Partial | No edit route; weekends closed by default with no per-school teaching-days setting (open-questions #2). The edit route landed with the register work; the calendar screen has not been rebuilt to call it, so for the office a correction is still a delete and a retype. |
 | A9 | Classes, streams, capacity, form teacher | Implemented | Streams are a second tab, not rows under their class. |
 | A10 | Subjects, syllabus (scheme of work), core or elective, pass mark | Implemented | Subjects can be created from two places (master data and the teachers page). |
 | A11 | Grading schemes and bands, default scheme | Implemented | Overlapping bands refused in code, not DB (open-questions #3). |
@@ -76,24 +78,24 @@ Verified on the seeded St Marys tenant (see `../reference/runtime-verification.m
 
 | # | Workflow | Status | Evidence and gap |
 |---|---|---|---|
-| A22 | Teacher profiles, subjects, assignments (single and bulk), HOD and class-teacher flags | Implemented | Profile DELETE is a hard delete (`teachers/profiles/[id]/route.ts:201`). |
+| A22 | Teacher profiles, subjects, assignments (single and bulk), HOD and class-teacher flags | Implemented | Profile DELETE is a hard delete (`teachers/profiles/[id]/route.ts:201`). Fixed: it archives, writes an audit row, and the list drops archived staff by default and offers to bring somebody back. |
 | A23 | Link a teacher to an HR employee | Implemented | Per row; no bulk link. |
 | A24 | Support staff via HR with a school role label | Implemented | `staff/route.ts` re-doors `/api/employees`. |
 | A25 | Teacher portal account | Partial | Office creates a `User` and a profile with `userId`; no invite, no password reset for anyone but SUPERADMIN. |
-| A26 | Guardians: create, link to children, consent flags, primary | Implemented | `PATCH /guardian-links/[id]` has no persona check; guardian DELETE is a hard delete. |
-| A27 | Portal invites for guardians and students, revoke, re-issue | Implemented | Manual link copy; no channel; no email means no invite; claim can reset an existing account (see portal audits). |
+| A26 | Guardians: create, link to children, consent flags, primary | Implemented | `PATCH /guardian-links/[id]` has no persona check; guardian DELETE is a hard delete. Both addressed: the PATCH takes the registrar's grant, and the delete is a school administrator's act alone. It is still a delete rather than an archive, because the guardian model has no archived state to move to, and the confirmation now says the record does not come back. |
+| A27 | Portal invites for guardians and students, revoke, re-issue | Implemented | Manual link copy; no channel; no email means no invite; claim can reset an existing account (see portal audits). The claim is fixed: it opens an account and never adopts one, refused in the route and again in the transaction. The copy and the missing channel stand. |
 | A28 | Staff leave, appraisal, CPD for teachers without an HR record | Missing | HR module covers employees only. |
 
 **Data and documents**
 
 | # | Workflow | Status | Evidence and gap |
 |---|---|---|---|
-| A29 | Import classes, students, guardians, fee structures, opening balances with dry run, commit, rollback | Implemented | Role composition gap for fee entities; 5,000-row cap; no partial undo. |
+| A29 | Import classes, students, guardians, fee structures, opening balances with dry run, commit, rollback | Implemented | Role composition gap for fee entities, now fixed — one grant per entity; 5,000-row cap; no partial undo. |
 | A30 | Export | Partial | Reports CSV and PDF; no full data export per entity. |
-| A31 | Documents: report card, invoice, class list, register from a page; receipt, statement, admission letter, transfer letter from rows | Partial | Four sources without a page; no template editing in the school shell; no batch by class for statements. |
+| A31 | Documents: report card, invoice, class list, register from a page; receipt, statement, admission letter, transfer letter from rows | Partial | Four sources without a page; no template editing in the school shell; no batch by class for statements. A report card also needs an open publish window, which neither provisioning nor the seed creates, so that source throws on a school whose sheets are published (B14). |
 | A32 | ID cards | Missing | Design settings only. |
 | A33 | Data quality: pupils not in a class, guardians without a phone, duplicates | Missing | Only the admissions duplicate check. |
-| A34 | Audit log of master-data changes | Missing | Academic-structure routes write no audit rows. |
+| A34 | Audit log of master-data changes | Missing | Academic-structure routes write no audit rows. Still true of the ladder and the timetable. Archiving a pupil or a teacher, deleting a guardian, creating a fee structure and correcting a register a teacher has already submitted do write them now, so the gap is narrower than the module. |
 
 **Services and communication**
 
@@ -102,11 +104,11 @@ Verified on the seeded St Marys tenant (see `../reference/runtime-verification.m
 | A35 | Hostels, rooms, beds | Implemented | Beds added per room dialog; no "add 24 beds". |
 | A36 | Library catalogue, copies, loans, fines | Implemented | Fines never billed; no ISBN lookup or barcode entry. |
 | A37 | Transport routes, stops, riders, boarding register | Implemented | Billing reported, never posted. |
-| A38 | Notices with audience and severity | Implemented | In-app only; `reports:create` so SCHOOL_ADMIN only; no draft, schedule or recall. |
+| A38 | Notices with audience and severity | Implemented | In-app only; `reports:create` so SCHOOL_ADMIN only — fixed: sending is `notify-families`, which the bursar, the head of department and a class teacher hold; no draft, schedule or recall. |
 | A39 | Communication channels (email, SMS, WhatsApp) configuration | Missing | `lib/notifications.ts` has no school emitters. |
 | A40 | Integrations: ZIMRA fiscalisation, GL posting | Implemented | The only two. No payment gateway, no LMS, no exam board. |
 
-Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
+Counts: 24 implemented, 8 partial, 0 broken, 8 missing. A4 moved from missing to partial on a correction rather than on work done.
 
 ## 4. Benchmark gap
 
@@ -118,7 +120,7 @@ Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
 | Setup checklist and data-quality report | Standard | Absent | P1 |
 | Account provisioning with delivered invites and self-service reset | Standard | Manual links, no reset | P0 |
 | Communication channel configuration (SMS, WhatsApp, email) | Standard | Absent | P0 |
-| Tenant branding on portals and documents | Sold | Absent | P1 |
+| Tenant branding on portals and documents | Sold | On documents; absent from the portals | P1 |
 | Exam timetable, room booking | Standard | Absent | P2 |
 | Departments and houses as entities | Standard | Absent | P2 |
 | Audit log of configuration changes | Standard | Absent | P1 |
@@ -130,30 +132,33 @@ Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
 
 | # | Finding | Location | Severity |
 |---|---|---|---|
-| B1 | Master-data pages are not in the school sidebar; the only "Academic setup" entry that survives the workspace mapping is "Scheme of work", which redirects to the teacher portal. | `lib/workspaces.ts:410-419`; `app/schools/academics/syllabus/page.tsx:11` | High |
-| B2 | No password reset for portal or staff users except a SUPERADMIN route; no teacher invite. | `app/api/users/password-reset/route.ts:26`; `portal-invites.ts:82` | High |
-| B3 | Invite delivery is copy-paste; guardians without email cannot be invited. | `portal-invite-dialog.tsx:64-66, 117-133` | High |
-| B4 | Claim can reset the password and demote the role of an existing same-tenant account. | `lib/schools/portal-invites.ts:243-273` | Medium |
-| B5 | `PATCH /guardian-links/[id]` lacks a persona check. | `guardian-links/[id]/route.ts:46-110` | Medium |
-| B6 | Hard deletes for students, guardians and teacher profiles behind "archive". | `students/[id]/route.ts:379`; `guardians/[id]/route.ts:253`; `teachers/profiles/[id]/route.ts:201` | Medium |
-| B7 | Calendar events cannot be edited. | `app/api/v2/schools/calendar/[id]/route.ts` (DELETE only) | Medium |
-| B8 | Import guard requires `students:create` and `fees:create` together. | `imports/_guard.ts:19-24` | Medium |
-| B9 | Grading-schemes API is behind `schools.results` while its page is behind `schools.core`; a core-only tenant sees the page and gets 403s. | `route-registry.ts` | Low |
-| B10 | No audit rows for academic-structure changes (years, terms, classes, subjects, grading, timetable, calendar). | all setup routes | Medium |
-| B11 | Notices reach only families with claimed accounts; `withoutAccount` count is reported and dropped. | `lib/schools/notices.ts:169-199` | Medium |
-| B12 | Route-guard coverage test checks file-level markers only, so a method without a check passes (B5). | `lib/schools/route-guard-coverage.test.ts:113` | Low |
-| B13 | Open-questions #6, #7, #8, #17 describe states the roadmap closed; production readiness §6 lists built modules as absent. | docs | Doc hygiene |
+| B1 | Master-data pages are not in the school sidebar; the only "Academic setup" entry that survives the workspace mapping is "Scheme of work", which redirects to the teacher portal. Fixed: the hand-written recipe in `lib/workspaces.ts` is gone and the rail is derived from `lib/navigation.ts`, filtered by the persona's view grant, with the master data in a Setup band and the syllabus redirect out of the nav. Sixteen working routes were missing, not only the ladder. The pages themselves still open under Management in the master-data shell, so §7's restructuring is untouched. | `lib/workspaces.ts:410-419`; `app/schools/academics/syllabus/page.tsx:11` | High |
+| B2 | No password reset for portal or staff users except a SUPERADMIN route; no teacher invite. Open. | `app/api/users/password-reset/route.ts:26`; `portal-invites.ts:82` | High |
+| B3 | Invite delivery is copy-paste; guardians without email cannot be invited. Open, and waiting on a channel. | `portal-invite-dialog.tsx:64-66, 117-133` | High |
+| B4 | Claim can reset the password and demote the role of an existing same-tenant account. Fixed: claiming opens an account and never adopts one. An address that already has a user is refused, in the route and again in the transaction, because the service is the part that was unsafe and should not depend on its only caller to stay safe. | `lib/schools/portal-invites.ts:243-273` | Medium |
+| B5 | `PATCH /guardian-links/[id]` lacks a persona check. Fixed: it takes the registrar's grant. `canViewAnyPortalSubject` admits the bursar, so until this the bursar could change which parent receives a child's results. | `guardian-links/[id]/route.ts:46-110` | Medium |
+| B6 | Hard deletes for students, guardians and teacher profiles behind "archive". Fixed for pupils and teachers: both archive, write an audit row, and drop off their lists by default while staying reachable by id. The delete also refused outright wherever an invoice or a mark existed, which made the staff list's only action impossible for anyone who had ever taught. A guardian has no archived state on the model, so that one stays a real delete and is now an administrator's act alone — a deliberate judgement rather than an omission. | `students/[id]/route.ts:379`; `guardians/[id]/route.ts:253`; `teachers/profiles/[id]/route.ts:201` | Medium |
+| B7 | Calendar events cannot be edited. Half fixed: `PATCH` exists; the screen still deletes and recreates. | `app/api/v2/schools/calendar/[id]/route.ts` (DELETE only) | Medium |
+| B8 | Import guard requires `students:create` and `fees:create` together. Fixed: each entity is checked against the one grant it is about. | `imports/_guard.ts:19-24` | Medium |
+| B9 | Grading-schemes API is behind `schools.results` while its page is behind `schools.core`; a core-only tenant sees the page and gets 403s. Open. | `route-registry.ts` | Low |
+| B10 | No audit rows for academic-structure changes (years, terms, classes, subjects, grading, timetable, calendar). Open for the ladder and the timetable. Archiving a pupil or a teacher, deleting a guardian, creating a fee structure and correcting a register a teacher has already sent in all write one now. | all setup routes | Medium |
+| B11 | Notices reach only families with claimed accounts; `withoutAccount` count is reported and dropped. Open. | `lib/schools/notices.ts:169-199` | Medium |
+| B12 | Route-guard coverage test checks file-level markers only, so a method without a check passes (B5). Fixed: the test walks every exported POST, PATCH, PUT and DELETE under the school and shared-record APIs and asserts that method's own body checks who is calling, and that a handler cannot run past its closing brace and borrow the next one's guard. | `lib/schools/route-guard-coverage.test.ts:113` | Low |
+| B13 | Open-questions #6, #7, #8, #17 describe states the roadmap closed; production readiness §6 lists built modules as absent. Open. | docs | Doc hygiene |
+| B14 | A report card can only be printed while a publish window is open for its term, and neither `provisionSchool` nor the demo seed writes a window, so the first source on the documents screen throws "Results for this term are not published" at a school whose sheets are published and whose families can read their marks in the portal. Found by the implementation, not by this audit. | `lib/documents/schools-sources.ts:532-550`; `lib/schools/provision.ts` | High |
+| B15 | The office inbox had no reply for anybody. The route's actions were start, assign and close; replies were written only from the staff portal, so a family's fee question reached a bursar who could read it, decide who should take it and end it, but not answer it — or hand it to a teacher who cannot see the ledger. Fixed: a `reply` action gated on `schools.reports` reply, which the bursar and the head of department hold, with triage left on create; the composer is hidden rather than refused for anyone without the grant and on a conversation already ended. This audit did not find it, and its UI companion recorded a reply in the page that was not there (`ui-ux.md` §2). | `app/api/v2/schools/messages/route.ts`; `office-inbox-content.tsx` | High |
+| B16 | The tenant carries bank details on `CompanyBranding` and no mobile-money merchant code at all, and neither reaches a portal, so the parent portal's "how to pay" sheet can show only the amount, the due date, the reference to quote and the pupil's number. Found by the implementation. | `prisma/schema.prisma` (`CompanyBranding`); `lib/platform/tenant.ts` | Medium |
 
 ## 6. Proposed edits
 
-1. **Sidebar (B1).** Generate the school sidebar from `lib/navigation.ts` so the Setup band appears (Years and terms, Calendar, Classes and streams, Subjects, School day and rooms, Grading and windows, Records and identity); remove the syllabus redirect from the nav.
-2. **Accounts (B2, B3, B4).** Add a forgot-password flow for portal and staff hosts (token by email or SMS); add a teacher invite subject; send invite links through a channel; allow phone-number invites with an SMS or WhatsApp claim link; refuse claims that would overwrite a non-portal account.
-3. **Persona check on guardian-link PATCH (B5)**; make the route-guard test per method (B12).
-4. **Soft archive (B6)** and `PATCH /calendar/[id]` (B7).
-5. **Import guard per entity (B8)**; align the grading-schemes feature key with its page (B9).
-6. **Audit setup changes (B10)** with `PlatformAuditEvent` on year, term, class, subject, scheme, window, timetable and calendar writes; a "who changed what" view under Setup.
-7. **Notices (B11).** Show the `withoutAccount` families with a "send by SMS" option once a channel exists; until then, an export of who was not reached.
-8. **Docs (B13).** Close the stale open-questions entries; correct production-readiness §6; update roadmap rows S-1.2 (no edit), S-5.1 (four sources without a page), S-9.6 (built in-app).
+1. **Sidebar (B1).** Generate the school sidebar from `lib/navigation.ts` so the Setup band appears (Years and terms, Calendar, Classes and streams, Subjects, School day and rooms, Grading and windows, Records and identity); remove the syllabus redirect from the nav. Done, and the rail is filtered by persona; the pages still open under Management in the master-data shell.
+2. **Accounts (B2, B3, B4).** Add a forgot-password flow for portal and staff hosts (token by email or SMS); add a teacher invite subject; send invite links through a channel; allow phone-number invites with an SMS or WhatsApp claim link; refuse claims that would overwrite a non-portal account. Only the last of these is done.
+3. **Persona check on guardian-link PATCH (B5)**; make the route-guard test per method (B12). Both done.
+4. **Soft archive (B6)** and `PATCH /calendar/[id]` (B7). Archiving done for pupils and teachers and deliberately not for guardians; the calendar route done, its screen not.
+5. **Import guard per entity (B8)**; align the grading-schemes feature key with its page (B9). The guard is done; the feature key is not.
+6. **Audit setup changes (B10)** with `PlatformAuditEvent` on year, term, class, subject, scheme, window, timetable and calendar writes; a "who changed what" view under Setup. Not done.
+7. **Notices (B11).** Show the `withoutAccount` families with a "send by SMS" option once a channel exists; until then, an export of who was not reached. Not done.
+8. **Docs (B13).** Close the stale open-questions entries; correct production-readiness §6; update roadmap rows S-1.2 (now an edit route without a screen), S-5.1 (four sources without a page), S-9.6 (built in-app). Not done.
 
 ## 7. Proposed restructuring
 
@@ -169,7 +174,7 @@ Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
 1. **Setup checklist and readiness dashboard** (`/schools/setup`): steps done and outstanding with links; data-quality queue (pupils without a class, guardians without a phone, teachers without a portal account or HR record, classes without a form teacher, subjects without a teacher); last import with rejected rows and Undo.
 2. **Account administration**: invite by email or phone with delivered links, resend, reset password, disable, "who has never signed in"; teacher invites; bulk invite by class with a delivery report.
 3. **Communication channels**: SMS aggregator and WhatsApp Business sender configuration per tenant, templates with merge fields, cost tracking, delivery status; the `schools` notification category (S-9.5) with quiet hours.
-4. **Tenant branding**: crest, colours, portal accent and document header stored on the tenant; applied to portals, login pages and PDFs. This is what the Premier band and the add-on sell.
+4. **Tenant branding on the portals**: the crest, colours, signature and stamp are already on `CompanyBranding` and already reach the document renderer, so what is missing is narrower than this item first said — the three portals, their login pages and the school shell read none of it. This is what the Premier band and the add-on sell.
 5. **Calendar editing and a term-dates template**: edit events; create three terms with half-terms and public holidays from a template.
 6. **Timetable builder on the grid**: click a cell to place, drag to move, clash highlighting; exam timetable and room booking as a second mode.
 7. **Departments and houses** as entities: department on subject and teacher, HOD per department (feeds the moderation fix), houses for pastoral and sport.
@@ -184,5 +189,7 @@ Counts: 24 implemented, 7 partial, 0 broken, 9 missing.
 - Which communication channel is first: SMS aggregator, WhatsApp Business, or email? The invite flow and notices both wait on it.
 - Is branding an add-on or included? The pricing file says both.
 - Multi-campus: build it or stop selling it.
+- Does the report card keep its publish-window requirement? No school configures a window, so the requirement means the report card cannot be printed at all (B14). Either provisioning opens one with each term, or the window stops gating the print. It deliberately does not gate the portal: that check was written into the parent marks route during the implementation and reverted, because no school has a window configured and it would have hidden every published mark from every family. The window gates the report card; the sheet's status gates the portal.
+- Where do the details a family needs in order to pay live? `CompanyBranding` holds a bank account that no portal reads, and the model has no mobile-money merchant code at all (B16).
 - Who owns "teaching qualification" and other teacher attributes: school custom fields or HR?
 - Portal host routing: on the local runtime pass the `staff.`, `parents.` and `students.` hosts served the tenant workspace sign-in at `/login` rather than the portal form, and the repository's own e2e fixtures record the same under host nomination and drive portals by internal path. Confirm the prefix rewrite works in production and add a test for it.
