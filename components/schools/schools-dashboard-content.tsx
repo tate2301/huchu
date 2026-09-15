@@ -1060,9 +1060,13 @@ export function SchoolsDashboardContent() {
                     tone="var(--tone-danger)"
                   />
                 </div>
-                <AgeingStrip amounts={arrears?.aging} caption="How old the debt is" />
+                {/* The bands are only worth the room when there is debt to age;
+                    the line below already says when there is none. */}
+                {(arrears?.totalOutstanding ?? 0) > 0 ? (
+                  <AgeingStrip amounts={arrears?.aging} caption="How old the debt is" />
+                ) : null}
                 <p className="text-[length:var(--type-caption)] text-[color:var(--text-muted)]">
-                  {arrears
+                  {arrears && arrears.studentsWithArrears > 0
                     ? `${arrears.studentsWithArrears.toLocaleString()} families owe something.`
                     : "Nothing is owed."}
                 </p>

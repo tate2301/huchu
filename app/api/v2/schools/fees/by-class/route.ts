@@ -126,22 +126,30 @@ export async function GET(request: NextRequest) {
       // The ageing profile, measured from each bill's own due date. "Current"
       // is money that is owed but not yet late, which is the bucket a bursar
       // must not confuse with the rest.
+      //
+      // The boundaries are the ones in lib/schools/ageing.ts, counted in whole
+      // days: a bill is Current until a full day has passed since its due date.
+      // This query used to fall out of Current the moment the clock passed
+      // midnight on the due day, because a due date is stored at midnight, so a
+      // bill due today was shown as overdue and the arrears report — which
+      // counts whole days — disagreed with this screen about the same money.
       prisma.$queryRaw<AgeingRow[]>(Prisma.sql`
         SELECT
-          COALESCE(SUM(CASE WHEN i."dueDate" >= NOW()
+          COALESCE(SUM(CASE WHEN i."dueDate" > NOW() - INTERVAL '1 day'
             THEN ROUND(i."balanceAmount" / i."exchangeRate", 2) ELSE 0 END), 0) AS "current",
-          COALESCE(SUM(CASE WHEN i."dueDate" < NOW()
-              AND i."dueDate" >= NOW() - INTERVAL '30 days'
+          COALESCE(SUM(CASE WHEN i."dueDate" <= NOW() - INTERVAL '1 day'
+              AND i."dueDate" > NOW() - INTERVAL '31 days'
             THEN ROUND(i."balanceAmount" / i."exchangeRate", 2) ELSE 0 END), 0) AS "days1",
-          COALESCE(SUM(CASE WHEN i."dueDate" < NOW() - INTERVAL '30 days'
-              AND i."dueDate" >= NOW() - INTERVAL '60 days'
+          COALESCE(SUM(CASE WHEN i."dueDate" <= NOW() - INTERVAL '31 days'
+              AND i."dueDate" > NOW() - INTERVAL '61 days'
             THEN ROUND(i."balanceAmount" / i."exchangeRate", 2) ELSE 0 END), 0) AS "days31",
-          COALESCE(SUM(CASE WHEN i."dueDate" < NOW() - INTERVAL '60 days'
-              AND i."dueDate" >= NOW() - INTERVAL '90 days'
+          COALESCE(SUM(CASE WHEN i."dueDate" <= NOW() - INTERVAL '61 days'
+              AND i."dueDate" > NOW() - INTERVAL '91 days'
             THEN ROUND(i."balanceAmount" / i."exchangeRate", 2) ELSE 0 END), 0) AS "days61",
-          COALESCE(SUM(CASE WHEN i."dueDate" < NOW() - INTERVAL '90 days'
+          COALESCE(SUM(CASE WHEN i."dueDate" <= NOW() - INTERVAL '91 days'
             THEN ROUND(i."balanceAmount" / i."exchangeRate", 2) ELSE 0 END), 0) AS "days90",
-          COUNT(DISTINCT CASE WHEN i."dueDate" < NOW() THEN i."studentId" END) AS "accounts"
+          COUNT(DISTINCT CASE WHEN i."dueDate" <= NOW() - INTERVAL '1 day'
+            THEN i."studentId" END) AS "accounts"
         FROM "SchoolFeeInvoice" i
         WHERE i."companyId" = ${companyId}
           AND i."status" IN ('ISSUED', 'PART_PAID')

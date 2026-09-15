@@ -74,10 +74,12 @@ const REPORTS: Record<
       { key: "className", label: "Class" },
       { key: "totalOutstanding", label: "Outstanding" },
       { key: "current", label: "Current" },
-      { key: "days30", label: "30 days" },
-      { key: "days60", label: "60 days" },
-      { key: "days90", label: "90 days" },
-      { key: "days120Plus", label: "120+ days" },
+      { key: "days30", label: "1-30 days" },
+      { key: "days60", label: "31-60 days" },
+      { key: "days90", label: "61-90 days" },
+      // The key is this endpoint's long-standing name; the column has always
+      // held everything past ninety days, and the label now says so.
+      { key: "days120Plus", label: "Over 90 days" },
     ],
   },
   enrollment: {
