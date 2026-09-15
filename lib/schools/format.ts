@@ -26,6 +26,13 @@ const SYMBOLS: Record<string, string> = {
   EUR: "€",
 };
 
+/**
+ * Where the school is. Every tenant on this platform keeps one set of school
+ * days, so a single zone is honest; the day this becomes untrue it should come
+ * off the tenant rather than growing a second constant here.
+ */
+const SCHOOL_TIME_ZONE = "Africa/Harare";
+
 const AMOUNT = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
@@ -35,6 +42,28 @@ const DATE = new Intl.DateTimeFormat("en-GB", {
   day: "numeric",
   month: "long",
   year: "numeric",
+});
+
+/**
+ * The short forms, with the zone pinned as well as the locale.
+ *
+ * Pinning the locale alone is only half the hydration contract. A sheet
+ * submitted at 23:30 UTC is the 21st on a UTC server and the 22nd in a browser
+ * two hours east, so the server bytes and the first client paint disagree about
+ * the day — and the reader is told a sheet arrived tomorrow. School dates are
+ * stored as instants and read as school days, so the school's own zone is the
+ * one that answers "which day was that".
+ */
+const SHORT_DATE = new Intl.DateTimeFormat("en-GB", {
+  day: "numeric",
+  month: "short",
+  timeZone: SCHOOL_TIME_ZONE,
+});
+
+const SHORT_TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  timeZone: SCHOOL_TIME_ZONE,
 });
 
 /**
@@ -62,4 +91,20 @@ export function formatSchoolDate(value?: string | Date | null): string {
   const date = value instanceof Date ? value : new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return DATE.format(date);
+}
+
+/** `22 Aug` — the date form a table cell uses, in the school's own day. */
+export function formatSchoolDayShort(value?: string | Date | null): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return SHORT_DATE.format(date);
+}
+
+/** `22 Aug 08:00` — for the things that open and close at a time of day. */
+export function formatSchoolDayTime(value?: string | Date | null): string {
+  if (!value) return "—";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return `${SHORT_DATE.format(date)} ${SHORT_TIME.format(date)}`;
 }

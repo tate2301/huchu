@@ -31,6 +31,7 @@ import { AGEING_BUCKETS, ageingAmount, type AgeingTone } from "@/lib/schools/age
 import { formatSchoolMoney } from "@/lib/schools/format";
 import { fetchSchoolsAcademicYears, fetchSchoolsClasses, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import { fetchSchoolFeeStructures } from "@/lib/schools/fees-v2";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 /**
  * One frozen empty array for every "the query has not answered yet" case on
@@ -245,9 +246,36 @@ function AgedMoney({ amount, tone }: { amount: number; tone: AgeingTone }) {
   return <NumericCell className={ink}>{formatSchoolMoney(amount)}</NumericCell>;
 }
 
+const REPORT_VIEWS: ReportView[] = ["collections", "arrears", "enrollment", "occupancy"];
+
+function isReportView(value: string | null): value is ReportView {
+  return value !== null && (REPORT_VIEWS as string[]).includes(value);
+}
+
 export function SchoolsReportsEnhancedContent() {
   const access = useSchoolAccess();
-  const [activeView, setActiveView] = useState<ReportView>("collections");
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+
+  /*
+   * Which cut is open lives in the URL, not in state.
+   *
+   * It has to: the segment strip on the arrears route links here by view, so
+   * held in `useState` every one of those links arrived on Collections whatever
+   * its label said. It also makes an enrolment view something a bursar can send
+   * to a head, which is the point of a report.
+   */
+  const viewParam = searchParams.get("view");
+  const activeView: ReportView = isReportView(viewParam) ? viewParam : "collections";
+
+  const setActiveView = (next: ReportView) => {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next === "collections") params.delete("view");
+    else params.set("view", next);
+    // `replace`: flicking between four cuts of one pack is not four steps back.
+    router.replace(params.size ? `${pathname}?${params}` : pathname, { scroll: false });
+  };
 
   // Collections filters.
   const [academicYearId, setAcademicYearId] = useState("");

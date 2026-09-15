@@ -259,7 +259,9 @@ export function GuardiansContent() {
         cell: ({ row }) => (
           <PersonCell
             kind="guardian"
-            name={`${row.original.lastName}, ${row.original.firstName}`}
+            firstName={row.original.firstName}
+            lastName={row.original.lastName}
+            displayName={`${row.original.lastName}, ${row.original.firstName}`}
             href={recordType("GUARDIAN").href(row.original.id)}
             reference={row.original.guardianNo}
           />

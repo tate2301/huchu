@@ -99,11 +99,16 @@ type OccupancyResponse = {
 };
 
 /** The other three cuts of the same reporting pack, kept a click away. */
+/*
+ * Each segment addresses its own cut. Three of these used to point at
+ * `/schools/reports` bare, which held its view in state — so "Enrolment" and
+ * "Hostel occupancy" were doors that opened into Collections.
+ */
 const REPORT_VIEWS = [
   { id: "collections", label: "Collections", href: "/schools/reports" },
   { id: "arrears", label: "Arrears ageing", href: "/schools/finance/arrears" },
-  { id: "enrollment", label: "Enrolment", href: "/schools/reports" },
-  { id: "occupancy", label: "Hostel occupancy", href: "/schools/reports" },
+  { id: "enrollment", label: "Enrolment", href: "/schools/reports?view=enrollment" },
+  { id: "occupancy", label: "Hostel occupancy", href: "/schools/reports?view=occupancy" },
 ];
 
 const AGE_OPTIONS = [

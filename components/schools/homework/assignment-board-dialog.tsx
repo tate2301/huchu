@@ -193,7 +193,9 @@ export function AssignmentBoardDialog({
                       <span className="min-w-0 flex-1">
                         <PersonCell
                           kind="student"
-                          name={`${row.student.lastName}, ${row.student.firstName}`}
+                          firstName={row.student.firstName}
+            lastName={row.student.lastName}
+            displayName={`${row.student.lastName}, ${row.student.firstName}`}
                           reference={row.student.studentNo}
                         />
                       </span>
@@ -222,7 +224,9 @@ export function AssignmentBoardDialog({
                       <span className="min-w-0 flex-1">
                         <PersonCell
                           kind="student"
-                          name={`${row.student.lastName}, ${row.student.firstName}`}
+                          firstName={row.student.firstName}
+            lastName={row.student.lastName}
+            displayName={`${row.student.lastName}, ${row.student.firstName}`}
                           reference={row.student.studentNo}
                           context={
                             row.submission?.score !== null &&

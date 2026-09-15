@@ -88,13 +88,17 @@ export function sheetColumn(): ColumnDef<ResultSheetLike> {
  * arithmetic and "9 days" does not, so the figure leads and the date it is
  * counted from sits under it.
  */
-export function waitingColumn(since: (sheet: ResultSheetLike) => string | null | undefined): ColumnDef<ResultSheetLike> {
+export function waitingColumn(
+  since: (sheet: ResultSheetLike) => string | null | undefined,
+  /** One clock for the whole table — see `waitingFor`. */
+  now: number,
+): ColumnDef<ResultSheetLike> {
   return {
     id: "waiting",
     header: "Waiting",
     cell: ({ row }) => (
       <span className="block">
-        <NumericCell align="left">{waitingFor(since(row.original))}</NumericCell>
+        <NumericCell align="left">{waitingFor(since(row.original), now)}</NumericCell>
         <span className="mt-0.5 block font-mono text-sm text-[color:var(--text-subtle)]">
           since {formatDay(since(row.original))}
         </span>

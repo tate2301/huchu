@@ -265,7 +265,9 @@ export function GoalsOversightContent() {
         cell: ({ row }) => (
           <PersonCell
             kind="student"
-            name={`${row.original.lastName}, ${row.original.firstName}`}
+            firstName={row.original.firstName}
+            lastName={row.original.lastName}
+            displayName={`${row.original.lastName}, ${row.original.firstName}`}
             href={recordType("STUDENT").href(row.original.studentId)}
             reference={row.original.studentNo}
           />

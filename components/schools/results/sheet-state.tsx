@@ -3,6 +3,7 @@
 import { Badge } from "@corelithzw/react";
 
 import type { PublishWindowStatus, ResultSheetStatus } from "@/lib/schools/results-v2";
+import { formatSchoolDayShort, formatSchoolDayTime } from "@/lib/schools/format";
 
 /**
  * One enum, one vocabulary.
@@ -102,40 +103,44 @@ export function WindowStateBadge({ status }: { status: PublishWindowStatus }) {
 
 /* ── the small formatters these screens share ────────────────────────── */
 
+/*
+ * The date forms come from lib/schools/format.ts, which pins the zone as well
+ * as the locale. Read off the runtime instead, a sheet submitted at 23:30 UTC
+ * is the 21st on the server and the 22nd in a browser two hours east, and the
+ * first client paint disagrees with the bytes it is hydrating.
+ */
+
 /** "22 Aug" — the date form the design uses in a table cell. */
-export function formatDay(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return date.toLocaleDateString("en-GB", { day: "numeric", month: "short" });
-}
+export const formatDay = formatSchoolDayShort;
 
 /** "22 Aug 08:00" — a publish window opens and closes at a time of day. */
-export function formatDayTime(value?: string | null) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return `${date.toLocaleDateString("en-GB", { day: "numeric", month: "short" })} ${date.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}`;
-}
+export const formatDayTime = formatSchoolDayTime;
 
 /**
  * How long a sheet has been waiting, in the words a head of department would
  * use. A work queue's most important column is age — "submitted 21 Aug" makes
  * you do the arithmetic, "9 days" does not.
+ *
+ * `now` is a parameter rather than a call inside, for two reasons. A queue of
+ * forty sheets read its own clock forty times, so one rendered across a
+ * midnight boundary aged half its rows a day further than the other half from
+ * the same data. And a clock read during the render of a server-rendered
+ * component is a different clock on the server than in the browser, which
+ * tears hydration. The caller hoists one `now` per render and threads it in.
  */
-export function waitingFor(since?: string | null) {
+export function waitingFor(since: string | null | undefined, now: number) {
   if (!since) return "—";
   const from = new Date(since).getTime();
   if (Number.isNaN(from)) return "—";
-  const days = Math.floor((Date.now() - from) / 86_400_000);
+  const days = Math.floor((now - from) / 86_400_000);
   if (days <= 0) return "Today";
   if (days === 1) return "1 day";
   return `${days} days`;
 }
 
 /** Milliseconds waited, for sorting the queue oldest-first. */
-export function waitingMs(since?: string | null) {
+export function waitingMs(since: string | null | undefined, now: number) {
   if (!since) return 0;
   const from = new Date(since).getTime();
-  return Number.isNaN(from) ? 0 : Date.now() - from;
+  return Number.isNaN(from) ? 0 : now - from;
 }

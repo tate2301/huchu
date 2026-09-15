@@ -149,7 +149,9 @@ export function SheetDetailDialog({
                         <td className="py-2 pr-3">
                           <PersonCell
                             kind="student"
-                            name={`${line.student.lastName}, ${line.student.firstName}`}
+                            firstName={line.student.firstName}
+            lastName={line.student.lastName}
+            displayName={`${line.student.lastName}, ${line.student.firstName}`}
                             reference={line.student.studentNo}
                           />
                         </td>

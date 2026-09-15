@@ -143,12 +143,17 @@ export function ModerationQueueContent() {
     });
   }, [sheets, stateFilter, subjectName, search]);
 
+  // One clock for the render, the way the office inbox does it. Read per row, a
+  // queue sorted across a tick compares two sheets against two different
+  // instants.
+  const now = new Date().getTime();
+
   const queueRows = useMemo(
     () =>
       filtered
         .filter((sheet) => sheet.status === "SUBMITTED" || sheet.status === "HOD_REJECTED")
-        .sort((a, b) => waitingMs(waitingSince(b)) - waitingMs(waitingSince(a))),
-    [filtered],
+        .sort((a, b) => waitingMs(waitingSince(b), now) - waitingMs(waitingSince(a), now)),
+    [filtered, now],
   );
   const allRows = useMemo(
     () =>
@@ -177,7 +182,7 @@ export function ModerationQueueContent() {
 
   const columns = useMemo(
     () => [
-      waitingColumn(waitingSince),
+      waitingColumn(waitingSince, now),
       sheetColumn(),
       moderationColumn("State"),
       linesColumn(),
@@ -188,7 +193,7 @@ export function ModerationQueueContent() {
         onEdit: (sheet) => setFormFor(sheet),
       }),
     ],
-    [workflow],
+    [workflow, now],
   );
 
   const rows = view === "queue" ? queueRows : allRows;
