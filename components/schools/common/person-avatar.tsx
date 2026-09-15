@@ -14,6 +14,11 @@ import { Avatar } from "@corelithzw/react";
  * the same child is the same colour on the register, the mark sheet and the
  * homework board, so a teacher recognises a row before reading it.
  *
+ * This is the mark alone. A list's first column wants the mark, the name and
+ * the line that tells two rows apart as one composed cell — `PersonCell` in
+ * `identity-cell.tsx` — and reaching for this instead is how eighteen screens
+ * ended up with eighteen gaps between an avatar and a name.
+ *
  * No school person carries a photograph yet — `SchoolStudent` has no image
  * column — so `src` is here for staff, whose `User.image` does exist, and for
  * pupils once uploads land.

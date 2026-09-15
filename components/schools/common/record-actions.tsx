@@ -52,10 +52,19 @@ export function RecordActions({
   verbs,
   size = "sm",
   layout = "inline",
+  label,
 }: {
   resource: SchoolResource;
   verbs: RecordVerb[];
   size?: "sm" | "md";
+  /**
+   * What the menu trigger is called — "Row actions for Tendai Moyo".
+   *
+   * A register of forty rows announces forty controls with the same name
+   * otherwise, and a reader moving between them by keyboard has nothing to
+   * tell one from the next. Ignored by `inline`, where each verb names itself.
+   */
+  label?: string;
   /**
    * `inline` puts every verb on the row as a button. `menu` collapses them
    * behind a single "..." trigger.
@@ -112,8 +121,11 @@ export function RecordActions({
           <Button
             size={size}
             variant="ghost"
-            className="size-7 p-0"
-            aria-label="Row actions"
+            // 28px is a comfortable mouse target and a poor thumb one, so it
+            // grows on touch — where the extra height buys a hit area rather
+            // than costing a row.
+            className="size-7 p-0 [@media(pointer:coarse)]:size-9"
+            aria-label={label ?? "Row actions"}
           >
             <MoreHorizontal className="size-4" />
           </Button>
@@ -140,41 +152,19 @@ export function RecordActions({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
-      {verbs.map((verb) => {
-        const permitted = access.can(resource, verb.action);
-        const who = permitted ? null : whoCan(resource, verb.action);
-        const reason = !permitted
-          ? who
-            ? `This is ${who} to do.`
-            : "Changing this is somebody else's job."
-          : verb.unavailable;
-
-        return (
-          <Button
-            key={verb.label}
-            size={size}
-            variant={verb.tone === "danger" ? "danger" : "secondary"}
-            disabled={Boolean(reason) || verb.loading}
-            loading={verb.loading}
-            title={reason ?? undefined}
-            onClick={async () => {
-              if (!verb.confirm) {
-                verb.onSelect();
-                return;
-              }
-              const confirmed = await dsConfirm({
-                title: verb.confirm.title,
-                description: verb.confirm.description,
-                confirmLabel: verb.confirm.confirmLabel,
-                variant: verb.tone ?? "default",
-              });
-              if (confirmed) verb.onSelect();
-            }}
-          >
-            {verb.label}
-          </Button>
-        );
-      })}
+      {resolved.map(({ verb, reason, run }) => (
+        <Button
+          key={verb.label}
+          size={size}
+          variant={verb.tone === "danger" ? "danger" : "secondary"}
+          disabled={Boolean(reason) || verb.loading}
+          loading={verb.loading}
+          title={reason ?? undefined}
+          onClick={() => void run()}
+        >
+          {verb.label}
+        </Button>
+      ))}
     </div>
   );
 }

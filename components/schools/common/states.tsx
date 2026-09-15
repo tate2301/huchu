@@ -20,9 +20,10 @@ import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/ac
  *   - a skeleton mirrors the row it is about to become, never a spinner, and
  *     never a shimmer sweep, which draws the eye to the wait rather than the work;
  *   - an empty list is not a failure, so it is an empty state and not an Alert;
- *   - the three empties are different sentences — nothing yet offers the verb
- *     that fills it, nothing matched repeats the filter that emptied it, and
- *     nothing left to do is good news and never offers a create button;
+ *   - the empties are different sentences — nothing yet offers the verb that
+ *     fills it, nothing matched repeats the search or the filter that emptied
+ *     it (two causes, two sentences), and nothing left to do is good news and
+ *     never offers a create button;
  *   - a refusal names the role that *can*, because "ask the bursar" is a next
  *     step and "you do not have permission" is a dead end.
  */
@@ -71,17 +72,26 @@ export function TableRowsSkeleton({
   columns,
   rows = 8,
   headers,
+  label = "Loading",
 }: {
   columns: SkeletonColumn[];
   rows?: number;
   /** The real column names. Drawn solid, since they are known already. */
   headers?: string[];
+  /** What is being waited for: "Loading the roll". */
+  label?: string;
 }) {
   return (
+    // A skeleton that is only a picture tells a screen reader the page is
+    // empty. The bars themselves carry no text, so the box is the status and
+    // the sentence inside it is the only thing announced.
     <div
-      aria-hidden="true"
+      role="status"
+      aria-busy="true"
+      aria-live="polite"
       className="overflow-hidden rounded-[var(--card-radius)] border border-[color:var(--border)] bg-[color:var(--surface)]"
     >
+      <span className="sr-only">{label}</span>
       {headers?.length ? (
         <div className="flex items-center gap-3 border-b border-[color:var(--border)] bg-[color:var(--canvas)] px-3 py-2">
           {columns.map((column, index) => (
@@ -150,9 +160,16 @@ export function TableRowsSkeleton({
 }
 
 /** A block of tiles while their numbers are being counted. */
-export function StatsSkeleton({ count = 3 }: { count?: number }) {
+export function StatsSkeleton({
+  count = 3,
+  label = "Counting",
+}: {
+  count?: number;
+  label?: string;
+}) {
   return (
-    <div aria-hidden="true" className="grid gap-3 sm:grid-cols-3">
+    <div role="status" aria-busy="true" aria-live="polite" className="grid gap-3 sm:grid-cols-3">
+      <span className="sr-only">{label}</span>
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
@@ -169,6 +186,52 @@ export function StatsSkeleton({ count = 3 }: { count?: number }) {
 }
 
 /**
+ * Rows, for the lists that are lists rather than tables — a shelf, an inbox, a
+ * hostel's beds, and every table's phone fallback.
+ *
+ * Separate from `CardsSkeleton` because it is a different shape, not a
+ * different size: a list row is 44px with a mark, a name and one supporting
+ * line, and a card skeleton standing in for it is what makes a list jump a
+ * hundred pixels when the rows land. Separated by space rather than by rules,
+ * the way the rows themselves are — a divider draws a line the reader has to
+ * cross for every row, and a gap does the same separating without adding
+ * anything to look at.
+ */
+export function ListRowsSkeleton({
+  rows = 8,
+  avatar = true,
+  fact = true,
+  label = "Loading",
+}: {
+  rows?: number;
+  /** A mark ahead of the name, where the rows are people or records. */
+  avatar?: boolean;
+  /** The figure or chip at the right end of each row. */
+  fact?: boolean;
+  label?: string;
+}) {
+  return (
+    <div role="status" aria-busy="true" aria-live="polite" className="space-y-1">
+      <span className="sr-only">{label}</span>
+      {Array.from({ length: rows }, (_, index) => (
+        <div
+          key={index}
+          className="campus-skeleton-row flex min-h-11 items-center gap-2.5 rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] bg-[color:var(--surface)] px-3 py-2"
+          style={{ animationDelay: `${index * 40}ms` }}
+        >
+          {avatar ? <Skeleton variant="circle" width={24} height={24} /> : null}
+          <div className="min-w-0 flex-1 space-y-1.5">
+            <Skeleton height={9} width={`${SPREAD[index % SPREAD.length]}%`} />
+            <Skeleton height={7} width="30%" />
+          </div>
+          {fact ? <Skeleton height={9} width={54} /> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/**
  * Cards or grouped rows, for the lists that are not tables — the bed board,
  * the shelf, a route's stops.
  */
@@ -176,10 +239,12 @@ export function CardsSkeleton({
   count = 6,
   columns = 3,
   lines = 3,
+  label = "Loading",
 }: {
   count?: number;
   columns?: 1 | 2 | 3 | 4;
   lines?: number;
+  label?: string;
 }) {
   const grid = {
     1: "grid-cols-1",
@@ -189,7 +254,8 @@ export function CardsSkeleton({
   }[columns];
 
   return (
-    <div aria-hidden="true" className={cn("grid gap-3", grid)}>
+    <div role="status" aria-busy="true" aria-live="polite" className={cn("grid gap-3", grid)}>
+      <span className="sr-only">{label}</span>
       {Array.from({ length: count }, (_, index) => (
         <div
           key={index}
@@ -279,34 +345,51 @@ export function NothingYet({
 }
 
 /**
- * Records exist; the filters hid all of them. Repeats what was filtered and
+ * Records exist; the narrowing hid all of them. Repeats what narrowed it and
  * offers to undo it — never a create button, which would answer a question
  * nobody asked.
+ *
+ * A search and a filter are two causes and want two sentences. "No students
+ * match these filters" over a list somebody has typed "Moyo" into sends them
+ * off to clear filters they never set; "No students match that search" over a
+ * list filtered to Form 2 hides the half of the answer that is actually doing
+ * the emptying. So when both are in force both are named, and the verb on the
+ * button says which one it will undo.
  */
 export function NothingMatched({
   what = "results",
   filters,
+  search,
   onClear,
 }: {
   /** Plural noun for the rows — "students", "invoices". */
   what?: string;
   /** The narrowing in force, in the user's words: ["Form 2", "Suspended"]. */
   filters?: string[];
+  /** What was typed into the search box, if anything. */
+  search?: string;
   onClear?: () => void;
 }) {
   const named = (filters ?? []).filter(Boolean);
+  const typed = search?.trim();
+  const searchOnly = Boolean(typed) && named.length === 0;
+
   return (
     <EmptyState
-      title={`No ${what} matched`}
+      title={searchOnly ? `No ${what} match that search` : `No ${what} match these filters`}
       body={
-        named.length > 0
-          ? `Nothing is left after narrowing to ${named.join(" and ")}.`
-          : "Nothing is left after the filters in force."
+        searchOnly
+          ? `Nothing here is called “${typed}”.`
+          : named.length > 0
+            ? typed
+              ? `Nothing is left after narrowing to ${named.join(" and ")} and searching for “${typed}”.`
+              : `Nothing is left after narrowing to ${named.join(" and ")}.`
+            : "Nothing is left after the filters in force."
       }
       action={
         onClear ? (
           <Button variant="secondary" onClick={onClear}>
-            Clear the filters
+            {searchOnly ? "Clear the search" : "Clear the filters"}
           </Button>
         ) : undefined
       }

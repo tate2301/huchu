@@ -1,7 +1,7 @@
 import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections, schoolBandResource } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, schoolBandGrant } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
 import type { PersonaCode } from "@/lib/platform/personas";
@@ -223,10 +223,15 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     homeHref: "/schools",
     /**
      * The campus nav section is already the definition — see `lib/navigation.ts`.
-     * This adds the one thing feature gating cannot express: a band is a campus
-     * resource, so a persona with no `view` grant on it is being offered a row
-     * of doors that answer 403. A warden has no business being shown the fee
-     * ledger, and the rail is where they should learn that, not the page.
+     * This adds the one thing feature gating cannot express: a destination is a
+     * campus grant, so a persona without it is being offered a door that answers
+     * 403. A warden has no business being shown the fee ledger, and the rail is
+     * where they should learn that, not the page.
+     *
+     * A row's own grant wins over its group's, and a group's verb is asked as
+     * declared rather than always `view` — which is what lets Fees ask for
+     * `issue` while Health and welfare, sitting under Students, asks for
+     * `schools.welfare`.
      */
     getItems(context) {
       const items = context.navSectionById.get("schools")?.items ?? [];
@@ -238,8 +243,8 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
       if (!access.persona) return items;
 
       return items.filter((item) => {
-        const resource = item.group ? schoolBandResource(item.group) : null;
-        return !resource || access.can(resource, "view");
+        const grant = item.grant ?? (item.group ? schoolBandGrant(item.group) : null);
+        return !grant || access.can(grant.resource, grant.action ?? "view");
       });
     },
     getGroups(context) {
