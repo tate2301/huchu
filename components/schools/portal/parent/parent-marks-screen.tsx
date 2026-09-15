@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
@@ -10,7 +12,8 @@ import {
 } from "@/components/schools/common/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { fetchJson } from "@/lib/api-client";
-import { MedusaBookOpenIcon } from "@/lib/icons";
+import { formatSchoolDate } from "@/lib/schools/format";
+import { MedusaBookOpenIcon, X } from "@/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 
@@ -48,6 +51,7 @@ type Mark = {
 
 export function ParentMarksScreen() {
   const { child, term } = useParentPortal();
+  const [openMark, setOpenMark] = useState<Mark | null>(null);
 
   const query = useQuery({
     queryKey: ["portal", "parent", "marks", child?.id],
@@ -127,7 +131,7 @@ export function ParentMarksScreen() {
         <section key={termName}>
           <div className="section-h">
             {termName}
-            <span className="mono-note">
+            <span className="count-note">
               {rows.length} {rows.length === 1 ? "subject" : "subjects"}
             </span>
           </div>
@@ -137,27 +141,32 @@ export function ParentMarksScreen() {
               const tone = passed === null ? "" : passed ? "good" : "bad";
               const width = Math.max(0, Math.min(100, mark.score));
               return (
-                <div key={mark.id} className="subj-card">
-                  <div className="hd">
+                <button
+                  key={mark.id}
+                  type="button"
+                  className="subj-card w-full cursor-pointer text-left"
+                  onClick={() => setOpenMark(mark)}
+                >
+                  <span className="hd">
                     <span className="ic-tile brand">
                       <MedusaBookOpenIcon className="size-4" aria-hidden />
                     </span>
-                    <div className="min-w-0 flex-1">
-                      <div className="nm">{mark.subjectName}</div>
-                      <div className="sb">
+                    <span className="min-w-0 flex-1">
+                      <span className="nm block">{mark.subjectName}</span>
+                      <span className="sb block">
                         {[mark.grade, mark.remarks].filter(Boolean).join(" · ") ||
                           mark.subjectCode}
-                      </div>
-                    </div>
+                      </span>
+                    </span>
                     <span className={tone ? `v ${tone}` : "v"}>
                       {mark.score.toFixed(0)}
                       <span className="unit">%</span>
                     </span>
-                  </div>
-                  <div className="bar">
+                  </span>
+                  <span className="bar">
                     <span className={tone} style={{ width: `${width}%` }} />
-                  </div>
-                </div>
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -174,6 +183,80 @@ export function ParentMarksScreen() {
           />
         </div>
       ) : null}
+
+      {openMark ? (
+        <ParentMarkSheet mark={openMark} onClose={() => setOpenMark(null)} />
+      ) : null}
+    </div>
+  );
+}
+
+/**
+ * One subject, opened from its card.
+ *
+ * The class-work and exam split the prototype shows is not on the result line
+ * the API returns, and neither is the teacher who taught it, so this shows the
+ * three things that are — the mark, the pass mark it is judged against, and the
+ * teacher's own remark — and sends a parent to the office rather than naming a
+ * teacher it cannot name.
+ */
+function ParentMarkSheet({ mark, onClose }: { mark: Mark; onClose: () => void }) {
+  const passed = mark.passMark == null ? null : mark.score >= mark.passMark;
+
+  return (
+    <div className="x-bs-scrim open pp-scrim" role="presentation" onClick={onClose}>
+      <div
+        className="x-bottom-sheet"
+        role="dialog"
+        aria-modal="true"
+        aria-label={mark.subjectName}
+        onClick={(event) => event.stopPropagation()}
+      >
+        <div className="x-bs-grab" />
+        <div className="x-bs-head">
+          <h3>{mark.subjectName}</h3>
+          <button type="button" className="x-bs-close" aria-label="Close" onClick={onClose}>
+            <X className="size-4" aria-hidden />
+          </button>
+        </div>
+        <div className="x-bs-body">
+          <dl className="sheet-defs">
+            <dt>Mark</dt>
+            <dd className="sheet-figure">{mark.score.toFixed(0)}%</dd>
+            {mark.grade ? (
+              <>
+                <dt>Grade</dt>
+                <dd>{mark.grade}</dd>
+              </>
+            ) : null}
+            {mark.passMark != null ? (
+              <>
+                <dt>Pass mark</dt>
+                <dd>
+                  {mark.passMark}% · {passed ? "passed" : "not yet passed"}
+                </dd>
+              </>
+            ) : null}
+            {mark.remarks ? (
+              <>
+                <dt>Teacher’s remark</dt>
+                <dd>{mark.remarks}</dd>
+              </>
+            ) : null}
+            {mark.publishedAt ? (
+              <>
+                <dt>Released</dt>
+                <dd>{formatSchoolDate(mark.publishedAt)}</dd>
+              </>
+            ) : null}
+          </dl>
+          <div className="sheet-actions">
+            <Link href="/portal/parent/messages" className="pp-wide-btn" onClick={onClose}>
+              Ask about this subject
+            </Link>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

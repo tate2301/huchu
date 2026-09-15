@@ -3,11 +3,9 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import {
   LoadError,
-  NothingLeftToDo,
   NothingYet,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
@@ -17,7 +15,9 @@ import { fetchJson } from "@/lib/api-client";
 import { formatSchoolDate, formatSchoolMoney } from "@/lib/schools/format";
 import { Receipt as ReceiptIcon } from "@/lib/icons";
 
+import { ParentHowToPaySheet } from "./parent-how-to-pay-sheet";
 import { useParentPortal } from "./parent-portal-context";
+import { formatMonthLabel, formatShortDate, monthKey } from "./parent-portal-format";
 
 /**
  * S-6.6 / S-6.7 / S-6.8 — what is owed, what it is for, and the paper for it.
@@ -30,6 +30,10 @@ import { useParentPortal } from "./parent-portal-context";
  * parent is shown is the one the ledger computed, and a client-side subtotal is a
  * second opinion about what a family owes. The one figure the sticky bar shows is
  * the loader's own outstanding balance, not a sum of the rows above it.
+ *
+ * The bar is the screen's one primary action, and it only appears while there is
+ * something to act on: a family that owes nothing gets no bar, because the
+ * statement and the receipts are already on the screen behind it.
  *
  * Two of the eight states are missing on purpose, and the audit reads text, so
  * they are named here rather than left looking forgotten: there is no
@@ -64,8 +68,15 @@ type Receipt = {
   amount: string;
 };
 
+/** `MOBILE_MONEY` is the ledger's word for it; "mobile money" is the parent's. */
+function methodLabel(method: string) {
+  const words = method.replace(/_/g, " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
 export function ParentFeesScreen() {
   const { child, term } = useParentPortal();
+  const [howToPay, setHowToPay] = useState(false);
   /**
    * Which bill is showing its lines. `undefined` means "nobody has chosen yet",
    * which is not the same as "closed": the first bill opens itself so the
@@ -146,42 +157,43 @@ export function ParentFeesScreen() {
   const issued = invoices[0]?.issueDate ?? null;
   const expandedId = open === undefined ? (invoices[0]?.id ?? null) : open;
 
+  /** Newest month first, which is the order a parent looks for a payment in. */
+  const months = [...new Map(receipts.map((row) => [monthKey(row.receiptDate), row])).keys()].sort(
+    (a, b) => b.localeCompare(a),
+  );
+
   return (
     <div className="pp-page">
-      {/* Whose bill this is. A parent of three reading a figure needs the name
-          beside it more than they need it anywhere else in the app. */}
-      <div className="fee-who">
-        <PersonAvatar
-          firstName={child.firstName}
-          lastName={child.lastName}
-          src={child.avatarUrl}
-          size="sm"
-        />
-        <div className="min-w-0">
-          <div className="nm">
-            {child.firstName} {child.lastName}
-          </div>
-          <div className="sb truncate">
-            {[child.currentClass?.name, child.currentStream?.name].filter(Boolean).join(" · ") ||
-              "No class yet"}
-          </div>
-        </div>
-      </div>
-
       <div className="b-stat-hero">
         <div className="b-sh-lead">
-          <div className="b-sh-l">What you still owe</div>
-          <div className="b-sh-v">{formatSchoolMoney(outstanding, currency)}</div>
-          <div className="b-sh-d">
-            {outstanding === 0
-              ? `All paid for ${term?.name ?? "this term"} — thank you.`
-              : overdue > 0
-                ? `${formatSchoolMoney(overdue, currency)} of this is past its due date.`
-                : fees?.nextDueDate
-                  ? `${term?.name ?? "This term"} fees · pay by ${formatSchoolDate(fees.nextDueDate)}`
-                  : `Across ${fees?.invoices ?? invoices.length} bills.`}
-          </div>
-          {billed > 0 ? (
+          {outstanding > 0 ? (
+            <>
+              <div className="b-sh-l">You still owe · {child.firstName}</div>
+              <div className="b-sh-v">{formatSchoolMoney(outstanding, currency)}</div>
+              <div className="b-sh-d">
+                {overdue > 0
+                  ? `${formatSchoolMoney(overdue, currency)} of this is past its due date.`
+                  : fees?.nextDueDate
+                    ? `Pay by ${formatShortDate(fees.nextDueDate)}`
+                    : `Across ${fees?.invoices ?? invoices.length} bills.`}
+              </div>
+            </>
+          ) : (
+            <>
+              {/* Never a zero as the lead figure. What a paid-up family wants
+                  confirmed is the amount that went in, not the nothing left. */}
+              <div className="b-sh-l">Paid for {term?.name ?? "this term"}</div>
+              <div className="b-sh-v">{formatSchoolMoney(paid, currency)}</div>
+              <div className="b-sh-d">
+                {billed > 0
+                  ? `Across ${fees?.invoices ?? invoices.length} ${
+                      (fees?.invoices ?? invoices.length) === 1 ? "bill" : "bills"
+                    } for ${child.firstName}.`
+                  : `Nothing has been billed to ${child.firstName} this term.`}
+              </div>
+            </>
+          )}
+          {billed > 0 && outstanding > 0 ? (
             <div className="fh-progress">
               <div className="bar">
                 <span style={{ width: `${paidPct}%` }} />
@@ -197,19 +209,8 @@ export function ParentFeesScreen() {
 
       <div className="section-h">
         Fee statement
-        {issued ? <span className="mono-note">Sent {formatSchoolDate(issued)}</span> : null}
+        {issued ? <span className="count-note">Sent {formatSchoolDate(issued)}</span> : null}
       </div>
-      {/* Paid up is good news, and good news is not an empty table. It sits
-          above the statement rather than replacing it, because a parent who
-          owes nothing still opens this screen to find the bill they paid. */}
-      {invoices.length > 0 && outstanding === 0 ? (
-        <div className="px-4 pb-3">
-          <NothingLeftToDo
-            title="Nothing owing"
-            body={`${term?.name ?? "This term"} is paid in full. The statement below is yours to keep.`}
-          />
-        </div>
-      ) : null}
       {invoices.length === 0 ? (
         <div className="px-4">
           <NothingYet
@@ -233,7 +234,8 @@ export function ParentFeesScreen() {
                   <span>
                     <span className="nm block">{invoice.term?.name ?? "Fees"}</span>
                     <span className="sb block">
-                      {invoice.invoiceNo} · due {formatSchoolDate(invoice.dueDate)}
+                      <span className="pp-ref">{invoice.invoiceNo}</span> · due{" "}
+                      {formatSchoolDate(invoice.dueDate)}
                     </span>
                   </span>
                   <span className="v">
@@ -248,7 +250,7 @@ export function ParentFeesScreen() {
                       <div key={line.id} className="breakdown-row">
                         <span>
                           <span className="nm block">{line.description}</span>
-                          <span className="sb block">{line.feeCode}</span>
+                          <span className="sb block pp-ref">{line.feeCode}</span>
                         </span>
                         <span className="v">
                           {formatSchoolMoney(Number(line.amount), invoice.currency)}
@@ -258,7 +260,7 @@ export function ParentFeesScreen() {
                     <div className="breakdown-row paid">
                       <span>
                         <span className="nm block">Already paid</span>
-                        <span className="sb block">Against {invoice.invoiceNo}</span>
+                        <span className="sb block">Receipted against this bill</span>
                       </span>
                       <span className="v">
                         {formatSchoolMoney(Number(invoice.paid), invoice.currency)}
@@ -292,58 +294,78 @@ export function ParentFeesScreen() {
         </div>
       )}
 
+      {invoices.length > 0 ? (
+        <div className="px-4 pt-3">
+          <PrintDocumentButton
+            sourceKey="schools.fee.statement"
+            recordId={child.id}
+            label="Download the statement"
+          />
+        </div>
+      ) : null}
+
+      {/* Grouped by month, because a parent looking for a payment remembers
+          roughly when they made it and never the receipt number. */}
       <div className="section-h">
-        Payments you have made
+        Past payments
         {receipts.length > 0 ? (
-          <span className="mono-note">
-            {receipts.length} {receipts.length === 1 ? "receipt" : "receipts"}
+          <span className="count-note">
+            {receipts.length} {receipts.length === 1 ? "payment" : "payments"}
           </span>
         ) : null}
       </div>
-      <div className="card-block boxed">
-        {receipts.length === 0 ? (
+      {receipts.length === 0 ? (
+        <div className="card-block boxed">
           <p className="pp-empty-row">
             No payments recorded yet. Once the office banks one, the receipt
             appears here for you to download.
           </p>
-        ) : (
-          receipts.map((receipt) => (
-            <div key={receipt.id} className="pl-row">
-              <div className="min-w-0 flex-1">
-                <div className="nm">
-                  {formatSchoolMoney(Number(receipt.amount), receipt.currency)}
-                </div>
-                <div className="sb">
-                  {formatSchoolDate(receipt.receiptDate)} ·{" "}
-                  {receipt.method.replace(/_/g, " ").toLowerCase()}
-                  {receipt.reference ? ` · ${receipt.reference}` : ""}
-                </div>
-              </div>
-              {/* S-6.7 — the receipt itself, as a file they can keep. */}
-              <PrintDocumentButton
-                sourceKey="schools.fee.receipt"
-                recordId={receipt.id}
-                label="Receipt"
-              />
-            </div>
-          ))
-        )}
-      </div>
-
-      {/* The statement, as paper. There is no payment flow in this portal, so the
-          sticky bar's action is the one thing a parent can actually do here. */}
-      <div className="pay-bar">
-        <div className="meta">
-          <div className="l">What you still owe</div>
-          <div className="v">{formatSchoolMoney(outstanding, currency)}</div>
         </div>
-        <PrintDocumentButton
-          sourceKey="schools.fee.statement"
-          recordId={child.id}
-          label="Statement"
-          variant="default"
-        />
-      </div>
+      ) : (
+        months.map((key) => (
+          <section key={key}>
+            <div className="section-h">{formatMonthLabel(`${key}-15`)}</div>
+            <div className="card-block boxed">
+              {receipts
+                .filter((receipt) => monthKey(receipt.receiptDate) === key)
+                .map((receipt) => (
+                  <div key={receipt.id} className="pl-row pay-row">
+                    <span className="amt">
+                      {formatSchoolMoney(Number(receipt.amount), receipt.currency)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="nm">{formatSchoolDate(receipt.receiptDate)}</div>
+                      <div className="sb flex flex-wrap items-center gap-2">
+                        <span className="method">{methodLabel(receipt.method)}</span>
+                        <span className="pp-ref">{receipt.reference ?? receipt.receiptNo}</span>
+                      </div>
+                    </div>
+                    {/* S-6.7 — the receipt itself, as a file they can keep. */}
+                    <PrintDocumentButton
+                      sourceKey="schools.fee.receipt"
+                      recordId={receipt.id}
+                      label="Receipt"
+                    />
+                  </div>
+                ))}
+            </div>
+          </section>
+        ))
+      )}
+
+      {outstanding > 0 ? (
+        <div className="pay-bar">
+          <div className="meta">
+            <div className="l">What you still owe</div>
+            <div className="v">{formatSchoolMoney(outstanding, currency)}</div>
+          </div>
+          <button type="button" onClick={() => setHowToPay(true)}>
+            How to pay
+          </button>
+        </div>
+      ) : null}
+
+      {howToPay ? <ParentHowToPaySheet onClose={() => setHowToPay(false)} /> : null}
     </div>
   );
 }

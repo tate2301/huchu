@@ -1,10 +1,13 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { signOut } from "next-auth/react";
+import { useQuery } from "@tanstack/react-query";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { ChevronRight, LogOut, Mail, Phone } from "@/lib/icons";
+import { fetchJson } from "@/lib/api-client";
+import { ChevronRight, LogOut, Mail, Phone, X } from "@/lib/icons";
 
 import { useParentPortal } from "./parent-portal-context";
 
@@ -19,14 +22,29 @@ import { useParentPortal } from "./parent-portal-context";
  *
  * How the school reaches you is above the children on purpose: a wrong phone
  * number is the reason a parent misses everything else in this app, and it is the
- * one thing on this screen they came to check.
+ * one thing on this screen they came to check. The rows carry no chevron: a
+ * parent cannot change these here — the office holds them — and an arrow that
+ * opens nothing is a promise the screen does not keep.
  *
  * Sign out is a real sign-out through next-auth rather than a link to a login page:
  * a shared phone is normal here, and a "sign out" that leaves the session alive is
- * the worst kind of lie for a portal holding another family's data.
+ * the worst kind of lie for a portal holding another family's data. It asks first,
+ * for the same reason — the phone this runs on is usually shared, and signing the
+ * wrong person out mid-errand costs them the walk back to the office.
  */
 export function ParentProfileScreen() {
   const { guardian, children, child, selectChild } = useParentPortal();
+  const [confirmingSignOut, setConfirmingSignOut] = useState(false);
+
+  const inbox = useQuery({
+    queryKey: ["portal", "parent", "messages"],
+    queryFn: () =>
+      fetchJson<{ threads: Array<{ id: string; unread: boolean }> }>(
+        "/api/v2/schools/portal/parent/messages",
+      ),
+    enabled: Boolean(guardian),
+  });
+  const unread = (inbox.data?.threads ?? []).filter((row) => row.unread).length;
 
   if (!guardian) {
     return (
@@ -35,10 +53,6 @@ export function ParentProfileScreen() {
       </p>
     );
   }
-
-  const schools = new Set(
-    children.map((candidate) => candidate.currentClass?.name ?? "").filter(Boolean),
-  );
 
   return (
     <div className="pp-page">
@@ -65,7 +79,6 @@ export function ParentProfileScreen() {
             <div className="nm">{guardian.phone}</div>
             <div className="sb">Main phone</div>
           </div>
-          <ChevronRight className="chev size-4" aria-hidden />
         </div>
         <div className="pl-row">
           <span className="ic-tile">
@@ -75,18 +88,12 @@ export function ParentProfileScreen() {
             <div className="nm">{guardian.email ?? "No email on file"}</div>
             <div className="sb">Email</div>
           </div>
-          <ChevronRight className="chev size-4" aria-hidden />
         </div>
       </div>
 
-      <div className="section-h">
-        Your children
-        {schools.size > 0 ? (
-          <span className="mono-note">
-            {children.length} {children.length === 1 ? "child" : "children"}
-          </span>
-        ) : null}
-      </div>
+      {/* The count is in the hero line above; a header that repeats it spends a
+          line saying nothing new. */}
+      <div className="section-h">Your children</div>
       <div className="card-block boxed">
         {children.length === 0 ? (
           <p className="pp-empty-row">
@@ -122,11 +129,7 @@ export function ParentProfileScreen() {
                       .join(" · ")}
                   </span>
                 </span>
-                {viewing ? (
-                  <span className="pp-viewing">Viewing</span>
-                ) : (
-                  <ChevronRight className="chev size-4" aria-hidden />
-                )}
+                {viewing ? <span className="pp-viewing">Viewing</span> : <span />}
               </button>
             );
           })
@@ -143,6 +146,7 @@ export function ParentProfileScreen() {
             <span className="nm block">Messages</span>
             <span className="sb block">Write to the school, and read replies</span>
           </span>
+          {unread > 0 ? <span className="pp-viewing">{unread} new</span> : null}
           <ChevronRight className="chev size-4" aria-hidden />
         </Link>
         <Link href="/portal/parent/help" className="pl-row cl">
@@ -158,12 +162,63 @@ export function ParentProfileScreen() {
         <button
           type="button"
           className="pp-wide-btn danger"
-          onClick={() => signOut({ callbackUrl: "/portal/parent/login" })}
+          onClick={() => setConfirmingSignOut(true)}
         >
           <LogOut className="size-[14px]" aria-hidden />
           Sign out
         </button>
       </div>
+
+      {confirmingSignOut ? (
+        <div
+          className="x-bs-scrim open pp-scrim"
+          role="presentation"
+          onClick={() => setConfirmingSignOut(false)}
+        >
+          <div
+            className="x-bottom-sheet"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Sign out"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="x-bs-grab" />
+            <div className="x-bs-head">
+              <h3>Sign out</h3>
+              <button
+                type="button"
+                className="x-bs-close"
+                aria-label="Close"
+                onClick={() => setConfirmingSignOut(false)}
+              >
+                <X className="size-4" aria-hidden />
+              </button>
+            </div>
+            <div className="x-bs-body">
+              <p className="sheet-lede">
+                You will need your password to get back in, and nothing about your children
+                stays on this phone.
+              </p>
+              <div className="sheet-actions">
+                <button
+                  type="button"
+                  className="pp-wide-btn"
+                  onClick={() => setConfirmingSignOut(false)}
+                >
+                  Stay signed in
+                </button>
+                <button
+                  type="button"
+                  className="pp-wide-btn danger"
+                  onClick={() => signOut({ callbackUrl: "/portal/parent/login" })}
+                >
+                  Sign out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

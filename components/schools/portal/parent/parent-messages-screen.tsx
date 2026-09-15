@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
@@ -26,8 +27,16 @@ import { useParentPortal } from "./parent-portal-context";
  * Messages between this family and the school.
  *
  * The prototype's "Messages from teachers", with its "Write to the school"
- * button. A thread with no teacher on it goes to the office, which is what that
- * button sends — a parent should not have to know which member of staff owns a
+ * button — which now sits in the app bar, because an inbox's primary action
+ * should not be below the conversations it belongs to.
+ *
+ * Which thread is open lives in the URL rather than in component state. It used
+ * to be a `useState`, so the phone's back gesture took a parent out of the
+ * portal altogether from inside a conversation; `?thread=` makes back mean what
+ * it looks like, and makes a thread a link the rest of the app can point at.
+ *
+ * A thread with no teacher on it goes to the office, which is what the composer
+ * sends — a parent should not have to know which member of staff owns a
  * question in order to ask it.
  *
  * One of the eight states is missing on purpose, and the audit reads text, so it
@@ -59,11 +68,16 @@ type ThreadDetail = ThreadSummary & {
 
 export function ParentMessagesScreen() {
   const queryClient = useQueryClient();
+  const router = useRouter();
+  const pathname = usePathname();
+  const search = useSearchParams();
   const { child } = useParentPortal();
-  const [openId, setOpenId] = useState<string | null>(null);
-  const [writing, setWriting] = useState(false);
+  const openId = search.get("thread");
+  const composing = search.get("compose") === "1";
   const [subject, setSubject] = useState("");
   const [draft, setDraft] = useState("");
+
+  const closeOverlay = () => router.push(pathname);
 
   const inbox = useQuery({
     queryKey: ["portal", "parent", "messages"],
@@ -100,8 +114,8 @@ export function ParentMessagesScreen() {
     onSuccess: () => {
       setDraft("");
       setSubject("");
-      setWriting(false);
       void queryClient.invalidateQueries({ queryKey: ["portal", "parent", "messages"] });
+      if (!openId) router.push(pathname);
     },
   });
 
@@ -131,17 +145,46 @@ export function ParentMessagesScreen() {
   const unread = threads.filter((row) => row.unread).length;
   const open = thread.data ?? null;
 
+  if (composing) {
+    return (
+      <div className="pp-page">
+        <div className="space-y-2 px-4 py-4">
+          {send.error ? <SaveError what="Your message" error={send.error} /> : null}
+          <SavingOverlay saving={send.isPending} label="Sending…">
+            <div className="space-y-2">
+              <div>
+                <Label htmlFor="msg-subject">What it is about</Label>
+                <Input
+                  id="msg-subject"
+                  value={subject}
+                  placeholder={child ? `About ${child.firstName}` : "Subject"}
+                  onChange={(event) => setSubject(event.target.value)}
+                />
+              </div>
+              <Textarea
+                rows={6}
+                value={draft}
+                placeholder="Write your message to the school"
+                onChange={(event) => setDraft(event.target.value)}
+              />
+              <Button
+                className="w-full"
+                disabled={!subject.trim() || !draft.trim() || send.isPending}
+                onClick={() => send.mutate()}
+              >
+                {send.isPending ? "Sending…" : "Send to the office"}
+              </Button>
+            </div>
+          </SavingOverlay>
+        </div>
+      </div>
+    );
+  }
+
   if (openId && open) {
     return (
       <div className="pp-page space-y-3">
-        <button
-          type="button"
-          className="px-4 pt-3 text-left text-sm text-[var(--brand)]"
-          onClick={() => { setOpenId(null); setDraft(""); }}
-        >
-          ← All messages
-        </button>
-        <div className="px-4">
+        <div className="px-4 pt-3">
           <p className="font-semibold text-[var(--text-strong)]">{open.subject}</p>
           <p className="text-sm text-[var(--text-muted)]">
             {open.staff?.name ?? "The school office"}
@@ -177,7 +220,12 @@ export function ParentMessagesScreen() {
           <div className="px-4 pb-24">
             <Alert>
               <AlertTitle>This conversation is closed</AlertTitle>
-              <AlertDescription>Write to the school again if you need to.</AlertDescription>
+              <AlertDescription>
+                <button type="button" className="underline" onClick={closeOverlay}>
+                  Write to the school again
+                </button>{" "}
+                if you need to.
+              </AlertDescription>
             </Alert>
           </div>
         ) : (
@@ -212,7 +260,7 @@ export function ParentMessagesScreen() {
     <div className="pp-page">
       <div className="section-h">
         Messages from teachers
-        {unread > 0 ? <span className="mono-note">{unread} new</span> : null}
+        {unread > 0 ? <span className="count-note">{unread} new</span> : null}
       </div>
 
       {threads.length === 0 ? (
@@ -220,7 +268,7 @@ export function ParentMessagesScreen() {
           <NothingYet
             icon={<ChatCircle className="size-5" aria-hidden />}
             title="No messages yet"
-            body="Nothing has been sent either way. If you need something — a question about a lesson, a note about an absence — write to the school below and it goes to the office."
+            body="Nothing has been sent either way. A question about a lesson, a note about an absence — write to the school and it goes to the office."
           />
         </div>
       ) : (
@@ -229,7 +277,7 @@ export function ParentMessagesScreen() {
             <button
               key={row.id}
               type="button"
-              onClick={() => setOpenId(row.id)}
+              onClick={() => router.push(`${pathname}?thread=${row.id}`)}
               className="breakdown-row w-full cursor-pointer text-left"
             >
               <span className="flex min-w-0 items-center gap-3">
@@ -244,7 +292,10 @@ export function ParentMessagesScreen() {
                   </span>
                   <span className="sb block truncate">{row.lastMessagePreview}</span>
                   <span className="sb block text-[11px]">
-                    {row.student ? `re: ${row.student.firstName}` : "General"}
+                    {[
+                      row.student ? `re: ${row.student.firstName}` : "General",
+                      formatSchoolDate(row.lastMessageAt),
+                    ].join(" · ")}
                   </span>
                 </span>
               </span>
@@ -253,53 +304,6 @@ export function ParentMessagesScreen() {
           ))}
         </div>
       )}
-
-      <div className="px-4 py-4 pb-24">
-        {writing ? (
-          <div className="space-y-2">
-            {send.error ? <SaveError what="Your message" error={send.error} /> : null}
-            <SavingOverlay saving={send.isPending} label="Sending…">
-              <div className="space-y-2">
-                <div>
-                  <Label htmlFor="msg-subject">What it is about</Label>
-                  <Input
-                    id="msg-subject"
-                    value={subject}
-                    placeholder={child ? `About ${child.firstName}` : "Subject"}
-                    onChange={(event) => setSubject(event.target.value)}
-                  />
-                </div>
-                <Textarea
-                  rows={4}
-                  value={draft}
-                  placeholder="Write your message to the school"
-                  onChange={(event) => setDraft(event.target.value)}
-                />
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() => { setWriting(false); setDraft(""); setSubject(""); }}
-                  >
-                    Cancel
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    disabled={!subject.trim() || !draft.trim() || send.isPending}
-                    onClick={() => send.mutate()}
-                  >
-                    {send.isPending ? "Sending…" : "Send"}
-                  </Button>
-                </div>
-              </div>
-            </SavingOverlay>
-          </div>
-        ) : (
-          <Button className="w-full" onClick={() => setWriting(true)}>
-            Write to the school
-          </Button>
-        )}
-      </div>
     </div>
   );
 }

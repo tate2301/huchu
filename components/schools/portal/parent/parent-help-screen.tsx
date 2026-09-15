@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
+
+import { ChatCircle, ChevronRight } from "@/lib/icons";
 
 /**
  * S-6.19 — an answer without ringing the office.
@@ -21,7 +24,7 @@ const QUESTIONS: Array<{ q: string; a: string }> = [
   },
   {
     q: "My child was marked away but they were at school.",
-    a: "A register that has not been submitted yet is marked as such on the attendance screen and can still change. If it is submitted and wrong, tell the class teacher — they can correct it.",
+    a: "A register the teacher has not sent in yet is drawn with a dashed edge on the attendance grid and can still change. If it is sent in and wrong, tell the class teacher — they can correct it.",
   },
   {
     q: "How do I get a receipt or a statement?",
@@ -29,11 +32,11 @@ const QUESTIONS: Array<{ q: string; a: string }> = [
   },
   {
     q: "I have two children here but only see one.",
-    a: "Use the row of names at the top of the screen to switch, or open Profile to see all of them. If a child is missing, the office needs to link them to your account.",
+    a: "Tap the name beside the bell at the top of the screen to switch between them, or open You to see all of them. If a child is missing, the office needs to link them to your account.",
   },
   {
     q: "Someone else uses this phone.",
-    a: "Sign out from the Profile screen when you are finished. Signing out ends the session on this phone.",
+    a: "Sign out from the You screen when you are finished. Signing out ends the session on this phone.",
   },
 ];
 
@@ -41,30 +44,41 @@ export function ParentHelpScreen() {
   const [open, setOpen] = useState<number | null>(0);
 
   return (
-    <div className="space-y-2">
+    <div className="pp-page">
+      <div className="section-h">Common questions</div>
       {QUESTIONS.map((item, index) => {
         const expanded = open === index;
         return (
-          <div
-            key={item.q}
-            className="rounded-[var(--radius-lg)] border border-[var(--border-subtle)] bg-[var(--surface)]"
-          >
+          <div key={item.q} className="faq-card">
             <button
               type="button"
               onClick={() => setOpen(expanded ? null : index)}
               aria-expanded={expanded}
-              className="w-full p-4 text-left font-medium"
             >
-              {item.q}
+              <span className="min-w-0 flex-1">{item.q}</span>
+              <ChevronRight className="chev size-4" aria-hidden />
             </button>
-            {expanded ? (
-              <p className="border-t border-[var(--border-subtle)] p-4 text-sm text-[var(--text-muted)]">
-                {item.a}
-              </p>
-            ) : null}
+            {expanded ? <p>{item.a}</p> : null}
           </div>
         );
       })}
+
+      {/* The school's own phone, email and WhatsApp belong here; until the
+          portal can read them, the one channel it can open is the one it
+          already owns. */}
+      <div className="section-h">Still stuck</div>
+      <div className="card-block boxed">
+        <Link href="/portal/parent/messages" className="pl-row cl">
+          <span className="ic-tile brand">
+            <ChatCircle className="size-4" aria-hidden />
+          </span>
+          <span className="min-w-0 flex-1">
+            <span className="nm block">Write to the school</span>
+            <span className="sb block">It goes to the office, and they reply here</span>
+          </span>
+          <ChevronRight className="chev size-4" aria-hidden />
+        </Link>
+      </div>
     </div>
   );
 }
