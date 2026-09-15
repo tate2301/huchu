@@ -2,6 +2,16 @@
 
 The first pass of this audit was a static read of the code. This second pass ran the product against a seeded local database and checked the main findings by driving it as each persona. Where the two passes disagree, the runtime result wins and the persona documents have been corrected.
 
+> **Revised 2026-09-15.** The findings below were the state on 14 September,
+> before any product code changed. Most of them have since been fixed; each
+> persona document records which, and the index summarises the whole. Three
+> findings in this table were later shown to be wrong — the student portal Help
+> chevron (it does rotate), the office inbox reply (broken, but not by the
+> permission check named here, and for every office role rather than the bursar
+> alone), and the ageing computations (they do not agree in general, and there
+> were four). This table is left as it was recorded: it is the evidence, not the
+> current state.
+
 ## Environment
 
 | Item | Value |
