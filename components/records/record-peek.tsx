@@ -8,7 +8,8 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge, type Accent } from "@corelithzw/react";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
-import { fetchJson } from "@/lib/api-client";
+import { ApiError, fetchJson } from "@/lib/api-client";
+import type { PeekSummary } from "@/lib/records/peek-summary";
 import { useRecordTrail } from "@/components/records/record-trail";
 import {
   ENTITY_LABEL,
@@ -60,28 +61,15 @@ const ENTITY_MARK: Record<RecordEntity, { icon: typeof Funnel; accent: Accent }>
   person: { icon: Users, accent: "violet" },
   site: { icon: MapPin, accent: "orange" },
   rep: { icon: User, accent: "green" },
-  // The school types are in the registry and carry record pages, so a link to
-  // one parses. None can be peeked yet — see `recordSummaryPath` — but the map
-  // is exhaustive over the registry, and leaving a hole here would be a type
-  // error the day one gains a summary endpoint rather than a silent grey disc.
+  // The school types read the same way: a child and a parent are people, a
+  // house is a place, so each takes the mark its CRM counterpart already has
+  // rather than a second vocabulary for the same shapes.
   student: { icon: Users, accent: "violet" },
   guardian: { icon: Users, accent: "cyan" },
   teacher: { icon: User, accent: "green" },
   class: { icon: Building2, accent: "indigo" },
   subject: { icon: Funnel, accent: "blue" },
   hostel: { icon: MapPin, accent: "orange" },
-};
-
-type PeekSummary = {
-  entity: RecordEntity;
-  id: string;
-  href: string;
-  title: string;
-  reference: string | null;
-  status: { label: string; tone: "neutral" | "info" | "success" | "warn" | "danger" } | null;
-  subtitle: string | null;
-  properties: Array<{ label: string; value: string }>;
-  archived: boolean;
 };
 
 type PeekValue = {
@@ -128,8 +116,8 @@ export function RecordPeekProvider({ children }: { children: ReactNode }) {
 function PeekSheet({ peeking, onClose }: { peeking: RecordRef | null; onClose: () => void }) {
   const router = useRouter();
   const { current, follow } = useRecordTrail();
-  const { data, isLoading, isError } = useQuery({
-    queryKey: ["crm-peek", peeking?.entity, peeking?.id],
+  const { data, error, isLoading, isError } = useQuery({
+    queryKey: ["record-peek", peeking?.entity, peeking?.id],
     enabled: Boolean(peeking),
     // `successResponse` returns the record itself, not a `{ data }` envelope.
     queryFn: () => fetchJson<PeekSummary>(recordSummaryPath(peeking!)!),
@@ -137,6 +125,24 @@ function PeekSheet({ peeking, onClose }: { peeking: RecordRef | null; onClose: (
     // one page. Keeping it a minute means the second look is instant.
     staleTime: 60_000,
   });
+
+  /**
+   * Why a glance failed, in the words the API used.
+   *
+   * The panel used to say "it may have been deleted" whatever came back, which
+   * was near enough true when the only failure was a 404. It is not true of a
+   * refusal: the campus endpoints answer 403 with a sentence naming the role
+   * that can look ("Your role cannot view boarding"), and swallowing that in
+   * favour of a guess about deletion tells the reader something false about a
+   * record that is right there. A refusal that does not say what would work
+   * teaches the reader only that the panel is unreliable.
+   */
+  const failure =
+    error instanceof ApiError && error.status === 403
+      ? error.message
+      : error instanceof ApiError && error.status === 404
+        ? "This record no longer exists."
+        : "This record could not be loaded. Try opening it in full.";
 
   const mark = peeking ? ENTITY_MARK[peeking.entity] : ENTITY_MARK.deal;
   const Icon = mark.icon;
@@ -156,16 +162,22 @@ function PeekSheet({ peeking, onClose }: { peeking: RecordRef | null; onClose: (
               <Icon className="size-3.5" aria-hidden="true" />
             </span>
             <span className="min-w-0 flex-1">
-              {isLoading ? "Loading…" : (data?.title ?? "Not found")}
+              {isLoading
+                ? "Loading…"
+                : (data?.title ??
+                  // A refused record is not a missing one, and a heading that
+                  // says "Not found" over a body that says "your role cannot"
+                  // contradicts itself in the space of two lines.
+                  (error instanceof ApiError && error.status === 403
+                    ? "Not yours to see"
+                    : "Not found"))}
             </span>
           </SheetTitle>
         </SheetHeader>
 
         <div className="min-h-0 flex-1 overflow-y-auto p-4">
           {isError ? (
-            <p className="text-sm text-[var(--text-muted)]">
-              This record could not be loaded. It may have been deleted.
-            </p>
+            <p className="text-sm text-[var(--text-muted)]">{failure}</p>
           ) : isLoading ? (
             <PeekSkeleton />
           ) : data ? (

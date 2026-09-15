@@ -122,9 +122,9 @@ export function recordHref(ref: RecordRef): string {
  * summary endpoint.
  *
  * A link to such a record is still a record link — it knows what it points at
- * and it leaves a trail — it simply opens the page instead of a panel. The
- * school types are in that state: they are in the registry and they have record
- * pages, but nothing yet answers "describe this pupil in six fields".
+ * and it leaves a trail — it simply opens the page instead of a panel. Both
+ * modules now answer: the CRM types from `/api/v2/crm/records/...` and the
+ * school types from `/api/v2/schools/records/...`, in one shape.
  */
 export function recordSummaryPath(ref: RecordRef): string | null {
   return configOf(ref.entity).summaryPath?.(ref.id) ?? null;

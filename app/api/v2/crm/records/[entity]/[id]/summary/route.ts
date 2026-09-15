@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
 import { recordSummaryPath, RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
+import { day, kept, money, type PeekSummary, type PeekTone } from "@/lib/records/peek-summary";
 
 /**
  * One record, small enough to look at without going there.
@@ -41,38 +42,6 @@ const HERE = "/api/v2/crm/records/";
 const SERVED: RecordEntity[] = RECORD_ENTITIES.filter((entity) =>
   recordSummaryPath({ entity, id: "-" })?.startsWith(HERE),
 );
-
-export type PeekTone = "neutral" | "info" | "success" | "warn" | "danger";
-
-export type PeekSummary = {
-  entity: RecordEntity;
-  id: string;
-  href: string;
-  title: string;
-  /** CRMD-0142, DEAL-0039 — the thing people quote at each other. */
-  reference: string | null;
-  /** Where it stands, when that means anything for this entity. */
-  status: { label: string; tone: PeekTone } | null;
-  /** The line under the title: a company, a job title, a town. */
-  subtitle: string | null;
-  properties: Array<{ label: string; value: string }>;
-  /** Archived records are still reachable by link, and should say so. */
-  archived: boolean;
-};
-
-const money = (value: number | null | undefined, currency: string | null | undefined) =>
-  value == null
-    ? null
-    : `${currency ?? "USD"} ${value.toLocaleString(undefined, {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2,
-      })}`;
-
-const day = (value: Date | null | undefined) => (value ? value.toISOString().slice(0, 10) : null);
-
-/** Drop the properties that have no answer rather than printing "—" five times. */
-const kept = (rows: Array<{ label: string; value: string | null | undefined }>) =>
-  rows.filter((row): row is { label: string; value: string } => Boolean(row.value));
 
 const LEAD_TONE: Record<string, PeekTone> = {
   NEW: "info",

@@ -181,6 +181,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/students",
     href: (id) => `/schools/students/${id}`,
     apiPath: (id) => `/api/v2/schools/students/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/student/${id}/summary`,
     queryKey: (id) => ["schools", "student", id],
   },
   {
@@ -193,6 +194,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/guardians",
     href: (id) => `/schools/guardians/${id}`,
     apiPath: (id) => `/api/v2/schools/guardians/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/guardian/${id}/summary`,
     queryKey: (id) => ["schools", "guardian", id],
   },
   {
@@ -205,6 +207,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/teachers",
     href: (id) => `/schools/teachers/${id}`,
     apiPath: (id) => `/api/v2/schools/teachers/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/teacher/${id}/summary`,
     queryKey: (id) => ["schools", "teacher", id],
   },
   {
@@ -219,6 +222,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/management/master-data/schools/classes",
     href: (id) => `/management/master-data/schools/classes/${id}`,
     apiPath: (id) => `/api/v2/schools/classes/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/class/${id}/summary`,
     queryKey: (id) => ["schools", "class", id],
   },
   {
@@ -231,6 +235,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/management/master-data/schools/subjects",
     href: (id) => `/management/master-data/schools/subjects/${id}`,
     apiPath: (id) => `/api/v2/schools/subjects/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/subject/${id}/summary`,
     queryKey: (id) => ["schools", "subject", id],
   },
   {
@@ -243,6 +248,7 @@ const CONFIGS: RecordTypeConfig[] = [
     indexHref: "/schools/boarding",
     href: (id) => `/schools/boarding/${id}`,
     apiPath: (id) => `/api/v2/schools/boarding/hostels/${id}`,
+    summaryPath: (id) => `/api/v2/schools/records/hostel/${id}/summary`,
     queryKey: (id) => ["schools", "hostel", id],
   },
 ];
