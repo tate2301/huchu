@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { z } from "zod";
 
+import { prisma } from "@/lib/prisma";
 import {
   InviteError,
   MIN_PORTAL_PASSWORD_LENGTH,
@@ -66,6 +67,31 @@ export async function POST(
   try {
     const { token } = await params;
     const validated = claimSchema.parse(await request.json());
+
+    /*
+      The address on an invite is chosen by whoever issued it, and it may already
+      be somebody's account — a teacher's, a bursar's, the other parent's.
+      Claiming binds the password and the role in this request to that account,
+      so an invite naming an existing address is a way to take it over. An
+      account that exists is linked to a record by the office; a claim only ever
+      opens a new one.
+    */
+    const invite = await findClaimableInvite(token);
+    if (invite) {
+      const existing = await prisma.user.findUnique({
+        where: { email: invite.sentTo },
+        select: { id: true },
+      });
+      if (existing) {
+        return NextResponse.json(
+          {
+            error:
+              "This email already has an account. Ask the school office to link it to this record",
+          },
+          { status: 409 },
+        );
+      }
+    }
 
     const result = await claimPortalInvite({
       token,

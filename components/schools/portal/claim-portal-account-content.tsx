@@ -104,8 +104,13 @@ export function ClaimPortalAccountContent({ token }: { token: string }) {
         </div>
 
         <div className="flex flex-col gap-2">
+          {/*
+            `/login` is the back office, which a portal account cannot get into:
+            a parent sent there would be turned away and conclude the password
+            they chose was wrong.
+          */}
           <Button asChild className="w-full">
-            <Link href="/login">Sign in</Link>
+            <Link href="/portal/parent/login">Sign in</Link>
           </Button>
           {/*
             There is no support route to send them to, and no school contact on
