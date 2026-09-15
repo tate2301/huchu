@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import { prisma } from "@/lib/prisma";
-import { RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
+import { recordSummaryPath, RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
 
 /**
  * One record, small enough to look at without going there.
@@ -22,6 +22,25 @@ import { RECORD_ENTITIES, type RecordEntity } from "@/lib/crm/record-ref";
  * read. Deliberately strings — this is a preview, and a peek that renders a
  * live editor for six entity types is a second record page, not a peek.
  */
+
+/**
+ * The entities this route is actually the summary for.
+ *
+ * `RECORD_ENTITIES` is every record type the platform has, schools included —
+ * it answers "is this a record", which is a broader question than "does this
+ * route know how to describe it". Guarding on the broad list let a pupil's id
+ * past the door and down to the final branch, which reads `User` and would
+ * have answered "that is not a colleague" about a child.
+ *
+ * So: the types whose registry entry points its summary at *this* route. A
+ * school entity that later grows a summary of its own drops out of this list
+ * by gaining that endpoint, with nothing here to remember to change.
+ */
+const HERE = "/api/v2/crm/records/";
+
+const SERVED: RecordEntity[] = RECORD_ENTITIES.filter((entity) =>
+  recordSummaryPath({ entity, id: "-" })?.startsWith(HERE),
+);
 
 export type PeekTone = "neutral" | "info" | "success" | "warn" | "danger";
 
@@ -76,7 +95,7 @@ export async function GET(
     const { session } = sessionResult;
     const { entity, id } = await params;
 
-    if (!RECORD_ENTITIES.includes(entity as RecordEntity)) {
+    if (!SERVED.includes(entity as RecordEntity)) {
       return errorResponse("Unknown record type", 400);
     }
     const companyId = session.user.companyId;
@@ -287,6 +306,11 @@ export async function GET(
     }
 
     // A rep is a colleague, and lives in `User` rather than in a CRM table.
+    // Named rather than reached by falling off the end of the other branches:
+    // a fall-through answers for whatever the guard let through, which is how
+    // widening the guard above turned every unmatched id into a lookup here.
+    if (kind !== "rep") return errorResponse("Unknown record type", 400);
+
     const rep = await prisma.user.findFirst({
       where: { id, companyId },
       select: { id: true, name: true, email: true, role: true, isActive: true },
