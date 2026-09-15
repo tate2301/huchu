@@ -2,7 +2,7 @@
  * Campus states audit.
  *
  * The canvas draws eight states — loading, empty, nothing-matched, nothing-left,
- * error, saving, denied, not-found — and `components/schools/common/states.tsx`
+ * error, saving, denied, not-found — and `components/records/states.tsx`
  * implements them. This walks every campus screen and reports which ones it
  * actually reaches for, so "does this screen handle its states?" is a command
  * rather than a reading exercise.
@@ -49,7 +49,7 @@ const LISTS = /DataTable|MobileList|\.map\(\(/
  * because a panel that fetches its own rows owns its own states.
  */
 const NOT_A_SCREEN =
-  /-(dialog|dialogs|sheet|form|shell|context|state|data|views|tabs|caption|pickers|picker|filter|cell)\.tsx$|use-[a-z-]+\.tsx?$|common\/(class-filter|grade-picker|filter-select|table-controls)\.tsx$/
+  /-(dialog|dialogs|sheet|form|shell|context|state|data|views|tabs|caption|pickers|picker|filter|cell)\.tsx$|use-[a-z-]+\.tsx?$|common\/(class-filter|grade-picker|filter-select)\.tsx$/
 
 function walk(dir, out = []) {
   for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {

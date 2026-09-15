@@ -10,7 +10,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
 import { Funnel, Plus } from "@/lib/icons";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { LayoutSwitch } from "@/components/crm/records/layout-switch";
+import { LayoutSwitch } from "@/components/records/layout-switch";
 import { PipelineSwitcher } from "@/components/crm/records/pipeline-switcher";
 import { ListSearch } from "@/components/crm/records/list-search";
 import { ViewToolbar } from "@/components/records/view-toolbar";

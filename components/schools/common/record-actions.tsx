@@ -47,45 +47,57 @@ export type RecordVerb = {
   loading?: boolean;
 };
 
+type RecordActionsCommon = {
+  resource: SchoolResource;
+  verbs: RecordVerb[];
+  size?: "sm" | "md";
+};
+
+/**
+ * `inline` puts every verb on the row as a button. `menu` collapses them
+ * behind a single "..." trigger.
+ *
+ * **Use `menu` in a table.** Three text buttons in the last cell is what made
+ * the school tables unreadable: `/schools/students` came to 1,145px of
+ * columns in 1,129px of space, so "Delete" was cut off at the window edge,
+ * and `/people` came to 1,944px in 923px. The verbs are the widest thing in
+ * the row and the least often used — the CRM tables, which are the standard
+ * (see `docs/design-system/12-tables.md`), give the row a chevron and nothing
+ * else.
+ *
+ * `inline` stays the default so the detail-page headers, where the verbs are
+ * the point of the page, keep their buttons.
+ *
+ * Gating is identical in both: a verb somebody cannot use is DISABLED with
+ * the reason on it, never hidden. Hiding it in a menu would quietly undo the
+ * rule this component exists to enforce.
+ */
+type RecordActionsProps = RecordActionsCommon &
+  (
+    | { layout?: "inline"; label?: string }
+    | {
+        layout: "menu";
+        /**
+         * What the trigger is called — "Row actions for Tendai Moyo".
+         *
+         * Required on a menu, and that is the whole point of the split. Left
+         * optional it fell back to "Row actions", which reads correctly on its
+         * own and turns a register of forty rows into forty identically-named
+         * controls — invisible on screen, so it survives review and reaches
+         * somebody navigating by keyboard. `inline` needs none: every verb is a
+         * button carrying its own word.
+         */
+        label: string;
+      }
+  );
+
 export function RecordActions({
   resource,
   verbs,
   size = "sm",
   layout = "inline",
   label,
-}: {
-  resource: SchoolResource;
-  verbs: RecordVerb[];
-  size?: "sm" | "md";
-  /**
-   * What the menu trigger is called — "Row actions for Tendai Moyo".
-   *
-   * A register of forty rows announces forty controls with the same name
-   * otherwise, and a reader moving between them by keyboard has nothing to
-   * tell one from the next. Ignored by `inline`, where each verb names itself.
-   */
-  label?: string;
-  /**
-   * `inline` puts every verb on the row as a button. `menu` collapses them
-   * behind a single "..." trigger.
-   *
-   * **Use `menu` in a table.** Three text buttons in the last cell is what made
-   * the school tables unreadable: `/schools/students` came to 1,145px of
-   * columns in 1,129px of space, so "Delete" was cut off at the window edge,
-   * and `/people` came to 1,944px in 923px. The verbs are the widest thing in
-   * the row and the least often used — the CRM tables, which are the standard
-   * (see `docs/design-system/12-tables.md`), give the row a chevron and nothing
-   * else.
-   *
-   * `inline` stays the default so the detail-page headers, where the verbs are
-   * the point of the page, keep their buttons.
-   *
-   * Gating is identical in both: a verb somebody cannot use is DISABLED with
-   * the reason on it, never hidden. Hiding it in a menu would quietly undo the
-   * rule this component exists to enforce.
-   */
-  layout?: "inline" | "menu";
-}) {
+}: RecordActionsProps) {
   const access = useSchoolAccess();
 
   const resolved = verbs.map((verb) => {

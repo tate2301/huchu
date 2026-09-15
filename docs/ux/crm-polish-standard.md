@@ -134,7 +134,7 @@ matter.
 
 ## Part 2 — List or table is a decision, not a default
 
-Source: the header comment of `components/crm/records/record-list.tsx`, and the
+Source: the header comment of `components/records/record-list.tsx`, and the
 one on `components/records/record-table.tsx`.
 
 ### SHAPE-1 — Ask what the surface is for before choosing its shape
@@ -155,7 +155,7 @@ never line up.
 
 ### SHAPE-2 — Where both questions are genuinely asked, give the same records a second arrangement, not a second page
 
-`LayoutSwitch` (`components/crm/records/layout-switch.tsx`) is one control, one
+`LayoutSwitch` (`components/records/layout-switch.tsx`) is one control, one
 vocabulary, one order — **Table, List, Board** — and it is always the leftmost
 thing in the options row.
 
@@ -760,7 +760,7 @@ look as though the school lost 700 children."
 ## Part 8 — Empty, loading, error, saving
 
 CRM and schools have both solved this; schools states it best, in
-`components/schools/common/states.tsx`. The rules are the union.
+`components/records/states.tsx`. The rules are the union.
 
 ### STATE-1 — An empty list has three causes and wants three sentences
 
@@ -911,16 +911,28 @@ below it shifts by one".
 A specification that describes the average is useless. These are the places CRM
 is inconsistent; in each, one way is right and the other is the one to change.
 
-### INC-1 — `RecordList` still lives under `components/crm/records/`
+### INC-1 — `RecordList` lived under `components/crm/records/` — closed
 
 `RecordTable`, `RecordCell`, `ViewToolbar` and the people directory were all
 moved to `components/records/` for a reason stated twice in the source: "the
 moment it lives in one of them the other becomes the copy that drifts". The row
-list — which is the arrangement schools most needs — did not move.
+list — which is the arrangement schools most needs — did not move, so the two
+campus screens that wanted it reached across the module boundary for it, and no
+third screen could adopt it without deepening the leak.
 
 **Right:** move `record-list.tsx` and `record-list-groups.tsx` to
 `components/records/`. They import nothing CRM-specific today (only
 `RecordCell`, `Checkbox`, `DataTableFloatingActions`).
+
+**Closed by** the move of `record-list.tsx`, `record-list-groups.tsx`,
+`record-list.test.tsx` and `layout-switch.tsx` into `components/records/`, with
+every importer rewritten. `states.tsx` and `table-controls.tsx` went the same
+way out of `components/schools/common/`, for the same reason read in the other
+direction: neither was campus-specific except `NotYourJob`, which still reads
+the campus permission table to name the role that can act. That one dependency
+is the shared layer's remaining tie to a single module, and generalising it —
+a role-naming callback, or a registry lookup — is a change to a shared
+component's API rather than a move.
 
 ### INC-2 — Deals passes `["BOARD", "TABLE"]` to `LayoutSwitch`
 
@@ -1005,7 +1017,7 @@ names the rule it breaks.
 
 Read that together and the shape of the work is clear. Schools has the **record
 page** (six of them, on the shared shell, with editable properties) and it has
-the **states** (`schools/common/states.tsx` is as good as anything in CRM). What
+the **states** (`components/records/states.tsx` is as good as anything in CRM). What
 it does not have is the **linking web** and the **composed list**: no peek, no
 trail, no repointable relation, no shared cell tone, no arrangement switch, and
 an identity cell re-implemented by hand in every file that draws one.
@@ -1326,7 +1338,7 @@ paragraph sits between the bar and the content as a strip that scrolls.
 ### 12.6 — Filters and narrowing (Part 7)
 
 **No `ViewToolbar` outside CRM (FILT-1).** Schools uses
-`components/schools/common/table-controls.tsx`, which states the same law
+`components/records/table-controls.tsx`, which states the same law
 correctly — one row directly above the table, tabs then search then filters then
 actions — and is a good component. The gaps against Part 7 are:
 
@@ -1342,7 +1354,7 @@ actions — and is a good component. The gaps against Part 7 are:
   screens, which is the wrong place by PAGE-4: it moves when the filters move,
   so it is not state, it is an answer to the narrowing question.
 
-Files: `components/schools/common/table-controls.tsx`,
+Files: `components/records/table-controls.tsx`,
 `components/schools/common/filter-select.tsx`, and every screen that composes
 them.
 

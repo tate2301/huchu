@@ -49,13 +49,13 @@ Everything else is the content component's job.
 |---|---|---|
 | App-bar title + primary action | `PageChrome` | `@/components/layout/page-chrome` |
 | State chips | `PageBand`, `BandChip` | `@/components/schools/common/page-band` |
-| Table's control row | `TableControls`, `TableSearch` | `@/components/schools/common/table-controls` |
+| Table's control row | `TableControls`, `TableSearch` | `@/components/records/table-controls` |
 | Filter by class/stream | `ClassFilter`, `classFilterParams` | `@/components/schools/common/class-filter` |
 | Any other filter | `FilterSelect`, `FilterBar` | `@/components/schools/common/filter-select` |
 | Which class, as a route | `GradePicker` | `@/components/schools/common/grade-picker` |
 | The table | `DataTable` | `@/components/ui/data-table` |
 | Row verbs | `RecordActions` | `@/components/schools/common/record-actions` |
-| Loading / empty / error | `TableRowsSkeleton`, `CardsSkeleton`, `StatsSkeleton`, `SavingOverlay`, `NothingYet`, `NothingMatched`, `NothingLeftToDo`, `LoadError`, `SaveError` | `@/components/schools/common/states` |
+| Loading / empty / error | `TableRowsSkeleton`, `CardsSkeleton`, `StatsSkeleton`, `SavingOverlay`, `NothingYet`, `NothingMatched`, `NothingLeftToDo`, `LoadError`, `SaveError` | `@/components/records/states` |
 | Person initials | `PersonAvatar` | `@/components/schools/common/person-avatar` |
 
 Every table and every list gets a designed skeleton — one that mirrors the row

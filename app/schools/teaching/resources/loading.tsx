@@ -1,4 +1,4 @@
-import { CardsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton } from "@/components/records/states";
 
 /** The shelf is a two-up grid of resource cards, each a title and its file line. */
 export default function TeachingResourcesLoading() {

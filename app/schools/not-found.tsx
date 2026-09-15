@@ -1,4 +1,4 @@
-import { RecordNotFound } from "@/components/schools/common/states";
+import { RecordNotFound } from "@/components/records/states";
 
 /**
  * The catch-all under `/schools`. The routes that resolve a named record of

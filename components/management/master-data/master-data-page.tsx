@@ -12,8 +12,8 @@ import {
   NothingYet,
   TableRowsSkeleton,
   type SkeletonColumn,
-} from "@/components/schools/common/states";
-import { TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableSearch } from "@/components/records/table-controls";
 import { ATTRIBUTE_ROW } from "@/components/records/record-attributes";
 import { Button } from "@/components/ui/button";
 import { Plus, Tag, X, type LucideIcon } from "@/lib/icons";

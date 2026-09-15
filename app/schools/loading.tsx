@@ -1,4 +1,4 @@
-import { StatsSkeleton, TableRowsSkeleton } from "@/components/schools/common/states";
+import { StatsSkeleton, TableRowsSkeleton } from "@/components/records/states";
 
 /**
  * The shape nearly every campus screen settles into: a band of tiles over a

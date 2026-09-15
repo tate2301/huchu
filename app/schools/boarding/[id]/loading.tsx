@@ -1,4 +1,4 @@
-import { CardsSkeleton, StatsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton, StatsSkeleton } from "@/components/records/states";
 
 /**
  * The hostel's record, in the same two columns as the other records: the house

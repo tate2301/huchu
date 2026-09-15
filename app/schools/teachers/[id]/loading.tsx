@@ -1,4 +1,4 @@
-import { CardsSkeleton, StatsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton, StatsSkeleton } from "@/components/records/states";
 
 /**
  * The teacher's record: the standing column with the mark and the property

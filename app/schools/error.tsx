@@ -1,6 +1,6 @@
 "use client";
 
-import { LoadError } from "@/components/schools/common/states";
+import { LoadError } from "@/components/records/states";
 
 /**
  * The page-wide fault. A failed panel belongs in that panel, so this boundary

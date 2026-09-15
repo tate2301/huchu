@@ -9,8 +9,8 @@ import {
   LoadError,
   NothingMatched,
   NothingYet,
-} from "@/components/schools/common/states";
-import { TableSearch } from "@/components/schools/common/table-controls";
+} from "@/components/records/states";
+import { TableSearch } from "@/components/records/table-controls";
 import { ChevronRight } from "@/lib/icons";
 import { fetchSchoolsClasses, type SchoolsClassRecord } from "@/lib/schools/admin-v2";
 

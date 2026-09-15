@@ -54,6 +54,7 @@ export function PersonCell({
   href,
   reference,
   context,
+  supportingProse,
   photoUrl,
   kind = "student",
   size = "sm",
@@ -82,6 +83,11 @@ export function PersonCell({
   reference?: ReactNode;
   /** The word of context after it — a year group, a job title, a hostel. */
   context?: ReactNode;
+  /**
+   * Set when the supporting line holds names or sentences rather than
+   * identifiers, so it is not set in mono. See `supportingLine`.
+   */
+  supportingProse?: boolean;
   photoUrl?: string | null;
   /** Which register they are in. Decides the mark's glyph and its hue. */
   kind?: Extract<RecordKind, "student" | "guardian" | "teacher" | "person">;
@@ -97,7 +103,7 @@ export function PersonCell({
     <RecordTableName
       leading={<RecordMark kind={kind} name={identity} avatarUrl={photoUrl} size={size} />}
       title={shown}
-      subtitle={supportingLine(reference, context)}
+      subtitle={supportingLine(reference, context, supportingProse)}
     />
   );
 
@@ -107,8 +113,15 @@ export function PersonCell({
     // selects rather than opens was advertising a destination it does not have.
     // Unset on the wrapper rather than forked in the name, so there is still
     // one identity grammar and only its cue changes.
+    //
+    // Spans only, because the supporting line can itself hold a reference to a
+    // real record — and those are `EntityLink`s. An unset across the whole
+    // subtree took the underline off them too and left a link with nothing
+    // marking it as one.
     return (
-      <span className={cn("block min-w-0 [&_.underline]:no-underline", className)}>{cell}</span>
+      <span className={cn("block min-w-0 [&_span.underline]:no-underline", className)}>
+        {cell}
+      </span>
     );
   }
 
@@ -160,13 +173,12 @@ export function RecordNameCell({
   );
 
   if (!href) {
-    // `RecordTableName` underlines its title unconditionally, which is right
-    // where the cell is a link and a lie where it is not: a picker row that
-    // selects rather than opens was advertising a destination it does not have.
-    // Unset on the wrapper rather than forked in the name, so there is still
-    // one identity grammar and only its cue changes.
+    // The title's underline is a promise this cell cannot keep, so it comes
+    // off; see `PersonCell` for why it comes off spans and not anchors.
     return (
-      <span className={cn("block min-w-0 [&_.underline]:no-underline", className)}>{cell}</span>
+      <span className={cn("block min-w-0 [&_span.underline]:no-underline", className)}>
+        {cell}
+      </span>
     );
   }
 
@@ -187,19 +199,35 @@ export function RecordNameCell({
  * trailing separator, and so the whole line disappears rather than becoming a
  * blank one.
  */
-function supportingLine(reference: ReactNode, context: ReactNode): ReactNode {
+function supportingLine(
+  reference: ReactNode,
+  context: ReactNode,
+  /**
+   * Whether the line holds identifiers or prose.
+   *
+   * `RecordTableName` sets the supporting line in mono because it is nearly
+   * always a reference — an admission number, a code, a stock line — and mono
+   * is what lets a reader compare one character at a time. A few rows put
+   * people there instead: the office inbox names the family and the pupil a
+   * thread is about, and a name set in mono reads as a serial number for a
+   * child. Marked as prose the line keeps the step down in size and colour,
+   * which is what makes it supporting, and drops the face that was doing a job
+   * it is not being asked to do here.
+   */
+  prose = false,
+): ReactNode {
   const parts = [reference, context].filter(
     (part) => part !== null && part !== undefined && part !== "" && part !== false,
   );
   if (parts.length === 0) return undefined;
   return (
-    <>
+    <span className={prose ? "font-sans" : undefined}>
       {parts.map((part, index) => (
         <span key={index}>
           {index > 0 ? <span className="px-1 text-[var(--text-faint)]">·</span> : null}
           {part}
         </span>
       ))}
-    </>
+    </span>
   );
 }

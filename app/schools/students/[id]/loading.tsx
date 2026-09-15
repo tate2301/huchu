@@ -1,4 +1,4 @@
-import { CardsSkeleton, StatsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton, StatsSkeleton } from "@/components/records/states";
 
 /**
  * A record is two columns, not a list: the standing column carries the mark,

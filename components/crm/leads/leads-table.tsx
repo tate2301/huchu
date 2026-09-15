@@ -33,7 +33,7 @@ import { cn } from "@/lib/utils";
 
 import { EntityLink } from "@/components/records/entity-link";
 import { RecordMark } from "@/components/records/record-mark";
-import { RecordList, RecordListPager } from "@/components/crm/records/record-list";
+import { RecordList, RecordListPager } from "@/components/records/record-list";
 import {
   RecordTable,
   RecordTableName,

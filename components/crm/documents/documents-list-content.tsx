@@ -21,8 +21,8 @@ import {
   GroupedRecordList,
   bucketByDate,
   type RecordListSection,
-} from "@/components/crm/records/record-list-groups";
-import { RecordListPager } from "@/components/crm/records/record-list";
+} from "@/components/records/record-list-groups";
+import { RecordListPager } from "@/components/records/record-list";
 import { RecordListShell } from "@/components/crm/records/record-list-shell";
 import { formatMoney } from "./document-types";
 

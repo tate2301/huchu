@@ -268,7 +268,7 @@ DoD (7 items): tsc, eslint, vitest, next build, screenshots at 390×844 and 768�
 - Reports with real CSV/PDF export (S-5.4). `docs/design-system/09` §7 and `design/campus/checklist/Reports.json`, `ReportsArrears.json` describe the report screens.
 - Notices: **read-only feed** over `NotificationRecipient` until S-9.6 (production-readiness §5; roadmap S-9.6 `todo`).
 - Id numbering continues the school's own scheme (`inferNumbering`, changelog `8a02a09`).
-- `docs/design-system/09` §8 and `11`: every admin screen has eight states via `components/schools/common/states.tsx`.
+- `docs/design-system/09` §8 and `11`: every admin screen has eight states via `components/records/states.tsx`.
 
 ### Head (SCHOOL_ADMIN as head; HOD for departmental governance)
 - Year roll-up: promote/repeat/graduate/transfer as plan + apply, nothing inferred server-side (S-1.5).

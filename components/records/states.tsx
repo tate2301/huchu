@@ -9,13 +9,15 @@ import { cn } from "@/lib/utils";
 import { whoCan, type SchoolAction, type SchoolResource } from "@/lib/schools/access";
 
 /**
- * The campus module's loading / empty / error / denied / not-found treatments,
- * in one place.
+ * The loading / empty / error / denied / not-found vocabulary for a record
+ * surface, in one place.
  *
- * Campus ships no `error.tsx`, `not-found.tsx` or `loading.tsx` anywhere, and
- * every list "loads" by swapping a sentence into the middle of an empty table —
- * which reflows the page twice and jumps the column widths. These are the
- * shapes the design settled on; the rules they encode:
+ * These were drawn for the campus screens, which shipped no `error.tsx`,
+ * `not-found.tsx` or `loading.tsx` anywhere and "loaded" every list by swapping
+ * a sentence into the middle of an empty table — which reflows the page twice
+ * and jumps the column widths. Nothing in the shapes is campus-specific apart
+ * from `NotYourJob`, which reads the schools permission table to name the role
+ * that can. These are the shapes the design settled on; the rules they encode:
  *
  *   - a skeleton mirrors the row it is about to become, never a spinner, and
  *     never a shimmer sweep, which draws the eye to the wait rather than the work;

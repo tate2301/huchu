@@ -19,7 +19,7 @@ import { fetchCrmPeople } from "@/lib/crm/crm-v2";
 import { useDebounced } from "@/hooks/use-debounced";
 
 import { PersonFormSheet } from "./person-form-sheet";
-import { RecordListPager, type RecordListRow } from "./record-list";
+import { RecordListPager, type RecordListRow } from "@/components/records/record-list";
 import {
   RecordCell,
   RecordTable,
@@ -27,7 +27,7 @@ import {
   type RecordTableColumn,
 } from "@/components/records/record-table";
 import { ViewToolbarChip } from "@/components/records/view-toolbar";
-import { LayoutSwitch, type RecordLayout } from "./layout-switch";
+import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 import { RecordMark } from "@/components/records/record-mark";
 import {
   DirectoryCell,
@@ -40,7 +40,7 @@ import {
   GroupedRecordList,
   bucketByLetter,
   type RecordListSection,
-} from "./record-list-groups";
+} from "@/components/records/record-list-groups";
 import { RecordListShell } from "./record-list-shell";
 
 const PAGE_SIZE = 50;

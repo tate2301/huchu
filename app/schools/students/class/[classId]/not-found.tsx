@@ -1,4 +1,4 @@
-import { RecordNotFound } from "@/components/schools/common/states";
+import { RecordNotFound } from "@/components/records/states";
 
 /**
  * The class in the URL is resolved on the server, so a stale link or another

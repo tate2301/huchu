@@ -92,8 +92,8 @@ export function TableControls({
   /**
    * Pin the row under the page band.
    *
-   * Only on a page inside `SchoolsPage`, which publishes `--stack-top` as the
-   * height of the band above. Pinned at a guessed offset the row does not fail
+   * Only on a page whose shell publishes `--stack-top` as the height of the
+   * band above it. Pinned at a guessed offset the row does not fail
    * loudly — it slides under the band and takes the records with it.
    */
   sticky?: boolean;
@@ -174,8 +174,8 @@ export function TableControls({
  * The search box for a table.
  *
  * Bordered and labelled — the opposite of the app bar's ghost trigger, and
- * deliberately so. That one opens a dialog that searches the whole school; this
- * one filters the rows in front of you. Making them look alike would be the
+ * deliberately so. That one opens a dialog that searches the whole product;
+ * this one filters the rows in front of you. Making them look alike would be the
  * mistake.
  */
 export function TableSearch({

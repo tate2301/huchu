@@ -1,4 +1,4 @@
-import { RecordNotFound } from "@/components/schools/common/states";
+import { RecordNotFound } from "@/components/records/states";
 
 /** A class that no longer resolves, sent back to the results it was opened from. */
 export default function ClassResultsNotFound() {

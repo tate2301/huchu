@@ -1,4 +1,4 @@
-import { CardsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton } from "@/components/records/states";
 
 /**
  * The pipeline is stage groups of applicant cards, so the placeholder is cards

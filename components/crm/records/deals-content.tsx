@@ -24,13 +24,13 @@ import { useVisibleColumns, type ColumnOption } from "@/lib/ui/visible-columns";
 import { DealFormSheet } from "./deal-form-sheet";
 import { PipelineSwitcher } from "./pipeline-switcher";
 import { RecordListShell } from "./record-list-shell";
-import { RecordList, RecordListPager } from "./record-list";
+import { RecordList, RecordListPager } from "@/components/records/record-list";
 import {
   RecordTable,
   RecordTableName,
   type RecordTableColumn,
 } from "@/components/records/record-table";
-import { LayoutSwitch, type RecordLayout } from "./layout-switch";
+import { LayoutSwitch, type RecordLayout } from "@/components/records/layout-switch";
 
 const PAGE_SIZE = 50;
 

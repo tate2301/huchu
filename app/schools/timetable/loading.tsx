@@ -1,4 +1,4 @@
-import { CardsSkeleton, TableRowsSkeleton } from "@/components/schools/common/states";
+import { CardsSkeleton, TableRowsSkeleton } from "@/components/records/states";
 import { DAY_NAMES } from "@/lib/schools/timetable-format";
 
 /** Monday to Friday, the columns the grid opens on before a Saturday lesson adds one. */

@@ -40,6 +40,14 @@ export type BandChip = {
   href?: string;
 };
 
+/**
+ * What a chip shows in place of a figure it does not have yet. Exported so a
+ * screen writes the same character the band tests for, rather than one that
+ * merely looks like it — a hyphen and an en dash both pass the eye and fail
+ * the comparison.
+ */
+export const EM_DASH = "\u2014";
+
 const TONE_CLASS: Record<BandChipTone, string> = {
   neutral: "border-[color:var(--border)] bg-[color:var(--surface)] text-[color:var(--text-body)]",
   brand: "border-transparent bg-[color:var(--brand-soft)] text-[color:var(--brand-strong)]",
@@ -81,9 +89,21 @@ export function PageBand({
             </span>
           </>
         );
+        // A chip with no figure yet has no tone yet either.
+        //
+        // The value is already an em dash while its query is out, but the tone
+        // is computed from the figure the caller does not have — `overdue > 0
+        // ? "danger" : "success"` reads an empty array and answers green. The
+        // dash was added so the band would stop asserting a number it did not
+        // know; a green dash asserts the same thing in colour, which is the
+        // half of the chip somebody takes in first and the half they cannot
+        // help reading. Enforced here rather than at every call site, because
+        // "remember to gate the tone too" is a rule that holds until the next
+        // screen.
+        const settled = chip.value !== EM_DASH;
         const chipClass = cn(
           "flex shrink-0 items-center gap-1.5 rounded-[var(--radius-md)] border px-2.5 py-1",
-          TONE_CLASS[chip.tone ?? "neutral"],
+          TONE_CLASS[settled ? (chip.tone ?? "neutral") : "neutral"],
         );
         // `next/link`, not a bare anchor: these point at other campus screens,
         // and a full document load to read a number is the page you were
