@@ -401,15 +401,16 @@ export function ReportsArrearsContent() {
         cell: ({ row }) => (
           <RecordActions
               layout="menu"
-            // Writing to a family is the notices grant, which the route
-            // enforces on `schools.reports` create. A bursar sees the button
-            // disabled and learns whose job it is, rather than after composing
-            // the letter.
+            // Writing to a family is `notify-families`, which the route
+            // enforces and which the bursar and the class teacher hold. This
+            // screen asked for `create` instead, so the one person whose job
+            // arrears are watched the button stay dark on the page built for
+            // her, while the same send worked from the finance overview.
             resource="schools.reports"
             verbs={[
               {
                 label: "Remind",
-                action: "create",
+                action: "notify-families",
                 onSelect: () => {
                   setSent(null);
                   setReminding([row.original]);
@@ -423,7 +424,7 @@ export function ReportsArrearsContent() {
     [],
   );
 
-  const canRemind = access.can("schools.reports", "create");
+  const canRemind = access.can("schools.reports", "notify-families");
 
   /**
    * The reminder send lives inside `SendNoticeDialog`. It owns its own error
@@ -445,7 +446,7 @@ export function ReportsArrearsContent() {
           disabled={!canRemind || visible.length === 0}
           title={
             !canRemind
-              ? "Writing to families is the head's to do."
+              ? "Writing to families is the office's to do."
               : visible.length === 0
                 ? "Nobody is in arrears in this view."
                 : undefined

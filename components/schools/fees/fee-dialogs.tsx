@@ -374,7 +374,6 @@ export function WaiverFormDialog({
     useState<SchoolFeeWaiverRecord["waiverType"]>("SCHOLARSHIP");
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
-  const [approveNow, setApproveNow] = useState(false);
 
   useOpenTransition(open, () => {
     setStudentId(waiver?.student.id ?? "");
@@ -383,7 +382,6 @@ export function WaiverFormDialog({
     setWaiverType(waiver?.waiverType ?? "SCHOLARSHIP");
     setAmount(waiver ? waiver.amount.toFixed(2) : "");
     setReason(waiver?.reason ?? "");
-    setApproveNow(false);
   });
 
   const save = useMutation({
@@ -403,7 +401,6 @@ export function WaiverFormDialog({
         waiverType,
         amount: Number(amount),
         reason: reason.trim() || null,
-        status: approveNow ? "APPROVED" : "DRAFT",
       });
     },
     onSuccess: () => {
@@ -488,18 +485,11 @@ export function WaiverFormDialog({
         />
       </div>
 
-      {editing ? null : (
-        <div className="flex items-center gap-2">
-          <Checkbox
-            id="waiver-approve-now"
-            checked={approveNow}
-            onCheckedChange={(checked) => setApproveNow(checked === true)}
-          />
-          <Label htmlFor="waiver-approve-now" className="cursor-pointer font-normal">
-            Approve it now, rather than leaving it a draft
-          </Label>
-        </div>
-      )}
+      {/* No "approve it now": a waiver is raised as a draft and signed off as a
+          separate act, by somebody who did not raise it. The box that skipped
+          that used to work; the create route stopped accepting a status, and
+          zod dropped the field silently, so it went on being offered and did
+          nothing. Sign it off from the row. */}
     </RecordDialog>
   );
 }
