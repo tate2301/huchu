@@ -3,6 +3,8 @@
 import type { NavSection } from "@/lib/navigation";
 import type { WorkspaceNavSection } from "@/lib/workspaces";
 import {
+  CalendarCheck,
+  FileText,
   Gem,
   Home,
   LocalShipping,
@@ -18,8 +20,11 @@ import {
   MedusaDirectionsIcon,
   MedusaGridListIcon,
   MedusaHandTruckIcon,
+  MedusaHouseIcon,
   MedusaIdBadgeIcon,
+  Megaphone,
   Package,
+  Users,
   ReceiptLong,
   Scale,
   Wallet,
@@ -47,6 +52,21 @@ const sectionVariantIcons: Record<string, LucideIcon> = {
   "schools-campus": MedusaBuildingsIcon,
   "schools-academics": MedusaBookOpenIcon,
   "schools-admin": MedusaIdBadgeIcon,
+  // The schools rail is generated band by band from lib/navigation.ts, so each
+  // band needs its own icon here. Without one the band borrows its first item's,
+  // and because items are alphabetical that made Fees and Attendance open with
+  // the red warning triangle belonging to Arrears and Absence follow-up.
+  "schools-students": MedusaAcademicCapIcon,
+  "schools-attendance": CalendarCheck,
+  "schools-teaching": MedusaBookOpenIcon,
+  "schools-results": MedusaChartBarIcon,
+  "schools-boarding": MedusaHouseIcon,
+  "schools-fees": Wallet,
+  "schools-staff": Users,
+  "schools-communication": Megaphone,
+  "schools-services": MedusaHandTruckIcon,
+  "schools-setup": MedusaCircleSlidersIcon,
+  "schools-paperwork": FileText,
   "retail-floor": ReceiptLong,
   "retail-range": MedusaGridListIcon,
   "retail-buy": LocalShipping,

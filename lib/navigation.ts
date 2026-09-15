@@ -48,6 +48,7 @@ import {
 import { PEOPLE_TABS } from "@/lib/people/tab-config";
 import { PAYROLL_TABS } from "@/lib/payroll/tab-config";
 import { hasRole, type UserRole } from "@/lib/roles";
+import type { SchoolResource } from "@/lib/schools/access";
 
 // Who may reach People and Payroll at all. Mirrored as a Set in `proxy.ts`,
 // which checks it on the route prefix before the page renders.
@@ -93,6 +94,38 @@ export type NavSection = {
   flattenGroups?: boolean;
   items: NavItem[];
 };
+
+/**
+ * The campus bands, each with the grant that decides whether it renders.
+ *
+ * The resource sits beside the label because the two have to name the same
+ * thing: a band a persona cannot view is a row of doors into a 403, and the
+ * only way to keep that pairing honest is to write it once. `lib/workspaces.ts`
+ * reads it when it assembles the school sidebar.
+ */
+type SchoolNavBand = NavGroup & { resource: SchoolResource };
+
+const SCHOOL_BANDS: SchoolNavBand[] = [
+  { id: "students", label: "Students", resource: "schools.students" },
+  { id: "attendance", label: "Attendance", resource: "schools.attendance" },
+  { id: "teaching", label: "Teaching", resource: "schools.academics" },
+  { id: "results", label: "Results", resource: "schools.results" },
+  { id: "boarding", label: "Boarding", resource: "schools.boarding" },
+  { id: "fees", label: "Fees", resource: "schools.fees" },
+  // Not "People": the HR module's own rail is called that, and two entries of
+  // one name pointing at different populations is a coin toss every time.
+  { id: "staff", label: "Staff", resource: "schools.teachers" },
+  { id: "communication", label: "Communication", resource: "schools.reports" },
+  // Lending a book and putting a child on a bus are both services to a pupil,
+  // and everybody who can see the roll can see who has what.
+  { id: "services", label: "Services", resource: "schools.students" },
+  { id: "setup", label: "Setup", resource: "schools.academics" },
+  { id: "paperwork", label: "Reports and documents", resource: "schools.reports" },
+];
+
+export function schoolBandResource(groupId: string): SchoolResource | null {
+  return SCHOOL_BANDS.find((band) => band.id === groupId)?.resource ?? null;
+}
 
 export const navSections: NavSection[] = [
   {
@@ -269,10 +302,10 @@ export const navSections: NavSection[] = [
   // oversight — who has not marked, moderation, publishing — which is a
   // different question asked of the same tables.
   //
-  // The academic ladder is absent for a different reason: years, terms,
-  // classes, subjects, periods and grading are master data and live under
-  // Management. Two entries reach across to them — "Identity and records" and
-  // "Academic setup" — so nobody has to know they moved.
+  // The academic ladder — years, terms, classes, subjects, the school day,
+  // grading and what a record is made of — is master data and lives under
+  // Management as a route. It is the school's own job, though, so the Setup
+  // band reaches across to it and nobody has to learn where it was filed.
   //
   // Every group shares `schools.core`, so a tenant without the module loses the
   // whole set rather than being left with empty headings.
@@ -282,19 +315,7 @@ export const navSections: NavSection[] = [
     description: "Full school management operations and portals",
     featureKey: "schools.core",
     flattenGroups: true,
-    groups: [
-      { id: "students", label: "Students" },
-      { id: "attendance", label: "Attendance" },
-      { id: "academics", label: "Academics" },
-      { id: "teaching", label: "Teaching" },
-      { id: "results", label: "Results" },
-      { id: "boarding", label: "Boarding" },
-      { id: "fees", label: "Fees" },
-      { id: "people", label: "People" },
-      { id: "communication", label: "Communication" },
-      { id: "services", label: "Services" },
-      { id: "paperwork", label: "Reports and documents" },
-    ],
+    groups: SCHOOL_BANDS,
     // Alphabetical within every band. A school's nav is a reference list, not a
     // narrative: nobody reads it top to bottom, they look for a word they
     // already have in mind, and a hand-ordered band means scanning all of it to
@@ -305,6 +326,9 @@ export const navSections: NavSection[] = [
 
       // The roll and everything that changes it.
       { href: "/schools/admissions", icon: NoteAdd, label: "Applications", group: "students" },
+      // With the roll rather than with the staff: a warden ringing about tonight's
+      // leave wants the family on the same rail as the child.
+      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "students" },
       { href: "/schools/imports", icon: Upload, label: "Import records", group: "students" },
       { href: "/schools/students/roll-up", icon: History, label: "Roll up the year", group: "students" },
       { href: "/schools/students", icon: Users, label: "Students", group: "students" },
@@ -313,34 +337,7 @@ export const navSections: NavSection[] = [
       // and narrows to a class; the class-by-class rail belongs to the page,
       // which is the only thing that knows tonight's year groups.
       { href: "/schools/attendance/follow-up", icon: ReportProblem, label: "Absence follow-up", group: "attendance" },
-      { href: "/schools/attendance", icon: UserCheck, label: "Whole school", group: "attendance" },
-
-      // Years, terms, classes, subjects, periods and grading are master data and
-      // live under Management. These reach across so nobody has to know that.
-      {
-        href: "/management/master-data/schools/years",
-        icon: Dataset,
-        label: "Academic setup",
-        group: "academics",
-      },
-      { href: "/schools/calendar", icon: Calendar, label: "Calendar", group: "academics" },
-      {
-        href: "/management/master-data/schools/identity",
-        icon: TableRows,
-        label: "Identity and records",
-        group: "academics",
-      },
-      // Rooms are one half of `school-day-content` — the periods a day is cut
-      // into, and the rooms lessons run in, which are the two axes of the same
-      // timetable. Pointing at the tab beats a second rooms screen that would
-      // drift from it.
-      {
-        href: "/management/master-data/schools/periods?view=rooms",
-        icon: MapPin,
-        label: "Rooms",
-        group: "academics",
-      },
-      { href: "/schools/academics/syllabus", icon: Layers, label: "Scheme of work", group: "academics" },
+      { href: "/schools/attendance", icon: UserCheck, label: "Registers", group: "attendance" },
 
       { href: "/schools/homework", icon: ClipboardList, label: "Homework", group: "teaching" },
       { href: "/schools/teaching/lessons", icon: MedusaBookOpenIcon, label: "Lesson plans", group: "teaching" },
@@ -375,14 +372,13 @@ export const navSections: NavSection[] = [
       { href: "/schools/finance/ledger?view=refunds", icon: Wallet, label: "Refunds", group: "fees" },
       { href: "/schools/finance/ledger?view=waivers", icon: Scale, label: "Waivers", group: "fees" },
 
-      { href: "/schools/guardians", icon: UserRound, label: "Guardians", group: "people" },
-      { href: "/schools/teachers/assignments", icon: Checklist, label: "Staff assignments", group: "people" },
+      { href: "/schools/teachers/assignments", icon: Checklist, label: "Staff assignments", group: "staff" },
       // Everybody a school employs who does not teach — the bursar, the nurse,
       // the grounds team. They are HR employees carrying the SCHOOLS
       // assignment, so payroll and leave stay in one place; this is the
       // school's window onto its own.
-      { href: "/schools/staff", icon: ManageAccounts, label: "Support staff", group: "people" },
-      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "people" },
+      { href: "/schools/staff", icon: ManageAccounts, label: "Support staff", group: "staff" },
+      { href: "/schools/teachers", icon: ManageAccounts, label: "Teaching staff", group: "staff" },
 
       // What the school has said, and what has been said to it. A notice goes
       // out to many and cannot be replied to; a message is one family and one
@@ -395,6 +391,48 @@ export const navSections: NavSection[] = [
       { href: "/schools/library", icon: Dataset, label: "Library", group: "services" },
       { href: "/schools/library/loans", icon: MedusaBookOpenIcon, label: "Library loans", group: "services" },
       { href: "/schools/transport", icon: LocalShipping, label: "Transport", group: "services" },
+
+      // The routes live under Management; the job is the school's. Each label
+      // is the thing being set up rather than the shell it opens in, and the
+      // school day carries its rooms because periods and rooms are the two
+      // axes of one timetable and `school-day-content` owns both.
+      { href: "/schools/calendar", icon: Calendar, label: "Calendar", group: "setup" },
+      {
+        href: "/management/master-data/schools/classes",
+        icon: Layers,
+        label: "Classes and streams",
+        group: "setup",
+      },
+      {
+        href: "/management/master-data/schools/grading",
+        icon: Scale,
+        label: "Grading and publish windows",
+        group: "setup",
+      },
+      {
+        href: "/management/master-data/schools/identity",
+        icon: TableRows,
+        label: "Records and identity",
+        group: "setup",
+      },
+      {
+        href: "/management/master-data/schools/periods",
+        icon: MapPin,
+        label: "School day and rooms",
+        group: "setup",
+      },
+      {
+        href: "/management/master-data/schools/subjects",
+        icon: MedusaBookOpenIcon,
+        label: "Subjects",
+        group: "setup",
+      },
+      {
+        href: "/management/master-data/schools/years",
+        icon: Dataset,
+        label: "Years and terms",
+        group: "setup",
+      },
 
       { href: "/schools/documents", icon: FileText, label: "Documents", group: "paperwork" },
       { href: "/schools/reports", icon: BarChart3, label: "School reports", group: "paperwork" },

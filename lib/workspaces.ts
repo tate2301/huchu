@@ -1,11 +1,13 @@
 import { ACCOUNTING_OPERATIONS_SECTIONS, ACCOUNTING_TABS } from "@/lib/accounting/tab-config";
 import { filterAccountingTabsByFeatures } from "@/lib/accounting/visibility";
 import type { NavGroup, NavItem, NavSection } from "@/lib/navigation";
-import { getNavSectionsForRole, navSections } from "@/lib/navigation";
+import { getNavSectionsForRole, navSections, schoolBandResource } from "@/lib/navigation";
 import { normalizeFeatureKey } from "@/lib/platform/gating/catalog-utils";
 import { filterNavSectionsByEnabledFeatures } from "@/lib/platform/gating/nav-filter";
+import type { PersonaCode } from "@/lib/platform/personas";
 import { getPrimaryQuickActions } from "@/lib/primary-actions";
 import { canAccessPosPortal } from "@/lib/retail/pos-host";
+import { schoolAccess } from "@/lib/schools/access";
 import {
   inferWorkspaceProfileFromEnabledFeatures,
   normalizeWorkspaceProfileInput,
@@ -102,10 +104,24 @@ type WorkspaceProfileSectionSpec = {
 
 type WorkspaceProfileRecipe = {
   label: string;
-  preferredHomeHref: string | null;
+  /**
+   * Where the workspace opens. A function when the answer depends on who is
+   * asking: one school is a fee ledger to the bursar and a roll to the
+   * registrar, and neither of them opened it to read the head's dashboard.
+   */
+  preferredHomeHref: string | null | ((role: string | null | undefined) => string | null);
   nativeModules: WorkspaceModuleId[];
   sections: WorkspaceProfileSectionSpec[];
 };
+
+function resolveRecipeHomeHref(
+  recipe: WorkspaceProfileRecipe,
+  role: string | null | undefined,
+): string | null {
+  return typeof recipe.preferredHomeHref === "function"
+    ? recipe.preferredHomeHref(role)
+    : recipe.preferredHomeHref;
+}
 
 const DEFAULT_WORKSPACE_PROFILE: WorkspaceProfile = "GENERAL";
 const CANONICAL_MODULE_IDS: readonly WorkspaceModuleId[] = ["people", "payroll", "accounting", "management"];
@@ -201,12 +217,35 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
     sectionId: "gold",
     homeHref: "/gold",
   }),
-  schools: createSectionModule({
+  schools: {
     id: "schools",
     label: "School Operations",
-    sectionId: "schools",
     homeHref: "/schools",
-  }),
+    /**
+     * The campus nav section is already the definition — see `lib/navigation.ts`.
+     * This adds the one thing feature gating cannot express: a band is a campus
+     * resource, so a persona with no `view` grant on it is being offered a row
+     * of doors that answer 403. A warden has no business being shown the fee
+     * ledger, and the rail is where they should learn that, not the page.
+     */
+    getItems(context) {
+      const items = context.navSectionById.get("schools")?.items ?? [];
+      const access = schoolAccess(context.role);
+      // A role the persona model does not describe — a tenant's own clerk, an
+      // administrator — is not being refused by these grants, it is simply not
+      // spoken about by them. Reading that silence as "no" would empty the rail
+      // rather than tailor it.
+      if (!access.persona) return items;
+
+      return items.filter((item) => {
+        const resource = item.group ? schoolBandResource(item.group) : null;
+        return !resource || access.can(resource, "view");
+      });
+    },
+    getGroups(context) {
+      return context.navSectionById.get("schools")?.groups;
+    },
+  },
   retail: {
     id: "retail",
     label: "Retail",
@@ -319,6 +358,62 @@ const WORKSPACE_MODULES: Record<WorkspaceModuleId, WorkspaceModuleDefinition> = 
   },
 };
 
+/**
+ * The campus arrangement, read off the navigation model rather than restated.
+ *
+ * `lib/navigation.ts` already declares the bands a school works in and what
+ * sits in each. A second hand-written list of the same destinations drifted
+ * from it — sixteen live routes, the whole master-data set among them, were
+ * simply absent from the sidebar — so there is only the one list now. One band
+ * is one section, and a band that gains a screen gains it in the rail the same
+ * day.
+ */
+function buildSchoolsProfileSections(): WorkspaceProfileSectionSpec[] {
+  const section = declaredSection("schools");
+  if (!section) return [];
+
+  // An overview is a destination, not a category, so an ungrouped item stays a
+  // section of its own and renders as a plain link.
+  const loose = section.items
+    .filter((item) => !item.group)
+    .map((item) => ({
+      id: `schools-${item.label.toLowerCase().replace(/\s+/g, "-")}`,
+      title: item.label,
+      refs: [{ moduleId: "schools" as const, href: item.href }],
+    }));
+
+  const bands = (section.groups ?? []).map((group) => ({
+    id: `schools-${group.id}`,
+    title: group.label,
+    refs: section.items
+      .filter((item) => item.group === group.id)
+      .map((item) => ({ moduleId: "schools" as const, href: item.href })),
+  }));
+
+  return [...loose, ...bands];
+}
+
+/**
+ * Where each campus persona lands.
+ *
+ * Everybody used to arrive on the head's overview, which is a screen about
+ * somebody else's morning to the four people who are not the head. A bursar
+ * opens a school to work the fee ledger and a registrar to work the roll.
+ * Anyone the list does not name keeps the overview, which is the right answer
+ * for the head and a safe one for everybody else.
+ */
+const SCHOOL_PERSONA_HOME_HREFS: Partial<Record<PersonaCode, string>> = {
+  BURSAR: "/schools/finance",
+  REGISTRAR: "/schools/students",
+  HOD: "/schools/results/moderation",
+  WARDEN: "/schools/boarding",
+};
+
+function schoolHomeHref(role: string | null | undefined): string {
+  const persona = schoolAccess(role).persona;
+  return (persona ? SCHOOL_PERSONA_HOME_HREFS[persona] : null) ?? "/schools";
+}
+
 // Retired profiles have no recipe. `normalizeWorkspaceProfile` maps them to
 // `GENERAL`, and every lookup here falls back to the `GENERAL` recipe, so a
 // stored `SCRAP_METAL` or `AUTOS` tenant gets the general workspace rather than
@@ -361,127 +456,9 @@ const WORKSPACE_PROFILE_RECIPES: Partial<Record<WorkspaceProfile, WorkspaceProfi
   },
   SCHOOLS: {
     label: "School Operations",
-    preferredHomeHref: "/schools",
+    preferredHomeHref: schoolHomeHref,
     nativeModules: ["schools"],
-    // One section per record, matching the module nav's own grouping: the
-    // registrar opens Students, the bursar opens Fees, the boarding master
-    // opens Boarding — nobody opens "Administration" to find attendance.
-    // A section with one ref renders as a plain top-level link.
-    sections: [
-      {
-        id: "schools-overview",
-        title: "School Overview",
-        refs: [{ moduleId: "schools", href: "/schools" }],
-      },
-      {
-        id: "schools-students",
-        title: "Students",
-        refs: [
-          { moduleId: "schools", href: "/schools/students" },
-          { moduleId: "schools", href: "/schools/admissions" },
-          { moduleId: "schools", href: "/schools/students/roll-up" },
-          { moduleId: "schools", href: "/schools/imports" },
-        ],
-      },
-      {
-        id: "schools-guardians",
-        title: "Guardians",
-        refs: [{ moduleId: "schools", href: "/schools/guardians" }],
-      },
-      {
-        id: "schools-teachers",
-        title: "Teachers",
-        refs: [{ moduleId: "schools", href: "/schools/teachers" }],
-      },
-      {
-        id: "schools-attendance",
-        title: "Attendance",
-        refs: [{ moduleId: "schools", href: "/schools/attendance" }],
-      },
-      {
-        id: "schools-boarding",
-        title: "Boarding",
-        refs: [
-          { moduleId: "schools", href: "/schools/boarding" },
-          { moduleId: "schools", href: "/schools/boarding/welfare" },
-        ],
-      },
-      {
-        id: "schools-academic-setup",
-        title: "Academic setup",
-        refs: [
-          { moduleId: "schools", href: "/schools/academics" },
-          { moduleId: "schools", href: "/schools/classes" },
-          { moduleId: "schools", href: "/schools/subjects" },
-          { moduleId: "schools", href: "/schools/academics/syllabus" },
-          { moduleId: "schools", href: "/schools/academics/identity" },
-        ],
-      },
-      {
-        id: "schools-timetable",
-        title: "Timetable",
-        refs: [{ moduleId: "schools", href: "/schools/timetable" }],
-      },
-      {
-        id: "schools-homework",
-        title: "Homework",
-        refs: [{ moduleId: "schools", href: "/schools/homework" }],
-      },
-      {
-        id: "schools-goals",
-        title: "Subject targets",
-        refs: [{ moduleId: "schools", href: "/schools/goals" }],
-      },
-      {
-        id: "schools-meetings",
-        title: "Parent meetings",
-        refs: [{ moduleId: "schools", href: "/schools/meetings" }],
-      },
-      {
-        id: "schools-results",
-        title: "Results",
-        refs: [
-          { moduleId: "schools", href: "/schools/results" },
-          { moduleId: "schools", href: "/schools/results/sheets" },
-          { moduleId: "schools", href: "/schools/results/moderation" },
-          { moduleId: "schools", href: "/schools/results/publish" },
-        ],
-      },
-      {
-        id: "schools-fees",
-        title: "Fees",
-        refs: [
-          { moduleId: "schools", href: "/schools/finance" },
-          { moduleId: "schools", href: "/schools/finance/ledger" },
-          { moduleId: "schools", href: "/schools/finance/receipts" },
-          { moduleId: "schools", href: "/schools/finance/refunds" },
-          { moduleId: "schools", href: "/schools/finance/waivers" },
-        ],
-      },
-      {
-        id: "schools-library",
-        title: "Library",
-        refs: [{ moduleId: "schools", href: "/schools/library" }],
-      },
-      {
-        id: "schools-transport",
-        title: "Transport",
-        refs: [{ moduleId: "schools", href: "/schools/transport" }],
-      },
-      {
-        id: "schools-notices",
-        title: "Notices",
-        refs: [{ moduleId: "schools", href: "/schools/notices" }],
-      },
-      {
-        id: "schools-paperwork",
-        title: "Reports and documents",
-        refs: [
-          { moduleId: "schools", href: "/schools/reports" },
-          { moduleId: "schools", href: "/schools/documents" },
-        ],
-      },
-    ],
+    sections: buildSchoolsProfileSections(),
   },
   RETAIL: {
     label: "Retail",
@@ -1004,7 +981,11 @@ function getHomeTarget(args: {
     workspaceProfile: args.workspaceProfile,
   });
   const visibleItems = flattenVisibleItems(args.sections);
-  const preferredHomeHref = verticalProduct.preferredHomeHref ?? args.recipe.preferredHomeHref;
+  // The recipe answers first: it is the only one of the two that can see who is
+  // signed in, and the bundle's href is the product's front door rather than
+  // this person's. Where a recipe names a fixed path the two agree anyway.
+  const preferredHomeHref =
+    resolveRecipeHomeHref(args.recipe, args.context.role) ?? verticalProduct.preferredHomeHref;
   const preferredItem = preferredHomeHref
     ? visibleItems.find((item) => item.href === preferredHomeHref) ?? null
     : null;
@@ -1021,11 +1002,12 @@ function getHomeTarget(args: {
 }
 
 export function getWorkspaceHomeHref(profile: string | null | undefined): string {
-  return resolveWorkspaceVerticalProductBundle({
-    enabledFeatures: undefined,
-    workspaceProfile: profile,
-  }).preferredHomeHref
-    ?? getWorkspaceProfileRecipe(normalizeWorkspaceProfile(profile)).preferredHomeHref
+  // No role to read here, so a per-persona recipe answers with its default.
+  return resolveRecipeHomeHref(getWorkspaceProfileRecipe(normalizeWorkspaceProfile(profile)), null)
+    ?? resolveWorkspaceVerticalProductBundle({
+      enabledFeatures: undefined,
+      workspaceProfile: profile,
+    }).preferredHomeHref
     ?? "/dashboard";
 }
 
