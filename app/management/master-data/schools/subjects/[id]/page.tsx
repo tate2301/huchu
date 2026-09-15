@@ -1,11 +1,11 @@
 import { getServerSession } from "next-auth";
 import { redirect } from "next/navigation";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { SubjectRecordPage } from "@/components/schools/records/subject-record-page";
 import { authOptions } from "@/lib/auth";
 
-/** One subject, as a record, inside the Master Data shell its list moved to. */
+/** One subject, as a record, inside the management shell its list lives in. */
 export default async function SubjectRecordMasterDataRoute({
   params,
 }: {
@@ -19,8 +19,8 @@ export default async function SubjectRecordMasterDataRoute({
   const { id } = await params;
 
   return (
-    <MasterDataShell activeTab="schools-subjects" title="Subjects">
+    <ManagementShell area="master-data" title="Subjects">
       <SubjectRecordPage subjectId={id} />
-    </MasterDataShell>
+    </ManagementShell>
   );
 }

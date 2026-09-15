@@ -1,6 +1,6 @@
 "use client";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { SchoolsYearsContent } from "@/components/schools/academics/schools-years-content";
 
 /**
@@ -13,12 +13,12 @@ import { SchoolsYearsContent } from "@/components/schools/academics/schools-year
  */
 export default function SchoolsYearsMasterDataPage() {
   return (
-    <MasterDataShell
-      activeTab="schools-years"
-      title="Years and Terms"
-      description="Academic years, their terms, and the school calendar everything else is dated against."
+    <ManagementShell
+      area="master-data"
+      title="Years and terms"
+      description="academic years, their terms, and the school calendar everything else is dated against"
     >
       <SchoolsYearsContent />
-    </MasterDataShell>
+    </ManagementShell>
   );
 }

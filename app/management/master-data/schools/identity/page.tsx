@@ -1,6 +1,6 @@
 "use client";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { IdentitySettingsContent } from "@/components/schools/academics/identity-settings-content";
 import { SchoolCustomFieldsPanel } from "@/components/schools/academics/school-custom-fields-panel";
 
@@ -14,15 +14,13 @@ import { SchoolCustomFieldsPanel } from "@/components/schools/academics/school-c
  */
 export default function SchoolsIdentityMasterDataPage() {
   return (
-    <MasterDataShell
-      activeTab="schools-identity"
-      title="School Records"
-      description="Admission numbering, and the extra fields every pupil and guardian record carries."
+    <ManagementShell
+      area="master-data"
+      title="School records"
+      description="admission numbering, and the extra fields every pupil and guardian record carries"
     >
-      <div className="space-y-4">
-        <IdentitySettingsContent />
-        <SchoolCustomFieldsPanel />
-      </div>
-    </MasterDataShell>
+      <IdentitySettingsContent />
+      <SchoolCustomFieldsPanel />
+    </ManagementShell>
   );
 }

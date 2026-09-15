@@ -9,6 +9,7 @@ import {
 } from "@/components/management/master-data/master-data-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -81,8 +82,8 @@ export default function DowntimeCodesManagementPage() {
   });
 
   const [search, setSearch] = useState("");
+  const all = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => {
-    const all = data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return all;
     return all.filter(
@@ -90,7 +91,7 @@ export default function DowntimeCodesManagementPage() {
         row.code.toLowerCase().includes(needle) ||
         row.description.toLowerCase().includes(needle),
     );
-  }, [data, search]);
+  }, [all, search]);
   const sites = sitesData ?? [];
 
   const createMutation = useMutation({
@@ -98,7 +99,6 @@ export default function DowntimeCodesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Downtime code created",
-        description: "Downtime code record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -120,7 +120,6 @@ export default function DowntimeCodesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Downtime code updated",
-        description: "Downtime code record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -141,8 +140,7 @@ export default function DowntimeCodesManagementPage() {
     mutationFn: deleteDowntimeCode,
     onSuccess: () => {
       toast({
-        title: "Downtime code record archived",
-        description: "Downtime code record archived.",
+        title: "Downtime code archived",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "downtime-codes"] });
@@ -169,9 +167,9 @@ export default function DowntimeCodesManagementPage() {
         key: "site",
         header: "Site",
         render: (row) => {
-          if (!row.siteId) return "Global default";
-          if (!row.site) return "Site unavailable";
-          return `${row.site.code} - ${row.site.name}`;
+          if (!row.siteId) return "Every site";
+          if (!row.site) return "Site not on file";
+          return `${row.site.code} · ${row.site.name}`;
         },
       },
       { key: "sortOrder", header: "Sort", sortable: true, width: 100 },
@@ -262,8 +260,8 @@ export default function DowntimeCodesManagementPage() {
 
   return (
     <MasterDataPage<DowntimeCode>
-      title="Downtime Codes"
-      description="Why the plant stops: the reasons a shift report can put a stoppage down to."
+      title="Downtime codes"
+      description="why the plant stops — the reasons a shift report can put a stoppage down to"
       createLabel="New downtime code"
       onCreate={() => {
         setEditing(null);
@@ -275,32 +273,34 @@ export default function DowntimeCodesManagementPage() {
       rowKey={(row) => row.id}
       isLoading={isLoading}
       error={loadErrorMessage}
-      emptyLabel="No downtime code records available."
-      search={
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search downtime codes"
-          aria-label="Search downtime codes"
-          className="h-9 w-full sm:w-64"
-        />
-      }
+      total={all.length}
+      searchTerm={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search by code or reason"
+      emptyLabel="No downtime codes yet"
+      detailTitle={(row) => row.description}
       renderDetail={(row, close) => (
         <div className="space-y-4">
           <div className="space-y-3">
+            {/* The reason is the pane's own heading and is not repeated here. */}
             <DetailFact label="Code">
-              <span className="font-mono">{row.code}</span>
+              <span className="font-mono tabular-nums">{row.code}</span>
             </DetailFact>
-            <DetailFact label="Description">{row.description}</DetailFact>
             <DetailFact label="Site">
               {!row.siteId
-                ? "Global default"
+                ? "Every site"
                 : row.site
-                  ? `${row.site.code} - ${row.site.name}`
-                  : "Site unavailable"}
+                  ? `${row.site.code} · ${row.site.name}`
+                  : "Site not on file"}
             </DetailFact>
-            <DetailFact label="Sort order">{row.sortOrder}</DetailFact>
-            <DetailFact label="Status">{row.isActive ? "Active" : "Inactive"}</DetailFact>
+            <DetailFact label="Sort order">
+              <span className="font-mono tabular-nums">{row.sortOrder}</span>
+            </DetailFact>
+            <DetailFact label="Status">
+              <Badge variant={row.isActive ? "secondary" : "outline"}>
+                {row.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </DetailFact>
           </div>
 
           <div className="flex gap-2">
@@ -327,9 +327,15 @@ export default function DowntimeCodesManagementPage() {
                 variant="outline"
                 disabled={deleteMutation.isPending}
                 onClick={() => {
-                  if (window.confirm("Confirm archival of this downtime code.")) {
-                    deleteMutation.mutate(row.id, { onSuccess: close });
-                  }
+                  void dsConfirm({
+                    title: `Archive ${row.code}?`,
+                    description:
+                      "Shift reports already filed against this reason keep it. It stops being offered on new ones until it is set active again.",
+                    confirmLabel: "Archive the code",
+                    variant: "warning",
+                  }).then((confirmed) => {
+                    if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
+                  });
                 }}
               >
                 Archive
@@ -343,7 +349,7 @@ export default function DowntimeCodesManagementPage() {
                   updateMutation.mutate({ id: row.id, input: { isActive: true } })
                 }
               >
-                Set Active
+                Set active
               </Button>
             )}
           </div>
@@ -362,7 +368,7 @@ export default function DowntimeCodesManagementPage() {
       >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>{editing ? "Edit Downtime Code" : "New Downtime Code"}</SheetTitle>
+            <SheetTitle>{editing ? "Edit downtime code" : "New downtime code"}</SheetTitle>
             <SheetDescription>
               {editing
                 ? "Update downtime code record details and status."
@@ -406,18 +412,18 @@ export default function DowntimeCodesManagementPage() {
                 </SelectTrigger>
                 <SelectContent>
                   {formState.siteId === GLOBAL_SENTINEL ? (
-                    <SelectItem value={GLOBAL_SENTINEL}>Global default</SelectItem>
+                    <SelectItem value={GLOBAL_SENTINEL}>Every site</SelectItem>
                   ) : null}
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.code} - {site.name}
+                      {site.code} · {site.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Sort Order *</label>
+              <label className="mb-2 block text-sm font-semibold">Sort order *</label>
               <Input
                 type="number"
                 min="0"
@@ -436,7 +442,7 @@ export default function DowntimeCodesManagementPage() {
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
               <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
-                {editing ? "Save Changes" : "Create Downtime Code"}
+                {editing ? "Save changes" : "Create downtime code"}
               </Button>
             </div>
           </form>

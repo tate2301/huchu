@@ -1,6 +1,6 @@
 "use client";
 
-import { MasterDataShell } from "@/components/management/master-data/master-data-shell";
+import { ManagementShell } from "@/components/settings/management-shell";
 import { SchoolDayContent } from "@/components/schools/academics/school-day-content";
 
 /**
@@ -12,12 +12,12 @@ import { SchoolDayContent } from "@/components/schools/academics/school-day-cont
  */
 export default function SchoolsPeriodsMasterDataPage() {
   return (
-    <MasterDataShell
-      activeTab="schools-school-day"
-      title="The School Day"
-      description="Periods and rooms — the grid a timetable is laid out on."
+    <ManagementShell
+      area="master-data"
+      title="The school day"
+      description="periods and rooms — the grid a timetable is laid out on"
     >
       <SchoolDayContent />
-    </MasterDataShell>
+    </ManagementShell>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "@/components/management/master-data/master-data-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -53,19 +54,18 @@ export default function GoldExpenseTypesManagementPage() {
   });
   const loadErrorMessage = resolveDisplayErrorMessage([error]);
   const [search, setSearch] = useState("");
+  const all = useMemo(() => data ?? [], [data]);
   const rows = useMemo(() => {
-    const all = data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return all;
     return all.filter((row) => row.name.toLowerCase().includes(needle));
-  }, [data, search]);
+  }, [all, search]);
 
   const createMutation = useMutation({
     mutationFn: createGoldExpenseType,
     onSuccess: () => {
       toast({
-        title: "Gold expense type created",
-        description: "Expense type record created.",
+        title: "Expense type created",
         variant: "success",
       });
       setFormOpen(false);
@@ -86,8 +86,7 @@ export default function GoldExpenseTypesManagementPage() {
       updateGoldExpenseType(payload.id, payload.input),
     onSuccess: () => {
       toast({
-        title: "Gold expense type updated",
-        description: "Expense type record updated.",
+        title: "Expense type updated",
         variant: "success",
       });
       setFormOpen(false);
@@ -108,8 +107,7 @@ export default function GoldExpenseTypesManagementPage() {
     mutationFn: deleteGoldExpenseType,
     onSuccess: () => {
       toast({
-        title: "Gold expense type archived",
-        description: "Expense type record archived.",
+        title: "Expense type archived",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "gold-expense-types"] });
@@ -125,8 +123,15 @@ export default function GoldExpenseTypesManagementPage() {
 
   const columns = useMemo<DataTableColumn<GoldExpenseType>[]>(
     () => [
-      { key: "name", header: "Expense Type", sortable: true },
-      { key: "sortOrder", header: "Sort", sortable: true, width: 100 },
+      { key: "name", header: "Expense type", sortable: true },
+      {
+        key: "sortOrder",
+        header: "Sort",
+        sortable: true,
+        width: 100,
+        align: "right",
+        render: (row) => <span className="font-mono tabular-nums">{row.sortOrder}</span>,
+      },
       {
         key: "status",
         header: "Status",
@@ -181,8 +186,8 @@ export default function GoldExpenseTypesManagementPage() {
 
   return (
     <MasterDataPage<GoldExpenseType>
-      title="Gold Expense Types"
-      description="What gold-room spending can be booked against."
+      title="Gold expense types"
+      description="what gold-room spending can be booked against"
       createLabel="New expense type"
       onCreate={() => {
         setEditing(null);
@@ -194,22 +199,24 @@ export default function GoldExpenseTypesManagementPage() {
       rowKey={(row) => row.id}
       isLoading={isLoading}
       error={loadErrorMessage}
-      emptyLabel="No expense type records available."
-      search={
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search expense types"
-          aria-label="Search expense types"
-          className="h-9 w-full sm:w-64"
-        />
-      }
+      total={all.length}
+      searchTerm={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search expense types"
+      emptyLabel="No expense types yet"
+      detailTitle={(row) => row.name}
       renderDetail={(row, close) => (
         <div className="space-y-4">
           <div className="space-y-3">
-            <DetailFact label="Expense type">{row.name}</DetailFact>
-            <DetailFact label="Sort order">{row.sortOrder}</DetailFact>
-            <DetailFact label="Status">{row.isActive ? "Active" : "Inactive"}</DetailFact>
+            {/* The expense type is the pane's own heading, not its first row. */}
+            <DetailFact label="Sort order">
+              <span className="font-mono tabular-nums">{row.sortOrder}</span>
+            </DetailFact>
+            <DetailFact label="Status">
+              <Badge variant={row.isActive ? "secondary" : "outline"}>
+                {row.isActive ? "Active" : "Inactive"}
+              </Badge>
+            </DetailFact>
           </div>
 
           <div className="flex gap-2">
@@ -234,9 +241,15 @@ export default function GoldExpenseTypesManagementPage() {
                 variant="outline"
                 disabled={deleteMutation.isPending}
                 onClick={() => {
-                  if (window.confirm("Confirm archival of this gold expense type.")) {
-                    deleteMutation.mutate(row.id, { onSuccess: close });
-                  }
+                  void dsConfirm({
+                    title: `Archive ${row.name}?`,
+                    description:
+                      "Spending already booked against it keeps it. It stops being offered on new shift output forms until it is set active again.",
+                    confirmLabel: "Archive the type",
+                    variant: "warning",
+                  }).then((confirmed) => {
+                    if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
+                  });
                 }}
               >
                 Archive
@@ -250,7 +263,7 @@ export default function GoldExpenseTypesManagementPage() {
                   updateMutation.mutate({ id: row.id, input: { isActive: true } })
                 }
               >
-                Set Active
+                Set active
               </Button>
             )}
           </div>
@@ -269,7 +282,7 @@ export default function GoldExpenseTypesManagementPage() {
       >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>{editing ? "Edit Expense Type" : "New Expense Type"}</SheetTitle>
+            <SheetTitle>{editing ? "Edit expense type" : "New expense type"}</SheetTitle>
             <SheetDescription>
               {editing
                 ? "Update expense type details and status."
@@ -278,7 +291,7 @@ export default function GoldExpenseTypesManagementPage() {
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-semibold">Expense Type *</label>
+              <label className="mb-2 block text-sm font-semibold">Expense type *</label>
               <Input
                 value={formState.name}
                 onChange={(event) =>
@@ -289,7 +302,7 @@ export default function GoldExpenseTypesManagementPage() {
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold">Sort Order *</label>
+              <label className="mb-2 block text-sm font-semibold">Sort order *</label>
               <Input
                 type="number"
                 min="0"
@@ -314,7 +327,7 @@ export default function GoldExpenseTypesManagementPage() {
                 className="flex-1"
                 disabled={createMutation.isPending || updateMutation.isPending}
               >
-                {editing ? "Save Changes" : "Create Expense Type"}
+                {editing ? "Save changes" : "Create expense type"}
               </Button>
             </div>
           </form>

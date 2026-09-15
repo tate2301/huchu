@@ -9,6 +9,7 @@ import {
 } from "@/components/management/master-data/master-data-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
 import {
   Sheet,
@@ -65,8 +66,8 @@ export default function JobGradesManagementPage() {
   const loadErrorMessage = resolveDisplayErrorMessage([error]);
 
   const [search, setSearch] = useState("");
+  const all = useMemo(() => data?.data ?? [], [data]);
   const rows = useMemo(() => {
-    const all = data?.data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return all;
     return all.filter(
@@ -74,14 +75,13 @@ export default function JobGradesManagementPage() {
         row.code.toLowerCase().includes(needle) ||
         row.name.toLowerCase().includes(needle),
     );
-  }, [data, search]);
+  }, [all, search]);
 
   const createMutation = useMutation({
     mutationFn: createJobGrade,
     onSuccess: () => {
       toast({
         title: "Job grade created",
-        description: "Job grade record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -103,7 +103,6 @@ export default function JobGradesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Job grade updated",
-        description: "Job grade record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -125,7 +124,6 @@ export default function JobGradesManagementPage() {
     onSuccess: () => {
       toast({
         title: "Job grade deleted",
-        description: "Job grade record deleted.",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "job-grades"] });
@@ -222,8 +220,8 @@ export default function JobGradesManagementPage() {
 
   return (
     <MasterDataPage<JobGradeRecord>
-      title="Job Grades"
-      description="Workforce classification: what each grade is called and where it ranks."
+      title="Job grades"
+      description="what each grade is called, and where it ranks"
       createLabel="New job grade"
       onCreate={() => {
         setEditing(null);
@@ -235,29 +233,30 @@ export default function JobGradesManagementPage() {
       rowKey={(row) => row.id}
       isLoading={isLoading}
       error={loadErrorMessage}
-      emptyLabel="No job grade records available."
-      search={
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search job grades"
-          aria-label="Search job grades"
-          className="h-9 w-full sm:w-64"
-        />
-      }
+      total={all.length}
+      searchTerm={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search by code or name"
+      emptyLabel="No job grades yet"
+      detailTitle={(row) => row.name}
       renderDetail={(row, close) => (
         <div className="space-y-4">
           <div className="space-y-3">
+            {/* The name is the pane's own heading; repeating it as the first
+                property is a row that tells the reader nothing new. */}
             <DetailFact label="Code">
-              <span className="font-mono">{row.code}</span>
+              <span className="font-mono tabular-nums">{row.code}</span>
             </DetailFact>
-            <DetailFact label="Name">{row.name}</DetailFact>
-            <DetailFact label="Rank">{row.rank}</DetailFact>
+            <DetailFact label="Rank">
+              <span className="font-mono tabular-nums">{row.rank}</span>
+            </DetailFact>
             <DetailFact label="Employees on this grade">
-              {row._count?.employees ?? 0}
+              <span className="font-mono tabular-nums">{row._count?.employees ?? 0}</span>
             </DetailFact>
             <DetailFact label="Status">
-              {row.isActive ? "Active" : "Inactive"}
+              <Badge variant={row.isActive ? "secondary" : "outline"}>
+                {row.isActive ? "Active" : "Inactive"}
+              </Badge>
             </DetailFact>
           </div>
 
@@ -283,9 +282,15 @@ export default function JobGradesManagementPage() {
               variant="outline"
               disabled={deleteMutation.isPending}
               onClick={() => {
-                if (window.confirm("Confirm deletion of this job grade.")) {
-                  deleteMutation.mutate(row.id, { onSuccess: close });
-                }
+                void dsConfirm({
+                  title: `Delete ${row.name}?`,
+                  description:
+                    "The grade is removed from the list new employees can be put on. Employees already on it keep it until they are moved.",
+                  confirmLabel: "Delete the grade",
+                  variant: "danger",
+                }).then((confirmed) => {
+                  if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
+                });
               }}
             >
               Delete
@@ -307,7 +312,7 @@ export default function JobGradesManagementPage() {
       >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>{editing ? "Edit Job Grade" : "New Job Grade"}</SheetTitle>
+            <SheetTitle>{editing ? "Edit job grade" : "New job grade"}</SheetTitle>
             <SheetDescription>
               {editing
                 ? "Update job grade details and ranking."
@@ -358,7 +363,7 @@ export default function JobGradesManagementPage() {
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
               <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending || (!editing && (isReserving || !resolvedCode))}>
-                {editing ? "Save Changes" : "Create Job Grade"}
+                {editing ? "Save changes" : "Create job grade"}
               </Button>
             </div>
           </form>

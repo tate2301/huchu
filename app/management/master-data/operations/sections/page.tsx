@@ -9,6 +9,7 @@ import {
 } from "@/components/management/master-data/master-data-page";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { dsConfirm } from "@/components/ui/ds-confirm";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
@@ -62,8 +63,8 @@ export default function SectionsManagementPage() {
   const sites = sitesData ?? [];
 
   const [search, setSearch] = useState("");
+  const all = useMemo(() => sectionsData?.data ?? [], [sectionsData]);
   const rows = useMemo(() => {
-    const all = sectionsData?.data ?? [];
     const needle = search.trim().toLowerCase();
     if (!needle) return all;
     return all.filter(
@@ -73,14 +74,13 @@ export default function SectionsManagementPage() {
           ? `${row.site.code} ${row.site.name}`.toLowerCase().includes(needle)
           : false),
     );
-  }, [sectionsData, search]);
+  }, [all, search]);
 
   const createMutation = useMutation({
     mutationFn: createSection,
     onSuccess: () => {
       toast({
         title: "Section created",
-        description: "Section record created.",
         variant: "success",
       });
       setFormOpen(false);
@@ -102,7 +102,6 @@ export default function SectionsManagementPage() {
     onSuccess: () => {
       toast({
         title: "Section updated",
-        description: "Section record updated.",
         variant: "success",
       });
       setFormOpen(false);
@@ -123,8 +122,7 @@ export default function SectionsManagementPage() {
     mutationFn: deleteSection,
     onSuccess: () => {
       toast({
-        title: "Section record archived",
-        description: "Section record archived.",
+        title: "Section archived",
         variant: "success",
       });
       queryClient.invalidateQueries({ queryKey: ["management", "master-data", "sections"] });
@@ -147,16 +145,18 @@ export default function SectionsManagementPage() {
         key: "site",
         header: "Site",
         width: 160,
-        render: (row) => {
-          if (!row.site) return "-";
-          return `${row.site.code} - ${row.site.name}`;
-        },
+        // Named in words rather than dashed: a section filed under no site is
+        // a row somebody has to go and fix, not an empty figure.
+        render: (row) => (row.site ? `${row.site.code} · ${row.site.name}` : "No site"),
       },
       {
         key: "reports",
-        header: "Shift Reports",
+        header: "Shift reports",
         width: 160,
-        render: (row) => row._count?.shiftReports ?? 0,
+        align: "right",
+        render: (row) => (
+          <span className="font-mono tabular-nums">{row._count?.shiftReports ?? 0}</span>
+        ),
       },
       {
         key: "status",
@@ -203,7 +203,7 @@ export default function SectionsManagementPage() {
   return (
     <MasterDataPage<SectionSummary>
       title="Sections"
-      description="Operational areas within each site that shift reports are filed against."
+      description="the areas of a site a shift report is filed against"
       createLabel="New section"
       onCreate={() => {
         setEditing(null);
@@ -215,28 +215,26 @@ export default function SectionsManagementPage() {
       rowKey={(row) => row.id}
       isLoading={isLoading}
       error={loadErrorMessage}
-      emptyLabel="No section records available."
-      search={
-        <Input
-          value={search}
-          onChange={(event) => setSearch(event.target.value)}
-          placeholder="Search sections"
-          aria-label="Search sections"
-          className="h-9 w-full sm:w-64"
-        />
-      }
+      total={all.length}
+      searchTerm={search}
+      onSearchChange={setSearch}
+      searchPlaceholder="Search by section or site"
+      emptyLabel="No sections yet"
+      detailTitle={(row) => row.name}
       renderDetail={(row, close) => (
         <div className="space-y-4">
           <div className="space-y-3">
-            <DetailFact label="Section">{row.name}</DetailFact>
+            {/* The section is the pane's own heading and is not repeated here. */}
             <DetailFact label="Site">
-              {row.site ? `${row.site.code} - ${row.site.name}` : "-"}
+              {row.site ? `${row.site.code} · ${row.site.name}` : "No site"}
             </DetailFact>
             <DetailFact label="Shift reports">
-              {row._count?.shiftReports ?? 0}
+              <span className="font-mono tabular-nums">{row._count?.shiftReports ?? 0}</span>
             </DetailFact>
             <DetailFact label="Status">
-              {row.isActive ? "Active" : "Inactive"}
+              <Badge variant={row.isActive ? "secondary" : "outline"}>
+                {row.isActive ? "Active" : "Inactive"}
+              </Badge>
             </DetailFact>
           </div>
 
@@ -262,9 +260,15 @@ export default function SectionsManagementPage() {
                 variant="outline"
                 disabled={deleteMutation.isPending}
                 onClick={() => {
-                  if (window.confirm("Confirm archival of this section.")) {
-                    deleteMutation.mutate(row.id, { onSuccess: close });
-                  }
+                  void dsConfirm({
+                    title: `Archive ${row.name}?`,
+                    description:
+                      "Shift reports already filed against it keep it. It stops being offered on new ones until it is set active again.",
+                    confirmLabel: "Archive the section",
+                    variant: "warning",
+                  }).then((confirmed) => {
+                    if (confirmed) deleteMutation.mutate(row.id, { onSuccess: close });
+                  });
                 }}
               >
                 Archive
@@ -278,7 +282,7 @@ export default function SectionsManagementPage() {
                   updateMutation.mutate({ id: row.id, input: { isActive: true } })
                 }
               >
-                Set Active
+                Set active
               </Button>
             )}
           </div>
@@ -298,7 +302,7 @@ export default function SectionsManagementPage() {
       >
         <SheetContent size="md" className="w-full p-6">
           <SheetHeader>
-            <SheetTitle>{editing ? "Edit Section" : "New Section"}</SheetTitle>
+            <SheetTitle>{editing ? "Edit section" : "New section"}</SheetTitle>
             <SheetDescription>
               {editing
                 ? "Update section record details and status."
@@ -307,7 +311,7 @@ export default function SectionsManagementPage() {
           </SheetHeader>
           <form onSubmit={handleSave} className="mt-6 space-y-4">
             <div>
-              <label className="mb-2 block text-sm font-semibold">Section Name *</label>
+              <label className="mb-2 block text-sm font-semibold">Section name *</label>
               <Input
                 value={formState.name}
                 onChange={(event) => setFormState((prev) => ({ ...prev, name: event.target.value }))}
@@ -327,7 +331,7 @@ export default function SectionsManagementPage() {
                 <SelectContent>
                   {sites.map((site) => (
                     <SelectItem key={site.id} value={site.id}>
-                      {site.code} - {site.name}
+                      {site.code} · {site.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -342,7 +346,7 @@ export default function SectionsManagementPage() {
                 {formState.isActive ? "Active" : "Inactive"}
               </Button>
               <Button type="submit" className="flex-1" disabled={createMutation.isPending || updateMutation.isPending}>
-                {editing ? "Save Changes" : "Create Section"}
+                {editing ? "Save changes" : "Create section"}
               </Button>
             </div>
           </form>

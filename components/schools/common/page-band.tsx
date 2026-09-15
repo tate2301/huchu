@@ -66,7 +66,7 @@ export function PageBand({
         // z-30, above the options row's z-20: the toolbar pins to the offset
         // this band publishes, and the two overlap for the frame it takes the
         // browser to settle a scroll.
-        "sticky top-0 z-30 -mx-1 mb-1 flex min-h-[var(--page-band-h)] flex-wrap items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-1 py-2",
+        "sticky top-[var(--stack-top,0px)] z-30 -mx-1 mb-1 flex min-h-[var(--page-band-h)] flex-wrap items-center gap-2 border-b border-[color:var(--border)] bg-[color:var(--surface-muted)] px-1 py-2",
         className,
       )}
     >
