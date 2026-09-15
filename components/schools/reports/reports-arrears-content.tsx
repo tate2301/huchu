@@ -440,7 +440,7 @@ export function ReportsArrearsContent() {
         its count is the filtered set, not the school — press it after
         narrowing to Form 4 and it writes to Form 4.
       */}
-      <PageChrome title="School Reports">
+      <PageChrome title="Arrears">
         <Button
           variant="primary"
           disabled={!canRemind || visible.length === 0}
