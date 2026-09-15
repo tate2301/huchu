@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { parseRecordHref, recordHref, sameRecord } from "@/lib/crm/record-ref";
+import {
+  isPeekable,
+  parseRecordHref,
+  recordHref,
+  recordSummaryPath,
+  sameRecord,
+} from "@/lib/crm/record-ref";
 
 describe("parseRecordHref", () => {
   it("reads each entity out of its own path segment", () => {
@@ -63,5 +69,50 @@ describe("sameRecord", () => {
     expect(sameRecord(deal, { entity: "lead", id: "a" })).toBe(false);
     expect(sameRecord(deal, null)).toBe(false);
     expect(sameRecord(null, null)).toBe(false);
+  });
+});
+
+describe("records outside the CRM module", () => {
+  it("recognises a pupil, which the CRM-only parser could not", () => {
+    expect(parseRecordHref("/schools/students/abc")).toEqual({
+      entity: "student",
+      id: "abc",
+    });
+  });
+
+  it("recognises a type whose page is nested deeper than three segments", () => {
+    // A class lives under master data, four segments in. The old rule was
+    // "exactly three parts", which refused it on shape alone.
+    expect(parseRecordHref("/management/master-data/schools/classes/f4")).toEqual({
+      entity: "class",
+      id: "f4",
+    });
+  });
+
+  it("still refuses a list page and a sub-page of a record", () => {
+    expect(parseRecordHref("/schools/students")).toBeNull();
+    expect(parseRecordHref("/schools/students/abc/edit")).toBeNull();
+  });
+
+  it("round-trips a school record through recordHref", () => {
+    const ref = parseRecordHref("/schools/guardians/g1?section=children")!;
+    expect(recordHref(ref)).toBe("/schools/guardians/g1");
+  });
+});
+
+describe("isPeekable", () => {
+  it("separates knowing what a link points at from being able to describe it", () => {
+    // Both are records and both leave a trail. Only one can be summarised
+    // without travelling to it, because only one has an endpoint that does so.
+    expect(isPeekable(parseRecordHref("/crm/deals/a"))).toBe(true);
+    expect(isPeekable(parseRecordHref("/schools/students/abc"))).toBe(false);
+    expect(isPeekable(null)).toBe(false);
+  });
+
+  it("gives a peekable record a summary path and the rest none", () => {
+    expect(recordSummaryPath(parseRecordHref("/crm/deals/a")!)).toBe(
+      "/api/v2/crm/records/deal/a/summary",
+    );
+    expect(recordSummaryPath(parseRecordHref("/schools/students/abc")!)).toBeNull();
   });
 });

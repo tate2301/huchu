@@ -12,7 +12,9 @@ import { fetchJson } from "@/lib/api-client";
 import { useRecordTrail } from "@/components/records/record-trail";
 import {
   ENTITY_LABEL,
+  isPeekable,
   parseRecordHref,
+  recordSummaryPath,
   type RecordEntity,
   type RecordRef,
 } from "@/lib/crm/record-ref";
@@ -58,6 +60,16 @@ const ENTITY_MARK: Record<RecordEntity, { icon: typeof Funnel; accent: Accent }>
   person: { icon: Users, accent: "violet" },
   site: { icon: MapPin, accent: "orange" },
   rep: { icon: User, accent: "green" },
+  // The school types are in the registry and carry record pages, so a link to
+  // one parses. None can be peeked yet — see `recordSummaryPath` — but the map
+  // is exhaustive over the registry, and leaving a hole here would be a type
+  // error the day one gains a summary endpoint rather than a silent grey disc.
+  student: { icon: Users, accent: "violet" },
+  guardian: { icon: Users, accent: "cyan" },
+  teacher: { icon: User, accent: "green" },
+  class: { icon: Building2, accent: "indigo" },
+  subject: { icon: Funnel, accent: "blue" },
+  hostel: { icon: MapPin, accent: "orange" },
 };
 
 type PeekSummary = {
@@ -92,7 +104,11 @@ export function RecordPeekProvider({ children }: { children: ReactNode }) {
 
   const open = useCallback((href: string) => {
     const ref = parseRecordHref(href);
-    if (!ref) return false;
+    // Knowing which record a link points at and being able to describe one
+    // without going there are different questions. A type with no summary
+    // endpoint answers the first and not the second, so the link navigates —
+    // which is the honest outcome, and better than a panel that opens on a 404.
+    if (!ref || !isPeekable(ref)) return false;
     setPeeking(ref);
     return true;
   }, []);
@@ -116,8 +132,7 @@ function PeekSheet({ peeking, onClose }: { peeking: RecordRef | null; onClose: (
     queryKey: ["crm-peek", peeking?.entity, peeking?.id],
     enabled: Boolean(peeking),
     // `successResponse` returns the record itself, not a `{ data }` envelope.
-    queryFn: () =>
-      fetchJson<PeekSummary>(`/api/v2/crm/records/${peeking!.entity}/${peeking!.id}/summary`),
+    queryFn: () => fetchJson<PeekSummary>(recordSummaryPath(peeking!)!),
     // A peek is a glance, and the same record gets glanced at repeatedly on
     // one page. Keeping it a minute means the second look is instant.
     staleTime: 60_000,
