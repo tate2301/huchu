@@ -3,13 +3,15 @@
 import { useCallback, useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { ColumnDef } from "@tanstack/react-table";
-import Link from "next/link";
-import { Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Badge, MobileList } from "@corelithzw/react";
 
+import { RecordCell } from "@/components/records/record-table";
+import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import {
   CreateButton,
   RecordActions,
@@ -25,8 +27,8 @@ import {
 } from "@/components/schools/common/states";
 import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-dialog";
 import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import { isSchoolAdmin } from "@/lib/schools/permissions";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -115,6 +117,15 @@ export function GuardiansContent() {
    */
   const canDelete = isSchoolAdmin(access.role);
 
+  /**
+   * What was typed into the table's own search box.
+   *
+   * Echoed out of `DataTable` rather than driving it — the box and the
+   * matching are one control in there — because an empty list has to say which
+   * of the two emptied it. "No guardians on file" over a list somebody has
+   * typed "Moyo" into sends them off to add a parent the school already has.
+   */
+  const [searched, setSearched] = useState("");
   const [classId, setClassId] = useState("");
   const [relationship, setRelationship] = useState("");
   const [account, setAccount] = useState<AccountFilter>("");
@@ -237,49 +248,38 @@ export function GuardiansContent() {
   const columns = useMemo<ColumnDef<GuardianRow>[]>(
     () => [
       {
-        id: "guardianNo",
-        header: "Guardian no",
-        cell: ({ row }) => (
-          <Link
-            href={`/schools/guardians/${row.original.id}`}
-            className="font-mono text-sm text-[var(--text-link)] hover:underline"
-          >
-            {row.original.guardianNo}
-          </Link>
-        ),
-      },
-      {
         id: "name",
         // Surname first, matching the `lastName, firstName` sort the API
         // applies — otherwise an alphabetical list reads as an unsorted one.
         header: "Name",
+        // The guardian number belongs on this cell's second line, not in a
+        // column of its own. It is what tells two Moyo, Ts apart, and a list
+        // whose whole job is telling parents apart had the name alone in one
+        // column and the number that distinguishes them in another.
         cell: ({ row }) => (
-          <span className="flex min-w-0 items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.firstName}
-              lastName={row.original.lastName}
-            />
-            <span className="truncate font-medium">
-              {row.original.lastName}, {row.original.firstName}
-            </span>
-          </span>
+          <PersonCell
+            kind="guardian"
+            name={`${row.original.lastName}, ${row.original.firstName}`}
+            href={recordType("GUARDIAN").href(row.original.id)}
+            reference={row.original.guardianNo}
+          />
         ),
       },
       {
         id: "phone",
         header: "Phone",
-        cell: ({ row }) => (
-          <span className="font-mono text-sm tabular-nums">{row.original.phone}</span>
-        ),
+        cell: ({ row }) => <RecordCell kind="phone" value={row.original.phone} />,
       },
       {
         id: "email",
         header: "Email",
+        // Named rather than dashed: a parent with no email is a parent the
+        // portal cannot reach, which is a fact somebody acts on.
         cell: ({ row }) =>
           row.original.email ? (
-            <span className="truncate">{row.original.email}</span>
+            <RecordCell kind="email" value={row.original.email} />
           ) : (
-            <span className="text-[var(--text-muted)]">—</span>
+            <span className="text-sm text-[var(--text-muted)]">No email on file</span>
           ),
       },
       {
@@ -289,17 +289,21 @@ export function GuardiansContent() {
           row.original.userId ? (
             <Badge tone="success">Active</Badge>
           ) : (
-            <span className="text-[var(--text-muted)]">Not invited</span>
+            <span className="text-sm text-[var(--text-muted)]">Not invited</span>
           ),
       },
       {
         id: "students",
-        header: "Linked students",
-        cell: ({ row }) => <NumericCell>{row.original._count?.studentLinks ?? 0}</NumericCell>,
+        header: "Children",
+        cell: ({ row }) => (
+          <RecordCell kind="number" value={row.original._count?.studentLinks ?? 0} />
+        ),
       },
       {
         id: "actions",
-        header: "Actions",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const verbs: RecordVerb[] = [
             {
@@ -330,7 +334,14 @@ export function GuardiansContent() {
               onSelect: () => remove.mutate(row.original),
             });
           }
-          return <RecordActions layout="menu" resource="schools.students" verbs={verbs} />;
+          return (
+            <RecordActions
+              layout="menu"
+              label={`Row actions for ${row.original.firstName} ${row.original.lastName}`}
+              resource="schools.students"
+              verbs={verbs}
+            />
+          );
         },
       },
     ],
@@ -340,7 +351,43 @@ export function GuardiansContent() {
   const tally = tallyQuery.data;
 
   return (
-    <div className="space-y-4">
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            {
+              label: "On the portal",
+              value: (tally?.withAccount ?? 0).toLocaleString(),
+              tone: "success",
+            },
+            {
+              label: "Not invited",
+              value: (tally?.withoutAccount ?? 0).toLocaleString(),
+              tone: "warn",
+            },
+          ]}
+          actions={
+            <RecordActions
+              resource="schools.students"
+              verbs={[
+                {
+                  label:
+                    invitable === 0
+                      ? "Invite to the portal"
+                      : `Invite ${invitable} to the portal`,
+                  action: "invite",
+                  unavailable:
+                    invitable === 0
+                      ? "Everyone in view either has an account or has no email address."
+                      : undefined,
+                  onSelect: () => setInviteOpen(true),
+                },
+              ]}
+            />
+          }
+        />
+      }
+    >
       <PageChrome title="Guardians">
         <CreateButton
           resource="schools.students"
@@ -348,40 +395,6 @@ export function GuardiansContent() {
           onSelect={openCreate}
         />
       </PageChrome>
-
-      <PageBand
-        chips={[
-          {
-            label: "On the portal",
-            value: (tally?.withAccount ?? 0).toLocaleString(),
-            tone: "success",
-          },
-          {
-            label: "Not invited",
-            value: (tally?.withoutAccount ?? 0).toLocaleString(),
-            tone: "warn",
-          },
-        ]}
-        actions={
-          <RecordActions
-            resource="schools.students"
-            verbs={[
-              {
-                label:
-                  invitable === 0
-                    ? "Invite to the portal"
-                    : `Invite ${invitable} to the portal`,
-                action: "invite",
-                unavailable:
-                  invitable === 0
-                    ? "Everyone in view either has an account or has no email address."
-                    : undefined,
-                onSelect: () => setInviteOpen(true),
-              },
-            ]}
-          />
-        }
-      />
 
       {guardiansQuery.isError ? (
         <LoadError
@@ -397,82 +410,104 @@ export function GuardiansContent() {
           in a console. The same alert carries the administrator-only refusal. */}
       {remove.isError ? <SaveError what="That guardian" error={remove.error} /> : null}
 
-      <FilterBar>
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
-          value={classId}
-          options={yearGroupOptions}
-          onChange={setClassId}
-        />
-        <FilterSelect
-          label="Relationship"
-          allLabel="Any relationship"
-          value={relationship}
-          options={[...RELATIONSHIP_OPTIONS]}
-          onChange={setRelationship}
-        />
-        <FilterSelect
-          label="Portal account"
-          allLabel="Everyone"
-          value={account}
-          options={ACCOUNT_OPTIONS}
-          onChange={(value) => setAccount(value as AccountFilter)}
-        />
-      </FilterBar>
-
+      {/* The filters ride in the table's own control row, beside the search
+          box that searches the same rows. They used to sit on a band of their
+          own above it, which answered "narrow it down" in two places — and the
+          search box stays where it is because in this list the box and the
+          filtering are one control: `DataTable` matches the rows in the
+          browser as they are typed into. */}
       <DataTable
         data={guardians}
         columns={columns}
         searchPlaceholder="Search guardians"
         searchSubmitLabel="Search"
+        onQueryStateChange={(next) => {
+          if (next.search !== undefined) setSearched(next.search);
+        }}
         pagination={{ enabled: true }}
+        toolbar={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classId}
+              options={yearGroupOptions}
+              onChange={setClassId}
+            />
+            <FilterSelect
+              label="Relationship"
+              allLabel="Any relationship"
+              value={relationship}
+              options={[...RELATIONSHIP_OPTIONS]}
+              onChange={setRelationship}
+            />
+            <FilterSelect
+              label="Portal account"
+              allLabel="Everyone"
+              value={account}
+              options={ACCOUNT_OPTIONS}
+              onChange={(value) => setAccount(value as AccountFilter)}
+            />
+          </>
+        }
         mobileListRenderer={({ rows }) => (
           <MobileList>
-            {rows.length === 0 ? (
-              <MobileListEmpty>
-                {guardiansQuery.isPending ? "Loading guardians…" : "No guardians found."}
-              </MobileListEmpty>
-            ) : (
-              rows.map(({ row }) => (
-                <MobileList.Row
-                  key={row.id}
-                  title={`${row.lastName}, ${row.firstName}`}
-                  // "Portal" was a `<Badge>` in `trailing`, where the design
-                  // system's `1fr 14px` row grid sizes that column for a
-                  // chevron and `.mobile-list` clips the overflow — so the
-                  // badge was cut mid-word on every guardian who had claimed
-                  // an account. It reads as text on the subtitle line instead.
-                  subtitle={[
-                    row.guardianNo,
-                    row.phone,
-                    `${row._count?.studentLinks ?? 0} children`,
-                    row.userId ? "Portal" : null,
-                  ]
-                    .filter(Boolean)
-                    .join(" · ")}
-                  onClick={() => {
-                    window.location.href = `/schools/guardians/${row.id}`;
-                  }}
-                />
-              ))
-            )}
+            {rows.map(({ row }) => (
+              <MobileList.Row
+                key={row.id}
+                // The same mark the table draws, so a parent is the same
+                // colour and the same two letters at either width.
+                leading={
+                  <RecordMark
+                    kind="guardian"
+                    name={`${row.firstName} ${row.lastName}`}
+                    size="sm"
+                  />
+                }
+                title={`${row.lastName}, ${row.firstName}`}
+                // "Portal" was a `<Badge>` in `trailing`, where the design
+                // system's `1fr 14px` row grid sizes that column for a
+                // chevron and `.mobile-list` clips the overflow — so the
+                // badge was cut mid-word on every guardian who had claimed
+                // an account. It reads as text on the subtitle line instead.
+                subtitle={[
+                  row.guardianNo,
+                  row.phone,
+                  `${row._count?.studentLinks ?? 0} children`,
+                  row.userId ? "Portal" : null,
+                ]
+                  .filter(Boolean)
+                  .join(" · ")}
+                onClick={() => {
+                  window.location.href = `/schools/guardians/${row.id}`;
+                }}
+              />
+            ))}
           </MobileList>
         )}
         emptyState={
           guardiansQuery.isPending ? (
             <TableRowsSkeleton
+              headers={["Name", "Phone", "Email", "Portal", "Children", ""]}
               columns={[
-                { width: 120 },
-                { avatar: true },
+                { avatar: true, twoLine: true },
                 { width: 140 },
                 { width: 230 },
-                { width: 110 },
-                { width: 120 },
+                { width: 110, badge: true },
+                { width: 90, align: "right" },
+                { width: 44 },
               ]}
             />
-          ) : filtersInForce.length > 0 ? (
-            <NothingMatched what="guardians" filters={filtersInForce} onClear={clearFilters} />
+          ) : filtersInForce.length > 0 || searched.trim() ? (
+            <NothingMatched
+              what="guardians"
+              filters={filtersInForce}
+              search={searched}
+              // Only where there is something this screen can undo. The search
+              // box belongs to the table, so a "Clear the search" button here
+              // would be a button that left the box full.
+              onClear={filtersInForce.length > 0 ? clearFilters : undefined}
+            />
           ) : (
             <NothingYet
               title="No guardians on file"
@@ -505,6 +540,6 @@ export function GuardiansContent() {
           void queryClient.invalidateQueries({ queryKey: ["schools", "guardians"] });
         }}
       />
-    </div>
+    </SchoolsPage>
   );
 }

@@ -2,12 +2,11 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import Link from "next/link";
 import { Badge, Button, Card, Combobox, Switch } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import {
@@ -287,23 +286,19 @@ export function GuardianChildrenPanel({
                     className="campus-row-in flex flex-wrap items-center gap-3 px-3 py-3"
                     style={{ animationDelay: `${index * 40}ms` }}
                   >
-                    <PersonAvatar
+                    <PersonCell
+                      className="flex-1"
                       firstName={link.student.firstName}
                       lastName={link.student.lastName}
+                      href={recordType("STUDENT").href(link.student.id)}
+                      reference={link.student.studentNo}
+                      context={[
+                        relationshipLabel(link.relationship),
+                        link.student.currentClass?.name,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
                     />
-                    <span className="min-w-0 flex-1">
-                      <Link
-                        href={recordType("STUDENT").href(link.student.id)}
-                        className="block truncate text-sm font-medium text-[var(--text-link)] hover:underline"
-                      >
-                        {link.student.firstName} {link.student.lastName}
-                      </Link>
-                      <span className="block truncate text-sm text-[var(--text-muted)]">
-                        {[relationshipLabel(link.relationship), link.student.currentClass?.name]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
 
                     {/* What this person is actually allowed to be told. A guardian
                         who gets neither is a contact of record and nothing more,
@@ -318,6 +313,8 @@ export function GuardianChildrenPanel({
                     </span>
 
                     <RecordActions
+                      layout="menu"
+                      label={`Actions for ${link.student.firstName} ${link.student.lastName}`}
                       resource="schools.students"
                       verbs={[
                         {

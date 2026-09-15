@@ -1,14 +1,14 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { CreateButton } from "@/components/schools/common/record-actions";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,
   NothingMatched,
@@ -16,31 +16,46 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
+import { DataTable } from "@/components/ui/data-table";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import {
   fetchResultSheets,
   type ResultSheetLike,
   type ResultSheetStatus,
 } from "@/lib/schools/results-v2";
+import { ResultsViews } from "@/components/schools/results/results-views";
+import {
+  SheetMobileList,
+  linesColumn,
+  moderationColumn,
+  publishColumn,
+  sheetActionsColumn,
+  sheetClassName,
+  sheetColumn,
+} from "@/components/schools/results/sheet-columns";
 import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
 import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
-import { SHEET_STATE_LABELS, SHEET_STATE_OPTIONS, SheetStateBadge } from "@/components/schools/results/sheet-state";
+import {
+  SHEET_STATE_LABELS,
+  SHEET_STATE_OPTIONS,
+} from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
 
 /**
- * The working list of mark sheets — the one the sidebar has always pointed at.
- *
- * "Result sheets" in the navigation linked to `/schools/results/sheets`, which
- * redirected to `/schools/assessments`, which does not exist: the item was a
- * 404 in the shipped product. This is the page it should have been reaching.
+ * The sheets the signed-in person may actually work on.
  *
  * It reads `/api/v2/schools/results/sheets` rather than the dashboard endpoint
  * the overview uses, because that route narrows itself to a teacher's own
  * class and subject assignments. A subject teacher opening this sees her own
- * sheets and nothing else; the office sees the school. Same page, same shape,
- * no second screen for "mine".
+ * sheets and nothing else; the office sees the school. Same rows, same
+ * columns, same verbs — only the endpoint differs, which is why the two are
+ * segments of one screen rather than two rail entries, and why the row is
+ * composed in `sheet-columns.tsx` rather than here.
+ *
+ * The rows are grouped by year group, which is how a school talks about its
+ * mark sheets, and sorted by it — an alphabet applied to a list that is not in
+ * alphabetical order is worse than no headings at all.
  */
 
 export function MarkSheetsContent() {
@@ -112,32 +127,19 @@ export function MarkSheetsContent() {
     [subjects, subjectFilter],
   );
 
+  // Sorted by the heading it is about to be grouped under, because the
+  // endpoint orders by `updatedAt` and a grouping applied to that order comes
+  // out as Form 2, Form 4, Form 2 again.
   const visible = useMemo(() => {
     const needle = subjectName.toLowerCase();
-    return sheets.filter((sheet) => {
-      if (stateFilter && sheet.status !== stateFilter) return false;
-      if (needle && !sheet.title.toLowerCase().includes(needle)) return false;
-      return true;
-    });
+    return sheets
+      .filter((sheet) => {
+        if (stateFilter && sheet.status !== stateFilter) return false;
+        if (needle && !sheet.title.toLowerCase().includes(needle)) return false;
+        return true;
+      })
+      .sort((a, b) => sheetClassName(a).localeCompare(sheetClassName(b)));
   }, [sheets, stateFilter, subjectName]);
-
-  // Grouped by year group, which is how a school talks about its mark sheets.
-  // The route already orders by `updatedAt`, so this groups what is adjacent
-  // after a sort by class name applied here.
-  const grouped = useMemo(() => {
-    const map = new Map<string, ResultSheetLike[]>();
-    for (const sheet of [...visible].sort((a, b) =>
-      `${a.class.name}${a.stream?.name ?? ""}`.localeCompare(
-        `${b.class.name}${b.stream?.name ?? ""}`,
-      ),
-    )) {
-      const key = `${sheet.class.name}${sheet.stream ? ` ${sheet.stream.name}` : ""}`;
-      const bucket = map.get(key);
-      if (bucket) bucket.push(sheet);
-      else map.set(key, [sheet]);
-    }
-    return [...map.entries()];
-  }, [visible]);
 
   const narrowing = [
     classes.find((row) => row.id === classFilter)?.name ?? null,
@@ -145,7 +147,6 @@ export function MarkSheetsContent() {
     subjectName || null,
     terms.find((term) => term.id === termFilter)?.name ?? null,
     stateFilter ? SHEET_STATE_LABELS[stateFilter as ResultSheetStatus] : null,
-    search.trim() || null,
   ].filter((entry): entry is string => Boolean(entry));
 
   const clearFilters = () => {
@@ -162,29 +163,59 @@ export function MarkSheetsContent() {
     setFormOpen(true);
   };
 
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Result sheets"
-        description="Every mark sheet you may work on, and what still has to happen to it."
-        primaryAction={
-          <CreateButton
-            resource="schools.results"
-            label="New mark sheet"
-            onSelect={() => openForm(null)}
-          />
-        }
-      />
+  const columns = useMemo(
+    () => [
+      sheetColumn(),
+      linesColumn(),
+      moderationColumn("State"),
+      publishColumn(),
+      sheetActionsColumn({
+        workflow,
+        onOpen: (sheet) => setOpenSheetId(sheet.id),
+        onEdit: (sheet) => openForm(sheet),
+      }),
+    ],
+    [workflow],
+  );
 
-      <PageBand
-        chips={[
-          { label: "Draft", value: counts.DRAFT },
-          { label: "Submitted", value: counts.SUBMITTED, tone: "warn" },
-          { label: "Approved", value: counts.HOD_APPROVED, tone: "success" },
-          { label: "Sent back", value: counts.HOD_REJECTED, tone: "danger" },
-          { label: "Published", value: counts.PUBLISHED, tone: "brand" },
-        ]}
-      />
+  const nothingAtAll =
+    !sheetsQuery.isLoading && sheets.length === 0 && narrowing.length === 0 && !search.trim();
+
+  const emptyState = nothingAtAll ? (
+    <NothingYet
+      title="No mark sheets yet"
+      body="Sheets appear here when a mark book is written to one under a year group's assessments, or when you raise one by hand."
+    />
+  ) : (
+    <NothingMatched
+      what="mark sheets"
+      filters={narrowing}
+      search={search}
+      onClear={clearFilters}
+    />
+  );
+
+  return (
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            { label: "Draft", value: counts.DRAFT },
+            { label: "Submitted", value: counts.SUBMITTED, tone: "warn" },
+            { label: "Sent back", value: counts.HOD_REJECTED, tone: "danger" },
+            { label: "Approved", value: counts.HOD_APPROVED, tone: "success" },
+            { label: "Published", value: counts.PUBLISHED, tone: "brand" },
+          ]}
+        />
+      }
+    >
+      <PageChrome title="Mark sheets">
+        <CreateButton
+          resource="schools.results"
+          label="New mark sheet"
+          onSelect={() => openForm(null)}
+        />
+      </PageChrome>
 
       {workflow.error ? <SaveError what="That sheet" error={workflow.error} /> : null}
       {sheetsQuery.error ? (
@@ -195,122 +226,106 @@ export function MarkSheetsContent() {
         />
       ) : null}
 
-      <FilterBar>
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
-          value={classFilter}
-          options={classes.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={(next) => {
-            setClassFilter(next);
-            setStreamFilter("");
-          }}
-        />
-        <FilterSelect
-          label="Class"
-          allLabel="Every class"
-          value={streamFilter}
-          options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
-          onChange={setStreamFilter}
-        />
-        <FilterSelect
-          label="Subject"
-          allLabel="Every subject"
-          value={subjectFilter}
-          options={subjects.map((subject) => ({ value: subject.id, label: subject.name }))}
-          onChange={setSubjectFilter}
-        />
-        <FilterSelect
-          label="Term"
-          allLabel="Every term"
-          value={termFilter}
-          options={terms.map((term) => ({ value: term.id, label: term.name }))}
-          onChange={setTermFilter}
-        />
-        <FilterSelect
-          label="Status"
-          allLabel="Any status"
-          value={stateFilter}
-          options={SHEET_STATE_OPTIONS}
-          onChange={setStateFilter}
-        />
-        <div className="min-w-0 flex-1 basis-[220px]">
-          <Label htmlFor="sheet-search" className="text-sm text-muted-foreground">
-            Search
-          </Label>
-          <Input
-            id="sheet-search"
+      <TableControls
+        sticky
+        tabs={<ResultsViews yours={sheets.length} />}
+        search={
+          <TableSearch
             value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Search mark sheets"
+            onChange={setSearch}
+            placeholder="Search sheet, class or term"
           />
-        </div>
-      </FilterBar>
+        }
+        filterCount={activeFilterCount(
+          classFilter,
+          streamFilter,
+          subjectFilter,
+          termFilter,
+          stateFilter,
+        )}
+        filters={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Every year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={(next) => {
+                setClassFilter(next);
+                setStreamFilter("");
+              }}
+            />
+            <FilterSelect
+              label="Class"
+              allLabel="Every class"
+              value={streamFilter}
+              options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
+              onChange={setStreamFilter}
+            />
+            <FilterSelect
+              label="Subject"
+              allLabel="Every subject"
+              value={subjectFilter}
+              options={subjects.map((subject) => ({ value: subject.id, label: subject.name }))}
+              onChange={setSubjectFilter}
+            />
+            <FilterSelect
+              label="Term"
+              allLabel="Every term"
+              value={termFilter}
+              options={terms.map((term) => ({ value: term.id, label: term.name }))}
+              onChange={setTermFilter}
+            />
+            <FilterSelect
+              label="State"
+              allLabel="Any state"
+              value={stateFilter}
+              options={SHEET_STATE_OPTIONS}
+              onChange={setStateFilter}
+            />
+          </>
+        }
+        count={sheetsQuery.isLoading ? null : `${visible.length} of ${sheets.length}`}
+        actions={
+          narrowing.length > 0 || search.trim() ? (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear the filters
+            </Button>
+          ) : null
+        }
+      />
 
-      {sheetsQuery.isLoading ? (
-        <TableRowsSkeleton columns={[{ twoLine: true }, { width: 110 }, { width: 160 }]} />
-      ) : (
-        <MobileList>
-          {grouped.length === 0 ? (
-            <MobileListEmpty>
-              {sheets.length === 0 && narrowing.length === 0 ? (
-                <NothingYet
-                  title="No mark sheets yet"
-                  body="Sheets appear here when a mark book is written to one under a year group's assessments, or when you raise one by hand."
-                />
-              ) : (
-                <NothingMatched what="mark sheets" filters={narrowing} onClear={clearFilters} />
-              )}
-            </MobileListEmpty>
+      <DataTable
+        data={visible}
+        columns={columns}
+        features={{ globalFilter: false }}
+        pagination={{ enabled: true }}
+        exportConfig={{ enabled: true, title: "Mark sheets", fileName: "mark-sheets" }}
+        rowGroup={(sheet) => ({ key: sheetClassName(sheet), label: sheetClassName(sheet) })}
+        mobileListRenderer={({ rows: shown }) => (
+          <SheetMobileList
+            rows={shown.map(({ row }) => row)}
+            onOpen={(sheet) => setOpenSheetId(sheet.id)}
+            empty={emptyState}
+          />
+        )}
+        emptyState={
+          sheetsQuery.isLoading ? (
+            <TableRowsSkeleton
+              headers={["Sheet", "Marks", "State", "Publish", ""]}
+              columns={[
+                { avatar: true, twoLine: true },
+                { width: 80, align: "right" },
+                { width: 110, badge: true },
+                { width: 100, badge: true },
+                { width: 44 },
+              ]}
+            />
           ) : (
-            grouped.map(([heading, rows]) => (
-              <div key={heading}>
-                <MobileListSectionHeader>{heading}</MobileListSectionHeader>
-                {rows.map((sheet) => (
-                  <MobileList.Row
-                    key={sheet.id}
-                    static
-                    title={sheet.title}
-                    subtitle={
-                      <span className="mt-1 flex flex-wrap items-center gap-2">
-                        <span>
-                          {[
-                            sheet.stream?.name,
-                            sheet.term.name,
-                            `${sheet._count.lines} mark${sheet._count.lines === 1 ? "" : "s"}`,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </span>
-                        <SheetStateBadge status={sheet.status} />
-                        <RecordActions
-                          resource="schools.results"
-                          verbs={workflow.verbsFor(sheet, {
-                            onOpen: (row) => setOpenSheetId(row.id),
-                            onEdit: (row) => openForm(row),
-                          })}
-                        />
-                      </span>
-                    }
-                  />
-                ))}
-              </div>
-            ))
-          )}
-        </MobileList>
-      )}
-
-      <p className="text-sm text-muted-foreground">
-        Moderation and publishing act on these sheets —{" "}
-        <Link href="/schools/results/moderation" className="hover:underline">
-          moderation queue
-        </Link>{" "}
-        and{" "}
-        <Link href="/schools/results/publish" className="hover:underline">
-          publishing
-        </Link>
-        .
-      </p>
+            emptyState
+          )
+        }
+      />
 
       {formOpen ? (
         <SheetFormDialog
@@ -331,6 +346,6 @@ export function MarkSheetsContent() {
         }}
       />
       {workflow.dialog}
-    </div>
+    </SchoolsPage>
   );
 }

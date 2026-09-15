@@ -3,12 +3,17 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Card } from "@corelithzw/react";
+import { Alert, Badge, Card, MobileList, MobileListEmpty } from "@corelithzw/react";
+
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordMark } from "@/components/records/record-mark";
+import { recordCellTone } from "@/components/records/record-table";
 
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -20,6 +25,7 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,
@@ -282,37 +288,56 @@ export function HomeworkOversightContent() {
       {
         id: "subject",
         header: "Subject and class",
+        // The subject tile, the subject, and the class it was set for. Both
+        // halves are references rather than words about the row, so "what else
+        // has Form 2 been given this week" is a click rather than a filter.
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="font-medium">{row.original.subjectName}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.className}
-              {row.original.streamName ? ` · ${row.original.streamName}` : ""}
-            </div>
-          </div>
+          <RecordNameCell
+            kind="subject"
+            name={row.original.subjectName}
+            href={recordType("SUBJECT").href(row.original.subjectId)}
+            reference={[row.original.className, row.original.streamName]
+              .filter(Boolean)
+              .join(" ")}
+          />
         ),
       },
       {
         id: "title",
         header: "Homework",
         cell: ({ row }) => (
-          <div className="min-w-0">
-            <div className="font-medium">{row.original.title}</div>
-            <div className="text-xs text-muted-foreground">
+          <span className="block min-w-0">
+            <span className="block truncate text-sm font-medium text-[color:var(--text-strong)]">
+              {row.original.title}
+            </span>
+            {/* Never blank: "Nothing marked yet" is the fact a deputy scanning
+                this column is looking for, and an empty line under a title
+                reads as a row that failed to load. */}
+            <span className="mt-0.5 block truncate font-mono text-sm text-[color:var(--text-subtle)]">
               {row.original.marked > 0
                 ? `${row.original.marked} marked`
                 : "Nothing marked yet"}
               {row.original.late > 0 ? ` · ${row.original.late} in late` : ""}
-            </div>
-          </div>
+            </span>
+          </span>
         ),
       },
       {
         id: "teacher",
         header: "Teacher",
-        cell: ({ row }) => (
-          <span className="text-sm">{row.original.teacherName ?? "Unassigned"}</span>
-        ),
+        cell: ({ row }) =>
+          row.original.teacherName ? (
+            <EntityLink
+              href={recordType("TEACHER").href(row.original.teacherProfileId)}
+              className={recordCellTone("relation")}
+            >
+              {row.original.teacherName}
+            </EntityLink>
+          ) : (
+            // Named rather than dashed: homework nobody is against is the row
+            // the nudge cannot be sent on, which is why the verb below says so.
+            <span className="text-sm text-[color:var(--text-muted)]">Unassigned</span>
+          ),
       },
       {
         id: "setOn",
@@ -362,10 +387,13 @@ export function HomeworkOversightContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.title}`}
             resource="schools.academics"
             verbs={[
               {
@@ -503,6 +531,33 @@ export function HomeworkOversightContent() {
               searchSubmitLabel="Search"
               pagination={{ enabled: true }}
               exportConfig={{ enabled: true, title: "Homework", fileName: "homework" }}
+              // Seven columns at 390px is a sideways scroll. On a phone the
+              // row is the piece of work, and the figure the board turns on —
+              // how many of the class have handed it in — is the last thing on
+              // the line under it.
+              mobileListRenderer={({ rows: shown }) => (
+                <MobileList>
+                  {shown.length === 0 ? (
+                    <MobileListEmpty>No homework matched.</MobileListEmpty>
+                  ) : (
+                    shown.map(({ row }) => (
+                      <MobileList.Row
+                        key={row.id}
+                        leading={<RecordMark kind="subject" name={row.subjectName} size="sm" />}
+                        title={`${row.subjectName} · ${row.title}`}
+                        subtitle={[
+                          [row.className, row.streamName].filter(Boolean).join(" "),
+                          row.dueAt ? `due ${formatDate(row.dueAt)}` : "no deadline",
+                          `${row.handedIn} of ${row.onRoll} in`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
+                        onClick={() => setOpenAssignmentId(row.id)}
+                      />
+                    ))
+                  )}
+                </MobileList>
+              )}
               emptyState={
                 narrowing.length > 0 ? (
                   <NothingMatched

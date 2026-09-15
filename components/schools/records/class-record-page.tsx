@@ -21,9 +21,14 @@ import { useAttributeEditor } from "@/components/records/use-attribute-editor";
 import { ClassStreamsPanel } from "@/components/schools/classes/class-streams-panel";
 import { ClassSubjectsPanel } from "@/components/schools/classes/class-subjects-panel";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { Skeleton } from "@/components/ui/skeleton";
-import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { ListRowsSkeleton } from "@/components/schools/common/states";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
+import { fetchJson } from "@/lib/api-client";
 import { Calendar, Layers, Tag, UserPlus, Users } from "@/lib/icons";
 import { recordType } from "@/lib/records/registry";
 
@@ -144,20 +149,19 @@ export function ClassRecordPage({ classId }: { classId: string }) {
   }, [record, edit]);
 
   if (query.isPending) {
-    return (
-      <div className="space-y-4" data-testid="class-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <RecordPageSkeleton testId="class-record-loading" sections={2} columns={1} />;
   }
 
   if (query.isError || !record) {
     return (
-      <Alert variant="destructive">
-        <AlertTitle>This class could not be loaded</AlertTitle>
-        <AlertDescription>{getApiErrorMessage(query.error)}</AlertDescription>
-      </Alert>
+      <RecordLoadFailure
+        notFound="That class"
+        what="this class"
+        error={query.error}
+        backHref={config.indexHref}
+        backLabel="Back to the classes"
+        onRetry={() => void query.refetch()}
+      />
     );
   }
 
@@ -171,8 +175,11 @@ export function ClassRecordPage({ classId }: { classId: string }) {
       value: "roll",
       label: "Roll",
       count: onRoll,
+      // The rows it is about to become, not a grey slab the height of a guess:
+      // a class of thirty lands as thirty rows and the page should not jump to
+      // meet them.
       content: roll.isPending ? (
-        <Skeleton className="h-32 w-full" />
+        <ListRowsSkeleton rows={8} label="Reading the roll" />
       ) : (
         <RelatedList
           items={students}
@@ -279,25 +286,29 @@ export function ClassRecordPage({ classId }: { classId: string }) {
       onTabChange={setActiveTab}
       rail={
         <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="On the roll" value={String(onRoll)} />
+          {/* Neither the roll nor the subject count: the band above says
+              "28 of 30" and the section rail carries both counts already. What
+              is left is what a registrar is deciding on — whether there is room,
+              and whether anything on the timetable has nobody against it. */}
+          <GlanceList>
             <Glance
               label="Places left"
-              value={record.capacity == null ? "—" : String(Math.max(0, record.capacity - onRoll))}
+              value={
+                record.capacity == null
+                  ? "No limit set"
+                  : String(Math.max(0, record.capacity - onRoll))
+              }
             />
-            <Glance label="Subjects" value={String(subjects.length)} />
-          </dl>
+            <Glance
+              label="Subjects with no teacher"
+              value={
+                subjects.filter((entry) => !entry.teacherProfile).length ||
+                "None"
+              }
+            />
+          </GlanceList>
         </RailSection>
       }
     />
-  );
-}
-
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
   );
 }

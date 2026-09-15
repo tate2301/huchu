@@ -11,8 +11,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { DataTable } from "@/components/ui/data-table";
 import { PageBand } from "@/components/schools/common/page-band";
+import { PersonCell, RecordNameCell } from "@/components/schools/common/identity-cell";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { ClassFilter, type ClassFilterValue } from "@/components/schools/common/class-filter";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
@@ -24,6 +26,8 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
+import { formatSchoolDate } from "@/lib/schools/format";
 import { RegisterFormDialog, type RegisterDraft } from "@/components/schools/attendance/register-form-dialog";
 
 /**
@@ -412,13 +416,16 @@ export function RegisterOversightContent({
       {
         id: "className",
         header: "Year group",
+        // The same composed cell the roll draws for a child: the class's tile,
+        // its name, and its code under it. A standing underline rather than one
+        // that arrives with the pointer — a cue nobody can see is not a cue.
         cell: ({ row }) => (
-          <Link
-            href={`/schools/classes/${row.original.classId}`}
-            className="font-semibold hover:underline"
-          >
-            {row.original.className}
-          </Link>
+          <RecordNameCell
+            kind="class"
+            name={row.original.className}
+            href={recordType("CLASS").href(row.original.classId)}
+            reference={row.original.classCode}
+          />
         ),
       },
       {
@@ -456,8 +463,11 @@ export function RegisterOversightContent({
         header: "Form teacher",
         cell: ({ row }) =>
           row.original.formTeacher ? (
-            <span>{row.original.formTeacher.name}</span>
+            <PersonCell kind="teacher" name={row.original.formTeacher.name} />
           ) : (
+            // Named in words: a year group with nobody against it is the row
+            // the reminder cannot be sent to, and a dash here would read as a
+            // column that failed rather than a gap to fill.
             <span className="text-[color:var(--text-muted)]">
               Unassigned — no form teacher
             </span>
@@ -487,7 +497,8 @@ export function RegisterOversightContent({
       },
       {
         id: "verb",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const record = row.original;
           const session = sessionByClass.get(record.classId) ?? null;
@@ -500,7 +511,8 @@ export function RegisterOversightContent({
                 </span>
               ) : null}
               <RecordActions
-              layout="menu"
+                layout="menu"
+                label={`Row actions for ${record.className}`}
                 resource="schools.attendance"
                 verbs={[
                   ...(record.state === "SUBMITTED"
@@ -631,7 +643,43 @@ export function RegisterOversightContent({
   }
 
   return (
-    <div className="space-y-3">
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            {
+              label: "Registers in",
+              value: board
+                ? `${board.summary.withRegister} of ${board.summary.yearGroups}`
+                : "—",
+              tone: board && board.summary.missing > 0 ? "warn" : "success",
+            },
+            {
+              label: "Still to come",
+              value: board ? board.summary.missing : "—",
+              tone: board && board.summary.missing > 0 ? "danger" : "success",
+            },
+            { label: "Present", value: board ? board.summary.present.toLocaleString() : "—" },
+          ]}
+          actions={
+            <>
+              <Button variant="secondary" size="sm" onClick={() => setDate(stepDay(date, -1))}>
+                Yesterday
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={missing.length === 0}
+                title={missing.length === 0 ? "Every register is in." : undefined}
+                onClick={() => void copyMissing()}
+              >
+                Copy the missing list
+              </Button>
+            </>
+          }
+        />
+      }
+    >
       <PageChrome title="Attendance">
         <CreateButton
           resource="schools.attendance"
@@ -650,38 +698,6 @@ export function RegisterOversightContent({
           }}
         />
       </PageChrome>
-
-      <PageBand
-        chips={[
-          {
-            label: "Registers in",
-            value: board ? `${board.summary.withRegister} of ${board.summary.yearGroups}` : "—",
-            tone: board && board.summary.missing > 0 ? "warn" : "success",
-          },
-          {
-            label: "Still to come",
-            value: board ? board.summary.missing : "—",
-            tone: board && board.summary.missing > 0 ? "danger" : "success",
-          },
-          { label: "Present", value: board ? board.summary.present.toLocaleString() : "—" },
-        ]}
-        actions={
-          <>
-            <Button variant="secondary" size="sm" onClick={() => setDate(stepDay(date, -1))}>
-              Yesterday
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              disabled={missing.length === 0}
-              title={missing.length === 0 ? "Every register is in." : undefined}
-              onClick={() => void copyMissing()}
-            >
-              Copy the missing list
-            </Button>
-          </>
-        }
-      />
 
       {copied ? (
         <Alert tone="info" title="The missing list" onDismiss={() => setCopied(null)}>
@@ -747,6 +763,7 @@ export function RegisterOversightContent({
         filter does.
       */}
       <TableControls
+        sticky
         search={
           <TableSearch
             label="Search"
@@ -755,11 +772,22 @@ export function RegisterOversightContent({
             placeholder="Search a year group"
           />
         }
+        filterCount={activeFilterCount(classId, streamId, state)}
+        count={boardQuery.isPending ? null : `${filtered.length} of ${rows.length}`}
         filters={
           <>
             <div className="min-w-0 flex-1 basis-[180px] sm:max-w-[200px]">
+              {/* The label says which day the board is showing, in the school's
+                  own words. A native date field draws its value in whatever
+                  order the reader's browser was set up with — 06/03 is the
+                  third of June in this office and the sixth of March on the
+                  laptop beside it — and the register that is in or missing
+                  depends on knowing which. */}
               <Label htmlFor="oversight-date" className="text-sm text-muted-foreground">
                 Date
+                <span className="ml-1.5 text-[color:var(--text-subtle)]">
+                  {formatSchoolDate(date)}
+                </span>
               </Label>
               <Input
                 id="oversight-date"
@@ -810,6 +838,10 @@ export function RegisterOversightContent({
               data={filtered}
               columns={columns}
               pagination={{ enabled: true }}
+              // The search box is in the row above. Left on, `DataTable` draws
+              // a second one in its own toolbar — two boxes on one screen
+              // searching the same rows by different rules.
+              features={{ globalFilter: false }}
               emptyState={
                 rows.length === 0 ? (
                   <NothingYet
@@ -913,6 +945,6 @@ export function RegisterOversightContent({
           onSubmit={(next) => startRegister.mutate(next)}
         />
       ) : null}
-    </div>
+    </SchoolsPage>
   );
 }

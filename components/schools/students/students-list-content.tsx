@@ -4,12 +4,16 @@ import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, Card, MobileList, MobileListSectionHeader } from "@corelithzw/react";
+import { Badge, Button, MobileList, MobileListSectionHeader } from "@corelithzw/react";
 
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordMark } from "@/components/records/record-mark";
+import { RecordCell, recordCellTone } from "@/components/records/record-table";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { FilterSelect } from "@/components/schools/common/filter-select";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
 import {
   ClassFilter,
   ALL_CLASSES,
@@ -24,14 +28,14 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
-import { RecordTabs } from "@/components/schools/records/record-tabs";
+import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
   StudentFormSheet,
   type StudentFormValues,
 } from "@/components/schools/students/student-form-sheet";
 import { DataTable, type DataTableQueryState } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   createStudent,
   deleteStudent,
@@ -76,15 +80,6 @@ const TAB_QUERY: Record<RollTab, { status?: string; isBoarding?: boolean }> = {
   applicants: { status: "APPLICANT" },
   suspended: { status: "SUSPENDED" },
   boarders: { isBoarding: true },
-};
-
-/** What the card over the table calls the population in view. */
-const TAB_CARD_TITLE: Record<RollTab, string> = {
-  all: "All students",
-  active: "Active students",
-  applicants: "Applicants",
-  suspended: "Suspended students",
-  boarders: "Boarders",
 };
 
 const STATUS_OPTIONS = [
@@ -153,12 +148,6 @@ export function StudentsListContent() {
   const [statusFilter, setStatusFilter] = useState("");
   const [boardingFilter, setBoardingFilter] = useState("");
   const [portalFilter, setPortalFilter] = useState("");
-  /**
-   * The narrowing controls are folded away until asked for. Five dropdowns
-   * permanently open over a table is a wall that hides the rows; the tabs
-   * answer the common question and "Filter" is there for the rest.
-   */
-  const [filtersOpen, setFiltersOpen] = useState(false);
   const [formOpen, setFormOpen] = useState(false);
   const [editing, setEditing] = useState<StudentRollRecord | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -295,12 +284,17 @@ export function StudentsListContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
+  /**
+   * The narrowing in force, in the reader's own words — and without the search
+   * term, which the empty state names separately. A search folded in with the
+   * filters turns "no students match that search" into a sentence that lists
+   * what was typed twice and offers to clear filters nobody set.
+   */
   const namedFilters = [
     classValue.classId ? "the chosen class" : undefined,
     STATUS_OPTIONS.find((option) => option.value === statusFilter)?.label,
     BOARDING_OPTIONS.find((option) => option.value === boardingFilter)?.label,
     PORTAL_OPTIONS.find((option) => option.value === portalFilter)?.label,
-    search.trim() || undefined,
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
@@ -325,44 +319,33 @@ export function StudentsListContent() {
       {
         id: "student",
         header: "Student",
+        // The mark, the name and the one line that tells two Tendai Moyos
+        // apart, as one cell. The admission number leads it because it is the
+        // half that is unique, and the year group follows because that is what
+        // somebody at the counter is holding in their head.
+        //
+        // It is why there is no Admission column and no Year column any more:
+        // three columns saying what one cell says cost 220px of a register
+        // that is read across.
         cell: ({ row }) => (
-          <div className="flex items-center gap-3">
-            <PersonAvatar
-              firstName={row.original.firstName}
-              lastName={row.original.lastName}
-            />
-            <div className="min-w-0">
-              <div className="font-medium">
-                <Link
-                  href={`/schools/students/${row.original.id}`}
-                  className="hover:underline"
-                >
-                  {row.original.firstName} {row.original.lastName}
-                </Link>
-              </div>
-              <div className="text-sm text-muted-foreground">
-                {row.original.currentClass?.name ?? "No year group"}
-              </div>
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "admission",
-        header: "Admission",
-        cell: ({ row }) => (
-          <NumericCell>{row.original.admissionNo ?? row.original.studentNo}</NumericCell>
+          <PersonCell
+            firstName={row.original.firstName}
+            lastName={row.original.lastName}
+            href={recordType("STUDENT").href(row.original.id)}
+            reference={row.original.admissionNo ?? row.original.studentNo}
+            context={row.original.currentClass?.name}
+          />
         ),
       },
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => row.original.currentStream?.name ?? "—",
-      },
-      {
-        id: "year",
-        header: "Year",
-        cell: ({ row }) => row.original.currentClass?.name ?? "—",
+        cell: ({ row }) => (
+          <RecordCell
+            value={row.original.currentStream?.name}
+            className="text-[color:var(--text-muted)]"
+          />
+        ),
       },
       {
         id: "guardian",
@@ -370,16 +353,24 @@ export function StudentsListContent() {
         cell: ({ row }) => {
           const links = row.original.guardianLinks ?? [];
           const primary = links.find((link) => link.isPrimary) ?? links[0];
+          // Named in words rather than dashed. A child with nobody attached is
+          // the one row on this register somebody has to act on, and a dash
+          // under "Primary guardian" reads as a column that failed to load.
           if (!primary) {
             return <span className="text-sm text-muted-foreground">No guardian linked</span>;
           }
+          // The truncation is owned by the cell, not by the link: a link is an
+          // inline child and will not clamp itself, so a long name wrapped to
+          // two lines and made its row twice as tall as its neighbours.
           return (
-            <Link
-              href={`/schools/guardians/${primary.guardian.id}`}
-              className="hover:underline"
-            >
-              {primary.guardian.firstName} {primary.guardian.lastName}
-            </Link>
+            <span className="block truncate">
+              <EntityLink
+                href={recordType("GUARDIAN").href(primary.guardian.id)}
+                className={recordCellTone("relation")}
+              >
+                {primary.guardian.firstName} {primary.guardian.lastName}
+              </EntityLink>
+            </span>
           );
         },
       },
@@ -396,7 +387,7 @@ export function StudentsListContent() {
           if (rate === null || rate === undefined) {
             return <span className="text-sm text-muted-foreground">No register yet</span>;
           }
-          return <NumericCell>{rate.toFixed(1)}%</NumericCell>;
+          return <RecordCell kind="number" value={`${rate.toFixed(1)}%`} />;
         },
       },
       {
@@ -406,7 +397,9 @@ export function StudentsListContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but it still needs a header cell, or the
+        // body rows carry one more cell than the head.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const student = row.original;
           const name = `${student.firstName} ${student.lastName}`;
@@ -419,6 +412,7 @@ export function StudentsListContent() {
           return (
             <RecordActions
               layout="menu"
+              label={`Row actions for ${name}`}
               resource="schools.students"
               verbs={[
                 {
@@ -488,10 +482,41 @@ export function StudentsListContent() {
 
   const tally = tallyQuery.data;
   const nothingAtAll =
-    !rollQuery.isPending && students.length === 0 && namedFilters.length === 0;
+    !rollQuery.isPending &&
+    students.length === 0 &&
+    namedFilters.length === 0 &&
+    !search.trim();
 
   return (
-    <div className="space-y-4">
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            { label: "Active", value: tally?.active ?? "—", tone: "success" },
+            { label: "Applicants", value: tally?.applicants ?? "—", tone: "brand" },
+            { label: "Boarders", value: tally?.boarders ?? "—" },
+            {
+              label: "Suspended",
+              value: tally?.suspended ?? "—",
+              tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
+            },
+          ]}
+          actions={
+            <>
+              <Button asChild variant="secondary" size="sm">
+                <Link href="/schools/students/roll-up">Roll up the year</Link>
+              </Button>
+              {/* Named for what it does. It prints the roll as it stands,
+                  filters and all — "Export" promised a file the button has
+                  never produced. */}
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                Print the roll
+              </Button>
+            </>
+          }
+        />
+      }
+    >
       {/* The page is named once, in the app bar, and the one create verb goes
           with the name. The dialog it opens runs on state this component owns,
           which is why the registration is here and not in the route file. */}
@@ -506,39 +531,19 @@ export function StudentsListContent() {
         />
       </PageChrome>
 
-      <PageBand
-        chips={[
-          { label: "Active", value: tally?.active ?? "—", tone: "success" },
-          { label: "Applicants", value: tally?.applicants ?? "—", tone: "brand" },
-          { label: "Boarders", value: tally?.boarders ?? "—" },
-          {
-            label: "Suspended",
-            value: tally?.suspended ?? "—",
-            tone: (tally?.suspended ?? 0) > 0 ? "danger" : "neutral",
-          },
-        ]}
-        actions={
-          <>
-            <Button asChild variant="secondary" size="sm">
-              <Link href="/schools/students/roll-up">Roll up the year</Link>
-            </Button>
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => window.print()}
-              title="Print the list as it stands, filters and all."
-            >
-              Export
-            </Button>
-          </>
-        }
-      />
-
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
 
+      {/* One row, read left to right: which population, then how it is
+          narrowed, then how many of it there are. The filters used to sit on a
+          row of their own behind a "Filter" button this screen wrote for
+          itself — so "narrow it down" was answered in two places a band apart,
+          and the answer on a phone was different again. `TableControls` folds
+          them behind one button below `sm` and carries the active count on it,
+          which is the same instinct done once for every campus list. */}
       <TableControls
+        sticky
         tabs={
-          <RecordTabs<RollTab>
+          <PopulationTabs<RollTab>
             value={tab}
             onChange={(next) => {
               setTab(next);
@@ -562,151 +567,152 @@ export function StudentsListContent() {
             placeholder="Search name or admission number"
           />
         }
+        filterCount={activeFilterCount(
+          classValue.classId,
+          statusFilter,
+          boardingFilter,
+          portalFilter,
+        )}
+        filters={
+          <>
+            <ClassFilter
+              value={classValue}
+              onChange={(next) => {
+                setClassValue(next);
+                toFirstPage();
+              }}
+            />
+            <FilterSelect
+              label="Status"
+              allLabel="Any status"
+              value={statusFilter}
+              options={STATUS_OPTIONS}
+              onChange={(value) => {
+                setStatusFilter(value);
+                toFirstPage();
+              }}
+            />
+            <FilterSelect
+              label="Boarding"
+              allLabel="Boarders and day"
+              value={boardingFilter}
+              options={BOARDING_OPTIONS}
+              onChange={(value) => {
+                setBoardingFilter(value);
+                toFirstPage();
+              }}
+            />
+            <FilterSelect
+              label="Portal account"
+              allLabel="Any account"
+              value={portalFilter}
+              options={PORTAL_OPTIONS}
+              onChange={(value) => {
+                setPortalFilter(value);
+                toFirstPage();
+              }}
+            />
+          </>
+        }
+        // The answer to whatever the filters just asked, beside the question
+        // rather than under the table — and not in the band, which carries the
+        // school's own numbers and must not move when a filter does.
+        count={rollQuery.isPending ? null : `${students.length} of ${total}`}
         actions={
-          <Button
-            variant={filtersOpen || namedFilters.length > 0 ? "primary" : "secondary"}
-            size="sm"
-            onClick={() => setFiltersOpen((open) => !open)}
-          >
-            Filter
-            {namedFilters.length > 0 ? ` · ${namedFilters.length}` : ""}
-          </Button>
+          namedFilters.length > 0 || search.trim() ? (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              Clear the filters
+            </Button>
+          ) : null
         }
       />
 
-      {filtersOpen ? (
-        <TableControls
-          filters={
-            <>
-              <ClassFilter
-                value={classValue}
-                onChange={(next) => {
-                  setClassValue(next);
-                  toFirstPage();
-                }}
-              />
-              <FilterSelect
-                label="Status"
-                allLabel="Any status"
-                value={statusFilter}
-                options={STATUS_OPTIONS}
-                onChange={(value) => {
-                  setStatusFilter(value);
-                  toFirstPage();
-                }}
-              />
-              <FilterSelect
-                label="Boarding"
-                allLabel="Boarders and day"
-                value={boardingFilter}
-                options={BOARDING_OPTIONS}
-                onChange={(value) => {
-                  setBoardingFilter(value);
-                  toFirstPage();
-                }}
-              />
-              <FilterSelect
-                label="Portal account"
-                allLabel="Any account"
-                value={portalFilter}
-                options={PORTAL_OPTIONS}
-                onChange={(value) => {
-                  setPortalFilter(value);
-                  toFirstPage();
-                }}
-              />
-            </>
-          }
-          actions={
-            namedFilters.length > 0 ? (
-              <Button variant="ghost" size="sm" onClick={clearFilters}>
-                Clear the filters
-              </Button>
-            ) : null
-          }
-        />
-      ) : null}
-
-      <Card
-        flush
-        title={TAB_CARD_TITLE[tab]}
-        subtitle={
-          rollQuery.isPending
-            ? "Reading the roll…"
-            : `${total} student${total === 1 ? "" : "s"} · sorted by class`
+      {/* No card, and no title over the table: the bar names the page and the
+          lit tab names the population. A card that repeated both spent a band
+          of vertical space saying what two controls above it had just said. */}
+      <DataTable
+        data={students}
+        columns={columns}
+        queryState={queryState}
+        onQueryStateChange={(next) =>
+          setQueryState((current) => ({ ...current, ...next }))
         }
-      >
-        <DataTable
-          data={students}
-          columns={columns}
-          queryState={queryState}
-          onQueryStateChange={(next) =>
-            setQueryState((current) => ({ ...current, ...next }))
-          }
-          features={{ sorting: false, globalFilter: false, pagination: true }}
-          pagination={{
-            enabled: true,
-            server: true,
-            total,
-            totalPages: rollQuery.data?.pagination.pages ?? 1,
-          }}
-          rowGroup={yearGroupFor}
-          mobileListRenderer={({ rows }) => (
-            <MobileList>
-              {rows.map(({ row }, index) => {
-                const group = yearGroupFor?.(row);
-                const previous = index > 0 ? yearGroupFor?.(rows[index - 1].row) : undefined;
-                return (
-                  <Fragment key={row.id}>
-                    {group && group.key !== previous?.key ? (
-                      <MobileListSectionHeader>{group.label}</MobileListSectionHeader>
-                    ) : null}
-                    <MobileList.Row
-                      leading={
-                        <PersonAvatar firstName={row.firstName} lastName={row.lastName} />
-                      }
-                      title={`${row.firstName} ${row.lastName}`}
-                      subtitle={[
-                        row.admissionNo ?? row.studentNo,
-                        row.currentStream?.name ?? row.currentClass?.name ?? "No class",
-                        row.isBoarding ? "Boarder" : "Day scholar",
-                      ]
-                        .filter(Boolean)
-                        .join(" · ")}
-                      onClick={() => {
-                        window.location.href = `/schools/students/${row.id}`;
-                      }}
-                    />
-                  </Fragment>
-                );
-              })}
-            </MobileList>
-          )}
-          emptyState={
-            rollQuery.isPending ? (
-              <TableRowsSkeleton
-                rows={8}
-                columns={[
-                  { avatar: true, twoLine: true },
-                  { width: 120 },
-                  { width: 100 },
-                  { width: 100 },
-                  {},
-                  { width: 90 },
-                  { width: 90 },
-                ]}
-              />
-            ) : nothingAtAll ? (
-              <NothingYet
-                title="Nobody is on the roll yet"
-                body="Add the first pupil, or bring the whole school over from your old system under Import records."
-              />
-            ) : (
-              <NothingMatched what="students" filters={namedFilters} onClear={clearFilters} />
-            )
-          }
-        />
-      </Card>
+        features={{ sorting: false, globalFilter: false, pagination: true }}
+        pagination={{
+          enabled: true,
+          server: true,
+          total,
+          totalPages: rollQuery.data?.pagination.pages ?? 1,
+        }}
+        rowGroup={yearGroupFor}
+        mobileListRenderer={({ rows }) => (
+          <MobileList>
+            {rows.map(({ row }, index) => {
+              const group = yearGroupFor?.(row);
+              const previous = index > 0 ? yearGroupFor?.(rows[index - 1].row) : undefined;
+              return (
+                <Fragment key={row.id}>
+                  {group && group.key !== previous?.key ? (
+                    <MobileListSectionHeader>{group.label}</MobileListSectionHeader>
+                  ) : null}
+                  <MobileList.Row
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${row.firstName} ${row.lastName}`}
+                        size="sm"
+                      />
+                    }
+                    title={`${row.firstName} ${row.lastName}`}
+                    // The same facts the table's name cell carries, in the same
+                    // order, so the roll says the same thing about a child
+                    // whichever width you meet it at.
+                    subtitle={[
+                      row.admissionNo ?? row.studentNo,
+                      row.currentStream?.name ?? row.currentClass?.name ?? "No class",
+                      row.isBoarding ? "Boarder" : "Day scholar",
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    onClick={() => {
+                      window.location.href = `/schools/students/${row.id}`;
+                    }}
+                  />
+                </Fragment>
+              );
+            })}
+          </MobileList>
+        )}
+        emptyState={
+          rollQuery.isPending ? (
+            <TableRowsSkeleton
+              rows={8}
+              headers={["Student", "Class", "Primary guardian", "Fees", "Attendance", "Status", ""]}
+              columns={[
+                { avatar: true, twoLine: true },
+                { width: 100 },
+                {},
+                { width: 90, badge: true },
+                { width: 90, align: "right" },
+                { width: 90, badge: true },
+                { width: 44 },
+              ]}
+            />
+          ) : nothingAtAll ? (
+            <NothingYet
+              title="Nobody is on the roll yet"
+              body="Add the first pupil, or bring the whole school over from your old system under Import records."
+            />
+          ) : (
+            <NothingMatched
+              what="students"
+              filters={namedFilters}
+              search={search}
+              onClear={clearFilters}
+            />
+          )
+        }
+      />
 
       <StudentFormSheet
         open={formOpen}
@@ -719,6 +725,6 @@ export function StudentsListContent() {
         error={saveMutation.isError ? actionError : null}
         onSubmit={(values) => saveMutation.mutate(values)}
       />
-    </div>
+    </SchoolsPage>
   );
 }

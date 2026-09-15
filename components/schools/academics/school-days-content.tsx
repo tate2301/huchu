@@ -326,6 +326,8 @@ export function SchoolDaysContent() {
                         <Badge tone="neutral">School closed</Badge>
                       )}
                       <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${event.title}`}
                         resource="schools.academics"
                         verbs={[
                           {

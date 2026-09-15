@@ -11,7 +11,9 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordMark } from "@/components/records/record-mark";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
@@ -205,19 +207,20 @@ export function TeachingResourcesContent() {
         <SaveError what="The resource" error={deleteMutation.error} />
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <FilterBar>
-          <div className="min-w-0 flex-1 basis-[200px] sm:max-w-[280px]">
-            <Label htmlFor="resource-search" className="text-sm text-muted-foreground">
-              Find
-            </Label>
-            <Input
-              id="resource-search"
-              value={search}
-              placeholder="Worksheet, past paper…"
-              onChange={(event) => setSearch(event.target.value)}
-            />
-          </div>
+      {/* One row above the shelf: how to find something, how it is narrowed,
+          how much of it there is. The count used to be a sentence of its own
+          under the row — it moves when the filters move, so it belongs beside
+          them rather than in a paragraph the reader scrolls past. */}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Worksheet, past paper…"
+          />
+        }
+        filterCount={activeFilterCount(subjectFilter)}
+        filters={
           <FilterSelect
             label="Subject"
             allLabel="Every subject"
@@ -228,13 +231,14 @@ export function TeachingResourcesContent() {
             }))}
             onChange={setSubjectFilter}
           />
-        </FilterBar>
-        <Button onClick={openBlank}>Add a resource</Button>
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        {resources.length} resource{resources.length === 1 ? "" : "s"} on the shelf.
-      </p>
+        }
+        count={
+          resourcesQuery.isPending
+            ? null
+            : `${grouped.reduce((total, [, rows]) => total + rows.length, 0)} of ${resources.length}`
+        }
+        actions={<Button onClick={openBlank}>Add a resource</Button>}
+      />
 
       {resourcesQuery.isPending ? (
         // The shelf is a grid of cards, so it gets card placeholders. Table
@@ -266,34 +270,11 @@ export function TeachingResourcesContent() {
                 <MobileList.Row
                   key={resource.id}
                   static
+                  leading={<RecordMark kind="document" name={resource.title} size="sm" />}
                   title={resource.title}
-                  trailing={
-                    <RecordActions
-                      resource="schools.academics"
-                      verbs={[
-                        {
-                          label: "Edit",
-                          action: "edit",
-                          onSelect: () => openFor(resource),
-                        },
-                        {
-                          label: "Take it off",
-                          action: "archive",
-                          tone: "danger",
-                          loading:
-                            deleteMutation.isPending &&
-                            deleteMutation.variables === resource.id,
-                          onSelect: () => deleteMutation.mutate(resource.id),
-                          confirm: {
-                            title: `Take “${resource.title}” off the shelf?`,
-                            description:
-                              "It goes for everybody who can see the shelf. Nothing else in the school points at a resource, so this cannot be undone.",
-                            confirmLabel: "Take it off",
-                          },
-                        },
-                      ]}
-                    />
-                  }
+                  // The verbs sit on the subtitle line rather than in the row's
+                  // trailing slot: that column is sized for a chevron, and a
+                  // 28px menu trigger dropped into it is clipped.
                   subtitle={
                     <span className="mt-1 flex flex-wrap items-center gap-2">
                       <span>
@@ -317,6 +298,33 @@ export function TeachingResourcesContent() {
                           Open
                         </a>
                       ) : null}
+                      <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${resource.title}`}
+                        resource="schools.academics"
+                        verbs={[
+                          {
+                            label: "Edit",
+                            action: "edit",
+                            onSelect: () => openFor(resource),
+                          },
+                          {
+                            label: "Take it off",
+                            action: "archive",
+                            tone: "danger",
+                            loading:
+                              deleteMutation.isPending &&
+                              deleteMutation.variables === resource.id,
+                            onSelect: () => deleteMutation.mutate(resource.id),
+                            confirm: {
+                              title: `Take “${resource.title}” off the shelf?`,
+                              description:
+                                "It goes for everybody who can see the shelf. Nothing else in the school points at a resource, so this cannot be undone.",
+                              confirmLabel: "Take it off",
+                            },
+                          },
+                        ]}
+                      />
                     </span>
                   }
                 />

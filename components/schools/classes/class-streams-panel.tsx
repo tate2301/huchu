@@ -183,13 +183,15 @@ export function ClassStreamsPanel({
           onClear={() => setSearch("")}
         />
       ) : (
-        <ul className="divide-y divide-[color:var(--border-subtle)]">
+        /* Separated by space, not by rules — the rows stop reading as a ruled
+           ledger and there is one less line to cross per stream. */
+        <ul className="space-y-1">
           {visible.map((stream, index) => (
             <li
               key={stream.id}
               // The same 40ms cascade the skeleton left on, so the real rows
               // arrive where the placeholder bars were rather than snapping in.
-              className="campus-row-in flex flex-wrap items-center justify-between gap-3 py-3"
+              className="campus-row-in flex min-h-11 flex-wrap items-center justify-between gap-3 py-2"
               style={{ animationDelay: `${index * 40}ms` }}
             >
               <div className="min-w-0">
@@ -204,6 +206,8 @@ export function ClassStreamsPanel({
                 </p>
               </div>
               <RecordActions
+                layout="menu"
+                label={`Row actions for ${stream.name}`}
                 resource="schools.academics"
                 verbs={[
                   {

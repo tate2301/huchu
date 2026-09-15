@@ -25,8 +25,12 @@ import {
 } from "@/components/schools/guardians/guardian-children-panel";
 import { GuardianPortalPanel } from "@/components/schools/guardians/guardian-portal-panel";
 import { RecordActions } from "@/components/schools/common/record-actions";
-import { RecordNotFound } from "@/components/schools/common/states";
-import { Skeleton } from "@/components/ui/skeleton";
+import {
+  Glance,
+  GlanceList,
+  RecordLoadFailure,
+  RecordPageSkeleton,
+} from "@/components/schools/records/record-page-parts";
 import { fetchJson } from "@/lib/api-client";
 import type { CrmFieldDefinitionRecord } from "@/lib/crm/crm-v2";
 import { Badge, Lock, Mail, MapPin, Phone, Tag } from "@/lib/icons";
@@ -165,20 +169,18 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
   }, [guardian, edit]);
 
   if (query.isPending) {
-    return (
-      <div className="space-y-4" data-testid="guardian-record-loading">
-        <Skeleton className="h-24 w-full" />
-        <Skeleton className="h-64 w-full" />
-      </div>
-    );
+    return <RecordPageSkeleton testId="guardian-record-loading" sections={2} columns={1} />;
   }
 
   if (query.isError || !guardian) {
     return (
-      <RecordNotFound
-        what="That guardian"
+      <RecordLoadFailure
+        notFound="That guardian"
+        what="this guardian's record"
+        error={query.error}
         backHref={config.indexHref}
         backLabel="Back to the guardians"
+        onRetry={() => void query.refetch()}
       />
     );
   }
@@ -298,11 +300,14 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
       onTabChange={setActiveTab}
       rail={
         <RailSection title="At a glance">
-          <dl className="space-y-2 text-sm">
-            <Glance label="Children" value={String(links.length)} />
-            {/* Yes or no, not a count. "Gets fee notices: 1" of one child reads
-                as a quantity of notices; what the office is asking is whether
-                this person may be told what the family owes at all. */}
+          {/* Not how many children — the Children section already carries that
+              count, and saying it again here is the same number twice inside
+              200px. What nothing else answers is what this person may be told,
+              which is why an office opens a guardian at all.
+
+              Yes or no, not a count: "Gets fee notices: 1" of one child reads
+              as a quantity of notices. */}
+          <GlanceList>
             <Glance
               label="Gets fee notices"
               value={links.some((link) => link.canReceiveFinancials) ? "Yes" : "No"}
@@ -311,18 +316,9 @@ export function GuardianRecordPage({ guardianId }: { guardianId: string }) {
               label="Gets results"
               value={links.some((link) => link.canReceiveAcademicResults) ? "Yes" : "No"}
             />
-          </dl>
+          </GlanceList>
         </RailSection>
       }
     />
-  );
-}
-
-function Glance({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="flex items-baseline justify-between gap-3">
-      <dt className="text-[var(--text-muted)]">{label}</dt>
-      <dd className="font-medium text-[var(--text-strong)]">{value}</dd>
-    </div>
   );
 }

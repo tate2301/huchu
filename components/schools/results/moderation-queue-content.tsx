@@ -1,14 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
-import { Card } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
-import { RecordActions } from "@/components/schools/common/record-actions";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,
   NothingLeftToDo,
@@ -19,20 +18,27 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import type { ResultSheetLike, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
+import {
+  SheetMobileList,
+  averageColumn,
+  linesColumn,
+  moderationColumn,
+  sheetActionsColumn,
+  sheetClassName,
+  sheetColumn,
+  waitingColumn,
+} from "@/components/schools/results/sheet-columns";
 import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
 import { SheetFormDialog } from "@/components/schools/results/sheet-form-dialog";
 import {
   SHEET_STATE_LABELS,
   SHEET_STATE_OPTIONS,
-  SheetStateBadge,
-  formatDay,
-  waitingFor,
   waitingMs,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
@@ -70,6 +76,7 @@ export function ModerationQueueContent() {
   const [subjectFilter, setSubjectFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [formFor, setFormFor] = useState<ResultSheetLike | null>(null);
   const [openSheetId, setOpenSheetId] = useState<string | null>(null);
 
@@ -120,12 +127,21 @@ export function ModerationQueueContent() {
 
   const filtered = useMemo(() => {
     const needle = subjectName.toLowerCase();
+    const typed = search.trim().toLowerCase();
     return sheets.filter((sheet) => {
       if (stateFilter && sheet.status !== stateFilter) return false;
       if (needle && !sheet.title.toLowerCase().includes(needle)) return false;
+      if (
+        typed &&
+        !`${sheet.title} ${sheetClassName(sheet)} ${sheet.term.name}`
+          .toLowerCase()
+          .includes(typed)
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [sheets, stateFilter, subjectName]);
+  }, [sheets, stateFilter, subjectName, search]);
 
   const queueRows = useMemo(
     () =>
@@ -156,78 +172,21 @@ export function ModerationQueueContent() {
     setSubjectFilter("");
     setTermFilter("");
     setStateFilter("");
+    setSearch("");
   };
 
-  const columns = useMemo<ColumnDef<ResultSheetLike>[]>(
+  const columns = useMemo(
     () => [
-      {
-        id: "waiting",
-        header: "Waiting",
-        cell: ({ row }) => (
-          <div>
-            <NumericCell align="left">{waitingFor(waitingSince(row.original))}</NumericCell>
-            <div className="text-xs text-muted-foreground">
-              since {formatDay(waitingSince(row.original))}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "sheet",
-        header: "Sheet",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.title}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.term.name} / {row.original.class.name}
-              {row.original.stream ? ` / ${row.original.stream.name}` : ""}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => <SheetStateBadge status={row.original.status} />,
-      },
-      {
-        id: "lines",
-        header: "Lines",
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.stats?.linesCount ?? row.original._count.lines}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "average",
-        header: "Average",
-        cell: ({ row }) => {
-          const average = row.original.stats?.averageScore ?? null;
-          return <NumericCell>{average === null ? "—" : average.toFixed(2)}</NumericCell>;
-        },
-      },
-      {
-        id: "published",
-        header: "Published",
-        cell: ({ row }) => (
-          <NumericCell>{formatDay(row.original.publishedAt)}</NumericCell>
-        ),
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <RecordActions
-              layout="menu"
-            resource="schools.results"
-            verbs={workflow.verbsFor(row.original, {
-              onOpen: (sheet) => setOpenSheetId(sheet.id),
-              onEdit: (sheet) => setFormFor(sheet),
-            })}
-          />
-        ),
-      },
+      waitingColumn(waitingSince),
+      sheetColumn(),
+      moderationColumn("State"),
+      linesColumn(),
+      averageColumn(),
+      sheetActionsColumn({
+        workflow,
+        onOpen: (sheet) => setOpenSheetId(sheet.id),
+        onEdit: (sheet) => setFormFor(sheet),
+      }),
     ],
     [workflow],
   );
@@ -241,59 +200,83 @@ export function ModerationQueueContent() {
     access.can("schools.results", "approve") ||
     access.can("schools.results", "moderate");
 
+  const narrowed = narrowing.length > 0 || Boolean(search.trim());
+
+  const emptyState = narrowed ? (
+    <NothingMatched
+      what="sheets"
+      filters={narrowing}
+      search={search}
+      onClear={clearFilters}
+    />
+  ) : view === "queue" ? (
+    <NothingLeftToDo
+      title="Nothing waiting on moderation"
+      body="Every sheet handed in has been dealt with. New ones appear the moment a teacher submits."
+    />
+  ) : (
+    /*
+      An empty queue is good news; an empty school is not the same sentence.
+      "All sheets" with nothing in it means no class has written marks to a
+      sheet yet, which is a school on its first day rather than a cleared desk.
+    */
+    <NothingYet
+      title="No result sheets yet"
+      body="Sheets appear here once a class's marks have been written to one, from that year group's assessments."
+    />
+  );
+
   return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Results moderation"
-        description="Sheets a head of department has to sign off before anything can be published."
-      />
+    <SchoolsPage
+      band={
+        /*
+          The band on this screen carries the whole term's state, not just the
+          queue's own: a head of department deciding whether to sign one more
+          sheet off tonight needs to know a window is already open (so
+          approving releases marks this evening) or that every window is shut
+          (so it can wait until morning). The five sheet states and the three
+          window states, in the order a sheet travels.
+        */
+        <PageBand
+          chips={[
+            { label: "Draft", value: summary?.draftSheets ?? "—" },
+            { label: "Submitted", value: summary?.submittedSheets ?? "—", tone: "warn" },
+            { label: "Sent back", value: summary?.hodRejectedSheets ?? "—", tone: "danger" },
+            { label: "Approved", value: summary?.hodApprovedSheets ?? "—", tone: "success" },
+            {
+              label: "Published",
+              value: summary?.publishedSheets ?? "—",
+              tone: "brand",
+              href: "/schools/results/publish",
+            },
+            {
+              label: "Windows open",
+              value: summary?.openPublishWindows ?? "—",
+              tone: "success",
+              href: "/schools/results/publish",
+            },
+            {
+              label: "Windows scheduled",
+              value: summary?.scheduledPublishWindows ?? "—",
+              href: "/schools/results/publish",
+            },
+            {
+              label: "Windows closed",
+              value: summary?.closedPublishWindows ?? "—",
+              href: "/schools/results/publish",
+            },
+          ]}
+        />
+      }
+    >
+      <PageChrome title="Moderation" />
 
       {/*
-        The canvas band on this screen carries the whole term's state, not just
-        the queue's own: a head of department deciding whether to sign one more
-        sheet off tonight needs to know a window is already open (so approving
-        releases marks this evening) or that every window is shut (so it can
-        wait until morning). The five sheet states and the three window states
-        are the eight numbers the artboard draws, in its order.
-      */}
-      <PageBand
-        chips={[
-          { label: "Draft", value: summary?.draftSheets ?? 0 },
-          { label: "Submitted", value: summary?.submittedSheets ?? 0, tone: "warn" },
-          { label: "Sent back", value: summary?.hodRejectedSheets ?? 0, tone: "danger" },
-          { label: "Approved", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
-          {
-            label: "Published",
-            value: summary?.publishedSheets ?? 0,
-            tone: "brand",
-            href: "/schools/results/publish",
-          },
-          {
-            label: "Windows open",
-            value: summary?.openPublishWindows ?? 0,
-            tone: "success",
-            href: "/schools/results/publish",
-          },
-          {
-            label: "Windows scheduled",
-            value: summary?.scheduledPublishWindows ?? 0,
-            href: "/schools/results/publish",
-          },
-          {
-            label: "Windows closed",
-            value: summary?.closedPublishWindows ?? 0,
-            href: "/schools/results/publish",
-          },
-        ]}
-      />
-
-      {/*
-        The canvas draws the refusal on this screen specifically. A bursar or a
-        subject teacher can read the queue all day; approving and sending back
-        belong to the head of department for the subject. RecordActions already
-        disables each verb with the reason on it, but a row of dead buttons
-        never says why the whole screen is read-only — so the screen says it
-        once, at the top, and names who to ask.
+        A bursar or a subject teacher can read the queue all day; approving and
+        sending back belong to the head of department for the subject.
+        `RecordActions` already disables each verb with the reason on it, but a
+        menu of dead verbs never says why the whole screen is read-only — so the
+        screen says it once, at the top, and names who to ask.
       */}
       {canModerate ? null : (
         <NotYourJob action="approve" resource="schools.results" what="A mark sheet" />
@@ -310,116 +293,117 @@ export function ModerationQueueContent() {
 
       <VerticalDataViews
         items={[
-          { id: "queue", label: "Moderation queue", count: queueRows.length },
+          { id: "queue", label: "Waiting on you", count: queueRows.length },
           { id: "all", label: "All sheets", count: allRows.length },
         ]}
         value={view}
         onValueChange={(next) => setView(next as QueueView)}
         railLabel="Moderation views"
       >
-        <div className="space-y-4">
-          <FilterBar>
-            <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
-              value={classFilter}
-              options={classes.map((row) => ({ value: row.id, label: row.name }))}
-              onChange={(next) => {
-                setClassFilter(next);
-                setStreamFilter("");
-              }}
-            />
-            <FilterSelect
-              label="Class"
-              allLabel="Every class"
-              value={streamFilter}
-              options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
-              onChange={setStreamFilter}
-            />
-            <FilterSelect
-              label="Subject"
-              allLabel="Every subject"
-              value={subjectFilter}
-              options={subjects.map((subject) => ({ value: subject.id, label: subject.name }))}
-              onChange={setSubjectFilter}
-            />
-            <FilterSelect
-              label="Term"
-              allLabel="Every term"
-              value={termFilter}
-              options={terms.map((term) => ({ value: term.id, label: term.name }))}
-              onChange={setTermFilter}
-            />
-            <FilterSelect
-              label="Status"
-              allLabel="Any status"
-              value={stateFilter}
-              options={SHEET_STATE_OPTIONS}
-              onChange={setStateFilter}
-            />
-          </FilterBar>
-
-          <Card
-            flush
-            title={view === "queue" ? "Moderation queue" : "All result sheets"}
-            subtitle={
-              view === "queue"
-                ? "Longest wait first — nothing publishes until these clear"
-                : "Every sheet in the school, whatever state it is in"
-            }
-          >
-            {resultsQuery.isLoading ? (
-              <TableRowsSkeleton
-                headers={[
-                  "Waiting",
-                  "Sheet",
-                  "Status",
-                  "Lines",
-                  "Average",
-                  "Published",
-                ]}
-                columns={[
-                  { width: 100, twoLine: true },
-                  { twoLine: true },
-                  { width: 110, badge: true },
-                  { width: 70, align: "right" },
-                  { width: 80, align: "right" },
-                  { width: 90, align: "right" },
-                ]}
+        <div className="space-y-2">
+          <TableControls
+            sticky
+            search={
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder="Search sheet, class or term"
               />
-            ) : (
-              <DataTable
-                data={rows}
-                columns={columns}
-                edgeToEdge
-                searchPlaceholder="Search moderation queue"
-                searchBehavior="instant"
-                pagination={{ enabled: true }}
-                exportConfig={{ enabled: true, title: "Moderation queue", fileName: "moderation-queue" }}
-                emptyState={
-                  narrowing.length > 0 ? (
-                    <NothingMatched what="sheets" filters={narrowing} onClear={clearFilters} />
-                  ) : view === "queue" ? (
-                    <NothingLeftToDo
-                      title="Nothing waiting on moderation"
-                      body="Every sheet handed in has been dealt with. New ones appear the moment a teacher submits."
-                    />
-                  ) : (
-                    /*
-                      An empty queue is good news; an empty school is not the
-                      same sentence. "All sheets" with nothing in it means no
-                      class has written marks to a sheet yet, which is a school
-                      on its first day rather than a cleared desk.
-                    */
-                    <NothingYet
-                      title="No result sheets yet"
-                      body="Sheets appear here once a class's marks have been written to one, from that year group's assessments."
-                    />
-                  )
-                }
+            }
+            filterCount={activeFilterCount(
+              classFilter,
+              streamFilter,
+              subjectFilter,
+              termFilter,
+              stateFilter,
+            )}
+            filters={
+              <>
+                <FilterSelect
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={classFilter}
+                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={(next) => {
+                    setClassFilter(next);
+                    setStreamFilter("");
+                  }}
+                />
+                <FilterSelect
+                  label="Class"
+                  allLabel="Every class"
+                  value={streamFilter}
+                  options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
+                  onChange={setStreamFilter}
+                />
+                <FilterSelect
+                  label="Subject"
+                  allLabel="Every subject"
+                  value={subjectFilter}
+                  options={subjects.map((subject) => ({ value: subject.id, label: subject.name }))}
+                  onChange={setSubjectFilter}
+                />
+                <FilterSelect
+                  label="Term"
+                  allLabel="Every term"
+                  value={termFilter}
+                  options={terms.map((term) => ({ value: term.id, label: term.name }))}
+                  onChange={setTermFilter}
+                />
+                <FilterSelect
+                  label="State"
+                  allLabel="Any state"
+                  value={stateFilter}
+                  options={SHEET_STATE_OPTIONS}
+                  onChange={setStateFilter}
+                />
+              </>
+            }
+            count={resultsQuery.isLoading ? null : `${rows.length} of ${sheets.length}`}
+            actions={
+              narrowed ? (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear the filters
+                </Button>
+              ) : null
+            }
+          />
+
+          <DataTable
+            data={rows}
+            columns={columns}
+            features={{ globalFilter: false }}
+            pagination={{ enabled: true }}
+            exportConfig={{
+              enabled: true,
+              title: "Moderation queue",
+              fileName: "moderation-queue",
+            }}
+            mobileListRenderer={({ rows: shown }) => (
+              <SheetMobileList
+                rows={shown.map(({ row }) => row)}
+                onOpen={(sheet) => setOpenSheetId(sheet.id)}
+                empty={emptyState}
               />
             )}
-          </Card>
+            emptyState={
+              resultsQuery.isLoading ? (
+                <TableRowsSkeleton
+                  headers={["Waiting", "Sheet", "State", "Marks", "Mean", ""]}
+                  columns={[
+                    { width: 100, twoLine: true },
+                    { avatar: true, twoLine: true },
+                    { width: 110, badge: true },
+                    { width: 70, align: "right" },
+                    { width: 80, align: "right" },
+                    { width: 44 },
+                  ]}
+                />
+              ) : (
+                emptyState
+              )
+            }
+          />
         </div>
       </VerticalDataViews>
 
@@ -439,6 +423,6 @@ export function ModerationQueueContent() {
         }}
       />
       {workflow.dialog}
-    </div>
+    </SchoolsPage>
   );
 }

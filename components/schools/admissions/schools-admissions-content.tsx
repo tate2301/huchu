@@ -1,12 +1,13 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordCell } from "@/components/records/record-table";
+import { PersonCell } from "@/components/schools/common/identity-cell";
+import { FilterSelect } from "@/components/schools/common/filter-select";
 import {
   LoadError,
   NothingMatched,
@@ -15,20 +16,14 @@ import {
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
 import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
+import { recordType } from "@/lib/records/registry";
+import { formatSchoolDate } from "@/lib/schools/format";
 import {
   fetchSchoolsClasses,
   fetchSchoolsEnrollments,
   fetchSchoolsTerms,
   type SchoolsEnrollmentRecord,
 } from "@/lib/schools/admin-v2";
-
-function formatDate(value?: string | null) {
-  if (!value) return "-";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toISOString().slice(0, 10);
-}
 
 function statusBadge(status: string) {
   if (status === "ACTIVE") return <Badge tone="success">Active</Badge>;
@@ -45,6 +40,12 @@ const STATUS_OPTIONS = [
 ];
 
 export function SchoolsAdmissionsContent() {
+  /**
+   * What was typed into the table's own search box, echoed out so an empty
+   * list can say which of the search and the filters emptied it. It does not
+   * drive the table — the box and the matching are one control in there.
+   */
+  const [searched, setSearched] = useState("");
   const [classFilter, setClassFilter] = useState("");
   const [termFilter, setTermFilter] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
@@ -94,32 +95,33 @@ export function SchoolsAdmissionsContent() {
       {
         id: "student",
         header: "Student",
+        // An enrolment row is nearly always read on the way to the child it is
+        // about, so the name is the way through to their record — with the
+        // mark and the number that tell two of them apart, the same cell the
+        // roll and the class list draw.
         cell: ({ row }) => (
-          // An enrolment row is nearly always read on the way to the child it
-          // is about, so the name is a way through to their record.
-          <div>
-            <div className="font-medium">
-              <Link
-                href={`/schools/students/${row.original.student.id}`}
-                className="hover:underline"
-              >
-                {row.original.student.firstName} {row.original.student.lastName}
-              </Link>
-            </div>
-            <div className="text-sm text-muted-foreground">
-              {row.original.student.studentNo} · {row.original.term.name}
-            </div>
-          </div>
+          <PersonCell
+            firstName={row.original.student.firstName}
+            lastName={row.original.student.lastName}
+            href={recordType("STUDENT").href(row.original.student.id)}
+            reference={row.original.student.studentNo}
+            context={row.original.term.name}
+          />
         ),
       },
       {
         id: "placement",
-        header: "Class / Stream",
+        header: "Class",
         cell: ({ row }) => (
-          <span>
-            {row.original.class.name}
-            {row.original.stream ? ` / ${row.original.stream.name}` : ""}
-          </span>
+          <RecordCell
+            kind="relation"
+            href={recordType("CLASS").href(row.original.class.id)}
+            value={
+              row.original.stream
+                ? `${row.original.class.name} · ${row.original.stream.name}`
+                : row.original.class.name
+            }
+          />
         ),
       },
       {
@@ -130,12 +132,21 @@ export function SchoolsAdmissionsContent() {
       {
         id: "enrolledAt",
         header: "Enrolled",
-        cell: ({ row }) => <NumericCell>{formatDate(row.original.enrolledAt)}</NumericCell>,
+        cell: ({ row }) => (
+          <RecordCell kind="date" value={formatSchoolDate(row.original.enrolledAt)} />
+        ),
       },
       {
         id: "endedAt",
         header: "Ended",
-        cell: ({ row }) => <NumericCell>{formatDate(row.original.endedAt)}</NumericCell>,
+        // Still on the roll, said in words. A dash here and a dash under
+        // "Enrolled" are two different facts.
+        cell: ({ row }) =>
+          row.original.endedAt ? (
+            <RecordCell kind="date" value={formatSchoolDate(row.original.endedAt)} />
+          ) : (
+            <span className="text-sm text-[var(--text-muted)]">Still enrolled</span>
+          ),
       },
     ],
     [],
@@ -170,55 +181,12 @@ export function SchoolsAdmissionsContent() {
         />
       ) : null}
 
-      <FilterBar>
-        <FilterSelect
-          label="Year group"
-          allLabel="Every year group"
-          value={classFilter}
-          options={classes.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setClassFilter}
-        />
-        <FilterSelect
-          label="Term"
-          allLabel="Every term"
-          value={termFilter}
-          options={terms.map((row) => ({ value: row.id, label: row.name }))}
-          onChange={setTermFilter}
-        />
-        <FilterSelect
-          label="Status"
-          allLabel="Any status"
-          value={statusFilter}
-          options={STATUS_OPTIONS}
-          onChange={setStatusFilter}
-        />
-      </FilterBar>
-
-      <section className="section-shell grid gap-2 md:grid-cols-4">
-        <div>
-          <h2 className="text-sm font-semibold">Enrollments</h2>
-          <p className="font-mono tabular-nums">{enrollments.length}</p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Active</h2>
-          <p className="font-mono tabular-nums">
-            {enrollments.filter((row) => row.status === "ACTIVE").length}
-          </p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Transferred</h2>
-          <p className="font-mono tabular-nums">
-            {enrollments.filter((row) => row.status === "TRANSFERRED").length}
-          </p>
-        </div>
-        <div>
-          <h2 className="text-sm font-semibold">Withdrawn</h2>
-          <p className="font-mono tabular-nums">
-            {enrollments.filter((row) => row.status === "WITHDRAWN").length}
-          </p>
-        </div>
-      </section>
-
+      {/* One row over the table, and the four hand-built tiles that used to
+          sit between them are gone. "Enrollments 214 / Active 198 / …" was the
+          same answer the Status filter gives, counted over the rows the filters
+          had already narrowed — so choosing Withdrawn made three of the four
+          read nought. What is left is the count, beside the question it
+          answers. */}
       {enrollmentsQuery.isPending ? (
         /*
           The skeleton is the table, not a message inside an empty one.
@@ -227,9 +195,9 @@ export function SchoolsAdmissionsContent() {
           reflow twice as the rows landed.
         */
         <TableRowsSkeleton
-          headers={["Student", "Class / Stream", "Status", "Enrolled", "Ended"]}
+          headers={["Student", "Class", "Status", "Enrolled", "Ended"]}
           columns={[
-            { twoLine: true },
+            { avatar: true, twoLine: true },
             {},
             { width: 100, badge: true },
             { width: 110, align: "right" },
@@ -254,13 +222,66 @@ export function SchoolsAdmissionsContent() {
             columns={columns}
             searchPlaceholder="Search enrolments"
             searchSubmitLabel="Search"
+            onQueryStateChange={(next) => {
+              if (next.search !== undefined) setSearched(next.search);
+            }}
             pagination={{ enabled: true }}
+            toolbar={
+              <>
+                <FilterSelect
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={classFilter}
+                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={setClassFilter}
+                />
+                <FilterSelect
+                  label="Term"
+                  allLabel="Every term"
+                  value={termFilter}
+                  options={terms.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={setTermFilter}
+                />
+                <FilterSelect
+                  label="Status"
+                  allLabel="Any status"
+                  value={statusFilter}
+                  options={STATUS_OPTIONS}
+                  onChange={setStatusFilter}
+                />
+              </>
+            }
+            mobileCardRenderer={({ row }) => (
+              // Five columns at 390px is a sideways scroll showing one and a
+              // half of them. The same facts, stacked, in the order the table
+              // reads them.
+              <div className="space-y-1.5">
+                <PersonCell
+                  firstName={row.student.firstName}
+                  lastName={row.student.lastName}
+                  href={recordType("STUDENT").href(row.student.id)}
+                  reference={row.student.studentNo}
+                  context={row.term.name}
+                />
+                <div className="flex flex-wrap items-center gap-2 pl-[2.125rem]">
+                  {statusBadge(row.status)}
+                  <span className="text-sm text-[var(--text-muted)]">
+                    {row.class.name}
+                    {row.stream ? ` · ${row.stream.name}` : ""}
+                  </span>
+                  <span className="font-mono text-sm tabular-nums text-[var(--text-muted)]">
+                    {formatSchoolDate(row.enrolledAt)}
+                  </span>
+                </div>
+              </div>
+            )}
             emptyState={
-              namedFilters.length > 0 ? (
+              namedFilters.length > 0 || searched.trim() ? (
                 <NothingMatched
                   what="enrolments"
                   filters={namedFilters}
-                  onClear={clearFilters}
+                  search={searched}
+                  onClear={namedFilters.length > 0 ? clearFilters : undefined}
                 />
               ) : (
                 <NothingYet

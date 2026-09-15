@@ -5,6 +5,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Badge, Button } from "@corelithzw/react";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { LoadError, NothingYet, TableRowsSkeleton } from "@/components/schools/common/states";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { fetchResultSheet, type ResultModerationAction } from "@/lib/schools/results-v2";
@@ -96,16 +97,22 @@ export function SheetDetailDialog({
                     key={action.id}
                     className="rounded-[var(--radius-md)] border border-[color:var(--border-subtle)] px-3 py-2"
                   >
+                    {/* Who, what and when on one fixed line, then the note
+                        underneath at whatever length it runs to. Inline, the
+                        two facts a reader scans a trail for were mixed into
+                        the same run as the thing that was said. */}
                     <div className="flex flex-wrap items-baseline gap-2">
-                      <span className="text-sm font-medium">
+                      <span className="text-sm font-medium text-[color:var(--text-strong)]">
                         {ACTION_WORDS[action.actionType]}
                       </span>
-                      <span className="text-xs text-muted-foreground">
+                      <span className="font-mono text-sm text-[color:var(--text-subtle)]">
                         {action.actor.name ?? "Somebody"} · {formatDay(action.actedAt)}
                       </span>
                     </div>
                     {action.comment ? (
-                      <p className="mt-1 text-sm text-muted-foreground">{action.comment}</p>
+                      <p className="mt-1.5 text-sm text-[color:var(--text-body)]">
+                        {action.comment}
+                      </p>
                     ) : null}
                   </li>
                 ))}
@@ -124,7 +131,7 @@ export function SheetDetailDialog({
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-[color:var(--border-subtle)] text-left text-xs text-muted-foreground">
+                    <tr className="border-b border-[color:var(--border-subtle)] text-left text-sm text-[color:var(--text-muted)]">
                       <th className="py-2 pr-3 font-medium">Pupil</th>
                       <th className="py-2 pr-3 font-medium">Subject</th>
                       <th className="py-2 pr-3 text-right font-medium">Mark</th>
@@ -135,18 +142,25 @@ export function SheetDetailDialog({
                   <tbody>
                     {sheet.lines.map((line) => (
                       <tr key={line.id} className="border-b border-[color:var(--border-subtle)]">
+                        {/* The same cell the roll draws, minus the link: the
+                            reader is already inside a dialog, and a peek panel
+                            over it is two overlays deep for a glance at a name
+                            that is right there. */}
                         <td className="py-2 pr-3">
-                          {line.student.lastName}, {line.student.firstName}
-                          <span className="ml-2 text-xs text-muted-foreground">
-                            {line.student.studentNo}
-                          </span>
+                          <PersonCell
+                            kind="student"
+                            name={`${line.student.lastName}, ${line.student.firstName}`}
+                            reference={line.student.studentNo}
+                          />
                         </td>
                         <td className="py-2 pr-3">{line.subjectCode}</td>
                         <td className="py-2 pr-3">
                           <NumericCell>{line.score.toFixed(1)}</NumericCell>
                         </td>
                         <td className="py-2 pr-3">{line.grade ?? "—"}</td>
-                        <td className="py-2 text-muted-foreground">{line.remarks ?? "—"}</td>
+                        <td className="py-2 text-[color:var(--text-muted)]">
+                          {line.remarks ?? "—"}
+                        </td>
                       </tr>
                     ))}
                   </tbody>

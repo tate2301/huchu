@@ -1,10 +1,10 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge } from "@corelithzw/react";
 
+import { EntityLink } from "@/components/records/entity-link";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
@@ -219,22 +219,28 @@ export function ClassSubjectsPanel({
           }}
         />
       ) : (
-        <ul className="divide-y divide-[color:var(--border-subtle)]">
+        /* Space between rows rather than rules: a divider is a line the reader
+           has to cross for every subject a class takes. */
+        <ul className="space-y-1">
           {visible.map((row, index) => (
             <li
               key={row.id}
-              className="campus-row-in flex flex-wrap items-center justify-between gap-3 py-3"
+              className="campus-row-in flex min-h-11 flex-wrap items-center justify-between gap-3 py-2"
               style={{ animationDelay: `${index * 40}ms` }}
             >
               <div className="min-w-0">
-                <Link
-                  href={recordType("SUBJECT").href(row.subject.id)}
-                  className="font-medium text-[color:var(--text-strong)] hover:underline"
-                >
-                  {row.subject.name}
-                </Link>
+                <div className="min-w-0 text-sm font-medium text-[color:var(--text-strong)]">
+                  {/* A standing underline rather than a hover-only one, and a
+                      plain click peeks: "which subject is that?" is a glance,
+                      and a journey is the wrong price for one. */}
+                  <EntityLink href={recordType("SUBJECT").href(row.subject.id)}>
+                    {row.subject.name}
+                  </EntityLink>
+                </div>
                 {/* Who teaches it is what an office is asked about a class's
-                    subject, so it leads rather than sitting in a count. */}
+                    subject, so it leads rather than sitting in a count. A class
+                    with nobody against it is named in words and in the danger
+                    tone, because it is the row somebody has to act on. */}
                 <p
                   className={
                     row.teacherProfile
@@ -242,7 +248,16 @@ export function ClassSubjectsPanel({
                       : "text-sm text-[color:var(--text-danger)]"
                   }
                 >
-                  {row.teacherProfile?.user.name ?? "No teacher assigned"}
+                  {row.teacherProfile ? (
+                    <EntityLink
+                      href={recordType("TEACHER").href(row.teacherProfile.id)}
+                      muted
+                    >
+                      {row.teacherProfile.user.name}
+                    </EntityLink>
+                  ) : (
+                    "No teacher assigned"
+                  )}
                   {row.stream ? ` · ${row.stream.name}` : ""}
                   {` · ${row.term.name}`}
                 </p>
@@ -250,6 +265,8 @@ export function ClassSubjectsPanel({
               <div className="flex items-center gap-2">
                 {row.subject.isCore ? <Badge tone="brand">Core</Badge> : null}
                 <RecordActions
+                  layout="menu"
+                  label={`Row actions for ${row.subject.name}`}
                   resource="schools.academics"
                   verbs={[
                     {

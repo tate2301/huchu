@@ -15,6 +15,8 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { RecordMark } from "@/components/records/record-mark";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
@@ -225,10 +227,13 @@ export function SchoolDayContent() {
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               {
@@ -263,15 +268,20 @@ export function SchoolDayContent() {
   const roomColumns = useMemo<ColumnDef<SchoolsRoomRecord>[]>(
     () => [
       {
-        accessorKey: "code",
-        header: "Code",
-        cell: ({ row }) => <span className="font-medium">{row.original.code}</span>,
-      },
-      { accessorKey: "name", header: "Name" },
-      {
-        id: "kind",
-        header: "Kind",
-        cell: ({ row }) => row.original.kind ?? "-",
+        id: "room",
+        header: "Room",
+        // One cell, not a Code column beside a Name column beside a Kind
+        // column. The name is what a timetabler is looking for; the code is
+        // what tells two science labs apart, and the kind is the word of
+        // context after it.
+        cell: ({ row }) => (
+          <RecordNameCell
+            kind="site"
+            name={row.original.name}
+            reference={row.original.code}
+            context={row.original.kind}
+          />
+        ),
       },
       {
         id: "capacity",
@@ -294,10 +304,11 @@ export function SchoolDayContent() {
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               {
@@ -533,11 +544,9 @@ export function SchoolDayContent() {
 
           {roomsQuery.isLoading ? (
             <TableRowsSkeleton
-              headers={["Code", "Name", "Kind", "Seats", "Lessons", "Status"]}
+              headers={["Room", "Seats", "Lessons", "Status"]}
               columns={[
-                { width: 110 },
-                {},
-                { width: 120 },
+                { avatar: true, twoLine: true },
                 { width: 90, align: "right" },
                 { width: 90, align: "right" },
                 { width: 100, badge: true },
@@ -574,8 +583,10 @@ export function SchoolDayContent() {
                       <MobileList.Row
                         key={row.id}
                         static
-                        title={`${row.code} - ${row.name}`}
+                        leading={<RecordMark kind="site" name={row.name} size="sm" />}
+                        title={row.name}
                         subtitle={[
+                          row.code,
                           row.kind,
                           row.capacity ? `${row.capacity} seats` : null,
                           row.isActive ? null : "Out of use",

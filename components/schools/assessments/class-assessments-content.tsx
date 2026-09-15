@@ -4,6 +4,8 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { MobileList, MobileListEmpty, MobileListSectionHeader } from "@corelithzw/react";
 
+import { RecordMark } from "@/components/records/record-mark";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -366,56 +368,83 @@ export function ClassAssessmentsContent({
                       <MobileList.Row
                         key={assessment.id}
                         static
+                        leading={
+                          <RecordMark kind="document" name={assessment.title} size="sm" />
+                        }
                         title={assessment.title}
+                        // What the piece of work is, then how much of it has
+                        // been marked, on one line. Three verbs spelled out in
+                        // words sat here — "Enter marks", "Reopen", "Remove" —
+                        // which is about 200px of a row that has a title to
+                        // fit; they are one trigger now, the way every other
+                        // campus row states its verbs.
                         subtitle={
                           <span className="mt-1 flex flex-wrap items-center gap-2">
-                            <span>
-                              {ASSESSMENT_KIND_LABELS[assessment.kind]} · out of{" "}
-                              {Number(assessment.maxScore)}
-                              {Number(assessment.weight) !== 1
-                                ? ` · counts ×${Number(assessment.weight)}`
-                                : ""}
-                              {assessment.assessedOn
-                                ? ` · ${assessment.assessedOn.slice(0, 10)}`
-                                : ""}
+                            <span className="font-mono">
+                              {[
+                                ASSESSMENT_KIND_LABELS[assessment.kind],
+                                `out of ${Number(assessment.maxScore)}`,
+                                Number(assessment.weight) !== 1
+                                  ? `counts ×${Number(assessment.weight)}`
+                                  : null,
+                                `${assessment._count.scores} marked`,
+                                assessment.assessedOn
+                                  ? assessment.assessedOn.slice(0, 10)
+                                  : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
                             </span>
-                            <Badge variant="outline">
-                              {assessment._count.scores} marked
-                            </Badge>
+                            {/* Locked is a state and gets a chip; the kind of
+                                work is a category and stays a word. */}
                             {assessment.status === "LOCKED" ? (
                               <Badge variant="secondary">Locked</Badge>
                             ) : null}
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => setMarkingId(assessment.id)}
-                            >
-                              {assessment._count.scores > 0 ? "Marks" : "Enter marks"}
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="ghost"
-                              disabled={lockMutation.isPending}
-                              onClick={() =>
-                                lockMutation.mutate({
-                                  id: assessment.id,
-                                  status:
-                                    assessment.status === "LOCKED" ? "OPEN" : "LOCKED",
-                                })
-                              }
-                            >
-                              {assessment.status === "LOCKED" ? "Reopen" : "Lock"}
-                            </Button>
-                            {assessment._count.scores === 0 ? (
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                disabled={deleteMutation.isPending}
-                                onClick={() => deleteMutation.mutate(assessment.id)}
-                              >
-                                Remove
-                              </Button>
-                            ) : null}
+                            <RecordActions
+                              layout="menu"
+                              label={`Row actions for ${assessment.title}`}
+                              resource="schools.academics"
+                              verbs={[
+                                {
+                                  label:
+                                    assessment._count.scores > 0 ? "Marks" : "Enter marks",
+                                  action: "edit",
+                                  onSelect: () => setMarkingId(assessment.id),
+                                },
+                                {
+                                  label:
+                                    assessment.status === "LOCKED" ? "Reopen" : "Lock",
+                                  action: "edit",
+                                  loading: lockMutation.isPending,
+                                  onSelect: () =>
+                                    lockMutation.mutate({
+                                      id: assessment.id,
+                                      status:
+                                        assessment.status === "LOCKED" ? "OPEN" : "LOCKED",
+                                    }),
+                                },
+                                {
+                                  label: "Remove",
+                                  action: "archive",
+                                  tone: "danger",
+                                  loading: deleteMutation.isPending,
+                                  // The endpoint refuses a marked assessment,
+                                  // so the reason is given before the press
+                                  // rather than as a rejection after it.
+                                  unavailable:
+                                    assessment._count.scores > 0
+                                      ? "Marks have been entered against it. Reopen it and clear them first."
+                                      : undefined,
+                                  confirm: {
+                                    title: `Remove ${assessment.title}?`,
+                                    description:
+                                      "The piece of work leaves this year group's mark book. Nothing has been marked against it, so nothing is lost.",
+                                    confirmLabel: "Remove it",
+                                  },
+                                  onSelect: () => deleteMutation.mutate(assessment.id),
+                                },
+                              ]}
+                            />
                           </span>
                         }
                       />
@@ -502,10 +531,15 @@ export function ClassAssessmentsContent({
                       <MobileList.Row
                         key={`${row.studentId}-${row.classSubjectId}`}
                         static
+                        leading={
+                          <RecordMark kind="subject" name={row.subject.name} size="sm" />
+                        }
                         title={row.subject.name}
                         subtitle={
                           <span className="mt-1 flex flex-wrap items-center gap-2">
-                            <span>
+                            {/* Mono and tabular, so a column of term marks can
+                                be run down with the eye rather than read. */}
+                            <span className="font-mono tabular-nums">
                               {row.mark === null ? "Not marked" : `${row.mark}%`}
                               {row.continuous !== null
                                 ? ` · class work ${row.continuous}%`

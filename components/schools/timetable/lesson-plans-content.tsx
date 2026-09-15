@@ -11,8 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
-import { dsConfirm } from "@/components/ui/ds-confirm";
+import { RecordMark } from "@/components/records/record-mark";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
   LoadError,
@@ -393,14 +394,25 @@ export function LessonPlansContent({
                     <MobileList.Row
                       key={plan.id}
                       static
+                      leading={<RecordMark kind="document" name={plan.topic} size="sm" />}
                       title={plan.topic}
+                      // The three verbs were spelled out — "Open", "Arrange
+                      // cover", "Tear it up" — which is about 230px of a row
+                      // whose topic is the part worth reading. Behind one
+                      // trigger they cost 28px, and the cover chip beside them
+                      // keeps the state that is worth seeing without a press.
                       subtitle={
                         <span className="mt-1 flex flex-wrap items-center gap-2">
-                          <span>
-                            {plan.classSubject.subject.name} · {plan.classSubject.class.name}
-                            {plan.slot
-                              ? ` · ${plan.slot.period.code} ${formatMinute(plan.slot.period.startMinute)}`
-                              : ""}
+                          <span className="font-mono">
+                            {[
+                              plan.classSubject.subject.name,
+                              plan.classSubject.class.name,
+                              plan.slot
+                                ? `${plan.slot.period.code} ${formatMinute(plan.slot.period.startMinute)}`
+                                : null,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
                           </span>
                           {plan.cover ? (
                             <Badge variant="secondary">
@@ -410,50 +422,49 @@ export function LessonPlansContent({
                           {plan.reflection ? (
                             <Badge variant="outline">Reflected on</Badge>
                           ) : null}
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => {
-                              setEditing(plan);
-                              setDraft({
-                                topic: plan.topic,
-                                objectives: plan.objectives ?? "",
-                                activities: plan.activities ?? "",
-                                homeworkNote: plan.homeworkNote ?? "",
-                                reflection: plan.reflection ?? "",
-                                lessonDate: plan.lessonDate.slice(0, 10),
-                              });
-                            }}
-                          >
-                            Open
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => {
-                              setCoverFor(plan);
-                              setCoverTeacher("");
-                            }}
-                          >
-                            {plan.cover ? "Change cover" : "Arrange cover"}
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            disabled={deleteMutation.isPending}
-                            onClick={async () => {
-                              const confirmed = await dsConfirm({
-                                title: `Tear up “${plan.topic}”?`,
-                                description:
-                                  "The lesson leaves the week. Any cover arranged for it goes with it, and the slot becomes one that can be laid out again.",
-                                confirmLabel: "Tear it up",
-                                variant: "danger",
-                              });
-                              if (confirmed) deleteMutation.mutate(plan.id);
-                            }}
-                          >
-                            Tear it up
-                          </Button>
+                          <RecordActions
+                            layout="menu"
+                            label={`Row actions for ${plan.topic}`}
+                            resource="schools.academics"
+                            verbs={[
+                              {
+                                label: "Open",
+                                action: "edit",
+                                onSelect: () => {
+                                  setEditing(plan);
+                                  setDraft({
+                                    topic: plan.topic,
+                                    objectives: plan.objectives ?? "",
+                                    activities: plan.activities ?? "",
+                                    homeworkNote: plan.homeworkNote ?? "",
+                                    reflection: plan.reflection ?? "",
+                                    lessonDate: plan.lessonDate.slice(0, 10),
+                                  });
+                                },
+                              },
+                              {
+                                label: plan.cover ? "Change cover" : "Arrange cover",
+                                action: "edit",
+                                onSelect: () => {
+                                  setCoverFor(plan);
+                                  setCoverTeacher("");
+                                },
+                              },
+                              {
+                                label: "Tear it up",
+                                action: "archive",
+                                tone: "danger",
+                                loading: deleteMutation.isPending,
+                                confirm: {
+                                  title: `Tear up “${plan.topic}”?`,
+                                  description:
+                                    "The lesson leaves the week. Any cover arranged for it goes with it, and the slot becomes one that can be laid out again.",
+                                  confirmLabel: "Tear it up",
+                                },
+                                onSelect: () => deleteMutation.mutate(plan.id),
+                              },
+                            ]}
+                          />
                         </span>
                       }
                     />

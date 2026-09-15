@@ -5,11 +5,16 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
+import { MobileList, MobileListEmpty } from "@corelithzw/react";
+
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordCell, recordCellTone } from "@/components/records/record-table";
+import { RecordMark } from "@/components/records/record-mark";
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { PersonCell } from "@/components/schools/common/identity-cell";
 import { PageBand } from "@/components/schools/common/page-band";
-import { PersonAvatar } from "@/components/schools/common/person-avatar";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
@@ -20,6 +25,7 @@ import {
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { recordType } from "@/lib/records/registry";
 import {
   fetchSchoolsClasses,
   fetchSchoolsSubjects,
@@ -253,41 +259,54 @@ export function GoalsOversightContent() {
       {
         id: "pupil",
         header: "Pupil",
+        // The same cell the roll draws: the mark, the surname-first name, and
+        // the admission number that tells two Tendai Moyos apart. Surname
+        // first, because the rows are read against a class list.
         cell: ({ row }) => (
-          <div className="flex min-w-0 items-center gap-2">
-            <PersonAvatar
-              firstName={row.original.firstName}
-              lastName={row.original.lastName}
-            />
-            <div className="min-w-0">
-              <div className="font-medium">
-                {row.original.lastName}, {row.original.firstName}
-              </div>
-              <div className="text-xs text-muted-foreground">
-                {row.original.studentNo}
-              </div>
-            </div>
-          </div>
+          <PersonCell
+            kind="student"
+            name={`${row.original.lastName}, ${row.original.firstName}`}
+            href={recordType("STUDENT").href(row.original.studentId)}
+            reference={row.original.studentNo}
+          />
         ),
       },
       {
         id: "class",
         header: "Class",
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.className ?? "Not placed"}
-            {row.original.streamName ? ` · ${row.original.streamName}` : ""}
-          </span>
-        ),
+        // A reference to a class is a link to the class, not a word about it:
+        // "which other Form 2 pupils have no target" is one click from here
+        // rather than a second search.
+        cell: ({ row }) =>
+          row.original.classId ? (
+            <EntityLink
+              href={recordType("CLASS").href(row.original.classId)}
+              className={recordCellTone("relation")}
+            >
+              {[row.original.className, row.original.streamName]
+                .filter(Boolean)
+                .join(" · ")}
+            </EntityLink>
+          ) : (
+            // Named in words: a child in no class is the row somebody has to
+            // act on, and a dash under "Class" reads as a column that failed.
+            <span className="text-sm text-[color:var(--text-muted)]">Not placed</span>
+          ),
       },
       {
         id: "subject",
         header: "Subject",
-        cell: ({ row }) => (
-          <span className="text-sm">
-            {row.original.subject?.name ?? "Every subject"}
-          </span>
-        ),
+        cell: ({ row }) =>
+          row.original.subject ? (
+            <EntityLink
+              href={recordType("SUBJECT").href(row.original.subject.id)}
+              className={recordCellTone("relation")}
+            >
+              {row.original.subject.name}
+            </EntityLink>
+          ) : (
+            <span className="text-sm text-[color:var(--text-muted)]">Every subject</span>
+          ),
       },
       {
         id: "target",
@@ -322,8 +341,11 @@ export function GoalsOversightContent() {
         id: "plan",
         header: "How they will get there",
         cell: ({ row }) => (
-          <span className="line-clamp-1 text-xs text-muted-foreground">
-            {row.original.plan ?? row.original.teacherNote ?? "—"}
+          // One line, clamped. The plan is prose in a table of figures, and a
+          // row that wraps to three lines doubles the height of every row
+          // beside it.
+          <span className="line-clamp-1">
+            <RecordCell value={row.original.plan ?? row.original.teacherNote} />
           </span>
         ),
       },
@@ -334,10 +356,13 @@ export function GoalsOversightContent() {
       },
       {
         id: "verbs",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.firstName} ${row.original.lastName}`}
             resource="schools.students"
             verbs={[
               {
@@ -466,6 +491,44 @@ export function GoalsOversightContent() {
               ? { key: row.className, label: row.className }
               : { key: "unplaced", label: "Not placed in a class" }
           }
+          // Seven columns at 390px is a sideways scroll showing one and a half
+          // of them. On a phone the row is the pupil, and the two figures the
+          // screen is about — what they are aiming at and where they are —
+          // read as the one line under the name.
+          mobileListRenderer={({ rows: shown }) => (
+            <MobileList>
+              {shown.length === 0 ? (
+                <MobileListEmpty>No pupils matched.</MobileListEmpty>
+              ) : (
+                shown.map(({ row }) => (
+                  <MobileList.Row
+                    key={`${row.studentId}-${row.subject?.id ?? "all"}`}
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${row.firstName} ${row.lastName}`}
+                        size="sm"
+                      />
+                    }
+                    title={`${row.lastName}, ${row.firstName}`}
+                    subtitle={[
+                      row.studentNo,
+                      row.className ?? "Not placed",
+                      row.goalId === null
+                        ? "No target"
+                        : `Target ${percent(row.targetMark)} · now ${percent(row.currentMark)}`,
+                    ]
+                      .filter(Boolean)
+                      .join(" · ")}
+                    onClick={() => {
+                      setSaved(null);
+                      setEditing(row);
+                    }}
+                  />
+                ))
+              )}
+            </MobileList>
+          )}
           emptyState={
             query.error ? (
               "Nothing to show while the targets cannot be loaded."

@@ -10,8 +10,11 @@ import {
   MobileListSectionHeader,
 } from "@corelithzw/react";
 
+import { RecordMark } from "@/components/records/record-mark";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   CreateButton,
   RecordActions,
@@ -26,8 +29,6 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
 import { getApiErrorMessage } from "@/lib/api-client";
 import { fetchSchoolsClasses } from "@/lib/schools/admin-v2";
 import {
@@ -172,10 +173,15 @@ export function AdmissionsBoardContent() {
     offerHasLapsed(application, now),
   );
 
+  /**
+   * The narrowing in force, in the reader's words. The search term is named
+   * separately by the empty state, so it is not folded in here: a sentence
+   * that lists what was typed among the filters offers to clear filters
+   * nobody set.
+   */
   const namedFilters = [
     classes.find((row) => row.id === classFilter)?.name,
     stageFilter ? STAGE_LABELS[stageFilter as ApplicationStage] : undefined,
-    search.trim() || undefined,
   ].filter((entry): entry is string => Boolean(entry));
 
   function clearFilters() {
@@ -277,6 +283,19 @@ export function AdmissionsBoardContent() {
       {view === "enrolments" ? <SchoolsAdmissionsContent /> : null}
 
       <div className={view === "pipeline" ? "space-y-4" : "hidden"}>
+      {/* The page is named in the bar, and the one verb that fills this board
+          goes with the name rather than sitting in the row that narrows it. */}
+      <PageChrome title="Admissions">
+        <CreateButton
+          resource="schools.admissions"
+          label="New application"
+          onSelect={() => {
+            setEditing(null);
+            setFormOpen(true);
+          }}
+        />
+      </PageChrome>
+
       {/* Pipeline and roll side by side: "61 in, 842 here" is the whole of
           what an admissions office is watching in September. */}
       <PageBand
@@ -331,49 +350,41 @@ export function AdmissionsBoardContent() {
         </Alert>
       ) : null}
 
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-        <FilterBar>
-          <div className="min-w-0 flex-1 basis-[180px] sm:max-w-[220px]">
-            <Label htmlFor="admissions-search" className="text-sm text-muted-foreground">
-              Find
-            </Label>
-            <Input
-              id="admissions-search"
-              value={search}
-              placeholder="Name or number"
-              onChange={(event) => setSearch(event.target.value)}
+      {/* The one narrowing row every campus list draws, and the count beside
+          it. The line of stage tallies that used to sit under it — "12 enquiry
+          · 9 applied · 4 offered" — said what the band above and the section
+          heading on every column of the board already say, twice. */}
+      <TableControls
+        search={
+          <TableSearch
+            value={search}
+            onChange={setSearch}
+            placeholder="Search a name or an application number"
+          />
+        }
+        filterCount={activeFilterCount(classFilter, stageFilter)}
+        filters={
+          <>
+            <FilterSelect
+              label="Year group"
+              allLabel="Any year group"
+              value={classFilter}
+              options={classes.map((row) => ({ value: row.id, label: row.name }))}
+              onChange={setClassFilter}
             />
-          </div>
-          <FilterSelect
-            label="Year group"
-            allLabel="Any year group"
-            value={classFilter}
-            options={classes.map((row) => ({ value: row.id, label: row.name }))}
-            onChange={setClassFilter}
-          />
-          <FilterSelect
-            label="Stage"
-            allLabel="Open stages"
-            value={stageFilter}
-            options={STAGE_OPTIONS}
-            onChange={setStageFilter}
-          />
-        </FilterBar>
-        <CreateButton
-          resource="schools.admissions"
-          label="New application"
-          onSelect={() => {
-            setEditing(null);
-            setFormOpen(true);
-          }}
-        />
-      </div>
-
-      <p className="text-sm text-muted-foreground">
-        {PIPELINE_STAGES.map((stage) => `${counts[stage] ?? 0} ${STAGE_LABELS[stage].toLowerCase()}`).join(
-          " · ",
-        )}
-      </p>
+            <FilterSelect
+              label="Stage"
+              allLabel="Open stages"
+              value={stageFilter}
+              options={STAGE_OPTIONS}
+              onChange={setStageFilter}
+            />
+          </>
+        }
+        count={
+          applicationsQuery.isPending ? null : `${applications.length} on the board`
+        }
+      />
 
       {lapsed.length > 0 ? (
         <Alert
@@ -398,10 +409,11 @@ export function AdmissionsBoardContent() {
           <CardsSkeleton count={6} columns={3} lines={2} />
         </div>
       ) : applications.length === 0 ? (
-        namedFilters.length > 0 ? (
+        namedFilters.length > 0 || search.trim() ? (
           <NothingMatched
             what="applications"
             filters={namedFilters}
+            search={search}
             onClear={clearFilters}
           />
         ) : Object.values(counts).every((count) => !count) ? (
@@ -541,6 +553,16 @@ export function AdmissionsBoardContent() {
                   <MobileList.Row
                     key={application.id}
                     static
+                    // A child with a face, the same mark they will carry on the
+                    // roll the day they are enrolled. A board of nine columns of
+                    // bare names is one nobody can scan.
+                    leading={
+                      <RecordMark
+                        kind="student"
+                        name={`${application.firstName} ${application.lastName}`}
+                        size="sm"
+                      />
+                    }
                     title={`${application.lastName}, ${application.firstName}`}
                     subtitle={
                       <span className="mt-1 flex flex-wrap items-center gap-2">

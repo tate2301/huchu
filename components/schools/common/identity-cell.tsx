@@ -50,6 +50,7 @@ export function PersonCell({
   name,
   firstName,
   lastName,
+  displayName,
   href,
   reference,
   context,
@@ -62,6 +63,16 @@ export function PersonCell({
   name?: string;
   firstName?: string;
   lastName?: string;
+  /**
+   * What to render, where that differs from who they are — a roll sorted by
+   * surname shows "Moyo, Tendai".
+   *
+   * Kept apart from the identity above because the mark's hue is hashed from a
+   * person's name, and a hash over the rendered string gives the same pupil one
+   * colour on the roll and another on their own record. The reader is meant to
+   * learn a face; two faces for one person is worse than none.
+   */
+  displayName?: string;
   /** Their record. Omitted where the row does not open — a portal, a dialog. */
   href?: string | null;
   /**
@@ -77,11 +88,15 @@ export function PersonCell({
   size?: "sm" | "md" | "lg";
   className?: string;
 }) {
-  const full = name ?? [firstName, lastName].filter(Boolean).join(" ");
+  // Who they are, for the mark: first and last in their natural order wherever
+  // the caller has both, so the hue and the initials do not turn on how this
+  // particular list happens to be sorted.
+  const identity = [firstName, lastName].filter(Boolean).join(" ") || name || "";
+  const shown = displayName ?? name ?? identity;
   const cell = (
     <RecordTableName
-      leading={<RecordMark kind={kind} name={full} avatarUrl={photoUrl} size={size} />}
-      title={full}
+      leading={<RecordMark kind={kind} name={identity} avatarUrl={photoUrl} size={size} />}
+      title={shown}
       subtitle={supportingLine(reference, context)}
     />
   );

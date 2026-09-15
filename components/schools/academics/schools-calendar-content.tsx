@@ -212,10 +212,13 @@ export function SchoolsCalendarContent({
       },
       {
         id: "actions",
-        header: "",
+        // An affordance, not a field — but the head still needs the cell, or
+        // every column below it shifts by one.
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive
@@ -296,10 +299,11 @@ export function SchoolsCalendarContent({
       },
       {
         id: "actions",
-        header: "",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
+            label={`Row actions for ${row.original.name}`}
             resource="schools.academics"
             verbs={[
               ...(row.original.isActive

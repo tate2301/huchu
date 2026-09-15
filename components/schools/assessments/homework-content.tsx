@@ -11,7 +11,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { RecordDialog } from "@/components/crm/records/record-dialog";
+import { RecordMark } from "@/components/records/record-mark";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   LoadError,
   NothingLeftToDo,
@@ -286,45 +288,64 @@ export function HomeworkContent({
                 <MobileList.Row
                   key={assignment.id}
                   static
+                  leading={<RecordMark kind="document" name={assignment.title} size="sm" />}
                   title={assignment.title}
+                  // The deadline, what it is out of and how many are in, on one
+                  // mono line — then the one state that matters, and the verbs
+                  // behind a single trigger. "Who has handed in" and "Withdraw"
+                  // spelled out were 190px of a row with a title to fit.
                   subtitle={
                     <span className="mt-1 flex flex-wrap items-center gap-2">
-                      <span>
-                        {assignment.dueAt
-                          ? `Due ${assignment.dueAt.slice(0, 10)}`
-                          : "No deadline"}
-                        {assignment.maxScore
-                          ? ` · out of ${Number(assignment.maxScore)}`
-                          : " · not marked"}
+                      <span className="font-mono">
+                        {[
+                          assignment.dueAt
+                            ? `Due ${assignment.dueAt.slice(0, 10)}`
+                            : "No deadline",
+                          assignment.maxScore
+                            ? `out of ${Number(assignment.maxScore)}`
+                            : "not marked",
+                          `${assignment._count.submissions} in`,
+                        ].join(" · ")}
                       </span>
-                      <Badge variant="outline">
-                        {assignment._count.submissions} in
-                      </Badge>
                       {assignment.isPublished ? (
                         <Badge variant="secondary">Set</Badge>
                       ) : (
                         <Badge variant="outline">Draft</Badge>
                       )}
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setBoardFor(assignment.id)}
-                      >
-                        Who has handed in
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        disabled={publishMutation.isPending}
-                        onClick={() =>
-                          publishMutation.mutate({
-                            id: assignment.id,
-                            publish: !assignment.isPublished,
-                          })
-                        }
-                      >
-                        {assignment.isPublished ? "Withdraw" : "Set it"}
-                      </Button>
+                      <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${assignment.title}`}
+                        resource="schools.academics"
+                        verbs={[
+                          {
+                            // Reading a class list is a `view`, not an edit — a
+                            // deputy who may not set homework still has to be
+                            // able to chase it.
+                            label: "Who has handed in",
+                            action: "view",
+                            onSelect: () => setBoardFor(assignment.id),
+                          },
+                          {
+                            label: assignment.isPublished ? "Withdraw" : "Set it",
+                            action: "edit",
+                            tone: assignment.isPublished ? "warning" : "default",
+                            loading: publishMutation.isPending,
+                            confirm: assignment.isPublished
+                              ? {
+                                  title: `Withdraw ${assignment.title}?`,
+                                  description:
+                                    "The class stops seeing it. Anything already handed in stays, and setting it again brings it back as it was.",
+                                  confirmLabel: "Withdraw it",
+                                }
+                              : undefined,
+                            onSelect: () =>
+                              publishMutation.mutate({
+                                id: assignment.id,
+                                publish: !assignment.isPublished,
+                              }),
+                          },
+                        ]}
+                      />
                     </span>
                   }
                 />

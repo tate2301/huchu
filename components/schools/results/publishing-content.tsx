@@ -3,12 +3,15 @@
 import { useCallback, useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Card } from "@corelithzw/react";
+import { MobileList, MobileListEmpty } from "@corelithzw/react";
 
-import { PageHeading } from "@/components/layout/page-heading";
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
-import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
+import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
+import { RecordNameCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
+import { TableControls, TableSearch } from "@/components/schools/common/table-controls";
 import {
   LoadError,
   NothingLeftToDo,
@@ -17,8 +20,9 @@ import {
   SaveError,
   TableRowsSkeleton,
 } from "@/components/schools/common/states";
+import { RecordCell } from "@/components/records/record-table";
+import { Button } from "@/components/ui/button";
 import { DataTable } from "@/components/ui/data-table";
-import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { fetchSchoolsClasses, fetchSchoolsSubjects, fetchSchoolsTerms } from "@/lib/schools/admin-v2";
 import {
@@ -31,14 +35,23 @@ import {
 } from "@/lib/schools/results-v2";
 import { fetchSchoolsResultsData } from "@/lib/schools/schools-v2";
 import { PublishWindowDialog } from "@/components/schools/results/publish-window-dialog";
+import {
+  SheetMobileList,
+  averageColumn,
+  linesColumn,
+  moderationColumn,
+  publishedOnColumn,
+  sheetActionsColumn,
+  sheetClassName,
+  sheetColumn,
+} from "@/components/schools/results/sheet-columns";
 import { SheetDetailDialog } from "@/components/schools/results/sheet-detail-dialog";
 import {
   SHEET_STATE_LABELS,
   SHEET_STATE_OPTIONS,
-  SheetStateBadge,
+  WINDOW_STATE_LABELS,
   WINDOW_STATE_OPTIONS,
   WindowStateBadge,
-  formatDay,
   formatDayTime,
 } from "@/components/schools/results/sheet-state";
 import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-workflow";
@@ -59,6 +72,13 @@ import { useResultSheetWorkflow } from "@/components/schools/results/use-sheet-w
 
 type PublishView = "windows" | "published" | "all";
 
+/** What a window covers, as one phrase. */
+function windowScope(record: PublishWindowRecord) {
+  return record.class
+    ? [record.class.name, record.stream?.name].filter(Boolean).join(" ")
+    : "The whole school";
+}
+
 export function PublishingContent() {
   const queryClient = useQueryClient();
   const [view, setView] = useState<PublishView>("windows");
@@ -68,6 +88,7 @@ export function PublishingContent() {
   const [termFilter, setTermFilter] = useState("");
   const [stateFilter, setStateFilter] = useState("");
   const [windowStateFilter, setWindowStateFilter] = useState("");
+  const [search, setSearch] = useState("");
   const [windowFor, setWindowFor] = useState<PublishWindowRecord | null>(null);
   const [windowOpen, setWindowOpen] = useState(false);
   const [openSheetId, setOpenSheetId] = useState<string | null>(null);
@@ -126,12 +147,21 @@ export function PublishingContent() {
 
   const filteredSheets = useMemo(() => {
     const needle = subjectName.toLowerCase();
+    const typed = search.trim().toLowerCase();
     return sheets.filter((sheet) => {
       if (stateFilter && sheet.status !== stateFilter) return false;
       if (needle && !sheet.title.toLowerCase().includes(needle)) return false;
+      if (
+        typed &&
+        !`${sheet.title} ${sheetClassName(sheet)} ${sheet.term.name}`
+          .toLowerCase()
+          .includes(typed)
+      ) {
+        return false;
+      }
       return true;
     });
-  }, [sheets, stateFilter, subjectName]);
+  }, [sheets, stateFilter, subjectName, search]);
 
   const publishedRows = useMemo(
     () => filteredSheets.filter((sheet) => sheet.status === "PUBLISHED"),
@@ -140,24 +170,32 @@ export function PublishingContent() {
 
   // The dashboard endpoint returns every window for the tenant, so the same
   // year-group and term filters the sheets use are applied here by hand.
-  const filteredWindows = useMemo(
-    () =>
-      windows.filter((row) => {
-        if (windowStateFilter && row.status !== windowStateFilter) return false;
-        if (termFilter && row.term.id !== termFilter) return false;
-        if (classFilter && row.class && row.class.id !== classFilter) return false;
-        if (streamFilter && row.stream && row.stream.id !== streamFilter) return false;
-        return true;
-      }),
-    [windows, windowStateFilter, termFilter, classFilter, streamFilter],
-  );
+  const filteredWindows = useMemo(() => {
+    const typed = search.trim().toLowerCase();
+    return windows.filter((row) => {
+      if (windowStateFilter && row.status !== windowStateFilter) return false;
+      if (termFilter && row.term.id !== termFilter) return false;
+      if (classFilter && row.class && row.class.id !== classFilter) return false;
+      if (streamFilter && row.stream && row.stream.id !== streamFilter) return false;
+      if (typed && !`${windowScope(row)} ${row.term.name}`.toLowerCase().includes(typed)) {
+        return false;
+      }
+      return true;
+    });
+  }, [windows, windowStateFilter, termFilter, classFilter, streamFilter, search]);
 
   const narrowing = [
     classes.find((row) => row.id === classFilter)?.name ?? null,
     streams.find((row) => row.id === streamFilter)?.name ?? null,
     subjectName || null,
     terms.find((term) => term.id === termFilter)?.name ?? null,
-    stateFilter ? SHEET_STATE_LABELS[stateFilter as ResultSheetStatus] : null,
+    view === "windows"
+      ? windowStateFilter
+        ? WINDOW_STATE_LABELS[windowStateFilter as PublishWindowStatus]
+        : null
+      : stateFilter
+        ? SHEET_STATE_LABELS[stateFilter as ResultSheetStatus]
+        : null,
   ].filter((entry): entry is string => Boolean(entry));
 
   const clearFilters = () => {
@@ -167,6 +205,7 @@ export function PublishingContent() {
     setTermFilter("");
     setStateFilter("");
     setWindowStateFilter("");
+    setSearch("");
   };
 
   const runWindow = useCallback(
@@ -181,61 +220,14 @@ export function PublishingContent() {
     [queryClient],
   );
 
-  const sheetColumns = useMemo<ColumnDef<ResultSheetLike>[]>(
+  const sheetColumns = useMemo(
     () => [
-      {
-        id: "sheet",
-        header: "Sheet",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.title}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.term.name} / {row.original.class.name}
-              {row.original.stream ? ` / ${row.original.stream.name}` : ""}
-            </div>
-          </div>
-        ),
-      },
-      {
-        id: "status",
-        header: "Status",
-        cell: ({ row }) => <SheetStateBadge status={row.original.status} />,
-      },
-      {
-        id: "lines",
-        header: "Lines",
-        cell: ({ row }) => (
-          <NumericCell>
-            {row.original.stats?.linesCount ?? row.original._count.lines}
-          </NumericCell>
-        ),
-      },
-      {
-        id: "average",
-        header: "Average",
-        cell: ({ row }) => {
-          const average = row.original.stats?.averageScore ?? null;
-          return <NumericCell>{average === null ? "—" : average.toFixed(2)}</NumericCell>;
-        },
-      },
-      {
-        id: "published",
-        header: "Published",
-        cell: ({ row }) => <NumericCell>{formatDay(row.original.publishedAt)}</NumericCell>,
-      },
-      {
-        id: "actions",
-        header: "",
-        cell: ({ row }) => (
-          <RecordActions
-              layout="menu"
-            resource="schools.results"
-            verbs={workflow.verbsFor(row.original, {
-              onOpen: (sheet) => setOpenSheetId(sheet.id),
-            })}
-          />
-        ),
-      },
+      sheetColumn(),
+      moderationColumn("State"),
+      linesColumn(),
+      averageColumn(),
+      publishedOnColumn(),
+      sheetActionsColumn({ workflow, onOpen: (sheet) => setOpenSheetId(sheet.id) }),
     ],
     [workflow],
   );
@@ -243,45 +235,43 @@ export function PublishingContent() {
   const windowColumns = useMemo<ColumnDef<PublishWindowRecord>[]>(
     () => [
       {
+        id: "scope",
+        header: "Covers",
+        // The same identity grammar the sheets use: what it covers, with the
+        // term it covers it for on the line underneath. A window scoped to the
+        // whole school says so in words rather than leaving the class blank —
+        // an empty cell there reads as a window nobody finished setting up.
+        cell: ({ row }) => (
+          <RecordNameCell
+            kind="class"
+            name={windowScope(row.original)}
+            reference={row.original.term.name}
+          />
+        ),
+      },
+      {
         id: "status",
         header: "Status",
         cell: ({ row }) => <WindowStateBadge status={row.original.status} />,
       },
       {
-        id: "scope",
-        header: "Scope",
-        cell: ({ row }) => (
-          <div>
-            <div className="font-medium">{row.original.term.name}</div>
-            <div className="text-xs text-muted-foreground">
-              {row.original.class?.name ?? "All classes"}
-              {row.original.stream ? ` / ${row.original.stream.name}` : ""}
-            </div>
-          </div>
-        ),
-      },
-      {
         id: "openAt",
-        header: "Open",
-        cell: ({ row }) => (
-          <NumericCell align="left">{formatDayTime(row.original.openAt)}</NumericCell>
-        ),
+        header: "Opens",
+        cell: ({ row }) => <RecordCell kind="date" value={formatDayTime(row.original.openAt)} />,
       },
       {
         id: "closeAt",
-        header: "Close",
-        cell: ({ row }) => (
-          <NumericCell align="left">{formatDayTime(row.original.closeAt)}</NumericCell>
-        ),
+        header: "Closes",
+        cell: ({ row }) => <RecordCell kind="date" value={formatDayTime(row.original.closeAt)} />,
       },
       {
         id: "notes",
         header: "Notes",
-        cell: ({ row }) => row.original.notes || "—",
+        cell: ({ row }) => <RecordCell value={row.original.notes} />,
       },
       {
-        id: "actions",
-        header: "",
+        id: "verbs",
+        header: () => <span className="sr-only">Row actions</span>,
         cell: ({ row }) => {
           const record = row.original;
           const nextState: PublishWindowStatus =
@@ -292,6 +282,7 @@ export function PublishingContent() {
             // button and the route cannot disagree.
             <RecordActions
               layout="menu"
+              label={`Row actions for the ${windowScope(record)} window`}
               resource="schools.results"
               verbs={[
                 {
@@ -343,53 +334,77 @@ export function PublishingContent() {
     [busyWindowId, runWindow],
   );
 
-  return (
-    <div className="space-y-4">
-      <PageHeading
-        title="Results publishing"
-        description="The windows marks may go out through, and every sheet that has gone out."
-        primaryAction={
-          <CreateButton
-            resource="schools.results"
-            action="publish"
-            label="New publish window"
-            onSelect={() => {
-              setWindowFor(null);
-              setWindowOpen(true);
-            }}
-          />
-        }
-      />
+  const narrowed = narrowing.length > 0 || Boolean(search.trim());
 
-      {/*
-        Same eight numbers as the moderation queue, in the same order: this and
-        that screen are two halves of one job, and a band that renamed its chips
-        between them would make an office worker re-read the strip every time
-        they crossed over. "Ready" is the approved pile seen from this side —
-        sheets waiting on a window rather than on a signature.
-      */}
-      <PageBand
-        chips={[
-          { label: "Draft", value: summary?.draftSheets ?? 0 },
-          {
-            label: "Submitted",
-            value: summary?.submittedSheets ?? 0,
-            tone: "warn",
-            href: "/schools/results/moderation",
-          },
-          {
-            label: "Sent back",
-            value: summary?.hodRejectedSheets ?? 0,
-            tone: "danger",
-            href: "/schools/results/moderation",
-          },
-          { label: "Approved", value: summary?.hodApprovedSheets ?? 0, tone: "success" },
-          { label: "Published", value: summary?.publishedSheets ?? 0, tone: "brand" },
-          { label: "Windows open", value: summary?.openPublishWindows ?? 0, tone: "success" },
-          { label: "Windows scheduled", value: summary?.scheduledPublishWindows ?? 0 },
-          { label: "Windows closed", value: summary?.closedPublishWindows ?? 0 },
-        ]}
-      />
+  const windowsEmpty = narrowed ? (
+    <NothingMatched what="windows" filters={narrowing} search={search} onClear={clearFilters} />
+  ) : (
+    <NothingYet
+      title="No publish windows yet"
+      body="Until one is open, approved sheets stay inside the school. Open a window for the term, or for one year group at a time."
+    />
+  );
+
+  const sheetsEmpty = narrowed ? (
+    <NothingMatched what="sheets" filters={narrowing} search={search} onClear={clearFilters} />
+  ) : view === "published" ? (
+    <NothingLeftToDo
+      title="Nothing published yet"
+      body="Sheets appear here once a head of department has approved them and the office has released them through an open window."
+    />
+  ) : (
+    <NothingYet
+      title="No result sheets yet"
+      body="Sheets appear once a class's marks have been written to one."
+    />
+  );
+
+  const shownSheets = view === "published" ? publishedRows : filteredSheets;
+
+  return (
+    <SchoolsPage
+      band={
+        /*
+          The same eight numbers as the moderation queue, in the same order:
+          this and that screen are two halves of one job, and a band that
+          renamed its chips between them would make an office worker re-read
+          the strip every time they crossed over.
+        */
+        <PageBand
+          chips={[
+            { label: "Draft", value: summary?.draftSheets ?? "—" },
+            {
+              label: "Submitted",
+              value: summary?.submittedSheets ?? "—",
+              tone: "warn",
+              href: "/schools/results/moderation",
+            },
+            {
+              label: "Sent back",
+              value: summary?.hodRejectedSheets ?? "—",
+              tone: "danger",
+              href: "/schools/results/moderation",
+            },
+            { label: "Approved", value: summary?.hodApprovedSheets ?? "—", tone: "success" },
+            { label: "Published", value: summary?.publishedSheets ?? "—", tone: "brand" },
+            { label: "Windows open", value: summary?.openPublishWindows ?? "—", tone: "success" },
+            { label: "Windows scheduled", value: summary?.scheduledPublishWindows ?? "—" },
+            { label: "Windows closed", value: summary?.closedPublishWindows ?? "—" },
+          ]}
+        />
+      }
+    >
+      <PageChrome title="Publishing">
+        <CreateButton
+          resource="schools.results"
+          action="publish"
+          label="New publish window"
+          onSelect={() => {
+            setWindowFor(null);
+            setWindowOpen(true);
+          }}
+        />
+      </PageChrome>
 
       {workflow.error ? <SaveError what="That sheet" error={workflow.error} /> : null}
       {windowError ? <SaveError what="That publish window" error={windowError} /> : null}
@@ -411,161 +426,189 @@ export function PublishingContent() {
         onValueChange={(next) => setView(next as PublishView)}
         railLabel="Publishing views"
       >
-        <div className="space-y-4">
-          <FilterBar>
-            <FilterSelect
-              label="Year group"
-              allLabel="Every year group"
-              value={classFilter}
-              options={classes.map((row) => ({ value: row.id, label: row.name }))}
-              onChange={(next) => {
-                setClassFilter(next);
-                setStreamFilter("");
-              }}
-            />
-            <FilterSelect
-              label="Class"
-              allLabel="Every class"
-              value={streamFilter}
-              options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
-              onChange={setStreamFilter}
-            />
-            <FilterSelect
-              label="Term"
-              allLabel="Every term"
-              value={termFilter}
-              options={terms.map((term) => ({ value: term.id, label: term.name }))}
-              onChange={setTermFilter}
-            />
-            {view === "windows" ? (
-              <FilterSelect
-                label="Status"
-                allLabel="Any status"
-                value={windowStateFilter}
-                options={WINDOW_STATE_OPTIONS}
-                onChange={setWindowStateFilter}
+        <div className="space-y-2">
+          <TableControls
+            sticky
+            search={
+              <TableSearch
+                value={search}
+                onChange={setSearch}
+                placeholder={
+                  view === "windows" ? "Search windows" : "Search sheet, class or term"
+                }
               />
-            ) : (
+            }
+            filterCount={activeFilterCount(
+              classFilter,
+              streamFilter,
+              termFilter,
+              view === "windows" ? windowStateFilter : subjectFilter,
+              view === "windows" ? "" : stateFilter,
+            )}
+            filters={
               <>
                 <FilterSelect
-                  label="Subject"
-                  allLabel="Every subject"
-                  value={subjectFilter}
-                  options={subjects.map((subject) => ({
-                    value: subject.id,
-                    label: subject.name,
-                  }))}
-                  onChange={setSubjectFilter}
+                  label="Year group"
+                  allLabel="Every year group"
+                  value={classFilter}
+                  options={classes.map((row) => ({ value: row.id, label: row.name }))}
+                  onChange={(next) => {
+                    setClassFilter(next);
+                    setStreamFilter("");
+                  }}
                 />
                 <FilterSelect
-                  label="Status"
-                  allLabel="Any status"
-                  value={stateFilter}
-                  options={SHEET_STATE_OPTIONS}
-                  onChange={setStateFilter}
+                  label="Class"
+                  allLabel="Every class"
+                  value={streamFilter}
+                  options={streams.map((stream) => ({ value: stream.id, label: stream.name }))}
+                  onChange={setStreamFilter}
                 />
+                <FilterSelect
+                  label="Term"
+                  allLabel="Every term"
+                  value={termFilter}
+                  options={terms.map((term) => ({ value: term.id, label: term.name }))}
+                  onChange={setTermFilter}
+                />
+                {/* A control that only makes sense in one view disappears from
+                    the row rather than reshaping it: a window has no subject
+                    and a sheet has no window state. */}
+                {view === "windows" ? (
+                  <FilterSelect
+                    label="State"
+                    allLabel="Any state"
+                    value={windowStateFilter}
+                    options={WINDOW_STATE_OPTIONS}
+                    onChange={setWindowStateFilter}
+                  />
+                ) : (
+                  <>
+                    <FilterSelect
+                      label="Subject"
+                      allLabel="Every subject"
+                      value={subjectFilter}
+                      options={subjects.map((subject) => ({
+                        value: subject.id,
+                        label: subject.name,
+                      }))}
+                      onChange={setSubjectFilter}
+                    />
+                    <FilterSelect
+                      label="State"
+                      allLabel="Any state"
+                      value={stateFilter}
+                      options={SHEET_STATE_OPTIONS}
+                      onChange={setStateFilter}
+                    />
+                  </>
+                )}
               </>
-            )}
-          </FilterBar>
+            }
+            count={
+              resultsQuery.isLoading
+                ? null
+                : view === "windows"
+                  ? `${filteredWindows.length} of ${windows.length}`
+                  : `${shownSheets.length} of ${sheets.length}`
+            }
+            actions={
+              narrowed ? (
+                <Button variant="ghost" size="sm" onClick={clearFilters}>
+                  Clear the filters
+                </Button>
+              ) : null
+            }
+          />
 
           {view === "windows" ? (
-            <Card
-              flush
-              title="Publish windows"
-              subtitle="Approved marks only leave the school while a window covering them is open"
-            >
-              {resultsQuery.isLoading ? (
-                <TableRowsSkeleton
-                  columns={[
-                    { width: 100 },
-                    { twoLine: true },
-                    { width: 120 },
-                    { width: 120 },
-                    { width: 160 },
-                  ]}
-                  rows={6}
-                />
-              ) : (
-                <DataTable
-                  data={filteredWindows}
-                  columns={windowColumns}
-                  edgeToEdge
-                  searchPlaceholder="Search publish windows"
-                  searchBehavior="instant"
-                  pagination={{ enabled: true }}
-                  exportConfig={{
-                    enabled: true,
-                    title: "Publish windows",
-                    fileName: "publish-windows",
-                  }}
-                  emptyState={
-                    windows.length === 0 ? (
-                      <NothingYet
-                        title="No publish windows yet"
-                        body="Until one is open, approved sheets stay inside the school. Open a window for the term, or for one year group at a time."
+            <DataTable
+              data={filteredWindows}
+              columns={windowColumns}
+              features={{ globalFilter: false }}
+              pagination={{ enabled: true }}
+              exportConfig={{
+                enabled: true,
+                title: "Publish windows",
+                fileName: "publish-windows",
+              }}
+              mobileListRenderer={({ rows: shown }) => (
+                <MobileList>
+                  {shown.length === 0 ? (
+                    <MobileListEmpty>{windowsEmpty}</MobileListEmpty>
+                  ) : (
+                    shown.map(({ row }) => (
+                      <MobileList.Row
+                        key={row.id}
+                        static
+                        title={windowScope(row)}
+                        subtitle={[
+                          row.term.name,
+                          WINDOW_STATE_LABELS[row.status],
+                          `${formatDayTime(row.openAt)} – ${formatDayTime(row.closeAt)}`,
+                        ]
+                          .filter(Boolean)
+                          .join(" · ")}
                       />
-                    ) : (
-                      <NothingMatched
-                        what="windows"
-                        filters={narrowing}
-                        onClear={clearFilters}
-                      />
-                    )
-                  }
-                />
+                    ))
+                  )}
+                </MobileList>
               )}
-            </Card>
-          ) : (
-            <Card
-              flush
-              title={view === "published" ? "Published sheets" : "All result sheets"}
-              subtitle={
-                view === "published"
-                  ? "Out with families — pull one back and the reason is recorded against it"
-                  : "Every sheet in the school, whatever state it is in"
+              emptyState={
+                resultsQuery.isLoading ? (
+                  <TableRowsSkeleton
+                    rows={6}
+                    headers={["Covers", "Status", "Opens", "Closes", "Notes", ""]}
+                    columns={[
+                      { avatar: true, twoLine: true },
+                      { width: 100, badge: true },
+                      { width: 120 },
+                      { width: 120 },
+                      { width: 160 },
+                      { width: 44 },
+                    ]}
+                  />
+                ) : (
+                  windowsEmpty
+                )
               }
-            >
-              {resultsQuery.isLoading ? (
-                <TableRowsSkeleton
-                  columns={[
-                    { twoLine: true },
-                    { width: 110 },
-                    { width: 70 },
-                    { width: 80 },
-                    { width: 90 },
-                  ]}
-                />
-              ) : (
-                <DataTable
-                  data={view === "published" ? publishedRows : filteredSheets}
-                  columns={sheetColumns}
-                  edgeToEdge
-                  searchPlaceholder="Search result sheets"
-                  searchBehavior="instant"
-                  pagination={{ enabled: true }}
-                  exportConfig={{
-                    enabled: true,
-                    title: view === "published" ? "Published sheets" : "All result sheets",
-                    fileName: view === "published" ? "published-sheets" : "result-sheets",
-                  }}
-                  emptyState={
-                    narrowing.length > 0 ? (
-                      <NothingMatched what="sheets" filters={narrowing} onClear={clearFilters} />
-                    ) : view === "published" ? (
-                      <NothingLeftToDo
-                        title="Nothing published yet"
-                        body="Sheets appear here once a head of department has approved them and the office has released them through an open window."
-                      />
-                    ) : (
-                      <NothingYet
-                        title="No result sheets yet"
-                        body="Sheets appear once a class's marks have been written to one."
-                      />
-                    )
-                  }
+            />
+          ) : (
+            <DataTable
+              data={shownSheets}
+              columns={sheetColumns}
+              features={{ globalFilter: false }}
+              pagination={{ enabled: true }}
+              exportConfig={{
+                enabled: true,
+                title: view === "published" ? "Published sheets" : "All result sheets",
+                fileName: view === "published" ? "published-sheets" : "result-sheets",
+              }}
+              mobileListRenderer={({ rows: shown }) => (
+                <SheetMobileList
+                  rows={shown.map(({ row }) => row)}
+                  onOpen={(sheet) => setOpenSheetId(sheet.id)}
+                  empty={sheetsEmpty}
                 />
               )}
-            </Card>
+              emptyState={
+                resultsQuery.isLoading ? (
+                  <TableRowsSkeleton
+                    headers={["Sheet", "State", "Marks", "Mean", "Published", ""]}
+                    columns={[
+                      { avatar: true, twoLine: true },
+                      { width: 110, badge: true },
+                      { width: 70, align: "right" },
+                      { width: 80, align: "right" },
+                      { width: 90 },
+                      { width: 44 },
+                    ]}
+                  />
+                ) : (
+                  sheetsEmpty
+                )
+              }
+            />
           )}
         </div>
       </VerticalDataViews>
@@ -587,6 +630,6 @@ export function PublishingContent() {
         }}
       />
       {workflow.dialog}
-    </div>
+    </SchoolsPage>
   );
 }

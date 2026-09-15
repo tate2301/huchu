@@ -5,6 +5,7 @@ import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, MobileList, MobileListEmpty } from "@corelithzw/react";
 
+import { RecordCell } from "@/components/records/record-table";
 import { FilterBar, FilterSelect } from "@/components/schools/common/filter-select";
 import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
@@ -18,7 +19,14 @@ import {
 import { DataTable } from "@/components/ui/data-table";
 import { NumericCell } from "@/components/ui/numeric-cell";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
+import {
+  WINDOW_STATE_LABELS,
+  WINDOW_STATE_OPTIONS,
+  WindowStateBadge,
+  formatDayTime,
+} from "@/components/schools/results/sheet-state";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import type { PublishWindowStatus } from "@/lib/schools/results-v2";
 import {
   fetchSchoolsClasses,
   fetchSchoolsTerms,
@@ -67,44 +75,27 @@ type GradingSchemeRecord = {
   bands: GradingBandRecord[];
 };
 
+/**
+ * The same windows the publishing screen lists, so they are named in the same
+ * words: `sheet-state.tsx` owns Scheduled, Open and Closed, and this screen
+ * used to carry a second copy of all three with its own tones. One enum, one
+ * vocabulary — a window that is "Open" here and "Open" there is the same
+ * chip, drawn once.
+ */
 type PublishWindowRecord = {
   id: string;
   openAt: string;
   closeAt: string;
-  status: "SCHEDULED" | "OPEN" | "CLOSED";
+  status: PublishWindowStatus;
   notes: string | null;
   term: { id: string; code: string; name: string };
   class: { id: string; code: string; name: string } | null;
   stream: { id: string; code: string; name: string } | null;
 };
 
-const STATUS_TONE = {
-  SCHEDULED: "warn",
-  OPEN: "success",
-  CLOSED: "neutral",
-} as const;
-
-const STATUS_LABEL = {
-  SCHEDULED: "Scheduled",
-  OPEN: "Open",
-  CLOSED: "Closed",
-} as const;
-
 /** A `Decimal` crosses JSON as a string; trailing zeros read badly in a table. */
 function num(value: string | number) {
   return Number(value);
-}
-
-function formatMoment(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "-";
-  return date.toLocaleString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
 }
 
 /** A `datetime-local` input wants local wall-clock, not the ISO Z string. */
@@ -317,7 +308,7 @@ export function GradingContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
             resource="schools.academics"
             verbs={[
               ...(row.original.isDefault
@@ -382,25 +373,21 @@ export function GradingContent() {
         id: "opens",
         header: "Opens",
         cell: ({ row }) => (
-          <span className="font-mono tabular-nums">{formatMoment(row.original.openAt)}</span>
+          <RecordCell kind="date" value={formatDayTime(row.original.openAt)} />
         ),
       },
       {
         id: "closes",
         header: "Closes",
         cell: ({ row }) => (
-          <span className="font-mono tabular-nums">
-            {formatMoment(row.original.closeAt)}
-          </span>
+          <RecordCell kind="date" value={formatDayTime(row.original.closeAt)} />
         ),
       },
       {
         id: "status",
         header: "Status",
         cell: ({ row }) => (
-          <Badge tone={STATUS_TONE[row.original.status]}>
-            {STATUS_LABEL[row.original.status]}
-          </Badge>
+          <WindowStateBadge status={row.original.status} />
         ),
       },
       {
@@ -408,7 +395,7 @@ export function GradingContent() {
         header: "",
         cell: ({ row }) => (
           <RecordActions
-              layout="menu"
+            layout="menu"
             resource="schools.results"
             verbs={[
               ...(row.original.status === "OPEN"
@@ -466,7 +453,7 @@ export function GradingContent() {
     classFilter === "__all__"
       ? "The whole school"
       : classes.find((row) => row.id === classFilter)?.name,
-    statusFilter ? STATUS_LABEL[statusFilter as keyof typeof STATUS_LABEL] : "",
+    statusFilter ? WINDOW_STATE_LABELS[statusFilter as PublishWindowStatus] : "",
   ].filter((value): value is string => Boolean(value));
 
   return (
@@ -618,14 +605,10 @@ export function GradingContent() {
                 onChange={setClassFilter}
               />
               <FilterSelect
-                label="Status"
-                allLabel="Any status"
+                label="State"
+                allLabel="Any state"
                 value={statusFilter}
-                options={[
-                  { value: "OPEN", label: "Open" },
-                  { value: "SCHEDULED", label: "Scheduled" },
-                  { value: "CLOSED", label: "Closed" },
-                ]}
+                options={WINDOW_STATE_OPTIONS}
                 onChange={setStatusFilter}
               />
             </FilterBar>
@@ -694,8 +677,8 @@ export function GradingContent() {
                         }
                         subtitle={[
                           row.term.name,
-                          `${formatMoment(row.openAt)} → ${formatMoment(row.closeAt)}`,
-                          STATUS_LABEL[row.status],
+                          `${formatDayTime(row.openAt)} → ${formatDayTime(row.closeAt)}`,
+                          WINDOW_STATE_LABELS[row.status],
                         ].join(" · ")}
                       />
                     ))

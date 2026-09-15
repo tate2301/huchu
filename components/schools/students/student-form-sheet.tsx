@@ -23,6 +23,7 @@ import {
   fetchSchoolsGuardians,
 } from "@/lib/schools/admin-v2";
 import type { StudentRollRecord } from "@/lib/schools/students-v2";
+import { formatSchoolDate } from "@/lib/schools/format";
 
 export type StudentFormValues = {
   firstName: string;
@@ -246,7 +247,19 @@ export function StudentFormSheet({
           />
         </div>
         <div className="space-y-2">
-          <Label htmlFor="student-dob">Date of birth</Label>
+          {/* The label carries the date in the school's own words. A native
+              date field draws its value in whatever order the reader's browser
+              was set up with, so 06/03 is the third of June at one desk and the
+              sixth of March at the next — and a date of birth read the wrong way
+              round puts a child in the wrong year group. */}
+          <Label htmlFor="student-dob">
+            Date of birth
+            {values.dateOfBirth ? (
+              <span className="ml-1.5 font-normal text-[color:var(--text-subtle)]">
+                {formatSchoolDate(values.dateOfBirth)}
+              </span>
+            ) : null}
+          </Label>
           <Input
             id="student-dob"
             type="date"
@@ -348,7 +361,14 @@ export function StudentFormSheet({
           </Select>
         </div>
         <div className="space-y-2">
-          <Label htmlFor="student-admitted">Admitted</Label>
+          <Label htmlFor="student-admitted">
+            Admitted
+            {values.admissionDate ? (
+              <span className="ml-1.5 font-normal text-[color:var(--text-subtle)]">
+                {formatSchoolDate(values.admissionDate)}
+              </span>
+            ) : null}
+          </Label>
           <Input
             id="student-admitted"
             type="date"

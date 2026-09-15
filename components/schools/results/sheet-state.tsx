@@ -27,10 +27,28 @@ export const SHEET_STATE_LABELS: Record<ResultSheetStatus, string> = {
   PUBLISHED: "Published",
 };
 
-/** For a `FilterSelect`, in the order a sheet travels. */
-export const SHEET_STATE_OPTIONS = (
-  ["DRAFT", "SUBMITTED", "HOD_APPROVED", "HOD_REJECTED", "PUBLISHED"] as ResultSheetStatus[]
-).map((value) => ({ value, label: SHEET_STATE_LABELS[value] }));
+/**
+ * The order a sheet travels, and the only order these five are ever listed in.
+ *
+ * Sent back sits after submitted rather than after approved, because that is
+ * where it happens: a sheet comes back from the head of department, is fixed
+ * and goes in again. Every state filter and every state rail in the results
+ * area reads this array, so the queue, the overview and the publishing screen
+ * cannot put the same five states in three orders.
+ */
+export const SHEET_STATE_ORDER: ResultSheetStatus[] = [
+  "DRAFT",
+  "SUBMITTED",
+  "HOD_REJECTED",
+  "HOD_APPROVED",
+  "PUBLISHED",
+];
+
+/** For a `FilterSelect`. */
+export const SHEET_STATE_OPTIONS = SHEET_STATE_ORDER.map((value) => ({
+  value,
+  label: SHEET_STATE_LABELS[value],
+}));
 
 const SHEET_STATE_TONE = {
   DRAFT: "outline",

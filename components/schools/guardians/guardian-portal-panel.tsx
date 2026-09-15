@@ -8,6 +8,7 @@ import { RecordActions } from "@/components/schools/common/record-actions";
 import { LoadError, SaveError } from "@/components/schools/common/states";
 import { PortalInviteDialog } from "@/components/schools/portal/portal-invite-dialog";
 import { fetchJson } from "@/lib/api-client";
+import { formatSchoolDate } from "@/lib/schools/format";
 
 /**
  * Whether this parent can log in, and what to do about it.
@@ -34,14 +35,6 @@ type PortalInvite = {
   revokedAt: string | null;
   createdAt: string;
 };
-
-function formatDay(value: string) {
-  return new Date(value).toLocaleDateString(undefined, {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  });
-}
 
 export function GuardianPortalPanel({
   guardianId,
@@ -120,7 +113,7 @@ export function GuardianPortalPanel({
             {state === "claimed"
               ? `${name} has set a password and can see the children they are linked to. Which of them, and what about each, is decided by the consent on the child's row.`
               : state === "outstanding"
-                ? `An invitation is live, sent to ${outstanding?.sentTo}, and expires ${formatDay(outstanding!.expiresAt)}. The link itself was shown once when it was issued and cannot be recovered — reissuing mints a new one and withdraws this.`
+                ? `An invitation is live, sent to ${outstanding?.sentTo}, and expires ${formatSchoolDate(outstanding!.expiresAt)}. The link itself was shown once when it was issued and cannot be recovered — reissuing mints a new one and withdraws this.`
                 : email
                   ? `${name} has no portal account. An invitation sends them to a page where they set their own password; the link is shown once, here, and is not recoverable afterwards.`
                   : `${name} has no email address on their record, and an invitation has nowhere to go. Add one first.`}

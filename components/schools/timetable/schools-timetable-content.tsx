@@ -3,9 +3,14 @@
 import { Fragment, useMemo, useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
+import { Alert, Button, MobileList, MobileListEmpty } from "@corelithzw/react";
 
+import { EntityLink } from "@/components/records/entity-link";
+import { RecordMark } from "@/components/records/record-mark";
+
+import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import {
   CardsSkeleton,
@@ -18,6 +23,9 @@ import {
 } from "@/components/schools/common/states";
 import { useSchoolAccess } from "@/components/schools/common/use-school-access";
 import { fetchJson, getApiErrorMessage } from "@/lib/api-client";
+import { Plus } from "@/lib/icons";
+import { recordType } from "@/lib/records/registry";
+import { cn } from "@/lib/utils";
 import { DAY_NAMES, formatMinute } from "@/lib/schools/timetable-format";
 import {
   fetchSchoolsPeriods,
@@ -266,35 +274,51 @@ export function SchoolsTimetableContent() {
       (viewpoint === "class" && classFilter) ||
       (viewpoint === "teacher" && teacherFilter);
 
-    // A clash is two lessons on the same teacher or in the same room at the
-    // same time. The API refuses to create one, so a number here above zero is
-    // data that drifted — an imported timetable, or a room merged since — and
-    // that is exactly when a timetabler needs to be told.
-    const seen = new Map<string, number>();
-    let clashes = 0;
-    for (const slot of allSlots) {
-      const at = `${slot.dayOfWeek}:${slot.periodId}`;
-      for (const who of [
-        `t:${slot.classSubject.teacherProfile.id}@${at}`,
-        slot.room ? `r:${slot.room.id}@${at}` : null,
-      ]) {
-        if (!who) continue;
-        const count = (seen.get(who) ?? 0) + 1;
-        seen.set(who, count);
-        if (count === 2) clashes += 1;
-      }
-    }
-
     return {
       placed: allSlots.length,
       cells: narrowed ? cells : null,
       free: narrowed ? Math.max(cells - allSlots.length, 0) : null,
-      clashes,
     };
     // The band reports the week, not the view. Typing in the search box
     // narrows what is drawn; it does not free up a period or resolve a clash,
     // and a chip that moved when you typed would say it had.
   }, [allSlots, periods, days, viewpoint, classFilter, teacherFilter]);
+
+  /**
+   * Which lessons are double-booked, and how many collisions that is.
+   *
+   * A clash is two lessons on the same teacher or in the same room at the same
+   * time. The API refuses to create one, so anything here is data that drifted
+   * — an imported timetable, or a room merged since — and that is exactly when
+   * a timetabler needs to be told.
+   *
+   * The band used to count them and the grid said nothing, so "Clashes 3" was
+   * a number with no way to find the three. The ids come back with the count,
+   * and the cells holding them are drawn in the danger tone with the reason on
+   * them: a figure you cannot act on is a figure you learn to ignore.
+   */
+  const clashes = useMemo(() => {
+    const at = new Map<string, string[]>();
+    for (const slot of allSlots) {
+      const when = `${slot.dayOfWeek}:${slot.periodId}`;
+      for (const who of [
+        `t:${slot.classSubject.teacherProfile.id}@${when}`,
+        slot.room ? `r:${slot.room.id}@${when}` : null,
+      ]) {
+        if (!who) continue;
+        at.set(who, [...(at.get(who) ?? []), slot.id]);
+      }
+    }
+
+    const slotIds = new Set<string>();
+    let count = 0;
+    for (const booked of at.values()) {
+      if (booked.length < 2) continue;
+      count += 1;
+      for (const id of booked) slotIds.add(id);
+    }
+    return { count, slotIds };
+  }, [allSlots]);
 
   const daySlots = useMemo(
     () =>
@@ -468,77 +492,84 @@ export function SchoolsTimetableContent() {
   const buildReason = canBuild ? undefined : "This is a school administrator to do.";
 
   return (
-    <div className="space-y-4">
-      <PageBand
-        chips={[
-          {
-            label: "Lessons placed",
-            value:
-              placement.cells === null
-                ? placement.placed
-                : `${placement.placed} of ${placement.cells}`,
-            tone: "brand",
-          },
-          {
-            label: "Free periods",
-            value: placement.free === null ? "—" : placement.free,
-          },
-          {
-            label: "Clashes",
-            value: placement.clashes,
-            tone: placement.clashes > 0 ? "danger" : "success",
-          },
-        ]}
-      />
-
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-section-title">The week</h2>
-        <div className="flex flex-wrap items-center gap-2">
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!canBuild || periods.length === 0 || assignments.length === 0}
-            title={buildReason}
-            onClick={() => {
-              setAutoFillError(null);
-              setAutoFillResult(null);
-              setAutoFillOpen(true);
-            }}
-          >
-            Build timetable
-          </Button>
-          <Button
-            variant="secondary"
-            size="sm"
-            disabled={!canBuild || terms.length < 2}
-            title={
-              buildReason ??
-              (terms.length < 2
-                ? "There is only one term to copy from."
-                : undefined)
-            }
-            onClick={() => {
-              setCopyError(null);
-              setCopyResult(null);
-              setCopyOpen(true);
-            }}
-          >
-            Copy forward
-          </Button>
-          <CreateButton
-            resource="schools.academics"
-            label="Add lesson"
-            unavailable={
-              periods.length === 0
-                ? "Set the school day up first — a lesson needs a period to sit in."
-                : assignments.length === 0
-                  ? "No class-subject assignments exist for this term yet."
-                  : undefined
-            }
-            onSelect={() => openSheet(selectedDay, firstTeachingPeriodId)}
-          />
-        </div>
-      </div>
+    <SchoolsPage
+      band={
+        <PageBand
+          chips={[
+            {
+              label: "Lessons placed",
+              value:
+                placement.cells === null
+                  ? placement.placed
+                  : `${placement.placed} of ${placement.cells}`,
+              tone: "brand",
+            },
+            {
+              label: "Free periods",
+              value: placement.free === null ? "—" : placement.free,
+            },
+            {
+              label: "Clashes",
+              value: clashes.count,
+              tone: clashes.count > 0 ? "danger" : "success",
+            },
+          ]}
+          actions={
+            <>
+              {/* The two bulk writes live in the band rather than the app bar:
+                  they act on the whole week the band is counting, and the bar
+                  carries the one verb a timetabler presses all afternoon. */}
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!canBuild || periods.length === 0 || assignments.length === 0}
+                title={buildReason}
+                onClick={() => {
+                  setAutoFillError(null);
+                  setAutoFillResult(null);
+                  setAutoFillOpen(true);
+                }}
+              >
+                Build the week
+              </Button>
+              <Button
+                variant="secondary"
+                size="sm"
+                disabled={!canBuild || terms.length < 2}
+                title={
+                  buildReason ??
+                  (terms.length < 2 ? "There is only one term to copy from." : undefined)
+                }
+                onClick={() => {
+                  setCopyError(null);
+                  setCopyResult(null);
+                  setCopyOpen(true);
+                }}
+              >
+                Copy forward
+              </Button>
+            </>
+          }
+        />
+      }
+    >
+      {/* The page is named once, in the app bar. "The week" as a heading under
+          a bar that already says Timetable spent a band of vertical space on
+          nothing, and the rule that band drew was the seam. */}
+      <PageChrome title="Timetable">
+        <CreateButton
+          resource="schools.academics"
+          label="Add lesson"
+          unavailable={
+            periods.length === 0
+              ? "Set the school day up first — a lesson needs a period to sit in."
+              : assignments.length === 0
+                ? "No class-subject assignments exist for this term yet."
+                : undefined
+          }
+          onSelect={() => openSheet(selectedDay, firstTeachingPeriodId)}
+        />
+      </PageChrome>
 
       {periods.length === 0 ? (
         <Alert
@@ -697,11 +728,15 @@ export function SchoolsTimetableContent() {
                   <MobileList.Row
                     key={slot.id}
                     static
+                    leading={<RecordMark kind="subject" name={described.subject} size="sm" />}
                     title={`${described.subject} · ${described.className}`}
+                    // The time leads: a phone is read on the way to a lesson,
+                    // and the question it is being asked is "what is next".
                     subtitle={[
                       `${formatMinute(slot.period.startMinute)}–${formatMinute(slot.period.endMinute)}`,
                       described.teacher,
                       described.room,
+                      clashes.slotIds.has(slot.id) ? "Double-booked" : null,
                     ]
                       .filter(Boolean)
                       .join(" · ")}
@@ -744,13 +779,13 @@ export function SchoolsTimetableContent() {
                   gridTemplateColumns: `minmax(140px, 1fr) repeat(${shownDays.length}, minmax(150px, 1fr))`,
                 }}
               >
-                <div className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground">
+                <div className="bg-[var(--surface-muted)] px-2 py-1.5 text-sm font-medium text-[color:var(--text-muted)]">
                   Period
                 </div>
                 {shownDays.map((day) => (
                   <div
                     key={day}
-                    className="bg-[var(--surface-muted)] p-2 text-sm font-semibold text-muted-foreground"
+                    className="bg-[var(--surface-muted)] px-2 py-1.5 text-sm font-medium text-[color:var(--text-muted)]"
                   >
                     {DAY_NAMES[day]}
                   </div>
@@ -758,89 +793,166 @@ export function SchoolsTimetableContent() {
 
                 {periods.map((period) => (
                   <Fragment key={period.id}>
-                    <div className="bg-[var(--surface)] p-2">
-                      <div className="text-sm font-medium">{period.name}</div>
-                      <div className="text-sm text-muted-foreground">
+                    <div className="bg-[var(--surface)] px-2 py-1.5">
+                      <div className="text-sm font-medium text-[color:var(--text-strong)]">
+                        {period.name}
+                      </div>
+                      <div className="font-mono text-sm tabular-nums text-[color:var(--text-subtle)]">
                         {formatMinute(period.startMinute)}–{formatMinute(period.endMinute)}
                       </div>
                     </div>
-                    {shownDays.map((day) => {
-                      const cellSlots = byDayAndPeriod.get(`${day}:${period.id}`) ?? [];
-                      return (
-                        <div key={`${day}:${period.id}`} className="bg-[var(--surface)] p-2">
-                          {!period.isTeaching ? (
-                            <span className="text-sm text-muted-foreground">
-                              {period.name}
-                            </span>
-                          ) : cellSlots.length === 0 ? (
-                            <button
-                              type="button"
-                              className="w-full rounded-md border border-dashed border-[var(--edge-subtle)] p-2 text-sm text-muted-foreground hover:bg-[var(--surface-muted)]"
-                              onClick={() => openSheet(day, period.id)}
-                            >
-                              Add
-                            </button>
-                          ) : (
-                            <div className="space-y-1">
-                              {cellSlots.map((slot) => {
-                                const described = describeSlot(slot);
-                                return (
-                                  <div
-                                    key={slot.id}
-                                    className="rounded-md border border-[var(--edge-subtle)] p-2"
-                                  >
-                                    <div className="text-sm font-medium">
-                                      {described.subject}
-                                    </div>
-                                    {/* Both, always. Showing only the teacher in
-                                        the class view left a cell holding three
-                                        classes' lessons with nothing saying which
-                                        class each belonged to. */}
-                                    <div className="text-sm text-muted-foreground">
-                                      {described.className}
-                                    </div>
-                                    <div className="text-sm text-muted-foreground">
-                                      {described.teacher}
-                                    </div>
-                                    {described.room ? (
-                                      <Badge tone="neutral">{described.room}</Badge>
-                                    ) : null}
-                                    <RecordActions
-                                      resource="schools.academics"
-                                      verbs={[
-                                        {
-                                          label: "Move",
-                                          action: "edit",
-                                          onSelect: () => openMove(slot),
-                                        },
-                                        {
-                                          label: "Remove",
-                                          action: "archive",
-                                          tone: "danger",
-                                          loading:
-                                            removeLesson.isPending &&
-                                            removeLesson.variables === slot.id,
-                                          // Every other destructive action in
-                                          // campus confirms; this one deleted on a
-                                          // single tap in a grid of twenty-five
-                                          // cells, with no undo behind it.
-                                          confirm: {
-                                            title: `Remove ${described.subject} from ${DAY_NAMES[day]}`,
-                                            description: `${described.className} loses this lesson in ${period.name}. The class-subject assignment stays; only the slot on the timetable goes, and it has to be placed again by hand.`,
-                                            confirmLabel: "Remove the lesson",
+
+                    {/* Break and lunch run across the week rather than
+                        repeating their own name in every column. Five cells
+                        each saying "Break" is the row label read five more
+                        times, and it gave a non-teaching row the same weight
+                        as a row with five lessons in it. */}
+                    {!period.isTeaching ? (
+                      <div
+                        className="bg-[var(--surface-muted)] px-2 py-1.5 text-sm text-[color:var(--text-subtle)]"
+                        style={{ gridColumn: `span ${shownDays.length}` }}
+                      >
+                        Not taught
+                      </div>
+                    ) : (
+                      shownDays.map((day) => {
+                        const cellSlots = byDayAndPeriod.get(`${day}:${period.id}`) ?? [];
+                        return (
+                          <div key={`${day}:${period.id}`} className="bg-[var(--surface)] p-1">
+                            {cellSlots.length === 0 ? (
+                              /* A free period is the quietest thing on the
+                                 grid, not twenty-five dashed boxes saying
+                                 "Add". The whole cell is the target and the
+                                 plus only appears under the pointer; the
+                                 accessible name says which cell it is, because
+                                 twenty-five controls called "Add" are
+                                 twenty-five controls a keyboard reader cannot
+                                 tell apart. */
+                              <button
+                                type="button"
+                                className="group/cell flex h-full min-h-11 w-full items-center justify-center rounded-[var(--radius-md)] text-[color:var(--text-faint)] transition-colors hover:bg-[var(--surface-muted)] focus-visible:bg-[var(--surface-muted)]"
+                                onClick={() => openSheet(day, period.id)}
+                              >
+                                <Plus
+                                  className="size-4 opacity-0 transition-opacity group-hover/cell:opacity-100 group-focus-visible/cell:opacity-100"
+                                  aria-hidden="true"
+                                />
+                                <span className="sr-only">
+                                  Add a lesson — {DAY_NAMES[day]}, {period.name}
+                                </span>
+                              </button>
+                            ) : (
+                              <div className="space-y-1">
+                                {cellSlots.map((slot) => {
+                                  const described = describeSlot(slot);
+                                  const clashing = clashes.slotIds.has(slot.id);
+                                  return (
+                                    <div
+                                      key={slot.id}
+                                      className={cn(
+                                        "flex items-start gap-1 rounded-[var(--radius-md)] border px-2 py-1.5",
+                                        clashing
+                                          ? "border-[color:var(--tone-danger)] bg-[color:var(--tone-danger-soft)]"
+                                          : "border-[color:var(--border-subtle)]",
+                                      )}
+                                      title={
+                                        clashing
+                                          ? "Double-booked — the same teacher or room is in two lessons at this time."
+                                          : undefined
+                                      }
+                                    >
+                                      <div className="min-w-0 flex-1">
+                                        <div className="truncate text-sm font-medium text-[color:var(--text-strong)]">
+                                          <EntityLink
+                                            href={recordType("SUBJECT").href(
+                                              slot.classSubject.subject.id,
+                                            )}
+                                          >
+                                            {described.subject}
+                                          </EntityLink>
+                                        </div>
+                                        {/* Both, always. Showing only the
+                                            teacher in the class view left a
+                                            cell holding three classes' lessons
+                                            with nothing saying which class each
+                                            belonged to. */}
+                                        <div className="truncate text-sm text-[color:var(--text-muted)]">
+                                          <EntityLink
+                                            href={recordType("CLASS").href(
+                                              slot.classSubject.class.id,
+                                            )}
+                                            muted
+                                          >
+                                            {described.className}
+                                          </EntityLink>
+                                        </div>
+                                        {/* The teacher and the room on one mono
+                                            line: they are what the eye runs
+                                            down a column looking for, and at
+                                            the subject's size and face they
+                                            read as three subjects stacked. */}
+                                        <div className="truncate font-mono text-sm text-[color:var(--text-subtle)]">
+                                          <EntityLink
+                                            href={recordType("TEACHER").href(
+                                              slot.classSubject.teacherProfile.id,
+                                            )}
+                                            muted
+                                          >
+                                            {described.teacher}
+                                          </EntityLink>
+                                          {described.room ? ` · ${described.room}` : ""}
+                                        </div>
+                                        {clashing ? (
+                                          <span className="mt-1 inline-block rounded-[var(--radius-sm)] bg-[color:var(--tone-danger-soft)] px-1.5 text-sm font-medium text-[color:var(--tone-danger)]">
+                                            Double-booked
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      {/* A menu, not two buttons. "Move" and
+                                          "Remove" spelled out came to about
+                                          120px of a cell that is 150px wide,
+                                          so the lesson underneath them had
+                                          nowhere to be. */}
+                                      <RecordActions
+                                        layout="menu"
+                                        label={`Lesson actions for ${described.subject}, ${described.className}, ${DAY_NAMES[day]} ${period.name}`}
+                                        resource="schools.academics"
+                                        verbs={[
+                                          {
+                                            label: "Move",
+                                            action: "edit",
+                                            onSelect: () => openMove(slot),
                                           },
-                                          onSelect: () => removeLesson.mutate(slot.id),
-                                        },
-                                      ]}
-                                    />
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
+                                          {
+                                            label: "Remove",
+                                            action: "archive",
+                                            tone: "danger",
+                                            loading:
+                                              removeLesson.isPending &&
+                                              removeLesson.variables === slot.id,
+                                            // Every other destructive action in
+                                            // campus confirms; this one deleted
+                                            // on a single tap in a grid of
+                                            // twenty-five cells, with no undo
+                                            // behind it.
+                                            confirm: {
+                                              title: `Remove ${described.subject} from ${DAY_NAMES[day]}`,
+                                              description: `${described.className} loses this lesson in ${period.name}. The class-subject assignment stays; only the slot on the timetable goes, and it has to be placed again by hand.`,
+                                              confirmLabel: "Remove the lesson",
+                                            },
+                                            onSelect: () => removeLesson.mutate(slot.id),
+                                          },
+                                        ]}
+                                      />
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })
+                    )}
                   </Fragment>
                 ))}
               </div>
@@ -920,6 +1032,6 @@ export function SchoolsTimetableContent() {
         result={copyResult}
         onSubmit={(values) => copyForward.mutate(values)}
       />
-    </div>
+    </SchoolsPage>
   );
 }

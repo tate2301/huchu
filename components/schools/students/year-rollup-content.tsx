@@ -10,12 +10,14 @@ import {
   MobileListSectionHeader,
 } from "@corelithzw/react";
 
+import { RecordMark } from "@/components/records/record-mark";
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PageBand } from "@/components/schools/common/page-band";
+import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { TableControls } from "@/components/schools/common/table-controls";
 import { PageCaption } from "@/components/schools/records/page-caption";
-import { RecordTabs } from "@/components/schools/records/record-tabs";
+import { PopulationTabs } from "@/components/schools/records/population-tabs";
 import {
   LoadError,
   NothingLeftToDo,
@@ -264,7 +266,24 @@ export function YearRollUpContent() {
   const narrowed = Boolean(classFilter);
 
   return (
-    <div className="space-y-4">
+    <SchoolsPage
+      band={
+        /* The four numbers this screen exists to weigh. The verb that acts on
+           them is in the app bar, where every page's primary action goes. */
+        <PageBand
+          chips={[
+            { label: "Moving up", value: plan?.summary.PROMOTE ?? "—", tone: "success" },
+            { label: "Leaving", value: plan?.summary.GRADUATE ?? "—" },
+            { label: "No ladder", value: plan?.summary.REPEAT ?? "—", tone: "warn" },
+            {
+              label: `Below ${plan?.passMark ?? 50}%`,
+              value: flagged,
+              tone: flagged > 0 ? "danger" : "neutral",
+            },
+          ]}
+        />
+      }
+    >
       {/* The page is named in the app bar, and the one verb that acts on every
           record in the school goes with the name. It is disabled until there is
           a plan, because "roll 0 students up" is not an offer. */}
@@ -291,22 +310,6 @@ export function YearRollUpContent() {
           {plan.fromTerm.name} → {plan.toTerm.name}
         </PageCaption>
       ) : null}
-
-      {/* The four numbers this screen exists to weigh, and the one verb that
-          acts on them. The band carries only the numbers now; the verb moved to
-          the app bar, where the canvas puts every page's primary action. */}
-      <PageBand
-        chips={[
-          { label: "Moving up", value: plan?.summary.PROMOTE ?? "—", tone: "success" },
-          { label: "Leaving", value: plan?.summary.GRADUATE ?? "—" },
-          { label: "No ladder", value: plan?.summary.REPEAT ?? "—", tone: "warn" },
-          {
-            label: `Below ${plan?.passMark ?? 50}%`,
-            value: flagged,
-            tone: flagged > 0 ? "danger" : "neutral",
-          },
-        ]}
-      />
 
       {/* The term pickers ARE the screen — with no terms there is nothing to
           roll from or into — so their read failing is a page-level fault and
@@ -343,7 +346,7 @@ export function YearRollUpContent() {
           the list beneath them and nothing else on the page. */}
       <TableControls
         tabs={
-          <RecordTabs<RollUpTab>
+          <PopulationTabs<RollUpTab>
             value={tab}
             onChange={setTab}
             tabs={[
@@ -387,19 +390,11 @@ export function YearRollUpContent() {
         </Alert>
       ) : null}
 
-      {plan ? (
-        <p className="text-sm text-muted-foreground">
-          {plan.fromTerm.name} → {plan.toTerm.name} · {plan.summary.PROMOTE} moving up,{" "}
-          {plan.summary.GRADUATE} leaving, {plan.summary.REPEAT} with no ladder
-          {flagged > 0 ? ` · ${flagged} below ${plan.passMark}%` : ""}
-        </p>
-      ) : null}
-
       {grouped.length === 0 && planQuery.isLoading ? (
         <TableRowsSkeleton
           rows={6}
           headers={["Student", "What happens"]}
-          columns={[{ twoLine: true }, { width: 170, badge: true }]}
+          columns={[{ avatar: true, twoLine: true }, { width: 170, badge: true }]}
         />
       ) : null}
       {grouped.length === 0 && !planQuery.isLoading ? (
@@ -443,6 +438,16 @@ export function YearRollUpContent() {
                     <MobileList.Row
                       key={row.studentId}
                       static
+                      // The same mark the child carries on the roll. A plan that
+                      // moves eight hundred children is read by scanning it, and
+                      // a column of bare surnames cannot be scanned.
+                      leading={
+                        <RecordMark
+                          kind="student"
+                          name={`${row.student.firstName} ${row.student.lastName}`}
+                          size="sm"
+                        />
+                      }
                       title={`${row.student.lastName}, ${row.student.firstName}`}
                       subtitle={
                         <span className="mt-1 flex flex-wrap items-center gap-2">
@@ -503,6 +508,6 @@ export function YearRollUpContent() {
           )}
         </MobileList>
       </SavingOverlay>
-    </div>
+    </SchoolsPage>
   );
 }
