@@ -11,7 +11,7 @@ import {
   NothingYet,
 } from "@/components/schools/common/states";
 import { fetchJson } from "@/lib/api-client";
-import { Shield, TrendingUp } from "@/lib/icons";
+import { TrendingUp } from "@/lib/icons";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
 
@@ -55,12 +55,6 @@ type TaughtSubject = { code: string; name: string };
  */
 const FULL_MARK = 100;
 
-const DAY = new Intl.DateTimeFormat("en-GB", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
-
 /** The latest published line per subject, so one term reads as one column. */
 function latestBySubject(lines: ResultLine[]) {
   const best = new Map<string, ResultLine>();
@@ -74,7 +68,9 @@ function latestBySubject(lines: ResultLine[]) {
 }
 
 function publishedTime(line: ResultLine) {
-  return line.sheet.publishedAt ? new Date(line.sheet.publishedAt).getTime() : 0;
+  return line.sheet.publishedAt
+    ? new Date(line.sheet.publishedAt).getTime()
+    : 0;
 }
 
 function average(marks: number[]) {
@@ -87,7 +83,8 @@ function movement(now: number, before: number | null) {
   if (before === null) return { label: "First time", tone: "neutral" as const };
   const delta = Math.round((now - before) * 10) / 10;
   if (delta > 0) return { label: `Up ${delta}`, tone: "success" as const };
-  if (delta < 0) return { label: `Down ${Math.abs(delta)}`, tone: "warn" as const };
+  if (delta < 0)
+    return { label: `Down ${Math.abs(delta)}`, tone: "warn" as const };
   return { label: "Same as last time", tone: "neutral" as const };
 }
 
@@ -98,6 +95,8 @@ function movement(now: number, before: number | null) {
  * mark a teacher has entered but the school has not released is not this
  * child's to read yet — so the empty state says results appear when the school
  * publishes them, rather than leaving a child to conclude they scored nothing.
+ * It says it *there* and nowhere else: a child reading a page of their own
+ * marks does not need a footnote about the school's checking process.
  * The filtering is the server's: `/me/results` returns published sheets only,
  * and this screen never asks for a student id because the pupil is whoever is
  * signed in.
@@ -175,7 +174,9 @@ export function StudentMarksScreen() {
     lines.filter((line) => line.sheet.term?.id === activeTermId),
   );
   const lastTerm = latestBySubject(
-    previousTerm ? lines.filter((line) => line.sheet.term?.id === previousTerm.id) : [],
+    previousTerm
+      ? lines.filter((line) => line.sheet.term?.id === previousTerm.id)
+      : [],
   );
 
   const subjects = [...thisTerm.values()].sort((left, right) =>
@@ -185,7 +186,8 @@ export function StudentMarksScreen() {
   );
   const nowAverage = average(subjects.map((line) => line.score));
   const thenAverage = average([...lastTerm.values()].map((line) => line.score));
-  const overall = nowAverage === null ? null : movement(nowAverage, thenAverage);
+  const overall =
+    nowAverage === null ? null : movement(nowAverage, thenAverage);
 
   if (student === null) {
     return (
@@ -332,7 +334,9 @@ export function StudentMarksScreen() {
                     <Badge tone={change.tone} dot>
                       {change.label}
                     </Badge>
-                    {line.grade ? <Badge tone="neutral">{line.grade}</Badge> : null}
+                    {line.grade ? (
+                      <Badge tone="neutral">{line.grade}</Badge>
+                    ) : null}
                     {before ? (
                       <span className="font-[family-name:var(--font-mono)] text-[length:var(--type-caption)] tabular-nums text-[color:var(--text-muted)]">
                         {previousTerm?.name}: {before.score}
@@ -351,17 +355,6 @@ export function StudentMarksScreen() {
           })}
         </ul>
       )}
-
-      <div className="sp-note">
-        <span className="sp-note-ic">
-          <Shield className="size-3.5" aria-hidden />
-        </span>
-        Only marks the school has published are here. A mark your teacher is still
-        working on appears once the school releases it.
-        {publishedAt
-          ? ` This term was published on ${DAY.format(new Date(publishedAt))}.`
-          : ""}
-      </div>
     </div>
   );
 }

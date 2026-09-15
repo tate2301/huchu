@@ -18,7 +18,7 @@ import {
   SaveError,
   SavingOverlay,
 } from "@/components/schools/common/states";
-import { CheckCircle, Circle, Clock, TrendingUp } from "@/lib/icons";
+import { CheckCircle, Clock, TrendingUp } from "@/lib/icons";
 import { fetchJson } from "@/lib/api-client";
 import { useStudentPortal } from "./student-portal-context";
 import { subjectAccentClass } from "./student-subject-accent";
@@ -46,7 +46,11 @@ type Subject = {
   currentMark: number | null;
 };
 
-type SubjectsResponse = { termId: string; termName: string; subjects: Subject[] };
+type SubjectsResponse = {
+  termId: string;
+  termName: string;
+  subjects: Subject[];
+};
 
 /** One subject on the screen: what it is, the goal on it, and today's mark. */
 type Row = {
@@ -58,10 +62,18 @@ type Row = {
 };
 
 /** What the pupil is filling in while the sheet is open. */
-type Draft = { subjectId: string; subjectName: string; target: string; plan: string };
+type Draft = {
+  subjectId: string;
+  subjectName: string;
+  target: string;
+  plan: string;
+};
 
 /**
  * The state of one goal, drawn from the canonical five.
+ *
+ * Only ever asked about a subject that has a goal on it — a card with none says
+ * so once, with the button that fixes it, rather than wearing a badge as well.
  *
  * "No mark yet" is deliberately *not* one of these. A missing mark says nothing
  * about whether the goal is going well, so it belongs beside the number it is
@@ -69,14 +81,11 @@ type Draft = { subjectId: string; subjectName: string; target: string; plan: str
  * for exactly this case and reading that as "off track" would tell a child they
  * are behind on a test nobody has marked.
  */
-function statusOf(goal: Goal | null): {
-  label: "Not started" | "Running" | "Completed";
-  tone: "neutral" | "info" | "success";
-  Icon: typeof Circle;
+function statusOf(goal: Goal): {
+  label: "Running" | "Completed";
+  tone: "info" | "success";
+  Icon: typeof Clock;
 } {
-  if (!goal || goal.targetMark === null) {
-    return { label: "Not started", tone: "neutral", Icon: Circle };
-  }
   if (goal.onTrack === true) {
     return { label: "Completed", tone: "success", Icon: CheckCircle };
   }
@@ -86,6 +95,91 @@ function statusOf(goal: Goal | null): {
 /** A percentage, or the plain truth that there isn't one. */
 function markLabel(value: number | null) {
   return value === null ? "No mark yet" : `${Math.round(value)}%`;
+}
+
+/**
+ * One subject that has a target on it: where the pupil is, what they are
+ * aiming at, and how far is left.
+ *
+ * Three numbers and never two of the same one — the target is the denominator
+ * of the figure, so it is not repeated as a subtitle underneath it.
+ */
+function GoalCard({
+  row,
+  goal,
+  target,
+  teacher,
+  onOpen,
+}: {
+  row: Row;
+  goal: Goal;
+  target: number;
+  teacher: string;
+  onOpen: () => void;
+}) {
+  const status = statusOf(goal);
+  const toGo =
+    row.currentMark !== null && row.currentMark < target
+      ? Math.round(target - row.currentMark)
+      : null;
+  const filled =
+    target > 0
+      ? Math.min(100, Math.round(((row.currentMark ?? 0) / target) * 100))
+      : 0;
+
+  return (
+    <button type="button" className="sp-goal-card" onClick={onOpen}>
+      <span className="sp-gc-head">
+        <span className="sp-tag goal" />
+        <span className="block min-w-0 flex-1">
+          <span className="sp-gc-nm block">{row.subjectName}</span>
+          <span className="sp-gc-sb block">{teacher}</span>
+        </span>
+        <span className="block text-right">
+          <span className="sp-gc-target block">
+            {row.currentMark === null ? "—" : Math.round(row.currentMark)}
+            <span className="sp-gc-of">/{Math.round(target)}</span>
+          </span>
+          <span
+            className={`sp-gc-delta${
+              goal.onTrack === true ? "" : toGo === null ? " muted" : " down"
+            }`}
+          >
+            {row.currentMark === null
+              ? "No mark yet"
+              : goal.onTrack === true
+                ? "You did it!"
+                : `${toGo}% to go`}
+          </span>
+        </span>
+      </span>
+
+      <span
+        className="sp-gc-bar"
+        role="img"
+        aria-label={`${row.subjectName}: ${markLabel(row.currentMark)} against a goal of ${Math.round(target)}%`}
+      >
+        <span style={{ width: `${filled}%` }} />
+      </span>
+
+      <span className="sp-gc-foot">
+        <Badge tone={status.tone}>
+          <status.Icon className="size-3" aria-hidden /> {status.label}
+        </Badge>
+        {goal.baselineMark === null ? null : (
+          <span className="sp-gc-note">
+            Started at {markLabel(goal.baselineMark)}
+          </span>
+        )}
+      </span>
+
+      {goal.plan ? (
+        <span className="sp-gc-note block">
+          How you will get there: {goal.plan}
+        </span>
+      ) : null}
+    </button>
+  );
 }
 
 /**
@@ -241,7 +335,9 @@ export function StudentGoalsScreen() {
           identity colour, the same one the sign-in mark and the ID card wear. */}
       <div className="sp-hero identity">
         <div className="sp-hero-l">
-          {term ? `${term.name} · what you are aiming for` : "What you are aiming for"}
+          {term
+            ? `${term.name} · what you are aiming for`
+            : "What you are aiming for"}
         </div>
         <div className="sp-hero-v">
           <span className="tabular-nums">
@@ -249,16 +345,9 @@ export function StudentGoalsScreen() {
           </span>
           <span className="sp-hero-u">reached</span>
         </div>
-        <div className="sp-hero-d">
-          {term
-            ? "Pick a mark you want in a subject. The app keeps the mark you started from, so you can see how far you have come rather than only how far is left."
-            : "No term is running, so there is nothing to aim at yet."}
-        </div>
       </div>
 
-      <div className="sp-psh">
-        Each subject · {met}/{withGoals.length} on track
-      </div>
+      <div className="sp-psh">Each subject · {rows.length}</div>
 
       {loading ? (
         /* A goal card is a subject name, a pair of numbers and a bar, so the
@@ -278,94 +367,44 @@ export function StudentGoalsScreen() {
           {rows.map((row) => {
             const goal = row.goal;
             const target = goal?.targetMark ?? null;
-            const baseline = goal?.baselineMark ?? null;
-            const status = statusOf(goal);
-            const toGo =
-              target !== null && row.currentMark !== null && row.currentMark < target
-                ? Math.round(target - row.currentMark)
-                : null;
-            const filled =
-              target !== null && target > 0
-                ? Math.min(100, Math.round(((row.currentMark ?? 0) / target) * 100))
-                : 0;
+            const teacher = row.teacherName
+              ? `Taught by ${row.teacherName}`
+              : "No teacher on it yet";
 
             return (
               <div
                 key={row.subjectId}
                 className={subjectAccentClass(row.subjectName)}
               >
-                <button
-                  type="button"
-                  className="sp-goal-card"
-                  onClick={() => openSheet(row)}
-                >
-                  <span className="sp-gc-head">
-                    <span className="sp-tag goal" />
-                    <span className="block min-w-0 flex-1">
-                      <span className="sp-gc-nm block">{row.subjectName}</span>
-                      <span className="sp-gc-sb block">
-                        {[
-                          row.teacherName ? `Taught by ${row.teacherName}` : null,
-                          target === null ? "no goal yet" : `goal ${Math.round(target)}%`,
-                        ]
-                          .filter(Boolean)
-                          .join(" · ")}
-                      </span>
-                    </span>
-                    <span className="block text-right">
-                      <span className="sp-gc-target block">
-                        {row.currentMark === null ? "—" : Math.round(row.currentMark)}
-                        <span className="sp-gc-of">
-                          /{target === null ? "—" : Math.round(target)}
+                {goal === null || target === null ? (
+                  /* Nothing set yet is one fact and one thing to do about it.
+                     A badge, a dash over a dash and a subtitle all saying the
+                     same absence left the card reading as broken. */
+                  <button
+                    type="button"
+                    className="sp-goal-card"
+                    onClick={() => openSheet(row)}
+                  >
+                    <span className="sp-gc-head">
+                      <span className="sp-tag goal" />
+                      <span className="block min-w-0 flex-1">
+                        <span className="sp-gc-nm block">
+                          {row.subjectName}
                         </span>
+                        <span className="sp-gc-sb block">{teacher}</span>
                       </span>
-                      <span
-                        className={`sp-gc-delta${
-                          goal?.onTrack === true
-                            ? ""
-                            : toGo === null
-                              ? " muted"
-                              : " down"
-                        }`}
-                      >
-                        {target === null
-                          ? "Not set"
-                          : row.currentMark === null
-                            ? "No mark yet"
-                            : goal?.onTrack === true
-                              ? "You did it!"
-                              : `${toGo}% to go`}
-                      </span>
+                      <span className="sp-gc-cta">Set a goal</span>
                     </span>
-                  </span>
-
-                  {target !== null ? (
-                    <span
-                      className="sp-gc-bar"
-                      role="img"
-                      aria-label={`${row.subjectName}: ${markLabel(row.currentMark)} against a goal of ${Math.round(target)}%`}
-                    >
-                      <span style={{ width: `${filled}%` }} />
-                    </span>
-                  ) : null}
-
-                  <span className="sp-gc-foot">
-                    <Badge tone={status.tone}>
-                      <status.Icon className="size-3" aria-hidden /> {status.label}
-                    </Badge>
-                    {baseline === null ? null : (
-                      <span className="sp-gc-note">
-                        Started at {markLabel(baseline)}
-                      </span>
-                    )}
-                  </span>
-
-                  {goal?.plan ? (
-                    <span className="sp-gc-note block">
-                      How you will get there: {goal.plan}
-                    </span>
-                  ) : null}
-                </button>
+                  </button>
+                ) : (
+                  <GoalCard
+                    row={row}
+                    goal={goal}
+                    target={target}
+                    teacher={teacher}
+                    onOpen={() => openSheet(row)}
+                  />
+                )}
 
                 {goal?.teacherNote ? (
                   <Callout tone="info" title="What your teacher said">
@@ -396,7 +435,9 @@ export function StudentGoalsScreen() {
               onClick={() => {
                 if (!draft) return;
                 const existing = goalBySubject.get(draft.subjectId) ?? null;
-                const row = rows.find((item) => item.subjectId === draft.subjectId);
+                const row = rows.find(
+                  (item) => item.subjectId === draft.subjectId,
+                );
                 save.mutate({
                   ...draft,
                   // The baseline is stamped once. Sending it again on a change
@@ -433,7 +474,9 @@ export function StudentGoalsScreen() {
               label="How you will get there"
               hint="Optional. One or two things you will do differently."
               value={draft.plan}
-              onChange={(event) => setDraft({ ...draft, plan: event.target.value })}
+              onChange={(event) =>
+                setDraft({ ...draft, plan: event.target.value })
+              }
             />
           </div>
         ) : null}

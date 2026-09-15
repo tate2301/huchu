@@ -10,8 +10,23 @@ import {
   MobileShellHeader,
 } from "@corelithzw/react";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
-import { BarChart3, Bell, Calendar, Home, UserRound } from "@/lib/icons";
-import { useStudentPortal } from "./student-portal-context";
+import {
+  ArrowLeft,
+  BarChart3,
+  Bell,
+  Calendar,
+  HelpCircle,
+  Home,
+  ListBullets,
+  MedusaBookOpenIcon,
+  Settings2,
+  TrendingUp,
+  UserRound,
+} from "@/lib/icons";
+import {
+  STUDENT_BAR_ACTIONS_ID,
+  useStudentPortal,
+} from "./student-portal-context";
 import "./student-portal.css";
 
 /**
@@ -42,6 +57,37 @@ const TABS = [
 ];
 
 /**
+ * Where back goes from a screen that is not a tab.
+ *
+ * The tab it was opened from, not `history.back()`: a pupil who lands on Goals
+ * from a message has no history to go back to, and the arrow still has to mean
+ * something. Every route that has no tab of its own is in here, which is what
+ * makes a missing entry a missing back button rather than a silent one.
+ */
+const BACK: Record<string, string> = {
+  "/portal/student/homework": "/portal/student",
+  "/portal/student/library": "/portal/student",
+  "/portal/student/notifications": "/portal/student",
+  "/portal/student/goals": "/portal/student/marks",
+  "/portal/student/help": "/portal/student/profile",
+  "/portal/student/settings": "/portal/student/profile",
+};
+
+/** The side rail above 900px, where the bottom tabs are hidden. */
+const RAIL_MORE = [
+  { href: "/portal/student/homework", label: "Homework", icon: ListBullets },
+  {
+    href: "/portal/student/library",
+    label: "Library",
+    icon: MedusaBookOpenIcon,
+  },
+  { href: "/portal/student/goals", label: "My goals", icon: TrendingUp },
+  { href: "/portal/student/notifications", label: "Messages", icon: Bell },
+  { href: "/portal/student/help", label: "Help", icon: HelpCircle },
+  { href: "/portal/student/settings", label: "Settings", icon: Settings2 },
+];
+
+/**
  * The student portal's own chrome.
  *
  * A phone app, not a dashboard: an app bar, one screen at a time, and four
@@ -49,8 +95,16 @@ const TABS = [
  * most pupils have, and the design system has a shell for exactly this
  * (`MobileShell` + `BottomTabs`) — the four tabs are the four things a pupil
  * opens the app to do, and everything else is reached from Home.
+ *
+ * Above 900px the design system hides the bottom tabs, so the same routes
+ * stand up as a rail rather than leaving a school's library computer with no
+ * navigation at all.
  */
-export function StudentPortalShell({ children }: { children: React.ReactNode }) {
+export function StudentPortalShell({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   const pathname = usePathname();
   const router = useRouter();
   const day = useStudentPortal();
@@ -58,27 +112,83 @@ export function StudentPortalShell({ children }: { children: React.ReactNode }) 
   const name = day.student
     ? `${day.student.firstName} ${day.student.lastName}`
     : "Student";
-  // The screen's name. Home's own greeting line does the greeting, so the
-  // bar does not repeat it — the prototype's does only because its bar sits
-  // under the demo site's chrome rather than being the app's one bar.
-  const title = TITLES[pathname] ?? "Home";
+  // Home's bar carries the greeting, as the prototype's does; every other
+  // screen is named after itself.
+  const title = day.student
+    ? (TITLES[pathname] ?? `Hi, ${day.student.firstName}`)
+    : (TITLES[pathname] ?? "Home");
+  const back = BACK[pathname] ?? null;
+  const unread = day.unread;
+  const onMessages = pathname.startsWith("/portal/student/notifications");
 
   const isActive = (href: string) =>
     href === "/portal/student" ? pathname === href : pathname.startsWith(href);
 
   return (
-    <MobileShell className="student-portal">
+    <MobileShell
+      lang="en-ZW"
+      className={`student-portal${back ? " has-back" : ""}`}
+    >
+      <nav className="ps-side" aria-label="Sections">
+        {TABS.map((tab) => (
+          <Link
+            key={tab.href}
+            href={tab.href}
+            className={`ps-side-item${isActive(tab.href) ? " on" : ""}`}
+            aria-current={isActive(tab.href) ? "page" : undefined}
+          >
+            <tab.icon className="size-[18px]" aria-hidden />
+            {tab.label}
+          </Link>
+        ))}
+        <span className="ps-side-rule" />
+        {RAIL_MORE.map((item) => (
+          <Link
+            key={item.href}
+            href={item.href}
+            className={`ps-side-item${isActive(item.href) ? " on" : ""}`}
+            aria-current={isActive(item.href) ? "page" : undefined}
+          >
+            <item.icon className="size-[18px]" aria-hidden />
+            {item.label}
+            {item.href === "/portal/student/notifications" && unread > 0 ? (
+              <span className="ps-side-count">{unread}</span>
+            ) : null}
+          </Link>
+        ))}
+      </nav>
+
       <MobileShellHeader
         title={title}
+        leftAction={
+          back ? (
+            <Link href={back} aria-label="Back" className="sp-nav-btn">
+              <ArrowLeft className="size-[20px]" aria-hidden />
+            </Link>
+          ) : undefined
+        }
         rightAction={
           <span className="sp-appbar-right">
-            <Link
-              href="/portal/student/notifications"
-              aria-label="Notifications"
-              className="sp-nav-btn"
-            >
-              <Bell className="size-[18px]" aria-hidden />
-            </Link>
+            {/* Whatever screen is open puts its own button here. */}
+            <span id={STUDENT_BAR_ACTIONS_ID} className="contents" />
+            {onMessages ? null : (
+              <Link
+                href="/portal/student/notifications"
+                aria-label={
+                  unread > 0
+                    ? `Messages, ${unread} unread`
+                    : "Messages, none unread"
+                }
+                className="sp-nav-btn sp-bell"
+              >
+                <Bell className="size-[18px]" aria-hidden />
+                {unread > 0 ? (
+                  <span className="sp-bell-count" aria-hidden>
+                    {unread > 99 ? "99+" : unread}
+                  </span>
+                ) : null}
+              </Link>
+            )}
             <Link
               href="/portal/student/profile"
               aria-label="Your profile"

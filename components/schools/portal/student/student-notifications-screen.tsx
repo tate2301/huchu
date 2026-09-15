@@ -18,8 +18,8 @@ import {
   markNotificationsRead,
   type NotificationListItem,
 } from "@/lib/api";
-import { AlertTriangle, Bell, Info, ShieldAlert } from "@/lib/icons";
-import { useStudentPortal } from "./student-portal-context";
+import { AlertTriangle, Bell, Checklist, Info, ShieldAlert } from "@/lib/icons";
+import { StudentBarActions, useStudentPortal } from "./student-portal-context";
 
 const QUERY_KEY = ["notifications", "student", "inbox"] as const;
 
@@ -80,12 +80,14 @@ export function StudentNotificationsScreen() {
   };
 
   const read = useMutation({
-    mutationFn: (recipientIds: string[]) => markNotificationsRead({ recipientIds }),
+    mutationFn: (recipientIds: string[]) =>
+      markNotificationsRead({ recipientIds }),
     onSuccess: invalidate,
   });
 
   const clear = useMutation({
-    mutationFn: (recipientIds: string[]) => archiveNotifications({ recipientIds }),
+    mutationFn: (recipientIds: string[]) =>
+      archiveNotifications({ recipientIds }),
     onSuccess: invalidate,
   });
 
@@ -123,47 +125,60 @@ export function StudentNotificationsScreen() {
         />
       ) : null}
       {read.error ? <SaveError what="That message" error={read.error} /> : null}
-      {clear.error ? <SaveError what="Those messages" error={clear.error} /> : null}
+      {clear.error ? (
+        <SaveError what="Those messages" error={clear.error} />
+      ) : null}
 
-      <div className="sp-notif-meta">
-        <span>
-          {inbox.isPending
-            ? "Reading your messages…"
-            : `${messages.length} message${messages.length === 1 ? "" : "s"} · ${unread.length} new`}
-        </span>
-        {messages.length > 0 ? (
-          <span className="flex items-center gap-3">
-            <button
-              type="button"
-              className="sp-psh-link"
-              disabled={unread.length === 0 || read.isPending}
-              onClick={() => read.mutate(unread.map((item) => item.recipientId))}
-            >
-              Mark all read
-            </button>
-            <button
-              type="button"
-              className="sp-psh-link"
-              disabled={clear.isPending}
-              onClick={() => {
-                void (async () => {
-                  const confirmed = await dsConfirm({
-                    title: `Clear ${messages.length} message${messages.length === 1 ? "" : "s"}`,
-                    description:
-                      "They come off this list. The school still has them, so nothing is lost.",
-                    confirmLabel: "Clear them",
-                    variant: "warning",
-                  });
-                  if (!confirmed) return;
-                  clear.mutate(messages.map((item) => item.recipientId));
-                })();
-              }}
-            >
-              Clear all
-            </button>
+      {/* The bar carries the one action that applies to the whole inbox, as
+          the prototype's does; the count below is a line of the screen and
+          only earns it when there is something to count. */}
+      {unread.length > 0 ? (
+        <StudentBarActions>
+          <button
+            type="button"
+            className="sp-nav-btn"
+            aria-label={`Mark all ${unread.length} as read`}
+            disabled={read.isPending}
+            onClick={() => read.mutate(unread.map((item) => item.recipientId))}
+          >
+            <Checklist className="size-[18px]" aria-hidden />
+          </button>
+        </StudentBarActions>
+      ) : null}
+
+      {inbox.isPending || messages.length > 0 ? (
+        <div className="sp-notif-meta">
+          <span>
+            {inbox.isPending
+              ? "Reading your messages…"
+              : `${messages.length} message${messages.length === 1 ? "" : "s"} · ${unread.length} new`}
           </span>
-        ) : null}
-      </div>
+          {messages.length > 0 ? (
+            <span className="flex items-center gap-3">
+              <button
+                type="button"
+                className="sp-psh-link"
+                disabled={clear.isPending}
+                onClick={() => {
+                  void (async () => {
+                    const confirmed = await dsConfirm({
+                      title: `Clear ${messages.length} message${messages.length === 1 ? "" : "s"}`,
+                      description:
+                        "They come off this list. The school still has them, so nothing is lost.",
+                      confirmLabel: "Clear them",
+                      variant: "warning",
+                    });
+                    if (!confirmed) return;
+                    clear.mutate(messages.map((item) => item.recipientId));
+                  })();
+                }}
+              >
+                Clear all
+              </button>
+            </span>
+          ) : null}
+        </div>
+      ) : null}
 
       {inbox.isPending ? (
         /* A message is an icon tile, a title, a summary and a time — a card.
