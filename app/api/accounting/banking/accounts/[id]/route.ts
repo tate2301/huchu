@@ -10,6 +10,14 @@ const updateSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   openingBalance: z.number().min(0).optional(),
   isActive: z.boolean().optional(),
+  /**
+   * Whether customers are asked to pay into this account, and in what order it
+   * prints. Separate from `isActive`: deactivating an account in the ledger
+   * must not change what a quotation already tells a customer to pay into.
+   */
+  accountName: z.string().max(200).optional(),
+  showOnDocuments: z.boolean().optional(),
+  documentPosition: z.number().int().min(0).max(99).optional(),
 });
 
 type RouteParams = { params: Promise<{ id: string }> };

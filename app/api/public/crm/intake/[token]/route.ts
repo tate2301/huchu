@@ -21,7 +21,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       maxPhotos: true,
       fields: true,
       services: true,
-      company: { select: { name: true } },
+      company: {
+        select: {
+          name: true,
+          branding: { select: { privacyPolicyUrl: true, termsUrl: true } },
+        },
+      },
     },
   });
 
@@ -46,6 +51,10 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
       allowPhotos: form.allowPhotos,
       maxPhotos: form.maxPhotos,
       companyName: form.company.name,
+      // Null unless the tenant has published policies and said where. The form
+      // renders nothing rather than a dead link.
+      privacyPolicyUrl: form.company.branding?.privacyPolicyUrl ?? null,
+      termsUrl: form.company.branding?.termsUrl ?? null,
       fields: config.fields,
       services: config.services,
     },

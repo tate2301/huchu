@@ -10,6 +10,15 @@ const accountSchema = z.object({
   currency: z.string().min(1).max(10).optional(),
   openingBalance: z.number().min(0).optional(),
   isActive: z.boolean().optional(),
+  /**
+   * The name the account is held in, and whether customers are asked to pay
+   * into it. Without these here, an account created through the product could
+   * never reach a quotation — `showOnDocuments` defaults to false and nothing
+   * else writes it.
+   */
+  accountName: z.string().max(200).optional(),
+  showOnDocuments: z.boolean().optional(),
+  documentPosition: z.number().int().min(0).max(99).optional(),
 });
 
 export async function GET(request: NextRequest) {
@@ -60,6 +69,9 @@ export async function POST(request: NextRequest) {
         currency: validated.currency ?? "USD",
         openingBalance: validated.openingBalance ?? 0,
         isActive: validated.isActive ?? true,
+        accountName: validated.accountName,
+        showOnDocuments: validated.showOnDocuments ?? false,
+        documentPosition: validated.documentPosition ?? 0,
       },
     });
 

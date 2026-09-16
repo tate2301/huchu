@@ -32,9 +32,7 @@ type ApprovalDoc = {
     physicalAddress: string | null;
     registrationNumber: string | null;
     vatNumber: string | null;
-    bankName: string | null;
-    bankAccountName: string | null;
-    bankAccountNumber: string | null;
+    paymentRows: Array<{ label: string; value: string }>;
     paymentTerms: string | null;
     footerText: string | null;
   };
@@ -259,26 +257,18 @@ export function ApprovalContent({ token }: { token: string }) {
               </section>
             ) : null}
 
-            {doc.branding.bankAccountNumber ? (
+            {doc.branding.paymentRows.length > 0 ? (
               <section className="mt-6 rounded-[var(--radius-md)] bg-neutral-50 p-4">
                 <p className="text-sm text-neutral-400">Payment details</p>
                 <dl className="mt-1 space-y-0.5 text-sm text-neutral-700">
-                  {doc.branding.bankName ? (
-                    <div className="flex gap-2">
-                      <dt className="text-neutral-500">Bank</dt>
-                      <dd>{doc.branding.bankName}</dd>
+                  {doc.branding.paymentRows.map((row) => (
+                    <div key={row.label} className="flex gap-2">
+                      <dt className="text-neutral-500">{row.label}</dt>
+                      <dd className={row.label.includes("No.") ? "font-mono" : undefined}>
+                        {row.value}
+                      </dd>
                     </div>
-                  ) : null}
-                  {doc.branding.bankAccountName ? (
-                    <div className="flex gap-2">
-                      <dt className="text-neutral-500">Account name</dt>
-                      <dd>{doc.branding.bankAccountName}</dd>
-                    </div>
-                  ) : null}
-                  <div className="flex gap-2">
-                    <dt className="text-neutral-500">Account number</dt>
-                    <dd className="font-mono">{doc.branding.bankAccountNumber}</dd>
-                  </div>
+                  ))}
                 </dl>
               </section>
             ) : null}

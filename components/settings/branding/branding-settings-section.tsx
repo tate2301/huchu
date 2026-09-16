@@ -40,7 +40,12 @@ type BrandingPayload = {
   website: string | null;
   physicalAddress: string | null;
   postalAddress: string | null;
+  privacyPolicyUrl: string | null;
+  termsUrl: string | null;
   bankName: string | null;
+  bankBranch: string | null;
+  bankBranchCode: string | null;
+  bankAddress: string | null;
   bankAccountName: string | null;
   bankAccountNumber: string | null;
   bankSwiftCode: string | null;
@@ -110,7 +115,12 @@ type BrandingFormState = {
   website: string;
   physicalAddress: string;
   postalAddress: string;
+  privacyPolicyUrl: string;
+  termsUrl: string;
   bankName: string;
+  bankBranch: string;
+  bankBranchCode: string;
+  bankAddress: string;
   bankAccountName: string;
   bankAccountNumber: string;
   bankSwiftCode: string;
@@ -179,7 +189,12 @@ const DEFAULT_FORM_STATE: BrandingFormState = {
   website: "",
   physicalAddress: "",
   postalAddress: "",
+  privacyPolicyUrl: "",
+  termsUrl: "",
   bankName: "",
+  bankBranch: "",
+  bankBranchCode: "",
+  bankAddress: "",
   bankAccountName: "",
   bankAccountNumber: "",
   bankSwiftCode: "",
@@ -360,7 +375,12 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
       website: toValue(settings.branding?.website),
       physicalAddress: toValue(settings.branding?.physicalAddress),
       postalAddress: toValue(settings.branding?.postalAddress),
+      privacyPolicyUrl: toValue(settings.branding?.privacyPolicyUrl),
+      termsUrl: toValue(settings.branding?.termsUrl),
       bankName: toValue(settings.branding?.bankName),
+      bankBranch: toValue(settings.branding?.bankBranch),
+      bankBranchCode: toValue(settings.branding?.bankBranchCode),
+      bankAddress: toValue(settings.branding?.bankAddress),
       bankAccountName: toValue(settings.branding?.bankAccountName),
       bankAccountNumber: toValue(settings.branding?.bankAccountNumber),
       bankSwiftCode: toValue(settings.branding?.bankSwiftCode),
@@ -411,7 +431,12 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
           website: toNullable(payload.website),
           physicalAddress: toNullable(payload.physicalAddress),
           postalAddress: toNullable(payload.postalAddress),
+          privacyPolicyUrl: toNullable(payload.privacyPolicyUrl),
+          termsUrl: toNullable(payload.termsUrl),
           bankName: toNullable(payload.bankName),
+          bankBranch: toNullable(payload.bankBranch),
+          bankBranchCode: toNullable(payload.bankBranchCode),
+          bankAddress: toNullable(payload.bankAddress),
           bankAccountName: toNullable(payload.bankAccountName),
           bankAccountNumber: toNullable(payload.bankAccountNumber),
           bankSwiftCode: toNullable(payload.bankSwiftCode),
@@ -827,7 +852,12 @@ export function BrandingSettingsSection({ section }: { section: BrandingSection 
                     Bank, payment, legal, and localization values used by invoice/report templates.
                   </p>
               <div className="grid gap-4 md:grid-cols-2">
+                <Input placeholder="Privacy Policy URL" value={form.privacyPolicyUrl} onChange={(event) => setField("privacyPolicyUrl", event.target.value)} />
+                <Input placeholder="Terms and Conditions URL" value={form.termsUrl} onChange={(event) => setField("termsUrl", event.target.value)} />
                 <Input placeholder="Bank Name" value={form.bankName} onChange={(event) => setField("bankName", event.target.value)} />
+                <Input placeholder="Branch" value={form.bankBranch} onChange={(event) => setField("bankBranch", event.target.value)} />
+                <Input placeholder="Branch Code" value={form.bankBranchCode} onChange={(event) => setField("bankBranchCode", event.target.value)} />
+                <Input placeholder="Bank Address" value={form.bankAddress} onChange={(event) => setField("bankAddress", event.target.value)} />
                 <Input
                   placeholder="Bank Account Name"
                   value={form.bankAccountName}

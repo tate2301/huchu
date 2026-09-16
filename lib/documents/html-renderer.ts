@@ -1,3 +1,4 @@
+import { buildPaymentRows } from "@/lib/documents/payment-details";
 import type { DocumentTemplateSchema } from "@/lib/documents/template-schema";
 import type {
   CompanyBrandingSnapshot,
@@ -162,10 +163,17 @@ function buildDashboard(payload: UniversalDocumentPayload): string {
 }
 
 function buildIdentityBlock(branding: CompanyBrandingSnapshot, schema: DocumentTemplateSchema): string {
+  // The registered name leads, falling back to the display name when a tenant
+  // has not stated one.
+  const registeredName = branding.legalName || branding.displayName;
   const identityLines = schema.header.showCompanyIdentity
     ? [
-        branding.legalName || branding.displayName,
-        branding.tradingName && branding.tradingName !== branding.displayName
+        registeredName,
+        // Compared against the line actually printed above, not against
+        // `displayName`. A tenant whose display name is its trading name --
+        // which is the usual case -- still has to show "t/a" under its
+        // registered name, and only the tautology "Foo t/a Foo" is suppressed.
+        branding.tradingName && branding.tradingName !== registeredName
           ? `t/a ${branding.tradingName}`
           : null,
         branding.registrationNumber ? `Reg No. ${branding.registrationNumber}` : null,
@@ -187,17 +195,12 @@ function buildFooter(branding: CompanyBrandingSnapshot, schema: DocumentTemplate
   const columns: string[] = [];
 
   if (schema.footer.showPaymentDetails) {
-    const rows = [
-      branding.bankName ? ["Bank", branding.bankName] : null,
-      branding.bankAccountName ? ["Account Name", branding.bankAccountName] : null,
-      branding.bankAccountNumber ? ["Account No.", branding.bankAccountNumber] : null,
-      branding.bankSwiftCode ? ["SWIFT", branding.bankSwiftCode] : null,
-      branding.bankIban ? ["IBAN", branding.bankIban] : null,
-    ].filter((row): row is [string, string] => Boolean(row));
-    if (rows.length > 0) {
+    // Shared with the public approval page, so the two cannot drift.
+    const presentRows = buildPaymentRows(branding);
+    if (presentRows.length > 0) {
       columns.push(`<div class="footer-col">
         <div class="footer-title">Payment details</div>
-        ${rows.map(([label, value]) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
+        ${presentRows.map(({ label, value }) => `<div class="footer-kv"><span>${esc(label)}</span><span class="mono">${esc(value)}</span></div>`).join("")}
       </div>`);
     }
   }

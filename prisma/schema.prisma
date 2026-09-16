@@ -675,6 +675,15 @@ model CompanyBranding {
   physicalAddress     String?
   postalAddress       String?
   bankName            String?
+  /// Branch, clearing code and the bank's own address. A Zimbabwean payer given
+  /// only an account number rings the office to ask for these, and a quotation
+  /// that omits them is a quotation somebody has to chase.
+  bankBranch          String?
+  bankBranchCode      String?
+  bankAddress         String?
+  /// The single account this model has always held. Still the source for a
+  /// tenant that banks in one currency; where `BankAccount.showOnDocuments`
+  /// rows exist they win, because only they can express two currencies.
   bankAccountName     String?
   bankAccountNumber   String?
   bankSwiftCode       String?
@@ -682,6 +691,14 @@ model CompanyBranding {
   defaultFooterText   String?
   legalDisclaimer     String?
   paymentTerms        String?
+  /// Where this tenant publishes its policies. Linked from the public intake
+  /// form, which collects a stranger's name, phone, email and photographs and
+  /// so has to say what happens to them.
+  ///
+  /// Whole URLs rather than paths derived from `website`: each tenant publishes
+  /// on its own domain and not all of them use /privacy and /terms.
+  privacyPolicyUrl    String?
+  termsUrl            String?
   documentLocale      String?
   dateFormat          String?
   timeFormat          String?
@@ -5887,6 +5904,21 @@ model BankAccount {
   currency       String   @default("USD")
   openingBalance Float    @default(0)
   isActive       Boolean  @default(true)
+
+  /// The name the account is held in, which is the legal entity and not
+  /// necessarily `name` (the ledger's own label). Printed on a quotation so a
+  /// payer's bank can match it.
+  accountName      String?
+  /// Whether this account is printed on quotations and invoices.
+  ///
+  /// Off by default and deliberately separate from `isActive`: a tenant
+  /// reconciles accounts it would never ask a customer to pay into, and
+  /// retiring one from the ledger should not silently change what the next
+  /// quotation says.
+  showOnDocuments  Boolean  @default(false)
+  /// Order among the accounts shown, so a tenant can lead with USD or with ZWG.
+  documentPosition Int      @default(0)
+
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
 
@@ -5898,6 +5930,7 @@ model BankAccount {
   defaultForSettings AccountingSettings[] @relation("DefaultBankAccount")
 
   @@index([companyId, isActive])
+  @@index([companyId, showOnDocuments, documentPosition])
 }
 
 model TenderAccountMapping {
