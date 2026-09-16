@@ -520,6 +520,36 @@ export class OfflineSessionManager {
     }
 
     const delay = Math.max(0, refreshAtMs - Date.now());
+
+    /*
+      Re-arm in chunks rather than asking for the whole wait at once.
+
+      `setTimeout` keeps its delay in a 32-bit signed int, so anything over
+      ~24.8 days overflows — and Node does not throw or clamp to the maximum,
+      it clamps to **1 ms** and prints
+
+        TimeoutOverflowWarning: 2592000000 does not fit into a 32-bit signed
+        integer. Timeout duration was set to 1.
+
+      That number is exact and it is ours: the server session expiry plus
+      `OFFLINE_SESSION_TTL_MS` (30 days) minus `REFRESH_BUFFER_MS` (1 hour)
+      lands on precisely 2,592,000,000. So the silent refresh scheduled for a
+      month away was firing a millisecond after sign-in, on every bootstrap.
+
+      The failure is quiet in the worst way: the refresh that *did* run was
+      pointless (the token had 30 days left), and the one that mattered — an
+      hour before real expiry — was never scheduled at all. A till left open
+      over a long weekend would find its offline session expired with no
+      attempt made to renew it.
+    */
+    const MAX_TIMEOUT_MS = 2_147_483_647;
+    if (delay > MAX_TIMEOUT_MS) {
+      this.refreshTimer = setTimeout(() => {
+        this.scheduleRefresh(refreshAtMs);
+      }, MAX_TIMEOUT_MS);
+      return;
+    }
+
     this.refreshTimer = setTimeout(() => {
       this.attemptSilentRefresh();
     }, delay);
