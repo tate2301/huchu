@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, MobileList } from "@corelithzw/react";
+import { MobileList } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
@@ -18,7 +19,6 @@ import {
 } from "@/components/records/states";
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -251,25 +251,7 @@ export function AlumniContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "On the register", value: tallies?.onTheRegister ?? "—" },
-            { label: "Left this year", value: tallies?.leftThisYear ?? "—", tone: "brand" },
-            {
-              label: "Destination unknown",
-              value: tallies?.destinationUnknown ?? "—",
-            },
-            {
-              label: "Consent never asked",
-              value: tallies?.consentNeverAsked ?? "—",
-              tone: (tallies?.consentNeverAsked ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Alumni" />
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}

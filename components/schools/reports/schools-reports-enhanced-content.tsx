@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useQuery, useIsMutating } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card, StatCard } from "@corelithzw/react";
+import { Alert, Button, Card, StatCard } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { TradingViewChartCard } from "@/components/charts/tradingview-chart-card";
 import { DataTable } from "@/components/ui/data-table";

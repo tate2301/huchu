@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions, type RecordVerb } from "@/components/schools/common/record-actions";

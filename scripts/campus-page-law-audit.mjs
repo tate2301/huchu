@@ -39,6 +39,22 @@ const OVERVIEWS = new Set([
   "components/schools/fees/fees-grade-picker.tsx",
 ]);
 
+/**
+ * Record pages whose band carries IDENTITY, not a summary.
+ *
+ * "Class of 2019 · Consent: may contact" describes the one former pupil the
+ * page is about. There is no table beneath it and no filter above it, so §2 —
+ * which is about a tally sitting over rows it does not govern — has nothing to
+ * say here. Deleting these would remove a record page's header, not a summary
+ * band.
+ *
+ * Add to this list only after reading the band: if a chip counts anything, it
+ * is a summary and belongs in the findings, however few rows it counts.
+ */
+const IDENTITY_BANDS = new Set([
+  "components/schools/leavers/alumnus-record-page.tsx",
+]);
+
 /** Not screens: dialogs, panels, filter controls, cells, shared primitives. */
 const NOT_A_SCREEN = /(-dialog|-sheet|-form|-panel|-picker|-cell|-filter|-tab|-switch|states|table-controls)\.tsx$/;
 
@@ -74,7 +90,20 @@ for (const area of AREAS) {
 
     const add = (rule, detail) => findings.push({ rel, rule, detail });
 
-    if (/<PageBand\b/.test(src) && !OVERVIEWS.has(rel)) {
+    // §2 bans a SUMMARY band: a tally of the rows below, above filters that do
+    // not govern it. A RECORD page's band is a different thing wearing the same
+    // component — "Class of 2019", "Consent: may contact" are facts about the
+    // one person the page is about, and there is nothing underneath for them to
+    // disagree with.
+    //
+    // Judged by hand, not by heuristic. Two automatic tells were tried and both
+    // were wrong: "has no DataTable" exempted `pastoral-content.tsx`, whose band
+    // counts "You may read: 7" over a `.map()`ed list; and "chips read off a
+    // counts/summary object" exempted `fees-grade-picker.tsx`, whose band sums
+    // Billed and Collected off `totals`. There are only ever a handful of these
+    // — classify them here, with the reason, rather than tuning a regex against
+    // eight files until it happens to agree.
+    if (/<PageBand\b/.test(src) && !OVERVIEWS.has(rel) && !IDENTITY_BANDS.has(rel)) {
       add("band", "PageBand on a working page — §2, summaries are for overviews");
     }
 
@@ -107,4 +136,11 @@ console.log(`page law: ${clean}/${screens} screens clean, ${findings.length} fin
 for (const rule of Object.keys(byRule).sort()) {
   console.log(`  ${rule.padEnd(8)} ${byRule[rule].length}`);
 }
-process.exit(findings.length > 0 ? 1 : 0);
+// `process.exitCode`, never `process.exit()`. `process.exit()` tears the
+// process down before a piped stdout has necessarily flushed, so
+// `node scripts/campus-page-law-audit.mjs --gaps | grep band` can print
+// NOTHING while findings exist — a false negative in the exact command people
+// verify with. Setting the code and falling off the end lets node drain the
+// pipe first. Found by a subagent whose grep came back empty on a screen that
+// was genuinely still in breach.
+process.exitCode = findings.length > 0 ? 1 : 0;

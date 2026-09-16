@@ -2,7 +2,8 @@
 
 import { Fragment, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { PersonAvatar } from "@/components/schools/common/person-avatar";
@@ -17,7 +18,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { getApiErrorMessage } from "@/lib/api-client";
@@ -204,36 +204,7 @@ export function PastoralContent() {
   const uncleared = listing != null && !listing.cleared;
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "You may read", value: counts?.youMayRead ?? "—" },
-            // Brand rather than danger: being withheld from is not an error
-            // state, and a head who cannot read a note should still know it
-            // exists.
-            {
-              label: "Withheld from you",
-              value: counts?.withheldFromYou ?? "—",
-              tone: "brand",
-            },
-            {
-              label: "Review overdue",
-              value: counts?.reviewOverdue ?? "—",
-              tone: (counts?.reviewOverdue ?? 0) > 0 ? "warn" : "neutral",
-            },
-            { label: "Referred on", value: counts?.referredOn ?? "—" },
-          ]}
-          actions={
-            // A shield, and no export. The absence is the rule.
-            <Button variant="secondary" size="sm" onClick={() => setReadersOpen((open) => !open)}>
-              <Policy className="size-4" />
-              Who may read what
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Pastoral notes">
         <CreateButton
           resource="schools.pastoral"
@@ -378,6 +349,19 @@ export function PastoralContent() {
                 />
               }
               filterCount={activeFilterCount(classValue.classId, bandFilter, reviewFilter)}
+              actions={
+                // Came off the band with it, and it is still a shield and no
+                // export — the absence is the rule. It shows the register
+                // above these notes, so it stays on the notes' own row.
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setReadersOpen((open) => !open)}
+                >
+                  <Policy className="size-4" />
+                  Who may read what
+                </Button>
+              }
               filters={
                 <>
                   <ClassFilter

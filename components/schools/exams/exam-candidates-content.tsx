@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, MobileList } from "@corelithzw/react";
+import { Button, MobileList } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
@@ -19,7 +20,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -219,42 +219,7 @@ export function ExamCandidatesContent({ seriesId }: { seriesId: string }) {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "Candidates", value: tallies?.candidates ?? "—" },
-            {
-              label: "Ready to register",
-              value: tallies?.readyToRegister ?? "—",
-              tone: "brand",
-            },
-            {
-              label: "Cannot be registered",
-              value: tallies?.cannotBeRegistered ?? "—",
-              tone: (tallies?.cannotBeRegistered ?? 0) > 0 ? "danger" : "success",
-            },
-            {
-              label: "Entry fees unpaid",
-              value: tallies ? formatSchoolMoney(tallies.entryFeesUnpaid) : "—",
-              tone: Number(tallies?.entryFeesUnpaid ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Days left",
-              value: tallies?.daysLeft ?? "—",
-              tone:
-                tallies?.daysLeft == null
-                  ? "neutral"
-                  : tallies.daysLeft <= 7
-                    ? "danger"
-                    : tallies.daysLeft <= 21
-                      ? "warn"
-                      : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Candidates" backHref="/schools/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"

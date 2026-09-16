@@ -489,3 +489,44 @@ export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
 export const At = createPhosphorIcon("At", "At");
 export const FlowArrow = createPhosphorIcon("FlowArrow", "FlowArrow");
 export const Archive = createPhosphorIcon("Archive", "Archive");
+
+/**
+ * Marks for the school verbs.
+ *
+ * Added for `lib/schools/action-icons.ts`, which pairs every `SchoolAction`
+ * with one of these so a verb wears the same mark on every screen. The names
+ * are Phosphor's, not the verb's — `Prohibit` is what voiding looks like, and
+ * calling the export `Void` would hide which glyph you are getting.
+ */
+export const ArrowUDownLeft = createPhosphorIcon("ArrowUDownLeft", "ArrowUDownLeft");
+export const ArrowBendUpLeft = createPhosphorIcon("ArrowBendUpLeft", "ArrowBendUpLeft");
+export const ArrowLineDown = createPhosphorIcon("ArrowLineDown", "ArrowLineDown");
+export const ArrowLineUp = createPhosphorIcon("ArrowLineUp", "ArrowLineUp");
+export const Money = createPhosphorIcon("Money", "Money");
+export const Prohibit = createPhosphorIcon("Prohibit", "Prohibit");
+export const GearSix = createPhosphorIcon("GearSix", "GearSix");
+export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");
+
+/**
+ * Marks for the record states — see `components/records/states.tsx`.
+ *
+ * A tray for "nothing has been put here", a warning circle for "something
+ * broke". The funnel and the tick are already exported above.
+ */
+export const Tray = createPhosphorIcon("Tray", "Tray");
+export const WarningCircle = createPhosphorIcon("WarningCircle", "WarningCircle");
+
+/**
+ * Marks for the conduct, exams and leavers verbs, which arrived with the
+ * schools expansion after the first pass of `action-icons.tsx`.
+ */
+export const ListChecks = createPhosphorIcon("ListChecks", "ListChecks");
+export const NotePencil = createPhosphorIcon("NotePencil", "NotePencil");
+export const NoteBlank = createPhosphorIcon("NoteBlank", "NoteBlank");
+
+/**
+ * The warning triangle, for `components/schools/common/status-badge.tsx`.
+ * Distinct from `WarningCircle`, which the error states use: the triangle says
+ * "look at this", the circle says "this broke".
+ */
+export const Warning = createPhosphorIcon("Warning", "Warning");

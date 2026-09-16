@@ -4,7 +4,8 @@ import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import type { ColumnDef } from "@tanstack/react-table";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button, MobileList } from "@corelithzw/react";
+import { Button, MobileList } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { RecordCell } from "@/components/records/record-table";
@@ -20,7 +21,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -401,40 +401,7 @@ export function ConductLogContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "This term", value: tallies?.thisTerm ?? "—" },
-            {
-              label: "No sanction decided",
-              value: tallies?.noSanctionDecided ?? "—",
-              tone: (tallies?.noSanctionDecided ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Home not told",
-              value: tallies?.homeNotTold ?? "—",
-              tone: (tallies?.homeNotTold ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Three or more",
-              value: tallies?.threeOrMore ?? "—",
-              tone: (tallies?.threeOrMore ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-          actions={
-            <Button
-              variant="secondary"
-              size="sm"
-              onClick={() => window.print()}
-            >
-              <Download className="size-4" />
-              Export the log
-            </Button>
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       {/* Named once. The rail says Conduct one column left. */}
       <PageChrome title="Behaviour log">
         <CreateButton
@@ -488,6 +455,14 @@ export function ConductLogContent() {
               homeFilter,
             )}
             count={logQuery.isPending ? null : `${rows.length} of ${tallies?.thisTerm ?? rows.length}`}
+            actions={
+              // Came off the band with it. It exports the log as it stands,
+              // filters and all, so it belongs on the row that sets them.
+              <Button variant="secondary" size="sm" onClick={() => window.print()}>
+                <Download className="size-4" />
+                Export the log
+              </Button>
+            }
             filters={
               <>
                 <ClassFilter

@@ -13,7 +13,6 @@ import {
   NothingYet,
 } from "@/components/records/states";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
@@ -65,33 +64,7 @@ export function LeavingDocumentsContent({ leaverId }: { leaverId?: string }) {
   const owing = page?.leaver.clearances.find((mark) => mark.kind === "FEES");
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Raised",
-              value: documents.filter((document) => document.state === "ready").length || "—",
-              tone: "success",
-            },
-            {
-              label: "Ready to raise",
-              value: documents.filter((document) => document.state === "ready").length || "—",
-            },
-            {
-              label: "Blocked",
-              value: documents.filter((document) => document.state !== "ready").length || "—",
-              tone: documents.some((document) => document.state !== "ready") ? "warn" : "neutral",
-            },
-            {
-              label: "Owing",
-              value: owing?.state === "TODO" ? (owing.detail ?? "Yes") : "Nothing",
-              tone: owing?.state === "TODO" ? "danger" : "success",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Leaving documents" backHref="/schools/leavers" backLabel="Leavers">
         {page ? (
           <PrintDocumentButton

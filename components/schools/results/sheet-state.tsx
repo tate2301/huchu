@@ -1,6 +1,6 @@
 "use client";
 
-import { Badge } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import type { PublishWindowStatus, ResultSheetStatus } from "@/lib/schools/results-v2";
 import { formatSchoolDayShort, formatSchoolDayTime } from "@/lib/schools/format";

@@ -3,11 +3,11 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button } from "@corelithzw/react";
+import { Alert, Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import { ListRowsSkeleton, LoadError, RecordNotFound, SaveError } from "@/components/records/states";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -295,60 +295,7 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
   ];
 
   return (
-    <SchoolsPage
-      width="detail"
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Home told",
-              value:
-                detail.homeTold.state === "told"
-                  ? formatSchoolDayTime(detail.homeTold.at)
-                  : detail.homeTold.state === "not-needed"
-                    ? "Not needed"
-                    : "Not yet",
-              tone: detail.homeTold.state === "told" ? "success" : detail.homeTold.state === "not-needed" ? "neutral" : "danger",
-            },
-            // One helper behind both this and the spine's fifth step, so the
-            // two cannot disagree about the same two numbers — which is
-            // `conduct.md` open question 5, drawn four inches apart.
-            ...(detail.detention.owed > 0
-              ? [
-                  {
-                    label: "Served",
-                    value: `${detail.detention.served} of ${detail.detention.owed}`,
-                    tone:
-                      detail.detention.served >= detail.detention.owed
-                        ? ("success" as const)
-                        : ("warn" as const),
-                  },
-                ]
-              : []),
-            ...(detail.detention.nextSession
-              ? [
-                  {
-                    label: "Next detention",
-                    value: formatSchoolDayTime(detail.detention.nextSession.startsAt),
-                    tone: "warn" as const,
-                  },
-                ]
-              : []),
-            {
-              label: "Their term",
-              value: `${detail.thisTerm.length} ${detail.thisTerm.length === 1 ? "incident" : "incidents"}`,
-            },
-          ]}
-          actions={
-            <PrintDocumentButton
-              sourceKey="schools.class-list"
-              filters={{ classId: incident.student.currentClass?.id ?? "" }}
-              label="Print for the file"
-            />
-          }
-        />
-      }
-    >
+    <SchoolsPage width="detail">
       {/* The incident, not the module. The caption carries the identity the
           title does not, and it changes with the record. */}
       <PageChrome
@@ -356,17 +303,26 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
         backHref="/schools/conduct"
         backLabel="Behaviour log"
       >
-        <RecordActions
-          layout="inline"
-          resource="schools.conduct"
-          verbs={[
-            {
-              label: "Add an update",
-              action: "create",
-              onSelect: () => setUpdateOpen(true),
-            },
-          ]}
-        />
+        <span className="flex items-center gap-2">
+          <RecordActions
+            layout="inline"
+            resource="schools.conduct"
+            verbs={[
+              {
+                label: "Add an update",
+                action: "create",
+                onSelect: () => setUpdateOpen(true),
+              },
+            ]}
+          />
+          {/* Came off the band with it. Printing this record is one of the
+              page's verbs, so it sits with them in the bar. */}
+          <PrintDocumentButton
+            sourceKey="schools.class-list"
+            filters={{ classId: incident.student.currentClass?.id ?? "" }}
+            label="Print for the file"
+          />
+        </span>
       </PageChrome>
 
       <PageCaption>

@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { EntityLink } from "@/components/records/entity-link";

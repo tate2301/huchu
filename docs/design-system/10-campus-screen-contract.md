@@ -60,6 +60,7 @@ is for. Boarding: Allocations · Hostels · Leave and outings.
 |---|---|---|
 | App-bar title + primary action | `PageChrome` | `@/components/layout/page-chrome` |
 | Tabs + search + filters | `TableControls`, `TableSearch` | `@/components/records/table-controls` |
+| A verb's icon | `ActionIcon`, `ACTION_ICON` | `@/lib/schools/action-icons` |
 | Filter by class/stream | `ClassFilter`, `classFilterParams` | `@/components/schools/common/class-filter` |
 | Any other filter | `FilterSelect`, `FilterBar` | `@/components/schools/common/filter-select` |
 | Which class, as a route | `GradePicker` | `@/components/schools/common/grade-picker` |
@@ -76,6 +77,59 @@ are in `11-campus-states-and-motion.md`. `node scripts/campus-states-audit.mjs
 --gaps` tells you which screens are still short.
 
 **Never invent a spinner, an empty state or a filter control.** They exist.
+
+## Icons belong to the verb, not to the screen
+
+A verb's mark is decided once, in `lib/schools/action-icons.tsx`, keyed by
+`SchoolAction`. Do **not** pass an icon to `RecordActions` or `CreateButton`
+per call site — `Edit` being a pencil on the roll and a gear on the ledger is
+the thing that map exists to prevent, and it costs the reader the row.
+
+Every `RecordVerb` already declares an `action`, so a verb gets its icon for
+free. Adding a value to the `SchoolAction` union without adding it to
+`ACTION_ICON` is a compile error, which is deliberate: somebody has to decide
+what a new verb looks like.
+
+**Icon and label, never icon alone.** `05-rules.md` requires colour + icon +
+text for state, and the same holds for a verb. The mark makes a familiar row
+scannable; it does not make an unfamiliar one readable, and a menu of bare
+glyphs is a menu you have to hover to use. The only icon-only control in the
+module is the `⋯` menu trigger, which carries an `aria-label`.
+
+## A status badge carries a mark, a label badge does not
+
+Import `Badge` from `@/components/schools/common/status-badge`, never from
+`@corelithzw/react` directly. The wrapper maps tone → mark, so `success` is a
+tick everywhere and no screen can disagree:
+
+| Tone | Mark |
+|---|---|
+| `success` | check circle |
+| `warn` | warning triangle |
+| `danger` | x circle |
+| `info` | info |
+| `neutral` `outline` `brand` `accent` | **none** |
+
+That last row is the rule, not an omission. `05-rules.md` bans signalling
+**state** by colour alone; "Default", "On lists" and "Form 4" are *labels*, and
+marking them tells the reader nothing while diluting the four marks that mean
+something. If every badge has a mark, no mark has weight.
+
+Do not pass `dot` to a status badge — the wrapper drops it. The dot is the
+same colour saying the same thing twice, and two ornaments on a 22px chip
+leave no room for the word.
+
+## The page's top padding is a wrapper, not a gutter
+
+`--content-gutter-y` is **0px and must stay 0px**. `main` is the scroll
+container, so padding there moves the scrollport edge that every sticky band
+pins to: the bands lift off the app bar and rows scroll through the gap
+underneath them.
+
+The air under the bar comes from `--content-lede`, applied by a plain wrapper
+*inside* `main` (`components/layout/app-shell.tsx`). Sticky descendants still
+pin to `main`, so the page gets its air at rest and the band still sits flush
+against the bar once it pins. Do not "fix" the zero.
 
 ## The exemplar
 

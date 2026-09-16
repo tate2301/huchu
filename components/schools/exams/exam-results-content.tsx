@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { PageChrome } from "@/components/layout/page-chrome";
 import {
@@ -14,7 +15,6 @@ import {
   TableRowsSkeleton,
 } from "@/components/records/states";
 import { FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -105,45 +105,7 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            {
-              label: "Statement received",
-              value: page ? (page.statementReceived ? "Yes" : "Not yet") : "—",
-              tone: page?.statementReceived ? "success" : "warn",
-            },
-            {
-              label: compareId ? "Against that series" : "Against last series",
-              value:
-                page && page.subjects.length > 0
-                  ? `${page.subjects.filter((row) => (row.against ?? 0) >= 0).length} held or rose`
-                  : "—",
-            },
-            {
-              label: "Subjects that fell",
-              value: page?.subjectsThatFell ?? "—",
-              tone: (page?.subjectsThatFell ?? 0) > 0 ? "warn" : "neutral",
-            },
-            {
-              label: "Grades amended",
-              value: page?.amended ?? "—",
-              tone: (page?.amended ?? 0) > 0 ? "brand" : "neutral",
-            },
-          ]}
-          actions={
-            page ? (
-              <PrintDocumentButton
-                sourceKey="schools.report-card"
-                filters={{ seriesId }}
-                label="Print the statement"
-              />
-            ) : null
-          }
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Public results" backHref="/schools/exams" backLabel="Exam series">
         <RecordActions
           layout="inline"
@@ -156,6 +118,15 @@ export function ExamResultsContent({ seriesId }: { seriesId: string }) {
             },
           ]}
         />
+        {/* Rehoused off the band. It prints the statement this page is about,
+            so it belongs beside the verb that captures it. */}
+        {page ? (
+          <PrintDocumentButton
+            sourceKey="schools.report-card"
+            filters={{ seriesId }}
+            label="Print the statement"
+          />
+        ) : null}
       </PageChrome>
 
       {page ? (

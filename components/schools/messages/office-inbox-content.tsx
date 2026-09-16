@@ -2,7 +2,8 @@
 
 import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge, Button } from "@corelithzw/react";
+import { Button } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { EntityLink } from "@/components/records/entity-link";
 import {

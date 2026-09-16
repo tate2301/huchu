@@ -3,7 +3,8 @@
 import { useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Alert, Badge, Button, Card } from "@corelithzw/react";
+import { Alert, Button, Card } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { AgeingStrip } from "@/components/schools/common/ageing-strip";
 import { PageBand } from "@/components/schools/common/page-band";

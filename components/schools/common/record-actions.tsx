@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { Button } from "@corelithzw/react";
 
 import { MoreHorizontal } from "@/lib/icons";
+import { ActionIcon } from "@/lib/schools/action-icons";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -154,6 +155,11 @@ export function RecordActions({
                 void run();
               }}
             >
+              {/* The mark leads, the word follows. A menu is read down its
+                  left edge, so the icons form the column the eye runs
+                  along — which is the whole reason a menu of five verbs is
+                  faster to use than five words. */}
+              <ActionIcon action={verb.action} />
               {verb.label}
             </DropdownMenuItem>
           ))}
@@ -173,6 +179,9 @@ export function RecordActions({
           loading={verb.loading}
           title={reason ?? undefined}
           onClick={() => void run()}
+          // Dropped while loading: the button swaps in its spinner, and two
+          // marks in one button is one more than it has room for.
+          startIcon={verb.loading ? undefined : <ActionIcon action={verb.action} />}
         >
           {verb.label}
         </Button>
@@ -210,12 +219,23 @@ export function CreateButton({
       : "Creating these is somebody else's job."
     : unavailable;
 
+  // Usually a plus, but not always: this button takes an `action`, so the
+  // header of the gate book says "Record a leave request" behind a calendar
+  // and the bed board says "Allocate a bed" behind a house. The primary verb
+  // of a screen is the one worth marking correctly — it is the thing somebody
+  // came to do.
+  //
+  // Rendered through `ActionIcon` rather than by binding the component to a
+  // capitalised local: a component *created* during render is a new type on
+  // every pass, which remounts the subtree and is what
+  // `react-hooks/static-components` is there to catch.
   return (
     <Button
       variant="primary"
       disabled={Boolean(reason)}
       title={reason ?? undefined}
       onClick={onSelect}
+      startIcon={<ActionIcon action={action} />}
     >
       {label}
     </Button>

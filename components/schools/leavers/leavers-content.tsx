@@ -20,7 +20,6 @@ import {
 import { TableControls, TableSearch } from "@/components/records/table-controls";
 import { ClassFilter } from "@/components/schools/common/class-filter";
 import { activeFilterCount, FilterSelect } from "@/components/schools/common/filter-select";
-import { PageBand } from "@/components/schools/common/page-band";
 import { PersonCell } from "@/components/schools/common/identity-cell";
 import { CreateButton, RecordActions } from "@/components/schools/common/record-actions";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
@@ -296,30 +295,7 @@ export function LeaversContent() {
   );
 
   return (
-    <SchoolsPage
-      band={
-        <PageBand
-          chips={[
-            { label: "In the queue", value: tallies?.inTheQueue ?? "—" },
-            {
-              label: "Not cleared",
-              value: tallies?.notCleared ?? "—",
-              tone: (tallies?.notCleared ?? 0) > 0 ? "warn" : "success",
-            },
-            {
-              label: "Owing on exit",
-              value: tallies ? formatSchoolMoney(tallies.owingOnExit) : "—",
-              tone: Number(tallies?.owingOnExit ?? 0) > 0 ? "danger" : "neutral",
-            },
-            {
-              label: "Documents outstanding",
-              value: tallies?.documentsOutstanding ?? "—",
-              tone: (tallies?.documentsOutstanding ?? 0) > 0 ? "warn" : "neutral",
-            },
-          ]}
-        />
-      }
-    >
+    <SchoolsPage>
       <PageChrome title="Leavers">
         <CreateButton
           resource="schools.leavers"

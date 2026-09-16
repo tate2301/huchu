@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Badge } from "@corelithzw/react";
+import { Badge } from "@/components/schools/common/status-badge";
 
 import { RecordDialog } from "@/components/crm/records/record-dialog";
 import { ListRowsSkeleton, LoadError, SaveError } from "@/components/records/states";
