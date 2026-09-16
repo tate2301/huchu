@@ -651,7 +651,7 @@ export function StudentOverviewTab({
             }
             actions={
               <Button variant="ghost" size="sm" onClick={() => onOpenSection("results")}>
-                Academics
+                Every mark
               </Button>
             }
           >
@@ -769,11 +769,13 @@ export function StudentOverviewTab({
           </Card>
         ) : null}
         <Card
+          /* The verb, not the card's own name again. Every one of these
+             buttons used to repeat the heading four inches to its left. */
           title={<CardTitle icon={UserCheck}>Attendance</CardTitle>}
           subtitle={termName ? `${termName} to date` : "This year to date"}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("attendance")}>
-              Attendance
+              Every register
             </Button>
           }
         >
@@ -816,7 +818,7 @@ export function StudentOverviewTab({
           subtitle={billed ? undefined : "Nothing billed yet"}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("fees")}>
-              Fees
+              The ledger
             </Button>
           }
         >
@@ -843,7 +845,7 @@ export function StudentOverviewTab({
           subtitle={`${student.guardianLinks?.length ?? 0} linked`}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("guardians")}>
-              Guardians
+              Manage them
             </Button>
           }
         >
@@ -957,7 +959,7 @@ export function StudentOverviewTab({
           }
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("files")}>
-              Documents
+              All of them
             </Button>
           }
         >
