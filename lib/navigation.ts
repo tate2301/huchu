@@ -548,7 +548,18 @@ export const navSections: NavSection[] = [
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
       { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
       { href: "/schools/boarding/roll-call", icon: UserCheck, label: "Roll call", group: "boarding" },
-      { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
+      // Houses is where boarding work starts — you pick a house, then read its
+      // plan. It shipped with a record page, a 386-line list component and a
+      // back link pointing at it, and no route file, so the list 404'd and the
+      // component was orphaned. "Rooms and beds" is the same building from the
+      // other end: where a dormitory is added and its beds are numbered.
+      { href: "/schools/boarding/houses", icon: Home, label: "Houses", group: "boarding" },
+      {
+        href: "/schools/boarding/hostels",
+        icon: Building2,
+        label: "Rooms and beds",
+        group: "boarding",
+      },
       { href: "/schools/boarding/sick-bay", icon: MedusaIdBadgeIcon, label: "Sick bay", group: "boarding" },
       { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
 

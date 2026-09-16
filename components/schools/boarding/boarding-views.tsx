@@ -32,11 +32,26 @@ import { cn } from "@/lib/utils";
  * navigates by would make each of these screens pay for the others.
  */
 
+/*
+  Seven faces, and two of them are about the same building on purpose.
+
+  "Houses" is where the work happens — pick a house, see its plan, its boarders
+  and who is in tonight. "Rooms and beds" is where a house is built: add a
+  dormitory, number its beds, correct its properties. A warden opens the first
+  every night and the second twice a year.
+
+  The second used to be called "Hostels", which collided with the first the
+  moment the rebuild added it — two segments a click apart, one named for the
+  building and one named for the building. Naming it for what you go there to
+  do is what tells them apart, and "house" is the word a Zimbabwean boarding
+  school uses for the thing anyway.
+*/
 const SEGMENTS = [
   { href: "/schools/boarding", label: "Bed board" },
   { href: "/schools/boarding/allocations", label: "Allocations" },
   { href: "/schools/boarding/roll-call", label: "Roll call" },
-  { href: "/schools/boarding/hostels", label: "Hostels" },
+  { href: "/schools/boarding/houses", label: "Houses" },
+  { href: "/schools/boarding/hostels", label: "Rooms and beds" },
   { href: "/schools/boarding/sick-bay", label: "Sick bay" },
   { href: "/schools/boarding/leave", label: "Leave and outings" },
 ] as const;
@@ -71,7 +86,10 @@ export function BoardingViews({
     "/schools/boarding": beds,
     "/schools/boarding/allocations": allocations,
     "/schools/boarding/roll-call": rollCall,
-    "/schools/boarding/hostels": hostels,
+    // The house count belongs to the screen you pick a house on. "Rooms and
+    // beds" is about one house at a time and a count of houses would be
+    // answering a question that screen does not ask.
+    "/schools/boarding/houses": hostels,
     "/schools/boarding/sick-bay": sickBay,
     "/schools/boarding/leave": leave,
   };

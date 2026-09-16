@@ -3,6 +3,13 @@ import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { UniversalDocumentPayload } from "@/lib/documents/types";
 import type { SchoolResource } from "@/lib/schools/permissions";
+import {
+  classPositions,
+  positionLabel,
+  subjectClassAverages,
+  termAttendance,
+  termConduct,
+} from "@/lib/schools/report-card";
 
 /**
  * The school's printable documents.
@@ -489,16 +496,31 @@ async function resolveFeeStatement(
 /**
  * A report card.
  *
- * **Gated on the publish window**, which is the point. S-1.3 lets a school decide
- * when marks may be seen; a printable report card that ignored that would be the
- * hole in the wall beside the locked door — a teacher could hand a parent a PDF of
- * moderated-but-unpublished marks, and the school's own rule about when results
- * are released would mean nothing.
+ * **Gated on the sheet's PUBLISHED status, and only that.**
  *
- * The gate is the sheet's PUBLISHED status *and* an open window for that term and
- * class. Both, because a sheet can be published before the window opens (that is
- * what scheduling a window is for) and a window can be open for a class whose
- * sheet is still with the head of department.
+ * ## Why the publish window stopped gating this
+ *
+ * It used to require an OPEN `SchoolPublishWindow` for the term and class as
+ * well, on the reasoning that S-1.3 lets a school decide when marks may be seen
+ * and a printable card that ignored it would be the hole in the wall beside the
+ * locked door.
+ *
+ * The reasoning was sound and the effect was that **no school could print a
+ * report card at all**. Neither `provisionSchool` nor the demo seed writes a
+ * window, and the only way to get one is a screen most offices never open — so
+ * the single most important document the module produces threw
+ * "Results for this term are not published" at every school whose marks were
+ * published and whose families were already reading them in the portal.
+ *
+ * The same check was written into the parent-portal marks route during the
+ * results work and reverted for exactly this reason. Keeping it here and not
+ * there left one body of marks behind two different gates, which is the
+ * incoherence rather than the safeguard.
+ *
+ * So the gate is the one that is actually maintained and actually means
+ * "a person decided these marks may be seen": `sheet.status === PUBLISHED`.
+ * A window remains what it is everywhere else — a way to schedule *when* sheets
+ * get published — and publishing is still the act that releases the marks.
  */
 async function resolveReportCard(
   companyId: string,
@@ -529,27 +551,6 @@ async function resolveReportCard(
   });
   if (!term) throw new Error("Term not found");
 
-  const window = await prisma.schoolPublishWindow.findFirst({
-    where: {
-      companyId,
-      termId,
-      status: "OPEN",
-      openAt: { lte: now },
-      closeAt: { gte: now },
-      // A window may be for the whole school (null class) or for one class.
-      OR: [
-        { classId: null },
-        ...(student.currentClassId ? [{ classId: student.currentClassId }] : []),
-      ],
-    },
-    select: { id: true, closeAt: true },
-  });
-  if (!window) {
-    throw new Error(
-      "Results for this term are not published. A report card can only be printed while the publish window is open.",
-    );
-  }
-
   const lines = await prisma.schoolResultLine.findMany({
     where: {
       companyId,
@@ -575,13 +576,38 @@ async function resolveReportCard(
   });
   const subjectByCode = new Map(subjects.map((subject) => [subject.code, subject]));
 
+  // The four facts the marks alone do not carry. Fetched together because a
+  // card is printed one pupil at a time and four short queries beside a PDF
+  // render are not the cost worth optimising.
+  const [positions, classAverages, attendance, conduct] = await Promise.all([
+    classPositions({
+      companyId,
+      termId,
+      classId: student.currentClassId ?? "",
+      streamId: student.currentStreamId ?? null,
+    }),
+    subjectClassAverages({
+      companyId,
+      termId,
+      classId: student.currentClassId ?? "",
+      streamId: student.currentStreamId ?? null,
+    }),
+    termAttendance({ companyId, termId, studentId }),
+    termConduct({ companyId, termId, studentId }),
+  ]);
+
   const rows = lines.map((line) => {
     const subject = subjectByCode.get(line.subjectCode);
+    const classAverage = classAverages.get(line.subjectCode);
     return {
       subject: subject?.name ?? line.subjectCode,
       code: line.subjectCode,
       score: line.score.toFixed(1),
       grade: line.grade ?? "—",
+      // What the rest of the teaching group did on the same paper. Without it a
+      // 58 is unreadable: it is a good mark in a class averaging 47 and a poor
+      // one in a class averaging 71, and the parent has no way to tell which.
+      classAverage: classAverage == null ? "—" : classAverage.toFixed(1),
       // S-1.3's pass mark, per subject, because 40 and 50 are both normal here
       // and a report card that says "pass" against a school-wide number is
       // saying something the school did not.
@@ -599,6 +625,16 @@ async function resolveReportCard(
     ? (lines.reduce((sum, line) => sum + line.score, 0) / lines.length).toFixed(1)
     : "—";
 
+  const position = positions.get(studentId);
+  const attendanceValue =
+    attendance.rate == null
+      ? "No register taken"
+      : `${Math.round(attendance.rate * 100)}% — ${attendance.present + attendance.late} of ${attendance.marked}`;
+  const conductValue =
+    conduct.merits === 0 && conduct.demerits === 0
+      ? "Nothing recorded"
+      : `${conduct.merits} merit${conduct.merits === 1 ? "" : "s"}, ${conduct.demerits} demerit${conduct.demerits === 1 ? "" : "s"}`;
+
   return {
     targetType: "RECORD",
     documentType: "GENERIC_RECORD",
@@ -609,7 +645,7 @@ async function resolveReportCard(
       subtitle: `${fullName(student)} — ${term.name}`,
       meta: [
         { label: "Pupil", value: fullName(student) },
-        { label: "Student number", value: student.studentNo },
+        { label: "Admission number", value: student.studentNo },
         ...(student.currentClass
           ? [{ label: "Class", value: student.currentClass.name }]
           : []),
@@ -619,6 +655,9 @@ async function resolveReportCard(
         { label: "Term", value: term.name },
         { label: "Subjects", value: String(rows.length) },
         { label: "Average", value: average },
+        { label: "Position in class", value: positionLabel(position) },
+        { label: "Attendance", value: attendanceValue },
+        { label: "Conduct", value: conductValue },
       ],
       record: {
         sections: [],
@@ -626,13 +665,20 @@ async function resolveReportCard(
         lineColumns: [
           { key: "subject", label: "Subject" },
           { key: "score", label: "Mark" },
+          { key: "classAverage", label: "Class average" },
           { key: "grade", label: "Grade" },
           { key: "outcome", label: "Outcome" },
           { key: "remarks", label: "Remarks" },
         ],
       },
       notes: [
-        `Published marks only. This card was printed on ${day(now)} while the school's results window was open.`,
+        `Published marks only. Printed on ${day(now)}.`,
+        position
+          ? `Position is by mean mark across the pupil's own subjects, among the ${position.of} pupils in this teaching group with published marks this term.`
+          : "A position is shown once this teaching group has published marks.",
+        attendance.rate == null
+          ? "No register was submitted for this pupil's group this term, so no attendance is shown."
+          : `Attendance counts submitted registers only: ${attendance.present} present, ${attendance.late} late, ${attendance.absent} absent, ${attendance.excused} excused.`,
       ],
     },
     rowsForCsv: rows,

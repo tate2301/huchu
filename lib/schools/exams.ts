@@ -34,10 +34,19 @@ export class ExamError extends Error {
 
 const DAY = 24 * 60 * 60 * 1000;
 
-/** Whole days from `now` to `date`. Negative once the date has passed. */
+/**
+ * Whole days from `now` to `date`. Negative once the date has passed.
+ *
+ * `Math.ceil` of a small negative is `-0`, which prints as "0" and sorts equal
+ * to zero — so for the first 24 hours after an entry deadline passed, the board
+ * read "0 days" and the missed series still sorted as the most urgent thing on
+ * the screen. `|| 0` would keep the sign problem; flooring the negative side
+ * gives a deadline that went yesterday the -1 it should have.
+ */
 export function daysAway(date: Date | null | undefined, now: number): number | null {
   if (!date) return null;
-  return Math.ceil((date.getTime() - now) / DAY);
+  const delta = date.getTime() - now;
+  return delta < 0 ? Math.floor(delta / DAY) : Math.ceil(delta / DAY);
 }
 
 export type SeriesRow = {

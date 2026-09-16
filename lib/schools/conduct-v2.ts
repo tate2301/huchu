@@ -291,10 +291,19 @@ export type MeritTallies = {
   pupilsWithNeither: number;
 };
 
+type ReasonTotals = {
+  rows: Array<{ reason: string; times: number; points: number }>;
+  shownTimes: number;
+  totalTimes: number;
+  shownPoints: number;
+  totalPoints: number;
+};
+
 export type MeritSummary = {
-  merit: { rows: Array<{ reason: string; times: number; points: number }>; shown: number; total: number };
-  demerit: { rows: Array<{ reason: string; times: number; points: number }>; shown: number; total: number };
+  merit: ReasonTotals;
+  demerit: ReasonTotals;
   byYearGroup: Array<{ level: number | null; label: string; net: number }>;
+  /** Occasions, not points. */
   recordedThisTerm: number;
   termId: string | null;
 };

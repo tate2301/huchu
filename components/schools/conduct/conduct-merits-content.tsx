@@ -443,15 +443,24 @@ export function ConductMeritsContent() {
               ) : summaryQuery.isPending ? (
                 <TableRowsSkeleton
                   rows={8}
-                  headers={["Reason", "Times", "Share"]}
-                  columns={[{}, { width: 70, align: "right" }, { width: 150 }]}
+                  headers={["Reason", "Times", "Points", "Share"]}
+                  columns={[
+                    {},
+                    { width: 70, align: "right" },
+                    { width: 70, align: "right" },
+                    { width: 150 },
+                  ]}
                 />
               ) : (
                 <table className="w-full text-sm">
                   <thead>
                     <tr className="text-left text-xs text-[color:var(--text-muted)]">
                       <th className="py-1 font-normal">Reason</th>
+                      {/* Two columns because they are two facts. "Times" used to
+                          render the point sum, so a reason worth three points
+                          awarded once read as 3. */}
                       <th className="w-[70px] py-1 text-right font-normal">Times</th>
+                      <th className="w-[70px] py-1 text-right font-normal">Points</th>
                       <th className="w-[150px] py-1 font-normal">Share</th>
                     </tr>
                   </thead>
@@ -467,11 +476,12 @@ export function ConductMeritsContent() {
                         <Fragment key={kind}>
                           <tr className="bg-[color:var(--surface-muted)]">
                             <th
-                              colSpan={3}
+                              colSpan={4}
                               className="py-1.5 text-left text-xs font-semibold text-[color:var(--text-muted)]"
                             >
                               {kind === "merit" ? "Merits" : "Demerits"} ·{" "}
-                              {block.shown.toLocaleString()} of {block.total.toLocaleString()}
+                              {block.shownTimes.toLocaleString()} of{" "}
+                              {block.totalTimes.toLocaleString()}
                             </th>
                           </tr>
                           {block.rows.map((row) => (
@@ -480,11 +490,16 @@ export function ConductMeritsContent() {
                               className="border-t border-[color:var(--border-subtle)]"
                             >
                               <td className="py-1.5">{row.reason}</td>
-                              <td className="py-1.5 text-right font-mono text-xs">{row.points}</td>
+                              <td className="py-1.5 text-right font-mono text-xs">{row.times}</td>
+                              <td className="py-1.5 text-right font-mono text-xs text-[color:var(--text-muted)]">
+                                {row.points}
+                              </td>
                               <td className="py-1.5">
+                                {/* Share of occasions, so the bar and the Times
+                                    column beside it are measuring one thing. */}
                                 <ShareBar
-                                  value={row.points}
-                                  total={block.total}
+                                  value={row.times}
+                                  total={block.totalTimes}
                                   tone={kind === "merit" ? "ok" : "warn"}
                                 />
                               </td>
@@ -499,9 +514,14 @@ export function ConductMeritsContent() {
                         <td className="py-1.5 text-right font-mono text-xs font-bold">
                           {summary.recordedThisTerm.toLocaleString()}
                         </td>
+                        <td className="py-1.5 text-right font-mono text-xs text-[color:var(--text-muted)]">
+                          {(
+                            summary.merit.totalPoints + summary.demerit.totalPoints
+                          ).toLocaleString()}
+                        </td>
                         <td className="py-1.5 text-xs text-[color:var(--text-muted)]">
-                          {summary.merit.total.toLocaleString()} merits ·{" "}
-                          {summary.demerit.total.toLocaleString()} demerits
+                          {summary.merit.totalTimes.toLocaleString()} merits ·{" "}
+                          {summary.demerit.totalTimes.toLocaleString()} demerits
                         </td>
                       </tr>
                     ) : null}

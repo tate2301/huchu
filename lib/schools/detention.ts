@@ -295,7 +295,13 @@ export async function sessionRegister(args: {
       session: { index: Math.min(indexByAward.get(row.award.id) ?? 1, owed), owed },
       getsHome: getsHome.get(row.student.id) ?? { kind: "day", label: "Day" },
       stillToServe: {
-        sessions: Math.max(0, owed - served - (row.state === "HERE" ? 0 : 0)),
+        // `served` is every HERE mark against this award, today's included once
+        // it is marked, so the subtraction already accounts for this session and
+        // needs no correction term. There was one here — `- (state === "HERE" ?
+        // 0 : 0)` — which subtracted nothing down either branch and read as if a
+        // correction were being applied. Making it `? 1 : 0` would have counted
+        // today twice.
+        sessions: Math.max(0, owed - served),
         nextAt: nextByStudent.get(row.student.id) ?? null,
       },
       movedTo: row.movedTo,

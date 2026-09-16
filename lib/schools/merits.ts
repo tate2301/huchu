@@ -191,6 +191,26 @@ export async function meritLedger(filters: MeritLedgerFilters): Promise<MeritPup
 export type ReasonRow = { reason: string; times: number; points: number };
 export type YearGroupRow = { level: number | null; label: string; net: number };
 
+/**
+ * How many awards, and how much they weighed. Both, and named so.
+ *
+ * These are two different questions and the screen used to answer one of them
+ * under the other's heading: a column headed "Times" rendered the point sum, so
+ * a reason worth three points awarded once read as "3". "Four demerits" is a
+ * pattern of behaviour a head of year acts on; "twelve demerit points" is its
+ * weight against a threshold. A summary that conflates them cannot answer
+ * either.
+ */
+export type ReasonTotals = {
+  rows: ReasonRow[];
+  /** Occasions across the reasons drawn, and across all of them. */
+  shownTimes: number;
+  totalTimes: number;
+  /** Points across the reasons drawn, and across all of them. */
+  shownPoints: number;
+  totalPoints: number;
+};
+
 export type MeritSummary = {
   /**
    * `Merits · 669 of 1,284` — the six reasons drawn, and the whole. The two
@@ -198,9 +218,10 @@ export type MeritSummary = {
    * demerits for six things and merits for many more, and this is the only
    * place that says so.
    */
-  merit: { rows: ReasonRow[]; shown: number; total: number };
-  demerit: { rows: ReasonRow[]; shown: number; total: number };
+  merit: ReasonTotals;
+  demerit: ReasonTotals;
   byYearGroup: YearGroupRow[];
+  /** Occasions, not points — "how many were recorded this term". */
   recordedThisTerm: number;
 };
 
@@ -242,13 +263,18 @@ export async function meritSummary(args: {
         times: row._count._all,
         points: row._sum.points ?? 0,
       }))
-      .sort((a, b) => b.points - a.points);
-    const total = rows.reduce((sum, row) => sum + row.points, 0);
+      // Most frequent first. The table leads on occasions, so the order does
+      // too; points break a tie.
+      .sort((a, b) => b.times - a.times || b.points - a.points);
     const shownRows = rows.slice(0, top);
+    const sum = (list: ReasonRow[], key: "times" | "points") =>
+      list.reduce((total, row) => total + row[key], 0);
     return {
       rows: shownRows,
-      shown: shownRows.reduce((sum, row) => sum + row.points, 0),
-      total,
+      shownTimes: sum(shownRows, "times"),
+      totalTimes: sum(rows, "times"),
+      shownPoints: sum(shownRows, "points"),
+      totalPoints: sum(rows, "points"),
     };
   };
 
@@ -268,7 +294,10 @@ export async function meritSummary(args: {
     merit,
     demerit,
     byYearGroup: [...levels.values()].sort((a, b) => (a.level ?? 99) - (b.level ?? 99)),
-    recordedThisTerm: merit.total + demerit.total,
+    // Occasions. Adding merit points to demerit points made a number that is
+    // neither a count nor a net — 40 merit points and 12 demerit points is not
+    // "52" of anything a school would recognise.
+    recordedThisTerm: merit.totalTimes + demerit.totalTimes,
   };
 }
 

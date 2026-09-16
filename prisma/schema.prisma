@@ -7487,7 +7487,14 @@ model SchoolHostelRoom {
   /// a school that mixes years in one dormitory is not doing anything wrong,
   /// but Form 1s should not be scattered when there is a Form 1 dormitory
   /// with space in it.
-  yearGroupIds String[]
+  ///
+  /// `@default([])` because the migration that added this column wrote
+  /// `NOT NULL DEFAULT ARRAY[]::TEXT[]` and the model did not say so. The two
+  /// disagreeing is not cosmetic: `prisma db push`, which is the documented dev
+  /// workflow, builds the column from the model and so produced a NOT NULL
+  /// column with no default — on which creating a hostel room fails outright,
+  /// and with it every test that sets a boarding fixture up.
+  yearGroupIds String[] @default([])
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
