@@ -290,9 +290,27 @@ export async function hostelOccupancy(input: {
       select: {
         id: true,
         code: true,
-        room: { select: { id: true, code: true, floor: true, capacity: true } },
+        // The plan is drawn from these. Without bay and tier every room reads
+        // as "no plan recorded"; without status and statusReason a broken bed
+        // looks free and gets offered to a child.
+        bay: true,
+        tier: true,
+        status: true,
+        statusReason: true,
+        room: {
+          select: {
+            id: true,
+            code: true,
+            floor: true,
+            capacity: true,
+            isPrefectDorm: true,
+            yearGroupIds: true,
+          },
+        },
       },
-      orderBy: [{ room: { code: "asc" } }, { code: "asc" }],
+      // Bay, then code, so a room comes back in the order it is walked rather
+      // than in the order its beds happen to be named.
+      orderBy: [{ room: { code: "asc" } }, { bay: "asc" }, { code: "asc" }],
     }),
     prisma.schoolBoardingAllocation.findMany({
       where: { companyId: input.companyId, hostelId: input.hostelId, ...LIVE },
