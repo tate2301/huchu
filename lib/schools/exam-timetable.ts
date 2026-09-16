@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
-import { ExamError } from "@/lib/schools/exams";
+import { ExamError, subjectOnSeries } from "@/lib/schools/exams";
 
 /**
  * The exam timetable: which papers this series sits, and when.
@@ -30,19 +30,6 @@ import { ExamError } from "@/lib/schools/exams";
  * no session would be a row that looks scheduled and cannot be seated, which is
  * the state this module exists to end.
  */
-
-/**
- * What a school calls each level out loud.
- *
- * Declared here rather than imported from `exams-v2.ts`, which is the client
- * module and pulls `fetchJson` in with it. The same three words, and they
- * belong to the domain rather than to the browser.
- */
-const LEVEL_LABELS: Record<string, string> = {
-  O_LEVEL: "Ordinary Level",
-  A_LEVEL: "Advanced Level",
-  IGCSE: "IGCSE",
-};
 
 export type TimetablePaper = {
   id: string;
@@ -103,49 +90,6 @@ export async function listTimetable(args: {
         : null,
     };
   });
-}
-
-/**
- * Resolve the subject against this series, and refuse anything that is not on it.
- *
- * Both halves matter. The company check is the tenant boundary — an
- * `examSubjectId` arrives in a request body and, unchecked, one school writes a
- * paper against another school's syllabus row. The board and level check is the
- * domain one: a Cambridge IGCSE subject on a ZIMSEC O-Level series is a row the
- * board will reject, and finding that out in November is finding out too late.
- */
-async function subjectOnSeries(args: {
-  companyId: string;
-  seriesId: string;
-  examSubjectId: string;
-}) {
-  const [series, subject] = await Promise.all([
-    prisma.schoolExamSeries.findFirst({
-      where: { id: args.seriesId, companyId: args.companyId },
-      select: { id: true, boardId: true, level: true, status: true },
-    }),
-    prisma.schoolExamSubject.findFirst({
-      where: { id: args.examSubjectId, companyId: args.companyId },
-      select: { id: true, boardId: true, level: true, code: true, name: true },
-    }),
-  ]);
-
-  if (!series) throw new ExamError("That series is not this school's.", 404);
-  if (!subject) throw new ExamError("That is not one of this school's exam subjects.", 404);
-  if (subject.boardId !== series.boardId) {
-    throw new ExamError("That subject belongs to a different exam board.", 422);
-  }
-  if (subject.level !== series.level) {
-    // Name both levels. "That subject is a different level" sends somebody
-    // back to a list of forty to work out which one, and a mechanical
-    // `A_LEVEL -> "a level"` is worse than saying nothing.
-    throw new ExamError(
-      `That subject is ${LEVEL_LABELS[subject.level]}, and this series is ${LEVEL_LABELS[series.level]}.`,
-      422,
-    );
-  }
-
-  return { series, subject };
 }
 
 /**

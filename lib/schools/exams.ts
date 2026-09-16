@@ -607,6 +607,63 @@ export async function registerCohort(args: {
 }
 
 /** Enter a candidate for a subject, or take the entry back. */
+/**
+ * What a school calls each exam level out loud.
+ */
+const LEVEL_LABELS: Record<string, string> = {
+  O_LEVEL: "Ordinary Level",
+  A_LEVEL: "Advanced Level",
+  IGCSE: "IGCSE",
+};
+
+/**
+ * Resolve a syllabus subject against a series, and refuse anything not on it.
+ *
+ * Three checks, and each one is a different failure.
+ *
+ * The **company** check is the tenant boundary. `examSubjectId` arrives in a
+ * request body, and unchecked it writes one school's entry against another
+ * school's syllabus row — `enterSubject` was the one place in this file that
+ * skipped it, in a file whose own comments explain why it must not be.
+ *
+ * The **board** and **level** checks are the domain ones. A Cambridge IGCSE
+ * subject on a ZIMSEC O-Level series is a row the board will reject, and the
+ * place to find that out is at the desk in June rather than from the board in
+ * November.
+ */
+export async function subjectOnSeries(args: {
+  companyId: string;
+  seriesId: string;
+  examSubjectId: string;
+}) {
+  const [series, subject] = await Promise.all([
+    prisma.schoolExamSeries.findFirst({
+      where: { id: args.seriesId, companyId: args.companyId },
+      select: { id: true, boardId: true, level: true, status: true },
+    }),
+    prisma.schoolExamSubject.findFirst({
+      where: { id: args.examSubjectId, companyId: args.companyId },
+      select: { id: true, boardId: true, level: true, code: true, name: true },
+    }),
+  ]);
+
+  if (!series) throw new ExamError("That series is not this school's.", 404);
+  if (!subject) throw new ExamError("That is not one of this school's exam subjects.", 404);
+  if (subject.boardId !== series.boardId) {
+    throw new ExamError("That subject belongs to a different exam board.", 422);
+  }
+  if (subject.level !== series.level) {
+    // Name both levels. "A different level" sends somebody back to a list of
+    // forty to work out which one.
+    throw new ExamError(
+      `That subject is ${LEVEL_LABELS[subject.level]}, and this series is ${LEVEL_LABELS[series.level]}.`,
+      422,
+    );
+  }
+
+  return { series, subject };
+}
+
 export async function enterSubject(args: {
   companyId: string;
   actorId: string;
@@ -630,11 +687,23 @@ export async function enterSubject(args: {
     }),
     prisma.schoolCandidate.findFirst({
       where: { id: args.candidateId, companyId: args.companyId, seriesId: args.seriesId },
-      select: { id: true, status: true },
+      // The number as well as the id: a refusal that names the candidate is
+      // usable when somebody is entering a hundred of them in a row.
+      select: { id: true, status: true, candidateNumber: true },
     }),
   ]);
   if (!series) throw new ExamError("That series is not this school's.");
   if (!candidate) throw new ExamError("That candidate is not on this series.");
+
+  // The check this function skipped. `examSubjectId` arrives in a request body
+  // and was written straight through, so one school could enter a candidate
+  // against another school's syllabus row — and a Cambridge subject could be
+  // entered on a ZIMSEC series, which the board finds out about in November.
+  const { subject } = await subjectOnSeries({
+    companyId: args.companyId,
+    seriesId: args.seriesId,
+    examSubjectId: args.examSubjectId,
+  });
 
   const now = args.now ?? new Date();
   // Past the late door there is no door. The board does not take an entry after
@@ -649,6 +718,44 @@ export async function enterSubject(args: {
   const fee = isLate
     ? (series.lateFeePerSubject ?? series.feePerSubject)
     : series.feePerSubject;
+
+  /*
+    A withdrawn entry is revived rather than re-created.
+
+    `withdrawEntry` sets `status = WITHDRAWN` and keeps the row, and
+    `@@unique([candidateId, examSubjectId])` means the row is still in the way.
+    So a pupil who dropped Geography in June and picked it up again in July hit
+    an unhandled unique-constraint violation — a 500 with a Prisma message, on
+    an ordinary thing a school does, with no way round it short of the database.
+
+    Reviving also gets the money right: `isLate` and the fee are recomputed
+    against today, so a subject re-entered after the deadline carries the late
+    fee it now attracts rather than the one it attracted in June.
+  */
+  const existing = await prisma.schoolExamEntry.findFirst({
+    where: { candidateId: candidate.id, examSubjectId: args.examSubjectId },
+    select: { id: true, status: true, feeInvoiceId: true },
+  });
+
+  if (existing) {
+    if (existing.status !== "WITHDRAWN") {
+      throw new ExamError(
+        `Candidate ${candidate.candidateNumber} is already entered for ${subject.name}.`,
+        409,
+      );
+    }
+    return prisma.schoolExamEntry.update({
+      where: { id: existing.id },
+      data: {
+        status: "DRAFT",
+        withdrawnAt: null,
+        isLate,
+        fee: fee ?? null,
+        currency: series.currency,
+      },
+      select: { id: true, isLate: true, fee: true },
+    });
+  }
 
   return prisma.schoolExamEntry.create({
     data: {

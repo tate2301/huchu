@@ -18,7 +18,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { ExamError } from "./exams";
+import { enterSubject, ExamError } from "./exams";
 import { addPaper, listTimetable, removePaper, reschedulePaper } from "./exam-timetable";
 
 let companyId: string;
@@ -322,5 +322,104 @@ describe("writing the timetable", () => {
         sitsAt: at("2026-11-14T09:00:00.000Z"),
       }),
     ).rejects.toBeInstanceOf(ExamError);
+  });
+});
+
+describe("entering a candidate for a subject", () => {
+  let candidateId: string;
+
+  beforeAll(async () => {
+    const student = await prisma.schoolStudent.create({
+      data: {
+        companyId,
+        studentNo: `ENT-${Date.now()}`,
+        firstName: "Tapiwa",
+        lastName: "Nyoni",
+        status: "ACTIVE",
+      },
+    });
+    const candidate = await prisma.schoolCandidate.create({
+      data: { companyId, seriesId, studentId: student.id, candidateNumber: "0200" },
+    });
+    candidateId = candidate.id;
+  });
+
+  it("refuses another school's subject id", async () => {
+    // `examSubjectId` arrives in a request body. Unchecked, one school entered
+    // a candidate against another school's syllabus row — this was the one
+    // place in exams.ts that skipped the company check.
+    await expect(
+      enterSubject({
+        companyId,
+        actorId: "test",
+        seriesId,
+        candidateId,
+        examSubjectId: foreignSubjectId,
+      }),
+    ).rejects.toMatchObject({ name: "ExamError", status: 404 });
+  });
+
+  it("refuses a subject from another board", async () => {
+    await expect(
+      enterSubject({
+        companyId,
+        actorId: "test",
+        seriesId,
+        candidateId,
+        examSubjectId: otherBoardSubjectId,
+      }),
+    ).rejects.toThrow(/different exam board/i);
+  });
+
+  it("revives a withdrawn entry instead of dying on the unique constraint", async () => {
+    /*
+      The regression this pins. `withdrawEntry` sets status WITHDRAWN and keeps
+      the row, and `@@unique([candidateId, examSubjectId])` means the row is
+      still in the way — so a pupil who dropped a subject in June and picked it
+      up again in July hit an unhandled unique-constraint violation. A 500 with
+      a Prisma message, on an ordinary thing a school does, with no way round it
+      short of the database.
+    */
+    const first = await enterSubject({
+      companyId,
+      actorId: "test",
+      seriesId,
+      candidateId,
+      examSubjectId: mathsId,
+    });
+
+    await prisma.schoolExamEntry.update({
+      where: { id: first.id },
+      data: { status: "WITHDRAWN", withdrawnAt: new Date() },
+    });
+
+    const again = await enterSubject({
+      companyId,
+      actorId: "test",
+      seriesId,
+      candidateId,
+      examSubjectId: mathsId,
+    });
+
+    // Same row, revived — not a second entry, which the constraint forbids.
+    expect(again.id).toBe(first.id);
+    const row = await prisma.schoolExamEntry.findUniqueOrThrow({
+      where: { id: first.id },
+      select: { status: true, withdrawnAt: true },
+    });
+    expect(row.status).toBe("DRAFT");
+    expect(row.withdrawnAt).toBeNull();
+  });
+
+  it("refuses a subject the candidate is already entered for, by name", async () => {
+    await expect(
+      enterSubject({
+        companyId,
+        actorId: "test",
+        seriesId,
+        candidateId,
+        examSubjectId: mathsId,
+      }),
+    ).rejects.toThrow(/0200 is already entered for Mathematics/i);
   });
 });
