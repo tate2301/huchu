@@ -136,4 +136,11 @@ console.log(`page law: ${clean}/${screens} screens clean, ${findings.length} fin
 for (const rule of Object.keys(byRule).sort()) {
   console.log(`  ${rule.padEnd(8)} ${byRule[rule].length}`);
 }
-process.exit(findings.length > 0 ? 1 : 0);
+// `process.exitCode`, never `process.exit()`. `process.exit()` tears the
+// process down before a piped stdout has necessarily flushed, so
+// `node scripts/campus-page-law-audit.mjs --gaps | grep band` can print
+// NOTHING while findings exist — a false negative in the exact command people
+// verify with. Setting the code and falling off the end lets node drain the
+// pipe first. Found by a subagent whose grep came back empty on a screen that
+// was genuinely still in breach.
+process.exitCode = findings.length > 0 ? 1 : 0;

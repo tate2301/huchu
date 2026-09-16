@@ -86,4 +86,8 @@ console.log(
     ? 'copy: clean — the admin dashboard says "pupil"'
     : `copy: ${findings.length} strings still say "student", in ${files} files`,
 );
-process.exit(findings.length > 0 ? 1 : 0);
+// `process.exitCode`, never `process.exit()` — see the note in
+// campus-page-law-audit.mjs. `process.exit()` can truncate a piped stdout, so
+// `node scripts/campus-copy-audit.mjs | grep student` may print nothing while
+// findings exist.
+process.exitCode = findings.length > 0 ? 1 : 0;
