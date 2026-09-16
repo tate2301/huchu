@@ -458,11 +458,17 @@ export const navSections: NavSection[] = [
       { href: "/schools/results/moderation", icon: Scale, label: "Moderation", group: "results" },
       { href: "/schools/results/publish", icon: Send, label: "Publishing", group: "results" },
 
-      // The house: where there is a free bed, who is in which bed, what the
-      // houses are, and who is out of the gate.
+      // The house: where there is a free bed, who is in which bed, who is in
+      // the building tonight, who is ill, and who is out of the gate.
+      //
+      // Roll call earns a rail entry rather than living inside a house,
+      // because it is the one thing here that happens at a fixed time every
+      // night and is the reason somebody opens this module at nine o'clock.
       { href: "/schools/boarding", icon: Home, label: "Bed board", group: "boarding" },
       { href: "/schools/boarding/allocations", icon: Checklist, label: "Allocations", group: "boarding" },
+      { href: "/schools/boarding/roll-call", icon: UserCheck, label: "Roll call", group: "boarding" },
       { href: "/schools/boarding/hostels", icon: Building2, label: "Hostels", group: "boarding" },
+      { href: "/schools/boarding/sick-bay", icon: MedusaIdBadgeIcon, label: "Sick bay", group: "boarding" },
       { href: "/schools/boarding/leave", icon: CalendarCheck, label: "Leave and outings", group: "boarding" },
 
       // Money owed to the school. Three entries where there were eight: five of

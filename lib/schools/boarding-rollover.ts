@@ -222,7 +222,7 @@ export async function planTermClose(
   input: { companyId: string; termId: string },
 ): Promise<{ termId: string; ending: number; byHostel: Array<{ hostelId: string; hostelName: string; count: number }> }> {
   const rows = await prisma.schoolBoardingAllocation.findMany({
-    where: { companyId, termId: input.termId, status: "ACTIVE" },
+    where: { companyId: input.companyId, termId: input.termId, status: "ACTIVE" },
     include: { hostel: { select: { id: true, name: true } } },
   });
 
@@ -257,7 +257,7 @@ export async function applyTermClose(
   input: { companyId: string; termId: string; endDate: Date },
 ): Promise<{ ended: number }> {
   const result = await prisma.schoolBoardingAllocation.updateMany({
-    where: { companyId, termId: input.termId, status: "ACTIVE" },
+    where: { companyId: input.companyId, termId: input.termId, status: "ACTIVE" },
     data: { status: "ENDED", endDate: input.endDate },
   });
   return { ended: result.count };
