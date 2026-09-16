@@ -408,7 +408,7 @@ export async function logIncident(input: LogIncidentInput) {
 
   const category = await prisma.schoolConductCategory.findFirst({
     where: { id: input.categoryId, companyId: input.companyId },
-    select: { id: true, name: true, tone: true, demeritPoints: true },
+    select: { id: true, code: true, name: true, tone: true, demeritPoints: true },
   });
   if (!category) throw new ConductError("That is not one of this school's categories.");
 
@@ -475,30 +475,60 @@ export async function logIncident(input: LogIncidentInput) {
     }
 
     if (category.demeritPoints && category.demeritPoints > 0) {
-      const reason = await tx.schoolMeritReason.findFirst({
-        where: {
-          companyId: input.companyId,
-          kind: SchoolMeritKind.DEMERIT,
-          name: category.name,
-          isActive: true,
-        },
-        select: { id: true },
-      });
-      if (reason) {
-        await tx.schoolMeritEntry.create({
+      /*
+        The reason is made if it is missing, rather than the demerit being
+        dropped.
+
+        This used to look a `SchoolMeritReason` up by exact `name` match against
+        the category's name and, finding none, do nothing at all. Categories and
+        reasons are created independently — nothing in the product ever made one
+        to match the other — so the normal case was no match, and a category
+        configured to draw three demerits drew none, silently, forever.
+
+        It is not silent to the user: the incident dialog reads
+        `category.demeritPoints` and says "Logging this also records 3 demerits"
+        before they press the button. So the screen promised something the write
+        path then declined to do, with nothing anywhere reporting it.
+
+        The code is derived from the category's own code and the pair is unique
+        per company, so a school that renames the category keeps one reason
+        rather than accumulating one per spelling.
+      */
+      const derivedCode = `CAT-${category.code}`;
+      const reason =
+        (await tx.schoolMeritReason.findFirst({
+          where: {
+            companyId: input.companyId,
+            kind: SchoolMeritKind.DEMERIT,
+            OR: [{ code: derivedCode }, { name: category.name }],
+            isActive: true,
+          },
+          select: { id: true },
+        })) ??
+        (await tx.schoolMeritReason.create({
           data: {
             companyId: input.companyId,
-            studentId: input.studentId,
-            termId: input.termId,
+            code: derivedCode,
+            name: category.name,
             kind: SchoolMeritKind.DEMERIT,
-            reasonId: reason.id,
-            points: category.demeritPoints,
-            incidentId: incident.id,
-            awardedByUserId: input.actorId,
-            note: input.summary.trim(),
+            defaultPoints: category.demeritPoints,
           },
-        });
-      }
+          select: { id: true },
+        }));
+
+      await tx.schoolMeritEntry.create({
+        data: {
+          companyId: input.companyId,
+          studentId: input.studentId,
+          termId: input.termId,
+          kind: SchoolMeritKind.DEMERIT,
+          reasonId: reason.id,
+          points: category.demeritPoints,
+          incidentId: incident.id,
+          awardedByUserId: input.actorId,
+          note: input.summary.trim(),
+        },
+      });
     }
 
     await writeSchoolAuditEvent(tx, {
