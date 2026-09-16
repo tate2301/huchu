@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Badge, Button } from "@corelithzw/react";
 
@@ -147,7 +148,12 @@ export function ExamSeatingContent({ seriesId }: { seriesId: string }) {
       ) : (page?.sessions.length ?? 0) === 0 && !seatingQuery.isPending ? (
         <NothingYet
           title="This series has no sittings yet"
-          body="A session is a paper on a date at a time. Seating hangs off it, and so does the invigilation list."
+          body="A sitting is a paper on a date at a time. Seating hangs off it, and so does the invigilation list — so the timetable is written first."
+          action={
+            <Button asChild variant="primary">
+              <Link href={`/schools/exams/${seriesId}/timetable`}>Open the timetable</Link>
+            </Button>
+          }
         />
       ) : (
         <>

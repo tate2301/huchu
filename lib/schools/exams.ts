@@ -26,9 +26,22 @@ import { bandFor, gradeRank, isPass, SUBJECT_RULE } from "@/lib/schools/exam-gra
  */
 
 export class ExamError extends Error {
-  constructor(message: string) {
+  /**
+   * What the caller did wrong, as a status.
+   *
+   * 422 by default, which is what every existing throw means: the request was
+   * understood and the school's rules refuse it. The timetable needs the other
+   * two — 404 for a series or paper that is not this school's, 409 for a paper
+   * already on the timetable or a sitting somebody is already seated for — and
+   * collapsing those into 422 tells the screen that a duplicate and a
+   * cross-tenant id are the same kind of problem.
+   */
+  readonly status: number;
+
+  constructor(message: string, status = 422) {
     super(message);
     this.name = "ExamError";
+    this.status = status;
   }
 }
 

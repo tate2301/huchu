@@ -418,3 +418,52 @@ export type ExamReference = {
 export function fetchExamReference() {
   return fetchJson<ExamReference>("/api/v2/schools/exams/reference");
 }
+
+export type TimetablePaper = {
+  id: string;
+  paperNumber: number;
+  code: string;
+  sitsAt: string | null;
+  durationMinutes: number | null;
+  subject: { id: string; code: string; name: string };
+  session: { id: string; startsAt: string; endsAt: string | null; seated: number } | null;
+};
+
+export function fetchTimetable(seriesId: string) {
+  return fetchJson<{ papers: TimetablePaper[] }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+  );
+}
+
+export function addTimetablePaper(
+  seriesId: string,
+  input: {
+    examSubjectId: string;
+    paperNumber: number;
+    code?: string | null;
+    sitsAt: string;
+    durationMinutes?: number | null;
+  },
+) {
+  return fetchJson<{ paper: TimetablePaper }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+export function reschedulePaper(
+  seriesId: string,
+  input: { paperId: string; sitsAt: string; durationMinutes?: number | null },
+) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable`,
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function removeTimetablePaper(seriesId: string, paperId: string) {
+  return fetchJson<{ paperId: string }>(
+    `/api/v2/schools/exams/series/${seriesId}/timetable${query({ paperId })}`,
+    { method: "DELETE" },
+  );
+}
