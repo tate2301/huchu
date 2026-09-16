@@ -517,12 +517,38 @@ export async function awardDetention(args: {
   if (args.sessionIds.length === 0) {
     throw new DetentionError("Name the session they are serving, or the register has nobody on it.");
   }
-  const sessions = await prisma.schoolDetentionSession.findMany({
-    where: { companyId: args.companyId, id: { in: args.sessionIds } },
-    select: { id: true },
-  });
+  /*
+    The sittings were checked and the pupil was not.
+
+    `studentId` and `incidentId` both arrive in a request body. Unchecked, a
+    caller could put another school's pupil on this school's detention
+    register — and because the register is read back with the incident summary
+    attached, that also hands over a line of another school's behaviour log.
+  */
+  const [sessions, student, incident] = await Promise.all([
+    prisma.schoolDetentionSession.findMany({
+      where: { companyId: args.companyId, id: { in: args.sessionIds } },
+      select: { id: true },
+    }),
+    prisma.schoolStudent.findFirst({
+      where: { id: args.studentId, companyId: args.companyId },
+      select: { id: true },
+    }),
+    args.incidentId
+      ? prisma.schoolConductIncident.findFirst({
+          where: { id: args.incidentId, companyId: args.companyId },
+          select: { id: true },
+        })
+      : Promise.resolve(null),
+  ]);
   if (sessions.length !== args.sessionIds.length) {
     throw new DetentionError("One of those sessions is not this school's.");
+  }
+  if (!student) {
+    throw new DetentionError("That pupil is not on this school's roll.");
+  }
+  if (args.incidentId && !incident) {
+    throw new DetentionError("That incident is not on this school's log.");
   }
 
   return prisma.$transaction(async (tx) => {

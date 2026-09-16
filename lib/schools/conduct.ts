@@ -412,6 +412,30 @@ export async function logIncident(input: LogIncidentInput) {
   });
   if (!category) throw new ConductError("That is not one of this school's categories.");
 
+  /*
+    The pupil the incident is about was checked; the others in it were not.
+
+    `participants[].studentId` arrived in a request body and was written
+    straight into `SchoolConductParticipant`. Unchecked, another school's pupil
+    could be named in this school's behaviour log — and the incident page draws
+    participants by name, so the row is both a write into their record and a
+    disclosure of their name to a school they do not attend.
+
+    One query for the lot: naming six pupils in a fight should not cost six
+    round trips.
+  */
+  const participantIds = [
+    ...new Set((input.participants ?? []).map((participant) => participant.studentId)),
+  ];
+  if (participantIds.length > 0) {
+    const onRoll = await prisma.schoolStudent.count({
+      where: { id: { in: participantIds }, companyId: input.companyId },
+    });
+    if (onRoll !== participantIds.length) {
+      throw new ConductError("One of those pupils is not on this school's roll.");
+    }
+  }
+
   return prisma.$transaction(async (tx) => {
     const reference = await nextIncidentReference(
       input.companyId,
