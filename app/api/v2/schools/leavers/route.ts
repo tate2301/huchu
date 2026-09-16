@@ -36,6 +36,8 @@ const listQuery = z.object({
     ])
     .optional(),
   level: z.coerce.number().int().min(1).max(13).optional(),
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
   clearance: z.enum(["cleared", "not-cleared"]).optional(),
   search: z.string().trim().max(120).optional(),
 });

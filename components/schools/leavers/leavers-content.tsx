@@ -121,12 +121,25 @@ export function LeaversContent() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const queueQuery = useQuery({
-    queryKey: ["schools", "leavers", segment, reasonFilter, clearanceFilter, search],
+    queryKey: [
+      "schools",
+      "leavers",
+      segment,
+      reasonFilter,
+      clearanceFilter,
+      classValue.classId,
+      classValue.streamId,
+      search,
+    ],
     queryFn: () =>
       fetchLeaverQueue({
         status: segment,
         reason: (reasonFilter as LeavingReason) || undefined,
         clearance: (clearanceFilter as "cleared" | "not-cleared") || undefined,
+        // Sent to the query rather than filtered in the browser: a class is a
+        // property of the pupil the leaver points at, and the list is paged.
+        classId: classValue.classId || undefined,
+        streamId: classValue.streamId || undefined,
         search: search.trim() || undefined,
       }),
   });
@@ -162,11 +175,7 @@ export function LeaversContent() {
 
   const page = queueQuery.data;
   const tallies = page?.tallies;
-  const rows = useMemo(() => {
-    const all = page?.rows ?? [];
-    if (!classValue.classId) return all;
-    return all.filter((row) => row.student.className != null);
-  }, [page, classValue.classId]);
+  const rows = useMemo(() => page?.rows ?? [], [page]);
 
   const columns = useMemo<ColumnDef<LeaverRow>[]>(
     () => [

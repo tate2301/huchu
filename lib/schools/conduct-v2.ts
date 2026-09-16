@@ -303,6 +303,7 @@ export function fetchMeritLedger(
   params: {
     termId?: string;
     level?: number;
+    classId?: string;
     streamId?: string;
     search?: string;
     sort?: "net-desc" | "net-asc" | "merits-desc" | "demerits-desc" | "name";
@@ -374,7 +375,9 @@ export type RegisterRow = {
     studentNo: string;
     firstName: string;
     lastName: string;
+    classId: string | null;
     className: string | null;
+    streamId: string | null;
     streamName: string | null;
   };
   servingFor: string;
@@ -514,6 +517,8 @@ export type PastoralListing = {
 export function fetchPastoralNotes(
   params: {
     level?: number;
+    classId?: string;
+    streamId?: string;
     band?: PastoralBand;
     review?: "overdue" | "due" | "none";
     studentId?: string;

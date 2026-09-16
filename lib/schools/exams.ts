@@ -1137,7 +1137,12 @@ export async function resultsForSeries(args: {
     args.compareSeriesId
       ? prisma.schoolExamResult.findMany({
           where: { companyId: args.companyId, seriesId: args.compareSeriesId },
-          select: { grade: true, examSubject: { select: { code: true } } },
+          select: {
+            grade: true,
+            isRemark: true,
+            candidateId: true,
+            examSubject: { select: { code: true } },
+          },
         })
       : Promise.resolve([]),
     prisma.schoolCandidate.count({
@@ -1145,11 +1150,26 @@ export async function resultsForSeries(args: {
     }),
   ]);
 
+  // A remark is kept beside the original rather than over it, so both rows
+  // exist for one sitting — which is the point when somebody asks what the
+  // first grade was, and a disaster if anything counts them both. A D upgraded
+  // to a C would otherwise record two sittings, give the candidate two grades
+  // and move the subject's pass rate twice. So every figure below is computed
+  // over the EFFECTIVE grade: one row per candidate per subject, the remark
+  // winning where there is one.
+  const effective = new Map<string, (typeof results)[number]>();
+  for (const result of results) {
+    const key = `${result.candidate.id}:${result.examSubject.id}`;
+    const seen = effective.get(key);
+    if (!seen || (result.isRemark && !seen.isRemark)) effective.set(key, result);
+  }
+  const counted = [...effective.values()];
+
   const bySubject = new Map<
     string,
     { subject: string; code: string; sat: number; passes: number; bands: Map<string, number> }
   >();
-  for (const result of results) {
+  for (const result of counted) {
     const key = result.examSubject.code;
     const seen =
       bySubject.get(key) ??
@@ -1167,8 +1187,17 @@ export async function resultsForSeries(args: {
     bySubject.set(key, seen);
   }
 
-  const compareBySubject = new Map<string, { sat: number; passes: number }>();
+  // The series being compared against gets the same treatment, or a remark in
+  // last November's grades moves this November's comparison.
+  const compareEffective = new Map<string, (typeof compare)[number]>();
   for (const result of compare) {
+    const key = `${result.candidateId}:${result.examSubject.code}`;
+    const seen = compareEffective.get(key);
+    if (!seen || (result.isRemark && !seen.isRemark)) compareEffective.set(key, result);
+  }
+
+  const compareBySubject = new Map<string, { sat: number; passes: number }>();
+  for (const result of compareEffective.values()) {
     const key = result.examSubject.code;
     const seen = compareBySubject.get(key) ?? { sat: 0, passes: 0 };
     seen.sat += 1;
@@ -1195,7 +1224,7 @@ export async function resultsForSeries(args: {
 
   // Five or more at C: the sentence a head says, counted per candidate.
   const byCandidate = new Map<string, { passes: number; grades: number; aStarOrA: number; ungraded: number }>();
-  for (const result of results) {
+  for (const result of counted) {
     const key = result.candidate.id;
     const seen = byCandidate.get(key) ?? { passes: 0, grades: 0, aStarOrA: 0, ungraded: 0 };
     seen.grades += 1;
@@ -1216,17 +1245,19 @@ export async function resultsForSeries(args: {
       ungraded: [...byCandidate.values()].reduce((total, row) => total + row.ungraded, 0),
     },
     subjectsThatFell: subjects.filter((row) => (row.against ?? 0) < 0).length,
+    // Counted over every row rather than the effective ones, because "how many
+    // grades were amended" is a question about the remarks themselves.
     amended: results.filter((result) => result.isRemark).length,
     statementReceived: results.some((result) => result.releasedAt != null),
     byCandidate: [...byCandidate.entries()].map(([candidateId, row]) => {
-      const candidate = results.find((result) => result.candidate.id === candidateId)!.candidate;
+      const candidate = counted.find((result) => result.candidate.id === candidateId)!.candidate;
       return {
         candidateId,
         candidateNumber: candidate.candidateNumber,
         name: `${candidate.student.lastName}, ${candidate.student.firstName}`,
         studentId: candidate.student.id,
         ...row,
-        grades: results
+        grades: counted
           .filter((result) => result.candidate.id === candidateId)
           .map((result) => ({
             subject: result.examSubject.name,
@@ -1259,6 +1290,38 @@ export async function captureResults(args: {
     select: { id: true },
   });
   if (!series) throw new ExamError("That series is not this school's.");
+
+  // Every id in the request is checked against this company and this series
+  // before a single row is written.
+  //
+  // The foreign keys here are global — a candidate id is a uuid and the
+  // database will happily attach another tenant's candidate to this tenant's
+  // series — so without this a malformed or hostile request could write a
+  // foreign pupil into this school's analytics, and `resultsForSeries` would
+  // then read their name back out. Checking the whole
+  // candidate-entry-subject relationship is also what stops a grade being
+  // captured for a subject the candidate was never entered for, which would
+  // appear in a pass rate as a sitting that did not happen.
+  const entries = await prisma.schoolExamEntry.findMany({
+    where: {
+      companyId: args.companyId,
+      seriesId: series.id,
+      status: { not: "WITHDRAWN" },
+      candidateId: { in: [...new Set(args.rows.map((row) => row.candidateId))] },
+    },
+    select: { candidateId: true, examSubjectId: true },
+  });
+  const entered = new Set(entries.map((entry) => `${entry.candidateId}:${entry.examSubjectId}`));
+  const strays = args.rows.filter(
+    (row) => !entered.has(`${row.candidateId}:${row.examSubjectId}`),
+  );
+  if (strays.length > 0) {
+    throw new ExamError(
+      strays.length === args.rows.length
+        ? "None of those candidates is entered for those subjects in this series, so there is nothing to grade."
+        : `${strays.length} of those grades are for a candidate or a subject that is not entered in this series. Nothing was captured.`,
+    );
+  }
 
   const written = await prisma.$transaction(async (tx) => {
     let count = 0;

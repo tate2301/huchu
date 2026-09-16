@@ -28,6 +28,8 @@ import { whoCan } from "@/lib/schools/access";
 
 const listQuery = z.object({
   level: z.coerce.number().int().min(1).max(13).optional(),
+  classId: z.string().uuid().optional(),
+  streamId: z.string().uuid().optional(),
   band: z
     .enum(["PASTORAL_TEAM_ONLY", "HEAD_AND_PASTORAL_TEAM", "SAFEGUARDING_NAMED_INDIVIDUALS"])
     .optional(),

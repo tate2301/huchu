@@ -4,6 +4,7 @@ import { z } from "zod";
 import { errorResponse, successResponse, validateSession } from "@/lib/api-utils";
 import {
   LeaverError,
+  clearanceDenial,
   closeLeaver,
   leavingDocuments,
   markClearance,
@@ -75,6 +76,12 @@ export async function PATCH(
 
     const denied = schoolPermissionDenial(session, "schools.leavers", "clear");
     if (denied) return errorResponse(denied, 403);
+    // The grant says this person may settle a mark; this says which one. Three
+    // offices hold `clear` and each owns one of the five — without this a
+    // bursar could mark the library and the bed done and close a record over an
+    // unreturned book, which is the one thing the queue exists to prevent.
+    const notTheirs = clearanceDenial(session.user.role, body.kind);
+    if (notTheirs) return errorResponse(notTheirs, 403);
     const marked = await markClearance({
       ...base,
       kind: body.kind,

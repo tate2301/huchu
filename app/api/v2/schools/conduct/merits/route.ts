@@ -24,6 +24,7 @@ import { schoolPermissionDenial } from "@/lib/schools/permissions";
 const listQuery = z.object({
   termId: z.string().uuid().optional(),
   level: z.coerce.number().int().min(1).max(13).optional(),
+  classId: z.string().uuid().optional(),
   streamId: z.string().uuid().optional(),
   studentId: z.string().uuid().optional(),
   search: z.string().trim().max(120).optional(),

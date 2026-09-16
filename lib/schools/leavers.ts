@@ -50,6 +50,23 @@ export const CLEARANCE_LABELS: Record<SchoolLeaverClearanceKind, string> = {
   RESULTS: "Docs",
 };
 
+/**
+ * What a closed leaver's pupil record becomes.
+ *
+ * Only the two completion reasons graduate. A pupil who transferred, was
+ * expelled, left over fees, moved abroad or was withdrawn by a guardian is
+ * `WITHDRAWN`: marking them `GRADUATED` would report and display them as a
+ * graduate of this school, on a statistic a head quotes and on a reference
+ * somebody writes years later.
+ */
+export function statusAfterLeaving(
+  reason: SchoolLeavingReason,
+): "GRADUATED" | "WITHDRAWN" {
+  return reason === "COMPLETED_FORM_4" || reason === "COMPLETED_UPPER_6"
+    ? "GRADUATED"
+    : "WITHDRAWN";
+}
+
 export const CLEARANCE_ORDER: SchoolLeaverClearanceKind[] = [
   "FEES",
   "LIBRARY",
@@ -218,6 +235,8 @@ export async function leaverQueue(args: {
   status?: "open" | "closed";
   reason?: SchoolLeavingReason;
   level?: number;
+  classId?: string;
+  streamId?: string;
   clearance?: "cleared" | "not-cleared";
   search?: string;
 }): Promise<LeaverRow[]> {
@@ -225,7 +244,16 @@ export async function leaverQueue(args: {
   if (args.status === "open") where.status = "OPEN";
   if (args.status === "closed") where.status = "CLOSED";
   if (args.reason) where.reason = args.reason;
-  if (args.level != null) where.student = { currentClass: { level: args.level } };
+  // All three narrow the same relation, so they compose into one filter. The
+  // screen sends a class and a stream, not a level: a filter that matched any
+  // pupil who had *a* class reported itself as active and narrowed nothing.
+  if (args.level != null || args.classId || args.streamId) {
+    where.student = {
+      ...(args.classId ? { currentClassId: args.classId } : {}),
+      ...(args.streamId ? { currentStreamId: args.streamId } : {}),
+      ...(args.level != null ? { currentClass: { level: args.level } } : {}),
+    };
+  }
   if (args.search?.trim()) {
     const term = args.search.trim();
     where.OR = [
@@ -243,8 +271,13 @@ export async function leaverQueue(args: {
 
   const rows = leavers.map((leaver) => {
     const fees = leaver.clearances.find((row) => row.kind === "FEES");
-    const owed =
-      fees?.state === "TODO" ? (fees.detail?.match(/\$([\d.,]+)/)?.[1] ?? "0.00") : "0.00";
+    // Parsed from the evidence whatever the mark says. Reading it only while
+    // the mark is `TODO` meant a closed record always showed nothing owed —
+    // and since a record cannot close with a mark outstanding, "Gone, still
+    // owing" could never show anybody at all. The mark being `DONE` over a
+    // balance is the head waiving it; the balance is still what the family
+    // owes, and that is the number that section exists to show.
+    const owed = fees?.detail?.match(/\$([\d.,]+)/)?.[1]?.replace(/,/g, "") ?? "0.00";
     return {
       ...leaver,
       student: {
@@ -297,10 +330,35 @@ export async function leaverTallies(args: { companyId: string }): Promise<Leaver
  * work-in-progress: the pupil has gone, and what is left is a debt somebody has
  * to decide whether to chase. A school that hid them inside the queue would
  * find them again a year later.
+ *
+ * The balance is read **live** rather than from the clearance mark's evidence.
+ * A mark is a snapshot taken when the record closed; a family that paid in
+ * January should not still appear here in March, and one whose cheque bounced
+ * should.
  */
 export async function goneStillOwing(args: { companyId: string }) {
   const rows = await leaverQueue({ companyId: args.companyId, status: "closed" });
-  return rows.filter((row) => Number(row.owed) > 0);
+  if (rows.length === 0) return [];
+
+  const invoices = await prisma.schoolFeeInvoice.groupBy({
+    by: ["studentId"],
+    where: {
+      companyId: args.companyId,
+      studentId: { in: rows.map((row) => row.student.id) },
+      status: { notIn: ["VOIDED", "DRAFT"] },
+    },
+    _sum: { balanceAmount: true },
+  });
+  const owedByStudent = new Map(
+    invoices.map((row) => [row.studentId, row._sum.balanceAmount ?? new Prisma.Decimal(0)]),
+  );
+
+  return rows
+    .map((row) => ({
+      ...row,
+      owed: (owedByStudent.get(row.student.id) ?? new Prisma.Decimal(0)).toFixed(2),
+    }))
+    .filter((row) => Number(row.owed) > 0);
 }
 
 /** Open a leaver, with the five marks proposed from the records that own them. */
@@ -370,6 +428,56 @@ export async function recordLeaver(args: {
   });
 }
 
+/**
+ * Which marks each role may settle.
+ *
+ * `schools.leavers:clear` is held by three offices and `WHO_CAN` already says
+ * what the grant means: "the bursar, the librarian or the warden, each for
+ * their own mark". The grant alone could not express that, so a bursar could
+ * mark the library and the bed done and make a record closable without the
+ * office that actually holds the book or the key.
+ *
+ * The office that owns a mark is the office that can see whether it is true.
+ * A registrar or an administrator settles any of them, because closing the
+ * record is theirs and somebody has to be able to finish a queue when a
+ * librarian is on leave — but they do it as themselves, and the audit row says
+ * so.
+ */
+const CLEARANCE_BY_ROLE: Record<string, SchoolLeaverClearanceKind[]> = {
+  BURSAR: ["FEES"],
+  WARDEN: ["BOARDING"],
+  TEACHER: [],
+  HOD: ["RESULTS"],
+  REGISTRAR: ["FEES", "LIBRARY", "BOARDING", "PORTAL", "RESULTS"],
+  SCHOOL_ADMIN: ["FEES", "LIBRARY", "BOARDING", "PORTAL", "RESULTS"],
+  SUPERADMIN: ["FEES", "LIBRARY", "BOARDING", "PORTAL", "RESULTS"],
+  MANAGER: ["FEES", "LIBRARY", "BOARDING", "PORTAL", "RESULTS"],
+};
+
+/** Who settles this mark, for the sentence a refusal is written in. */
+const CLEARANCE_OWNER: Record<SchoolLeaverClearanceKind, string> = {
+  FEES: "the bursar",
+  LIBRARY: "the librarian or the office",
+  BOARDING: "the warden",
+  PORTAL: "the office",
+  RESULTS: "the head of department or the office",
+};
+
+/**
+ * Returns null where this role may settle this mark, or the refusal to give.
+ *
+ * Kept here rather than in the route so the rule sits beside the marks it is
+ * about, and so a second caller cannot forget it.
+ */
+export function clearanceDenial(
+  role: string | null | undefined,
+  kind: SchoolLeaverClearanceKind,
+): string | null {
+  const allowed = CLEARANCE_BY_ROLE[(role ?? "").trim().toUpperCase()];
+  if (allowed?.includes(kind)) return null;
+  return `${CLEARANCE_LABELS[kind]} is ${CLEARANCE_OWNER[kind]} to settle. You can see it here; ask them to mark it.`;
+}
+
 /** Settle one of the five marks, with the override the derivation cannot make. */
 export async function markClearance(args: {
   companyId: string;
@@ -430,6 +538,7 @@ export async function closeLeaver(args: {
       id: true,
       status: true,
       lastDay: true,
+      reason: true,
       student: {
         select: {
           id: true,
@@ -461,10 +570,11 @@ export async function closeLeaver(args: {
     });
     // The pupil leaves the roll and joins the register. Both, in one act: a
     // graduating pupil who is not on the alumni register is the gap S-13.4 was
-    // written to close.
+    // written to close. The status follows the reason — see
+    // `statusAfterLeaving`; an expelled pupil is not a graduate.
     await tx.schoolStudent.update({
       where: { id: leaver.student.id },
-      data: { status: "GRADUATED" },
+      data: { status: statusAfterLeaving(leaver.reason) },
     });
     const already = await tx.schoolAlumnus.findFirst({
       where: { studentId: leaver.student.id },
@@ -493,7 +603,12 @@ export async function closeLeaver(args: {
       eventType: "schools.leaver.closed",
       entityType: "SchoolLeaver",
       entityId: leaver.id,
-      payload: { studentId: leaver.student.id, classOf: leaver.lastDay.getFullYear() },
+      payload: {
+        studentId: leaver.student.id,
+        classOf: leaver.lastDay.getFullYear(),
+        reason: leaver.reason,
+        status: statusAfterLeaving(leaver.reason),
+      },
     });
     return closed;
   });

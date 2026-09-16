@@ -133,11 +133,17 @@ export function ConductDetentionContent() {
   const rows = useMemo(() => {
     let list = register?.rows ?? [];
     if (onlyTwo) list = list.filter((row) => onlyTwo.includes(row.student.id));
+    // Compared against the chosen class and stream by id. Matching on "has any
+    // class at all" reported an active filter and narrowed nothing, which is
+    // worse than no filter: a reader trusts a control that says it is on.
+    //
+    // Narrowed here rather than in the request because a register is one
+    // session's worth of rows and they are already in hand.
     if (classValue.classId) {
-      // Twelve names do not need a class filter to find somebody; they need it
-      // to answer "is this whole thing one year group", which is the question a
-      // deputy head asks of a register she did not take.
-      list = list.filter((row) => row.student.className != null);
+      list = list.filter((row) => row.student.classId === classValue.classId);
+    }
+    if (classValue.streamId) {
+      list = list.filter((row) => row.student.streamId === classValue.streamId);
     }
     if (servingFilter) {
       list = list.filter((row) =>
@@ -145,7 +151,7 @@ export function ConductDetentionContent() {
       );
     }
     return list;
-  }, [register, onlyTwo, servingFilter, classValue.classId]);
+  }, [register, onlyTwo, servingFilter, classValue.classId, classValue.streamId]);
 
   const servingOptions = useMemo(() => {
     const names = new Set<string>();

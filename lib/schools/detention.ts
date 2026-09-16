@@ -139,7 +139,12 @@ export type RegisterRow = {
     studentNo: string;
     firstName: string;
     lastName: string;
+    // The ids as well as the names: the screen's class filter hands back ids,
+    // and a filter that compared names would narrow by a label two classes can
+    // share.
+    classId: string | null;
     className: string | null;
+    streamId: string | null;
     streamName: string | null;
   };
   /** `Disruption — sent out of Combined Science, 1 Sep`. */
@@ -204,8 +209,8 @@ export async function sessionRegister(args: {
           studentNo: true,
           firstName: true,
           lastName: true,
-          currentClass: { select: { name: true } },
-          currentStream: { select: { name: true } },
+          currentClass: { select: { id: true, name: true } },
+          currentStream: { select: { id: true, name: true } },
         },
       },
       award: {
@@ -281,7 +286,9 @@ export async function sessionRegister(args: {
         studentNo: row.student.studentNo,
         firstName: row.student.firstName,
         lastName: row.student.lastName,
+        classId: row.student.currentClass?.id ?? null,
         className: row.student.currentClass?.name ?? null,
+        streamId: row.student.currentStream?.id ?? null,
         streamName: row.student.currentStream?.name ?? null,
       },
       servingFor,

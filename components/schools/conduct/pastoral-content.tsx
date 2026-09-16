@@ -133,11 +133,24 @@ export function PastoralContent() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const notesQuery = useQuery({
-    queryKey: ["schools", "pastoral", "notes", bandFilter, reviewFilter, search],
+    queryKey: [
+      "schools",
+      "pastoral",
+      "notes",
+      bandFilter,
+      reviewFilter,
+      classValue.classId,
+      classValue.streamId,
+      search,
+    ],
     queryFn: () =>
       fetchPastoralNotes({
         band: (bandFilter as PastoralBand) || undefined,
         review: (reviewFilter as "overdue" | "due" | "none") || undefined,
+        // In the key as well as in the arguments: without it a year-group
+        // change reads a cached page and the list does not move.
+        classId: classValue.classId || undefined,
+        streamId: classValue.streamId || undefined,
         search: search.trim() || undefined,
       }),
   });
@@ -180,6 +193,7 @@ export function PastoralContent() {
   const readers = readersQuery.data;
 
   const namedFilters = [
+    classValue.classId ? "a year group" : null,
     VISIBILITY_OPTIONS.find((option) => option.value === bandFilter)?.label,
     REVIEW_OPTIONS.find((option) => option.value === reviewFilter)?.label,
   ].filter((entry): entry is string => Boolean(entry));

@@ -186,6 +186,9 @@ const READABLE_SELECT = {
 export type PastoralFilters = {
   /** A year group — `SchoolClass.level`. */
   level?: number;
+  /** A class, which is what the screen's `ClassFilter` actually returns. */
+  classId?: string;
+  streamId?: string;
   band?: SchoolPastoralBand;
   /** `overdue` narrows to notes past their review date; `none` to those with none. */
   review?: "overdue" | "due" | "none";
@@ -196,7 +199,15 @@ export type PastoralFilters = {
 
 function filterWhere(filters: PastoralFilters): Prisma.SchoolPastoralNoteWhereInput {
   const where: Prisma.SchoolPastoralNoteWhereInput = {};
-  if (filters.level != null) where.student = { currentClass: { level: filters.level } };
+  // One filter over the pupil relation rather than three assignments, so a
+  // class and a year group compose instead of overwriting each other.
+  if (filters.level != null || filters.classId || filters.streamId) {
+    where.student = {
+      ...(filters.classId ? { currentClassId: filters.classId } : {}),
+      ...(filters.streamId ? { currentStreamId: filters.streamId } : {}),
+      ...(filters.level != null ? { currentClass: { level: filters.level } } : {}),
+    };
+  }
   if (filters.studentId) where.studentId = filters.studentId;
   if (filters.band) where.band = filters.band;
   if (filters.review === "overdue") where.reviewDueAt = { lt: new Date() };

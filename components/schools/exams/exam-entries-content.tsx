@@ -28,6 +28,7 @@ import {
   invoiceEntries,
 } from "@/lib/schools/exams-v2";
 import { formatSchoolDayTime, formatSchoolMoney, spellCount } from "@/lib/schools/format";
+import { EnterSubjectsDialog } from "@/components/schools/exams/enter-subjects-dialog";
 import { ExamSeriesTabs } from "@/components/schools/exams/exam-series-tabs";
 
 /**
@@ -54,6 +55,7 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
   const queryClient = useQueryClient();
   const [segment, setSegment] = useState<Segment>("subject");
   const [outsideOnly, setOutsideOnly] = useState(false);
+  const [enterOpen, setEnterOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [fileNote, setFileNote] = useState<string | null>(null);
 
@@ -164,6 +166,14 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
           resource="schools.exams"
           verbs={[
             {
+              // The primary verb, because nothing else on this page can happen
+              // until something is entered: the invoice, the entry file, the
+              // seating and the results all read entries.
+              label: "Enter a subject",
+              action: "enter",
+              onSelect: () => setEnterOpen(true),
+            },
+            {
               label: "Invoice the entries",
               action: "issue",
               loading: invoice.isPending,
@@ -191,6 +201,21 @@ export function ExamEntriesContent({ seriesId }: { seriesId: string }) {
       ) : null}
 
       <ExamSeriesTabs seriesId={seriesId} />
+
+      <EnterSubjectsDialog
+        open={enterOpen}
+        onOpenChange={setEnterOpen}
+        seriesId={seriesId}
+        onError={setActionError}
+        onSaved={(entered) => {
+          setEnterOpen(false);
+          setActionError(null);
+          setFileNote(
+            `${entered} ${entered === 1 ? "subject" : "subjects"} entered. The fee follows on the next invoice run.`,
+          );
+          void queryClient.invalidateQueries({ queryKey: ["schools", "exams"] });
+        }}
+      />
 
       {actionError ? <SaveError what="That change" error={actionError} /> : null}
       {fileNote ? <Alert tone="info" title={fileNote} /> : null}

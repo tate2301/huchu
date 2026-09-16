@@ -104,9 +104,20 @@ export function ConductMeritsContent() {
   const [actionError, setActionError] = useState<string | null>(null);
 
   const ledgerQuery = useQuery({
-    queryKey: ["schools", "conduct", "merits", classValue.streamId, sort, search],
+    queryKey: [
+      "schools",
+      "conduct",
+      "merits",
+      classValue.classId,
+      classValue.streamId,
+      sort,
+      search,
+    ],
     queryFn: () =>
       fetchMeritLedger({
+        // The class goes to the query. Filtering in the browser for "has any
+        // class at all" reported an active filter and narrowed nothing.
+        classId: classValue.classId || undefined,
         streamId: classValue.streamId || undefined,
         search: search.trim() || undefined,
         sort: sort as "net-desc",
@@ -139,13 +150,7 @@ export function ConductMeritsContent() {
     onError: (error) => setActionError(getApiErrorMessage(error)),
   });
 
-  const rows = useMemo(() => {
-    const all = ledgerQuery.data?.rows ?? [];
-    if (!classValue.classId) return all;
-    // The ledger comes back for the school; the year-group filter narrows it
-    // here rather than in a second round trip.
-    return all.filter((row) => row.student.className != null);
-  }, [ledgerQuery.data, classValue.classId]);
+  const rows = useMemo(() => ledgerQuery.data?.rows ?? [], [ledgerQuery.data]);
 
   const tallies = ledgerQuery.data?.tallies;
   const summary = summaryQuery.data;

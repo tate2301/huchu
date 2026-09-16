@@ -91,6 +91,8 @@ export function fetchLeaverQueue(
     status?: "open" | "closed";
     reason?: LeavingReason;
     level?: number;
+    classId?: string;
+    streamId?: string;
     clearance?: "cleared" | "not-cleared";
     search?: string;
   } = {},

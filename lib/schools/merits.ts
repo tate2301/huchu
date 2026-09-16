@@ -91,6 +91,8 @@ export type MeritLedgerFilters = {
   companyId: string;
   termId: string;
   level?: number;
+  /** A class, which is what the screen's `ClassFilter` returns. */
+  classId?: string;
   streamId?: string;
   studentId?: string;
   search?: string;
@@ -105,6 +107,7 @@ export async function meritLedger(filters: MeritLedgerFilters): Promise<MeritPup
     status: "ACTIVE",
   };
   if (filters.level != null) studentWhere.currentClass = { level: filters.level };
+  if (filters.classId) studentWhere.currentClassId = filters.classId;
   if (filters.streamId) studentWhere.currentStreamId = filters.streamId;
   if (filters.studentId) studentWhere.id = filters.studentId;
   if (filters.search?.trim()) {
