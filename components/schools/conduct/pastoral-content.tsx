@@ -29,7 +29,7 @@ import {
   PASTORAL_BAND_LABELS,
   writePastoralNote,
   type PastoralBand,
-  type ProjectedNote,
+  type ListedProjection,
 } from "@/lib/schools/conduct-v2";
 import { formatSchoolDayShort } from "@/lib/schools/format";
 import { PastoralNoteDialog } from "@/components/schools/conduct/pastoral-note-dialog";
@@ -196,7 +196,7 @@ export function PastoralContent() {
 
   const listing = notesQuery.data;
   const counts = listing?.counts;
-  const notes: ProjectedNote[] = listing?.notes ?? [];
+  const notes: ListedProjection[] = listing?.notes ?? [];
   const readers = readersQuery.data;
   const cleared = readers?.readers.filter((reader) => reader.cleared).length;
   const readableShown = notes.filter((note) => note.readable).length;
@@ -467,7 +467,18 @@ export function PastoralContent() {
                           </span>
                         </td>
                         <td className="py-2 pr-3">
-                          <span className="block text-xs">{note.body}</span>
+                          {/*
+                            What the note says is not in this row, and that is
+                            the point. Disclosing a safeguarding body is an
+                            audited act — `openNote` writes
+                            `schools.pastoral.note.read` — and printing it here
+                            handed every cleared reader every body on page load
+                            with nothing written down. The verb below opens it
+                            through the path that records who read it.
+                          */}
+                          <span className="block text-xs text-[color:var(--text-muted)]">
+                            Open it to read it
+                          </span>
                           {note.referredTo ? (
                             <span className="mt-1 inline-block">
                               <Badge tone="success">Referred: {note.referredTo}</Badge>

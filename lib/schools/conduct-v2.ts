@@ -553,8 +553,25 @@ export type WithheldNote = {
 
 export type ProjectedNote = ReadableNote | WithheldNote;
 
+/**
+ * A readable note as the LIST returns it: everything but what it says.
+ *
+ * `openNote` writes `schools.pastoral.note.read` every time a safeguarding body
+ * is disclosed, on the principle the server module states outright — "a model
+ * nobody can audit is a claim rather than a control". The listing used to carry
+ * `body` and the table printed it, so every note a reader was cleared for was
+ * disclosed on page load with no audit row, and the read that IS audited was
+ * the one that had already happened.
+ *
+ * Typed without `body` rather than with an optional one, so a component that
+ * wants it has to fetch the note through the path that records the fetch.
+ */
+export type ListedNote = Omit<ReadableNote, "body">;
+
+export type ListedProjection = ListedNote | WithheldNote;
+
 export type PastoralListing = {
-  notes: ProjectedNote[];
+  notes: ListedProjection[];
   counts: {
     youMayRead: number;
     withheldFromYou: number;

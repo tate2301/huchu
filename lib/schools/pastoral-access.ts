@@ -159,7 +159,20 @@ export type WithheldNote = {
   band: SchoolPastoralBand;
 };
 
+/**
+ * A readable note as the LIST returns it: everything but what it says.
+ *
+ * Typed as its own shape rather than making `body` optional on `ReadableNote`,
+ * so a component that wants the body has to go and get it through `openNote` —
+ * the path that writes the audit row. An optional field would compile either
+ * way and the control would be back to being a claim.
+ */
+export type ListedNote = Omit<ReadableNote, "body">;
+
 export type ProjectedNote = ReadableNote | WithheldNote;
+
+/** What the listing returns: a readable note without its body, or a withheld one. */
+export type ListedProjection = ListedNote | WithheldNote;
 
 const READABLE_SELECT = {
   id: true,
@@ -181,6 +194,30 @@ const READABLE_SELECT = {
       currentStream: { select: { name: true } },
     },
   },
+} satisfies Prisma.SchoolPastoralNoteSelect;
+
+/*
+  The same note, without what it says.
+
+  `openNote` exists to write `schools.pastoral.note.read` every time a
+  safeguarding body is disclosed, and its own comment gives the reason: "a model
+  nobody can audit is a claim rather than a control." The listing defeated that
+  completely — it selected `body` and the screen printed it in the table row, so
+  the body of every note a reader was cleared for was handed over on page load,
+  with no audit row anywhere. The per-note read that IS audited was then the one
+  disclosure that had already happened.
+
+  So the list carries the metadata a reader needs to choose a note — the pupil,
+  the band, the author, when it was written, whether its review is overdue — and
+  opening one is what discloses the body, through the path that records it.
+
+  Search still matches on `body`: the reader is told a note matching their term
+  exists, and is not shown what it says until they open it and that opening is
+  written down.
+*/
+const LIST_SELECT = {
+  ...READABLE_SELECT,
+  body: false,
 } satisfies Prisma.SchoolPastoralNoteSelect;
 
 export type PastoralFilters = {
@@ -227,7 +264,7 @@ function filterWhere(filters: PastoralFilters): Prisma.SchoolPastoralNoteWhereIn
  * not of what was typed.
  */
 export type PastoralListing = {
-  notes: ProjectedNote[];
+  notes: ListedProjection[];
   counts: {
     /** Notes this reader is cleared for. Per reader, not per school. */
     youMayRead: number;
@@ -272,7 +309,7 @@ export async function listNotesForViewer(
     await Promise.all([
       prisma.schoolPastoralNote.findMany({
         where: { AND: [readable, narrowed, searchWhere] },
-        select: READABLE_SELECT,
+        select: LIST_SELECT,
         orderBy: { writtenAt: "desc" },
         take: filters.limit ?? 100,
       }),
@@ -297,12 +334,13 @@ export async function listNotesForViewer(
 
   const authorNames = await resolveAuthorNames(rows.map((row) => row.authorUserId));
 
-  const readableNotes: ProjectedNote[] = rows.map((row) => ({
+  const readableNotes: ListedProjection[] = rows.map((row) => ({
     readable: true as const,
     id: row.id,
     writtenAt: row.writtenAt,
     band: row.band,
-    body: row.body,
+    // Deliberately absent. See LIST_SELECT: the body is disclosed by opening
+    // the note, which is the path that writes an audit row.
     reviewDueAt: row.reviewDueAt,
     referredTo: row.referredTo,
     referredAt: row.referredAt,
@@ -320,7 +358,7 @@ export async function listNotesForViewer(
   }));
 
   // Constructed, not filtered. Three fields in, three fields out.
-  const withheldNotes: ProjectedNote[] = withheld.map((row) => ({
+  const withheldNotes: ListedProjection[] = withheld.map((row) => ({
     readable: false as const,
     id: row.id,
     writtenAt: row.writtenAt,
