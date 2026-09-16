@@ -124,6 +124,9 @@ model Company {
   schoolBoardingAllocations     SchoolBoardingAllocation[]
   schoolLeaveRequests           SchoolLeaveRequest[]
   schoolBoardingMovementLogs    SchoolBoardingMovementLog[]
+  schoolRollCalls               SchoolRollCall[]
+  schoolRollCallEntries         SchoolRollCallEntry[]
+  schoolSickBayAdmissions       SchoolSickBayAdmission[]
   schoolResultSheets            SchoolResultSheet[]
   schoolResultLines             SchoolResultLine[]
   schoolResultModerationActions SchoolResultModerationAction[]
@@ -1115,6 +1118,8 @@ model User {
   schoolLeaveRequestsCheckedIn      SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCheckedInBy")
   schoolLeaveRequestsCreated        SchoolLeaveRequest[]           @relation("SchoolLeaveRequestCreatedBy")
   schoolBoardingMovementsRecorded   SchoolBoardingMovementLog[]    @relation("SchoolBoardingMovementRecordedBy")
+  schoolRollCallsTaken              SchoolRollCall[]               @relation("SchoolRollCallTakenBy")
+  schoolSickBayAdmissionsMade       SchoolSickBayAdmission[]       @relation("SchoolSickBayAdmittedBy")
   createdLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestCreatedBy")
   decidedLeaveRequests              LeaveRequest[]                 @relation("LeaveRequestDecidedBy")
   createdSettlementIntakes          SettlementIntake[]             @relation("SettlementIntakeCreatedBy")
@@ -6651,6 +6656,33 @@ enum SchoolLeaveRequestType {
   OUTING
 }
 
+enum SchoolRollCallSession {
+  /// Before school. Catches the child who left in the night.
+  MORNING
+  /// The one that matters — lights out, everybody accounted for.
+  EVENING
+}
+
+enum SchoolRollCallStatus {
+  OPEN
+  SUBMITTED
+}
+
+enum SchoolRollCallEntryStatus {
+  /// The default every entry starts at. Not an accusation — nobody has looked
+  /// yet, and the screen's job is to drive this count to zero.
+  NOT_SEEN
+  PRESENT
+  /// Away with permission, from the gate book.
+  SIGNED_OUT
+  /// In the sick bay, with their own bed held.
+  SICK_BAY
+  /// Looked for, not found, and not signed out. The one that starts a phone
+  /// call — kept distinct from NOT_SEEN so "we have not counted yet" can never
+  /// be mistaken for "this child is missing".
+  ABSENT
+}
+
 enum SchoolLeaveRequestStatus {
   DRAFT
   SUBMITTED
@@ -6977,6 +7009,8 @@ model SchoolTerm {
   streams             SchoolStream[]
   enrollments         SchoolEnrollment[]
   boardingAllocations SchoolBoardingAllocation[]
+  rollCalls           SchoolRollCall[]
+  sickBayAdmissions   SchoolSickBayAdmission[]
   resultSheets        SchoolResultSheet[]
   classSubjects          SchoolClassSubject[]
   periods                SchoolPeriod[]
@@ -7183,6 +7217,10 @@ model SchoolStudent {
   currentClassId  String?
   currentStreamId String?
   isBoarding      Boolean             @default(false)
+  /// A house prefect. Used by the bed placer: a prefects' dormitory is offered
+  /// only to a prefect, which is a rule the school enforces socially and the
+  /// placer should not quietly break.
+  isPrefect       Boolean             @default(false)
   admissionDate   DateTime?
   /// S-4.3 — the record page's identity strip.
   ///
@@ -7215,6 +7253,8 @@ model SchoolStudent {
   boardingAllocations    SchoolBoardingAllocation[]
   leaveRequests          SchoolLeaveRequest[]
   boardingMovementLogs   SchoolBoardingMovementLog[]
+  rollCallEntries        SchoolRollCallEntry[]
+  sickBayAdmissions      SchoolSickBayAdmission[]
   resultLines            SchoolResultLine[]
   assessmentScores       SchoolAssessmentScore[]
   application            SchoolApplication?
@@ -7357,6 +7397,7 @@ model SchoolHostel {
   rooms       SchoolHostelRoom[]
   beds        SchoolHostelBed[]
   allocations SchoolBoardingAllocation[]
+  rollCalls   SchoolRollCall[]
 
   @@unique([companyId, code])
   @@index([companyId, isActive])
@@ -7369,6 +7410,15 @@ model SchoolHostelRoom {
   code      String
   floor     String?
   capacity  Int?
+  /// A dormitory reserved for prefects. The placer will not offer a bed in
+  /// here to a pupil who is not one.
+  isPrefectDorm Boolean @default(false)
+  /// Which year groups this dormitory is meant for, as class ids. Empty means
+  /// any. The placer treats it as a strong preference rather than a rule —
+  /// a school that mixes years in one dormitory is not doing anything wrong,
+  /// but Form 1s should not be scattered when there is a Form 1 dormitory
+  /// with space in it.
+  yearGroupIds String[]
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7389,6 +7439,22 @@ model SchoolHostelBed {
   roomId    String
   code      String
   status    String   @default("AVAILABLE")
+  /// Why a bed is out of service — "Bunk ladder broken · joiner Thursday".
+  ///
+  /// `status` alone says a bed cannot be slept in and never says why, so the
+  /// warden who has to chase it has nowhere to write what they are chasing.
+  /// Null whenever the bed is AVAILABLE.
+  statusReason String?
+  /// Where the bed physically is in the room.
+  ///
+  /// A dormitory is two wall runs with an aisle between them: bay 1 is the
+  /// pair nearest the door, and `tier` is U or L of that bunk (null for a
+  /// single bed). The plan view draws the room from these rather than parsing
+  /// them out of `code` — "04U" is a naming convention a school is free to
+  /// break, and a drawing that guesses at geometry from a string is a drawing
+  /// that silently misplaces a child the first time somebody types "4-upper".
+  bay       Int?
+  tier      String?
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -7397,9 +7463,11 @@ model SchoolHostelBed {
   hostel      SchoolHostel               @relation(fields: [hostelId], references: [id], onDelete: Cascade)
   room        SchoolHostelRoom           @relation(fields: [roomId], references: [id], onDelete: Cascade)
   allocations SchoolBoardingAllocation[]
+  sickBayAdmissions SchoolSickBayAdmission[]
 
   @@unique([companyId, roomId, code])
   @@index([companyId, isActive])
+  @@index([companyId, roomId, bay])
 }
 
 model SchoolBoardingAllocation {
@@ -7486,6 +7554,112 @@ model SchoolBoardingMovementLog {
 
   @@index([companyId, leaveRequestId, recordedAt])
   @@index([companyId, studentId, recordedAt])
+}
+
+/// One taking of a roll call, in one house, at one time of day.
+///
+/// The thing that was missing. Before this, a roll call was a checklist a
+/// warden ticked and threw away — which is not a roll call, because the whole
+/// point is being able to answer "who said this child was in the building on
+/// Tuesday night" three weeks later. A house that has an OPEN session is
+/// mid-count; SUBMITTED is the warden signing it off, and after that the
+/// entries are the record.
+///
+/// Scoped to a house rather than the school, because that is who takes it: a
+/// warden counts their own boarders and nobody counts across houses.
+model SchoolRollCall {
+  id         String               @id @default(uuid())
+  companyId  String
+  hostelId   String
+  termId     String
+  /// The night it is about, at midnight. Distinct from `createdAt`: a roll
+  /// call taken at 21:05 and one amended at 06:00 the next morning are the
+  /// same night's count, and pairing this with `session` is what makes that
+  /// one record rather than two.
+  takenOn    DateTime
+  session    SchoolRollCallSession @default(EVENING)
+  status     SchoolRollCallStatus  @default(OPEN)
+  takenById  String
+  submittedAt DateTime?
+  notes      String?
+  createdAt  DateTime             @default(now())
+  updatedAt  DateTime             @updatedAt
+
+  company Company              @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  hostel  SchoolHostel         @relation(fields: [hostelId], references: [id], onDelete: Cascade)
+  term    SchoolTerm           @relation(fields: [termId], references: [id], onDelete: Cascade)
+  takenBy User                 @relation("SchoolRollCallTakenBy", fields: [takenById], references: [id], onDelete: Cascade)
+  entries SchoolRollCallEntry[]
+
+  /// One count per house per night per session. The upsert target, and the
+  /// reason two wardens opening the same screen cannot produce two registers.
+  @@unique([companyId, hostelId, takenOn, session])
+  @@index([companyId, takenOn])
+}
+
+/// One child, on one roll call.
+///
+/// `PRESENT` is the warden's own eyes. `SIGNED_OUT` and `SICK_BAY` are
+/// derived when the session opens — a child the gate book says is away is not
+/// a child the warden failed to find — but they are written down rather than
+/// computed at read time, because the leave record can be edited afterwards
+/// and the register must keep saying what was true that night.
+model SchoolRollCallEntry {
+  id         String              @id @default(uuid())
+  companyId  String
+  rollCallId String
+  studentId  String
+  /// Where they slept, as it was at the time of the count. Nullable because a
+  /// bed can be deleted later and the entry must survive it.
+  bedId      String?
+  status     SchoolRollCallEntryStatus @default(NOT_SEEN)
+  notes      String?
+  recordedAt DateTime?
+  createdAt  DateTime            @default(now())
+  updatedAt  DateTime            @updatedAt
+
+  company  Company        @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  rollCall SchoolRollCall @relation(fields: [rollCallId], references: [id], onDelete: Cascade)
+  student  SchoolStudent  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([rollCallId, studentId])
+  @@index([companyId, studentId])
+}
+
+/// A boarder in the sick bay, whose own bed is being held for them.
+///
+/// Deliberately not an allocation. Modelling the sick bay as another house
+/// and moving the child into it would free their real bed, and the placer
+/// would hand it to somebody else while its owner is two doors away with a
+/// temperature. An admission is a second, lighter record that says "not in
+/// their bed tonight, and the bed is not available" — which is exactly the
+/// pair of facts the plan view and the roll call each need.
+model SchoolSickBayAdmission {
+  id          String    @id @default(uuid())
+  companyId   String
+  studentId   String
+  termId      String
+  /// The sick-bay bed they are in, where the school has them numbered. Null
+  /// for a school that simply has a room.
+  bedId       String?
+  admittedAt  DateTime  @default(now())
+  dischargedAt DateTime?
+  /// Where they went when discharged — back to the house, or home.
+  dischargedTo String?
+  reason      String
+  notes       String?
+  admittedById String
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  company    Company          @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  student    SchoolStudent    @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  term       SchoolTerm       @relation(fields: [termId], references: [id], onDelete: Cascade)
+  bed        SchoolHostelBed? @relation(fields: [bedId], references: [id], onDelete: SetNull)
+  admittedBy User             @relation("SchoolSickBayAdmittedBy", fields: [admittedById], references: [id], onDelete: Cascade)
+
+  @@index([companyId, studentId, admittedAt])
+  @@index([companyId, dischargedAt])
 }
 
 model SchoolResultSheet {
