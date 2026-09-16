@@ -492,3 +492,12 @@ export const Money = createPhosphorIcon("Money", "Money");
 export const Prohibit = createPhosphorIcon("Prohibit", "Prohibit");
 export const GearSix = createPhosphorIcon("GearSix", "GearSix");
 export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");
+
+/**
+ * Marks for the record states — see `components/records/states.tsx`.
+ *
+ * A tray for "nothing has been put here", a warning circle for "something
+ * broke". The funnel and the tick are already exported above.
+ */
+export const Tray = createPhosphorIcon("Tray", "Tray");
+export const WarningCircle = createPhosphorIcon("WarningCircle", "WarningCircle");
