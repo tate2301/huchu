@@ -5,6 +5,18 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery } from "@tanstack/react-query";
 import { Alert, Badge, Button, Card } from "@corelithzw/react";
 
+import {
+  FileText,
+  GraduationCap,
+  Payments,
+  ReportProblem,
+  ShieldCheck,
+  UserCheck,
+  UserRound,
+  Users,
+  type LucideIcon,
+} from "@/lib/icons";
+
 import { FilterSelect } from "@/components/schools/common/filter-select";
 import { EntityLink } from "@/components/records/entity-link";
 import { PersonCell } from "@/components/schools/common/identity-cell";
@@ -235,6 +247,23 @@ function Fact({ label, value }: { label: string; value: React.ReactNode }) {
       </dt>
       <dd className="min-w-0 text-right text-[length:var(--type-body-sm)]">{value}</dd>
     </div>
+  );
+}
+
+/**
+ * A card's name with its icon.
+ *
+ * Nine cards stacked in one column read as one long scroll without them — the
+ * icon is what lets somebody find Fees on the way past rather than reading
+ * every heading. Sized to the text and given `aria-hidden`, because the heading
+ * beside it already says the word.
+ */
+function CardTitle({ icon: Icon, children }: { icon: LucideIcon; children: React.ReactNode }) {
+  return (
+    <span className="flex items-center gap-2">
+      <Icon className="size-4 text-[color:var(--text-muted)]" aria-hidden="true" />
+      {children}
+    </span>
   );
 }
 
@@ -555,8 +584,17 @@ export function StudentOverviewTab({
   const expiring = files.filter((file) => file.note && EXPIRY_NOTE.test(file.note));
 
   return (
-    <div className="grid items-start gap-3 xl:grid-cols-[minmax(0,1.6fr)_minmax(0,1fr)]">
-      <div className="space-y-3">
+    /*
+      One column, not two.
+
+      The record already has a standing column of its own on the right — the
+      properties rail, "At a glance", the portal and the office verbs — so
+      splitting what is left into a 1.6/1 grid made three columns on the screen
+      and put the pupil's own facts and their attendance side by side as if they
+      were alternatives. They are not: this reads top to bottom, and who the
+      pupil is comes before how they are doing.
+    */
+    <div className="space-y-3">
         {/* The pupil themselves. Everything on this card is a fact that does
             not change week to week, which is why it is a property list and not
             a set of chips. */}
@@ -564,7 +602,7 @@ export function StudentOverviewTab({
             the same face, the same name, the same number — is in the app bar
             and at the top of the standing column, and a third copy of it
             arrived 200px below the second. */}
-        <Card title="Pupil" subtitle={student.studentNo}>
+        <Card title={<CardTitle icon={GraduationCap}>Pupil</CardTitle>} subtitle={student.studentNo}>
           <dl>
             <Fact label="Admitted" value={formatSchoolDate(student.admissionDate) || "—"} />
             <Fact
@@ -679,7 +717,7 @@ export function StudentOverviewTab({
 
         {allActivity.length > 0 ? (
           <Card
-            title="Recent activity"
+            title={<CardTitle icon={FileText}>Recent activity</CardTitle>}
             subtitle="last 30 days"
             actions={
               // Only offered once there is enough to bury something. Four rows
@@ -730,11 +768,8 @@ export function StudentOverviewTab({
             )}
           </Card>
         ) : null}
-      </div>
-
-      <div className="space-y-3">
         <Card
-          title="Attendance"
+          title={<CardTitle icon={UserCheck}>Attendance</CardTitle>}
           subtitle={termName ? `${termName} to date` : "This year to date"}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("attendance")}>
@@ -777,7 +812,7 @@ export function StudentOverviewTab({
         </Card>
 
         <Card
-          title="Fees"
+          title={<CardTitle icon={Payments}>Fees</CardTitle>}
           subtitle={billed ? undefined : "Nothing billed yet"}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("fees")}>
@@ -804,7 +839,7 @@ export function StudentOverviewTab({
         </Card>
 
         <Card
-          title="Guardians"
+          title={<CardTitle icon={Users}>Guardians</CardTitle>}
           subtitle={`${student.guardianLinks?.length ?? 0} linked`}
           actions={
             <Button variant="ghost" size="sm" onClick={() => onOpenSection("guardians")}>
@@ -842,7 +877,7 @@ export function StudentOverviewTab({
 
         {openDecisions.length > 0 ? (
           <Card
-            title="Needs a decision"
+            title={<CardTitle icon={ReportProblem}>Needs a decision</CardTitle>}
             subtitle={`${openDecisions.length} open`}
             tone="warn"
           >
@@ -914,7 +949,7 @@ export function StudentOverviewTab({
           by seeing the names, not the number.
         */}
         <Card
-          title="Documents"
+          title={<CardTitle icon={UserRound}>Documents</CardTitle>}
           subtitle={
             documents.isPending
               ? undefined
@@ -980,7 +1015,7 @@ export function StudentOverviewTab({
         </Card>
 
         <Card
-          title="Welfare"
+          title={<CardTitle icon={ShieldCheck}>Welfare</CardTitle>}
           subtitle={currentBoarding ? currentBoarding.hostel?.name ?? "Boarding" : "Day pupil"}
         >
           <p className="text-[length:var(--type-body-sm)] text-[color:var(--text-muted)]">
@@ -989,7 +1024,6 @@ export function StudentOverviewTab({
               : "This pupil goes home at the end of the day, so the hostel and sick bay have nothing on file."}
           </p>
         </Card>
-      </div>
     </div>
   );
 }
