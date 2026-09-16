@@ -10,6 +10,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { CLEARANCE_ORDER, closeLeaver } from "./leavers";
 import {
   applyYearRollUp,
   nextClassInLadder,
@@ -375,7 +376,7 @@ describe("applyYearRollUp", () => {
 
     const leaver = await prisma.schoolLeaver.findFirstOrThrow({
       where: { studentId },
-      select: { status: true, reason: true, lastDay: true },
+      select: { id: true, status: true, reason: true, lastDay: true, clearances: true },
     });
     // Opened, not closed: the five clearance marks are still to settle.
     expect(leaver.status).toBe("OPEN");
@@ -383,6 +384,60 @@ describe("applyYearRollUp", () => {
     expect(leaver.reason).toBe("COMPLETED_UPPER_6");
     // The last day is the term's, which is the nearest thing the roll-up knows.
     expect(leaver.lastDay).not.toBeNull();
+
+    /*
+      And the marks are actually there.
+
+      This assertion is the point of the test and it was the one missing. The
+      sentence above — "the five clearance marks are still to settle" — was
+      true of the manual verb and false here: the roll-up wrote the leaver row
+      alone. `closeLeaver` refuses only while a mark is TODO, so a leaver with
+      no marks has nothing outstanding and signs off unconditionally. Every
+      November the whole graduating cohort could be closed without anybody
+      checking a book was back or a bill was paid, and no gate could see it.
+    */
+    expect(leaver.clearances).toHaveLength(CLEARANCE_ORDER.length);
+    expect([...leaver.clearances.map((mark) => mark.kind)].sort()).toEqual(
+      [...CLEARANCE_ORDER].sort(),
+    );
+  });
+
+  it("refuses to close a rolled-up leaver while a mark is still outstanding", async () => {
+    // The check the missing rows were silently passing. A pupil who owes fees
+    // leaves the roll-up with FEES on TODO, and the record will not close.
+    const studentId = await makeStudent(formSixId, termOneId);
+    await prisma.schoolFeeInvoice.create({
+      data: {
+        companyId,
+        studentId,
+        termId: termOneId,
+        invoiceNo: `INV-${Date.now()}`,
+        status: "ISSUED",
+        issueDate: date("2026-01-10"),
+        dueDate: date("2026-02-10"),
+        currency: "USD",
+        totalAmount: "120.00",
+        balanceAmount: "120.00",
+      },
+    });
+
+    await applyYearRollUp({
+      companyId,
+      fromTermId: termOneId,
+      toTermId: termTwoId,
+      decisions: [{ studentId, action: "GRADUATE" }],
+    });
+
+    const leaver = await prisma.schoolLeaver.findFirstOrThrow({
+      where: { studentId },
+      select: { id: true, clearances: { select: { kind: true, state: true } } },
+    });
+    const fees = leaver.clearances.find((mark) => mark.kind === "FEES");
+    expect(fees?.state).toBe("TODO");
+
+    await expect(
+      closeLeaver({ companyId, actorId: studentId, leaverId: leaver.id }),
+    ).rejects.toThrow(/outstanding/i);
   });
 
   it("does not open a second leaver for a pupil who already has one", async () => {

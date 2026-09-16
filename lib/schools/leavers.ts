@@ -76,6 +76,45 @@ export const CLEARANCE_ORDER: SchoolLeaverClearanceKind[] = [
 ];
 
 /**
+ * The five clearance rows a new leaver is opened with.
+ *
+ * ## Why this is shared rather than written at each call site
+ *
+ * `closeLeaver` refuses while any mark is `TODO`. A leaver with **no clearance
+ * rows at all** therefore has nothing outstanding and closes unconditionally —
+ * so failing to write these is not a missing feature, it is the check silently
+ * passing.
+ *
+ * That is exactly what happened. `recordLeaver` wrote them; the year roll-up
+ * created its `SchoolLeaver` rows directly and did not, on a stated belief that
+ * "the five clearance marks are proposed from the records that own them the
+ * first time the queue is read". Nothing reads them that way — `deriveClearances`
+ * has one caller, and it is `recordLeaver`. So every November the entire Form 4
+ * and Upper Six cohort, which is where most leavers come from, was opened with
+ * no marks and could be closed without anybody checking whether a book was back
+ * or a bill was paid.
+ *
+ * One definition, both callers.
+ */
+export function clearanceRows(args: {
+  companyId: string;
+  actorId: string | null;
+  derived: Record<SchoolLeaverClearanceKind, { proposed: "DONE" | "TODO" | "NOT_APPLICABLE"; detail: string }>;
+}) {
+  return CLEARANCE_ORDER.map((kind) => ({
+    companyId: args.companyId,
+    kind,
+    state: args.derived[kind].proposed,
+    detail: args.derived[kind].detail,
+    // A mark that is already settled is stamped as settled now. Only `TODO`
+    // is left for somebody to come back to.
+    ...(args.derived[kind].proposed !== "TODO"
+      ? { markedAt: new Date(), markedByUserId: args.actorId }
+      : {}),
+  }));
+}
+
+/**
  * What the five marks look like right now, read from the records that own them.
  *
  * This is the proposal, not the answer: `SchoolLeaverClearance.state` is what
@@ -402,17 +441,7 @@ export async function recordLeaver(args: {
         reason: args.reason,
         reasonNote: args.reasonNote?.trim() || null,
         openedByUserId: args.actorId,
-        clearances: {
-          create: CLEARANCE_ORDER.map((kind) => ({
-            companyId: args.companyId,
-            kind,
-            state: derived[kind].proposed,
-            detail: derived[kind].detail,
-            ...(derived[kind].proposed !== "TODO"
-              ? { markedAt: new Date(), markedByUserId: args.actorId }
-              : {}),
-          })),
-        },
+        clearances: { create: clearanceRows({ companyId: args.companyId, actorId: args.actorId, derived }) },
       },
       select: { id: true },
     });

@@ -1,5 +1,6 @@
 import { prisma } from "@/lib/prisma";
 import { resolveGradingScheme } from "./assessments";
+import { clearanceRows, deriveClearances } from "./leavers";
 
 /**
  * Moving a whole school up a year.
@@ -311,6 +312,34 @@ export async function applyYearRollUp(input: {
     problems: [],
   };
 
+  /*
+    Clearances are derived before the transaction opens, for every pupil this
+    roll-up is about to send out of the school.
+
+    Two reasons it cannot wait until inside. `deriveClearances` reads the fee,
+    library and boarding records through the global client rather than through
+    `tx`, so calling it inside would read around the transaction; and the loop
+    below nulls the pupil's class, which is one of the facts a derivation is
+    entitled to see.
+
+    Derived here and written with the leaver row, which is what `recordLeaver`
+    has always done and what the roll-up did not.
+  */
+  const leavingDecisions = input.decisions.filter(
+    (decision) => decision.action === "GRADUATE" || decision.action === "WITHDRAW",
+  );
+  const clearancesByStudent = new Map(
+    await Promise.all(
+      leavingDecisions.map(async (decision) => {
+        const derived = await deriveClearances({
+          companyId: input.companyId,
+          studentId: decision.studentId,
+        });
+        return [decision.studentId, derived] as const;
+      }),
+    ),
+  );
+
   return prisma.$transaction(async (tx) => {
     // The term being rolled up out of. Its last day is the nearest thing this
     // operation knows to a leaving child's last day, and S-13.4 needs one.
@@ -341,14 +370,28 @@ export async function applyYearRollUp(input: {
         // `Record a leaver` verb could fill would miss the entire Form 4 cohort
         // every November, and nobody would check whether their books were back.
         //
-        // Opened rather than closed, and inside this transaction. The five
-        // clearance marks are proposed from the records that own them the first
-        // time the queue is read; what this writes is the row and its last day.
+        // Opened rather than closed, and inside this transaction, WITH its five
+        // clearance marks.
+        //
+        // This used to write the row and its last day alone, on the belief that
+        // the marks were "proposed from the records that own them the first
+        // time the queue is read". Nothing reads them that way —
+        // `deriveClearances` has one other caller and it is `recordLeaver`. And
+        // `closeLeaver` refuses only while a mark is TODO, so a leaver with no
+        // marks at all has nothing outstanding and closes unconditionally: the
+        // whole November cohort could be signed off without anybody checking a
+        // book was back or a bill was paid. The marks are derived above and
+        // written here.
+        //
         // A pupil who already has a leaver row keeps it — the office may have
-        // opened it by hand a fortnight ago.
+        // opened it by hand a fortnight ago, with marks somebody has since
+        // settled.
         const [alreadyLeaving, leaving] = await Promise.all([
           tx.schoolLeaver.findFirst({
-            where: { studentId: decision.studentId },
+            // Scoped to the company. `SchoolLeaver.studentId` is globally
+            // unique, so an unscoped lookup is a question asked of every
+            // tenant's rows at once.
+            where: { companyId: input.companyId, studentId: decision.studentId },
             select: { id: true },
           }),
           // Read before the class is cleared below, because the level is what
@@ -379,6 +422,13 @@ export async function applyYearRollUp(input: {
                   ? "Opened by the year roll-up; the office sets the real reason."
                   : null,
               openedByUserId: input.actorUserId ?? decision.studentId,
+              clearances: {
+                create: clearanceRows({
+                  companyId: input.companyId,
+                  actorId: input.actorUserId ?? null,
+                  derived: clearancesByStudent.get(decision.studentId)!,
+                }),
+              },
             },
           });
         }
