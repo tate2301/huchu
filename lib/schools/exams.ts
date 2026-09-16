@@ -917,6 +917,9 @@ export async function buildEntryFile(args: {
   const entries = await prisma.schoolExamEntry.findMany({
     where: { companyId: args.companyId, seriesId: args.seriesId, status: { not: "WITHDRAWN" } },
     select: {
+      // The id as well as the number: the number is what the board reads and
+      // the id is what moves the candidate's status when the file is built.
+      candidateId: true,
       candidate: {
         select: {
           candidateNumber: true,
@@ -966,7 +969,34 @@ export async function buildEntryFile(args: {
   );
 
   const candidateCount = new Set(entries.map((entry) => entry.candidate.candidateNumber)).size;
+  // Everybody actually on the file. The count above is de-duplicated by
+  // candidate NUMBER for the run's own record; this is the set of rows to move.
+  const candidateIds = [...new Set(entries.map((entry) => entry.candidateId))];
+
   const run = await prisma.$transaction(async (tx) => {
+    /*
+      The candidates on this file are now entered.
+
+      `SchoolCandidateStatus.ENTERED` is documented in the schema as "On the
+      entry file that went to the board", and building the file is the moment
+      that becomes true — but nothing anywhere ever wrote it. Every candidate
+      stayed DRAFT for the life of the series, so the Registered tab was
+      permanently empty, "ready to register" never fell, and the status index on
+      `[companyId, seriesId, status]` served one value.
+
+      `updateMany` from DRAFT only: a candidate somebody withdrew by hand is not
+      dragged back onto the file by a later rebuild.
+    */
+    await tx.schoolCandidate.updateMany({
+      where: {
+        companyId: args.companyId,
+        seriesId: args.seriesId,
+        id: { in: candidateIds },
+        status: "DRAFT",
+      },
+      data: { status: "ENTERED", enteredAt: new Date() },
+    });
+
     const created = await tx.schoolExamEntryFileRun.create({
       data: {
         companyId: args.companyId,

@@ -18,7 +18,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
-import { enterSubject, ExamError } from "./exams";
+import { buildEntryFile, enterSubject, ExamError } from "./exams";
 import { addPaper, listTimetable, removePaper, reschedulePaper } from "./exam-timetable";
 
 let companyId: string;
@@ -421,5 +421,71 @@ describe("entering a candidate for a subject", () => {
         examSubjectId: mathsId,
       }),
     ).rejects.toThrow(/0200 is already entered for Mathematics/i);
+  });
+});
+
+describe("building the entry file", () => {
+  it("moves the candidates on it out of DRAFT", async () => {
+    /*
+      `SchoolCandidateStatus.ENTERED` is documented in the schema as "On the
+      entry file that went to the board", and building the file is the moment
+      that becomes true — but nothing anywhere ever wrote it. Every candidate
+      stayed DRAFT for the life of the series, so the Registered tab was
+      permanently empty and "ready to register" never fell.
+    */
+    const student = await prisma.schoolStudent.create({
+      data: {
+        companyId,
+        studentNo: `EF-${Date.now()}`,
+        firstName: "Kudzai",
+        lastName: "Mhaka",
+        status: "ACTIVE",
+        certifiedName: "Kudzai Mhaka",
+        dateOfBirth: new Date("2009-04-02"),
+        gender: "F",
+      },
+    });
+    const candidate = await prisma.schoolCandidate.create({
+      data: { companyId, seriesId, studentId: student.id, candidateNumber: "0300" },
+    });
+    expect(candidate.status).toBe("DRAFT");
+
+    await enterSubject({
+      companyId,
+      actorId: "test",
+      seriesId,
+      candidateId: candidate.id,
+      examSubjectId: shonaId,
+    });
+
+    await buildEntryFile({ companyId, actorId: "test", seriesId });
+
+    const after = await prisma.schoolCandidate.findUniqueOrThrow({
+      where: { id: candidate.id },
+      select: { status: true, enteredAt: true },
+    });
+    expect(after.status).toBe("ENTERED");
+    expect(after.enteredAt).not.toBeNull();
+  });
+
+  it("does not drag a withdrawn candidate back onto the file", async () => {
+    const withdrawn = await prisma.schoolCandidate.findFirst({
+      where: { companyId, seriesId, candidateNumber: "0300" },
+      select: { id: true },
+    });
+    await prisma.schoolCandidate.update({
+      where: { id: withdrawn!.id },
+      data: { status: "WITHDRAWN" },
+    });
+
+    await buildEntryFile({ companyId, actorId: "test", seriesId });
+
+    // `updateMany` moves DRAFT only, so a candidate somebody pulled by hand
+    // stays pulled through a rebuild.
+    const after = await prisma.schoolCandidate.findUniqueOrThrow({
+      where: { id: withdrawn!.id },
+      select: { status: true },
+    });
+    expect(after.status).toBe("WITHDRAWN");
   });
 });
