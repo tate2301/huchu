@@ -11,6 +11,7 @@
 
 import { describe, it, expect, beforeAll, afterAll, beforeEach } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import {
   AssessmentLockedError,
   computeClassTermMarks,
@@ -161,7 +162,7 @@ beforeEach(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => undefined);
+  await deleteTestCompany(companyId);
   await prisma.$disconnect();
 });
 

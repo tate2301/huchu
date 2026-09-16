@@ -17,6 +17,7 @@
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 import { seedZimbabweStatutoryPack } from "@/lib/hr/statutory/zimbabwe-pack";
 import { assembleSalaryRun } from "@/lib/hr/payroll/assemble";
 import { canRenderPayslip, resolvePayslip } from "./hr-sources";
@@ -206,7 +207,7 @@ afterAll(async () => {
   await prisma.statutoryRate.deleteMany({ where: { companyId } });
   await prisma.taxCredit.deleteMany({ where: { companyId } });
   await prisma.user.deleteMany({ where: { companyId } });
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
+  await deleteTestCompany(companyId);
 });
 
 describe("the payslip shows the working, not just the net figure", () => {

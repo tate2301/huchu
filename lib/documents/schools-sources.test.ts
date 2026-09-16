@@ -27,6 +27,7 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { prisma } from "@/lib/prisma";
+import { deleteTestCompany } from "@/lib/schools/test-support";
 
 import { resolveSchoolDocument, SCHOOL_DOCUMENT_ACCESS } from "./schools-sources";
 
@@ -168,7 +169,7 @@ beforeAll(async () => {
 });
 
 afterAll(async () => {
-  await prisma.company.delete({ where: { id: companyId } }).catch(() => {});
+  await deleteTestCompany(companyId);
   await prisma.$disconnect();
 });
 
