@@ -128,6 +128,7 @@ export async function POST(
     if ("moveToSessionId" in body) {
       const moved = await moveToSession({
         ...base,
+        sessionId,
         attendanceId: body.attendanceId,
         toSessionId: body.moveToSessionId,
       });
@@ -135,6 +136,7 @@ export async function POST(
     }
     const marked = await markAttendance({
       ...base,
+      sessionId,
       attendanceId: body.attendanceId,
       state: body.state,
     });

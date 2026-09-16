@@ -730,6 +730,17 @@ export async function addAccount(args: {
   if (args.authorKind === "STUDENT" && !args.authorStudentId) {
     throw new ConductError("A pupil's account needs the pupil it came from.");
   }
+  // And that pupil is on this school's roll. `authorStudentId` arrives in a
+  // request body and the incident page renders the author's name beside their
+  // account, so an unchecked id both attributes a statement to a stranger and
+  // prints their name on a school they do not attend.
+  if (args.authorKind === "STUDENT" && args.authorStudentId) {
+    const author = await prisma.schoolStudent.findFirst({
+      where: { id: args.authorStudentId, companyId: args.companyId },
+      select: { id: true },
+    });
+    if (!author) throw new ConductError("That pupil is not on this school's roll.");
+  }
   return prisma.schoolConductAccount.create({
     data: {
       companyId: args.companyId,

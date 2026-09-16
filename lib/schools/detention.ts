@@ -358,11 +358,21 @@ export async function sessionRegister(args: {
 export async function markAttendance(args: {
   companyId: string;
   actorId: string;
+  /**
+   * The session being marked, from the URL.
+   *
+   * Required, and it is the whole point. The route proves the caller supervises
+   * THIS session and then used to pass an `attendanceId` scoped only to the
+   * company — so a teacher supervising Friday's detention could mark a row on
+   * Saturday's register, or on any other session in the school, by sending its
+   * id. The gate and the write have to be about the same sitting.
+   */
+  sessionId: string;
   attendanceId: string;
   state: "HERE" | "DID_NOT_TURN_UP" | "NOT_MARKED";
 }) {
   const row = await prisma.schoolDetentionAttendance.findFirst({
-    where: { id: args.attendanceId, companyId: args.companyId },
+    where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
     select: { id: true, state: true },
   });
   if (!row) throw new DetentionError("That name is not on this register.");
@@ -423,12 +433,14 @@ export async function markEveryoneHere(args: {
 export async function moveToSession(args: {
   companyId: string;
   actorId: string;
+  /** The session being marked, from the URL. See `markAttendance`. */
+  sessionId: string;
   attendanceId: string;
   toSessionId: string;
 }) {
   const [row, target] = await Promise.all([
     prisma.schoolDetentionAttendance.findFirst({
-      where: { id: args.attendanceId, companyId: args.companyId },
+      where: { id: args.attendanceId, companyId: args.companyId, sessionId: args.sessionId },
       select: { id: true, state: true, awardId: true, studentId: true, sessionId: true },
     }),
     prisma.schoolDetentionSession.findFirst({
