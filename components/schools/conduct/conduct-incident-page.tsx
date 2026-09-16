@@ -10,6 +10,7 @@ import { ListRowsSkeleton, LoadError, RecordNotFound, SaveError } from "@/compon
 import { PageBand } from "@/components/schools/common/page-band";
 import { PrintDocumentButton } from "@/components/schools/common/print-document-button";
 import { RecordActions } from "@/components/schools/common/record-actions";
+import { AwardDetentionDialog } from "@/components/schools/conduct/award-detention-dialog";
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { PageCaption } from "@/components/schools/records/page-caption";
 import { EntityLink } from "@/components/records/entity-link";
@@ -187,6 +188,7 @@ function Spine({
 export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
   const queryClient = useQueryClient();
   const [updateOpen, setUpdateOpen] = useState(false);
+  const [detentionOpen, setDetentionOpen] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
 
   const query = useQuery({
@@ -365,6 +367,22 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
               action: "create",
               onSelect: () => setUpdateOpen(true),
             },
+            /*
+              The verb the detention surface was waiting for. Its own empty
+              state read "Award a detention from an incident and the pupil
+              appears on the register they are serving" — and there was no such
+              verb anywhere, so `awardDetention` and its endpoint had no caller
+              and the register could never have a name put on it.
+            */
+            {
+              label: "Award a detention",
+              action: "create",
+              onSelect: () => setDetentionOpen(true),
+              unavailable:
+                detail.detention.owed > 0
+                  ? `${detail.detention.served} of ${detail.detention.owed} already served for this incident.`
+                  : undefined,
+            },
           ]}
         />
       </PageChrome>
@@ -540,6 +558,27 @@ export function ConductIncidentPage({ incidentId }: { incidentId: string }) {
         pupilName={pupilName}
         isSaving={update.isPending}
         onSubmit={(values) => update.mutate(values)}
+      />
+
+      <AwardDetentionDialog
+        // Remounted per open so the sittings ticked last time are not still
+        // ticked for the next pupil.
+        key={detentionOpen ? "open" : "closed"}
+        open={detentionOpen}
+        onOpenChange={setDetentionOpen}
+        studentId={detail.incident.student.id}
+        pupilName={pupilName}
+        incidentId={detail.incident.id}
+        defaultReason={`${detail.incident.category.name} — ${detail.incident.summary}`}
+        onAwarded={() => {
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "conduct", "incident", incidentId],
+          });
+          // The register is the thing that changed.
+          void queryClient.invalidateQueries({
+            queryKey: ["schools", "conduct", "detention"],
+          });
+        }}
       />
     </SchoolsPage>
   );
