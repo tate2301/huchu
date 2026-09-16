@@ -100,7 +100,7 @@ export function ConductLogContent() {
 
   const categoriesQuery = useQuery({
     queryKey: ["schools", "conduct", "categories"],
-    queryFn: fetchConductCategories,
+    queryFn: () => fetchConductCategories(),
   });
 
   const logQuery = useQuery({

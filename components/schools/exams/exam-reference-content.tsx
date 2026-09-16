@@ -22,10 +22,12 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { getApiErrorMessage } from "@/lib/api-client";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import {
   EXAM_LEVEL_LABELS,
   createExamReference,
   fetchExamReference,
+  updateExamReference,
   type ExamLevel,
 } from "@/lib/schools/exams-v2";
 
@@ -70,6 +72,51 @@ export function ExamReferenceContent() {
   const centres = referenceQuery.data?.centres ?? [];
   const subjects = referenceQuery.data?.subjects ?? [];
   const boardName = (id: string) => boards.find((board) => board.id === id)?.name ?? "—";
+
+  /*
+    Retire, which is the only shape "delete" takes here.
+
+    None of the three has a DELETE and none should: a series points at its board
+    and an entry points at its syllabus subject, so taking the row away would
+    strip the meaning out of the rows referencing it. All three carry `isActive`
+    and nothing could set it, so a centre number typed wrong — the thing the
+    board knows the school by — was permanent.
+  */
+  const retire = useMutation({
+    mutationFn: (input: Parameters<typeof updateExamReference>[0]) =>
+      updateExamReference(input),
+    onSuccess: () => {
+      setSaveError(null);
+      void queryClient.invalidateQueries({ queryKey: ["schools", "exams", "reference"] });
+    },
+    onError: (error) => setSaveError(getApiErrorMessage(error)),
+  });
+
+  const retireVerb = (
+    kind: "board" | "centre" | "subject",
+    row: { id: string; label: string },
+  ) => (
+    <RecordActions
+      layout="menu"
+      label={`Row actions for ${row.label}`}
+      resource="schools.exams"
+      verbs={[
+        {
+          label: "Retire it",
+          action: "configure",
+          loading: retire.isPending,
+          tone: "warning",
+          confirm: {
+            title: `Retire ${row.label}?`,
+            description:
+              "It stops being offered when somebody opens a series or enters a subject. Anything already recorded against it is untouched.",
+            confirmLabel: "Retire it",
+          },
+          onSelect: () => retire.mutate({ kind, id: row.id, isActive: false }),
+        },
+      ]}
+    />
+  );
 
   return (
     <SchoolsPage>
@@ -136,6 +183,9 @@ export function ExamReferenceContent() {
             <SimpleTable
               headers={["Code", "Name"]}
               rows={boards.map((board) => [board.code, board.name])}
+              actions={boards.map((board) =>
+                retireVerb("board", { id: board.id, label: board.name }),
+              )}
             />
           )
         ) : view === "centres" ? (
@@ -155,6 +205,9 @@ export function ExamReferenceContent() {
             <SimpleTable
               headers={["Number", "Board"]}
               rows={centres.map((centre) => [centre.number, boardName(centre.boardId)])}
+              actions={centres.map((centre) =>
+                retireVerb("centre", { id: centre.id, label: centre.number }),
+              )}
             />
           )
         ) : subjects.length === 0 ? (
@@ -178,6 +231,9 @@ export function ExamReferenceContent() {
               EXAM_LEVEL_LABELS[subject.level],
               boardName(subject.boardId),
             ])}
+            actions={subjects.map((subject) =>
+              retireVerb("subject", { id: subject.id, label: subject.name }),
+            )}
           />
         )}
       </VerticalDataViews>
@@ -201,7 +257,16 @@ export function ExamReferenceContent() {
   );
 }
 
-function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+function SimpleTable({
+  headers,
+  rows,
+  actions,
+}: {
+  headers: string[];
+  rows: string[][];
+  /** One per row, in the same order. The verbs column is always last. */
+  actions?: React.ReactNode[];
+}) {
   return (
     <table className="w-full text-sm">
       <thead>
@@ -211,10 +276,11 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
               {header}
             </th>
           ))}
+          {actions ? <th className="w-[44px] py-1.5" /> : null}
         </tr>
       </thead>
       <tbody>
-        {rows.map((row) => (
+        {rows.map((row, rowIndex) => (
           <tr key={row.join("|")} className="border-b border-[color:var(--border-subtle)]">
             {row.map((cell, index) => (
               <td
@@ -224,6 +290,7 @@ function SimpleTable({ headers, rows }: { headers: string[]; rows: string[][] })
                 {cell}
               </td>
             ))}
+            {actions ? <td className="py-2">{actions[rowIndex]}</td> : null}
           </tr>
         ))}
       </tbody>

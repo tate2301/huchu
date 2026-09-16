@@ -31,6 +31,8 @@ export type ConductCategory = {
   name: string;
   tone: ConductTone;
   demeritPoints: number | null;
+  /** False once a school has retired it. Only the setup screen ever sees one. */
+  isActive: boolean;
 };
 
 export type IncidentStudent = {
@@ -135,8 +137,25 @@ export function createConductCategory(input: {
   );
 }
 
-export function fetchConductCategories() {
-  return fetchJson<{ rows: ConductCategory[] }>("/api/v2/schools/conduct/categories");
+/** Rename a category, reprice its demerits, or retire it. */
+export function updateConductCategory(input: {
+  id: string;
+  code?: string;
+  name?: string;
+  tone?: ConductTone;
+  demeritPoints?: number | null;
+  isActive?: boolean;
+}) {
+  return fetchJson<{ id: string; code: string; name: string; isActive: boolean }>(
+    "/api/v2/schools/conduct/categories",
+    { method: "PATCH", body: JSON.stringify(input) },
+  );
+}
+
+export function fetchConductCategories(options: { includeRetired?: boolean } = {}) {
+  return fetchJson<{ rows: ConductCategory[] }>(
+    `/api/v2/schools/conduct/categories${query({ includeRetired: options.includeRetired ? 1 : undefined })}`,
+  );
 }
 
 export type LogIncidentInput = {
@@ -289,6 +308,8 @@ export type MeritReason = {
   name: string;
   kind: MeritKind;
   defaultPoints: number;
+  /** False once a school has retired it. Only the setup screen ever sees one. */
+  isActive: boolean;
 };
 
 export type MeritPupilRow = {
@@ -350,9 +371,12 @@ export function fetchMeritSummary(params: { termId?: string } = {}) {
   return fetchJson<MeritSummary>(`/api/v2/schools/conduct/merits/summary${query(params)}`);
 }
 
-export function fetchMeritReasons(kind?: MeritKind) {
+export function fetchMeritReasons(
+  kind?: MeritKind,
+  options: { includeRetired?: boolean } = {},
+) {
   return fetchJson<{ rows: MeritReason[] }>(
-    `/api/v2/schools/conduct/merits/reasons${query({ kind })}`,
+    `/api/v2/schools/conduct/merits/reasons${query({ kind, includeRetired: options.includeRetired ? 1 : undefined })}`,
   );
 }
 
@@ -373,6 +397,20 @@ export function createMeritReason(input: {
   return fetchJson<{ id: string; name: string; kind: MeritKind }>(
     "/api/v2/schools/conduct/merits/reasons",
     { method: "POST", body: JSON.stringify(input) },
+  );
+}
+
+/** Rename a reason, reprice it, or retire it. */
+export function updateMeritReason(input: {
+  id: string;
+  code?: string;
+  name?: string;
+  defaultPoints?: number;
+  isActive?: boolean;
+}) {
+  return fetchJson<{ id: string; name: string; kind: MeritKind; isActive: boolean }>(
+    "/api/v2/schools/conduct/merits/reasons",
+    { method: "PATCH", body: JSON.stringify(input) },
   );
 }
 

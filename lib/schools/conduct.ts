@@ -874,10 +874,29 @@ export async function conductParagraph(args: {
 }
 
 /** The categories a school logs under, for the pickers and the filters. */
-export async function conductCategories(companyId: string) {
+/**
+ * The categories an incident can be logged against.
+ *
+ * Active only by default, because every picker in the module reads this and a
+ * retired category must not be offered for a new incident. `includeRetired` is
+ * for the setup screen alone — without it, retiring one would be a door that
+ * locks behind you: the row would vanish from the only screen that could bring
+ * it back.
+ */
+export async function conductCategories(
+  companyId: string,
+  options: { includeRetired?: boolean } = {},
+) {
   return prisma.schoolConductCategory.findMany({
-    where: { companyId, isActive: true },
-    select: { id: true, code: true, name: true, tone: true, demeritPoints: true },
-    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    where: { companyId, ...(options.includeRetired ? {} : { isActive: true }) },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      tone: true,
+      demeritPoints: true,
+      isActive: true,
+    },
+    orderBy: [{ isActive: "desc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
 }

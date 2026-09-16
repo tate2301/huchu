@@ -494,3 +494,29 @@ export function createExamReference(
     body: JSON.stringify(input),
   });
 }
+
+/**
+ * Correct a board, a centre number or a syllabus subject, or retire it.
+ *
+ * All three carry `isActive` and nothing could set it, so the reference was
+ * create-only — and a centre number typed wrong is what the board knows the
+ * school by.
+ */
+export function updateExamReference(
+  input:
+    | { kind: "board"; id: string; code?: string; name?: string; isActive?: boolean }
+    | { kind: "centre"; id: string; number?: string; name?: string | null; isActive?: boolean }
+    | {
+        kind: "subject";
+        id: string;
+        code?: string;
+        name?: string;
+        level?: ExamLevel;
+        isActive?: boolean;
+      },
+) {
+  return fetchJson<{ id: string }>("/api/v2/schools/exams/reference", {
+    method: "PATCH",
+    body: JSON.stringify(input),
+  });
+}

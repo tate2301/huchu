@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Badge, Button } from "@corelithzw/react";
 
 import { PageChrome } from "@/components/layout/page-chrome";
@@ -9,10 +9,13 @@ import { LoadError, NothingYet, SaveError, TableRowsSkeleton } from "@/component
 import { SchoolsPage } from "@/components/schools/common/schools-page";
 import { VerticalDataViews } from "@/components/ui/vertical-data-views";
 import { ConductReasonDialog } from "@/components/schools/conduct/conduct-reason-dialog";
+import { RecordActions } from "@/components/schools/common/record-actions";
 import { getApiErrorMessage } from "@/lib/api-client";
 import {
   fetchConductCategories,
   fetchMeritReasons,
+  updateConductCategory,
+  updateMeritReason,
   type ConductTone,
 } from "@/lib/schools/conduct-v2";
 
@@ -50,19 +53,28 @@ export function ConductSetupContent() {
   const [dialog, setDialog] = useState<null | "category" | "merit" | "demerit">(null);
   const [saveError, setSaveError] = useState<string | null>(null);
 
+  /*
+    This screen asks for retired rows; every picker in the module does not.
+
+    Retiring is the only way to take a category or a reason out of use —
+    neither has a delete, deliberately, because incidents and merits already
+    recorded point at them. That makes retiring a one-way door unless the screen
+    that did it can still see what it retired, so these three queries ask for
+    them and carry `all` in the key to stay off the pickers' cached copies.
+  */
   const categoriesQuery = useQuery({
-    queryKey: ["schools", "conduct", "categories"],
-    queryFn: fetchConductCategories,
+    queryKey: ["schools", "conduct", "categories", "all"],
+    queryFn: () => fetchConductCategories({ includeRetired: true }),
   });
 
   const meritsQuery = useQuery({
-    queryKey: ["schools", "conduct", "reasons", "MERIT"],
-    queryFn: () => fetchMeritReasons("MERIT"),
+    queryKey: ["schools", "conduct", "reasons", "MERIT", "all"],
+    queryFn: () => fetchMeritReasons("MERIT", { includeRetired: true }),
   });
 
   const demeritsQuery = useQuery({
-    queryKey: ["schools", "conduct", "reasons", "DEMERIT"],
-    queryFn: () => fetchMeritReasons("DEMERIT"),
+    queryKey: ["schools", "conduct", "reasons", "DEMERIT", "all"],
+    queryFn: () => fetchMeritReasons("DEMERIT", { includeRetired: true }),
   });
 
   const categories = categoriesQuery.data?.rows ?? [];
@@ -83,6 +95,33 @@ export function ConductSetupContent() {
     */
     void queryClient.invalidateQueries({ queryKey: ["schools", "conduct"] });
   };
+
+  /*
+    Retire and bring back, which is the only shape "delete" takes here.
+
+    Neither table has a DELETE and neither should: an incident points at its
+    category and a merit points at its reason, and taking the row away would
+    strip the meaning out of everything already recorded against it. `isActive`
+    shipped on both models for exactly this and nothing could set it, so a
+    mistyped category was in the picker for good.
+  */
+  const retireCategory = useMutation({
+    mutationFn: (input: { id: string; isActive: boolean }) => updateConductCategory(input),
+    onSuccess: () => {
+      setSaveError(null);
+      refresh();
+    },
+    onError: (error) => setSaveError(getApiErrorMessage(error)),
+  });
+
+  const retireReason = useMutation({
+    mutationFn: (input: { id: string; isActive: boolean }) => updateMeritReason(input),
+    onSuccess: () => {
+      setSaveError(null);
+      refresh();
+    },
+    onError: (error) => setSaveError(getApiErrorMessage(error)),
+  });
 
   const active =
     view === "categories" ? categoriesQuery : view === "merits" ? meritsQuery : demeritsQuery;
@@ -157,18 +196,51 @@ export function ConductSetupContent() {
                   <th className="py-1.5 font-normal">Name</th>
                   <th className="w-[100px] py-1.5 font-normal">Tone</th>
                   <th className="w-[110px] py-1.5 text-right font-normal">Demerits</th>
+                  <th className="w-[44px] py-1.5" />
                 </tr>
               </thead>
               <tbody>
                 {categories.map((row) => (
                   <tr key={row.id} className="border-b border-[color:var(--border-subtle)]">
                     <td className="py-2 font-mono text-xs">{row.code}</td>
-                    <td className="py-2">{row.name}</td>
+                    <td className="py-2">
+                      {row.name}
+                      {row.isActive ? null : (
+                        <span className="ml-2">
+                          <Badge tone="neutral">Retired</Badge>
+                        </span>
+                      )}
+                    </td>
                     <td className="py-2">
                       <Badge tone={toneBadge(row.tone)}>{TONE_LABELS[row.tone]}</Badge>
                     </td>
                     <td className="py-2 text-right font-mono text-xs">
                       {row.demeritPoints ?? "—"}
+                    </td>
+                    <td className="py-2">
+                      <RecordActions
+                        layout="menu"
+                        label={`Row actions for ${row.name}`}
+                        resource="schools.conduct"
+                        verbs={[
+                          {
+                            label: row.isActive ? "Retire it" : "Bring it back",
+                            action: "configure",
+                            loading: retireCategory.isPending,
+                            tone: row.isActive ? "warning" : "default",
+                            confirm: row.isActive
+                              ? {
+                                  title: `Retire ${row.name}?`,
+                                  description:
+                                    "It stops being offered when somebody logs an incident. Everything already logged against it keeps its reason, and you can bring it back from here.",
+                                  confirmLabel: "Retire it",
+                                }
+                              : undefined,
+                            onSelect: () =>
+                              retireCategory.mutate({ id: row.id, isActive: !row.isActive }),
+                          },
+                        ]}
+                      />
                     </td>
                   </tr>
                 ))}
@@ -180,6 +252,8 @@ export function ConductSetupContent() {
             rows={view === "merits" ? merits : demerits}
             kind={view === "merits" ? "merit" : "demerit"}
             onNew={() => setDialog(view === "merits" ? "merit" : "demerit")}
+            onRetire={(input) => retireReason.mutate(input)}
+            retiring={retireReason.isPending}
           />
         )}
       </VerticalDataViews>
@@ -219,10 +293,20 @@ function ReasonTable({
   rows,
   kind,
   onNew,
+  onRetire,
+  retiring,
 }: {
-  rows: Array<{ id: string; code: string; name: string; defaultPoints: number }>;
+  rows: Array<{
+    id: string;
+    code: string;
+    name: string;
+    defaultPoints: number;
+    isActive: boolean;
+  }>;
   kind: "merit" | "demerit";
   onNew: () => void;
+  onRetire: (input: { id: string; isActive: boolean }) => void;
+  retiring: boolean;
 }) {
   if (rows.length === 0) {
     return (
@@ -249,14 +333,46 @@ function ReasonTable({
           <th className="w-[120px] py-1.5 font-normal">Code</th>
           <th className="py-1.5 font-normal">Name</th>
           <th className="w-[110px] py-1.5 text-right font-normal">Points</th>
+          <th className="w-[44px] py-1.5" />
         </tr>
       </thead>
       <tbody>
         {rows.map((row) => (
           <tr key={row.id} className="border-b border-[color:var(--border-subtle)]">
             <td className="py-2 font-mono text-xs">{row.code}</td>
-            <td className="py-2">{row.name}</td>
+            <td className="py-2">
+              {row.name}
+              {row.isActive ? null : (
+                <span className="ml-2">
+                  <Badge tone="neutral">Retired</Badge>
+                </span>
+              )}
+            </td>
             <td className="py-2 text-right font-mono text-xs">{row.defaultPoints}</td>
+            <td className="py-2">
+              <RecordActions
+                layout="menu"
+                label={`Row actions for ${row.name}`}
+                resource="schools.conduct"
+                verbs={[
+                  {
+                    label: row.isActive ? "Retire it" : "Bring it back",
+                    action: "configure",
+                    loading: retiring,
+                    tone: row.isActive ? "warning" : "default",
+                    confirm: row.isActive
+                      ? {
+                          title: `Retire ${row.name}?`,
+                          description:
+                            "It stops being offered when somebody awards a merit or a demerit. Everything already awarded keeps its reason, and you can bring it back from here.",
+                          confirmLabel: "Retire it",
+                        }
+                      : undefined,
+                    onSelect: () => onRetire({ id: row.id, isActive: !row.isActive }),
+                  },
+                ]}
+              />
+            </td>
           </tr>
         ))}
       </tbody>

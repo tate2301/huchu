@@ -427,10 +427,32 @@ export async function pupilMeritLedger(args: {
   });
 }
 
-export async function meritReasons(companyId: string, kind?: SchoolMeritKind) {
+/**
+ * The reasons a merit or a demerit can be given for.
+ *
+ * Active only by default — the award dialog reads this and must not offer a
+ * retired reason. `includeRetired` is for the setup screen, so that retiring
+ * one is not a door that locks behind you.
+ */
+export async function meritReasons(
+  companyId: string,
+  kind?: SchoolMeritKind,
+  options: { includeRetired?: boolean } = {},
+) {
   return prisma.schoolMeritReason.findMany({
-    where: { companyId, isActive: true, ...(kind ? { kind } : {}) },
-    select: { id: true, code: true, name: true, kind: true, defaultPoints: true },
-    orderBy: [{ kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
+    where: {
+      companyId,
+      ...(options.includeRetired ? {} : { isActive: true }),
+      ...(kind ? { kind } : {}),
+    },
+    select: {
+      id: true,
+      code: true,
+      name: true,
+      kind: true,
+      defaultPoints: true,
+      isActive: true,
+    },
+    orderBy: [{ isActive: "desc" }, { kind: "asc" }, { sortOrder: "asc" }, { name: "asc" }],
   });
 }
