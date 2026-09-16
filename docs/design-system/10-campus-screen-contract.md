@@ -60,6 +60,7 @@ is for. Boarding: Allocations · Hostels · Leave and outings.
 |---|---|---|
 | App-bar title + primary action | `PageChrome` | `@/components/layout/page-chrome` |
 | Tabs + search + filters | `TableControls`, `TableSearch` | `@/components/records/table-controls` |
+| A verb's icon | `ActionIcon`, `ACTION_ICON` | `@/lib/schools/action-icons` |
 | Filter by class/stream | `ClassFilter`, `classFilterParams` | `@/components/schools/common/class-filter` |
 | Any other filter | `FilterSelect`, `FilterBar` | `@/components/schools/common/filter-select` |
 | Which class, as a route | `GradePicker` | `@/components/schools/common/grade-picker` |
@@ -76,6 +77,24 @@ are in `11-campus-states-and-motion.md`. `node scripts/campus-states-audit.mjs
 --gaps` tells you which screens are still short.
 
 **Never invent a spinner, an empty state or a filter control.** They exist.
+
+## Icons belong to the verb, not to the screen
+
+A verb's mark is decided once, in `lib/schools/action-icons.tsx`, keyed by
+`SchoolAction`. Do **not** pass an icon to `RecordActions` or `CreateButton`
+per call site — `Edit` being a pencil on the roll and a gear on the ledger is
+the thing that map exists to prevent, and it costs the reader the row.
+
+Every `RecordVerb` already declares an `action`, so a verb gets its icon for
+free. Adding a value to the `SchoolAction` union without adding it to
+`ACTION_ICON` is a compile error, which is deliberate: somebody has to decide
+what a new verb looks like.
+
+**Icon and label, never icon alone.** `05-rules.md` requires colour + icon +
+text for state, and the same holds for a verb. The mark makes a familiar row
+scannable; it does not make an unfamiliar one readable, and a menu of bare
+glyphs is a menu you have to hover to use. The only icon-only control in the
+module is the `⋯` menu trigger, which carries an `aria-label`.
 
 ## The exemplar
 

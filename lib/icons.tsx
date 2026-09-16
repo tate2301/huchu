@@ -475,3 +475,20 @@ export const Paperclip = createPhosphorIcon("Paperclip", "Paperclip");
 export const At = createPhosphorIcon("At", "At");
 export const FlowArrow = createPhosphorIcon("FlowArrow", "FlowArrow");
 export const Archive = createPhosphorIcon("Archive", "Archive");
+
+/**
+ * Marks for the school verbs.
+ *
+ * Added for `lib/schools/action-icons.ts`, which pairs every `SchoolAction`
+ * with one of these so a verb wears the same mark on every screen. The names
+ * are Phosphor's, not the verb's — `Prohibit` is what voiding looks like, and
+ * calling the export `Void` would hide which glyph you are getting.
+ */
+export const ArrowUDownLeft = createPhosphorIcon("ArrowUDownLeft", "ArrowUDownLeft");
+export const ArrowBendUpLeft = createPhosphorIcon("ArrowBendUpLeft", "ArrowBendUpLeft");
+export const ArrowLineDown = createPhosphorIcon("ArrowLineDown", "ArrowLineDown");
+export const ArrowLineUp = createPhosphorIcon("ArrowLineUp", "ArrowLineUp");
+export const Money = createPhosphorIcon("Money", "Money");
+export const Prohibit = createPhosphorIcon("Prohibit", "Prohibit");
+export const GearSix = createPhosphorIcon("GearSix", "GearSix");
+export const CalendarPlus = createPhosphorIcon("CalendarPlus", "CalendarPlus");
